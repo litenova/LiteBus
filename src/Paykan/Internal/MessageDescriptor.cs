@@ -1,17 +1,24 @@
 ﻿using System;
+using System.Collections.Generic;
 using Paykan.Abstractions;
 
 namespace Paykan.Internal
 {
     internal class MessageDescriptor : IMessageDescriptor
     {
-        public MessageDescriptor(Type messageType, Type handlerType)
+        private readonly List<Type> _handlerTypes = new List<Type>();
+        
+        public MessageDescriptor(Type messageType)
         {
             MessageType = messageType;
-            HandlerType = handlerType;
         }
 
         public Type MessageType { get; }
-        public Type HandlerType { get; }
+        public IReadOnlyCollection<Type> HandlerTypes => _handlerTypes.AsReadOnly();
+
+        public void AddHandlerType(Type type)
+        {
+            _handlerTypes.Add(type);
+        }
     }
 }
