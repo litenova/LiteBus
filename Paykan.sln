@@ -1,0 +1,47 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{0C972F3F-001F-41B5-9DE5-6F70DBDC342D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0EFE2493-E2D3-499C-BB05-B9794298273D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan", "src\Paykan\Paykan.csproj", "{B1FDAB62-C743-4D41-A8F6-727FEFCA882D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Extensions.MicrosoftDependencyInjection", "src\Paykan.Extensions.MicrosoftDependencyInjection\Paykan.Extensions.MicrosoftDependencyInjection.csproj", "{BC8DA8CC-56FE-47EC-B8EB-693A3C218382}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{598AE9AB-FD1F-4648-B5CF-EA282C443851}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.WebApi", "samples\Paykan.WebApi\Paykan.WebApi.csproj", "{0E44005E-D117-4952-9295-37C58B5F15AD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{52BF0EB2-FFF5-4976-8404-546EE35E5EAB}"
+ProjectSection(SolutionItems) = preProject
+	.gitignore = .gitignore
+	LICENSE = LICENSE
+	README.md = README.md
+	.github\workflows\dotnet-core.yml = .github\workflows\dotnet-core.yml
+EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B1FDAB62-C743-4D41-A8F6-727FEFCA882D} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
+		{BC8DA8CC-56FE-47EC-B8EB-693A3C218382} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
+		{0E44005E-D117-4952-9295-37C58B5F15AD} = {598AE9AB-FD1F-4648-B5CF-EA282C443851}
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B1FDAB62-C743-4D41-A8F6-727FEFCA882D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B1FDAB62-C743-4D41-A8F6-727FEFCA882D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B1FDAB62-C743-4D41-A8F6-727FEFCA882D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B1FDAB62-C743-4D41-A8F6-727FEFCA882D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BC8DA8CC-56FE-47EC-B8EB-693A3C218382}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BC8DA8CC-56FE-47EC-B8EB-693A3C218382}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BC8DA8CC-56FE-47EC-B8EB-693A3C218382}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BC8DA8CC-56FE-47EC-B8EB-693A3C218382}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0E44005E-D117-4952-9295-37C58B5F15AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0E44005E-D117-4952-9295-37C58B5F15AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0E44005E-D117-4952-9295-37C58B5F15AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0E44005E-D117-4952-9295-37C58B5F15AD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
