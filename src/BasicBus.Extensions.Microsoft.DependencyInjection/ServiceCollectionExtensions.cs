@@ -1,5 +1,6 @@
 ﻿using System;
 using BasicBus.Abstractions;
+using BasicBus.Builders;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BasicBus.Extensions.Microsoft.DependencyInjection
@@ -7,31 +8,24 @@ namespace BasicBus.Extensions.Microsoft.DependencyInjection
     public static class ServiceCollectionExtensions
     {
         public static IServiceCollection AddBasicBus(this IServiceCollection services,
-                                                     Action<ICommandHandlerRegistryBuilder> configureBuilder)
+                                                     Action<IMessageRegistryBuilder> configureBuilder)
         {
-            var basicBusBuilder = new CommandHandlerRegistryBuilder();
+            var messageRegistryBuilder = new MessageRegistryBuilder();
 
-            configureBuilder(basicBusBuilder);
+            configureBuilder(messageRegistryBuilder);
 
-            var commandHandlerRegistry = basicBusBuilder.Build();
-                
-            foreach (var commandDescriptor in commandHandlerRegistry.CommandDescriptors)
+            var messageRegistry = messageRegistryBuilder.Build();
+
+            foreach (var descriptor in messageRegistry.Values)
             {
-                services.AddTransient(commandDescriptor.Handler);
-                foreach (var commandDescriptorInterceptor in commandDescriptor.Interceptors)
-                {
-                    services.AddTransient(commandDescriptorInterceptor);
-                }
-            }
-                
-            foreach (var globalInterceptor in commandHandlerRegistry.GlobalInterceptors)
-            {
-                services.AddTransient(globalInterceptor);
+                services.AddTransient(descriptor.HandlerType);
             }
 
+            var commandMediatorBuilder = new CommandMediatorBuilder();
+            var queryMediatorBuilder = new QueryMediatorBuilder();
 
-            services.AddTransient<ICommandMediator, CommandMediator>();
-            services.AddSingleton<ICommandHandlerRegistry>(f => commandHandlerRegistry);
+            services.AddSingleton<ICommandMediator>(f => commandMediatorBuilder.Build(f, messageRegistry));
+            services.AddSingleton<IQueryMediator>(f => queryMediatorBuilder.Build(f, messageRegistry));
 
             return services;
         }
