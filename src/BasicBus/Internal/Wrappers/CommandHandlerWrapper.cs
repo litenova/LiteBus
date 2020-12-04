@@ -32,7 +32,10 @@ namespace BasicBus.Internal.Wrappers
         {
             var genericType = typeof(CommandHandlerWrapper<>).MakeGenericType(commandType);
 
-            var instance = Activator.CreateInstance(genericType, handler, interceptors, globalInterceptors);
+            var instance = Activator.CreateInstance(genericType,
+                                                    handler,
+                                                    interceptors,
+                                                    globalInterceptors);
 
             return (CommandHandlerWrapper) instance;
         }
@@ -48,8 +51,8 @@ namespace BasicBus.Internal.Wrappers
                                      IEnumerable<object> interceptors,
                                      IEnumerable<object> globalInterceptors)
         {
-            _globalInterceptors = ((IEnumerable<ICommandInterceptor>) globalInterceptors).ToList();
-            _interceptors = ((IEnumerable<ICommandInterceptor<TCommand>>) interceptors).ToList();
+            _globalInterceptors = globalInterceptors.Cast<ICommandInterceptor>().ToList();
+            _interceptors = interceptors.Cast<ICommandInterceptor<TCommand>>().ToList();
             _handler = (ICommandHandler<TCommand>) handler;
         }
 
@@ -84,10 +87,9 @@ namespace BasicBus.Internal.Wrappers
                                      IEnumerable<object> interceptors,
                                      IEnumerable<object> globalInterceptors)
         {
-            _globalInterceptors = ((IEnumerable<ICommandInterceptor>) globalInterceptors).ToList();
-            _interceptors = ((IEnumerable<ICommandInterceptor<TCommand, TCommandResult>>) interceptors).ToList();
+            _globalInterceptors = globalInterceptors.Cast<ICommandInterceptor>().ToList();
+            _interceptors = interceptors.Cast<ICommandInterceptor<TCommand, TCommandResult>>().ToList();
             _handler = (ICommandHandler<TCommand, TCommandResult>) handler;
-            
         }
 
         public override async Task<object> HandleAsync(ICommand command, CancellationToken cancellation = default)
