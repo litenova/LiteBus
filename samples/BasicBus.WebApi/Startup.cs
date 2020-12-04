@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using BasicBus.Extensions.Microsoft.DependencyInjection;
-using BasicBus.WebApi.Commands;
+using BasicBus.WebApi.Crqs;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -42,7 +42,7 @@ namespace BasicBus.WebApi
                 });
             });
 
-            services.AddTransient(typeof(CreateUserCommandHandler));
+            services.AddTransient(typeof(CreateColorCommandHandler));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
