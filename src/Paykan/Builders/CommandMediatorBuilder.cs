@@ -6,7 +6,7 @@ namespace Paykan.Builders
 {
     public class CommandMediatorBuilder
     {
-        public ICommandMediator Build(IServiceProvider serviceProvider, 
+        public ICommandMediator Build(IServiceProvider serviceProvider,
                                       IMessageRegistry messageRegistry)
         {
             return new CommandMediator(serviceProvider, messageRegistry);
