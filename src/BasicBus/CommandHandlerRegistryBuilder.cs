@@ -53,7 +53,8 @@ namespace BasicBus
 
         public ICommandHandlerRegistry Build()
         {
-            return new CommandHandlerRegistry(_descriptors.Values, _globalInterceptors);
+            return new CommandHandlerRegistry(_descriptors.Values, 
+                                              _globalInterceptors);
         }
 
         private void AddGlobalInterceptors(IEnumerable<TypeInfo> assemblyDefinedTypes)
@@ -102,7 +103,7 @@ namespace BasicBus
                     {
                         var command = implementedInterface.GetGenericArguments()[0];
 
-                        _descriptors[command].AddInterceptor(implementedInterface);
+                        _descriptors[command].AddInterceptor(assemblyDefinedType);
                     }
                 }
             }
