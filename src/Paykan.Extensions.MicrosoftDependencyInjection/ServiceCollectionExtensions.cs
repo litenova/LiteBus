@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Paykan.Abstractions;
 using Paykan.Builders;
@@ -18,7 +19,10 @@ namespace Paykan.Extensions.MicrosoftDependencyInjection
 
             foreach (var descriptor in messageRegistry.Values)
             {
-                services.AddTransient(descriptor.HandlerType);
+                foreach (var handlerType in descriptor.HandlerTypes)
+                {
+                    services.AddTransient(handlerType);
+                }
             }
 
             var commandMediatorBuilder = new CommandMediatorBuilder();
