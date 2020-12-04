@@ -1,4 +1,4 @@
-name: .NET 5 Build
+name: .NET 5 CI
 
 on:
   push:

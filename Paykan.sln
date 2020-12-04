@@ -18,6 +18,7 @@ ProjectSection(SolutionItems) = preProject
 	LICENSE = LICENSE
 	README.md = README.md
 	.github\workflows\dotnet-core.yml = .github\workflows\dotnet-core.yml
+	.github\workflows\publish-packages.yml = .github\workflows\publish-packages.yml
 EndProjectSection
 EndProject
 Global
