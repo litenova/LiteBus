@@ -28,7 +28,7 @@ jobs:
     - name: Publish Paykan.Extensions.MicrosoftDependencyInjection
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-          PROJECT_FILE_PATH: src/Senders/Paykan.Extensions.MicrosoftDependencyInjection/Paykan.Extensions.MicrosoftDependencyInjection.csproj
+          PROJECT_FILE_PATH: src/Paykan.Extensions.MicrosoftDependencyInjection/Paykan.Extensions.MicrosoftDependencyInjection.csproj
           NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
           NUGET_SOURCE: https://api.nuget.org
   
