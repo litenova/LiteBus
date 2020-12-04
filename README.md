@@ -1,5 +1,5 @@
 # Paykan
-![.NET 5 CI](https://github.com/mshfzd/BasicBus/workflows/.NET%20Core/badge.svg)
+![.NET 5 CI](https://github.com/mshfzd/Paykan/workflows/.NET%205%20Build/badge.svg)
 
 
 A lightweight and easy to use in-process mediator to implement CQRS
