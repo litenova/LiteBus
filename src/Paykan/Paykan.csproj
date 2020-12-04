@@ -2,6 +2,9 @@
 
     <PropertyGroup>
         <TargetFramework>net5.0</TargetFramework>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <Authors>Mohammad ShafieZadeh</Authors>
+        <PackageTags>mediator;cqrs</PackageTags>
     </PropertyGroup>
 
 </Project>
