@@ -1,5 +1,5 @@
 # Paykan
-![.NET 5 CI](https://github.com/mshfzd/Paykan/workflows/.NET%205%20Build/badge.svg)
+![.NET 5 CI](https://github.com/mshfzd/Paykan/workflows/.NET%205%20CI/badge.svg)
 
 
 A lightweight and easy to use in-process mediator to implement CQRS
@@ -15,14 +15,14 @@ Install with NuGet:
 
 ```
 Install-Package BasicBus
-Install-Package BasicBus.Extensions.Microsoft.DependencyInjection
+Install-Package BasicBus.Extensions.MicrosoftDependencyInjection
 ```
 
 or with .NET CLI:
 
 ```
 dotnet add package BasicBus
-dotnet add package BasicBus.Extensions.Microsoft.DependencyInjection
+dotnet add package BasicBus.Extensions.MicrosoftDependencyInjection
 ```
 
 and configure the BasicBus as below in the `ConfigureServices` method of `Startup.cs`:
