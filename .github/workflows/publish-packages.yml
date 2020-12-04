@@ -1,0 +1,34 @@
+name: Publish Packages
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 5.0.100
+    - name: Install Dependencies
+      run: dotnet restore
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+
+    - name: Publish Paykan
+      uses: brandedoutcast/publish-nuget@v2.5.5
+      with:
+          PROJECT_FILE_PATH: src/Paykan/Paykan.csproj
+          NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+          NUGET_SOURCE: https://api.nuget.org
+    - name: Publish Paykan.Extensions.MicrosoftDependencyInjection
+      uses: brandedoutcast/publish-nuget@v2.5.5
+      with:
+          PROJECT_FILE_PATH: src/Senders/Paykan.Extensions.MicrosoftDependencyInjection/Paykan.Extensions.MicrosoftDependencyInjection.csproj
+          NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+          NUGET_SOURCE: https://api.nuget.org
+  
