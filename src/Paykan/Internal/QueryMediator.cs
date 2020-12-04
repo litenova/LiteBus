@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Paykan.Abstractions;
@@ -25,7 +26,7 @@ namespace Paykan.Internal
         {
             var descriptor = _messageRegistry[query.GetType()];
 
-            var handler = _serviceProvider.GetHandler<TQuery, Task<TQueryResult>>(descriptor.HandlerType);
+            var handler = _serviceProvider.GetHandler<TQuery, Task<TQueryResult>>(descriptor.HandlerTypes.First());
 
             return handler.HandleAsync(query, cancellationToken);
         }
@@ -36,7 +37,7 @@ namespace Paykan.Internal
         {
             var descriptor = _messageRegistry[query.GetType()];
 
-            var handler = _serviceProvider.GetHandler<TQuery, IAsyncEnumerable<TQueryResult>>(descriptor.HandlerType);
+            var handler = _serviceProvider.GetHandler<TQuery, IAsyncEnumerable<TQueryResult>>(descriptor.HandlerTypes.First());
 
             return handler.HandleAsync(query, cancellationToken);
         }

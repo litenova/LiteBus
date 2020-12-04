@@ -19,9 +19,21 @@ namespace Paykan.Builders
                                             .IsAssignableTo(typeof(IMessageHandler<,>)))
                     {
                         var messageType = implementedInterface.GetGenericArguments()[0];
+                        MessageDescriptor descriptor;
                         
-                        _messageRegistry[messageType] = 
-                            new MessageDescriptor(messageType, assemblyDefinedType);
+                        if (_messageRegistry.ContainsKey(messageType))
+                        {
+                            descriptor = (MessageDescriptor)_messageRegistry[messageType];
+                            
+                            descriptor.AddHandlerType(assemblyDefinedType);
+                        }
+                        else
+                        {
+                            descriptor = new MessageDescriptor(messageType);
+                            descriptor.AddHandlerType(assemblyDefinedType);
+
+                            _messageRegistry[messageType] = descriptor;
+                        }
                     }
                 }
             }

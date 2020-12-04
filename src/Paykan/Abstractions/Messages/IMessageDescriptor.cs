@@ -1,10 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace Paykan.Abstractions
 {
     public interface IMessageDescriptor
     {
         Type MessageType { get; }
-        Type HandlerType { get; }
+        IReadOnlyCollection<Type> HandlerTypes { get; }
     }
 }

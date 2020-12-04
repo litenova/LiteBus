@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Paykan.Abstractions;
@@ -23,7 +24,7 @@ namespace Paykan.Internal
         {
             var descriptor = _messageRegistry[command.GetType()];
 
-            var handler = _serviceProvider.GetHandler<TCommand, Task>(descriptor.HandlerType);
+            var handler = _serviceProvider.GetHandler<TCommand, Task>(descriptor.HandlerTypes.First());
 
             return handler.HandleAsync(command, cancellationToken);
         }
@@ -33,7 +34,7 @@ namespace Paykan.Internal
         {
             var descriptor = _messageRegistry[command.GetType()];
 
-            var handler = _serviceProvider.GetHandler<TCommand, Task<TCommandResult>>(descriptor.HandlerType);
+            var handler = _serviceProvider.GetHandler<TCommand, Task<TCommandResult>>(descriptor.HandlerTypes.First());
 
             return handler.HandleAsync(command, cancellationToken);
         }
