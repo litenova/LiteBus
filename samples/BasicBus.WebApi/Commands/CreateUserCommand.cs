@@ -14,7 +14,8 @@ namespace BasicBus.WebApi.Commands
     {
         public Task HandleAsync(CreateUserCommand command, CancellationToken cancellation = default)
         {
-            throw new System.NotImplementedException();
+            Debug.Write("Handling CreateUserCommand Command");
+            return Task.CompletedTask;
         }
     }
 
