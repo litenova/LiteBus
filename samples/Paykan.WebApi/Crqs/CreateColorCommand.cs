@@ -6,16 +6,24 @@ namespace Paykan.WebApi.Crqs
 {
     public class CreateColorCommand : ICommand
     {
-        public string Color { get; set; }
+        public string ColorName { get; set; }
     }
 
     public class CreateColorCommandHandler : ICommandHandler<CreateColorCommand>
     {
         public Task HandleAsync(CreateColorCommand input, CancellationToken cancellation = default)
         {
-            MemoryDatabase.AddColor(input.Color);
+            MemoryDatabase.AddColor(input.ColorName);
             return Task.CompletedTask;
         }
     }
 
+    public class CreateColorCommandHandler1 : ICommandHandler<CreateColorCommand>
+    {
+        public Task HandleAsync(CreateColorCommand input, CancellationToken cancellation = default)
+        {
+            MemoryDatabase.AddColor(input.ColorName);
+            return Task.CompletedTask;
+        }
+    }
 }
