@@ -12,12 +12,15 @@ namespace Paykan.WebApi.Controllers
     {
         private readonly ICommandMediator _commandMediator;
         private readonly IQueryMediator _queryMediator;
+        private readonly IEventMediator _eventMediator;
 
         public ColorController(ICommandMediator commandMediator, 
-                                         IQueryMediator queryMediator)
+                                         IQueryMediator queryMediator,
+                                         IEventMediator eventMediator)
         {
             _commandMediator = commandMediator;
             _queryMediator = queryMediator;
+            _eventMediator = eventMediator;
         }
 
         [HttpGet]
@@ -34,7 +37,12 @@ namespace Paykan.WebApi.Controllers
         {
             await _commandMediator.SendAsync(new CreateColorCommand
             {
-                Color = colorName
+                ColorName = colorName
+            });
+
+            await _eventMediator.PublishAsync(new ColorCreatedEvent
+            {
+                ColorName = colorName
             });
             
             return Ok();

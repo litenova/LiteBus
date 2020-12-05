@@ -9,7 +9,7 @@ namespace Paykan.Extensions.MicrosoftDependencyInjection
     public static class ServiceCollectionExtensions
     {
         public static IServiceCollection AddPaykan(this IServiceCollection services,
-                                                     Action<IMessageRegistryBuilder> configureBuilder)
+                                                   Action<IMessageRegistryBuilder> configureBuilder)
         {
             var messageRegistryBuilder = new MessageRegistryBuilder();
 

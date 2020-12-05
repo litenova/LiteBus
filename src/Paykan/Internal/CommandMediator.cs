@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Paykan.Abstractions;
+using Paykan.Internal.Exceptions;
 using Paykan.Internal.Extensions;
 
 namespace Paykan.Internal
@@ -22,8 +23,12 @@ namespace Paykan.Internal
         public Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
             where TCommand : ICommand
         {
-            var descriptor = _messageRegistry[command.GetType()];
+            var commandType = typeof(TCommand);
+            
+            var descriptor = _messageRegistry[commandType];
 
+            if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(commandType.Name);
+            
             var handler = _serviceProvider.GetHandler<TCommand, Task>(descriptor.HandlerTypes.First());
 
             return handler.HandleAsync(command, cancellationToken);
@@ -32,9 +37,14 @@ namespace Paykan.Internal
         public Task<TCommandResult> SendAsync<TCommand, TCommandResult>(TCommand command,
             CancellationToken cancellationToken = default) where TCommand : ICommand<TCommandResult>
         {
-            var descriptor = _messageRegistry[command.GetType()];
+            var commandType = typeof(TCommand);
+            
+            var descriptor = _messageRegistry[commandType];
 
-            var handler = _serviceProvider.GetHandler<TCommand, Task<TCommandResult>>(descriptor.HandlerTypes.First());
+            if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(commandType.Name);
+            
+            var handler = _serviceProvider
+                .GetHandler<TCommand, Task<TCommandResult>>(descriptor.HandlerTypes.First());
 
             return handler.HandleAsync(command, cancellationToken);
         }
