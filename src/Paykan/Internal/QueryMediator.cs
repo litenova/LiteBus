@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Paykan.Abstractions;
+using Paykan.Internal.Exceptions;
 using Paykan.Internal.Extensions;
 
 namespace Paykan.Internal
@@ -24,9 +25,14 @@ namespace Paykan.Internal
                                                                    CancellationToken cancellationToken = default)
             where TQuery : IQuery<TQueryResult>
         {
-            var descriptor = _messageRegistry[query.GetType()];
+            var queryType = typeof(TQuery);
+            
+            var descriptor = _messageRegistry[queryType];
 
-            var handler = _serviceProvider.GetHandler<TQuery, Task<TQueryResult>>(descriptor.HandlerTypes.First());
+            if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(queryType.Name);
+            
+            var handler = _serviceProvider
+                .GetHandler<TQuery, Task<TQueryResult>>(descriptor.HandlerTypes.First());
 
             return handler.HandleAsync(query, cancellationToken);
         }
@@ -35,9 +41,14 @@ namespace Paykan.Internal
             TQuery query,
             CancellationToken cancellationToken = default) where TQuery : IStreamQuery<TQueryResult>
         {
-            var descriptor = _messageRegistry[query.GetType()];
+            var queryType = typeof(TQuery);
+            
+            var descriptor = _messageRegistry[queryType];
 
-            var handler = _serviceProvider.GetHandler<TQuery, IAsyncEnumerable<TQueryResult>>(descriptor.HandlerTypes.First());
+            if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(queryType.Name);
+            
+            var handler = _serviceProvider
+                .GetHandler<TQuery, IAsyncEnumerable<TQueryResult>>(descriptor.HandlerTypes.First());
 
             return handler.HandleAsync(query, cancellationToken);
         }
