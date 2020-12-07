@@ -4,6 +4,14 @@ using System.Threading.Tasks;
 namespace Paykan.Abstractions
 {
     /// <summary>
+    /// The root of all queries
+    /// </summary>
+    public interface IBaseQuery : IMessage
+    {
+        
+    }
+    
+    /// <summary>
     /// Represents a query that is intended to return data
     /// </summary>
     /// <typeparam name="TQueryResult">The result type of query</typeparam>
