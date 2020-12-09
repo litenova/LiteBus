@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Paykan.Abstractions;
 using Paykan.Builders;
 
@@ -22,6 +23,11 @@ namespace Paykan.Extensions.MicrosoftDependencyInjection
                 foreach (var handlerType in descriptor.HandlerTypes)
                 {
                     services.AddTransient(handlerType);
+                }
+
+                foreach (var hookType in descriptor.PostHandleHookTypes)
+                {
+                    services.TryAddTransient(hookType);
                 }
             }
 

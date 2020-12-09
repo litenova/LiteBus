@@ -7,5 +7,6 @@ namespace Paykan.Abstractions
     {
         Type MessageType { get; }
         IReadOnlyCollection<Type> HandlerTypes { get; }
+        IReadOnlyCollection<Type> PostHandleHookTypes { get; }
     }
 }
