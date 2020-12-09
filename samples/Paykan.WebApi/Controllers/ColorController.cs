@@ -26,8 +26,7 @@ namespace Paykan.WebApi.Controllers
         [HttpGet]
         public async Task<IActionResult> Get()
         {
-            var result = await _queryMediator
-                .QueryAsync<ColorQuery, IEnumerable<string>>(new ColorQuery());
+            var result = await _queryMediator.QueryAsync(new ColorQuery());
             
             return Ok(result);
         }

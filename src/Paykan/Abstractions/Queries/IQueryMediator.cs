@@ -13,5 +13,13 @@ namespace Paykan.Abstractions
         IAsyncEnumerable<TQueryResult> StreamQueryAsync<TQuery, TQueryResult>(TQuery query,
             CancellationToken cancellationToken = default)
             where TQuery : IStreamQuery<TQueryResult>;
+
+        public Task<TQueryResult> QueryAsync<TQueryResult>(
+            IQuery<TQueryResult> query,
+            CancellationToken cancellationToken = default);
+
+        IAsyncEnumerable<TQueryResult> StreamQueryAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
+                                                                      CancellationToken cancellationToken =
+                                                                          default);
     }
 }

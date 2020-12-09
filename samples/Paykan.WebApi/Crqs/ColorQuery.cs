@@ -12,7 +12,7 @@ namespace Paykan.WebApi.Crqs
     
     public class ColorQueryHandler : IQueryHandler<ColorQuery, IEnumerable<string>>
     {
-        public Task<IEnumerable<string>> HandleAsync(ColorQuery input, CancellationToken cancellation = default)
+        public Task<IEnumerable<string>> HandleAsync(ColorQuery input, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(MemoryDatabase.GetColors());
         }
