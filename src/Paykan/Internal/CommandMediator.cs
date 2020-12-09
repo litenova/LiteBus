@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Paykan.Abstractions;
+using Paykan.Abstractions.Interceptors;
 using Paykan.Internal.Exceptions;
 using Paykan.Internal.Extensions;
 
@@ -20,29 +21,37 @@ namespace Paykan.Internal
             _messageRegistry = messageRegistry;
         }
 
-        public Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
+        public Task SendAsync<TCommand>(TCommand command, 
+                                        CancellationToken cancellationToken = default)
             where TCommand : ICommand
         {
             var commandType = typeof(TCommand);
-            
+
             var descriptor = _messageRegistry[commandType];
 
             if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(commandType.Name);
-            
+
             var handler = _serviceProvider.GetHandler<TCommand, Task>(descriptor.HandlerTypes.First());
 
-            return handler.HandleAsync(command, cancellationToken);
+            var postHandleHooks = _serviceProvider.GetPostHandleHooks<TCommand>(descriptor.PostHandleHookTypes);
+
+            return handler
+                   .HandleAsync(command, cancellationToken)
+                   .ContinueWith(t => Task.WhenAll(postHandleHooks.Select(h => h.ExecuteAsync(command))),
+                                 cancellationToken);
         }
 
         public Task<TCommandResult> SendAsync<TCommand, TCommandResult>(TCommand command,
-            CancellationToken cancellationToken = default) where TCommand : ICommand<TCommandResult>
+                                                                        CancellationToken cancellationToken =
+                                                                            default)
+            where TCommand : ICommand<TCommandResult>
         {
             var commandType = typeof(TCommand);
-            
+
             var descriptor = _messageRegistry[commandType];
 
             if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(commandType.Name);
-            
+
             var handler = _serviceProvider
                 .GetHandler<TCommand, Task<TCommandResult>>(descriptor.HandlerTypes.First());
 
