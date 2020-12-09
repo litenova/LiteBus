@@ -7,7 +7,7 @@ using Paykan.Abstractions.Interceptors;
 using Paykan.Internal.Exceptions;
 using Paykan.Internal.Extensions;
 
-namespace Paykan.Internal
+namespace Paykan.Internal.Mediators
 {
     internal class CommandMediator : ICommandMediator
     {
@@ -56,6 +56,20 @@ namespace Paykan.Internal
                 .GetHandler<TCommand, Task<TCommandResult>>(descriptor.HandlerTypes.First());
 
             return handler.HandleAsync(command, cancellationToken);
+        }
+
+        public Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command, 
+                                                              CancellationToken cancellationToken = default)
+        {
+            var commandType = command.GetType();
+            
+            var descriptor = _messageRegistry[commandType];
+
+            if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(commandType.Name);
+            
+            return _serviceProvider
+                   .GetService(descriptor.HandlerTypes.First())
+                   .HandleAsync<Task<TCommandResult>>(command, cancellationToken);
         }
     }
 }

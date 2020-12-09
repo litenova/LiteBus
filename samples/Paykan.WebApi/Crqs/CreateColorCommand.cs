@@ -11,7 +11,7 @@ namespace Paykan.WebApi.Crqs
 
     public class CreateColorCommandHandler : ICommandHandler<CreateColorCommand>
     {
-        public Task HandleAsync(CreateColorCommand input, CancellationToken cancellation = default)
+        public Task HandleAsync(CreateColorCommand input, CancellationToken cancellationToken = default)
         {
             MemoryDatabase.AddColor(input.ColorName);
             return Task.CompletedTask;

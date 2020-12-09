@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Paykan.Abstractions;
 using Paykan.Internal.Extensions;
 
-namespace Paykan.Internal
+namespace Paykan.Internal.Mediators
 {
     public class EventMediator : IEventMediator
     {

@@ -5,26 +5,26 @@ using Paykan.Abstractions.Interceptors;
 
 namespace Paykan.Internal.Extensions
 {
-    public static class ServiceProviderExtensions
+    internal static class ServiceProviderExtensions
     {
-        public static IMessageHandler<TMessage, TResult> GetHandler<TMessage, TResult>(
+        public static IMessageHandler<TMessage, TMessageResult> GetHandler<TMessage, TMessageResult>(
             this IServiceProvider serviceProvider,
-            Type handlerType) where TMessage : IMessage<TResult>
+            Type handlerType) where TMessage : IMessage<TMessageResult>
         {
             var resolvedService = serviceProvider.GetService(handlerType);
 
-            return (IMessageHandler<TMessage, TResult>) resolvedService;
+            return (IMessageHandler<TMessage, TMessageResult>) resolvedService;
         }
 
-        public static IEnumerable<IMessageHandler<TMessage, TResult>> GetHandlers<TMessage, TResult>(
+        public static IEnumerable<IMessageHandler<TMessage, TMessageResult>> GetHandlers<TMessage, TMessageResult>(
             this IServiceProvider serviceProvider,
-            IEnumerable<Type> handlerTypes) where TMessage : IMessage<TResult>
+            IEnumerable<Type> handlerTypes) where TMessage : IMessage<TMessageResult>
         {
             foreach (var handlerType in handlerTypes)
             {
                 var resolvedService = serviceProvider.GetService(handlerType);
 
-                yield return (IMessageHandler<TMessage, TResult>) resolvedService;
+                yield return (IMessageHandler<TMessage, TMessageResult>) resolvedService;
             }
         }
 
