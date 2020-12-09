@@ -12,7 +12,7 @@ namespace Paykan.WebApi.Crqs
     
     public class ColorCreatedEventHandler1 : IEventHandler<ColorCreatedEvent>
     {
-        public Task HandleAsync(ColorCreatedEvent input, CancellationToken cancellation = default)
+        public Task HandleAsync(ColorCreatedEvent input, CancellationToken cancellationToken = default)
         {
             Debug.WriteLine("Event handled in ColorCreatedEventHandler 1");
             return Task.CompletedTask;
@@ -21,7 +21,7 @@ namespace Paykan.WebApi.Crqs
     
     public class ColorCreatedEventHandler2: IEventHandler<ColorCreatedEvent>
     {
-        public Task HandleAsync(ColorCreatedEvent input, CancellationToken cancellation = default)
+        public Task HandleAsync(ColorCreatedEvent input, CancellationToken cancellationToken = default)
         {
             Debug.WriteLine("Event handled in ColorCreatedEventHandler 2");
             return Task.CompletedTask;

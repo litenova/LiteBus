@@ -2,8 +2,8 @@
 
 namespace Paykan.Abstractions
 {
-    public interface IMessageHandler<in TMessage, out TResult> where TMessage : IMessage<TResult>
+    public interface IMessageHandler<in TMessage, out TMessageResult> where TMessage : IMessage<TMessageResult>
     {
-        TResult HandleAsync(TMessage input, CancellationToken cancellation = default);
+        TMessageResult HandleAsync(TMessage input, CancellationToken cancellationToken = default);
     }
 }
