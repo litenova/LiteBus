@@ -11,7 +11,7 @@ namespace Paykan.Internal
                                            CancellationToken cancellationToken = default);
     }
     
-    internal class GenericHandlerWrapper<TMessage, TMessageResult> : HandlerWrapper where TMessage : IMessage<TMessageResult>
+    internal class GenericHandlerWrapper<TMessage, TMessageResult> : HandlerWrapper
     {
         public override object HandleAsync(object message, 
                                            object handler, 
