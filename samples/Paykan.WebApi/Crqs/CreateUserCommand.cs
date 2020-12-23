@@ -11,7 +11,7 @@ namespace Paykan.WebApi.Crqs
     
     public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand, int>
     {
-        public Task<int> HandleAsync(CreateUserCommand input, CancellationToken cancellationToken = default)
+        public Task<int> HandleAsync(CreateUserCommand message, CancellationToken cancellationToken = default)
         {
             throw new System.NotImplementedException();
         }

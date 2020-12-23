@@ -9,7 +9,7 @@ namespace Paykan.Internal.Extensions
     {
         public static IMessageHandler<TMessage, TMessageResult> GetHandler<TMessage, TMessageResult>(
             this IServiceProvider serviceProvider,
-            Type handlerType) where TMessage : IMessage<TMessageResult>
+            Type handlerType)
         {
             var resolvedService = serviceProvider.GetService(handlerType);
 
@@ -18,7 +18,7 @@ namespace Paykan.Internal.Extensions
 
         public static IEnumerable<IMessageHandler<TMessage, TMessageResult>> GetHandlers<TMessage, TMessageResult>(
             this IServiceProvider serviceProvider,
-            IEnumerable<Type> handlerTypes) where TMessage : IMessage<TMessageResult>
+            IEnumerable<Type> handlerTypes)
         {
             foreach (var handlerType in handlerTypes)
             {
@@ -28,8 +28,9 @@ namespace Paykan.Internal.Extensions
             }
         }
 
-        public static IEnumerable<IPostHandleHook<TMessage>> GetPostHandleHooks<TMessage>(this IServiceProvider serviceProvider,
-                                                                                          IEnumerable<Type> hookTypes)
+        public static IEnumerable<IPostHandleHook<TMessage>> GetPostHandleHooks<TMessage>(
+            this IServiceProvider serviceProvider,
+            IEnumerable<Type> hookTypes)
             where TMessage : IMessage
         {
             foreach (var hookType in hookTypes)

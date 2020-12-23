@@ -34,10 +34,12 @@ namespace Paykan.Extensions.MicrosoftDependencyInjection
             var commandMediatorBuilder = new CommandMediatorBuilder();
             var queryMediatorBuilder = new QueryMediatorBuilder();
             var eventMediatorBuilder = new EventMediatorBuilder();
+            var messageMediatorBuilder = new MessageMediatorBuilder();
 
             services.AddSingleton<ICommandMediator>(f => commandMediatorBuilder.Build(f, messageRegistry));
             services.AddSingleton<IQueryMediator>(f => queryMediatorBuilder.Build(f, messageRegistry));
             services.AddSingleton<IEventMediator>(f => eventMediatorBuilder.Build(f, messageRegistry));
+            services.AddSingleton<IMessageMediator>(f => messageMediatorBuilder.Build(f, messageRegistry));
 
             return services;
         }
