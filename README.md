@@ -154,6 +154,37 @@ Inject ``IEventMediator`` to your class to publish events.
     }
 ```
 
+### Plain Messages
+
+You can send any object as a message if the object has any associated handlers.
+Inject ``IMessageMediator`` to your class to publish events.
+
+```c#
+    // A plain message without implementing any interface
+    public class PlainMessage
+    {
+        public int Number { get; set; }
+    }
+    
+    // A message handler with result to handle the PlainMessage
+    public class PlainMessageHandler : IMessageHandler<PlainMessage, Task<int>>
+    {
+        public Task<int> HandleAsync(PlainMessage message, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(message.Number * -1);
+        }
+    }
+    
+    // A message handler without result to handle the PlainMessage
+    public class PlainMessageHandler2 : IMessageHandler<PlainMessage>
+    {
+        public Task HandleAsync(PlainMessage message, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+```
+
 ## Hook Usages
 
 Hooks allow you to execute an action in a certain stage of message handling.
@@ -180,30 +211,6 @@ Hooks allow you to execute an action in a certain stage of message handling.
         public Task ExecuteAsync(CreateColorCommand message)
         {
             Debug.WriteLine("CreateColorCommandPostHandleHook executed!");
-            return Task.CompletedTask;
-        }
-    }
-```
-
-### Query Hooks
-```c#
-
-    // Exectues an action after each query is handled
-    public class GlobalQueryPostHandleHook : IQueryPostHandleHook
-    {
-        public Task ExecuteAsync(IBaseQuery message)
-        {
-            Debug.WriteLine("GlobalQueryPostHandleHook executed!");
-            return Task.CompletedTask;
-        }
-    }
-
-    // Exectues an action after an specific query is handled
-    public class CreateColorQueryPostHandleHook : IQueryPostHandleHook<CreateColorQuery>
-    {
-        public Task ExecuteAsync(CreateColorQuery message)
-        {
-            Debug.WriteLine("CreateColorQueryPostHandleHook executed!");
             return Task.CompletedTask;
         }
     }
