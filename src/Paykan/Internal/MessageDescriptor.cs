@@ -6,12 +6,14 @@ namespace Paykan.Internal
 {
     internal class MessageDescriptor : IMessageDescriptor
     {
-        private readonly List<Type> _handlerTypes = new List<Type>();
-        private readonly List<Type> _postHandleHooks = new List<Type>();
+        private readonly List<Type> _handlerTypes = new();
+        
+        private readonly List<Type> _postHandleHooks = new();
 
         public MessageDescriptor(Type messageType)
         {
             MessageType = messageType;
+            
         }
 
         public Type MessageType { get; }

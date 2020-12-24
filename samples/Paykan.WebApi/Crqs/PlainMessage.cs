@@ -4,14 +4,14 @@ using Paykan.Abstractions;
 
 namespace Paykan.WebApi.Crqs
 {
-    public class SimpleMessage
+    public class PlainMessage
     {
         public int Number { get; set; }
     }
     
-    public class SimpleMessageHandler : IMessageHandler<SimpleMessage, Task<int>>
+    public class PlainMessageHandler : IMessageHandler<PlainMessage, Task<int>>
     {
-        public Task<int> HandleAsync(SimpleMessage message, CancellationToken cancellationToken = default)
+        public Task<int> HandleAsync(PlainMessage message, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(message.Number * -1);
         }
