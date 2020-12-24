@@ -22,7 +22,7 @@ namespace Paykan.WebApi.Controllers
         {
             var number = new Random().Next();
             
-            var result = await _messageMediator.SendAsync<Task<int>>(new SimpleMessage
+            var result = await _messageMediator.SendAsync<Task<int>>(new PlainMessage
             {
                 Number = number
             });
