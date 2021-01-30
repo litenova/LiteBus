@@ -12,7 +12,14 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Paykan.Commands.Abstraction\Paykan.Commands.Abstraction.csproj" />
+      <ProjectReference Include="..\Paykan.Commands\Paykan.Commands.csproj" />
+      <ProjectReference Include="..\Paykan.Events.Abstraction\Paykan.Events.Abstraction.csproj" />
+      <ProjectReference Include="..\Paykan.Events\Paykan.Events.csproj" />
       <ProjectReference Include="..\Paykan.Messaging.Abstractions\Paykan.Messaging.Abstractions.csproj" />
+      <ProjectReference Include="..\Paykan.Messaging\Paykan.Messaging.csproj" />
+      <ProjectReference Include="..\Paykan.Queries.Abstraction\Paykan.Queries.Abstraction.csproj" />
+      <ProjectReference Include="..\Paykan.Queries\Paykan.Queries.csproj" />
       <ProjectReference Include="..\Paykan.Registry.Abstractions\Paykan.Registry.Abstractions.csproj" />
     </ItemGroup>
 
