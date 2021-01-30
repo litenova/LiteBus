@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Paykan.Abstractions
+namespace Paykan.Messaging.Abstractions
 {
     public interface IMessageMediator
     {

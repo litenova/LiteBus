@@ -1,24 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
-using Paykan.Abstractions;
+using Paykan.Registry.Abstractions;
 
-namespace Paykan.Internal
+namespace Paykan.Registry.Internal
 {
     internal class MessageDescriptor : IMessageDescriptor
     {
-        private readonly List<Type> _handlerTypes = new();
-        
-        private readonly List<Type> _postHandleHooks = new();
+        private readonly HashSet<Type> _handlerTypes = new();
+
+        private readonly HashSet<Type> _postHandleHooks = new();
 
         public MessageDescriptor(Type messageType)
         {
             MessageType = messageType;
-            
         }
 
         public Type MessageType { get; }
-        public IReadOnlyCollection<Type> HandlerTypes => _handlerTypes.AsReadOnly();
-        public IReadOnlyCollection<Type> PostHandleHookTypes => _postHandleHooks.AsReadOnly();
+
+        public IReadOnlyCollection<Type> HandlerTypes => _handlerTypes;
+
+        public IReadOnlyCollection<Type> PostHandleHookTypes => _postHandleHooks;
 
         public void AddHandlerType(Type type)
         {

@@ -23,8 +23,7 @@ namespace Paykan.WebApi
         {
             services.AddPaykan(builder =>
             {
-                builder.RegisterHandlers(typeof(Startup).Assembly);
-                builder.RegisterPostHandlerHooks(typeof(Startup).Assembly);
+                builder.Register(typeof(Startup).Assembly);
             });
             
             services.AddControllers();

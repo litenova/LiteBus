@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using Paykan.Abstractions;
+using Paykan.Messaging.Abstractions;
 
 namespace Paykan.Internal
 {

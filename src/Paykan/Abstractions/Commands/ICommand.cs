@@ -1,4 +1,5 @@
 ﻿using System.Threading.Tasks;
+using Paykan.Messaging.Abstractions;
 
 namespace Paykan.Abstractions
 {

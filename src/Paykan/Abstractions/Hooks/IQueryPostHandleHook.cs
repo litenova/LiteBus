@@ -1,4 +1,6 @@
-﻿namespace Paykan.Abstractions.Interceptors
+﻿using Paykan.Messaging.Abstractions;
+
+namespace Paykan.Abstractions.Interceptors
 {
     public interface IQueryPostHandleHook : IPostHandleHook<IBaseQuery>
     {

@@ -4,21 +4,26 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Paykan.Abstractions;
 using Paykan.Builders;
+using Paykan.Messaging.Abstractions;
+using Paykan.Registry;
+#nullable enable
 
 namespace Paykan.Extensions.MicrosoftDependencyInjection
 {
     public static class ServiceCollectionExtensions
     {
-        public static IServiceCollection AddPaykan(this IServiceCollection services,
-                                                   Action<IMessageRegistryBuilder> configureBuilder)
+        public static IServiceCollection AddPaykan(this IServiceCollection services, 
+                                                   Action<IPaykanBuilder> config)
         {
-            var messageRegistryBuilder = new MessageRegistryBuilder();
+            var paykanBuilder = new PaykanBuilder();
+            
+            config(paykanBuilder);
+            
+            var messageRegistry = MessageRegistryAccessor.MessageRegistry;
+            
+            messageRegistry.Register(paykanBuilder.Assemblies.ToArray());
 
-            configureBuilder(messageRegistryBuilder);
-
-            var messageRegistry = messageRegistryBuilder.Build();
-
-            foreach (var descriptor in messageRegistry.Values)
+            foreach (var descriptor in messageRegistry)
             {
                 foreach (var handlerType in descriptor.HandlerTypes)
                 {
