@@ -1,7 +1,9 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Paykan.Abstractions;
+using Paykan.Commands.Abstraction;
+using Paykan.Events.Abstraction;
+using Paykan.Queries.Abstraction;
 using Paykan.WebApi.Crqs;
 
 namespace Paykan.WebApi.Controllers

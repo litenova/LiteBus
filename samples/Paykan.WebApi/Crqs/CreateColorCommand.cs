@@ -1,6 +1,6 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
-using Paykan.Abstractions;
+using Paykan.Commands.Abstraction;
 
 namespace Paykan.WebApi.Crqs
 {

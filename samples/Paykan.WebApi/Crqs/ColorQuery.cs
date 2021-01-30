@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Paykan.Abstractions;
+using Paykan.Queries.Abstraction;
 
 namespace Paykan.WebApi.Crqs
 {
