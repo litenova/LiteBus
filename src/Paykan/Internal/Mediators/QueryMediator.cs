@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Paykan.Abstractions;
 using Paykan.Internal.Exceptions;
 using Paykan.Internal.Extensions;
+using Paykan.Registry.Abstractions;
 
 namespace Paykan.Internal.Mediators
 {
@@ -27,7 +28,7 @@ namespace Paykan.Internal.Mediators
         {
             var queryType = typeof(TQuery);
 
-            var descriptor = _messageRegistry[queryType];
+            var descriptor = _messageRegistry.GetDescriptor<TQuery>();
 
             if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(queryType.Name);
 
@@ -43,7 +44,7 @@ namespace Paykan.Internal.Mediators
         {
             var queryType = typeof(TQuery);
 
-            var descriptor = _messageRegistry[queryType];
+            var descriptor = _messageRegistry.GetDescriptor<TQuery>();
 
             if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(queryType.Name);
 
@@ -59,7 +60,7 @@ namespace Paykan.Internal.Mediators
         {
             var queryType = query.GetType();
 
-            var descriptor = _messageRegistry[queryType];
+            var descriptor = _messageRegistry.GetDescriptor(queryType);
 
             if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(queryType.Name);
 
@@ -73,7 +74,7 @@ namespace Paykan.Internal.Mediators
         {
             var queryType = query.GetType();
 
-            var descriptor = _messageRegistry[queryType];
+            var descriptor = _messageRegistry.GetDescriptor(queryType);
 
             if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(queryType.Name);
 

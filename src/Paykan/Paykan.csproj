@@ -11,4 +11,9 @@
         <RepositoryUrl>https://github.com/arishk/Paykan</RepositoryUrl>
     </PropertyGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\Paykan.Messaging.Abstractions\Paykan.Messaging.Abstractions.csproj" />
+      <ProjectReference Include="..\Paykan.Registry.Abstractions\Paykan.Registry.Abstractions.csproj" />
+    </ItemGroup>
+
 </Project>

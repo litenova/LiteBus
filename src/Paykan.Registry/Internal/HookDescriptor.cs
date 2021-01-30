@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Paykan.Internal
+namespace Paykan.Registry.Internal
 {
     internal class HookDescriptor
     {

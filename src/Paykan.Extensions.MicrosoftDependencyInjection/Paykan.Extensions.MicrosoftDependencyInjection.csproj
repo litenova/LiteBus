@@ -12,6 +12,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Paykan.Registry\Paykan.Registry.csproj" />
       <ProjectReference Include="..\Paykan\Paykan.csproj" />
     </ItemGroup>
 

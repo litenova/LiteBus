@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net5.0</TargetFramework>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Paykan.Messaging.Abstractions\Paykan.Messaging.Abstractions.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Registry" />
+    </ItemGroup>
+
+</Project>

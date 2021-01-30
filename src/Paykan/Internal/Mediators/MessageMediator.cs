@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using Paykan.Abstractions;
 using Paykan.Internal.Exceptions;
 using Paykan.Internal.Extensions;
+using Paykan.Messaging.Abstractions;
+using Paykan.Registry.Abstractions;
 
 namespace Paykan.Internal.Mediators
 {
@@ -24,7 +26,7 @@ namespace Paykan.Internal.Mediators
         {
             var messageType = typeof(TMessage);
 
-            var descriptor = _messageRegistry[messageType];
+            var descriptor = _messageRegistry.GetDescriptor<TMessage>();
 
             if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(messageType.Name);
 
@@ -38,7 +40,7 @@ namespace Paykan.Internal.Mediators
         {
             var messageType = typeof(TMessage);
 
-            var descriptor = _messageRegistry[messageType];
+            var descriptor = _messageRegistry.GetDescriptor<TMessage>();
 
             if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(messageType.Name);
 
@@ -51,7 +53,7 @@ namespace Paykan.Internal.Mediators
         {
             var messageType = message.GetType();
             
-            var descriptor = _messageRegistry[messageType];
+            var descriptor = _messageRegistry.GetDescriptor(message.GetType());
 
             if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(messageType.Name);
             

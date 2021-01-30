@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using Paykan.Abstractions;
 using Paykan.Abstractions.Interceptors;
+using Paykan.Messaging.Abstractions;
 
 namespace Paykan.WebApi.Crqs
 {

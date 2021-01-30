@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using Paykan.Abstractions;
 using Paykan.Abstractions.Interceptors;
+using Paykan.Messaging.Abstractions;
 
 namespace Paykan.Internal.Extensions
 {
