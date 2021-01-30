@@ -2,9 +2,14 @@
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Paykan.Abstractions;
-using Paykan.Builders;
+using Paykan.Commands;
+using Paykan.Commands.Abstraction;
+using Paykan.Events;
+using Paykan.Events.Abstraction;
+using Paykan.Messaging;
 using Paykan.Messaging.Abstractions;
+using Paykan.Queries;
+using Paykan.Queries.Abstraction;
 using Paykan.Registry;
 #nullable enable
 
