@@ -21,6 +21,14 @@ ProjectSection(SolutionItems) = preProject
 	.github\workflows\publish-packages.yml = .github\workflows\publish-packages.yml
 EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Messaging", "src\Paykan.Messaging\Paykan.Messaging.csproj", "{1A7DFC44-37DF-40C1-AB2E-548BDB148D14}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Messaging.Abstractions", "src\Paykan.Messaging.Abstractions\Paykan.Messaging.Abstractions.csproj", "{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Registry.Abstractions", "src\Paykan.Registry.Abstractions\Paykan.Registry.Abstractions.csproj", "{DD9446F8-1A9B-44E0-A272-13DB2AFB5624}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Registry", "src\Paykan.Registry\Paykan.Registry.csproj", "{78946FDC-794B-4DC6-BD47-DCC49AA461FB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,6 +38,10 @@ Global
 		{B1FDAB62-C743-4D41-A8F6-727FEFCA882D} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
 		{BC8DA8CC-56FE-47EC-B8EB-693A3C218382} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
 		{0E44005E-D117-4952-9295-37C58B5F15AD} = {598AE9AB-FD1F-4648-B5CF-EA282C443851}
+		{1A7DFC44-37DF-40C1-AB2E-548BDB148D14} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
+		{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
+		{DD9446F8-1A9B-44E0-A272-13DB2AFB5624} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
+		{78946FDC-794B-4DC6-BD47-DCC49AA461FB} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{B1FDAB62-C743-4D41-A8F6-727FEFCA882D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -44,5 +56,21 @@ Global
 		{0E44005E-D117-4952-9295-37C58B5F15AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0E44005E-D117-4952-9295-37C58B5F15AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0E44005E-D117-4952-9295-37C58B5F15AD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1A7DFC44-37DF-40C1-AB2E-548BDB148D14}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1A7DFC44-37DF-40C1-AB2E-548BDB148D14}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1A7DFC44-37DF-40C1-AB2E-548BDB148D14}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1A7DFC44-37DF-40C1-AB2E-548BDB148D14}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DD9446F8-1A9B-44E0-A272-13DB2AFB5624}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DD9446F8-1A9B-44E0-A272-13DB2AFB5624}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DD9446F8-1A9B-44E0-A272-13DB2AFB5624}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DD9446F8-1A9B-44E0-A272-13DB2AFB5624}.Release|Any CPU.Build.0 = Release|Any CPU
+		{78946FDC-794B-4DC6-BD47-DCC49AA461FB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{78946FDC-794B-4DC6-BD47-DCC49AA461FB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{78946FDC-794B-4DC6-BD47-DCC49AA461FB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{78946FDC-794B-4DC6-BD47-DCC49AA461FB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

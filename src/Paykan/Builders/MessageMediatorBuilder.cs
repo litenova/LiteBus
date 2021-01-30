@@ -1,6 +1,8 @@
 using System;
 using Paykan.Abstractions;
 using Paykan.Internal.Mediators;
+using Paykan.Messaging.Abstractions;
+using Paykan.Registry.Abstractions;
 
 namespace Paykan.Builders
 {

@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Paykan.Abstractions;
+using Paykan.Messaging.Abstractions;
 using Paykan.WebApi.Crqs;
 
 namespace Paykan.WebApi.Controllers

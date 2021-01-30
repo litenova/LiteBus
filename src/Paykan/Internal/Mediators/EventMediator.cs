@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Paykan.Abstractions;
 using Paykan.Internal.Extensions;
+using Paykan.Registry.Abstractions;
 
 namespace Paykan.Internal.Mediators
 {
@@ -22,7 +23,7 @@ namespace Paykan.Internal.Mediators
         public Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
             where TEvent : IEvent
         {
-            var descriptor = _messageRegistry[@event.GetType()];
+            var descriptor = _messageRegistry.GetDescriptor<TEvent>();
 
             var handlers = _serviceProvider.GetHandlers<TEvent, Task>(descriptor.HandlerTypes);
 

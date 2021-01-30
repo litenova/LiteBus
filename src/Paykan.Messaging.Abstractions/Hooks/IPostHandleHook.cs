@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 
-namespace Paykan.Abstractions.Interceptors
+namespace Paykan.Messaging.Abstractions
 {
     /// <summary>
     /// Allows for performing an action after the message is handled
@@ -14,9 +14,5 @@ namespace Paykan.Abstractions.Interceptors
         /// <param name="message">The message that is handled</param>
         /// <returns></returns>
         Task ExecuteAsync(TMessage message);
-    }
-
-    public interface IMessagePostHandleHook : IPostHandleHook<IMessage>
-    {
     }
 }
