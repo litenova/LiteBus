@@ -1,9 +1,10 @@
 ﻿using System.Threading.Tasks;
+using Paykan.Messaging.Abstractions;
 
 namespace Paykan.Events.Abstraction
 {
     /// <summary>
-    /// An event is a notification sent by an object to signal the occurrence of an action.
+    /// Represents an event
     /// </summary>
     public interface IEvent : IMessage<Task>
     {

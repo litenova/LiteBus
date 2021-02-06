@@ -4,15 +4,7 @@ using Paykan.Messaging.Abstractions;
 namespace Paykan.Commands.Abstraction
 {
     /// <summary>
-    /// The root of all commands 
-    /// </summary>
-    public interface IBaseCommand : IMessage
-    {
-        
-    }
-    
-    /// <summary>
-    /// Represents a command without result that is intended to change the application state
+    /// Represents a command without result
     /// </summary>
     public interface ICommand : IBaseCommand, IMessage<Task>
     {
@@ -20,7 +12,7 @@ namespace Paykan.Commands.Abstraction
     }
     
     /// <summary>
-    /// Represents a command with result that is intended to change the application state
+    /// Represents a command with result
     /// </summary>
     public interface ICommand<TCommandResult> : IBaseCommand, IMessage<Task<TCommandResult>>
     {
