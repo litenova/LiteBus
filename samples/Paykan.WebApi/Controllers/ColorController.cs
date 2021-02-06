@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Paykan.Commands.Abstraction;
 using Paykan.Events.Abstraction;
@@ -13,12 +12,12 @@ namespace Paykan.WebApi.Controllers
     public class ColorController : ControllerBase
     {
         private readonly ICommandMediator _commandMediator;
-        private readonly IQueryMediator _queryMediator;
         private readonly IEventMediator _eventMediator;
+        private readonly IQueryMediator _queryMediator;
 
-        public ColorController(ICommandMediator commandMediator, 
-                                         IQueryMediator queryMediator,
-                                         IEventMediator eventMediator)
+        public ColorController(ICommandMediator commandMediator,
+                               IQueryMediator queryMediator,
+                               IEventMediator eventMediator)
         {
             _commandMediator = commandMediator;
             _queryMediator = queryMediator;
@@ -29,10 +28,10 @@ namespace Paykan.WebApi.Controllers
         public async Task<IActionResult> Get()
         {
             var result = await _queryMediator.QueryAsync(new ColorQuery());
-            
+
             return Ok(result);
         }
-        
+
         [HttpPost]
         public async Task<IActionResult> Post(string colorName)
         {
@@ -45,7 +44,7 @@ namespace Paykan.WebApi.Controllers
             {
                 ColorName = colorName
             });
-            
+
             return Ok();
         }
     }

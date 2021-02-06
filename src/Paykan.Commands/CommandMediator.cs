@@ -4,18 +4,17 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Paykan.Commands.Abstraction;
-using Paykan.Messaging.Abstractions;
 using Paykan.Messaging.Abstractions.Extensions;
 using Paykan.Registry.Abstractions;
 
 namespace Paykan.Commands
 {
-    /// <inheritdoc cref="ICommandMediator"/> 
+    /// <inheritdoc cref="ICommandMediator" />
     internal class CommandMediator : ICommandMediator
     {
-        private readonly IServiceProvider _serviceProvider;
         private readonly IMessageRegistry _messageRegistry;
-        
+        private readonly IServiceProvider _serviceProvider;
+
         public CommandMediator(IServiceProvider serviceProvider,
                                IMessageRegistry messageRegistry)
         {
@@ -23,7 +22,8 @@ namespace Paykan.Commands
             _messageRegistry = messageRegistry;
         }
 
-        public Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default) where TCommand : ICommand
+        public Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
+            where TCommand : ICommand
         {
             var commandType = typeof(TCommand);
 
@@ -52,7 +52,8 @@ namespace Paykan.Commands
 
             if (descriptor.HandlerTypes.Count > 1) throw new MultipleCommandHandlerFoundException(commandType);
 
-            var handler = _serviceProvider.GetHandler<TCommand, Task<TCommandResult>>(descriptor.HandlerTypes.Single());
+            var handler =
+                _serviceProvider.GetHandler<TCommand, Task<TCommandResult>>(descriptor.HandlerTypes.Single());
 
             return handler.HandleAsync(command, cancellationToken);
         }

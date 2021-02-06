@@ -6,7 +6,7 @@ namespace Paykan.Queries
 {
     public class QueryMediatorBuilder
     {
-        public IQueryMediator Build(IServiceProvider serviceProvider, 
+        public IQueryMediator Build(IServiceProvider serviceProvider,
                                     IMessageRegistry messageRegistry)
         {
             return new QueryMediator(serviceProvider, messageRegistry);

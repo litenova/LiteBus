@@ -1,4 +1,3 @@
-using System;
 using System.Threading;
 using System.Threading.Tasks;
 #nullable enable
@@ -8,7 +7,7 @@ namespace Paykan.Messaging.Abstractions
     public interface IMessageMediator
     {
         /// <summary>
-        /// Sends a message to its handlers
+        ///     Sends a message to its handlers
         /// </summary>
         /// <param name="message">The message to send</param>
         /// <param name="cancellationToken">The cancellation token</param>
@@ -18,7 +17,7 @@ namespace Paykan.Messaging.Abstractions
                                  CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Sends a message to the first corresponding handler
+        ///     Sends a message to the first corresponding handler
         /// </summary>
         /// <param name="message">The message to send</param>
         /// <param name="cancellationToken">The cancellation token</param>
@@ -29,7 +28,7 @@ namespace Paykan.Messaging.Abstractions
                                                            CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Sends a message to the first corresponding handler
+        ///     Sends a message to the first corresponding handler
         /// </summary>
         /// <param name="message">The message to send</param>
         /// <param name="cancellationToken">The cancellation token</param>
