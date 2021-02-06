@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Paykan.Messaging.Abstractions
+namespace Paykan.Messaging.Abstractions.Extensions
 {
     public static class ServiceProviderExtensions
     {

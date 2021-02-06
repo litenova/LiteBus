@@ -4,10 +4,16 @@ namespace Paykan.WebApi
 {
     public static class MemoryDatabase
     {
-        private static readonly List<string> Colors = new List<string>();
+        private static readonly List<string> Colors = new();
 
-        public static void AddColor(string color) => Colors.Add(color);
+        public static void AddColor(string color)
+        {
+            Colors.Add(color);
+        }
 
-        public static IEnumerable<string> GetColors() => Colors;
+        public static IEnumerable<string> GetColors()
+        {
+            return Colors;
+        }
     }
 }

@@ -3,16 +3,16 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Paykan.Events.Abstraction;
-using Paykan.Messaging.Abstractions;
+using Paykan.Messaging.Abstractions.Extensions;
 using Paykan.Registry.Abstractions;
 
 namespace Paykan.Events
 {
-    /// <inheritdoc cref="IEventMediator"/> 
+    /// <inheritdoc cref="IEventMediator" />
     public class EventMediator : IEventPublisher
     {
-        private readonly IServiceProvider _serviceProvider;
         private readonly IMessageRegistry _messageRegistry;
+        private readonly IServiceProvider _serviceProvider;
 
         public EventMediator(IServiceProvider serviceProvider,
                              IMessageRegistry messageRegistry)

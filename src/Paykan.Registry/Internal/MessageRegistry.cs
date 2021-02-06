@@ -11,20 +11,28 @@ namespace Paykan.Registry.Internal
     internal class MessageRegistry : IMessageRegistry
     {
         private readonly Dictionary<Type, IMessageDescriptor> _descriptors = new();
-        public IEnumerator<IMessageDescriptor> GetEnumerator() => _descriptors.Values.GetEnumerator();
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-        private readonly HashSet<Assembly> _scannedAssemblies = new();
         private readonly List<HookDescriptor> _postHandlerHooks = new();
 
-        public IMessageDescriptor GetDescriptor<TMessage>() => GetDescriptor(typeof(TMessage));
+        private readonly HashSet<Assembly> _scannedAssemblies = new();
+
+        public IEnumerator<IMessageDescriptor> GetEnumerator()
+        {
+            return _descriptors.Values.GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        public IMessageDescriptor GetDescriptor<TMessage>()
+        {
+            return GetDescriptor(typeof(TMessage));
+        }
 
         public IMessageDescriptor GetDescriptor(Type messageType)
         {
-            if (_descriptors.TryGetValue(messageType, out var messageDescriptor))
-            {
-                return messageDescriptor;
-            }
+            if (_descriptors.TryGetValue(messageType, out var messageDescriptor)) return messageDescriptor;
 
             throw new MessageNotRegisteredException(messageType);
         }
@@ -35,10 +43,7 @@ namespace Paykan.Registry.Internal
             {
                 if (_scannedAssemblies.Contains(assembly)) continue;
 
-                foreach (var typeInfo in assembly.DefinedTypes)
-                {
-                    Register(typeInfo);
-                }
+                foreach (var typeInfo in assembly.DefinedTypes) Register(typeInfo);
 
                 _scannedAssemblies.Add(assembly);
             }
@@ -54,9 +59,7 @@ namespace Paykan.Registry.Internal
                     .Where(h => h.MessageType.IsAssignableFrom(messageDescriptor.MessageType));
 
                 foreach (var hookDescriptor in hooks)
-                {
                     ((MessageDescriptor) messageDescriptor).AddPostHandleHookType(hookDescriptor.HookType);
-                }
             }
         }
 
@@ -81,8 +84,7 @@ namespace Paykan.Registry.Internal
                 {
                     _postHandlerHooks.Add(new HookDescriptor
                     {
-                        HookType = typeInfo,
-                        MessageType = messageType
+                        HookType = typeInfo, MessageType = messageType
                     });
                 }
             }

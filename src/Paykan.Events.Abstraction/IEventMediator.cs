@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 namespace Paykan.Events.Abstraction
 {
     /// <summary>
-    /// Publishes a event to its listener
+    ///     Publishes an event to its handlers
     /// </summary>
     public interface IEventMediator
     {

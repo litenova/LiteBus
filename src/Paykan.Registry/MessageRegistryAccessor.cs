@@ -4,7 +4,7 @@ using Paykan.Registry.Internal;
 namespace Paykan.Registry
 {
     /// <summary>
-    /// Provides access to the singleton instance of <see cref="IMessageRegistry"/>
+    ///     Provides access to the singleton instance of <see cref="IMessageRegistry" />
     /// </summary>
     public static class MessageRegistryAccessor
     {
@@ -14,7 +14,7 @@ namespace Paykan.Registry
         }
 
         /// <summary>
-        /// Singleton instance of <see cref="IMessageRegistry"/>
+        ///     Singleton instance of <see cref="IMessageRegistry" />
         /// </summary>
         public static IMessageRegistry MessageRegistry { get; }
     }

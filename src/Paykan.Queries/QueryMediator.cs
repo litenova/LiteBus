@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Paykan.Messaging.Abstractions;
 using Paykan.Messaging.Abstractions.Extensions;
 using Paykan.Queries.Abstraction;
 using Paykan.Registry.Abstractions;
@@ -12,8 +11,8 @@ namespace Paykan.Queries
 {
     internal class QueryMediator : IQueryMediator
     {
-        private readonly IServiceProvider _serviceProvider;
         private readonly IMessageRegistry _messageRegistry;
+        private readonly IServiceProvider _serviceProvider;
 
         public QueryMediator(IServiceProvider serviceProvider,
                              IMessageRegistry messageRegistry)
@@ -38,8 +37,7 @@ namespace Paykan.Queries
             return handler.HandleAsync(query, cancellationToken);
         }
 
-        public IAsyncEnumerable<TQueryResult> StreamQueryAsync<TQuery, TQueryResult>(
-            TQuery query,
+        public IAsyncEnumerable<TQueryResult> StreamQueryAsync<TQuery, TQueryResult>(TQuery query,
             CancellationToken cancellationToken = default) where TQuery : IStreamQuery<TQueryResult>
         {
             var queryType = typeof(TQuery);

@@ -7,7 +7,7 @@ namespace Paykan.Messaging.Abstractions.Extensions
     public static class HandlerWrapperExtensions
     {
         /// <summary>
-        /// Allows a handler to handle a given message in a non-generic way 
+        ///     Allows a handler to handle a given message in a non-generic way
         /// </summary>
         /// <param name="handlerObject">The handler object</param>
         /// <param name="message">The given message</param>
@@ -21,23 +21,21 @@ namespace Paykan.Messaging.Abstractions.Extensions
                                          CancellationToken cancellationToken)
         {
             if (!handlerObject.GetType().IsAssignableTo(typeof(IMessageHandler)))
-            {
                 throw new
                     NotSupportedException($"The given {nameof(handlerObject)} is not a valid {nameof(IMessageHandler)}");
-            }
-            
+
             var genericHandlerWrapperType = typeof(GenericMessageHandlerWrapper<,>)
                 .MakeGenericType(message.GetType(), messageResultType);
 
             var handler = (MessageHandlerWrapper) Activator.CreateInstance(genericHandlerWrapperType);
 
             Debug.Assert(handler != null, nameof(handler) + " != null");
-            
+
             return handler.HandleAsync(message, handlerObject, cancellationToken);
         }
 
         /// <summary>
-        /// Allows a handler to handle a given message without providing the message type 
+        ///     Allows a handler to handle a given message without providing the message type
         /// </summary>
         /// <param name="handlerObject">The handler object</param>
         /// <param name="message">The given message</param>
@@ -49,16 +47,14 @@ namespace Paykan.Messaging.Abstractions.Extensions
                                                                  CancellationToken cancellationToken)
         {
             if (!handlerObject.GetType().IsAssignableTo(typeof(IMessageHandler)))
-            {
                 throw new
                     NotSupportedException($"The given {nameof(handlerObject)} is not a valid {nameof(IMessageHandler)}");
-            }
-            
+
             var genericHandlerWrapperType = typeof(GenericMessageHandlerWrapper<,>)
                 .MakeGenericType(message.GetType(), typeof(TMessageResult));
 
             var handler = (MessageHandlerWrapper) Activator.CreateInstance(genericHandlerWrapperType);
-            
+
             Debug.Assert(handler != null, nameof(handler) + " != null");
 
             return (TMessageResult) handler.HandleAsync(message, handlerObject, cancellationToken);

@@ -8,7 +8,7 @@ namespace Paykan.WebApi.Crqs
     {
         public int Number { get; set; }
     }
-    
+
     public class PlainMessageHandler : IMessageHandler<PlainMessage, Task<int>>
     {
         public Task<int> HandleAsync(PlainMessage message, CancellationToken cancellationToken = default)
