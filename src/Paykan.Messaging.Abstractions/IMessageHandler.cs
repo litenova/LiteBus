@@ -4,12 +4,20 @@ using System.Threading.Tasks;
 namespace Paykan.Messaging.Abstractions
 {
     /// <summary>
+    /// The base of all message handlers
+    /// </summary>
+    public interface IMessageHandler 
+    {
+    
+    }
+    
+    /// <summary>
     /// Represents a handler for a message
     /// </summary>
     /// <typeparam name="TMessage">the type of message</typeparam>
     /// <typeparam name="TMessageResult">the type of message</typeparam>
     /// <remarks>The message can be of any type</remarks>
-    public interface IMessageHandler<in TMessage, out TMessageResult>
+    public interface IMessageHandler<in TMessage, out TMessageResult> : IMessageHandler
     {
         /// <summary>
         /// Handles a message

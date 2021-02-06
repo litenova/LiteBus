@@ -5,40 +5,33 @@ using System.Threading;
 using System.Threading.Tasks;
 using Paykan.Commands.Abstraction;
 using Paykan.Messaging.Abstractions;
+using Paykan.Messaging.Abstractions.Extensions;
 using Paykan.Registry.Abstractions;
 
 namespace Paykan.Commands
 {
+    /// <inheritdoc cref="ICommandMediator"/> 
     internal class CommandMediator : ICommandMediator
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly IMessageRegistry _messageRegistry;
-
-        private readonly IMessageMediator _messageMediator;
-
+        
         public CommandMediator(IServiceProvider serviceProvider,
                                IMessageRegistry messageRegistry)
         {
             _serviceProvider = serviceProvider;
             _messageRegistry = messageRegistry;
-            
-            _messageMediator.Send<object, Task>(null, config =>
-            {
-                c
-            })
         }
 
-        public Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
-            where TCommand : ICommand
+        public Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default) where TCommand : ICommand
         {
             var commandType = typeof(TCommand);
 
             var descriptor = _messageRegistry.GetDescriptor<TCommand>();
 
-            if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(commandType.Name);
+            if (descriptor.HandlerTypes.Count > 1) throw new MultipleCommandHandlerFoundException(commandType);
 
-            var handler =
-                _serviceProvider.GetHandler<TCommand, Task>(Enumerable.First(descriptor.HandlerTypes));
+            var handler = _serviceProvider.GetHandler<TCommand, Task>(descriptor.HandlerTypes.Single());
 
             var postHandleHooks = _serviceProvider.GetPostHandleHooks<TCommand>(descriptor.PostHandleHookTypes);
 
@@ -57,10 +50,9 @@ namespace Paykan.Commands
 
             var descriptor = _messageRegistry.GetDescriptor<TCommand>();
 
-            if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(commandType.Name);
+            if (descriptor.HandlerTypes.Count > 1) throw new MultipleCommandHandlerFoundException(commandType);
 
-            var handler = _serviceProvider
-                .GetHandler<TCommand, Task<TCommandResult>>(Enumerable.First(descriptor.HandlerTypes));
+            var handler = _serviceProvider.GetHandler<TCommand, Task<TCommandResult>>(descriptor.HandlerTypes.Single());
 
             return handler.HandleAsync(command, cancellationToken);
         }
@@ -72,10 +64,10 @@ namespace Paykan.Commands
 
             var descriptor = _messageRegistry.GetDescriptor(command.GetType());
 
-            if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(commandType.Name);
+            if (descriptor.HandlerTypes.Count > 1) throw new MultipleCommandHandlerFoundException(commandType);
 
             return _serviceProvider
-                   .GetService(Enumerable.First(descriptor.HandlerTypes))
+                   .GetService(descriptor.HandlerTypes.First())
                    .HandleAsync<Task<TCommandResult>>(command, cancellationToken);
         }
     }
