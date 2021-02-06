@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using Paykan.Messaging.Abstractions;
 
-namespace Paykan.Messaging.Extensions
+namespace Paykan.Messaging.Abstractions
 {
-    internal static class ServiceProviderExtensions
+    public static class ServiceProviderExtensions
     {
         public static IMessageHandler<TMessage, TMessageResult> GetHandler<TMessage, TMessageResult>(
             this IServiceProvider serviceProvider,

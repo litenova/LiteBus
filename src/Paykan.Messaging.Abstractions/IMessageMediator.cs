@@ -8,22 +8,34 @@ namespace Paykan.Messaging.Abstractions
     public interface IMessageMediator
     {
         /// <summary>
-        /// Sends a message to its corresponding handlers
+        /// Sends a message to its handlers
         /// </summary>
         /// <param name="message">The message to send</param>
-        /// <param name="config">The publish configuration</param>
+        /// <param name="cancellationToken">The cancellation token</param>
         /// <typeparam name="TMessage">The type of message to send</typeparam>
         /// <returns>A task representing the execution of handlers</returns>
-        Task SendAsync<TMessage>(TMessage message, Action<IPublishConfiguration> config);
+        Task SendAsync<TMessage>(TMessage message,
+                                 CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Sends a message to its handler
+        /// Sends a message to the first corresponding handler
         /// </summary>
         /// <param name="message">The message to send</param>
-        /// <param name="config">The send configuration</param>
+        /// <param name="cancellationToken">The cancellation token</param>
         /// <typeparam name="TMessage">The type of message to send</typeparam>
         /// <typeparam name="TMessageResult">The type of message result</typeparam>
         /// <returns>The message result</returns>
-        TMessageResult Send<TMessage, TMessageResult>(TMessage message, Action<ISendConfiguration> config);
+        TMessageResult SendAsync<TMessage, TMessageResult>(TMessage message,
+                                                           CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Sends a message to the first corresponding handler
+        /// </summary>
+        /// <param name="message">The message to send</param>
+        /// <param name="cancellationToken">The cancellation token</param>
+        /// <typeparam name="TMessageResult">The type of message result</typeparam>
+        /// <returns>The message result</returns>
+        TMessageResult SendAsync<TMessageResult>(object message,
+                                                 CancellationToken cancellationToken = default);
     }
 }

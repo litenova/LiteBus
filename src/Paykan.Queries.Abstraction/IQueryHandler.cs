@@ -1,18 +1,16 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
+using Paykan.Messaging.Abstractions;
 
 namespace Paykan.Queries.Abstraction
 {
-    public interface IQueryHandler<in TQuery, TQueryResult> : IMessageHandler<TQuery, Task<TQueryResult>>
-        where TQuery : IQuery<TQueryResult>
+    public interface IQueryHandler<in TQuery, TResult> : IMessageHandler<TQuery, Task<TResult>> 
+        where TQuery : IQuery<TResult>
     {
-        
     }
 
-    public interface IStreamQueryHandler<in TQuery, out TQueryResult>
-        : IMessageHandler<TQuery, IAsyncEnumerable<TQueryResult>>
-        where TQuery : IStreamQuery<TQueryResult>
+    public interface IStreamQueryHandler<in TQuery, out TResult> : IMessageHandler<TQuery, IAsyncEnumerable<TResult>>
+        where TQuery : IStreamQuery<TResult>
     {
-        
     }
 }

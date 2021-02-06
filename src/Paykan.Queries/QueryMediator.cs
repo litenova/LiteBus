@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Paykan.Messaging.Abstractions;
+using Paykan.Messaging.Abstractions.Extensions;
 using Paykan.Queries.Abstraction;
 using Paykan.Registry.Abstractions;
 
@@ -28,10 +30,10 @@ namespace Paykan.Queries
 
             var descriptor = _messageRegistry.GetDescriptor<TQuery>();
 
-            if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(queryType.Name);
+            if (descriptor.HandlerTypes.Count > 1) throw new MultipleQueryHandlerFoundException(queryType);
 
             var handler = _serviceProvider
-                .GetHandler<TQuery, Task<TQueryResult>>(Enumerable.First(descriptor.HandlerTypes));
+                .GetHandler<TQuery, Task<TQueryResult>>(descriptor.HandlerTypes.First());
 
             return handler.HandleAsync(query, cancellationToken);
         }
@@ -44,40 +46,40 @@ namespace Paykan.Queries
 
             var descriptor = _messageRegistry.GetDescriptor<TQuery>();
 
-            if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(queryType.Name);
+            if (descriptor.HandlerTypes.Count > 1) throw new MultipleQueryHandlerFoundException(queryType);
 
             var handler = _serviceProvider
-                .GetHandler<TQuery, IAsyncEnumerable<TQueryResult>>(Enumerable.First(descriptor.HandlerTypes));
+                .GetHandler<TQuery, IAsyncEnumerable<TQueryResult>>(descriptor.HandlerTypes.First());
 
             return handler.HandleAsync(query, cancellationToken);
         }
 
-        public Task<TQueryResult> QueryAsync<TQueryResult>(
-            IQuery<TQueryResult> query,
-            CancellationToken cancellationToken = default)
+        public Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
+                                                           CancellationToken cancellationToken = default)
         {
             var queryType = query.GetType();
 
             var descriptor = _messageRegistry.GetDescriptor(queryType);
 
-            if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(queryType.Name);
+            if (descriptor.HandlerTypes.Count > 1) throw new MultipleQueryHandlerFoundException(queryType);
 
             return _serviceProvider
-                   .GetService(Enumerable.First(descriptor.HandlerTypes))
+                   .GetService(descriptor.HandlerTypes.First())
                    .HandleAsync<Task<TQueryResult>>(query, cancellationToken);
         }
 
         public IAsyncEnumerable<TQueryResult> StreamQueryAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
-            CancellationToken cancellationToken = default)
+                                                                             CancellationToken cancellationToken =
+                                                                                 default)
         {
             var queryType = query.GetType();
 
             var descriptor = _messageRegistry.GetDescriptor(queryType);
 
-            if (descriptor.HandlerTypes.Count > 1) throw new MultipleHandlerFoundException(queryType.Name);
+            if (descriptor.HandlerTypes.Count > 1) throw new MultipleQueryHandlerFoundException(queryType);
 
             return _serviceProvider
-                   .GetService(Enumerable.First(descriptor.HandlerTypes))
+                   .GetService(descriptor.HandlerTypes.First())
                    .HandleAsync<IAsyncEnumerable<TQueryResult>>(query, cancellationToken);
         }
     }

@@ -1,16 +1,15 @@
 ﻿using System.Threading;
-using Paykan.Messaging.Abstractions;
 
-namespace Paykan.Messaging
+namespace Paykan.Messaging.Abstractions
 {
-    internal abstract class HandlerWrapper
+    internal abstract class MessageHandlerWrapper
     {
         public abstract object HandleAsync(object message,
                                            object handler,
                                            CancellationToken cancellationToken = default);
     }
     
-    internal class GenericHandlerWrapper<TMessage, TMessageResult> : HandlerWrapper
+    internal class GenericMessageHandlerWrapper<TMessage, TMessageResult> : MessageHandlerWrapper
     {
         public override object HandleAsync(object message, 
                                            object handler, 

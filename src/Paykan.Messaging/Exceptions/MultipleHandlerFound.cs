@@ -3,9 +3,9 @@
 namespace Paykan.Messaging.Exceptions
 {
     [Serializable]
-    public class MultipleHandlerFoundException : Exception
+    public class MultipleMessageHandlerFoundException : Exception
     {
-        public MultipleHandlerFoundException(string messageName) :
+        public MultipleMessageHandlerFoundException(string messageName) :
             base($"Multiple handler found for {messageName}.")
         {
         }
