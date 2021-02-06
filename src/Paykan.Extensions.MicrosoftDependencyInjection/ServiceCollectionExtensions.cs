@@ -17,28 +17,22 @@ namespace Paykan.Extensions.MicrosoftDependencyInjection
 {
     public static class ServiceCollectionExtensions
     {
-        public static IServiceCollection AddPaykan(this IServiceCollection services, 
+        public static IServiceCollection AddPaykan(this IServiceCollection services,
                                                    Action<IPaykanBuilder> config)
         {
             var paykanBuilder = new PaykanBuilder();
-            
+
             config(paykanBuilder);
-            
+
             var messageRegistry = MessageRegistryAccessor.MessageRegistry;
-            
+
             messageRegistry.Register(paykanBuilder.Assemblies.ToArray());
 
             foreach (var descriptor in messageRegistry)
             {
-                foreach (var handlerType in descriptor.HandlerTypes)
-                {
-                    services.AddTransient(handlerType);
-                }
+                foreach (var handlerType in descriptor.HandlerTypes) services.AddTransient(handlerType);
 
-                foreach (var hookType in descriptor.PostHandleHookTypes)
-                {
-                    services.TryAddTransient(hookType);
-                }
+                foreach (var hookType in descriptor.PostHandleHookTypes) services.TryAddTransient(hookType);
             }
 
             var commandMediatorBuilder = new CommandMediatorBuilder();

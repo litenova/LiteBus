@@ -14,6 +14,7 @@ namespace Paykan.WebApi.Crqs
         public Task HandleAsync(CreateColorCommand message, CancellationToken cancellationToken = default)
         {
             MemoryDatabase.AddColor(message.ColorName);
+
             return Task.CompletedTask;
         }
     }
