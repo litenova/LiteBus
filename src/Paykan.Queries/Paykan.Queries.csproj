@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net5.0</TargetFramework>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <Authors>Mohammad ShafieZadeh</Authors>
+        <PackageTags>mediator;cqrs</PackageTags>
+        <Version>2.0.0</Version>
+        <Description>A lightweight and easy to use in-process mediator to query data</Description>
+        <PackageProjectUrl>https://github.com/arishk/Paykan</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/arishk/Paykan</RepositoryUrl>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Paykan.Queries.Abstraction\Paykan.Queries.Abstraction.csproj" />
+      <ProjectReference Include="..\Paykan.Registry.Abstractions\Paykan.Registry.Abstractions.csproj" />
+    </ItemGroup>
+
+</Project>
