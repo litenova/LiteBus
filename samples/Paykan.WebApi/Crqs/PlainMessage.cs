@@ -1,6 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
-using Paykan.Abstractions;
+using Paykan.Messaging.Abstractions;
 
 namespace Paykan.WebApi.Crqs
 {
@@ -8,7 +8,7 @@ namespace Paykan.WebApi.Crqs
     {
         public int Number { get; set; }
     }
-    
+
     public class PlainMessageHandler : IMessageHandler<PlainMessage, Task<int>>
     {
         public Task<int> HandleAsync(PlainMessage message, CancellationToken cancellationToken = default)
