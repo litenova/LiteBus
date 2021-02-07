@@ -1,7 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Paykan.Messaging.Abstractions;
 
-namespace Paykan.Events.Abstraction
+namespace Paykan.Events.Abstractions
 {
     /// <summary>
     ///     Represents an event

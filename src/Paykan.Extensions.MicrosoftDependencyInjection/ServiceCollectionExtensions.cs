@@ -3,13 +3,13 @@ using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Paykan.Commands;
-using Paykan.Commands.Abstraction;
+using Paykan.Commands.Abstractions;
 using Paykan.Events;
-using Paykan.Events.Abstraction;
+using Paykan.Events.Abstractions;
 using Paykan.Messaging;
 using Paykan.Messaging.Abstractions;
 using Paykan.Queries;
-using Paykan.Queries.Abstraction;
+using Paykan.Queries.Abstractions;
 using Paykan.Registry;
 using Paykan.Registry.Abstractions;
 #nullable enable

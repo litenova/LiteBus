@@ -1,6 +1,6 @@
 using Paykan.Messaging.Abstractions;
 
-namespace Paykan.Queries.Abstraction
+namespace Paykan.Queries.Abstractions
 {
     /// <summary>
     ///     The base of all queries

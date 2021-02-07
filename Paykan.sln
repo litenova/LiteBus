@@ -27,15 +27,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Messaging.Abstractio
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Registry.Abstractions", "src\Paykan.Registry.Abstractions\Paykan.Registry.Abstractions.csproj", "{DD9446F8-1A9B-44E0-A272-13DB2AFB5624}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Commands.Abstraction", "src\Paykan.Commands.Abstraction\Paykan.Commands.Abstraction.csproj", "{CDE98E55-82E9-44FC-9E18-030CD6C72322}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Commands.Abstractions", "src\Paykan.Commands.Abstractions\Paykan.Commands.Abstractions.csproj", "{CDE98E55-82E9-44FC-9E18-030CD6C72322}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Commands", "src\Paykan.Commands\Paykan.Commands.csproj", "{67B8F4B0-507A-43A8-90AF-D47E21A765A1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Events.Abstraction", "src\Paykan.Events.Abstraction\Paykan.Events.Abstraction.csproj", "{A420602C-0A96-4339-A84F-69708C943A5C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Events.Abstractions", "src\Paykan.Events.Abstractions\Paykan.Events.Abstractions.csproj", "{A420602C-0A96-4339-A84F-69708C943A5C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Events", "src\Paykan.Events\Paykan.Events.csproj", "{DB836B64-1A4C-45B7-BF43-1FECFE704DEA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Queries.Abstraction", "src\Paykan.Queries.Abstraction\Paykan.Queries.Abstraction.csproj", "{4A7688E8-9272-4FF1-A53C-E78968799717}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Queries.Abstractions", "src\Paykan.Queries.Abstractions\Paykan.Queries.Abstractions.csproj", "{4A7688E8-9272-4FF1-A53C-E78968799717}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Queries", "src\Paykan.Queries\Paykan.Queries.csproj", "{5A37FD18-2EE2-4170-9000-28E66485555E}"
 EndProject

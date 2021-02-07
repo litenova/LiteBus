@@ -1,5 +1,5 @@
 ﻿using System;
-using Paykan.Commands.Abstraction;
+using Paykan.Commands.Abstractions;
 using Paykan.Registry.Abstractions;
 
 namespace Paykan.Commands

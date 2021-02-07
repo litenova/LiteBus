@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Paykan.Events.Abstraction;
+using Paykan.Events.Abstractions;
 using Paykan.Messaging.Abstractions.Extensions;
 using Paykan.Registry.Abstractions;
 

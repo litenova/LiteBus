@@ -1,6 +1,6 @@
 ﻿using Paykan.Messaging.Abstractions;
 
-namespace Paykan.Commands.Abstraction
+namespace Paykan.Commands.Abstractions
 {
     /// <summary>
     ///     Represents the definition of a post handler hook that executes on each command post-handle phase
