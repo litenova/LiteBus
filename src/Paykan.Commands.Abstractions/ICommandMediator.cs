@@ -1,7 +1,7 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
 
-namespace Paykan.Commands.Abstraction
+namespace Paykan.Commands.Abstractions
 {
     /// <summary>
     ///     Mediates a command to its corresponding handler

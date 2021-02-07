@@ -2,7 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Paykan.Queries.Abstraction
+namespace Paykan.Queries.Abstractions
 {
     /// <summary>
     ///     Mediates a query to its corresponding handler

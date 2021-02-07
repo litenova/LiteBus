@@ -1,5 +1,5 @@
 ﻿using System;
-using Paykan.Queries.Abstraction;
+using Paykan.Queries.Abstractions;
 using Paykan.Registry.Abstractions;
 
 namespace Paykan.Queries

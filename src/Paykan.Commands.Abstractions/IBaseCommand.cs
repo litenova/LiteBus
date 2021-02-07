@@ -1,6 +1,6 @@
 ﻿using Paykan.Messaging.Abstractions;
 
-namespace Paykan.Commands.Abstraction
+namespace Paykan.Commands.Abstractions
 {
     /// <summary>
     ///     The base of all command types

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Paykan.Messaging.Abstractions.Extensions;
-using Paykan.Queries.Abstraction;
+using Paykan.Queries.Abstractions;
 using Paykan.Registry.Abstractions;
 
 namespace Paykan.Queries

@@ -1,7 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Paykan.Messaging.Abstractions;
 
-namespace Paykan.Commands.Abstraction
+namespace Paykan.Commands.Abstractions
 {
     /// <summary>
     ///     Represents the definition of a handler that handles a command without result

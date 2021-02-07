@@ -12,7 +12,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Paykan.Events.Abstraction\Paykan.Events.Abstraction.csproj" />
+      <ProjectReference Include="..\Paykan.Events.Abstractions\Paykan.Events.Abstractions.csproj" />
       <ProjectReference Include="..\Paykan.Messaging.Abstractions\Paykan.Messaging.Abstractions.csproj" />
       <ProjectReference Include="..\Paykan.Registry.Abstractions\Paykan.Registry.Abstractions.csproj" />
     </ItemGroup>
