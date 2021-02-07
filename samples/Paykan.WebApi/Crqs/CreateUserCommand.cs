@@ -1,6 +1,7 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Paykan.Abstractions;
+using Paykan.Commands.Abstraction;
 
 namespace Paykan.WebApi.Crqs
 {
@@ -8,12 +9,12 @@ namespace Paykan.WebApi.Crqs
     {
         public string Name { get; set; }
     }
-    
+
     public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand, int>
     {
         public Task<int> HandleAsync(CreateUserCommand message, CancellationToken cancellationToken = default)
         {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
     }
 }

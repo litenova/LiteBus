@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using Paykan.Abstractions;
+using Paykan.Events.Abstraction;
 
 namespace Paykan.WebApi.Crqs
 {
@@ -9,21 +9,23 @@ namespace Paykan.WebApi.Crqs
     {
         public string ColorName { get; set; }
     }
-    
+
     public class ColorCreatedEventHandler1 : IEventHandler<ColorCreatedEvent>
     {
         public Task HandleAsync(ColorCreatedEvent message, CancellationToken cancellationToken = default)
         {
             Debug.WriteLine("Event handled in ColorCreatedEventHandler 1");
+
             return Task.CompletedTask;
         }
     }
-    
-    public class ColorCreatedEventHandler2: IEventHandler<ColorCreatedEvent>
+
+    public class ColorCreatedEventHandler2 : IEventHandler<ColorCreatedEvent>
     {
         public Task HandleAsync(ColorCreatedEvent message, CancellationToken cancellationToken = default)
         {
             Debug.WriteLine("Event handled in ColorCreatedEventHandler 2");
+
             return Task.CompletedTask;
         }
     }

@@ -1,6 +1,6 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
-using Paykan.Abstractions;
+using Paykan.Commands.Abstraction;
 
 namespace Paykan.WebApi.Crqs
 {
@@ -14,6 +14,7 @@ namespace Paykan.WebApi.Crqs
         public Task HandleAsync(CreateColorCommand message, CancellationToken cancellationToken = default)
         {
             MemoryDatabase.AddColor(message.ColorName);
+
             return Task.CompletedTask;
         }
     }

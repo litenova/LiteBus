@@ -2,33 +2,38 @@
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Paykan.Abstractions;
-using Paykan.Builders;
+using Paykan.Commands;
+using Paykan.Commands.Abstraction;
+using Paykan.Events;
+using Paykan.Events.Abstraction;
+using Paykan.Messaging;
+using Paykan.Messaging.Abstractions;
+using Paykan.Queries;
+using Paykan.Queries.Abstraction;
+using Paykan.Registry;
+using Paykan.Registry.Abstractions;
+#nullable enable
 
 namespace Paykan.Extensions.MicrosoftDependencyInjection
 {
     public static class ServiceCollectionExtensions
     {
         public static IServiceCollection AddPaykan(this IServiceCollection services,
-                                                   Action<IMessageRegistryBuilder> configureBuilder)
+                                                   Action<IPaykanBuilder> config)
         {
-            var messageRegistryBuilder = new MessageRegistryBuilder();
+            var paykanBuilder = new PaykanBuilder();
 
-            configureBuilder(messageRegistryBuilder);
+            config(paykanBuilder);
 
-            var messageRegistry = messageRegistryBuilder.Build();
+            var messageRegistry = MessageRegistryAccessor.MessageRegistry;
 
-            foreach (var descriptor in messageRegistry.Values)
+            messageRegistry.Register(paykanBuilder.Assemblies.ToArray());
+
+            foreach (var descriptor in messageRegistry)
             {
-                foreach (var handlerType in descriptor.HandlerTypes)
-                {
-                    services.AddTransient(handlerType);
-                }
+                foreach (var handlerType in descriptor.HandlerTypes) services.AddTransient(handlerType);
 
-                foreach (var hookType in descriptor.PostHandleHookTypes)
-                {
-                    services.TryAddTransient(hookType);
-                }
+                foreach (var hookType in descriptor.PostHandleHookTypes) services.TryAddTransient(hookType);
             }
 
             var commandMediatorBuilder = new CommandMediatorBuilder();
@@ -40,6 +45,8 @@ namespace Paykan.Extensions.MicrosoftDependencyInjection
             services.AddSingleton<IQueryMediator>(f => queryMediatorBuilder.Build(f, messageRegistry));
             services.AddSingleton<IEventMediator>(f => eventMediatorBuilder.Build(f, messageRegistry));
             services.AddSingleton<IMessageMediator>(f => messageMediatorBuilder.Build(f, messageRegistry));
+            
+            services.TryAddSingleton<IMessageRegistry>(MessageRegistryAccessor.MessageRegistry);
 
             return services;
         }
