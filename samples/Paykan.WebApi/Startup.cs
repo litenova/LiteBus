@@ -21,7 +21,11 @@ namespace Paykan.WebApi
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddPaykan(builder => { builder.Register(typeof(Startup).Assembly); });
+            services.AddPaykan(builder =>
+            {
+                builder.Register(typeof(Startup).Assembly);
+                builder.Register(typeof(Startup).Assembly);
+            });
 
             services.AddControllers();
             services.AddSwaggerGen(c =>
