@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Paykan.Messaging.Abstractions;
 
-namespace Paykan.Queries.Abstraction
+namespace Paykan.Queries.Abstractions
 {
     /// <summary>
     ///     Represents the definition of a handler that handles a query with streaming result

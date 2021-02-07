@@ -2,7 +2,6 @@
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Paykan.Queries.Extensions.MicrosoftDependencyInjection;
 using Paykan.Registry;
 using Paykan.Registry.Abstractions;
 

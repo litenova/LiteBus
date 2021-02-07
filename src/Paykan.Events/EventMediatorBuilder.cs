@@ -1,5 +1,5 @@
 ﻿using System;
-using Paykan.Events.Abstraction;
+using Paykan.Events.Abstractions;
 using Paykan.Registry.Abstractions;
 
 namespace Paykan.Events

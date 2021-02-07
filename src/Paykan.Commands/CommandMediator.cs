@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Paykan.Commands.Abstraction;
+using Paykan.Commands.Abstractions;
 using Paykan.Messaging.Abstractions.Extensions;
 using Paykan.Registry.Abstractions;
 

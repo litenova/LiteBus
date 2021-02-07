@@ -1,7 +1,7 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
 
-namespace Paykan.Events.Abstraction
+namespace Paykan.Events.Abstractions
 {
     /// <summary>
     ///     Publishes an event to its handlers
