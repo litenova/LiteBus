@@ -11,6 +11,7 @@ using Paykan.Messaging.Abstractions;
 using Paykan.Queries;
 using Paykan.Queries.Abstraction;
 using Paykan.Registry;
+using Paykan.Registry.Abstractions;
 #nullable enable
 
 namespace Paykan.Extensions.MicrosoftDependencyInjection
@@ -44,6 +45,8 @@ namespace Paykan.Extensions.MicrosoftDependencyInjection
             services.AddSingleton<IQueryMediator>(f => queryMediatorBuilder.Build(f, messageRegistry));
             services.AddSingleton<IEventMediator>(f => eventMediatorBuilder.Build(f, messageRegistry));
             services.AddSingleton<IMessageMediator>(f => messageMediatorBuilder.Build(f, messageRegistry));
+            
+            services.TryAddSingleton<IMessageRegistry>(MessageRegistryAccessor.MessageRegistry);
 
             return services;
         }
