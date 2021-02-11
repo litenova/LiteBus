@@ -10,7 +10,7 @@ using Paykan.Registry.Abstractions;
 namespace Paykan.Commands
 {
     /// <inheritdoc cref="ICommandMediator" />
-    internal class CommandMediator : ICommandMediator
+    public class CommandMediator : ICommandMediator
     {
         private readonly IMessageRegistry _messageRegistry;
         private readonly IServiceProvider _serviceProvider;
@@ -22,7 +22,7 @@ namespace Paykan.Commands
             _messageRegistry = messageRegistry;
         }
 
-        public Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
+        public virtual Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
             where TCommand : ICommand
         {
             var commandType = typeof(TCommand);
@@ -41,9 +41,9 @@ namespace Paykan.Commands
                                  cancellationToken);
         }
 
-        public Task<TCommandResult> SendAsync<TCommand, TCommandResult>(TCommand command,
-                                                                        CancellationToken cancellationToken =
-                                                                            default)
+        public virtual Task<TCommandResult> SendAsync<TCommand, TCommandResult>(TCommand command,
+            CancellationToken cancellationToken =
+                default)
             where TCommand : ICommand<TCommandResult>
         {
             var commandType = typeof(TCommand);
@@ -58,8 +58,8 @@ namespace Paykan.Commands
             return handler.HandleAsync(command, cancellationToken);
         }
 
-        public Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
-                                                              CancellationToken cancellationToken = default)
+        public virtual Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
+                                                                      CancellationToken cancellationToken = default)
         {
             var commandType = command.GetType();
 
