@@ -5,7 +5,7 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Authors>Mohammad ShafieZadeh</Authors>
         <PackageTags>mediator;cqrs</PackageTags>
-        <Version>2.1.0</Version>
+        <Version>2.1.1</Version>
         <Description>Paykan extensions to integrate with microsoft dependency injection</Description>
         <PackageProjectUrl>https://github.com/arishk/Paykan</PackageProjectUrl>
         <RepositoryUrl>https://github.com/arishk/Paykan</RepositoryUrl>

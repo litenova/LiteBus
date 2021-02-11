@@ -9,7 +9,7 @@ using Paykan.Registry.Abstractions;
 
 namespace Paykan.Queries
 {
-    internal class QueryMediator : IQueryMediator
+    public class QueryMediator : IQueryMediator
     {
         private readonly IMessageRegistry _messageRegistry;
         private readonly IServiceProvider _serviceProvider;
@@ -21,8 +21,9 @@ namespace Paykan.Queries
             _messageRegistry = messageRegistry;
         }
 
-        public Task<TQueryResult> QueryAsync<TQuery, TQueryResult>(TQuery query,
-                                                                   CancellationToken cancellationToken = default)
+        public virtual Task<TQueryResult> QueryAsync<TQuery, TQueryResult>(TQuery query,
+                                                                           CancellationToken cancellationToken =
+                                                                               default)
             where TQuery : IQuery<TQueryResult>
         {
             var queryType = typeof(TQuery);
@@ -37,7 +38,7 @@ namespace Paykan.Queries
             return handler.HandleAsync(query, cancellationToken);
         }
 
-        public IAsyncEnumerable<TQueryResult> StreamQueryAsync<TQuery, TQueryResult>(TQuery query,
+        public virtual IAsyncEnumerable<TQueryResult> StreamQueryAsync<TQuery, TQueryResult>(TQuery query,
             CancellationToken cancellationToken = default) where TQuery : IStreamQuery<TQueryResult>
         {
             var queryType = typeof(TQuery);
@@ -52,8 +53,8 @@ namespace Paykan.Queries
             return handler.HandleAsync(query, cancellationToken);
         }
 
-        public Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
-                                                           CancellationToken cancellationToken = default)
+        public virtual Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
+                                                                   CancellationToken cancellationToken = default)
         {
             var queryType = query.GetType();
 
@@ -66,9 +67,9 @@ namespace Paykan.Queries
                    .HandleAsync<Task<TQueryResult>>(query, cancellationToken);
         }
 
-        public IAsyncEnumerable<TQueryResult> StreamQueryAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
-                                                                             CancellationToken cancellationToken =
-                                                                                 default)
+        public virtual IAsyncEnumerable<TQueryResult> StreamQueryAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
+            CancellationToken cancellationToken =
+                default)
         {
             var queryType = query.GetType();
 

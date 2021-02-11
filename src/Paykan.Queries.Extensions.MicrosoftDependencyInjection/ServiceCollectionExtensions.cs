@@ -2,6 +2,7 @@
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Paykan.Queries.Abstractions;
 using Paykan.Registry;
 using Paykan.Registry.Abstractions;
 
@@ -22,14 +23,12 @@ namespace Paykan.Queries.Extensions.MicrosoftDependencyInjection
 
             foreach (var descriptor in messageRegistry)
             {
-                foreach (var handlerType in descriptor.HandlerTypes) services.AddTransient(handlerType);
+                foreach (var handlerType in descriptor.HandlerTypes) services.TryAddTransient(handlerType);
 
                 foreach (var hookType in descriptor.PostHandleHookTypes) services.TryAddTransient(hookType);
             }
 
-            var queryMediatorBuilder = new QueryMediatorBuilder();
-
-            services.AddSingleton(f => queryMediatorBuilder.Build(f, messageRegistry));
+            services.TryAddTransient<IQueryMediator, QueryMediator>();
             services.TryAddSingleton<IMessageRegistry>(MessageRegistryAccessor.MessageRegistry);
             
             return services;
