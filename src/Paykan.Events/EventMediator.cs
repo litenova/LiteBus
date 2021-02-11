@@ -21,7 +21,7 @@ namespace Paykan.Events
             _messageRegistry = messageRegistry;
         }
 
-        public Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
+        public virtual Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
             where TEvent : IEvent
         {
             var descriptor = _messageRegistry.GetDescriptor<TEvent>();

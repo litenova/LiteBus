@@ -22,7 +22,7 @@ namespace Paykan.Messaging
             _messageRegistry = messageRegistry;
         }
 
-        public Task SendAsync<TMessage>(TMessage message, CancellationToken cancellationToken = default)
+        public virtual Task SendAsync<TMessage>(TMessage message, CancellationToken cancellationToken = default)
         {
             var messageType = typeof(TMessage);
 
@@ -35,8 +35,9 @@ namespace Paykan.Messaging
             return Task.WhenAll(handlers.Select(h => h.HandleAsync(message, cancellationToken)));
         }
 
-        public TMessageResult SendAsync<TMessage, TMessageResult>(TMessage message,
-                                                                  CancellationToken cancellationToken = default)
+        public virtual TMessageResult SendAsync<TMessage, TMessageResult>(TMessage message,
+                                                                          CancellationToken cancellationToken =
+                                                                              default)
         {
             var messageType = typeof(TMessage);
 
@@ -49,7 +50,8 @@ namespace Paykan.Messaging
             return handler.HandleAsync(message, cancellationToken);
         }
 
-        public TMessageResult SendAsync<TMessageResult>(object message, CancellationToken cancellationToken = default)
+        public virtual TMessageResult SendAsync<TMessageResult>(object message,
+                                                                CancellationToken cancellationToken = default)
         {
             var messageType = message.GetType();
 

@@ -31,20 +31,15 @@ namespace Paykan.Extensions.MicrosoftDependencyInjection
 
             foreach (var descriptor in messageRegistry)
             {
-                foreach (var handlerType in descriptor.HandlerTypes) services.AddTransient(handlerType);
+                foreach (var handlerType in descriptor.HandlerTypes) services.TryAddTransient(handlerType);
 
                 foreach (var hookType in descriptor.PostHandleHookTypes) services.TryAddTransient(hookType);
             }
 
-            var commandMediatorBuilder = new CommandMediatorBuilder();
-            var queryMediatorBuilder = new QueryMediatorBuilder();
-            var eventMediatorBuilder = new EventMediatorBuilder();
-            var messageMediatorBuilder = new MessageMediatorBuilder();
-
-            services.AddSingleton<ICommandMediator>(f => commandMediatorBuilder.Build(f, messageRegistry));
-            services.AddSingleton<IQueryMediator>(f => queryMediatorBuilder.Build(f, messageRegistry));
-            services.AddSingleton<IEventMediator>(f => eventMediatorBuilder.Build(f, messageRegistry));
-            services.AddSingleton<IMessageMediator>(f => messageMediatorBuilder.Build(f, messageRegistry));
+            services.TryAddTransient<ICommandMediator, CommandMediator>();
+            services.TryAddTransient<IQueryMediator, QueryMediator>();
+            services.TryAddTransient<IEventMediator, EventMediator>();
+            services.TryAddTransient<IMessageMediator, MessageMediator>();
             
             services.TryAddSingleton<IMessageRegistry>(MessageRegistryAccessor.MessageRegistry);
 
