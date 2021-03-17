@@ -23,110 +23,110 @@ jobs:
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
           PROJECT_FILE_PATH: src/LightBus/LightBus.csproj
-          NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+          NUGET_KEY: ${{secrets.Nuget_API_Key}}
           NUGET_SOURCE: https://api.nuget.org
           
     - name: Publish LightBus.Extensions.MicrosoftDependencyInjection
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
           PROJECT_FILE_PATH: src/LightBus.Extensions.MicrosoftDependencyInjection/LightBus.Extensions.MicrosoftDependencyInjection.csproj
-          NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+          NUGET_KEY: ${{secrets.Nuget_API_Key}}
           NUGET_SOURCE: https://api.nuget.org
             
     - name: Publish LightBus.Commands
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
         PROJECT_FILE_PATH: src/LightBus.Commands/LightBus.Commands.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
     - name: Publish LightBus.Commands.Abstractions
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
         PROJECT_FILE_PATH: src/LightBus.Commands.Abstractions/LightBus.Commands.Abstractions.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
         
     - name: Publish LightBus.Commands.Extensions.MicrosoftDependencyInjection
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
         PROJECT_FILE_PATH: src/LightBus.Commands.Extensions.MicrosoftDependencyInjection/LightBus.Commands.Extensions.MicrosoftDependencyInjection.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
         
     - name: Publish LightBus.Events
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
         PROJECT_FILE_PATH: src/LightBus.Events/LightBus.Events.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
     - name: Publish LightBus.Events.Abstractions
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
         PROJECT_FILE_PATH: src/LightBus.Events.Abstractions/LightBus.Events.Abstractions.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
     - name: Publish LightBus.Events.Extensions.MicrosoftDependencyInjection
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
         PROJECT_FILE_PATH: src/LightBus.Events.Extensions.MicrosoftDependencyInjection/LightBus.Events.Extensions.MicrosoftDependencyInjection.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
         
     - name: Publish LightBus.Queries
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
         PROJECT_FILE_PATH: src/LightBus.Queries/LightBus.Queries.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
     - name: Publish LightBus.Queries.Abstractions
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
         PROJECT_FILE_PATH: src/LightBus.Queries.Abstractions/LightBus.Queries.Abstractions.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
     - name: Publish LightBus.Queries.Extensions.MicrosoftDependencyInjection
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
         PROJECT_FILE_PATH: src/LightBus.Queries.Extensions.MicrosoftDependencyInjection/LightBus.Queries.Extensions.MicrosoftDependencyInjection.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
     - name: Publish LightBus.Registry
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
         PROJECT_FILE_PATH: src/LightBus.Registry/LightBus.Registry.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
     - name: Publish LightBus.Registry.Abstractions
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
         PROJECT_FILE_PATH: src/LightBus.Registry.Abstractions/LightBus.Registry.Abstractions.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
         
     - name: Publish LightBus.Messaging
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
         PROJECT_FILE_PATH: src/LightBus.Messaging/LightBus.Messaging.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
     - name: Publish LightBus.Messaging.Abstractions
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
         PROJECT_FILE_PATH: src/LightBus.Messaging.Abstractions/LightBus.Messaging.Abstractions.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
         
     - name: Publish LightBus.Messaging.Extensions.MicrosoftDependencyInjection
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
         PROJECT_FILE_PATH: src/LightBus.Messaging.Extensions.MicrosoftDependencyInjection/LightBus.Messaging.Extensions.MicrosoftDependencyInjection.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
