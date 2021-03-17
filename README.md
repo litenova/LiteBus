@@ -1,10 +1,10 @@
-# LightBus
-![.NET 5 CI](https://github.com/mshfzd/LightBus/workflows/.NET%205%20CI/badge.svg)
-[![NuGet](https://img.shields.io/nuget/vpre/LightBus.svg)](https://www.nuget.org/packages/LightBus)
+# LiteBus
+![.NET 5 CI](https://github.com/mshfzd/LiteBus/workflows/.NET%205%20CI/badge.svg)
+[![NuGet](https://img.shields.io/nuget/vpre/LiteBus.svg)](https://www.nuget.org/packages/LiteBus)
 
 
 
-A lightweight and easy to use in-process mediator to implement CQRS
+A liteweight and easy to use in-process mediator to implement CQRS
 
 * Written in .NET 5
 * No Dependencies
@@ -24,21 +24,21 @@ Depending on your usage, follow one of the guidelines below.
 Install with NuGet:
 
 ```
-Install-Package LightBus
-Install-Package LightBus.Extensions.MicrosoftDependencyInjection
+Install-Package LiteBus
+Install-Package LiteBus.Extensions.MicrosoftDependencyInjection
 ```
 
 or with .NET CLI:
 
 ```
-dotnet add package LightBus
-dotnet add package LightBus.Extensions.MicrosoftDependencyInjection
+dotnet add package LiteBus
+dotnet add package LiteBus.Extensions.MicrosoftDependencyInjection
 ```
 
-and configure the LightBus as below in the `ConfigureServices` method of `Startup.cs`:
+and configure the LiteBus as below in the `ConfigureServices` method of `Startup.cs`:
 
 ```c#
-services.AddLightBus(builder =>
+services.AddLiteBus(builder =>
 {
     builder.RegisterHandlers(typeof(Startup).Assembly);
 });
@@ -46,7 +46,7 @@ services.AddLightBus(builder =>
 
 ## Message Handling Usages
 
-The following examples shows the usages of LightBus.
+The following examples shows the usages of LiteBus.
 
 ### Commands
 
