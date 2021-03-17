@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net5.0</TargetFramework>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <Authors>Mohammad ShafieZadeh</Authors>
+        <PackageTags>mediator;cqrs</PackageTags>
+        <Version>0.1.0</Version>
+        <Description>A lightweight and easy to use in-process mediator written in .net 5</Description>
+        <PackageProjectUrl>https://github.com/arishk/LightBus</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/arishk/LightBus</RepositoryUrl>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\LightBus.Messaging.Abstractions\LightBus.Messaging.Abstractions.csproj" />
+      <ProjectReference Include="..\LightBus.Registry.Abstractions\LightBus.Registry.Abstractions.csproj" />
+    </ItemGroup>
+
+</Project>
