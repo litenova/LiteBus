@@ -1,5 +1,5 @@
 # LiteBus
-![.NET 5 CI](https://github.com/mshfzd/LiteBus/workflows/.NET%205%20CI/badge.svg)
+[![.NET 5 CI](https://github.com/arishk/LiteBus/actions/workflows/dotnet-core.yml/badge.svg?branch=main)
 [![NuGet](https://img.shields.io/nuget/vpre/LiteBus.svg)](https://www.nuget.org/packages/LiteBus)
 
 
