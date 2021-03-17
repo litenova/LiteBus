@@ -1,6 +1,6 @@
-# Paykan
-![.NET 5 CI](https://github.com/mshfzd/Paykan/workflows/.NET%205%20CI/badge.svg)
-[![NuGet](https://img.shields.io/nuget/vpre/paykan.svg)](https://www.nuget.org/packages/paykan)
+# LightBus
+![.NET 5 CI](https://github.com/mshfzd/LightBus/workflows/.NET%205%20CI/badge.svg)
+[![NuGet](https://img.shields.io/nuget/vpre/LightBus.svg)](https://www.nuget.org/packages/LightBus)
 
 
 
@@ -24,21 +24,21 @@ Depending on your usage, follow one of the guidelines below.
 Install with NuGet:
 
 ```
-Install-Package Paykan
-Install-Package Paykan.Extensions.MicrosoftDependencyInjection
+Install-Package LightBus
+Install-Package LightBus.Extensions.MicrosoftDependencyInjection
 ```
 
 or with .NET CLI:
 
 ```
-dotnet add package Paykan
-dotnet add package Paykan.Extensions.MicrosoftDependencyInjection
+dotnet add package LightBus
+dotnet add package LightBus.Extensions.MicrosoftDependencyInjection
 ```
 
-and configure the Paykan as below in the `ConfigureServices` method of `Startup.cs`:
+and configure the LightBus as below in the `ConfigureServices` method of `Startup.cs`:
 
 ```c#
-services.AddPaykan(builder =>
+services.AddLightBus(builder =>
 {
     builder.RegisterHandlers(typeof(Startup).Assembly);
 });
@@ -46,7 +46,7 @@ services.AddPaykan(builder =>
 
 ## Message Handling Usages
 
-The following examples shows the usages of Paykan.
+The following examples shows the usages of LightBus.
 
 ### Commands
 

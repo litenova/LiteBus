@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net5.0</TargetFramework>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <Authors>Mohammad ShafieZadeh</Authors>
+        <PackageTags>mediator;cqrs</PackageTags>
+        <Version>0.1.0</Version>
+        <Description>LightBus extensions to integrate with microsoft dependency injection</Description>
+        <PackageProjectUrl>https://github.com/arishk/LightBus</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/arishk/LightBus</RepositoryUrl>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\LightBus.Registry\LightBus.Registry.csproj" />
+      <ProjectReference Include="..\LightBus\LightBus.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="5.0.0" />
+    </ItemGroup>
+
+</Project>

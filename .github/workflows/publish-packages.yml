@@ -19,114 +19,114 @@ jobs:
     - name: Build
       run: dotnet build --configuration Release --no-restore
 
-    - name: Publish Paykan
+    - name: Publish LightBus
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-          PROJECT_FILE_PATH: src/Paykan/Paykan.csproj
-          NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+          PROJECT_FILE_PATH: src/LightBus/LightBus.csproj
+          NUGET_KEY: ${{secrets.Nuget_API_Key}}
           NUGET_SOURCE: https://api.nuget.org
           
-    - name: Publish Paykan.Extensions.MicrosoftDependencyInjection
+    - name: Publish LightBus.Extensions.MicrosoftDependencyInjection
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-          PROJECT_FILE_PATH: src/Paykan.Extensions.MicrosoftDependencyInjection/Paykan.Extensions.MicrosoftDependencyInjection.csproj
-          NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+          PROJECT_FILE_PATH: src/LightBus.Extensions.MicrosoftDependencyInjection/LightBus.Extensions.MicrosoftDependencyInjection.csproj
+          NUGET_KEY: ${{secrets.Nuget_API_Key}}
           NUGET_SOURCE: https://api.nuget.org
             
-    - name: Publish Paykan.Commands
+    - name: Publish LightBus.Commands
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-        PROJECT_FILE_PATH: src/Paykan.Commands/Paykan.Commands.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        PROJECT_FILE_PATH: src/LightBus.Commands/LightBus.Commands.csproj
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
-    - name: Publish Paykan.Commands.Abstractions
+    - name: Publish LightBus.Commands.Abstractions
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-        PROJECT_FILE_PATH: src/Paykan.Commands.Abstractions/Paykan.Commands.Abstractions.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        PROJECT_FILE_PATH: src/LightBus.Commands.Abstractions/LightBus.Commands.Abstractions.csproj
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
         
-    - name: Publish Paykan.Commands.Extensions.MicrosoftDependencyInjection
+    - name: Publish LightBus.Commands.Extensions.MicrosoftDependencyInjection
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-        PROJECT_FILE_PATH: src/Paykan.Commands.Extensions.MicrosoftDependencyInjection/Paykan.Commands.Extensions.MicrosoftDependencyInjection.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        PROJECT_FILE_PATH: src/LightBus.Commands.Extensions.MicrosoftDependencyInjection/LightBus.Commands.Extensions.MicrosoftDependencyInjection.csproj
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
         
-    - name: Publish Paykan.Events
+    - name: Publish LightBus.Events
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-        PROJECT_FILE_PATH: src/Paykan.Events/Paykan.Events.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        PROJECT_FILE_PATH: src/LightBus.Events/LightBus.Events.csproj
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
-    - name: Publish Paykan.Events.Abstractions
+    - name: Publish LightBus.Events.Abstractions
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-        PROJECT_FILE_PATH: src/Paykan.Events.Abstractions/Paykan.Events.Abstractions.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        PROJECT_FILE_PATH: src/LightBus.Events.Abstractions/LightBus.Events.Abstractions.csproj
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
-    - name: Publish Paykan.Events.Extensions.MicrosoftDependencyInjection
+    - name: Publish LightBus.Events.Extensions.MicrosoftDependencyInjection
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-        PROJECT_FILE_PATH: src/Paykan.Events.Extensions.MicrosoftDependencyInjection/Paykan.Events.Extensions.MicrosoftDependencyInjection.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        PROJECT_FILE_PATH: src/LightBus.Events.Extensions.MicrosoftDependencyInjection/LightBus.Events.Extensions.MicrosoftDependencyInjection.csproj
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
         
-    - name: Publish Paykan.Queries
+    - name: Publish LightBus.Queries
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-        PROJECT_FILE_PATH: src/Paykan.Queries/Paykan.Queries.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        PROJECT_FILE_PATH: src/LightBus.Queries/LightBus.Queries.csproj
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
-    - name: Publish Paykan.Queries.Abstractions
+    - name: Publish LightBus.Queries.Abstractions
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-        PROJECT_FILE_PATH: src/Paykan.Queries.Abstractions/Paykan.Queries.Abstractions.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        PROJECT_FILE_PATH: src/LightBus.Queries.Abstractions/LightBus.Queries.Abstractions.csproj
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
-    - name: Publish Paykan.Queries.Extensions.MicrosoftDependencyInjection
+    - name: Publish LightBus.Queries.Extensions.MicrosoftDependencyInjection
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-        PROJECT_FILE_PATH: src/Paykan.Queries.Extensions.MicrosoftDependencyInjection/Paykan.Queries.Extensions.MicrosoftDependencyInjection.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        PROJECT_FILE_PATH: src/LightBus.Queries.Extensions.MicrosoftDependencyInjection/LightBus.Queries.Extensions.MicrosoftDependencyInjection.csproj
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
-    - name: Publish Paykan.Registry
+    - name: Publish LightBus.Registry
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-        PROJECT_FILE_PATH: src/Paykan.Registry/Paykan.Registry.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        PROJECT_FILE_PATH: src/LightBus.Registry/LightBus.Registry.csproj
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
-    - name: Publish Paykan.Registry.Abstractions
+    - name: Publish LightBus.Registry.Abstractions
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-        PROJECT_FILE_PATH: src/Paykan.Registry.Abstractions/Paykan.Registry.Abstractions.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        PROJECT_FILE_PATH: src/LightBus.Registry.Abstractions/LightBus.Registry.Abstractions.csproj
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
         
-    - name: Publish Paykan.Messaging
+    - name: Publish LightBus.Messaging
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-        PROJECT_FILE_PATH: src/Paykan.Messaging/Paykan.Messaging.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        PROJECT_FILE_PATH: src/LightBus.Messaging/LightBus.Messaging.csproj
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
 
-    - name: Publish Paykan.Messaging.Abstractions
+    - name: Publish LightBus.Messaging.Abstractions
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-        PROJECT_FILE_PATH: src/Paykan.Messaging.Abstractions/Paykan.Messaging.Abstractions.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        PROJECT_FILE_PATH: src/LightBus.Messaging.Abstractions/LightBus.Messaging.Abstractions.csproj
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
         
-    - name: Publish Paykan.Messaging.Extensions.MicrosoftDependencyInjection
+    - name: Publish LightBus.Messaging.Extensions.MicrosoftDependencyInjection
       uses: brandedoutcast/publish-nuget@v2.5.5
       with:
-        PROJECT_FILE_PATH: src/Paykan.Messaging.Extensions.MicrosoftDependencyInjection/Paykan.Messaging.Extensions.MicrosoftDependencyInjection.csproj
-        NUGET_KEY: ${{secrets.Termeh_Travel_Nuget_API_Key}}
+        PROJECT_FILE_PATH: src/LightBus.Messaging.Extensions.MicrosoftDependencyInjection/LightBus.Messaging.Extensions.MicrosoftDependencyInjection.csproj
+        NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
