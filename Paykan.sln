@@ -4,13 +4,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{0C972F3F-001
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0EFE2493-E2D3-499C-BB05-B9794298273D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan", "src\Paykan\Paykan.csproj", "{B1FDAB62-C743-4D41-A8F6-727FEFCA882D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus", "src\LightBus\LightBus.csproj", "{B1FDAB62-C743-4D41-A8F6-727FEFCA882D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Extensions.MicrosoftDependencyInjection", "src\Paykan.Extensions.MicrosoftDependencyInjection\Paykan.Extensions.MicrosoftDependencyInjection.csproj", "{BC8DA8CC-56FE-47EC-B8EB-693A3C218382}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Extensions.MicrosoftDependencyInjection", "src\LightBus.Extensions.MicrosoftDependencyInjection\LightBus.Extensions.MicrosoftDependencyInjection.csproj", "{BC8DA8CC-56FE-47EC-B8EB-693A3C218382}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{598AE9AB-FD1F-4648-B5CF-EA282C443851}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.WebApi", "samples\Paykan.WebApi\Paykan.WebApi.csproj", "{0E44005E-D117-4952-9295-37C58B5F15AD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.WebApi", "samples\LightBus.WebApi\LightBus.WebApi.csproj", "{0E44005E-D117-4952-9295-37C58B5F15AD}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{52BF0EB2-FFF5-4976-8404-546EE35E5EAB}"
 ProjectSection(SolutionItems) = preProject
@@ -21,33 +21,33 @@ ProjectSection(SolutionItems) = preProject
 	.github\workflows\publish-packages.yml = .github\workflows\publish-packages.yml
 EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Messaging", "src\Paykan.Messaging\Paykan.Messaging.csproj", "{1A7DFC44-37DF-40C1-AB2E-548BDB148D14}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Messaging.Abstractions", "src\LightBus.Messaging.Abstractions\LightBus.Messaging.Abstractions.csproj", "{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Messaging.Abstractions", "src\Paykan.Messaging.Abstractions\Paykan.Messaging.Abstractions.csproj", "{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Registry.Abstractions", "src\LightBus.Registry.Abstractions\LightBus.Registry.Abstractions.csproj", "{DD9446F8-1A9B-44E0-A272-13DB2AFB5624}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Registry.Abstractions", "src\Paykan.Registry.Abstractions\Paykan.Registry.Abstractions.csproj", "{DD9446F8-1A9B-44E0-A272-13DB2AFB5624}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Commands.Abstractions", "src\LightBus.Commands.Abstractions\LightBus.Commands.Abstractions.csproj", "{CDE98E55-82E9-44FC-9E18-030CD6C72322}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Commands.Abstractions", "src\Paykan.Commands.Abstractions\Paykan.Commands.Abstractions.csproj", "{CDE98E55-82E9-44FC-9E18-030CD6C72322}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Commands", "src\LightBus.Commands\LightBus.Commands.csproj", "{67B8F4B0-507A-43A8-90AF-D47E21A765A1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Commands", "src\Paykan.Commands\Paykan.Commands.csproj", "{67B8F4B0-507A-43A8-90AF-D47E21A765A1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Events.Abstractions", "src\LightBus.Events.Abstractions\LightBus.Events.Abstractions.csproj", "{A420602C-0A96-4339-A84F-69708C943A5C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Events.Abstractions", "src\Paykan.Events.Abstractions\Paykan.Events.Abstractions.csproj", "{A420602C-0A96-4339-A84F-69708C943A5C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Events", "src\LightBus.Events\LightBus.Events.csproj", "{DB836B64-1A4C-45B7-BF43-1FECFE704DEA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Events", "src\Paykan.Events\Paykan.Events.csproj", "{DB836B64-1A4C-45B7-BF43-1FECFE704DEA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Queries.Abstractions", "src\LightBus.Queries.Abstractions\LightBus.Queries.Abstractions.csproj", "{4A7688E8-9272-4FF1-A53C-E78968799717}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Queries.Abstractions", "src\Paykan.Queries.Abstractions\Paykan.Queries.Abstractions.csproj", "{4A7688E8-9272-4FF1-A53C-E78968799717}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Queries", "src\LightBus.Queries\LightBus.Queries.csproj", "{5A37FD18-2EE2-4170-9000-28E66485555E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Queries", "src\Paykan.Queries\Paykan.Queries.csproj", "{5A37FD18-2EE2-4170-9000-28E66485555E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Commands.Extensions.MicrosoftDependencyInjection", "src\LightBus.Commands.Extensions.MicrosoftDependencyInjection\LightBus.Commands.Extensions.MicrosoftDependencyInjection.csproj", "{83E199BD-34B6-4769-B59B-21844EF0AC11}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Commands.Extensions.MicrosoftDependencyInjection", "src\Paykan.Commands.Extensions.MicrosoftDependencyInjection\Paykan.Commands.Extensions.MicrosoftDependencyInjection.csproj", "{83E199BD-34B6-4769-B59B-21844EF0AC11}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Events.Extensions.MicrosoftDependencyInjection", "src\LightBus.Events.Extensions.MicrosoftDependencyInjection\LightBus.Events.Extensions.MicrosoftDependencyInjection.csproj", "{FFE8D329-02A1-478F-8579-E5DC4884F301}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Events.Extensions.MicrosoftDependencyInjection", "src\Paykan.Events.Extensions.MicrosoftDependencyInjection\Paykan.Events.Extensions.MicrosoftDependencyInjection.csproj", "{FFE8D329-02A1-478F-8579-E5DC4884F301}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Queries.Extensions.MicrosoftDependencyInjection", "src\LightBus.Queries.Extensions.MicrosoftDependencyInjection\LightBus.Queries.Extensions.MicrosoftDependencyInjection.csproj", "{4F82020C-7E22-4CEB-9273-FDD309FBBAE4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Queries.Extensions.MicrosoftDependencyInjection", "src\Paykan.Queries.Extensions.MicrosoftDependencyInjection\Paykan.Queries.Extensions.MicrosoftDependencyInjection.csproj", "{4F82020C-7E22-4CEB-9273-FDD309FBBAE4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Registry", "src\LightBus.Registry\LightBus.Registry.csproj", "{04AA03ED-1BC6-4360-954C-E4F002BC08FF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Registry", "src\Paykan.Registry\Paykan.Registry.csproj", "{04AA03ED-1BC6-4360-954C-E4F002BC08FF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Messaging.Extensions.MicrosoftDependencyInjection", "src\LightBus.Messaging.Extensions.MicrosoftDependencyInjection\LightBus.Messaging.Extensions.MicrosoftDependencyInjection.csproj", "{901335C8-4F10-489E-9046-1C36DF04BC4B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Paykan.Messaging.Extensions.MicrosoftDependencyInjection", "src\Paykan.Messaging.Extensions.MicrosoftDependencyInjection\Paykan.Messaging.Extensions.MicrosoftDependencyInjection.csproj", "{901335C8-4F10-489E-9046-1C36DF04BC4B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LightBus.Messaging", "src\LightBus.Messaging\LightBus.Messaging.csproj", "{5304A13D-7C9E-4B79-8CCA-885266EAD744}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -58,7 +58,6 @@ Global
 		{B1FDAB62-C743-4D41-A8F6-727FEFCA882D} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
 		{BC8DA8CC-56FE-47EC-B8EB-693A3C218382} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
 		{0E44005E-D117-4952-9295-37C58B5F15AD} = {598AE9AB-FD1F-4648-B5CF-EA282C443851}
-		{1A7DFC44-37DF-40C1-AB2E-548BDB148D14} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
 		{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
 		{DD9446F8-1A9B-44E0-A272-13DB2AFB5624} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
 		{CDE98E55-82E9-44FC-9E18-030CD6C72322} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
@@ -72,6 +71,7 @@ Global
 		{4F82020C-7E22-4CEB-9273-FDD309FBBAE4} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
 		{04AA03ED-1BC6-4360-954C-E4F002BC08FF} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
 		{901335C8-4F10-489E-9046-1C36DF04BC4B} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
+		{5304A13D-7C9E-4B79-8CCA-885266EAD744} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{B1FDAB62-C743-4D41-A8F6-727FEFCA882D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -86,10 +86,6 @@ Global
 		{0E44005E-D117-4952-9295-37C58B5F15AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0E44005E-D117-4952-9295-37C58B5F15AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0E44005E-D117-4952-9295-37C58B5F15AD}.Release|Any CPU.Build.0 = Release|Any CPU
-		{1A7DFC44-37DF-40C1-AB2E-548BDB148D14}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1A7DFC44-37DF-40C1-AB2E-548BDB148D14}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1A7DFC44-37DF-40C1-AB2E-548BDB148D14}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1A7DFC44-37DF-40C1-AB2E-548BDB148D14}.Release|Any CPU.Build.0 = Release|Any CPU
 		{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -142,5 +138,9 @@ Global
 		{901335C8-4F10-489E-9046-1C36DF04BC4B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{901335C8-4F10-489E-9046-1C36DF04BC4B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{901335C8-4F10-489E-9046-1C36DF04BC4B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5304A13D-7C9E-4B79-8CCA-885266EAD744}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5304A13D-7C9E-4B79-8CCA-885266EAD744}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5304A13D-7C9E-4B79-8CCA-885266EAD744}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5304A13D-7C9E-4B79-8CCA-885266EAD744}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
