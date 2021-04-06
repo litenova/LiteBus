@@ -1,5 +1,4 @@
-﻿using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 namespace LiteBus.Events.Abstractions
 {
@@ -8,6 +7,6 @@ namespace LiteBus.Events.Abstractions
     /// </summary>
     public interface IEventMediator
     {
-        Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default) where TEvent : IEvent;
+        Task PublishAsync<TEvent>(TEvent @event) where TEvent : IEvent;
     }
 }

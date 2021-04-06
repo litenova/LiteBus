@@ -4,8 +4,6 @@ using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Events;
 using LiteBus.Events.Abstractions;
-using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Registry;
@@ -22,13 +20,13 @@ namespace LiteBus.Extensions.MicrosoftDependencyInjection
         public static IServiceCollection AddLiteBus(this IServiceCollection services,
                                                    Action<ILiteBusBuilder> config)
         {
-            var LiteBusBuilder = new LiteBusBuilder();
+            var liteBusBuilder = new LiteBusBuilder();
 
-            config(LiteBusBuilder);
+            config(liteBusBuilder);
 
             var messageRegistry = MessageRegistryAccessor.MessageRegistry;
 
-            messageRegistry.Register(LiteBusBuilder.Assemblies.ToArray());
+            messageRegistry.Register(liteBusBuilder.Assemblies.ToArray());
 
             foreach (var descriptor in messageRegistry)
             {
@@ -40,7 +38,9 @@ namespace LiteBus.Extensions.MicrosoftDependencyInjection
             services.TryAddTransient<ICommandMediator, CommandMediator>();
             services.TryAddTransient<IQueryMediator, QueryMediator>();
             services.TryAddTransient<IEventMediator, EventMediator>();
-            services.TryAddTransient<IMessageMediator, MessageMediator>();
+            
+            // Todo: add plain message mediator
+            // services.TryAddTransient<IMessageMediator, MessageMediator>();
             
             services.TryAddSingleton<IMessageRegistry>(MessageRegistryAccessor.MessageRegistry);
 

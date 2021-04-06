@@ -13,5 +13,6 @@
     /// <typeparam name="TMessageResult">The message result type</typeparam>
     public interface IMessage<out TMessageResult> : IMessage
     {
+        
     }
 }

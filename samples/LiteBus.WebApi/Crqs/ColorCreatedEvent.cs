@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 
@@ -12,7 +11,7 @@ namespace LiteBus.WebApi.Crqs
 
     public class ColorCreatedEventHandler1 : IEventHandler<ColorCreatedEvent>
     {
-        public Task HandleAsync(ColorCreatedEvent message, CancellationToken cancellationToken = default)
+        public Task Handle(ColorCreatedEvent message)
         {
             Debug.WriteLine("Event handled in ColorCreatedEventHandler 1");
 
@@ -22,7 +21,7 @@ namespace LiteBus.WebApi.Crqs
 
     public class ColorCreatedEventHandler2 : IEventHandler<ColorCreatedEvent>
     {
-        public Task HandleAsync(ColorCreatedEvent message, CancellationToken cancellationToken = default)
+        public Task Handle(ColorCreatedEvent message)
         {
             Debug.WriteLine("Event handled in ColorCreatedEventHandler 2");
 

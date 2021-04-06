@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Extensions;
 using LiteBus.Registry.Abstractions;
 
@@ -21,55 +21,48 @@ namespace LiteBus.Commands
             _serviceProvider = serviceProvider;
             _messageRegistry = messageRegistry;
         }
-
-        public virtual Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
-            where TCommand : ICommand
-        {
-            var commandType = typeof(TCommand);
-
-            var descriptor = _messageRegistry.GetDescriptor<TCommand>();
-
-            if (descriptor.HandlerTypes.Count > 1) throw new MultipleCommandHandlerFoundException(commandType);
-
-            var handler = _serviceProvider.GetHandler<TCommand, Task>(descriptor.HandlerTypes.Single());
-
-            var postHandleHooks = _serviceProvider.GetPostHandleHooks<TCommand>(descriptor.PostHandleHookTypes);
-
-            return handler
-                   .HandleAsync(command, cancellationToken)
-                   .ContinueWith(t => Task.WhenAll((IEnumerable<Task>) postHandleHooks.Select(h => h.ExecuteAsync(command))),
-                                 cancellationToken);
-        }
-
-        public virtual Task<TCommandResult> SendAsync<TCommand, TCommandResult>(TCommand command,
-            CancellationToken cancellationToken =
-                default)
-            where TCommand : ICommand<TCommandResult>
-        {
-            var commandType = typeof(TCommand);
-
-            var descriptor = _messageRegistry.GetDescriptor<TCommand>();
-
-            if (descriptor.HandlerTypes.Count > 1) throw new MultipleCommandHandlerFoundException(commandType);
-
-            var handler =
-                _serviceProvider.GetHandler<TCommand, Task<TCommandResult>>(descriptor.HandlerTypes.Single());
-
-            return handler.HandleAsync(command, cancellationToken);
-        }
-
-        public virtual Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
-                                                                      CancellationToken cancellationToken = default)
+        
+        private (TResult, IEnumerable<IPostHandleHook>) SendAsync<TResult>(IMessage command)
         {
             var commandType = command.GetType();
 
-            var descriptor = _messageRegistry.GetDescriptor(command.GetType());
+            var descriptor = _messageRegistry.GetDescriptor(commandType);
 
             if (descriptor.HandlerTypes.Count > 1) throw new MultipleCommandHandlerFoundException(commandType);
 
-            return _serviceProvider
-                   .GetService(descriptor.HandlerTypes.First())
-                   .HandleAsync<Task<TCommandResult>>(command, cancellationToken);
+            var handler = _serviceProvider.GetService(descriptor.HandlerTypes.Single()) as IMessageHandler;
+
+            var postHandleHooks = _serviceProvider.GetPostHandleHooks(descriptor.PostHandleHookTypes);
+
+            var commandResult = handler.Handle(command);
+            
+            return ((TResult)commandResult, postHandleHooks);
+        }
+
+        public async Task SendAsync(ICommand command)
+        {
+            var (commandResultTask, postHandleHooks) = SendAsync<Task>(command);
+
+            await commandResultTask;
+            
+            foreach (var postHandleHook in postHandleHooks)
+            {
+                await postHandleHook.ExecuteAsync(command);
+            }
+        }
+
+        public async Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command)
+        {
+            var (commandResultTask, postHandleHooks) = SendAsync<Task<TCommandResult>>(command);
+
+            var result = await commandResultTask;
+            
+            foreach (var postHandleHook in postHandleHooks)
+            {
+                await postHandleHook.ExecuteAsync(command);
+            }
+
+            return result;
         }
     }
 }
