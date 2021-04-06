@@ -6,8 +6,6 @@ namespace LiteBus.Registry.Abstractions
 {
     public interface IMessageRegistry : IEnumerable<IMessageDescriptor>
     {
-        IMessageDescriptor GetDescriptor<TMessage>();
-
         IMessageDescriptor GetDescriptor(Type messageType);
 
         /// <summary>

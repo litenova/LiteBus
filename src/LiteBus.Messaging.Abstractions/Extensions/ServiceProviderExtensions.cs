@@ -5,18 +5,16 @@ namespace LiteBus.Messaging.Abstractions.Extensions
 {
     public static class ServiceProviderExtensions
     {
-        public static IMessageHandler<TMessage, TMessageResult> GetHandler<TMessage, TMessageResult>(
-            this IServiceProvider serviceProvider,
-            Type handlerType)
+        public static IMessageHandler GetHandler(this IServiceProvider serviceProvider, Type handlerType)
         {
             var resolvedService = serviceProvider.GetService(handlerType);
 
-            return (IMessageHandler<TMessage, TMessageResult>) resolvedService;
+            return (IMessageHandler) resolvedService;
         }
 
         public static IEnumerable<IMessageHandler<TMessage, TMessageResult>> GetHandlers<TMessage, TMessageResult>(
             this IServiceProvider serviceProvider,
-            IEnumerable<Type> handlerTypes)
+            IEnumerable<Type> handlerTypes) where TMessage : IMessage
         {
             foreach (var handlerType in handlerTypes)
             {
@@ -26,16 +24,14 @@ namespace LiteBus.Messaging.Abstractions.Extensions
             }
         }
 
-        public static IEnumerable<IPostHandleHook<TMessage>> GetPostHandleHooks<TMessage>(
-            this IServiceProvider serviceProvider,
-            IEnumerable<Type> hookTypes)
-            where TMessage : IMessage
+        public static IEnumerable<IPostHandleHook> GetPostHandleHooks(this IServiceProvider serviceProvider,
+                                                                      IEnumerable<Type> hookTypes)
         {
             foreach (var hookType in hookTypes)
             {
                 var resolvedService = serviceProvider.GetService(hookType);
 
-                yield return (IPostHandleHook<TMessage>) resolvedService;
+                yield return (IPostHandleHook) resolvedService;
             }
         }
     }

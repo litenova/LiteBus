@@ -2,7 +2,6 @@
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using LiteBus.Queries;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Registry;
 using LiteBus.Registry.Abstractions;
@@ -14,13 +13,13 @@ namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection
         public static IServiceCollection AddLiteBusQueries(this IServiceCollection services,
                                                            Action<ILiteBusQueriesBuilder> config)
         {
-            var LiteBusBuilder = new LiteBusQueriesBuilder();
+            var liteBusBuilder = new LiteBusQueriesBuilder();
 
-            config(LiteBusBuilder);
+            config(liteBusBuilder);
 
             var messageRegistry = MessageRegistryAccessor.MessageRegistry;
 
-            messageRegistry.Register(LiteBusBuilder.Assemblies.ToArray());
+            messageRegistry.Register(liteBusBuilder.Assemblies.ToArray());
 
             foreach (var descriptor in messageRegistry)
             {

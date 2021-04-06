@@ -13,13 +13,13 @@ namespace LiteBus.Events.Extensions.MicrosoftDependencyInjection
         public static IServiceCollection AddLiteBusEvents(this IServiceCollection services,
                                                            Action<ILiteBusEventsBuilder> config)
         {
-            var LiteBusBuilder = new LiteBusEventsBuilder();
+            var liteBusBuilder = new LiteBusEventsBuilder();
 
-            config(LiteBusBuilder);
+            config(liteBusBuilder);
 
             var messageRegistry = MessageRegistryAccessor.MessageRegistry;
 
-            messageRegistry.Register(LiteBusBuilder.Assemblies.ToArray());
+            messageRegistry.Register(liteBusBuilder.Assemblies.ToArray());
 
             foreach (var descriptor in messageRegistry)
             {
