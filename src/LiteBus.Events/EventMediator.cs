@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions.Extensions;
@@ -21,14 +20,13 @@ namespace LiteBus.Events
             _messageRegistry = messageRegistry;
         }
 
-        public virtual Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
-            where TEvent : IEvent
+        public virtual Task PublishAsync<TEvent>(TEvent @event) where TEvent : IEvent
         {
-            var descriptor = _messageRegistry.GetDescriptor<TEvent>();
+            var descriptor = _messageRegistry.GetDescriptor(@event.GetType());
 
             var handlers = _serviceProvider.GetHandlers<TEvent, Task>(descriptor.HandlerTypes);
 
-            return Task.WhenAll(handlers.Select(h => h.HandleAsync(@event, cancellationToken)));
+            return Task.WhenAll(handlers.Select(h => h.Handle(@event)));
         }
     }
 }

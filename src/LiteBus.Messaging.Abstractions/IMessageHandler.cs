@@ -1,13 +1,16 @@
-﻿using System.Threading;
-using System.Threading.Tasks;
-
-namespace LiteBus.Messaging.Abstractions
+﻿namespace LiteBus.Messaging.Abstractions
 {
     /// <summary>
     ///     The base of all message handlers
     /// </summary>
     public interface IMessageHandler
     {
+        /// <summary>
+        ///     Handles the message
+        /// </summary>
+        /// <param name="message">The message</param>
+        /// <returns>The message result</returns>
+        object Handle(IMessage message);
     }
 
     /// <summary>
@@ -16,23 +19,16 @@ namespace LiteBus.Messaging.Abstractions
     /// <typeparam name="TMessage">the type of message</typeparam>
     /// <typeparam name="TMessageResult">the type of message</typeparam>
     /// <remarks>The message can be of any type</remarks>
-    public interface IMessageHandler<in TMessage, out TMessageResult> : IMessageHandler
+    public interface IMessageHandler<in TMessage, out TMessageResult> : IMessageHandler 
+        where TMessage : IMessage
     {
+        object IMessageHandler.Handle(IMessage message) => Handle((TMessage) message);
+
         /// <summary>
         ///     Handles a message
         /// </summary>
         /// <param name="message">the message</param>
-        /// <param name="cancellationToken">the cancellation token</param>
         /// <returns>the message result</returns>
-        TMessageResult HandleAsync(TMessage message, CancellationToken cancellationToken = default);
-    }
-
-    /// <summary>
-    ///     Represents a handle for a message return <see cref="Task" />
-    /// </summary>
-    /// <typeparam name="TMessage">the type of message</typeparam>
-    /// <remarks>The message can be of any type</remarks>
-    public interface IMessageHandler<in TMessage> : IMessageHandler<TMessage, Task>
-    {
+        TMessageResult Handle(TMessage message);
     }
 }

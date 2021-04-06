@@ -1,5 +1,4 @@
-﻿using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 namespace LiteBus.Commands.Abstractions
 {
@@ -8,14 +7,7 @@ namespace LiteBus.Commands.Abstractions
     /// </summary>
     public interface ICommandMediator
     {
-        Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
-            where TCommand : ICommand;
-
-        Task<TCommandResult> SendAsync<TCommand, TCommandResult>(TCommand command,
-                                                                 CancellationToken cancellationToken = default)
-            where TCommand : ICommand<TCommandResult>;
-
-        Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
-                                                       CancellationToken cancellationToken = default);
+        Task SendAsync(ICommand command);
+        Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command);
     }
 }

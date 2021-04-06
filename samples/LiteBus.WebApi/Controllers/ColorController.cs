@@ -32,7 +32,7 @@ namespace LiteBus.WebApi.Controllers
             return Ok(result);
         }
 
-        [HttpPost]
+        [HttpPost("without-result")]
         public async Task<IActionResult> Post(string colorName)
         {
             await _commandMediator.SendAsync(new CreateColorCommand
@@ -46,6 +46,22 @@ namespace LiteBus.WebApi.Controllers
             });
 
             return Ok();
+        }
+
+        [HttpPost("with-result")]
+        public async Task<IActionResult> Post2(string colorName)
+        {
+            var result = await _commandMediator.SendAsync<bool>(new CreateColorCommandWithResult
+            {
+                ColorName = colorName
+            });
+
+            await _eventMediator.PublishAsync(new ColorCreatedEvent
+            {
+                ColorName = colorName
+            });
+
+            return Ok(result);
         }
     }
 }

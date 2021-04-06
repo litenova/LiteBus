@@ -36,7 +36,7 @@ namespace LiteBus.WebApi
                 });
             });
 
-            services.AddTransient(typeof(CreateColorCommandHandler));
+            services.AddTransient(typeof(CreateColorCommandWithResult));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

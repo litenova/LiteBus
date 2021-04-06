@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Queries.Abstractions;
 
@@ -13,8 +12,7 @@ namespace LiteBus.WebApi.Crqs
 
     public class ColorQueryHandler : IQueryHandler<ColorQuery, IEnumerable<string>>
     {
-        public Task<IEnumerable<string>> HandleAsync(ColorQuery message,
-                                                     CancellationToken cancellationToken = default)
+        public Task<IEnumerable<string>> Handle(ColorQuery message)
         {
             return Task.FromResult(MemoryDatabase.GetColors());
         }
@@ -27,8 +25,7 @@ namespace LiteBus.WebApi.Crqs
 
     public class ColorStreamQueryHandler : IStreamQueryHandler<ColorStreamQuery, string>
     {
-        public IAsyncEnumerable<string> HandleAsync(ColorStreamQuery message,
-                                                    CancellationToken cancellationToken = default)
+        public IAsyncEnumerable<string> Handle(ColorStreamQuery message)
         {
             throw new NotImplementedException();
         }

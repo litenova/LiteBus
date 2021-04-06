@@ -25,14 +25,12 @@ namespace LiteBus.Registry.Internal
             return GetEnumerator();
         }
 
-        public IMessageDescriptor GetDescriptor<TMessage>()
-        {
-            return GetDescriptor(typeof(TMessage));
-        }
-
         public IMessageDescriptor GetDescriptor(Type messageType)
         {
-            if (_descriptors.TryGetValue(messageType, out var messageDescriptor)) return messageDescriptor;
+            if (_descriptors.TryGetValue(messageType, out var messageDescriptor))
+            {
+                return messageDescriptor;
+            }
 
             throw new MessageNotRegisteredException(messageType);
         }
