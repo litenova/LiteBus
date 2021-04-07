@@ -254,7 +254,7 @@ LiteBus uses the actual type of messages to find the corresponding handlers. Con
 In this example, If you send the ``CreateImageCommand`` as ``CreateFileCommand``, the LiteBus will deliver the command to ``CreateImageCommandHandler``.
 
 ```c#
-    CreateFileCommand command = new CreateFileCommand();
+    CreateFileCommand command = new CreateImageCommand();
     
     _mediator.SendAsync(command);
 ```
