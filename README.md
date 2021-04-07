@@ -215,7 +215,9 @@ Hooks allow you to execute an action in a certain stage of message handling. Cur
     }
 ```
 ## Inheritance
-LiteBus uses the actual type of messages to find the corresponding handlers. Consider the following example:
+ 
+The LiteBus uses the actual type of a message to determine the corresponding handler(s). 
+Consider the following inheritance:
 
 ```c#
     // The base command
@@ -225,11 +227,17 @@ LiteBus uses the actual type of messages to find the corresponding handlers. Con
     }
     
     // The derived command
-    public class CreateFileCommand : CreateFileCommand
+    public class CreateImageCommand : CreateFileCommand
     {
         public int Width { get; set; }
         
         public int Height { get; set; }
+    }
+    
+    // The second derived command without handler
+    public class CreateDocumentCommand : CreateFileCommand
+    {
+        public string Author { get; set; }
     }
     
     // The base command handler
@@ -251,7 +259,8 @@ LiteBus uses the actual type of messages to find the corresponding handlers. Con
     }
 ```
 
-In this example, If you send the ``CreateImageCommand`` as ``CreateFileCommand``, the LiteBus will deliver the command to ``CreateImageCommandHandler``.
+### Delivering Message to the Actual Type Handler
+If a user tries to send the ``CreateImageCommand`` as ``CreateFileCommand``, the LiteBus will deliver the command to ``CreateImageCommandHandler``.
 
 ```c#
     CreateFileCommand command = new CreateFileCommand();
@@ -259,3 +268,17 @@ In this example, If you send the ``CreateImageCommand`` as ``CreateFileCommand``
     _mediator.SendAsync(command);
 ```
 
+### Delivering Message to the Less Derived (Base Type) Handler
+If a user tries to send the ``CreateDocumentCommand`` as ``CreateFileCommand`` or as it is, the LiteBus will deliver the command to ``CreateFileCommandHandler`` since the ``CreateDocumentCommand`` does not have handler. 
+
+```c#
+    CreateFileCommand command = new CreateDocumentFile();
+    
+    _mediator.SendAsync(command);
+    
+    // or
+    
+    var command = new CreateDocumentFile();
+    
+    _mediator.SendAsync(command);
+```
