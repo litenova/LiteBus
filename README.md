@@ -269,7 +269,7 @@ If a user tries to send the ``CreateImageCommand`` as ``CreateFileCommand``, the
 ```
 
 ### Delivering Message to the Less Derived (Base Type) Handler
-If a user tries to send the ``CreateDocumentCommand`` as ``CreateFileCommand`` or as it is, the LiteBus will deliver the command to ``CreateFileCommandHandler`` since the ``CreateDocumentCommand`` does not have handler. 
+If a user tries to send the ``CreateDocumentCommand`` as ``CreateFileCommand`` or as it is, the LiteBus will deliver the command to ``CreateFileCommandHandler`` since the ``CreateDocumentCommand`` does not have handler.
 
 ```c#
     CreateFileCommand command = new CreateDocumentFile();
@@ -282,3 +282,5 @@ If a user tries to send the ``CreateDocumentCommand`` as ``CreateFileCommand`` o
     
     _mediator.SendAsync(command);
 ```
+
+**Note:** In such scenarios, the LiteBus will only deliver the message to the direct BaseClass handler it there is any.

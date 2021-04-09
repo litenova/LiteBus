@@ -16,7 +16,7 @@ namespace LiteBus.WebApi.Controllers
             _commandMediator = commandMediator;
         }
 
-        [HttpPost("create1")]
+        [HttpPost("scenario-1")]
         public async Task<IActionResult> Post()
         {
             CreatePersonCommand command = new CreateSoldierCommand();
@@ -26,10 +26,10 @@ namespace LiteBus.WebApi.Controllers
             return Ok();
         }
         
-        [HttpPost("create2")]
+        [HttpPost("scenario-2")]
         public async Task<IActionResult> Post1()
         {
-            CreatePersonCommand command = new CreatePersonCommand();
+            CreatePersonCommand command = new CreateDoctorCommand();
 
             await _commandMediator.SendAsync(command);
 

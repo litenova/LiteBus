@@ -32,6 +32,12 @@ namespace LiteBus.Registry.Internal
                 return messageDescriptor;
             }
 
+            if (messageType.BaseType is not null
+                && _descriptors.TryGetValue(messageType.BaseType, out var baseMessageDescriptor))
+            {
+                return baseMessageDescriptor;
+            }
+
             throw new MessageNotRegisteredException(messageType);
         }
 
