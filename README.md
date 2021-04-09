@@ -263,7 +263,7 @@ Consider the following inheritance:
 If a user tries to send the ``CreateImageCommand`` as ``CreateFileCommand``, the LiteBus will deliver the command to ``CreateImageCommandHandler``.
 
 ```c#
-    CreateFileCommand command = new CreateFileCommand();
+    CreateFileCommand command = new CreateImageCommand();
     
     _mediator.SendAsync(command);
 ```
