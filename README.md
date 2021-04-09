@@ -283,4 +283,4 @@ If a user tries to send the ``CreateDocumentCommand`` as ``CreateFileCommand`` o
     _mediator.SendAsync(command);
 ```
 
-**Note:** In such scenarios, the LiteBus will only deliver the message to the direct BaseClass handler it there is any.
+**Note:** In such scenarios, the LiteBus will only deliver the message to the direct base class' handler if there is any.
