@@ -20,6 +20,7 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
             var messageRegistry = MessageRegistryAccessor.MessageRegistry;
 
             messageRegistry.Register(liteBusBuilder.Assemblies.ToArray());
+            messageRegistry.Register(liteBusBuilder.Types.ToArray());
 
             foreach (var descriptor in messageRegistry)
             {

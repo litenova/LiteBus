@@ -13,5 +13,7 @@ namespace LiteBus.Registry.Abstractions
         /// </summary>
         /// <param name="assemblies">the specified assemblies</param>
         void Register(params Assembly[] assemblies);
+        
+        void Register(params Type[] types);
     }
 }

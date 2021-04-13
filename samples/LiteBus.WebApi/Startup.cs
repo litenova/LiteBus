@@ -25,6 +25,7 @@ namespace LiteBus.WebApi
             {
                 builder.Register(typeof(Startup).Assembly);
                 builder.Register(typeof(Startup).Assembly);
+                builder.Register(typeof(CreateSoldierCommandHandler));
             });
 
             services.AddControllers();
