@@ -13,4 +13,14 @@ namespace LiteBus.WebApi.Crqs
             return Task.CompletedTask;
         }
     }
+    
+    public class GlobalCommandPreHandleHook : ICommandPreHandleHook
+    {
+        public Task ExecuteAsync(IBaseCommand message)
+        {
+            Debug.WriteLine("GlobalCommandPreHandleHook executed!");
+
+            return Task.CompletedTask;
+        }
+    }
 }

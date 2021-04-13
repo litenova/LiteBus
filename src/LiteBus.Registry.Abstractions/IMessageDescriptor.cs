@@ -10,5 +10,7 @@ namespace LiteBus.Registry.Abstractions
         IReadOnlyCollection<Type> HandlerTypes { get; }
 
         IReadOnlyCollection<Type> PostHandleHookTypes { get; }
+        
+        IReadOnlyCollection<Type> PreHandleHookTypes { get; }
     }
 }

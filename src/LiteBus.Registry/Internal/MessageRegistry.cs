@@ -12,6 +12,7 @@ namespace LiteBus.Registry.Internal
     {
         private readonly Dictionary<Type, IMessageDescriptor> _descriptors = new();
         private readonly List<HookDescriptor> _postHandlerHooks = new();
+        private readonly List<HookDescriptor> _preHandlerHooks = new();
 
         private readonly HashSet<Assembly> _scannedAssemblies = new();
 
@@ -59,11 +60,21 @@ namespace LiteBus.Registry.Internal
         {
             foreach (var messageDescriptor in _descriptors.Values)
             {
-                var hooks = _postHandlerHooks
+                var postHandleHooks = _postHandlerHooks
                     .Where(h => h.MessageType.IsAssignableFrom(messageDescriptor.MessageType));
 
-                foreach (var hookDescriptor in hooks)
+                var preHandleHooks = _preHandlerHooks
+                    .Where(h => h.MessageType.IsAssignableFrom(messageDescriptor.MessageType));
+
+                foreach (var hookDescriptor in postHandleHooks)
+                {
                     ((MessageDescriptor) messageDescriptor).AddPostHandleHookType(hookDescriptor.HookType);
+                }
+
+                foreach (var preHandleHook in preHandleHooks)
+                {
+                    ((MessageDescriptor) messageDescriptor).AddPreHandleHookType(preHandleHook.HookType);
+                }
             }
         }
 
@@ -87,6 +98,13 @@ namespace LiteBus.Registry.Internal
                 else if (genericTypeDefinition.IsAssignableTo(typeof(IPostHandleHook<>)))
                 {
                     _postHandlerHooks.Add(new HookDescriptor
+                    {
+                        HookType = typeInfo, MessageType = messageType
+                    });
+                }
+                else if (genericTypeDefinition.IsAssignableTo(typeof(IPreHandleHook<>)))
+                {
+                    _preHandlerHooks.Add(new HookDescriptor
                     {
                         HookType = typeInfo, MessageType = messageType
                     });

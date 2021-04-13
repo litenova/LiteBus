@@ -21,8 +21,8 @@ namespace LiteBus.Commands
             _serviceProvider = serviceProvider;
             _messageRegistry = messageRegistry;
         }
-        
-        private (TResult, IEnumerable<IPostHandleHook>) SendAsync<TResult>(IMessage command)
+
+        private (IEnumerable<IPreHandleHook>, IMessageHandler, IEnumerable<IPostHandleHook>) SendAsync<TResult>(IMessage command)
         {
             var commandType = command.GetType();
 
@@ -32,18 +32,22 @@ namespace LiteBus.Commands
 
             var handler = _serviceProvider.GetService(descriptor.HandlerTypes.Single()) as IMessageHandler;
 
+            var preHandleHooks = _serviceProvider.GetPreHandleHooks(descriptor.PreHandleHookTypes);
             var postHandleHooks = _serviceProvider.GetPostHandleHooks(descriptor.PostHandleHookTypes);
 
-            var commandResult = handler.Handle(command);
-            
-            return ((TResult)commandResult, postHandleHooks);
+            return (preHandleHooks, handler, postHandleHooks);
         }
 
         public async Task SendAsync(ICommand command)
         {
-            var (commandResultTask, postHandleHooks) = SendAsync<Task>(command);
+            var (preHandleHooks, handler, postHandleHooks) = SendAsync<Task>(command);
 
-            await commandResultTask;
+            foreach (var preHandleHook in preHandleHooks)
+            {
+                await preHandleHook.ExecuteAsync(command);
+            }
+
+            await (Task)handler.Handle(command);
             
             foreach (var postHandleHook in postHandleHooks)
             {
@@ -53,9 +57,14 @@ namespace LiteBus.Commands
 
         public async Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command)
         {
-            var (commandResultTask, postHandleHooks) = SendAsync<Task<TCommandResult>>(command);
+            var (preHandleHooks, handler, postHandleHooks) = SendAsync<Task>(command);
 
-            var result = await commandResultTask;
+            foreach (var preHandleHook in preHandleHooks)
+            {
+                await preHandleHook.ExecuteAsync(command);
+            }
+
+            var result = await (Task<TCommandResult>)handler.Handle(command);
             
             foreach (var postHandleHook in postHandleHooks)
             {

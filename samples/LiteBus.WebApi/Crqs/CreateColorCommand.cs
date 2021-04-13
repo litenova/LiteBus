@@ -22,7 +22,7 @@ namespace LiteBus.WebApi.Crqs
 
             MemoryDatabase.AddColor(message.ColorName);
 
-            return Task.FromResult(true);
+            return Task.CompletedTask;
         }
     }
 
