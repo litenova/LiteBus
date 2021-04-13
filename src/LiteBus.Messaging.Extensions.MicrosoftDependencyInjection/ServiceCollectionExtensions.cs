@@ -10,7 +10,7 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
     public static class ServiceCollectionExtensions
     {
         public static IServiceCollection AddLiteBusMessages(this IServiceCollection services,
-                                                           Action<ILiteBusMessagingBuilder> config)
+                                                            Action<ILiteBusMessagingBuilder> config)
         {
             var liteBusBuilder = new LiteBusMessagingBuilder();
 
@@ -19,6 +19,7 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
             var messageRegistry = MessageRegistryAccessor.MessageRegistry;
 
             messageRegistry.Register(liteBusBuilder.Assemblies.ToArray());
+            messageRegistry.Register(liteBusBuilder.Types.ToArray());
 
             foreach (var descriptor in messageRegistry)
             {

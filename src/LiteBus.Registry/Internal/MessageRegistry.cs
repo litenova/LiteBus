@@ -56,6 +56,16 @@ namespace LiteBus.Registry.Internal
             MatchHooksToMessages();
         }
 
+        public void Register(params Type[] types)
+        {
+            foreach (var type in types)
+            {
+                Register(type.GetTypeInfo());
+            }
+            
+            MatchHooksToMessages();
+        }
+
         private void MatchHooksToMessages()
         {
             foreach (var messageDescriptor in _descriptors.Values)
