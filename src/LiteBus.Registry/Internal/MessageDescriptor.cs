@@ -7,8 +7,8 @@ namespace LiteBus.Registry.Internal
     internal class MessageDescriptor : IMessageDescriptor
     {
         private readonly HashSet<Type> _handlerTypes = new();
-
         private readonly HashSet<Type> _postHandleHooks = new();
+        private readonly HashSet<Type> _preHandleHooks = new();
 
         public MessageDescriptor(Type messageType)
         {
@@ -21,6 +21,8 @@ namespace LiteBus.Registry.Internal
 
         public IReadOnlyCollection<Type> PostHandleHookTypes => _postHandleHooks;
 
+        public IReadOnlyCollection<Type> PreHandleHookTypes => _preHandleHooks;
+
         public void AddHandlerType(Type type)
         {
             _handlerTypes.Add(type);
@@ -29,6 +31,11 @@ namespace LiteBus.Registry.Internal
         public void AddPostHandleHookType(Type type)
         {
             _postHandleHooks.Add(type);
+        }
+        
+        public void AddPreHandleHookType(Type type)
+        {
+            _preHandleHooks.Add(type);
         }
     }
 }

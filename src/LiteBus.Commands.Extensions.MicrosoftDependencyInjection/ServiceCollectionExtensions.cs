@@ -25,7 +25,9 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
             {
                 foreach (var handlerType in descriptor.HandlerTypes) services.TryAddTransient(handlerType);
 
-                foreach (var hookType in descriptor.PostHandleHookTypes) services.TryAddTransient(hookType);
+                foreach (var postHookType in descriptor.PostHandleHookTypes) services.TryAddTransient(postHookType);
+                
+                foreach (var preHookType in descriptor.PreHandleHookTypes) services.TryAddTransient(preHookType);
             }
 
             services.TryAddTransient<ICommandMediator, CommandMediator>();
