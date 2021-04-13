@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System;
+using System.Reflection;
 
 namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection
 {
@@ -9,5 +10,11 @@ namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection
         /// </summary>
         /// <param name="assembly">The assembly to look for message handler and hooks</param>
         public ILiteBusQueriesBuilder Register(Assembly assembly);
+        
+        /// <summary>
+        ///     Register the specified type
+        /// </summary>
+        /// <param name="type">The specified type</param>
+        public ILiteBusQueriesBuilder Register(Type type);
     }
 }
