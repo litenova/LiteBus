@@ -188,10 +188,10 @@ Inject ``IMessageMediator`` to your class to publish events.
 
 Hooks allow you to execute an action in a certain stage of message handling. Currently, hooks are only available for commands.
 
-* **PostHandleHooks**: execute an action after a message is handled
-* **PreHandleHooks** (to be added in later versions): execute an action before a message is handled
+* **Post Handle Hooks**: execute an action after a message is handled
+* **Pre Handle Hooks** execute an action before a message is handled
 
-### Command Hooks
+### Post Handle Hook
 ```c#
 
     // Exectues an action after each command is handled
@@ -204,7 +204,7 @@ Hooks allow you to execute an action in a certain stage of message handling. Cur
         }
     }
 
-    // Exectues an action after an specific command is handled
+    // Exectues an action after the specified command is handled
     public class CreateColorCommandPostHandleHook : ICommandPostHandleHook<CreateColorCommand>
     {
         public Task ExecuteAsync(CreateColorCommand message)
@@ -214,6 +214,30 @@ Hooks allow you to execute an action in a certain stage of message handling. Cur
         }
     }
 ```
+### Pre Handle Hook
+```c#
+
+    // Exectues an action beafore each command is handled
+    public class GlobalCommandPreHandleHook : ICommandPreHandleHook
+    {
+        public Task ExecuteAsync(IBaseCommand message)
+        {
+            Debug.WriteLine("GlobalCommandPreHandleHook executed!");
+            return Task.CompletedTask;
+        }
+    }
+
+    // Exectues an action before the specified command is handled
+    public class CreateColorCommandPreHandleHook : ICommandPreHandleHook<CreateColorCommand>
+    {
+        public Task ExecuteAsync(CreateColorCommand message)
+        {
+            Debug.WriteLine("CreateColorCommandPreHandleHook executed!");
+            return Task.CompletedTask;
+        }
+    }
+```
+
 ## Inheritance
  
 The LiteBus uses the actual type of a message to determine the corresponding handler(s). 
