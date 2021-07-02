@@ -1,14 +1,15 @@
 ﻿namespace LiteBus.Messaging.Abstractions
 {
     /// <summary>
-    ///     The base of all messages
+    ///     Represents a message without result and acts as the base of all messages
     /// </summary>
     public interface IMessage
     {
+        
     }
 
     /// <summary>
-    ///     The base of all messages with result
+    ///     Represents a message with result
     /// </summary>
     /// <typeparam name="TMessageResult">The message result type</typeparam>
     public interface IMessage<out TMessageResult> : IMessage

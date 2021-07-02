@@ -1,26 +1,24 @@
 ﻿using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.WebApi.Crqs
 {
     public class GlobalCommandPostHandleHook : ICommandPostHandleHook
     {
-        public Task ExecuteAsync(IBaseCommand message)
+        public Task ExecuteAsync(IMessage message, CancellationToken cancellationToken = default)
         {
-            Debug.WriteLine("GlobalCommandPostHandleHook executed!");
-
-            return Task.CompletedTask;
+            throw new System.NotImplementedException();
         }
     }
     
     public class GlobalCommandPreHandleHook : ICommandPreHandleHook
     {
-        public Task ExecuteAsync(IBaseCommand message)
+        public Task ExecuteAsync(object message, CancellationToken cancellationToken = default)
         {
-            Debug.WriteLine("GlobalCommandPreHandleHook executed!");
-
-            return Task.CompletedTask;
+            throw new System.NotImplementedException();
         }
     }
 }
