@@ -1,13 +1,28 @@
-﻿using System.Threading.Tasks;
+﻿using System.Threading;
+using System.Threading.Tasks;
 
 namespace LiteBus.Commands.Abstractions
 {
     /// <summary>
-    ///     Mediates a command to its corresponding handler
+    ///     Delivers a command to its corresponding handler
     /// </summary>
     public interface ICommandMediator
     {
-        Task SendAsync(ICommand command);
-        Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command);
+        /// <summary>
+        ///     Sends a command without result to its corresponding handler 
+        /// </summary>
+        /// <param name="command">the command to send</param>
+        /// <param name="cancellationToken">cancellation token</param>
+        /// <returns></returns>
+        Task SendAsync(ICommand command, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        ///     Sends a command to its corresponding handler and returns the command result 
+        /// </summary>
+        /// <param name="command">the command to send</param>
+        /// <param name="cancellationToken">cancellation token</param>
+        /// <returns>The command result</returns>        
+        Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
+                                                       CancellationToken cancellationToken = default);
     }
 }

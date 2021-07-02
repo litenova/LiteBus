@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
@@ -38,37 +39,38 @@ namespace LiteBus.Commands
             return (preHandleHooks, handler, postHandleHooks);
         }
 
-        public async Task SendAsync(ICommand command)
+        public async Task SendAsync(ICommand command, CancellationToken cancellationToken = default)
         {
             var (preHandleHooks, handler, postHandleHooks) = SendAsync<Task>(command);
 
             foreach (var preHandleHook in preHandleHooks)
             {
-                await preHandleHook.ExecuteAsync(command);
+                await preHandleHook.ExecuteAsync(command, cancellationToken);
             }
 
-            await (Task)handler.Handle(command);
-            
+            await (Task) handler.Handle(command);
+
             foreach (var postHandleHook in postHandleHooks)
             {
-                await postHandleHook.ExecuteAsync(command);
+                await postHandleHook.ExecuteAsync(command, cancellationToken);
             }
         }
 
-        public async Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command)
+        public async Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
+                                                                    CancellationToken cancellationToken = default)
         {
             var (preHandleHooks, handler, postHandleHooks) = SendAsync<Task>(command);
 
             foreach (var preHandleHook in preHandleHooks)
             {
-                await preHandleHook.ExecuteAsync(command);
+                await preHandleHook.ExecuteAsync(command, cancellationToken);
             }
 
-            var result = await (Task<TCommandResult>)handler.Handle(command);
-            
+            var result = await (Task<TCommandResult>) handler.Handle(command);
+
             foreach (var postHandleHook in postHandleHooks)
             {
-                await postHandleHook.ExecuteAsync(command);
+                await postHandleHook.ExecuteAsync(command, cancellationToken);
             }
 
             return result;
