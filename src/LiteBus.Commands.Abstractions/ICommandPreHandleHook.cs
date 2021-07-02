@@ -3,17 +3,16 @@
 namespace LiteBus.Commands.Abstractions
 {
     /// <summary>
-    ///     Represents the definition of a pre handler hook that executes on each command pre-handle phase
+    ///     Represents an action that is executed on each command pre-handle phase
     /// </summary>
-    public interface ICommandPreHandleHook : IPreHandleHook<IBaseCommand>
+    public interface ICommandPreHandleHook : IPreHandleHook
     {
-        
     }
 
     /// <summary>
-    ///     Represents the definition of a pre handler hook that executes on the <see cref="TCommand" /> pre-handle phase
+    ///     Represents an action that is executed on <typeparamref cref="TCommand" /> pre-handle phase
     /// </summary>
-    public interface ICommandPreHandleHook<in TCommand> : IPreHandleHook<TCommand> where TCommand : IBaseCommand
+    public interface ICommandPreHandleHook<in TCommand> : IPreHandleHook<TCommand> where TCommand : IMessage
     {
     }
 }

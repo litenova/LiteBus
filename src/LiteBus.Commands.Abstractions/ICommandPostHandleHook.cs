@@ -3,16 +3,16 @@
 namespace LiteBus.Commands.Abstractions
 {
     /// <summary>
-    ///     Represents the definition of a post handler hook that executes on each command post-handle phase
+    ///     Represents an action that is executed on each command post-handle phase
     /// </summary>
-    public interface ICommandPostHandleHook : IPostHandleHook<IBaseCommand>
+    public interface ICommandPostHandleHook : IPostHandleHook<IMessage>
     {
     }
 
     /// <summary>
-    ///     Represents the definition of a post handler hook that executes on the <see cref="TCommand" /> post-handle phase
+    ///     Represents an action that is executed on <typeparamref cref="TCommand" /> post-handle phase
     /// </summary>
-    public interface ICommandPostHandleHook<in TCommand> : IPostHandleHook<TCommand> where TCommand : IBaseCommand
+    public interface ICommandPostHandleHook<in TCommand> : IPostHandleHook<TCommand> where TCommand : IMessage
     {
     }
 }
