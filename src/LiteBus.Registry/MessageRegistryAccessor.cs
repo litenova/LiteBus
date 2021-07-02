@@ -1,5 +1,4 @@
 ﻿using LiteBus.Registry.Abstractions;
-using LiteBus.Registry.Internal;
 
 namespace LiteBus.Registry
 {

@@ -6,7 +6,7 @@ using System.Reflection;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Registry.Abstractions;
 
-namespace LiteBus.Registry.Internal
+namespace LiteBus.Registry
 {
     internal class MessageRegistry : IMessageRegistry
     {

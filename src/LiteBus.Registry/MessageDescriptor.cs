@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using LiteBus.Registry.Abstractions;
 
-namespace LiteBus.Registry.Internal
+namespace LiteBus.Registry
 {
     internal class MessageDescriptor : IMessageDescriptor
     {

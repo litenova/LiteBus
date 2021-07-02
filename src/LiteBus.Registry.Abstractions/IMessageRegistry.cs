@@ -9,11 +9,15 @@ namespace LiteBus.Registry.Abstractions
         IMessageDescriptor GetDescriptor(Type messageType);
 
         /// <summary>
-        ///     Registers messages from the specified assemblies
+        ///     Registers messages and hooks from the specified assemblies
         /// </summary>
         /// <param name="assemblies">the specified assemblies</param>
         void Register(params Assembly[] assemblies);
         
+        /// <summary>
+        ///     Registers messages and hooks from the specified types
+        /// </summary>
+        /// <param name="types">the types to register</param>
         void Register(params Type[] types);
     }
 }
