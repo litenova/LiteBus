@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace LiteBus.Registry.Internal
+namespace LiteBus.Registry
 {
     internal class HookDescriptor
     {

@@ -11,7 +11,7 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
     public static class ServiceCollectionExtensions
     {
         public static IServiceCollection AddLiteBusCommands(this IServiceCollection services,
-                                                   Action<ILiteBusCommandsBuilder> config)
+                                                            Action<ILiteBusCommandsBuilder> config)
         {
             var liteBusBuilder = new LiteBusCommandsBuilder();
 
@@ -27,7 +27,7 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
                 foreach (var handlerType in descriptor.HandlerTypes) services.TryAddTransient(handlerType);
 
                 foreach (var postHookType in descriptor.PostHandleHookTypes) services.TryAddTransient(postHookType);
-                
+
                 foreach (var preHookType in descriptor.PreHandleHookTypes) services.TryAddTransient(preHookType);
             }
 
