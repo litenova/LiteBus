@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 using LiteBus.Extensions.MicrosoftDependencyInjection;
-using LiteBus.WebApi.Crqs;
+using LiteBus.WebApi.Commands;
 
 namespace LiteBus.WebApi
 {
