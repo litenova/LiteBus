@@ -23,7 +23,7 @@ namespace LiteBus.Commands
             _messageRegistry = messageRegistry;
         }
 
-        private (IEnumerable<IPreHandleHook>, IMessageHandler, IEnumerable<IPostHandleHook>) SendAsync<TResult>(IMessage command)
+        private (IEnumerable<IPreHandleHook>, ISyncMessageHandler, IEnumerable<IPostHandleHook>) SendAsync<TResult>(IMessage command)
         {
             var commandType = command.GetType();
 
@@ -31,7 +31,7 @@ namespace LiteBus.Commands
 
             if (descriptor.HandlerTypes.Count > 1) throw new MultipleCommandHandlerFoundException(commandType);
 
-            var handler = _serviceProvider.GetService(descriptor.HandlerTypes.Single()) as IMessageHandler;
+            var handler = _serviceProvider.GetService(descriptor.HandlerTypes.Single()) as ISyncMessageHandler;
 
             var preHandleHooks = _serviceProvider.GetPreHandleHooks(descriptor.PreHandleHookTypes);
             var postHandleHooks = _serviceProvider.GetPostHandleHooks(descriptor.PostHandleHookTypes);

@@ -99,7 +99,7 @@ namespace LiteBus.Registry
                 var genericTypeDefinition = implementedInterface.GetGenericTypeDefinition();
                 var messageType = implementedInterface.GetGenericArguments()[0];
 
-                if (genericTypeDefinition.IsAssignableTo(typeof(IMessageHandler<,>)))
+                if (genericTypeDefinition.IsAssignableTo(typeof(ISyncMessageHandler<,>)))
                 {
                     var descriptor = GetOrAdd(messageType);
 

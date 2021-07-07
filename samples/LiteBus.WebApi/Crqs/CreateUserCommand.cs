@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 
@@ -11,7 +12,7 @@ namespace LiteBus.WebApi.Crqs
 
     public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand, int>
     {
-        public Task<int> Handle(CreateUserCommand message)
+        public Task<int> HandleAsync(CreateUserCommand message, CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
         }
