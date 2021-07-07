@@ -19,7 +19,7 @@ namespace LiteBus.Messaging.Abstractions
     }
 
     /// <summary>
-    ///     Represents a asynchronous message handler that returns <see cref="IAsyncEnumerable{T}"/>
+    ///     Represents an asynchronous message handler that returns <see cref="IAsyncEnumerable{T}"/>
     /// </summary>
     /// <typeparam name="TMessage">The message type</typeparam>
     /// <typeparam name="TMessageResult">the message result type</typeparam>

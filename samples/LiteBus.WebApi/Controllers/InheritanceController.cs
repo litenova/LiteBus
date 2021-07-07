@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
-using LiteBus.WebApi.Crqs;
+using LiteBus.WebApi.Commands;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LiteBus.WebApi.Controllers

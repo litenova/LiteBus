@@ -4,10 +4,11 @@ using LiteBus.Messaging.Abstractions;
 namespace LiteBus.Events.Abstractions
 {
     /// <summary>
-    ///     Represents the definition of a handler that handles a event
+    ///     Represents an asynchronous event handler
     /// </summary>
     /// <typeparam name="TEvent">The type of event</typeparam>
-    public interface IEventHandler<in TEvent> : ISyncMessageHandler<TEvent, Task> where TEvent : IEvent
+    public interface IEventHandler<in TEvent> : IAsyncMessageHandler<TEvent> where TEvent : IEvent
     {
+        
     }
 }

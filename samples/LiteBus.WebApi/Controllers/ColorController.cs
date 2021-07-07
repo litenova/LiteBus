@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Events.Abstractions;
 using LiteBus.Queries.Abstractions;
-using LiteBus.WebApi.Crqs;
+using LiteBus.WebApi.Commands;
+using LiteBus.WebApi.Events;
+using LiteBus.WebApi.Queries;
 
 namespace LiteBus.WebApi.Controllers
 {
