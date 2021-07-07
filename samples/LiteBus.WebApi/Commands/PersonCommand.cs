@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 
-namespace LiteBus.WebApi.Crqs
+namespace LiteBus.WebApi.Commands
 {
     public class CreatePersonCommand : ICommand
     {
@@ -24,7 +24,7 @@ namespace LiteBus.WebApi.Crqs
     {
         public Task HandleAsync(CreatePersonCommand message, CancellationToken cancellationToken = default)
         {
-            Debug.WriteLine("CreatePersonCommandHandler executed!");
+            Debug.WriteLine($"{nameof(CreatePersonCommandHandler)} executed!");
 
             return Task.CompletedTask;
         }
@@ -34,7 +34,7 @@ namespace LiteBus.WebApi.Crqs
     {
         public Task HandleAsync(CreateSoldierCommand message, CancellationToken cancellationToken = default)
         {
-            Debug.WriteLine("CreateSoldierCommandHandler executed!");
+            Debug.WriteLine($"{nameof(CreateSoldierCommandHandler)} executed!");
 
             return Task.CompletedTask;
         }

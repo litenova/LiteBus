@@ -18,7 +18,7 @@ namespace LiteBus.Messaging.Abstractions
     }
 
     /// <summary>
-    ///     Handles a message asynchronously
+    ///     Represents an asynchronous message handler returning <typeparamref name="TMessageResult"/>
     /// </summary>
     /// <typeparam name="TMessage">The message type</typeparam>
     /// <typeparam name="TMessageResult">the message result type</typeparam>
@@ -30,7 +30,7 @@ namespace LiteBus.Messaging.Abstractions
         }
 
         /// <summary>
-        ///     Handles a message asynchronously
+        ///     Handles the <paramref name="message"/> asynchronously
         /// </summary>
         /// <param name="message">the message</param>
         /// <param name="cancellationToken">the cancellation token</param>
@@ -39,7 +39,7 @@ namespace LiteBus.Messaging.Abstractions
     }
 
     /// <summary>
-    ///     Handles a message asynchronously
+    ///     Represents an asynchronous message handler with no result
     /// </summary>
     /// <typeparam name="TMessage">The message type</typeparam>
     public interface IAsyncMessageHandler<in TMessage> : IAsyncMessageHandler where TMessage : IMessage
@@ -50,7 +50,7 @@ namespace LiteBus.Messaging.Abstractions
         }
 
         /// <summary>
-        ///     Handles a message asynchronously
+        ///     Handles the <paramref name="message"/> asynchronously
         /// </summary>
         /// <param name="message">the message</param>
         /// <param name="cancellationToken">the cancellation token</param>
