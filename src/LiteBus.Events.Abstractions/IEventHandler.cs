@@ -7,7 +7,7 @@ namespace LiteBus.Events.Abstractions
     ///     Represents the definition of a handler that handles a event
     /// </summary>
     /// <typeparam name="TEvent">The type of event</typeparam>
-    public interface IEventHandler<in TEvent> : IMessageHandler<TEvent, Task> where TEvent : IEvent
+    public interface IEventHandler<in TEvent> : ISyncMessageHandler<TEvent, Task> where TEvent : IEvent
     {
     }
 }

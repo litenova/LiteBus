@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 
@@ -13,10 +14,10 @@ namespace LiteBus.WebApi.Crqs
     {
         public string ColorName { get; set; }
     }
-    
+
     public class CreateColorCommandHandler : ICommandHandler<CreateColorCommand>
     {
-        public Task Handle(CreateColorCommand message)
+        public Task HandleAsync(CreateColorCommand message, CancellationToken cancellationToken = default)
         {
             Debug.WriteLine("CreateColorCommandHandler executed!");
 
@@ -28,7 +29,8 @@ namespace LiteBus.WebApi.Crqs
 
     public class CreateColorCommandWithResultHandler : ICommandHandler<CreateColorCommandWithResult, bool>
     {
-        public Task<bool> Handle(CreateColorCommandWithResult message)
+        public Task<bool> HandleAsync(CreateColorCommandWithResult message,
+                                      CancellationToken cancellationToken = default)
         {
             Debug.WriteLine("CreateColorCommandWithResultHandler executed!");
 
