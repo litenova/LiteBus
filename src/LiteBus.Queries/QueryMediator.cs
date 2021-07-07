@@ -28,7 +28,7 @@ namespace LiteBus.Queries
 
             if (descriptor.HandlerTypes.Count > 1) throw new MultipleQueryHandlerFoundException(queryType);
 
-            var handler = _serviceProvider.GetService(descriptor.HandlerTypes.Single()) as IMessageHandler;
+            var handler = _serviceProvider.GetService(descriptor.HandlerTypes.Single()) as ISyncMessageHandler;
 
             return (TResult) handler.Handle(message);
         }
