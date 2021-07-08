@@ -6,8 +6,14 @@
         <Authors>Mohammad ShafieZadeh</Authors>
         <PackageTags>mediator;cqrs</PackageTags>
         <Version>0.4.0</Version>
+        <PackageIcon>icon.png</PackageIcon>
         <Description>A liteweight and easy to use in-process mediator to query data</Description>
         <PackageProjectUrl>https://github.com/arishk/LiteBus</PackageProjectUrl>
         <RepositoryUrl>https://github.com/arishk/LiteBus</RepositoryUrl>
     </PropertyGroup>
+    
+    <ItemGroup>
+        <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath=""/>
+    </ItemGroup>
+
 </Project>
