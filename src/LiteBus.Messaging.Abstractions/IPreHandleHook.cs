@@ -21,7 +21,7 @@ namespace LiteBus.Messaging.Abstractions
     ///     Represents an action that is executed on <typeparamref name="TMessage"/> pre-handle phase
     /// </summary>
     /// <typeparam name="TMessage">The message type that is handled</typeparam>
-    public interface IPreHandleHook<in TMessage> : IPreHandleHook where TMessage : IMessage
+    public interface IPreHandleHook<in TMessage> : IPreHandleHook
     {
         Task IPreHandleHook.ExecuteAsync(object message, CancellationToken cancellationToken) =>
             ExecuteAsync((TMessage) message, cancellationToken);
