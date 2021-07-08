@@ -48,8 +48,8 @@ namespace LiteBus.Commands
             return new HandlerInstanceDescriptor
             {
                 Handler = handler,
+                PreHandlers = preHandleHooks,
                 PostHandlers = postHandleHooks,
-                PreHandlers = preHandleHooks
             };
         }
 

@@ -96,23 +96,22 @@ namespace LiteBus.Registry
 
             foreach (var implementedInterface in genericImplementedInterfaces)
             {
-                var genericTypeDefinition = implementedInterface.GetGenericTypeDefinition();
                 var messageType = implementedInterface.GetGenericArguments()[0];
 
-                if (genericTypeDefinition.IsAssignableTo(typeof(ISyncMessageHandler<,>)))
+                if (implementedInterface.IsAssignableTo(typeof(IMessageHandler)))
                 {
                     var descriptor = GetOrAdd(messageType);
 
                     descriptor.AddHandlerType(typeInfo);
                 }
-                else if (genericTypeDefinition.IsAssignableTo(typeof(IPostHandleHook<>)))
+                else if (implementedInterface.IsAssignableTo(typeof(IPostHandleHook)))
                 {
                     _postHandlerHooks.Add(new HookDescriptor
                     {
                         HookType = typeInfo, MessageType = messageType
                     });
                 }
-                else if (genericTypeDefinition.IsAssignableTo(typeof(IPreHandleHook<>)))
+                else if (implementedInterface.IsAssignableTo(typeof(IPreHandleHook)))
                 {
                     _preHandlerHooks.Add(new HookDescriptor
                     {
