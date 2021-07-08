@@ -1,7 +1,4 @@
-﻿using System.Threading;
-using System.Threading.Tasks;
-
-namespace LiteBus.Messaging.Abstractions
+﻿namespace LiteBus.Messaging.Abstractions
 {
     /// <summary>
     ///     The base of all synchronous message handlers
