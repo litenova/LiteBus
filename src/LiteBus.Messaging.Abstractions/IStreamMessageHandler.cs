@@ -7,7 +7,7 @@ namespace LiteBus.Messaging.Abstractions
     /// <summary>
     ///     The base of all asynchronous handlers returning <see cref="IAsyncEnumerable{T}"/>
     /// </summary>
-    public interface IAsyncEnumerableMessageHandler : IMessageHandler
+    public interface IStreamMessageHandler : IMessageHandler
     {
         /// <summary>
         ///     Handles a message asynchronously
@@ -23,10 +23,10 @@ namespace LiteBus.Messaging.Abstractions
     /// </summary>
     /// <typeparam name="TMessage">The message type</typeparam>
     /// <typeparam name="TMessageResult">the message result type</typeparam>
-    public interface IAsyncEnumerableMessageHandler<in TMessage, out TMessageResult> : IAsyncEnumerableMessageHandler
+    public interface IStreamMessageHandler<in TMessage, out TMessageResult> : IStreamMessageHandler
         where TMessage : IMessage
     {
-        IAsyncEnumerable<object> IAsyncEnumerableMessageHandler.HandleAsync(
+        IAsyncEnumerable<object> IStreamMessageHandler.HandleAsync(
             object message, CancellationToken cancellationToken)
         {
             return HandleAsync((TMessage) message, cancellationToken) as IAsyncEnumerable<object>;
