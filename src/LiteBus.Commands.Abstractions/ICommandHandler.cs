@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions;
+﻿using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Commands.Abstractions
 {
@@ -7,7 +6,7 @@ namespace LiteBus.Commands.Abstractions
     ///     Represents the definition of a handler that handles a command without result
     /// </summary>
     /// <typeparam name="TCommand">The type of command</typeparam>
-    public interface ICommandHandler<in TCommand> : IMessageHandler<TCommand, Task> where TCommand : ICommand
+    public interface ICommandHandler<in TCommand> : IAsyncMessageHandler<TCommand> where TCommand : ICommand
     {
     }
 
@@ -16,7 +15,7 @@ namespace LiteBus.Commands.Abstractions
     /// </summary>
     /// <typeparam name="TCommand">The type of command to</typeparam>
     /// <typeparam name="TCommandResult">The type of command result</typeparam>
-    public interface ICommandHandler<in TCommand, TCommandResult> : IMessageHandler<TCommand, Task<TCommandResult>>
+    public interface ICommandHandler<in TCommand, TCommandResult> : IAsyncMessageHandler<TCommand, TCommandResult>
         where TCommand : ICommand<TCommandResult>
     {
     }

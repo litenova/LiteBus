@@ -16,6 +16,15 @@ namespace LiteBus.Commands
         private readonly IMessageRegistry _messageRegistry;
         private readonly IServiceProvider _serviceProvider;
 
+        private class HandlerInstanceDescriptor
+        {
+            public IAsyncMessageHandler Handler { get; set; }
+
+            public IEnumerable<IPreHandleHook> PreHandlers { get; set; }
+
+            public IEnumerable<IPostHandleHook> PostHandlers { get; set; }
+        }
+
         public CommandMediator(IServiceProvider serviceProvider,
                                IMessageRegistry messageRegistry)
         {
@@ -23,7 +32,7 @@ namespace LiteBus.Commands
             _messageRegistry = messageRegistry;
         }
 
-        private (IEnumerable<IPreHandleHook>, IMessageHandler, IEnumerable<IPostHandleHook>) SendAsync<TResult>(IMessage command)
+        private HandlerInstanceDescriptor GetHandlers(object command)
         {
             var commandType = command.GetType();
 
@@ -31,26 +40,31 @@ namespace LiteBus.Commands
 
             if (descriptor.HandlerTypes.Count > 1) throw new MultipleCommandHandlerFoundException(commandType);
 
-            var handler = _serviceProvider.GetService(descriptor.HandlerTypes.Single()) as IMessageHandler;
+            var handler = _serviceProvider.GetService(descriptor.HandlerTypes.Single()) as IAsyncMessageHandler;
 
             var preHandleHooks = _serviceProvider.GetPreHandleHooks(descriptor.PreHandleHookTypes);
             var postHandleHooks = _serviceProvider.GetPostHandleHooks(descriptor.PostHandleHookTypes);
 
-            return (preHandleHooks, handler, postHandleHooks);
+            return new HandlerInstanceDescriptor
+            {
+                Handler = handler,
+                PreHandlers = preHandleHooks,
+                PostHandlers = postHandleHooks,
+            };
         }
 
         public async Task SendAsync(ICommand command, CancellationToken cancellationToken = default)
         {
-            var (preHandleHooks, handler, postHandleHooks) = SendAsync<Task>(command);
+            var handlerDescriptor = GetHandlers(command);
 
-            foreach (var preHandleHook in preHandleHooks)
+            foreach (var preHandleHook in handlerDescriptor.PreHandlers)
             {
                 await preHandleHook.ExecuteAsync(command, cancellationToken);
             }
 
-            await (Task) handler.Handle(command);
+            await handlerDescriptor.Handler.HandleAsync(command, cancellationToken);
 
-            foreach (var postHandleHook in postHandleHooks)
+            foreach (var postHandleHook in handlerDescriptor.PostHandlers)
             {
                 await postHandleHook.ExecuteAsync(command, cancellationToken);
             }
@@ -59,21 +73,22 @@ namespace LiteBus.Commands
         public async Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
                                                                     CancellationToken cancellationToken = default)
         {
-            var (preHandleHooks, handler, postHandleHooks) = SendAsync<Task>(command);
+            var handlerDescriptor = GetHandlers(command);
 
-            foreach (var preHandleHook in preHandleHooks)
+            foreach (var preHandleHook in handlerDescriptor.PreHandlers)
             {
                 await preHandleHook.ExecuteAsync(command, cancellationToken);
             }
 
-            var result = await (Task<TCommandResult>) handler.Handle(command);
+            TCommandResult commandResult =
+                await (Task<TCommandResult>) handlerDescriptor.Handler.HandleAsync(command, cancellationToken);
 
-            foreach (var postHandleHook in postHandleHooks)
+            foreach (var postHandleHook in handlerDescriptor.PostHandlers)
             {
                 await postHandleHook.ExecuteAsync(command, cancellationToken);
             }
 
-            return result;
+            return commandResult;
         }
     }
 }

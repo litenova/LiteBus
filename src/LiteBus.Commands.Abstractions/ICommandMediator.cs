@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 namespace LiteBus.Commands.Abstractions
 {
     /// <summary>
-    ///     Delivers a command to its corresponding handler
+    ///     Sends commands to their corresponding handlers
     /// </summary>
     public interface ICommandMediator
     {
@@ -14,7 +14,8 @@ namespace LiteBus.Commands.Abstractions
         /// <param name="command">the command to send</param>
         /// <param name="cancellationToken">cancellation token</param>
         /// <returns></returns>
-        Task SendAsync(ICommand command, CancellationToken cancellationToken = default);
+        Task SendAsync(ICommand command, 
+                       CancellationToken cancellationToken = default);
 
         /// <summary>
         ///     Sends a command to its corresponding handler and returns the command result 
