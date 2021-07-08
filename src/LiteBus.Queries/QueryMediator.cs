@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
@@ -20,7 +21,7 @@ namespace LiteBus.Queries
             _messageRegistry = messageRegistry;
         }
 
-        private TResult SendAsync<TResult>(IMessage message)
+        private IMessageHandler GetHandler(object message)
         {
             var queryType = message.GetType();
 
@@ -30,17 +31,23 @@ namespace LiteBus.Queries
 
             var handler = _serviceProvider.GetService(descriptor.HandlerTypes.Single()) as IMessageHandler;
 
-            return (TResult) handler.Handle(message);
+            return handler;
         }
 
-        public Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query)
+        public Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
+                                                           CancellationToken cancellationToken = default)
         {
-            return SendAsync<Task<TQueryResult>>(query);
+            var handler = GetHandler(query) as IAsyncMessageHandler;
+
+            return handler.HandleAsync(query, cancellationToken) as Task<TQueryResult>;
         }
 
-        public IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query)
+        public IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
+                                                                        CancellationToken cancellationToken = default)
         {
-            return SendAsync<IAsyncEnumerable<TQueryResult>>(query);
+            var handler = GetHandler(query) as IStreamMessageHandler;
+
+            return handler.HandleAsync(query, cancellationToken) as IAsyncEnumerable<TQueryResult>;
         }
     }
 }
