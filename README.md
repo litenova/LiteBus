@@ -63,7 +63,7 @@ Inject ``ICommandMediator`` to your class to send your commands.
     // The handler
     public class CreateColorCommandHandler : ICommandHandler<CreateColorCommand>
     {
-        public Task Handle(CreateColorCommand command)
+        public Task HandleAsync(CreateColorCommand command, CancellationToken cancellationToken = default)
         {
             // Proccess the command
         }
@@ -79,7 +79,7 @@ Inject ``ICommandMediator`` to your class to send your commands.
     // The handler
     public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand, int>
     {
-        public Task<int> Handle(CreateUserCommand command)
+        public Task<int> HandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(1);
         }
@@ -100,7 +100,7 @@ Inject ``IQueryMediator`` to your class to query data.
     // The handler
     public class ColorQueryHandler : IQueryHandler<ColorQuery, ColorReadModel>
     {
-        public Task<ColorReadModel> Handle(ColorQuery query)
+        public Task<ColorReadModel> HandleAsync(ColorQuery query, CancellationToken cancellationToken = default)
         {
             // Process the query
         }
@@ -116,7 +116,7 @@ Inject ``IQueryMediator`` to your class to query data.
     // The handler
     public class ColorStreamQueryHandler : IStreamQueryHandler<ColorStreamQuery, ColorReadModel>
     {
-        public IAsyncEnumerable<ColorReadModel> Handle(ColorStreamQuery query)
+        public IAsyncEnumerable<ColorReadModel> HandleAsync(ColorStreamQuery query, CancellationToken cancellationToken = default)
         {
             // Process the query
         }
@@ -137,7 +137,7 @@ Inject ``IEventMediator`` or ``IEventPublisher`` to your class to publish events
     // The first handler
     public class ColorCreatedEventHandler1 : IEventHandler<ColorCreatedEvent>
     {
-        public Task Handle(ColorCreatedEvent @event)
+        public Task HandleAsync(ColorCreatedEvent @event, CancellationToken cancellationToken = default)
         {
             // process the event
         }
@@ -168,7 +168,7 @@ Inject ``IMessageMediator`` to your class to publish events.
     // The handler to handle the message with result
     public class PlainMessageHandler : IMessageHandler<PlainMessage, Task<int>>
     {
-        public Task<int> Handle(PlainMessage message)
+        public Task<int> HandleAsync(PlainMessage message, CancellationToken cancellationToken = default)
         {
             // process the message
         }
@@ -177,7 +177,7 @@ Inject ``IMessageMediator`` to your class to publish events.
     // The handler to handle the message without result
     public class PlainMessageHandler2 : IMessageHandler<PlainMessage>
     {
-        public Task Handle(PlainMessage message)
+        public Task HandleAsync(PlainMessage message, CancellationToken cancellationToken = default)
         {
             // process the message
         }
@@ -197,7 +197,7 @@ Hooks allow you to execute an action in a certain stage of message handling. Cur
     // Exectues an action after each command is handled
     public class GlobalCommandPostHandleHook : ICommandPostHandleHook
     {
-        public Task ExecuteAsync(IBaseCommand message)
+        public Task ExecuteAsync(IBaseCommand message, CancellationToken cancellationToken = default)
         {
             Debug.WriteLine("GlobalCommandPostHandleHook executed!");
             return Task.CompletedTask;
@@ -207,7 +207,7 @@ Hooks allow you to execute an action in a certain stage of message handling. Cur
     // Exectues an action after the specified command is handled
     public class CreateColorCommandPostHandleHook : ICommandPostHandleHook<CreateColorCommand>
     {
-        public Task ExecuteAsync(CreateColorCommand message)
+        public Task ExecuteAsync(CreateColorCommand message, CancellationToken cancellationToken = default)
         {
             Debug.WriteLine("CreateColorCommandPostHandleHook executed!");
             return Task.CompletedTask;
@@ -220,7 +220,7 @@ Hooks allow you to execute an action in a certain stage of message handling. Cur
     // Exectues an action beafore each command is handled
     public class GlobalCommandPreHandleHook : ICommandPreHandleHook
     {
-        public Task ExecuteAsync(IBaseCommand message)
+        public Task ExecuteAsync(IBaseCommand message, CancellationToken cancellationToken = default)
         {
             Debug.WriteLine("GlobalCommandPreHandleHook executed!");
             return Task.CompletedTask;
@@ -230,7 +230,7 @@ Hooks allow you to execute an action in a certain stage of message handling. Cur
     // Exectues an action before the specified command is handled
     public class CreateColorCommandPreHandleHook : ICommandPreHandleHook<CreateColorCommand>
     {
-        public Task ExecuteAsync(CreateColorCommand message)
+        public Task ExecuteAsync(CreateColorCommand message, CancellationToken cancellationToken = default)
         {
             Debug.WriteLine("CreateColorCommandPreHandleHook executed!");
             return Task.CompletedTask;
@@ -267,7 +267,7 @@ Consider the following inheritance:
     // The base command handler
     public class CreateFileCommandHandler : ICommandHandler<CreateFileCommand>
     {
-        public Task Handle(CreateFileCommand command)
+        public Task HandleAsync(CreateFileCommand command, CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
         }
@@ -276,7 +276,7 @@ Consider the following inheritance:
     // The derived command handler
     public class CreateImageCommandHandler : ICommandHandler<CreateImageCommand>
     {
-        public Task Handle(CreateImageCommand command)
+        public Task HandleAsync(CreateImageCommand command, CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
         }
