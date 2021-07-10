@@ -23,7 +23,6 @@ namespace LiteBus.Messaging.Abstractions
     /// <typeparam name="TMessage">The message type</typeparam>
     /// <typeparam name="TMessageResult">the message result type</typeparam>
     public interface IStreamMessageHandler<in TMessage, out TMessageResult> : IStreamMessageHandler
-        where TMessage : IMessage
     {
         IAsyncEnumerable<object> IStreamMessageHandler.HandleAsync(
             object message, CancellationToken cancellationToken)
