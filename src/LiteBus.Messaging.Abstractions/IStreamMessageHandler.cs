@@ -4,30 +4,15 @@ using System.Threading;
 namespace LiteBus.Messaging.Abstractions
 {
     /// <summary>
-    ///     The base of all asynchronous handlers returning <see cref="IAsyncEnumerable{T}"/>
-    /// </summary>
-    public interface IStreamMessageHandler : IMessageHandler
-    {
-        /// <summary>
-        ///     Handles a message asynchronously
-        /// </summary>
-        /// <param name="message">The message</param>
-        /// <param name="cancellationToken">the cancellation token</param>
-        /// <returns>An asynchronous enumerable representing the message result</returns>
-        IAsyncEnumerable<object> HandleAsync(object message, CancellationToken cancellationToken = default);
-    }
-
-    /// <summary>
     ///     Represents an asynchronous message handler that returns <see cref="IAsyncEnumerable{T}"/>
     /// </summary>
     /// <typeparam name="TMessage">The message type</typeparam>
     /// <typeparam name="TMessageResult">the message result type</typeparam>
-    public interface IStreamMessageHandler<in TMessage, out TMessageResult> : IStreamMessageHandler
+    public interface IStreamMessageHandler<TMessage, out TMessageResult> : IMessageHandler<ICancellableMessage<TMessage>, IAsyncEnumerable<TMessageResult>>
     {
-        IAsyncEnumerable<object> IStreamMessageHandler.HandleAsync(
-            object message, CancellationToken cancellationToken)
+        IAsyncEnumerable<TMessageResult> IMessageHandler<ICancellableMessage<TMessage>, IAsyncEnumerable<TMessageResult>>.Handle(ICancellableMessage<TMessage> message)
         {
-            return HandleAsync((TMessage) message, cancellationToken) as IAsyncEnumerable<object>;
+            return HandleAsync(message.Message, message.CancellationToken);
         }
 
         /// <summary>

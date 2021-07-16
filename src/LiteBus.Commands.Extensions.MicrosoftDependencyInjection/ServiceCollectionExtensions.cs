@@ -3,8 +3,8 @@ using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Registry;
-using LiteBus.Registry.Abstractions;
 
 namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
 {

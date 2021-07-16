@@ -4,19 +4,18 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Registry.Abstractions;
 
 namespace LiteBus.Registry
 {
     internal class MessageRegistry : IMessageRegistry
     {
-        private readonly Dictionary<Type, IMessageDescriptor> _descriptors = new();
+        private readonly Dictionary<Type, IMessageTypeDescriptor> _descriptors = new();
         private readonly List<HookDescriptor> _postHandlerHooks = new();
         private readonly List<HookDescriptor> _preHandlerHooks = new();
 
         private readonly HashSet<Assembly> _scannedAssemblies = new();
 
-        public IEnumerator<IMessageDescriptor> GetEnumerator()
+        public IEnumerator<IMessageTypeDescriptor> GetEnumerator()
         {
             return _descriptors.Values.GetEnumerator();
         }
@@ -26,7 +25,7 @@ namespace LiteBus.Registry
             return GetEnumerator();
         }
 
-        public IMessageDescriptor GetDescriptor(Type messageType)
+        public IMessageTypeDescriptor GetDescriptor(Type messageType)
         {
             if (_descriptors.TryGetValue(messageType, out var messageDescriptor))
             {
@@ -40,6 +39,11 @@ namespace LiteBus.Registry
             }
 
             throw new MessageNotRegisteredException(messageType);
+        }
+
+        public IMessageTypeDescriptor GetDescriptor<TMessage>()
+        {
+            return GetDescriptor(typeof(TMessage));
         }
 
         public void Register(params Assembly[] assemblies)
@@ -78,12 +82,12 @@ namespace LiteBus.Registry
 
                 foreach (var hookDescriptor in postHandleHooks)
                 {
-                    ((MessageDescriptor) messageDescriptor).AddPostHandleHookType(hookDescriptor.HookType);
+                    ((MessageTypeDescriptor) messageDescriptor).AddPostHandleHookType(hookDescriptor.HookType);
                 }
 
                 foreach (var preHandleHook in preHandleHooks)
                 {
-                    ((MessageDescriptor) messageDescriptor).AddPreHandleHookType(preHandleHook.HookType);
+                    ((MessageTypeDescriptor) messageDescriptor).AddPreHandleHookType(preHandleHook.HookType);
                 }
             }
         }
@@ -121,17 +125,17 @@ namespace LiteBus.Registry
             }
         }
 
-        private MessageDescriptor GetOrAdd(Type messageType)
+        private MessageTypeDescriptor GetOrAdd(Type messageType)
         {
-            MessageDescriptor result = default;
+            MessageTypeDescriptor result = default;
 
             if (_descriptors.ContainsKey(messageType))
             {
-                result = _descriptors[messageType] as MessageDescriptor;
+                result = _descriptors[messageType] as MessageTypeDescriptor;
             }
             else
             {
-                result = new MessageDescriptor(messageType);
+                result = new MessageTypeDescriptor(messageType);
 
                 _descriptors[messageType] = result;
             }
