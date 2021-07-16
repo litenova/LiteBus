@@ -4,10 +4,10 @@ using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Events;
 using LiteBus.Events.Abstractions;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Registry;
-using LiteBus.Registry.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

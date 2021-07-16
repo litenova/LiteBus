@@ -1,16 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace LiteBus.Registry.Abstractions
+namespace LiteBus.Messaging.Abstractions
 {
-    public interface IMessageDescriptor
+    public interface IMessageTypeDescriptor
     {
         Type MessageType { get; }
 
         IReadOnlyCollection<Type> HandlerTypes { get; }
 
         IReadOnlyCollection<Type> PostHandleHookTypes { get; }
-        
+
         IReadOnlyCollection<Type> PreHandleHookTypes { get; }
     }
 }
