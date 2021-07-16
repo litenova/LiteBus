@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Linq;
+using LiteBus.Messaging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using LiteBus.Registry;
-using LiteBus.Registry.Abstractions;
 
 namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
 {

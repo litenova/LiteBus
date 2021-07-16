@@ -2,11 +2,13 @@
 using System.Collections.Generic;
 using System.Reflection;
 
-namespace LiteBus.Registry.Abstractions
+namespace LiteBus.Messaging.Abstractions
 {
-    public interface IMessageRegistry : IEnumerable<IMessageDescriptor>
+    public interface IMessageRegistry : IEnumerable<IMessageTypeDescriptor>
     {
-        IMessageDescriptor GetDescriptor(Type messageType);
+        IMessageTypeDescriptor GetDescriptor(Type messageType);
+        
+        IMessageTypeDescriptor GetDescriptor<TMessage>();
 
         /// <summary>
         ///     Registers messages and hooks from the specified assemblies

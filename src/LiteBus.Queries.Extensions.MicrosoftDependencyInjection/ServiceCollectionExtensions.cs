@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Linq;
+using LiteBus.Messaging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Registry;
-using LiteBus.Registry.Abstractions;
 
 namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection
 {

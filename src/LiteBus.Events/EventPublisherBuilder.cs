@@ -1,6 +1,6 @@
 ﻿using System;
 using LiteBus.Events.Abstractions;
-using LiteBus.Registry.Abstractions;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Events
 {

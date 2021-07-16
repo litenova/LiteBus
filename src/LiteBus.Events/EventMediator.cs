@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Extensions;
-using LiteBus.Registry.Abstractions;
 
 namespace LiteBus.Events
 {

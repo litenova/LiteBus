@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Extensions;
-using LiteBus.Registry.Abstractions;
 
 namespace LiteBus.Commands
 {

@@ -1,16 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
-using LiteBus.Registry.Abstractions;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Registry
 {
-    internal class MessageDescriptor : IMessageDescriptor
+    internal class MessageTypeDescriptor : IMessageTypeDescriptor
     {
         private readonly HashSet<Type> _handlerTypes = new();
         private readonly HashSet<Type> _postHandleHooks = new();
         private readonly HashSet<Type> _preHandleHooks = new();
 
-        public MessageDescriptor(Type messageType)
+        public MessageTypeDescriptor(Type messageType)
         {
             MessageType = messageType;
         }

@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
-using LiteBus.Registry.Abstractions;
 
 namespace LiteBus.Queries
 {

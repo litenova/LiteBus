@@ -1,29 +1,16 @@
 ﻿namespace LiteBus.Messaging.Abstractions
 {
     /// <summary>
-    ///     The base of all synchronous message handlers
-    /// </summary>
-    public interface ISyncMessageHandler : IMessageHandler
-    {
-        /// <summary>
-        ///     Handles a message
-        /// </summary>
-        /// <param name="message">The message</param>
-        /// <returns>The message result</returns>
-        object Handle(object message);
-    }
-
-    /// <summary>
     ///     Represents a synchronous message handler
     /// </summary>
     /// <typeparam name="TMessage">the type of message</typeparam>
     /// <remarks>The message can be of any type</remarks>
-    public interface ISyncMessageHandler<in TMessage> : ISyncMessageHandler
+    public interface ISyncMessageHandler<in TMessage> : IMessageHandler<TMessage, VoidMessageResult>
     {
-        object ISyncMessageHandler.Handle(object message)
+        VoidMessageResult IMessageHandler<TMessage, VoidMessageResult>.Handle(TMessage message)
         {
-            Handle((TMessage) message);
-            return typeof(void);
+            Handle(message);
+            return new VoidMessageResult();
         }
 
         /// <summary>
@@ -31,7 +18,7 @@
         /// </summary>
         /// <param name="message">the message</param>
         /// <returns>the message result</returns>
-        void Handle(TMessage message);
+        new void Handle(TMessage message);
     }
 
     /// <summary>
@@ -40,15 +27,18 @@
     /// <typeparam name="TMessage">the type of message</typeparam>
     /// <typeparam name="TMessageResult">the type of message</typeparam>
     /// <remarks>The message can be of any type</remarks>
-    public interface ISyncMessageHandler<in TMessage, out TMessageResult> : ISyncMessageHandler
+    public interface ISyncMessageHandler<in TMessage, out TMessageResult> : IMessageHandler<TMessage, TMessageResult>
     {
-        object ISyncMessageHandler.Handle(object message) => Handle((TMessage) message);
+        TMessageResult IMessageHandler<TMessage, TMessageResult>.Handle(TMessage message)
+        {
+            return Handle(message);
+        }
 
         /// <summary>
         ///     Handles a message
         /// </summary>
         /// <param name="message">the message</param>
         /// <returns>the message result</returns>
-        TMessageResult Handle(TMessage message);
+        new TMessageResult Handle(TMessage message);
     }
 }
