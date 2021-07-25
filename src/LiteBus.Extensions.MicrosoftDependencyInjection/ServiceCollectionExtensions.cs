@@ -20,6 +20,7 @@ namespace LiteBus.Extensions.MicrosoftDependencyInjection
         public static IServiceCollection AddLiteBus(this IServiceCollection services,
                                                    Action<ILiteBusBuilder> config)
         {
+            
             var liteBusBuilder = new LiteBusBuilder();
 
             config(liteBusBuilder);

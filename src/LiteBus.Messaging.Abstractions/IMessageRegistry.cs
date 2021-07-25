@@ -4,22 +4,12 @@ using System.Reflection;
 
 namespace LiteBus.Messaging.Abstractions
 {
-    public interface IMessageRegistry : IEnumerable<IMessageTypeDescriptor>
+    public interface IMessageRegistry : IEnumerable<IMessageDescriptor>
     {
-        IMessageTypeDescriptor GetDescriptor(Type messageType);
-        
-        IMessageTypeDescriptor GetDescriptor<TMessage>();
+        void RegisterHandler(Type type);
 
-        /// <summary>
-        ///     Registers messages and hooks from the specified assemblies
-        /// </summary>
-        /// <param name="assemblies">the specified assemblies</param>
-        void Register(params Assembly[] assemblies);
-        
-        /// <summary>
-        ///     Registers messages and hooks from the specified types
-        /// </summary>
-        /// <param name="types">the types to register</param>
-        void Register(params Type[] types);
+        void RegisterPreHandleHook(Type type);
+
+        void RegisterPostHandleHook(Type type);
     }
 }
