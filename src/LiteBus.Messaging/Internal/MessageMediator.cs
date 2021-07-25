@@ -14,32 +14,9 @@ namespace LiteBus.Messaging.Internal
             _messageRegistry = messageRegistry;
         }
 
-        public TMessageResult SendAsync<TMessage, TMessageResult>(TMessage message, CancellationToken cancellationToken)
+        public TMessageResult Mediate<TMessage, TMessageResult>(TMessage message, IMediationStrategy strategy)
         {
-            var descriptor = _messageRegistry.GetDescriptor<TMessage>()
-                                             .;
-
-            var handler = _serviceProvider.GetService(descriptor.HandlerTypes.Single()) as IAsyncMessageHandler;
-        }
-
-        public Task SendAsync<TMessage>(TMessage message, CancellationToken cancellationToken)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public IAsyncEnumerable<TMessageResult> StreamAsync<TMessage, TMessageResult>(TMessage message, CancellationToken cancellationToken)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public TMessageResult Send<TMessage, TMessageResult>(TMessage message)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public void Send<TMessage>(TMessage message)
-        {
-            throw new System.NotImplementedException();
+            var descriptor = _messageRegistry.GetDescriptor(typeof(TMessage));
         }
     }
 }

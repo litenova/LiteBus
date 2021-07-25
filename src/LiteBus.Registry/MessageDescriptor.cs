@@ -4,13 +4,13 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Registry
 {
-    internal class MessageTypeDescriptor : IMessageTypeDescriptor
+    internal class MessageDescriptor : IMessageDescriptor
     {
         private readonly HashSet<Type> _handlerTypes = new();
         private readonly HashSet<Type> _postHandleHooks = new();
         private readonly HashSet<Type> _preHandleHooks = new();
 
-        public MessageTypeDescriptor(Type messageType)
+        public MessageDescriptor(Type messageType)
         {
             MessageType = messageType;
         }

@@ -9,42 +9,10 @@ namespace LiteBus.Registry
 {
     internal class MessageRegistry : IMessageRegistry
     {
-        private readonly Dictionary<Type, IMessageTypeDescriptor> _descriptors = new();
+        private readonly Dictionary<Type, IMessageDescriptor> _descriptors = new();
         private readonly List<HookDescriptor> _postHandlerHooks = new();
         private readonly List<HookDescriptor> _preHandlerHooks = new();
-
-        private readonly HashSet<Assembly> _scannedAssemblies = new();
-
-        public IEnumerator<IMessageTypeDescriptor> GetEnumerator()
-        {
-            return _descriptors.Values.GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
-
-        public IMessageTypeDescriptor GetDescriptor(Type messageType)
-        {
-            if (_descriptors.TryGetValue(messageType, out var messageDescriptor))
-            {
-                return messageDescriptor;
-            }
-
-            if (messageType.BaseType is not null
-                && _descriptors.TryGetValue(messageType.BaseType, out var baseMessageDescriptor))
-            {
-                return baseMessageDescriptor;
-            }
-
-            throw new MessageNotRegisteredException(messageType);
-        }
-
-        public IMessageTypeDescriptor GetDescriptor<TMessage>()
-        {
-            return GetDescriptor(typeof(TMessage));
-        }
+        private event EventHandler<MessageDescriptor> NewMessageDescriptorCreated;
 
         public void Register(params Assembly[] assemblies)
         {
@@ -66,7 +34,7 @@ namespace LiteBus.Registry
             {
                 Register(type.GetTypeInfo());
             }
-            
+
             MatchHooksToMessages();
         }
 
@@ -82,12 +50,12 @@ namespace LiteBus.Registry
 
                 foreach (var hookDescriptor in postHandleHooks)
                 {
-                    ((MessageTypeDescriptor) messageDescriptor).AddPostHandleHookType(hookDescriptor.HookType);
+                    ((MessageDescriptor) messageDescriptor).AddPostHandleHookType(hookDescriptor.HookType);
                 }
 
                 foreach (var preHandleHook in preHandleHooks)
                 {
-                    ((MessageTypeDescriptor) messageDescriptor).AddPreHandleHookType(preHandleHook.HookType);
+                    ((MessageDescriptor) messageDescriptor).AddPreHandleHookType(preHandleHook.HookType);
                 }
             }
         }
@@ -104,7 +72,7 @@ namespace LiteBus.Registry
 
                 if (implementedInterface.IsAssignableTo(typeof(IMessageHandler)))
                 {
-                    var descriptor = GetOrAdd(messageType);
+                    var descriptor = GetOrAddMessageDescriptor(messageType);
 
                     descriptor.AddHandlerType(typeInfo);
                 }
@@ -125,22 +93,44 @@ namespace LiteBus.Registry
             }
         }
 
-        private MessageTypeDescriptor GetOrAdd(Type messageType)
+        public IEnumerator<IMessageDescriptor> GetEnumerator() => _descriptors.Values.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        public void RegisterHandler(Type type)
         {
-            MessageTypeDescriptor result = default;
+            var messageType = type.GetGenericArguments()[0];
+
+            var GetOrAddMessageDescriptor();
+        }
+
+        public void RegisterPreHandleHook(Type type)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void RegisterPostHandleHook(Type type)
+        {
+            throw new NotImplementedException();
+        }
+
+        private MessageDescriptor GetOrAddMessageDescriptor(Type messageType)
+        {
+            MessageDescriptor messageDescriptor = default;
 
             if (_descriptors.ContainsKey(messageType))
             {
-                result = _descriptors[messageType] as MessageTypeDescriptor;
+                messageDescriptor = _descriptors[messageType] as MessageDescriptor;
             }
             else
             {
-                result = new MessageTypeDescriptor(messageType);
+                messageDescriptor = new MessageDescriptor(messageType);
 
-                _descriptors[messageType] = result;
+                _descriptors[messageType] = messageDescriptor;
+                
+                NewMessageDescriptorCreated?.Invoke(this, messageDescriptor);
             }
 
-            return result;
+            return messageDescriptor;
         }
     }
 }
