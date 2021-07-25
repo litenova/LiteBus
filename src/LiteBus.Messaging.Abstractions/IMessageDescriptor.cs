@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace LiteBus.Messaging.Abstractions
 {
-    public interface IMessageTypeDescriptor
+    public interface IMessageDescriptor
     {
         Type MessageType { get; }
 
