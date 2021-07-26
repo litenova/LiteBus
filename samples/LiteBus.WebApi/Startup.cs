@@ -1,10 +1,11 @@
+using LiteBus.Commands.Extensions.MicrosoftDependencyInjection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
-using LiteBus.Extensions.MicrosoftDependencyInjection;
+using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 using LiteBus.WebApi.Commands;
 
 namespace LiteBus.WebApi
@@ -24,9 +25,12 @@ namespace LiteBus.WebApi
         {
             services.AddLiteBus(builder =>
             {
-                builder.Register(typeof(Startup).Assembly);
-                builder.Register(typeof(Startup).Assembly);
-                builder.Register(typeof(CreateSoldierCommandHandler));
+                builder.AddCommands(commandBuilder =>
+                {
+                    commandBuilder.Register(typeof(CreatePersonCommand).Assembly)
+                                  .RegisterPostHandleHook<GlobalCommandPostHandleHook>();
+                    
+                });
             });
 
             services.AddControllers();
