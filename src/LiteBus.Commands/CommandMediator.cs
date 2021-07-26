@@ -7,79 +7,32 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Exceptions;
 using LiteBus.Messaging.Abstractions.Extensions;
+using LiteBus.Messaging.Abstractions.Strategies;
 
 namespace LiteBus.Commands
 {
     /// <inheritdoc cref="ICommandMediator" />
     public class CommandMediator : ICommandMediator
     {
-        private readonly IMessageRegistry _messageRegistry;
-        private readonly IServiceProvider _serviceProvider;
+        private readonly IMessageMediator _messageMediator;
 
-        public CommandMediator(IServiceProvider serviceProvider,
-                               IMessageRegistry messageRegistry)
+        public CommandMediator(IMessageMediator messageMediator)
         {
-            _serviceProvider = serviceProvider;
-            _messageRegistry = messageRegistry;
+            _messageMediator = messageMediator;
         }
 
-        private HandlerInstanceDescriptor GetHandlers(object command)
+        public async Task SendAsync(ICommand command, 
+                                    CancellationToken cancellationToken = default)
         {
-            var commandType = command.GetType();
-
-            var descriptor = _messageRegistry.GetDescriptor(commandType);
-
-            if (descriptor.HandlerTypes.Count > 1) throw new MultipleCommandHandlerFoundException(commandType);
-
-            var handler = _serviceProvider.GetService(descriptor.HandlerTypes.Single()) as IAsyncMessageHandler;
-
-            var preHandleHooks = _serviceProvider.GetPreHandleHooks(descriptor.PreHandleHookDescriptors);
-            var postHandleHooks = _serviceProvider.GetPostHandleHooks(descriptor.PostHandleHookDescriptors);
-
-            return new HandlerInstanceDescriptor
-            {
-                Handler = handler,
-                PreHandlers = preHandleHooks,
-                PostHandlers = postHandleHooks,
-            };
-        }
-
-        public async Task SendAsync(ICommand command, CancellationToken cancellationToken = default)
-        {
-            var handlerDescriptor = GetHandlers(command);
-
-            foreach (var preHandleHook in handlerDescriptor.PreHandlers)
-            {
-                await preHandleHook.ExecuteAsync(command, cancellationToken);
-            }
-
-            await handlerDescriptor.Handler.HandleAsync(command, cancellationToken);
-
-            foreach (var postHandleHook in handlerDescriptor.PostHandlers)
-            {
-                await postHandleHook.ExecuteAsync(command, cancellationToken);
-            }
+            var strategy = new SingleAsyncHandlerMediationStrategy<ICommand>()
+            
+            _messageMediator.Mediate(command, )
         }
 
         public async Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
                                                                     CancellationToken cancellationToken = default)
         {
-            var handlerDescriptor = GetHandlers(command);
-
-            foreach (var preHandleHook in handlerDescriptor.PreHandlers)
-            {
-                await preHandleHook.ExecuteAsync(command, cancellationToken);
-            }
-
-            TCommandResult commandResult =
-                await (Task<TCommandResult>) handlerDescriptor.Handler.HandleAsync(command, cancellationToken);
-
-            foreach (var postHandleHook in handlerDescriptor.PostHandlers)
-            {
-                await postHandleHook.ExecuteAsync(command, cancellationToken);
-            }
-
-            return commandResult;
+            
         }
     }
 }

@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

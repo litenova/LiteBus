@@ -1,5 +1,5 @@
 using System;
-using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.Abstractions;
+using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 
 namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
 {
