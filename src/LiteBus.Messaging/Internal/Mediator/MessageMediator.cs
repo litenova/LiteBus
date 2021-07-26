@@ -21,8 +21,10 @@ namespace LiteBus.Messaging.Internal.Mediator
         public TMessageResult Mediate<TMessage, TMessageResult>(TMessage message, 
                                                                 IMediationStrategy<TMessage, TMessageResult> strategy)
         {
-            var descriptor = _messageRegistry.SingleOrDefault(d => d.MessageType == typeof(TMessage)) ??
-                             _messageRegistry.SingleOrDefault(d => d.MessageType.BaseType == typeof(TMessage));
+            var messageType = message.GetType();
+            
+            var descriptor = _messageRegistry.SingleOrDefault(d => d.MessageType == messageType) ??
+                             _messageRegistry.SingleOrDefault(d => d.MessageType.BaseType == messageType);
 
             if (descriptor is null)
             {
