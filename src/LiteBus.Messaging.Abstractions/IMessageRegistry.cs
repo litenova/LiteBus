@@ -4,12 +4,12 @@ using System.Reflection;
 
 namespace LiteBus.Messaging.Abstractions
 {
-    public interface IMessageRegistry : IEnumerable<IMessageDescriptor>
+    public interface IMessageRegistry : IReadOnlyCollection<IMessageDescriptor>
     {
-        void RegisterHandler(Type type);
+        void RegisterHandler(Type handlerType);
 
-        void RegisterPreHandleHook(Type type);
+        void RegisterPreHandleHook(Type preHandleHookType);
 
-        void RegisterPostHandleHook(Type type);
+        void RegisterPostHandleHook(Type postHandleHookType);
     }
 }

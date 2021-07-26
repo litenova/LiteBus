@@ -5,6 +5,7 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Events;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Internal.Registry;
 using LiteBus.Queries;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Registry;
