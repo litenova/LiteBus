@@ -4,14 +4,15 @@ using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions
 {
-    public interface IMediationStrategy
+    public interface IMediationStrategy<TMessage, TMessageResult>
     {
-        TMessageResult Mediate<TMessage, TMessageResult>(TMessage message);
+        TMessageResult Mediate(TMessage message, IMessageContext<TMessage, TMessageResult> context);
     }
-    
+
     public interface IMessageMediator
     {
-        TMessageResult Mediate<TMessage, TMessageResult>(TMessage message, IMediationStrategy strategy);
+        TMessageResult Mediate<TMessage, TMessageResult>(TMessage message, 
+                                                         IMediationStrategy<TMessage, TMessageResult> strategy);
 
         /// <summary>
         /// Sends a message to its corresponding handler. If 

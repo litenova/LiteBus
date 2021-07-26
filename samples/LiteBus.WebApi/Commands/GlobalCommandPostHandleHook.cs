@@ -8,11 +8,9 @@ namespace LiteBus.WebApi.Commands
 {
     public class GlobalCommandPostHandleHook : ICommandPostHandleHook
     {
-        public Task ExecuteAsync(IMessage message, CancellationToken cancellationToken = default)
+        public Task ExecuteAsync(ICommand message, CancellationToken cancellationToken = default)
         {
-            Debug.WriteLine($"{nameof(GlobalCommandPostHandleHook)} executed!");
-            
-            return Task.CompletedTask;
+            throw new System.NotImplementedException();
         }
     }
 }

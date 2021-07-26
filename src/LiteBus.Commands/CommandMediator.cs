@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Exceptions;
 using LiteBus.Messaging.Abstractions.Extensions;
 
 namespace LiteBus.Commands
@@ -14,15 +15,6 @@ namespace LiteBus.Commands
     {
         private readonly IMessageRegistry _messageRegistry;
         private readonly IServiceProvider _serviceProvider;
-
-        private class HandlerInstanceDescriptor
-        {
-            public IAsyncMessageHandler Handler { get; set; }
-
-            public IEnumerable<IPreHandleHook> PreHandlers { get; set; }
-
-            public IEnumerable<IPostHandleHook> PostHandlers { get; set; }
-        }
 
         public CommandMediator(IServiceProvider serviceProvider,
                                IMessageRegistry messageRegistry)
@@ -41,8 +33,8 @@ namespace LiteBus.Commands
 
             var handler = _serviceProvider.GetService(descriptor.HandlerTypes.Single()) as IAsyncMessageHandler;
 
-            var preHandleHooks = _serviceProvider.GetPreHandleHooks(descriptor.PreHandleHookTypes);
-            var postHandleHooks = _serviceProvider.GetPostHandleHooks(descriptor.PostHandleHookTypes);
+            var preHandleHooks = _serviceProvider.GetPreHandleHooks(descriptor.PreHandleHookDescriptors);
+            var postHandleHooks = _serviceProvider.GetPostHandleHooks(descriptor.PostHandleHookDescriptors);
 
             return new HandlerInstanceDescriptor
             {
