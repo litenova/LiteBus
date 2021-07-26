@@ -2,7 +2,8 @@
 
 namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.Abstractions
 {
-    public class LiteBusBuilder
+    public interface ILiteBusBuilder
     {
+        ILiteBusBuilder AddModule(IModule module);
     }
 }
