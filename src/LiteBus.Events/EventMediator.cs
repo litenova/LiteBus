@@ -11,26 +11,18 @@ namespace LiteBus.Events
     /// <inheritdoc cref="IEventMediator" />
     public class EventMediator : IEventPublisher
     {
-        private readonly IMessageRegistry _messageRegistry;
-        private readonly IServiceProvider _serviceProvider;
+        private readonly IMessageMediator _messageMediator;
 
-        public EventMediator(IServiceProvider serviceProvider,
-                             IMessageRegistry messageRegistry)
+        public EventMediator(IMessageMediator messageMediator)
         {
-            _serviceProvider = serviceProvider;
-            _messageRegistry = messageRegistry;
+            _messageMediator = messageMediator;
         }
 
-        public virtual Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
+        public virtual Task PublishAsync<TEvent>(TEvent @event, 
+                                                 CancellationToken cancellationToken = default) 
             where TEvent : IEvent
         {
-            var descriptor = _messageRegistry.GetDescriptor(@event.GetType());
-
-            var handlers = _serviceProvider
-                           .GetHandlers(descriptor.HandlerTypes)
-                           .Cast<IAsyncMessageHandler<TEvent>>();
-
-            return Task.WhenAll(handlers.Select(h => h.HandleAsync(@event, cancellationToken)));
+            
         }
     }
 }
