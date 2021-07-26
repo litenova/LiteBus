@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Internal.Registry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using LiteBus.Registry;

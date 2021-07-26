@@ -1,6 +1,6 @@
 ﻿using LiteBus.Messaging.Abstractions;
 
-namespace LiteBus.Registry
+namespace LiteBus.Messaging.Internal.Registry
 {
     /// <summary>
     ///     Provides access to the singleton instance of <see cref="IMessageRegistry" />

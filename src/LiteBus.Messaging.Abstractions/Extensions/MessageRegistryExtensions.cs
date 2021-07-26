@@ -39,47 +39,33 @@ namespace LiteBus.Messaging.Abstractions.Extensions
                 {
                     registry.RegisterHandler(type);
                 }
-                else if (@interface.IsAssignableTo(typeof(IPreHandleHook)))
+                else if (@interface.IsAssignableTo(typeof(IPreHandleHook<>)))
                 {
                     registry.RegisterPreHandleHook(type);
                 }
-                else if (@interface.IsAssignableTo(typeof(IPostHandleHook)))
+                else if (@interface.IsAssignableTo(typeof(IPostHandleHook<>)))
                 {
                     registry.RegisterPostHandleHook(type);
                 }
             }
         }
 
-        public static void RegisterHandler<THandler>(this IMessageRegistry registry) where THandler : IMessageHandler
+        public static void RegisterHandler<THandler, TMessage, TMessageResult>(this IMessageRegistry registry)
+            where THandler : IMessageHandler<TMessage, TMessageResult>
         {
             registry.RegisterHandler(typeof(THandler));
         }
 
-        public static void RegisterPreHandleHook<THook>(this IMessageRegistry registry) where THook : IPreHandleHook
+        public static void RegisterPreHandleHook<THook, TMessage>(this IMessageRegistry registry)
+            where THook : IPreHandleHook<TMessage>
         {
             registry.RegisterPreHandleHook(typeof(THook));
         }
 
-        public static void RegisterPostHandleHook<THook>(this IMessageRegistry registry) where THook : IPostHandleHook
+        public static void RegisterPostHandleHook<THook, TMessage>(this IMessageRegistry registry)
+            where THook : IPostHandleHook<TMessage>
         {
             registry.RegisterPostHandleHook(typeof(THook));
-        }
-        
-        
-        public static IMessageDescriptor GetDescriptor(Type messageType)
-        {
-            if (_descriptors.TryGetValue(messageType, out var messageDescriptor))
-            {
-                return messageDescriptor;
-            }
-
-            if (messageType.BaseType is not null
-                && _descriptors.TryGetValue(messageType.BaseType, out var baseMessageDescriptor))
-            {
-                return baseMessageDescriptor;
-            }
-
-            throw new MessageNotRegisteredException(messageType);
         }
     }
 }

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace LiteBus.Registry
+namespace LiteBus.Messaging.Internal.Registry
 {
     [Serializable]
     internal class MessageNotRegisteredException : Exception
