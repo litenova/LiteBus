@@ -1,7 +1,7 @@
 ﻿using System;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.Abstractions;
+using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

@@ -8,7 +8,8 @@ namespace LiteBus.Messaging.Abstractions.Strategies
         IMediationStrategy<ICancellableMessage<TMessage>, Task<TMessageResult>>
     {
         public async Task<TMessageResult> Mediate(ICancellableMessage<TMessage> message,
-                                                  IMessageContext<ICancellableMessage<TMessage>, Task<TMessageResult>> context)
+                                                  IMessageContext<ICancellableMessage<TMessage>, Task<TMessageResult>>
+                                                      context)
         {
             if (context.Handlers.Count > 1)
             {
@@ -28,6 +29,30 @@ namespace LiteBus.Messaging.Abstractions.Strategies
             }
 
             return result;
+        }
+    }
+
+    public class SingleAsyncHandlerMediationStrategy<TMessage> : IMediationStrategy<ICancellableMessage<TMessage>, Task>
+    {
+        public async Task Mediate(ICancellableMessage<TMessage> message,
+                                  IMessageContext<ICancellableMessage<TMessage>, Task> context)
+        {
+            if (context.Handlers.Count > 1)
+            {
+                throw new MultipleHandlerFoundException(typeof(TMessage));
+            }
+
+            foreach (var preHandleHook in context.PreHandleHooks)
+            {
+                await preHandleHook.Value.ExecuteAsync(message);
+            }
+
+            await context.Handlers.Single().Value.Handle(message);
+
+            foreach (var postHandleHook in context.PostHandleHooks)
+            {
+                await postHandleHook.Value.ExecuteAsync(message);
+            }
         }
     }
 }

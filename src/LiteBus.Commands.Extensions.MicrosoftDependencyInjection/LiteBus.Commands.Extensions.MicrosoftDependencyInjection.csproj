@@ -18,8 +18,6 @@
 
     <ItemGroup>
       <ProjectReference Include="..\LiteBus.Commands\LiteBus.Commands.csproj" />
-      <ProjectReference Include="..\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.Abstractions\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.Abstractions.csproj" />
+      <ProjectReference Include="..\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.csproj" />
     </ItemGroup>
-
-
 </Project>
