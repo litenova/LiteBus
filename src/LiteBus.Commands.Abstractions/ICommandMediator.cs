@@ -14,8 +14,8 @@ namespace LiteBus.Commands.Abstractions
         /// <param name="command">the command to send</param>
         /// <param name="cancellationToken">cancellation token</param>
         /// <returns></returns>
-        Task SendAsync(ICommand command, 
-                       CancellationToken cancellationToken = default);
+        Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
+            where TCommand : ICommand;
 
         /// <summary>
         ///     Sends a command to its corresponding handler and returns the command result 

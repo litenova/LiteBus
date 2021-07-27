@@ -12,6 +12,7 @@ namespace LiteBus.Messaging.Internal.Registry
         private readonly Dictionary<Type, MessageDescriptor> _descriptors = new();
         private readonly List<PostHandleHookDescriptor> _postHandlerHooks = new();
         private readonly List<PreHandleHookDescriptor> _preHandlerHooks = new();
+
         private event EventHandler<MessageDescriptor> NewMessageDescriptorCreated;
 
         public MessageRegistry()
@@ -21,50 +22,71 @@ namespace LiteBus.Messaging.Internal.Registry
         }
 
         public IEnumerator<IMessageDescriptor> GetEnumerator() => _descriptors.Values.GetEnumerator();
+
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         public void RegisterHandler(Type handlerType)
         {
-            if (handlerType is null)
-            { 
-                throw new NotSupportedException("The type is not a handler type");
-            }
-            
-            var messageType = handlerType.GetGenericArguments()[0];
+            foreach (var @interface in handlerType.GetInterfaces())
+            {
+                if (@interface.IsGenericType &&
+                    @interface.GetGenericTypeDefinition().IsAssignableTo(typeof(IMessageHandler<,>)))
+                {
+                    var messageType = @interface.GetGenericArguments()[0];
 
-            var descriptor = GetOrAddMessageDescriptor(messageType);
-            
-            descriptor.AddHandlerType(handlerType);
+                    var descriptor = GetOrAddMessageDescriptor(messageType);
+
+                    descriptor.AddHandlerType(handlerType);
+                }
+            }
         }
 
         public void RegisterPreHandleHook(Type preHandleHookType)
         {
-            var hookDescriptor = new PreHandleHookDescriptor(preHandleHookType);
-
-            foreach (var messageDescriptor in _descriptors.Values)
+            foreach (var @interface in preHandleHookType.GetInterfaces())
             {
-                if (messageDescriptor.MessageType.IsAssignableTo(hookDescriptor.MessageType))
+                if (@interface.IsGenericType &&
+                    @interface.GetGenericTypeDefinition().IsAssignableTo(typeof(IPreHandleHook<>)))
                 {
-                    messageDescriptor.AddPreHandleHookDescriptor(hookDescriptor);
+                    var messageType = @interface.GetGenericArguments()[0];
+
+                    var hookDescriptor = new PreHandleHookDescriptor(preHandleHookType, messageType);
+
+                    foreach (var messageDescriptor in _descriptors.Values)
+                    {
+                        if (messageDescriptor.MessageType.IsAssignableTo(hookDescriptor.MessageType))
+                        {
+                            messageDescriptor.AddPreHandleHookDescriptor(hookDescriptor);
+                        }
+                    }
+
+                    _preHandlerHooks.Add(hookDescriptor);
                 }
             }
-            
-            _preHandlerHooks.Add(hookDescriptor);
         }
 
         public void RegisterPostHandleHook(Type postHandleHookType)
         {
-            var hookDescriptor = new PostHandleHookDescriptor(postHandleHookType);
-
-            foreach (var messageDescriptor in _descriptors.Values)
+            foreach (var @interface in postHandleHookType.GetInterfaces())
             {
-                if (messageDescriptor.MessageType.IsAssignableTo(hookDescriptor.MessageType))
+                if (@interface.IsGenericType &&
+                    @interface.GetGenericTypeDefinition().IsAssignableTo(typeof(IPostHandleHook<>)))
                 {
-                    messageDescriptor.AddPostHandleHookDescriptor(hookDescriptor);
+                    var messageType = @interface.GetGenericArguments()[0];
+
+                    var hookDescriptor = new PostHandleHookDescriptor(postHandleHookType, messageType);
+
+                    foreach (var messageDescriptor in _descriptors.Values)
+                    {
+                        if (messageDescriptor.MessageType.IsAssignableTo(hookDescriptor.MessageType))
+                        {
+                            messageDescriptor.AddPostHandleHookDescriptor(hookDescriptor);
+                        }
+                    }
+
+                    _postHandlerHooks.Add(hookDescriptor);
                 }
             }
-            
-            _postHandlerHooks.Add(hookDescriptor);
         }
 
         private MessageDescriptor GetOrAddMessageDescriptor(Type messageType)
@@ -80,13 +102,13 @@ namespace LiteBus.Messaging.Internal.Registry
                 messageDescriptor = new MessageDescriptor(messageType);
 
                 _descriptors[messageType] = messageDescriptor;
-                
+
                 NewMessageDescriptorCreated?.Invoke(this, messageDescriptor);
             }
 
             return messageDescriptor;
         }
-        
+
         private void UpdateNewMessagePostHandleHooks(object? sender, MessageDescriptor e)
         {
             foreach (var handleHookDescriptor in _postHandlerHooks)
@@ -97,7 +119,7 @@ namespace LiteBus.Messaging.Internal.Registry
                 }
             }
         }
-        
+
         private void UpdateNewMessagePreHandleHooks(object? sender, MessageDescriptor e)
         {
             foreach (var handleHookDescriptor in _preHandlerHooks)

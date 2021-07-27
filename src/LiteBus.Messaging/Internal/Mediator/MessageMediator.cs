@@ -18,22 +18,16 @@ namespace LiteBus.Messaging.Internal.Mediator
             _serviceProvider = serviceProvider;
         }
 
-        public TMessageResult Mediate<TMessage, TMessageResult>(TMessage message, 
-                                                                IMediationStrategy<TMessage, TMessageResult> strategy)
+        public TMessageResult Mediate<TMessage, TMessageResult>(TMessage message,
+                                                                IMessageFindStrategy<TMessage> findStrategy,
+                                                                IMediationStrategy<TMessage, TMessageResult> mediationStrategy)
         {
-            var messageType = message.GetType();
-            
-            var descriptor = _messageRegistry.SingleOrDefault(d => d.MessageType == messageType) ??
-                             _messageRegistry.SingleOrDefault(d => d.MessageType.BaseType == messageType);
 
-            if (descriptor is null)
-            {
-                throw new MessageNotRegisteredException(typeof(TMessage));    
-            }
+            var descriptor = findStrategy.Find(_messageRegistry);
 
             var context = new MessageContext<TMessage, TMessageResult>(descriptor, _serviceProvider);
 
-            return strategy.Mediate(message, context);
+            return mediationStrategy.Mediate(message, context);
         }
     }
 }

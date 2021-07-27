@@ -5,16 +5,10 @@ namespace LiteBus.Messaging.Internal.Registry
 {
     internal class PostHandleHookDescriptor : IHookDescriptor
     {
-        public PostHandleHookDescriptor(Type hookType)
+        public PostHandleHookDescriptor(Type hookType, Type messageType)
         {
-            if (hookType.GetGenericTypeDefinition().IsAssignableTo(typeof(IPostHandleHook<>)))
-            {
-                throw new NotSupportedException($"{nameof(hookType)} is not valid pre handle hook type.");
-            }
-            
             HookType = hookType;
-
-            MessageType = hookType.GetGenericArguments()[0];
+            MessageType = messageType;
 
             HookOrderAttribute hookOrderAttribute =
                 (HookOrderAttribute) Attribute.GetCustomAttribute(hookType, typeof(HookOrderAttribute));

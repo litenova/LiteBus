@@ -17,9 +17,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.Abstractions\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.Abstractions.csproj" />
         <ProjectReference Include="..\LiteBus.Messaging\LiteBus.Messaging.csproj" />
-        <ProjectReference Include="..\LiteBus.Registry\LiteBus.Registry.csproj" />
     </ItemGroup>
 
     <ItemGroup>

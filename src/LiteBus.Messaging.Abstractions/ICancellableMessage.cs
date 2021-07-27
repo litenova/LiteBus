@@ -8,5 +8,16 @@ namespace LiteBus.Messaging.Abstractions
 
         CancellationToken CancellationToken { get; }
     }
+    
+    public class CancellableMessage<TMessage> : ICancellableMessage<TMessage>
+    {
+        public CancellableMessage(TMessage message, CancellationToken cancellationToken)
+        {
+            Message = message;
+            CancellationToken = cancellationToken;
+        }
 
+        public TMessage Message { get; }
+        public CancellationToken CancellationToken { get; }
+    }
 }
