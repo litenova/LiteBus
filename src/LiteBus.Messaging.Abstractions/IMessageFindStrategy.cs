@@ -1,7 +1,10 @@
-﻿namespace LiteBus.Messaging.Abstractions
+﻿using System;
+
+namespace LiteBus.Messaging.Abstractions
 {
-    public interface IMessageFindStrategy<TMessage>
+    public interface IMessageFindStrategy<in TMessage>
     {
-        IMessageDescriptor Find(IMessageRegistry messageRegistry);
+        IMessageDescriptor Find(TMessage message,
+                                IMessageRegistry messageRegistry);
     }
 }
