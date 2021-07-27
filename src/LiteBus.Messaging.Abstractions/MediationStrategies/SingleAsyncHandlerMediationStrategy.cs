@@ -1,15 +1,22 @@
 ﻿using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions.Exceptions;
 
-namespace LiteBus.Messaging.Abstractions.Strategies
+namespace LiteBus.Messaging.Abstractions.MediationStrategies
 {
     public class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> :
-        IMediationStrategy<ICancellableMessage<TMessage>, Task<TMessageResult>>
+        IMediationStrategy<TMessage, Task<TMessageResult>>
     {
-        public async Task<TMessageResult> Mediate(ICancellableMessage<TMessage> message,
-                                                  IMessageContext<ICancellableMessage<TMessage>, Task<TMessageResult>>
-                                                      context)
+        private readonly CancellationToken _cancellationToken;
+
+        public SingleAsyncHandlerMediationStrategy(CancellationToken cancellationToken)
+        {
+            _cancellationToken = cancellationToken;
+        }
+
+        public async Task<TMessageResult> Mediate(TMessage message,
+                                                  IMessageContext<TMessage, Task<TMessageResult>> context)
         {
             if (context.Handlers.Count > 1)
             {
@@ -18,24 +25,35 @@ namespace LiteBus.Messaging.Abstractions.Strategies
 
             foreach (var preHandleHook in context.PreHandleHooks)
             {
-                await preHandleHook.Value.ExecuteAsync(message);
+                await preHandleHook.Value.ExecuteAsync(message, _cancellationToken);
             }
 
-            var result = await context.Handlers.Single().Value.Handle(message);
+            var handler = context.Handlers
+                                 .Single()
+                                 .Value as IAsyncMessageHandler<TMessage, TMessageResult>;
+
+            var result = await handler!.HandleAsync(message, _cancellationToken);
 
             foreach (var postHandleHook in context.PostHandleHooks)
             {
-                await postHandleHook.Value.ExecuteAsync(message);
+                await postHandleHook.Value.ExecuteAsync(message, _cancellationToken);
             }
 
             return result;
         }
     }
 
-    public class SingleAsyncHandlerMediationStrategy<TMessage> : IMediationStrategy<ICancellableMessage<TMessage>, Task>
+    public class SingleAsyncHandlerMediationStrategy<TMessage> : IMediationStrategy<TMessage, Task>
     {
-        public async Task Mediate(ICancellableMessage<TMessage> message,
-                                  IMessageContext<ICancellableMessage<TMessage>, Task> context)
+        private readonly CancellationToken _cancellationToken;
+
+        public SingleAsyncHandlerMediationStrategy(CancellationToken cancellationToken)
+        {
+            _cancellationToken = cancellationToken;
+        }
+
+        public async Task Mediate(TMessage message,
+                                  IMessageContext<TMessage, Task> context)
         {
             if (context.Handlers.Count > 1)
             {
@@ -44,14 +62,18 @@ namespace LiteBus.Messaging.Abstractions.Strategies
 
             foreach (var preHandleHook in context.PreHandleHooks)
             {
-                await preHandleHook.Value.ExecuteAsync(message);
+                await preHandleHook.Value.ExecuteAsync(message, _cancellationToken);
             }
 
-            await context.Handlers.Single().Value.Handle(message);
+            var handler = context.Handlers
+                                 .Single()
+                                 .Value as IAsyncMessageHandler<TMessage>;
+
+            await handler!.HandleAsync(message, _cancellationToken);
 
             foreach (var postHandleHook in context.PostHandleHooks)
             {
-                await postHandleHook.Value.ExecuteAsync(message);
+                await postHandleHook.Value.ExecuteAsync(message, _cancellationToken);
             }
         }
     }
