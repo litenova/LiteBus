@@ -33,7 +33,11 @@ namespace LiteBus.Messaging.Abstractions.Extensions
         /// <param name="registry">The message registry</param>
         public static void Register(this IMessageRegistry registry, TypeInfo type)
         {
-            foreach (var @interface in type.ImplementedInterfaces.Select(i => i.GetGenericTypeDefinition()))
+            var interfaces = type.ImplementedInterfaces
+                                 .Where(i => i.IsGenericType)
+                                 .Select(i => i.GetGenericTypeDefinition());
+            
+            foreach (var @interface in interfaces)
             {
                 if (@interface.IsAssignableTo(typeof(IMessageHandler<,>)))
                 {
