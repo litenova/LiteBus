@@ -7,7 +7,8 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Exceptions;
 using LiteBus.Messaging.Abstractions.Extensions;
-using LiteBus.Messaging.Abstractions.Strategies;
+using LiteBus.Messaging.Abstractions.FindStrategies;
+using LiteBus.Messaging.Abstractions.MediationStrategies;
 
 namespace LiteBus.Commands
 {
@@ -23,11 +24,11 @@ namespace LiteBus.Commands
 
         public async Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default) where TCommand : ICommand
         {
-            var strategy = new SingleAsyncHandlerMediationStrategy<TCommand>();
+            var mediationStrategy = new SingleAsyncHandlerMediationStrategy<TCommand>(cancellationToken);
 
-            ICancellableMessage<TCommand> message = new CancellableMessage<TCommand>(command, cancellationToken);
-            
-            await _messageMediator.Mediate<ICancellableMessage<TCommand>, Task>(message, null, strategy);
+            var findStrategy = new ActualTypeOrBaseTypeMessageFindStrategy<TCommand>();
+
+            await _messageMediator.Mediate<TCommand, Task>(command, findStrategy, mediationStrategy);
         }
 
         public async Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,

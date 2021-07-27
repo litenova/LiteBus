@@ -2,11 +2,18 @@ using System.Threading;
 
 namespace LiteBus.Messaging.Abstractions
 {
-    public interface ICancellableMessage<out TMessage>
+    public interface ICancellableMessage
     {
-        TMessage Message { get; }
+        object Message { get; }
 
         CancellationToken CancellationToken { get; }
+    }
+    
+    public interface ICancellableMessage<out TMessage> : ICancellableMessage
+    {
+        object ICancellableMessage.Message => Message;
+
+        new TMessage Message { get; }
     }
     
     public class CancellableMessage<TMessage> : ICancellableMessage<TMessage>

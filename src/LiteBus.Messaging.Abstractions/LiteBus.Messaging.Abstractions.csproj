@@ -16,8 +16,4 @@
         <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath="" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="FindStrategies" />
-    </ItemGroup>
-
 </Project>
