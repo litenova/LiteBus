@@ -1,4 +1,5 @@
 using LiteBus.Commands.Extensions.MicrosoftDependencyInjection;
+using LiteBus.Events.Extensions.MicrosoftDependencyInjection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -6,7 +7,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
+using LiteBus.Queries.Extensions.MicrosoftDependencyInjection;
 using LiteBus.WebApi.Commands;
+using LiteBus.WebApi.Events;
+using LiteBus.WebApi.Queries;
 
 namespace LiteBus.WebApi
 {
@@ -26,11 +30,18 @@ namespace LiteBus.WebApi
             services.AddLiteBus(builder =>
             {
                 builder.AddCommands(commandBuilder =>
-                {
-                    commandBuilder.Register(typeof(CreatePersonCommand).Assembly)
-                                  .RegisterPostHandleHook<GlobalCommandPostHandleHook>();
-                    
-                });
+                       {
+                           commandBuilder.Register(typeof(CreatePersonCommand).Assembly)
+                                         .RegisterPostHandleHook<GlobalCommandPostHandleHook>();
+                       })
+                       .AddQueries(queryBuilder =>
+                       {
+                           queryBuilder.Register(typeof(ColorQuery).Assembly); 
+                       })
+                       .AddEvents(eventBuilder =>
+                       {
+                           eventBuilder.Register(typeof(ColorCreatedEvent).Assembly);
+                       });
             });
 
             services.AddControllers();

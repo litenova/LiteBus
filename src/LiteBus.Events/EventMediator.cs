@@ -22,7 +22,7 @@ namespace LiteBus.Events
                                                  CancellationToken cancellationToken = default) 
             where TEvent : IEvent
         {
-            
+            throw new NotImplementedException();
         }
     }
 }
