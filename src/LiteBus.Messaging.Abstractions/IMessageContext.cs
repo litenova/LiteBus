@@ -6,7 +6,7 @@ namespace LiteBus.Messaging.Abstractions
     {
         ILazyReadOnlyCollection<IMessageHandler<TMessage, TMessageResult>> Handlers { get; }
 
-        ILazyReadOnlyCollection<IPreHandleHook<TMessage>> PostHandleHooks { get; }
+        ILazyReadOnlyCollection<IPostHandleHook<TMessage>> PostHandleHooks { get; }
 
         ILazyReadOnlyCollection<IPreHandleHook<TMessage>> PreHandleHooks { get; }
     }
