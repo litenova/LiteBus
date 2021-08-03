@@ -1,10 +1,20 @@
 namespace LiteBus.Messaging.Abstractions
 {
     /// <summary>
-    ///     The base of all message handlers
+    ///     The non-generic base of all message handlers
     /// </summary>
-    public interface IMessageHandler<in TMessage, out TMessageResult>
+    public interface IMessageHandler
     {
-        TMessageResult Handle(TMessage message);
+        object Handle(object message);
+    }
+
+    /// <summary>
+    ///     The generic base of all message handlers
+    /// </summary>
+    public interface IMessageHandler<in TMessage, out TMessageResult> : IMessageHandler
+    {
+        object IMessageHandler.Handle(object message) => Handle((TMessage) message);
+
+        new TMessageResult Handle(TMessage message);
     }
 }

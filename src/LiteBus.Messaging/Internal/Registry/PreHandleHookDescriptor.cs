@@ -1,5 +1,6 @@
 ﻿using System;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Descriptors;
 
 namespace LiteBus.Messaging.Internal.Registry
 {

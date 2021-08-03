@@ -1,21 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Descriptors;
 using LiteBus.Messaging.Internal.Exceptions;
 using LiteBus.Messaging.Internal.Extensions;
 
 namespace LiteBus.Messaging.Internal.Mediator
 {
-    // A handler Handles a <Message> and returns <Message Result> 
-    
-    // Message -> Mediator -> Message -> 
-    
-    // Message 
-    // Handler
-    // 
-    
     public class MessageContext<TMessage, TMessageResult> : IMessageContext<TMessage, TMessageResult>
     {
         private readonly IServiceProvider _serviceProvider;
@@ -24,17 +15,17 @@ namespace LiteBus.Messaging.Internal.Mediator
         {
             _serviceProvider = serviceProvider;
 
-            Handlers = ResolveHandlers(descriptor.HandlerTypes).ToLazyReadOnlyCollection();
+            Handlers = ResolveHandlers(descriptor.HandlerDescriptors).ToLazyReadOnlyCollection();
             PostHandleHooks = ResolvePostHandleHooks(descriptor.PostHandleHookDescriptors).ToLazyReadOnlyCollection();
             PreHandleHooks = ResolvePreHandleHooks(descriptor.PreHandleHookDescriptors).ToLazyReadOnlyCollection();
         }
 
         private IEnumerable<Lazy<IMessageHandler<TMessage, TMessageResult>>> ResolveHandlers(
-            IEnumerable<Type> handlerTypes)
+            IReadOnlyCollection<IHandlerDescriptor> descriptors)
         {
-            foreach (var handlerType in handlerTypes)
+            foreach (var descriptor in descriptors)
             {
-                var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(handlerType));
+                var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(descriptor.HandlerType));
 
                 yield return new(() =>
                 {
@@ -42,7 +33,7 @@ namespace LiteBus.Messaging.Internal.Mediator
 
                     if (handler is null)
                     {
-                        throw new NotResolvedException(handlerType);
+                        throw new NotResolvedException(descriptor.HandlerType);
                     }
 
                     return null;

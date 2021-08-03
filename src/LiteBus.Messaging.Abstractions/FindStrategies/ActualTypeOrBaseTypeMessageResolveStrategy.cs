@@ -1,9 +1,10 @@
 ﻿using System.Linq;
+using LiteBus.Messaging.Abstractions.Descriptors;
 using LiteBus.Messaging.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Abstractions.FindStrategies
 {
-    public class ActualTypeOrBaseTypeMessageFindStrategy<TMessage> : IMessageFindStrategy<TMessage>
+    public class ActualTypeOrBaseTypeMessageResolveStrategy<TMessage> : IMessageResolveStrategy<TMessage>
     {
         public IMessageDescriptor Find(TMessage message, IMessageRegistry messageRegistry)
         {
