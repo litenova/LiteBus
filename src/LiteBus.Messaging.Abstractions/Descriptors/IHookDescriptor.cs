@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace LiteBus.Messaging.Abstractions
+namespace LiteBus.Messaging.Abstractions.Descriptors
 {
     public interface IHookDescriptor
     {

@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
+using MorseCode.ITask;
 
 namespace LiteBus.WebApi.Commands
 {
@@ -22,21 +23,21 @@ namespace LiteBus.WebApi.Commands
     
     public class CreatePersonCommandHandler : ICommandHandler<CreatePersonCommand>
     {
-        public Task HandleAsync(CreatePersonCommand message, CancellationToken cancellationToken = default)
+        public ITask HandleAsync(CreatePersonCommand message, CancellationToken cancellationToken = default)
         {
             Debug.WriteLine($"{nameof(CreatePersonCommandHandler)} executed!");
 
-            return Task.CompletedTask;
+            return Task.CompletedTask.AsITask();
         }
     }
     
     public class CreateSoldierCommandHandler : ICommandHandler<CreateSoldierCommand>
     {
-        public Task HandleAsync(CreateSoldierCommand message, CancellationToken cancellationToken = default)
+        public ITask HandleAsync(CreateSoldierCommand message, CancellationToken cancellationToken = default)
         {
             Debug.WriteLine($"{nameof(CreateSoldierCommandHandler)} executed!");
 
-            return Task.CompletedTask;
+            return Task.CompletedTask.AsITask();
         }
     }
 }

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Descriptors;
 
 namespace LiteBus.Messaging.Internal.Registry
 {
@@ -32,11 +33,16 @@ namespace LiteBus.Messaging.Internal.Registry
                 if (@interface.IsGenericType &&
                     @interface.GetGenericTypeDefinition().IsAssignableTo(typeof(IMessageHandler<,>)))
                 {
-                    var messageType = @interface.GetGenericArguments()[0];
+                    var handlerDescriptor = new HandlerDescriptor
+                    {
+                        HandlerType = handlerType,
+                        MessageType = @interface.GetGenericArguments()[0],
+                        MessageResultType = @interface.GetGenericArguments()[1]
+                    };
+                    
+                    var messageDescriptor = GetOrAddMessageDescriptor(handlerDescriptor.MessageType);
 
-                    var descriptor = GetOrAddMessageDescriptor(messageType);
-
-                    descriptor.AddHandlerType(handlerType);
+                    messageDescriptor.AddHandlerDescriptor(handlerDescriptor);
                 }
             }
         }

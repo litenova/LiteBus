@@ -5,12 +5,12 @@ using LiteBus.Messaging.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Abstractions.MediationStrategies
 {
-    public class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> :
-        IMediationStrategy<TMessage, Task<TMessageResult>>
+    public class SingleAsyncHandlerMessageMediationStrategy<TMessage, TMessageResult> :
+        IMessageMediationStrategy<TMessage, Task<TMessageResult>>
     {
         private readonly CancellationToken _cancellationToken;
 
-        public SingleAsyncHandlerMediationStrategy(CancellationToken cancellationToken)
+        public SingleAsyncHandlerMessageMediationStrategy(CancellationToken cancellationToken)
         {
             _cancellationToken = cancellationToken;
         }
@@ -43,11 +43,11 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
         }
     }
 
-    public class SingleAsyncHandlerMediationStrategy<TMessage> : IMediationStrategy<TMessage, Task>
+    public class SingleAsyncHandlerMessageMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task>
     {
         private readonly CancellationToken _cancellationToken;
 
-        public SingleAsyncHandlerMediationStrategy(CancellationToken cancellationToken)
+        public SingleAsyncHandlerMessageMediationStrategy(CancellationToken cancellationToken)
         {
             _cancellationToken = cancellationToken;
         }
