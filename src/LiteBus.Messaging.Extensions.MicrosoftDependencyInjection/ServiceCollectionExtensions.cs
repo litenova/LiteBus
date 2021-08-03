@@ -12,7 +12,7 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
         public static IServiceCollection AddLiteBus(this IServiceCollection services, 
                                                     Action<ILiteBusBuilder> liteBusBuilderAction)
         {
-            services.TryAddSingleton<IMessageRegistry>(MessageRegistryAccessor.MessageRegistry);
+            services.TryAddSingleton(MessageRegistryAccessor.MessageRegistry);
             services.TryAddTransient<IMessageMediator, MessageMediator>();
             
             var liteBusBuilder = new LiteBusBuilder(services, MessageRegistryAccessor.MessageRegistry);

@@ -24,11 +24,13 @@ namespace LiteBus.Commands
 
         public async Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default) where TCommand : ICommand
         {
-            var mediationStrategy = new SingleAsyncHandlerMessageMediationStrategy<TCommand>(cancellationToken);
+            var mediationStrategy = new SingleAsyncHandlerMessageMediationStrategy<ICancellableMessage<TCommand>>(cancellationToken);
 
-            var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy<TCommand>();
+            var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy<ICancellableMessage<TCommand>>();
 
-            await _messageMediator.Mediate<TCommand, Task>(command, findStrategy, mediationStrategy);
+            var message = new CancellableMessage<TCommand>(command, cancellationToken);
+
+            await _messageMediator.Mediate(message, findStrategy, mediationStrategy);
         }
 
         public async Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
