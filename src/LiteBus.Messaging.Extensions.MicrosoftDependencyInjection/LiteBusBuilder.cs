@@ -33,9 +33,9 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
             
             foreach (var descriptor in _messageRegistry)
             {
-                foreach (var handlerType in descriptor.HandlerTypes)
+                foreach (var handlerDescriptor in descriptor.HandlerDescriptors)
                 {
-                    _services.TryAddTransient(handlerType);
+                    _services.TryAddTransient(handlerDescriptor.HandlerType);
                 }
 
                 foreach (var postHandleDescriptor in descriptor.PostHandleHookDescriptors)

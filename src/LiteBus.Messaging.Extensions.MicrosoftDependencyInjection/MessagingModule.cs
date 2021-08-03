@@ -18,7 +18,6 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
         public void Build(IServiceCollection services, IMessageRegistry messageRegistry)
         {
             _builder(new LiteBusMessageBuilder(messageRegistry));
-            
         }
     }
 }

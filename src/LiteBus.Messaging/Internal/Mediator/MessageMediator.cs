@@ -19,15 +19,15 @@ namespace LiteBus.Messaging.Internal.Mediator
         }
 
         public TMessageResult Mediate<TMessage, TMessageResult>(TMessage message,
-                                                                IMessageFindStrategy<TMessage> findStrategy,
-                                                                IMediationStrategy<TMessage, TMessageResult>
-                                                                    mediationStrategy)
+                                                                IMessageResolveStrategy<TMessage> messageResolveStrategy,
+                                                                IMessageMediationStrategy<TMessage, TMessageResult>
+                                                                    messageMediationStrategy)
         {
-            var descriptor = findStrategy.Find(message, _messageRegistry);
+            var descriptor = messageResolveStrategy.Find(message, _messageRegistry);
 
             var context = new MessageContext<TMessage, TMessageResult>(descriptor, _serviceProvider);
 
-            return mediationStrategy.Mediate(message, context);
+            return messageMediationStrategy.Mediate(message, context);
         }
     }
 }

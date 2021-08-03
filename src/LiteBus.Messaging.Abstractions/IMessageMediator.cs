@@ -7,8 +7,7 @@ namespace LiteBus.Messaging.Abstractions
     public interface IMessageMediator
     {
         TMessageResult Mediate<TMessage, TMessageResult>(TMessage message,
-                                                         IMessageFindStrategy<TMessage> findStrategy,
-                                                         IMediationStrategy<TMessage, TMessageResult>
-                                                             mediationStrategy);
+                                                         IMessageResolveStrategy<TMessage> messageResolveStrategy,
+                                                         IMessageMediationStrategy<TMessage, TMessageResult> messageMediationStrategy);
     }
 }
