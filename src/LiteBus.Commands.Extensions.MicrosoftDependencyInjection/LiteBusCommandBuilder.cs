@@ -28,7 +28,7 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
 
             return this;
         }
-        
+
         public LiteBusCommandBuilder RegisterHandler<THandler, TCommand>()
             where THandler : ICommandHandler<TCommand>
             where TCommand : ICommand
@@ -39,13 +39,14 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
         }
 
         public LiteBusCommandBuilder RegisterPreHandleHook<THook, TCommand>()
-            where THook : ICommandPreHandleHook<TCommand> where TCommand : ICommand
+            where THook : ICommandPreHandleHook<TCommand>
+            where TCommand : ICommand
         {
             _messageRegistry.RegisterPreHandleHook(typeof(THook));
 
             return this;
         }
-        
+
         public LiteBusCommandBuilder RegisterPreHandleHook<THook>()
             where THook : ICommandPreHandleHook
         {
@@ -55,16 +56,16 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
         }
 
         public LiteBusCommandBuilder RegisterPostHandleHook<THook, TCommand>()
-            where THook : ICommandPostHandleHook<TCommand> 
+            where THook : ICommandPostHandleHook<TCommand>
             where TCommand : ICommand
         {
             _messageRegistry.RegisterPostHandleHook(typeof(THook));
 
             return this;
         }
-        
+
         public LiteBusCommandBuilder RegisterPostHandleHook<THook>()
-            where THook : ICommandPostHandleHook 
+            where THook : ICommandPostHandleHook
         {
             _messageRegistry.RegisterPostHandleHook(typeof(THook));
 
