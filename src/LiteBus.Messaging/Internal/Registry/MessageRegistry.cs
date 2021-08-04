@@ -10,19 +10,22 @@ namespace LiteBus.Messaging.Internal.Registry
 {
     internal class MessageRegistry : IMessageRegistry
     {
-        private readonly Dictionary<Type, MessageDescriptor> _descriptors = new();
+        private readonly List<MessageDescriptor> _messageDescriptors = new();
         private readonly List<PostHandleHookDescriptor> _postHandlerHooks = new();
         private readonly List<PreHandleHookDescriptor> _preHandlerHooks = new();
 
         private event EventHandler<MessageDescriptor> NewMessageDescriptorCreated;
 
+        public int Count => _messageDescriptors.Count;
+
         public MessageRegistry()
         {
             NewMessageDescriptorCreated += UpdateNewMessagePostHandleHooks;
             NewMessageDescriptorCreated += UpdateNewMessagePreHandleHooks;
+            NewMessageDescriptorCreated += UpdateHierarchy;
         }
 
-        public IEnumerator<IMessageDescriptor> GetEnumerator() => _descriptors.Values.GetEnumerator();
+        public IEnumerator<IMessageDescriptor> GetEnumerator() => _messageDescriptors.GetEnumerator();
 
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
@@ -39,7 +42,7 @@ namespace LiteBus.Messaging.Internal.Registry
                         MessageType = @interface.GetGenericArguments()[0],
                         MessageResultType = @interface.GetGenericArguments()[1]
                     };
-                    
+
                     var messageDescriptor = GetOrAddMessageDescriptor(handlerDescriptor.MessageType);
 
                     messageDescriptor.AddHandlerDescriptor(handlerDescriptor);
@@ -58,7 +61,7 @@ namespace LiteBus.Messaging.Internal.Registry
 
                     var hookDescriptor = new PreHandleHookDescriptor(preHandleHookType, messageType);
 
-                    foreach (var messageDescriptor in _descriptors.Values)
+                    foreach (var messageDescriptor in _messageDescriptors)
                     {
                         if (messageDescriptor.MessageType.IsAssignableTo(hookDescriptor.MessageType))
                         {
@@ -82,7 +85,7 @@ namespace LiteBus.Messaging.Internal.Registry
 
                     var hookDescriptor = new PostHandleHookDescriptor(postHandleHookType, messageType);
 
-                    foreach (var messageDescriptor in _descriptors.Values)
+                    foreach (var messageDescriptor in _messageDescriptors)
                     {
                         if (messageDescriptor.MessageType.IsAssignableTo(hookDescriptor.MessageType))
                         {
@@ -97,22 +100,19 @@ namespace LiteBus.Messaging.Internal.Registry
 
         private MessageDescriptor GetOrAddMessageDescriptor(Type messageType)
         {
-            MessageDescriptor messageDescriptor = default;
+            MessageDescriptor existingDescriptor =
+                _messageDescriptors.SingleOrDefault(d => d.MessageType == messageType);
 
-            if (_descriptors.ContainsKey(messageType))
+            if (existingDescriptor is null)
             {
-                messageDescriptor = _descriptors[messageType] as MessageDescriptor;
-            }
-            else
-            {
-                messageDescriptor = new MessageDescriptor(messageType);
+                existingDescriptor = new MessageDescriptor(messageType);
 
-                _descriptors[messageType] = messageDescriptor;
+                _messageDescriptors.Add(existingDescriptor);
 
-                NewMessageDescriptorCreated?.Invoke(this, messageDescriptor);
+                NewMessageDescriptorCreated?.Invoke(this, existingDescriptor);
             }
 
-            return messageDescriptor;
+            return existingDescriptor;
         }
 
         private void UpdateNewMessagePostHandleHooks(object? sender, MessageDescriptor e)
@@ -137,6 +137,19 @@ namespace LiteBus.Messaging.Internal.Registry
             }
         }
 
-        public int Count => _descriptors.Count;
+        private void UpdateHierarchy(object? sender, MessageDescriptor newMessage)
+        {
+            foreach (var messageDescriptor in _messageDescriptors)
+            {
+                if (messageDescriptor.MessageType?.BaseType == newMessage.MessageType)
+                {
+                    messageDescriptor.Base = newMessage;
+                }
+                else if (newMessage.MessageType?.BaseType == messageDescriptor.MessageType)
+                {
+                    newMessage.Base = messageDescriptor;
+                }
+            }
+        }
     }
 }

@@ -17,6 +17,8 @@ namespace LiteBus.Messaging.Internal.Registry
             MessageType = messageType;
         }
 
+        public IMessageDescriptor Base { get; set; }
+
         public Type MessageType { get; }
 
         public IReadOnlyCollection<IHandlerDescriptor> HandlerDescriptors => _handlers;
