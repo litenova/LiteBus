@@ -20,13 +20,19 @@ namespace LiteBus.Messaging.Internal.Mediator
             PreHandleAsyncHooks = ResolvePreHandleHooks(descriptor.PreHandleHookDescriptors).ToLazyReadOnlyCollection();
         }
 
+        public ILazyReadOnlyCollection<IMessageHandler> Handlers { get; }
+
+        public ILazyReadOnlyCollection<IAsyncHook> PostHandleAsyncHooks { get; }
+
+        public ILazyReadOnlyCollection<IAsyncHook> PreHandleAsyncHooks { get; }
+
         private IEnumerable<Lazy<IMessageHandler>> ResolveHandlers(IReadOnlyCollection<IHandlerDescriptor> descriptors)
         {
             foreach (var descriptor in descriptors)
             {
                 var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(descriptor.HandlerType));
 
-                yield return new(() =>
+                yield return new Lazy<IMessageHandler>(() =>
                 {
                     var handler = resolveFunc();
 
@@ -48,7 +54,7 @@ namespace LiteBus.Messaging.Internal.Mediator
 
                 var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(hookType));
 
-                yield return new(() =>
+                yield return new Lazy<IAsyncHook>(() =>
                 {
                     var hook = resolveFunc();
 
@@ -70,7 +76,7 @@ namespace LiteBus.Messaging.Internal.Mediator
 
                 var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(hookType));
 
-                yield return new(() =>
+                yield return new Lazy<IAsyncHook>(() =>
                 {
                     var hook = resolveFunc();
 
@@ -83,11 +89,5 @@ namespace LiteBus.Messaging.Internal.Mediator
                 });
             }
         }
-
-        public ILazyReadOnlyCollection<IMessageHandler> Handlers { get; }
-
-        public ILazyReadOnlyCollection<IAsyncHook> PostHandleAsyncHooks { get; }
-
-        public ILazyReadOnlyCollection<IAsyncHook> PreHandleAsyncHooks { get; }
     }
 }

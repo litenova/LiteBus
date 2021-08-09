@@ -5,6 +5,5 @@ namespace LiteBus.Messaging.Abstractions
     /// </summary>
     public readonly struct VoidMessageResult
     {
-        
     }
 }

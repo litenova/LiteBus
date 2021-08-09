@@ -1,7 +1,7 @@
 using System.Reflection;
-using LiteBus.Queries.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Extensions;
+using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection
 {
@@ -19,7 +19,6 @@ namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection
             _messageRegistry.Register(assembly);
             return this;
         }
-
 
         public LiteBusQueryBuilder RegisterHandler<THandler, TQuery, TQueryResult>()
             where THandler : IQueryHandler<TQuery, TQueryResult>

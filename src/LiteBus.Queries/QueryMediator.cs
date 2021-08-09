@@ -31,7 +31,8 @@ namespace LiteBus.Queries
         public IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
                                                                         CancellationToken cancellationToken = default)
         {
-            var mediationStrategy = new SingleStreamHandlerMediationStrategy<IStreamQuery<TQueryResult>, TQueryResult>(cancellationToken);
+            var mediationStrategy =
+                new SingleStreamHandlerMediationStrategy<IStreamQuery<TQueryResult>, TQueryResult>(cancellationToken);
 
             var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy();
 

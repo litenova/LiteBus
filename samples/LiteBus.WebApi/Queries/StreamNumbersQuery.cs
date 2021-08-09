@@ -9,13 +9,12 @@ namespace LiteBus.WebApi.Queries
 {
     public class StreamNumbersQuery : IStreamQuery<decimal>
     {
-        
     }
 
     public class StreamNumbersQueryHandler : IStreamQueryHandler<StreamNumbersQuery, decimal>
     {
         public async IAsyncEnumerable<decimal> HandleAsync(StreamNumbersQuery message,
-                                                          [EnumeratorCancellation] CancellationToken cancellationToken = default)
+                                                           [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             Debug.WriteLine($"{nameof(StreamNumbersQueryHandler)} executed!");
 

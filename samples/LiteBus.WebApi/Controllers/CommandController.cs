@@ -1,7 +1,7 @@
 ﻿using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
 using LiteBus.Commands.Abstractions;
 using LiteBus.WebApi.Commands;
+using Microsoft.AspNetCore.Mvc;
 
 namespace LiteBus.WebApi.Controllers
 {
@@ -10,7 +10,7 @@ namespace LiteBus.WebApi.Controllers
     public class CommandController : ControllerBase
     {
         private readonly ICommandMediator _commandMediator;
-        
+
         public CommandController(ICommandMediator commandMediator)
         {
             _commandMediator = commandMediator;

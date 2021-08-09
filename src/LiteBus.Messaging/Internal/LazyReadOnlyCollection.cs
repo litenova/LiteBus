@@ -14,9 +14,15 @@ namespace LiteBus.Messaging.Internal
             _list = new List<Lazy<T>>(source);
         }
 
-        public IEnumerator<Lazy<T>> GetEnumerator() => _list.GetEnumerator();
-        
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+        public IEnumerator<Lazy<T>> GetEnumerator()
+        {
+            return _list.GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
 
         public int Count => _list.Count;
     }

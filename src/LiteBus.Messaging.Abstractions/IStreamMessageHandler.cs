@@ -4,7 +4,7 @@ using System.Threading;
 namespace LiteBus.Messaging.Abstractions
 {
     /// <summary>
-    ///     Represents an asynchronous message handler that returns <see cref="IAsyncEnumerable{T}"/>
+    ///     Represents an asynchronous message handler that returns <see cref="IAsyncEnumerable{T}" />
     /// </summary>
     /// <typeparam name="TMessage">The message type</typeparam>
     /// <typeparam name="TMessageResult">the message result type</typeparam>
@@ -20,7 +20,7 @@ namespace LiteBus.Messaging.Abstractions
         /// </summary>
         /// <param name="message">the message</param>
         /// <param name="cancellationToken">the cancellation token</param>
-        /// <returns>An <see cref="IAsyncEnumerable{T}"/> representing the collection of message results</returns>
+        /// <returns>An <see cref="IAsyncEnumerable{T}" /> representing the collection of message results</returns>
         IAsyncEnumerable<TMessageResult> HandleAsync(TMessage message, CancellationToken cancellationToken = default);
     }
 }

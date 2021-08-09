@@ -13,19 +13,23 @@ namespace LiteBus.Messaging.Internal.Registry
         private readonly HashSet<PostHandleHookDescriptor> _postHandlerHooks = new();
         private readonly HashSet<PreHandleHookDescriptor> _preHandlerHooks = new();
 
-        private event EventHandler<MessageDescriptor> NewMessageDescriptorCreated;
-
-        public int Count => _messageDescriptors.Count;
-
         public MessageRegistry()
         {
             NewMessageDescriptorCreated += UpdateNewMessagePostHandleHooks;
             NewMessageDescriptorCreated += UpdateNewMessagePreHandleHooks;
         }
 
-        public IEnumerator<IMessageDescriptor> GetEnumerator() => _messageDescriptors.Values.GetEnumerator();
+        public int Count => _messageDescriptors.Count;
 
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+        public IEnumerator<IMessageDescriptor> GetEnumerator()
+        {
+            return _messageDescriptors.Values.GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
 
         public void RegisterHandler(Type handlerType)
         {
@@ -95,6 +99,8 @@ namespace LiteBus.Messaging.Internal.Registry
                 }
             }
         }
+
+        private event EventHandler<MessageDescriptor> NewMessageDescriptorCreated;
 
         private MessageDescriptor GetOrAddMessageDescriptor(Type messageType)
         {

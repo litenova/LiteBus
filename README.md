@@ -1,8 +1,7 @@
 # LiteBus
+
 ![.NET 5 CI](https://github.com/arishk/LiteBus/actions/workflows/dotnet-core.yml/badge.svg?branch=main)
 [![NuGet](https://img.shields.io/nuget/vpre/LiteBus.svg)](https://www.nuget.org/packages/LiteBus)
-
-
 
 A liteweight and easy to use in-process mediator to implement CQRS
 
@@ -16,7 +15,7 @@ A liteweight and easy to use in-process mediator to implement CQRS
 * Supports Streaming Queries (IAsyncEnumerable)
 * Supports Both Command with Result and Without Result
 
-## Installation and Configuration 
+## Installation and Configuration
 
 Depending on your usage, follow one of the guidelines below.
 
@@ -69,6 +68,7 @@ Inject ``ICommandMediator`` to your class to send your commands.
         }
     }
 ```
+
 ```c#
     // A command with result
     public class CreateUserCommand : ICommand<int>
@@ -106,6 +106,7 @@ Inject ``IQueryMediator`` to your class to query data.
         }
     }
 ```
+
 ```c#
     // A stream query
     public class ColorStreamQuery : IStreamQuery<ColorReadModel>
@@ -155,8 +156,8 @@ Inject ``IEventMediator`` or ``IEventPublisher`` to your class to publish events
 
 ### Plain Messages (To be added in later versions)
 
-You can send any object as a message if the object has any associated handlers.
-Inject ``IMessageMediator`` to your class to publish events.
+You can send any object as a message if the object has any associated handlers. Inject ``IMessageMediator`` to your
+class to publish events.
 
 ```c#
     // A plain message
@@ -186,12 +187,14 @@ Inject ``IMessageMediator`` to your class to publish events.
 
 ## Hooks
 
-Hooks allow you to execute an action in a certain stage of message handling. Currently, hooks are only available for commands.
+Hooks allow you to execute an action in a certain stage of message handling. Currently, hooks are only available for
+commands.
 
 * **Post Handle Hooks**: execute an action after a message is handled
 * **Pre Handle Hooks** execute an action before a message is handled
 
 ### Post Handle Hook
+
 ```c#
 
     // Exectues an action after each command is handled
@@ -214,7 +217,9 @@ Hooks allow you to execute an action in a certain stage of message handling. Cur
         }
     }
 ```
+
 ### Pre Handle Hook
+
 ```c#
 
     // Exectues an action beafore each command is handled
@@ -239,9 +244,9 @@ Hooks allow you to execute an action in a certain stage of message handling. Cur
 ```
 
 ## Inheritance
- 
-The LiteBus uses the actual type of a message to determine the corresponding handler(s). 
-Consider the following inheritance:
+
+The LiteBus uses the actual type of a message to determine the corresponding handler(s). Consider the following
+inheritance:
 
 ```c#
     // The base command
@@ -284,7 +289,9 @@ Consider the following inheritance:
 ```
 
 ### Delivering Message to the Actual Type Handler
-If a user tries to send the ``CreateImageCommand`` as ``CreateFileCommand``, the LiteBus will deliver the command to ``CreateImageCommandHandler``.
+
+If a user tries to send the ``CreateImageCommand`` as ``CreateFileCommand``, the LiteBus will deliver the command
+to ``CreateImageCommandHandler``.
 
 ```c#
     CreateFileCommand command = new CreateImageCommand();
@@ -293,7 +300,9 @@ If a user tries to send the ``CreateImageCommand`` as ``CreateFileCommand``, the
 ```
 
 ### Delivering Message to the Less Derived (Base Type) Handler
-If a user tries to send the ``CreateDocumentCommand`` as ``CreateFileCommand`` or as it is, the LiteBus will deliver the command to ``CreateFileCommandHandler`` since the ``CreateDocumentCommand`` does not have handler.
+
+If a user tries to send the ``CreateDocumentCommand`` as ``CreateFileCommand`` or as it is, the LiteBus will deliver the
+command to ``CreateFileCommandHandler`` since the ``CreateDocumentCommand`` does not have handler.
 
 ```c#
     CreateFileCommand command = new CreateDocumentFile();
@@ -307,4 +316,5 @@ If a user tries to send the ``CreateDocumentCommand`` as ``CreateFileCommand`` o
     _mediator.SendAsync(command);
 ```
 
-**Note:** In such scenarios, the LiteBus will only deliver the message to the direct base class' handler if there is any.
+**Note:** In such scenarios, the LiteBus will only deliver the message to the direct base class' handler if there is
+any.
