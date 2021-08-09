@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Threading;
-using MorseCode.ITask;
+using System.Threading.Tasks;
 
 namespace LiteBus.Queries.Abstractions
 {
@@ -9,8 +9,8 @@ namespace LiteBus.Queries.Abstractions
     /// </summary>
     public interface IQueryMediator
     {
-        ITask<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> command,
-                                                     CancellationToken cancellationToken = default);
+        Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> command,
+                                                    CancellationToken cancellationToken = default);
 
         IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
                                                                  CancellationToken cancellationToken = default);

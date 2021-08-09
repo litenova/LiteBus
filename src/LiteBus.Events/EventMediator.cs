@@ -1,8 +1,9 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
+using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using MorseCode.ITask;
+using LiteBus.Messaging.Abstractions.FindStrategies;
+using LiteBus.Messaging.Abstractions.MediationStrategies;
 
 namespace LiteBus.Events
 {
@@ -16,11 +17,14 @@ namespace LiteBus.Events
             _messageMediator = messageMediator;
         }
 
-        public virtual ITask PublishAsync<TEvent>(TEvent @event, 
-                                                 CancellationToken cancellationToken = default) 
+        public async Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
             where TEvent : IEvent
         {
-            throw new NotImplementedException();
+            var mediationStrategy = new AsyncBroadcastMediationStrategy<TEvent>(cancellationToken);
+
+            var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy();
+
+            await _messageMediator.Mediate(@event, findStrategy, mediationStrategy);
         }
     }
 }

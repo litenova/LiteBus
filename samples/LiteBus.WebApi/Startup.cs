@@ -31,8 +31,8 @@ namespace LiteBus.WebApi
             {
                 builder.AddCommands(commandBuilder =>
                        {
-                           commandBuilder.Register(typeof(CreatePersonCommand).Assembly)
-                                         .RegisterPostHandleHook<GlobalCommandPostHandleHook>();
+                           commandBuilder.Register(typeof(CreateNumberCommand).Assembly)
+                                         .RegisterPostHandleHook<GlobalCommandPostHandleAsyncHook>();
                        })
                        .AddQueries(queryBuilder =>
                        {
@@ -54,7 +54,7 @@ namespace LiteBus.WebApi
                              });
             });
 
-            services.AddTransient(typeof(CreateColorCommandWithResult));
+            services.AddTransient(typeof(CreateNumberCommandWithResult));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

@@ -14,7 +14,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj" />
-        <ProjectReference Include="..\LiteBus.Registry.Abstractions\LiteBus.Registry.Abstractions.csproj" />
     </ItemGroup>
 
     <ItemGroup>

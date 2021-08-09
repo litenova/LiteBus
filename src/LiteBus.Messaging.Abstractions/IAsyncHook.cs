@@ -1,5 +1,4 @@
-﻿using System.Threading;
-using MorseCode.ITask;
+﻿using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions
 {
@@ -13,6 +12,6 @@ namespace LiteBus.Messaging.Abstractions
         /// </summary>
         /// <param name="message">The message that is being handled</param>
         /// <param name="context">The handle context</param>
-        ITask ExecuteAsync(object message, IHandleContext context);
+        Task ExecuteAsync(object message, IHandleContext context);
     }
 }

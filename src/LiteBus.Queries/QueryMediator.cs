@@ -1,15 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 using LiteBus.Queries.Abstractions;
-using MorseCode.ITask;
 
 namespace LiteBus.Queries
 {
     public class QueryMediator : IQueryMediator
     {
-        public ITask<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
-                                                            CancellationToken cancellationToken = default)
+        public Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
+                                                           CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
         }
