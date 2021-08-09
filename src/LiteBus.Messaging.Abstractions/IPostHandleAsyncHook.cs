@@ -7,7 +7,7 @@ namespace LiteBus.Messaging.Abstractions
     ///     Represents an action that is executed on <typeparamref name="TMessage"/> post-handle phase
     /// </summary>
     /// <typeparam name="TMessage">The message type that is handled</typeparam>
-    public interface IPostHandleHook<in TMessage> : IAsyncHook
+    public interface IPostHandleAsyncHook<in TMessage> : IAsyncHook
     {
         Task IAsyncHook.ExecuteAsync(object message, IHandleContext context)
         {
