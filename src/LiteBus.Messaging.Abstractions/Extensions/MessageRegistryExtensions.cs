@@ -46,7 +46,7 @@ namespace LiteBus.Messaging.Abstractions.Extensions
                 {
                     registry.RegisterPreHandleHook(type);
                 }
-                else if (@interface.IsAssignableTo(typeof(IPostHandleHook<>)))
+                else if (@interface.IsAssignableTo(typeof(IPostHandleAsyncHook<>)))
                 {
                     registry.RegisterPostHandleHook(type);
                 }
@@ -66,7 +66,7 @@ namespace LiteBus.Messaging.Abstractions.Extensions
         }
 
         public static void RegisterPostHandleHook<THook, TMessage>(this IMessageRegistry registry)
-            where THook : IPostHandleHook<TMessage>
+            where THook : IPostHandleAsyncHook<TMessage>
         {
             registry.RegisterPostHandleHook(typeof(THook));
         }
