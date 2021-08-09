@@ -78,7 +78,7 @@ namespace LiteBus.Messaging.Internal.Registry
             foreach (var @interface in postHandleHookType.GetInterfaces())
             {
                 if (@interface.IsGenericType &&
-                    @interface.GetGenericTypeDefinition().IsAssignableTo(typeof(IPostHandleHook<>)))
+                    @interface.GetGenericTypeDefinition().IsAssignableTo(typeof(IPostHandleAsyncHook<>)))
                 {
                     var messageType = @interface.GetGenericArguments()[0];
 
