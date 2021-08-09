@@ -27,7 +27,7 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
             return this;
         }
 
-        public LiteBusMessageBuilder RegisterPreHandleHook<THook, TMessage>() where THook : IPreHandleHook<TMessage>
+        public LiteBusMessageBuilder RegisterPreHandleHook<THook, TMessage>() where THook : IPreHandleAsyncHook<TMessage>
         {
             _messageRegistry.RegisterPreHandleHook(typeof(THook));
 

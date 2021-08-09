@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Queries.Abstractions;
+using MorseCode.ITask;
 
 namespace LiteBus.WebApi.Queries
 {

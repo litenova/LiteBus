@@ -1,5 +1,5 @@
 ﻿using System.Threading;
-using System.Threading.Tasks;
+using MorseCode.ITask;
 
 namespace LiteBus.Commands.Abstractions
 {
@@ -14,7 +14,7 @@ namespace LiteBus.Commands.Abstractions
         /// <param name="command">the command to send</param>
         /// <param name="cancellationToken">cancellation token</param>
         /// <returns></returns>
-        Task SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
+        ITask SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
             where TCommand : ICommand;
 
         /// <summary>
@@ -23,7 +23,7 @@ namespace LiteBus.Commands.Abstractions
         /// <param name="command">the command to send</param>
         /// <param name="cancellationToken">cancellation token</param>
         /// <returns>The command result</returns>        
-        Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
+        ITask<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
                                                        CancellationToken cancellationToken = default);
     }
 }

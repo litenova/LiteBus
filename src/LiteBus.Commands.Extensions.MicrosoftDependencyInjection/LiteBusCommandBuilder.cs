@@ -39,7 +39,7 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
         }
 
         public LiteBusCommandBuilder RegisterPreHandleHook<THook, TCommand>()
-            where THook : ICommandPreHandleHook<TCommand>
+            where THook : ICommandPreHandleAsyncHook<TCommand>
             where TCommand : ICommand
         {
             _messageRegistry.RegisterPreHandleHook(typeof(THook));
@@ -48,7 +48,7 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
         }
 
         public LiteBusCommandBuilder RegisterPreHandleHook<THook>()
-            where THook : ICommandPreHandleHook
+            where THook : ICommandPreHandleAsyncHook
         {
             _messageRegistry.RegisterPreHandleHook(typeof(THook));
 

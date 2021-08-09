@@ -1,13 +1,11 @@
-﻿using System.Collections.Generic;
-
-namespace LiteBus.Messaging.Abstractions
+﻿namespace LiteBus.Messaging.Abstractions
 {
-    public interface IMessageContext<TMessage, TMessageResult>
+    public interface IMessageContext
     {
-        ILazyReadOnlyCollection<IMessageHandler<TMessage, TMessageResult>> Handlers { get; }
+        ILazyReadOnlyCollection<IMessageHandler> Handlers { get; }
 
-        ILazyReadOnlyCollection<IPostHandleHook<TMessage>> PostHandleHooks { get; }
+        ILazyReadOnlyCollection<IAsyncHook> PostHandleAsyncHooks { get; }
 
-        ILazyReadOnlyCollection<IPreHandleHook<TMessage>> PreHandleHooks { get; }
+        ILazyReadOnlyCollection<IAsyncHook> PreHandleAsyncHooks { get; }
     }
 }

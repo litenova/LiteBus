@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -43,7 +42,7 @@ namespace LiteBus.Messaging.Abstractions.Extensions
                 {
                     registry.RegisterHandler(type);
                 }
-                else if (@interface.IsAssignableTo(typeof(IPreHandleHook<>)))
+                else if (@interface.IsAssignableTo(typeof(IPreHandleAsyncHook<>)))
                 {
                     registry.RegisterPreHandleHook(type);
                 }
@@ -61,7 +60,7 @@ namespace LiteBus.Messaging.Abstractions.Extensions
         }
 
         public static void RegisterPreHandleHook<THook, TMessage>(this IMessageRegistry registry)
-            where THook : IPreHandleHook<TMessage>
+            where THook : IPreHandleAsyncHook<TMessage>
         {
             registry.RegisterPreHandleHook(typeof(THook));
         }

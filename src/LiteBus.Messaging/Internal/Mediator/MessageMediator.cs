@@ -1,8 +1,5 @@
 using System;
-using System.Linq;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Extensions;
-using LiteBus.Messaging.Internal.Registry;
 
 namespace LiteBus.Messaging.Internal.Mediator
 {
@@ -24,7 +21,7 @@ namespace LiteBus.Messaging.Internal.Mediator
         {
             var descriptor = messageResolveStrategy.Find(message, _messageRegistry);
 
-            var context = new MessageContext<TMessage, TMessageResult>(descriptor, _serviceProvider);
+            var context = new MessageContext(descriptor, _serviceProvider);
 
             return messageMediationStrategy.Mediate(message, context);
         }

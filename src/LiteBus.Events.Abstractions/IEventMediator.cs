@@ -1,5 +1,5 @@
 ﻿using System.Threading;
-using System.Threading.Tasks;
+using MorseCode.ITask;
 
 namespace LiteBus.Events.Abstractions
 {
@@ -8,6 +8,6 @@ namespace LiteBus.Events.Abstractions
     /// </summary>
     public interface IEventMediator
     {
-        Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default) where TEvent : IEvent;
+        ITask PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default) where TEvent : IEvent;
     }
 }

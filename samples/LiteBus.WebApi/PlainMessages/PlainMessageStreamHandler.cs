@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
+using MorseCode.ITask;
 
 namespace LiteBus.WebApi.PlainMessages
 {
