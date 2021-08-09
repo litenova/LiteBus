@@ -1,12 +1,12 @@
 ﻿using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions.Exceptions;
-using MorseCode.ITask;
 
 namespace LiteBus.Messaging.Abstractions.MediationStrategies
 {
     public class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> :
-        IMessageMediationStrategy<TMessage, ITask<TMessageResult>>
+        IMessageMediationStrategy<TMessage, Task<TMessageResult>>
     {
         private readonly CancellationToken _cancellationToken;
 
@@ -15,7 +15,7 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
             _cancellationToken = cancellationToken;
         }
 
-        public async ITask<TMessageResult> Mediate(TMessage message,
+        public async Task<TMessageResult> Mediate(TMessage message,
                                                    IMessageContext context)
         {
             if (context.Handlers.Count > 1)
@@ -33,7 +33,7 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
 
             var handler = context.Handlers.Single().Value;
 
-            var result = (ITask<TMessageResult>)handler!.Handle(message, handleContext);
+            var result = (Task<TMessageResult>)handler!.Handle(message, handleContext);
 
             foreach (var postHandleHook in context.PostHandleAsyncHooks)
             {
@@ -44,16 +44,16 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
         }
     }
 
-    public class SingleAsyncHandlerMessageMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, ITask>
+    public class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task>
     {
         private readonly CancellationToken _cancellationToken;
 
-        public SingleAsyncHandlerMessageMediationStrategy(CancellationToken cancellationToken)
+        public SingleAsyncHandlerMediationStrategy(CancellationToken cancellationToken)
         {
             _cancellationToken = cancellationToken;
         }
 
-        public async ITask Mediate(TMessage message,
+        public async Task Mediate(TMessage message,
                                    IMessageContext context)
         {
             if (context.Handlers.Count > 1)
@@ -71,7 +71,7 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
 
             var handler = context.Handlers.Single().Value;
 
-            await (ITask)handler!.Handle(message, handleContext);
+            await (Task)handler!.Handle(message, handleContext);
 
             foreach (var postHandleHook in context.PostHandleAsyncHooks)
             {

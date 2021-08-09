@@ -2,22 +2,22 @@
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Queries.Abstractions;
-using MorseCode.ITask;
 
 namespace LiteBus.WebApi.Queries
 {
-    public class ColorQuery : IQuery<IEnumerable<string>>
+    public class ColorQuery : IQuery<IEnumerable<decimal>>
     {
         public int Id { get; set; }
     }
 
-    public class ColorQueryHandler : IQueryHandler<ColorQuery, IEnumerable<string>>
+    public class ColorQueryHandler : IQueryHandler<ColorQuery, IEnumerable<decimal>>
     {
-        public ITask<IEnumerable<string>> HandleAsync(ColorQuery message,
+        public Task<IEnumerable<decimal>> HandleAsync(ColorQuery message,
                                                       CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(MemoryDatabase.GetColors()).AsITask();
+            var result = Task.FromResult(MemoryDatabase.GetNumbers());
+
+            return result;
         }
     }
-
 }
