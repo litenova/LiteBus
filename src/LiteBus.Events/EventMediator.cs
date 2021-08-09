@@ -17,10 +17,9 @@ namespace LiteBus.Events
             _messageMediator = messageMediator;
         }
 
-        public async Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
-            where TEvent : IEvent
+        public async Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
         {
-            var mediationStrategy = new AsyncBroadcastMediationStrategy<TEvent>(cancellationToken);
+            var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(cancellationToken);
 
             var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy();
 
