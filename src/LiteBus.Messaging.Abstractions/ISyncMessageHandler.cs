@@ -7,7 +7,7 @@
     /// <remarks>The message can be of any type</remarks>
     public interface ISyncMessageHandler<in TMessage> : IMessageHandler<TMessage, VoidMessageResult>
     {
-        VoidMessageResult IMessageHandler<TMessage, VoidMessageResult>.Handle(TMessage message)
+        VoidMessageResult IMessageHandler<TMessage, VoidMessageResult>.Handle(TMessage message, IHandleContext context)
         {
             Handle(message);
             return new VoidMessageResult();
@@ -29,7 +29,7 @@
     /// <remarks>The message can be of any type</remarks>
     public interface ISyncMessageHandler<in TMessage, out TMessageResult> : IMessageHandler<TMessage, TMessageResult>
     {
-        TMessageResult IMessageHandler<TMessage, TMessageResult>.Handle(TMessage message)
+        TMessageResult IMessageHandler<TMessage, TMessageResult>.Handle(TMessage message, IHandleContext context)
         {
             return Handle(message);
         }
