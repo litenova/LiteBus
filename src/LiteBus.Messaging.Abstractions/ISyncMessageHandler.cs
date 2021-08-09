@@ -18,7 +18,7 @@
         /// </summary>
         /// <param name="message">the message</param>
         /// <returns>the message result</returns>
-        new void Handle(TMessage message);
+        void Handle(TMessage message);
     }
 
     /// <summary>
@@ -39,6 +39,6 @@
         /// </summary>
         /// <param name="message">the message</param>
         /// <returns>the message result</returns>
-        new TMessageResult Handle(TMessage message);
+        TMessageResult Handle(TMessage message);
     }
 }
