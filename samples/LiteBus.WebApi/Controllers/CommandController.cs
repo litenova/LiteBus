@@ -1,9 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using LiteBus.Commands.Abstractions;
-using LiteBus.Events.Abstractions;
 using LiteBus.WebApi.Commands;
-using LiteBus.WebApi.Events;
 
 namespace LiteBus.WebApi.Controllers
 {
