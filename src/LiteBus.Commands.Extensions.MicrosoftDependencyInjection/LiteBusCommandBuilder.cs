@@ -56,7 +56,7 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
         }
 
         public LiteBusCommandBuilder RegisterPostHandleHook<THook, TCommand>()
-            where THook : ICommandPostHandleHook<TCommand>
+            where THook : ICommandPostHandleAsyncHook<TCommand>
             where TCommand : ICommand
         {
             _messageRegistry.RegisterPostHandleHook(typeof(THook));
@@ -65,7 +65,7 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
         }
 
         public LiteBusCommandBuilder RegisterPostHandleHook<THook>()
-            where THook : ICommandPostHandleHook
+            where THook : ICommandPostHandleAsyncHook
         {
             _messageRegistry.RegisterPostHandleHook(typeof(THook));
 
