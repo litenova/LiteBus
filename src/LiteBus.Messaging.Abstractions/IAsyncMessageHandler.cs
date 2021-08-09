@@ -7,11 +7,11 @@ namespace LiteBus.Messaging.Abstractions
     ///     Represents an asynchronous message handler with no result
     /// </summary>
     /// <typeparam name="TMessage">The message type</typeparam>
-    public interface IAsyncMessageHandler<in TMessage> : IMessageHandler<ICancellableMessage<TMessage>, ITask>
+    public interface IAsyncMessageHandler<in TMessage> : IMessageHandler<TMessage, ITask>
     {
-        ITask IMessageHandler<ICancellableMessage<TMessage>, ITask>.Handle(ICancellableMessage<TMessage> message)
+        ITask IMessageHandler<TMessage, ITask>.Handle(TMessage message, IHandleContext context)
         {
-            return HandleAsync(message.Message, message.CancellationToken);
+            return HandleAsync(message, context.Data.Get<CancellationToken>());
         }
 
         /// <summary>
@@ -28,11 +28,11 @@ namespace LiteBus.Messaging.Abstractions
     /// </summary>
     /// <typeparam name="TMessage">The message type</typeparam>
     /// <typeparam name="TMessageResult">the message result type</typeparam>
-    public interface IAsyncMessageHandler<in TMessage, out TMessageResult> : IMessageHandler<ICancellableMessage<TMessage>, ITask<TMessageResult>>
+    public interface IAsyncMessageHandler<in TMessage, out TMessageResult> : IMessageHandler<TMessage, ITask<TMessageResult>>
     {
-        ITask<TMessageResult> IMessageHandler<ICancellableMessage<TMessage>, ITask<TMessageResult>>.Handle(ICancellableMessage<TMessage> message)
+        ITask<TMessageResult> IMessageHandler<TMessage, ITask<TMessageResult>>.Handle(TMessage message, IHandleContext context)
         {
-            return HandleAsync(message.Message, message.CancellationToken);
+            return HandleAsync(message, context.Data.Get<CancellationToken>());
         }
 
         /// <summary>
