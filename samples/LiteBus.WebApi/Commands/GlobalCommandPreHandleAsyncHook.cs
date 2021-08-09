@@ -7,7 +7,7 @@ namespace LiteBus.WebApi.Commands
 {
     public class GlobalCommandPreHandleAsyncHook : ICommandPreHandleAsyncHook
     {
-        public Task ExecuteAsync(ICommand message, CancellationToken cancellationToken = default)
+        public Task ExecuteAsync(ICommandBase message, CancellationToken cancellationToken)
         {
             Debug.WriteLine($"{nameof(GlobalCommandPreHandleAsyncHook)} executed!");
 
