@@ -1,7 +1,7 @@
-﻿using System.Threading.Tasks;
-using LiteBus.Commands.Abstractions;
+﻿using LiteBus.Commands.Abstractions;
 using LiteBus.WebApi.Commands;
 using Microsoft.AspNetCore.Mvc;
+using MorseCode.ITask;
 
 namespace LiteBus.WebApi.Controllers
 {
@@ -17,7 +17,7 @@ namespace LiteBus.WebApi.Controllers
         }
 
         [HttpPost("scenario-1")]
-        public async Task<IActionResult> Post()
+        public async ITask<IActionResult> Post()
         {
             CreatePersonCommand command = new CreateSoldierCommand();
 
@@ -27,7 +27,7 @@ namespace LiteBus.WebApi.Controllers
         }
         
         [HttpPost("scenario-2")]
-        public async Task<IActionResult> Post1()
+        public async ITask<IActionResult> Post1()
         {
             CreatePersonCommand command = new CreateDoctorCommand();
 

@@ -1,8 +1,6 @@
 ﻿using System;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Internal.Mediator;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
 {

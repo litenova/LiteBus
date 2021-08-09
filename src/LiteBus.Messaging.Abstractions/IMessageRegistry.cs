@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Reflection;
 using LiteBus.Messaging.Abstractions.Descriptors;
 
 namespace LiteBus.Messaging.Abstractions

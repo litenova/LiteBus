@@ -2,6 +2,6 @@ namespace LiteBus.Messaging.Abstractions
 {
     public interface IMessageMediationStrategy<TMessage, TMessageResult>
     {
-        TMessageResult Mediate(TMessage message, IMessageContext<TMessage, TMessageResult> context);
+        TMessageResult Mediate(TMessage message, IMessageContext context);
     }
 }

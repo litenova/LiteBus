@@ -1,11 +1,11 @@
-﻿using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Events.Abstractions;
 using LiteBus.Queries.Abstractions;
 using LiteBus.WebApi.Commands;
 using LiteBus.WebApi.Events;
 using LiteBus.WebApi.Queries;
+using MorseCode.ITask;
 
 namespace LiteBus.WebApi.Controllers
 {
@@ -27,7 +27,7 @@ namespace LiteBus.WebApi.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Get()
+        public async ITask<IActionResult> Get()
         {
             var result = await _queryMediator.QueryAsync(new ColorQuery());
 
@@ -35,7 +35,7 @@ namespace LiteBus.WebApi.Controllers
         }
 
         [HttpPost("without-result")]
-        public async Task<IActionResult> Post(string colorName)
+        public async ITask<IActionResult> Post(string colorName)
         {
             await _commandMediator.SendAsync(new CreateColorCommand
             {
@@ -51,7 +51,7 @@ namespace LiteBus.WebApi.Controllers
         }
 
         [HttpPost("with-result")]
-        public async Task<IActionResult> Post2(string colorName)
+        public async ITask<IActionResult> Post2(string colorName)
         {
             var result = await _commandMediator.SendAsync<bool>(new CreateColorCommandWithResult
             {

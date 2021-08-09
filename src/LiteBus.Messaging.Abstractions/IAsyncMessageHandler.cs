@@ -19,7 +19,7 @@ namespace LiteBus.Messaging.Abstractions
         /// </summary>
         /// <param name="message">the message</param>
         /// <param name="cancellationToken">the cancellation token</param>
-        /// <returns>A task representing the message result</returns>
+        /// <returns>A ITask representing the message result</returns>
         ITask HandleAsync(TMessage message, CancellationToken cancellationToken = default);
     }
 
@@ -40,7 +40,7 @@ namespace LiteBus.Messaging.Abstractions
         /// </summary>
         /// <param name="message">the message</param>
         /// <param name="cancellationToken">the cancellation token</param>
-        /// <returns>A task representing the message result</returns>
+        /// <returns>A ITask representing the message result</returns>
         ITask<TMessageResult> HandleAsync(TMessage message, CancellationToken cancellationToken = default);
     }
 }

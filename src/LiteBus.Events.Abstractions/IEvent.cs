@@ -1,7 +1,4 @@
-﻿using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions;
-
-namespace LiteBus.Events.Abstractions
+﻿namespace LiteBus.Events.Abstractions
 {
     /// <summary>
     ///     Represents an event

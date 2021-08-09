@@ -1,7 +1,4 @@
-﻿using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions;
-
-namespace LiteBus.Commands.Abstractions
+﻿namespace LiteBus.Commands.Abstractions
 {
     /// <summary>
     ///     Represents a command without result
