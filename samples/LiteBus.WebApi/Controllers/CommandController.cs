@@ -2,7 +2,6 @@
 using Microsoft.AspNetCore.Mvc;
 using LiteBus.Commands.Abstractions;
 using LiteBus.WebApi.Commands;
-using LiteBus.WebApi.Events;
 
 namespace LiteBus.WebApi.Controllers
 {
@@ -23,6 +22,7 @@ namespace LiteBus.WebApi.Controllers
             return _commandMediator.SendAsync(command);
         }
 
+        [HttpPost("without-result")]
         public Task SendCommandWithoutResult(CreateNumberCommand command)
         {
             return _commandMediator.SendAsync(command);
