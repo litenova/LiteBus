@@ -10,7 +10,7 @@ namespace LiteBus.Messaging.Abstractions.FindStrategies
         public IMessageDescriptor Find(Type messageType, IMessageRegistry messageRegistry)
         {
             var descriptor = messageRegistry.SingleOrDefault(d => d.MessageType == messageType) ??
-                             messageRegistry.SingleOrDefault(d => d.MessageType.BaseType == messageType);
+                             messageRegistry.SingleOrDefault(d => d.MessageType == messageType.BaseType);
 
             if (descriptor is null)
             {
