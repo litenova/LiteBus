@@ -4,17 +4,23 @@ using System.Threading.Tasks;
 namespace LiteBus.Messaging.Abstractions
 {
     /// <summary>
-    ///     The base of all asynchronous handlers
+    ///     Represents an asynchronous message handler with no result
     /// </summary>
-    public interface IAsyncMessageHandler : IMessageHandler
+    /// <typeparam name="TMessage">The message type</typeparam>
+    public interface IAsyncMessageHandler<in TMessage> : IMessageHandler<TMessage, Task>
     {
+        Task IMessageHandler<TMessage, Task>.Handle(TMessage message, IHandleContext context)
+        {
+            return HandleAsync(message, context.Data.Get<CancellationToken>());
+        }
+
         /// <summary>
-        ///     Handles a message
+        ///     Handles the <paramref name="message"/> asynchronously
         /// </summary>
-        /// <param name="message">The message</param>
+        /// <param name="message">the message</param>
         /// <param name="cancellationToken">the cancellation token</param>
-        /// <returns>A task representing the message result</returns>
-        Task HandleAsync(object message, CancellationToken cancellationToken = default);
+        /// <returns>A Task representing the message result</returns>
+        Task HandleAsync(TMessage message, CancellationToken cancellationToken = default);
     }
 
     /// <summary>
@@ -22,11 +28,11 @@ namespace LiteBus.Messaging.Abstractions
     /// </summary>
     /// <typeparam name="TMessage">The message type</typeparam>
     /// <typeparam name="TMessageResult">the message result type</typeparam>
-    public interface IAsyncMessageHandler<in TMessage, TMessageResult> : IAsyncMessageHandler where TMessage : IMessage
+    public interface IAsyncMessageHandler<in TMessage, TMessageResult> : IMessageHandler<TMessage, Task<TMessageResult>>
     {
-        Task IAsyncMessageHandler.HandleAsync(object message, CancellationToken cancellationToken)
+        Task<TMessageResult> IMessageHandler<TMessage, Task<TMessageResult>>.Handle(TMessage message, IHandleContext context)
         {
-            return HandleAsync((TMessage) message, cancellationToken);
+            return HandleAsync(message, context.Data.Get<CancellationToken>());
         }
 
         /// <summary>
@@ -34,27 +40,7 @@ namespace LiteBus.Messaging.Abstractions
         /// </summary>
         /// <param name="message">the message</param>
         /// <param name="cancellationToken">the cancellation token</param>
-        /// <returns>A task representing the message result</returns>
+        /// <returns>A Task representing the message result</returns>
         Task<TMessageResult> HandleAsync(TMessage message, CancellationToken cancellationToken = default);
-    }
-
-    /// <summary>
-    ///     Represents an asynchronous message handler with no result
-    /// </summary>
-    /// <typeparam name="TMessage">The message type</typeparam>
-    public interface IAsyncMessageHandler<in TMessage> : IAsyncMessageHandler where TMessage : IMessage
-    {
-        Task IAsyncMessageHandler.HandleAsync(object message, CancellationToken cancellationToken)
-        {
-            return HandleAsync((TMessage) message, cancellationToken);
-        }
-
-        /// <summary>
-        ///     Handles the <paramref name="message"/> asynchronously
-        /// </summary>
-        /// <param name="message">the message</param>
-        /// <param name="cancellationToken">the cancellation token</param>
-        /// <returns>A task representing the message result</returns>
-        Task HandleAsync(TMessage message, CancellationToken cancellationToken = default);
     }
 }

@@ -1,16 +1,24 @@
 ﻿namespace LiteBus.Messaging.Abstractions
 {
     /// <summary>
-    ///     The base of all synchronous message handlers
+    ///     Represents a synchronous message handler
     /// </summary>
-    public interface ISyncMessageHandler : IMessageHandler
+    /// <typeparam name="TMessage">the type of message</typeparam>
+    /// <remarks>The message can be of any type</remarks>
+    public interface ISyncMessageHandler<in TMessage> : IMessageHandler<TMessage, VoidMessageResult>
     {
+        VoidMessageResult IMessageHandler<TMessage, VoidMessageResult>.Handle(TMessage message, IHandleContext context)
+        {
+            Handle(message);
+            return new VoidMessageResult();
+        }
+
         /// <summary>
         ///     Handles a message
         /// </summary>
-        /// <param name="message">The message</param>
-        /// <returns>The message result</returns>
-        object Handle(object message);
+        /// <param name="message">the message</param>
+        /// <returns>the message result</returns>
+        new void Handle(TMessage message);
     }
 
     /// <summary>
@@ -19,15 +27,18 @@
     /// <typeparam name="TMessage">the type of message</typeparam>
     /// <typeparam name="TMessageResult">the type of message</typeparam>
     /// <remarks>The message can be of any type</remarks>
-    public interface ISyncMessageHandler<in TMessage, out TMessageResult> : ISyncMessageHandler where TMessage : IMessage
+    public interface ISyncMessageHandler<in TMessage, out TMessageResult> : IMessageHandler<TMessage, TMessageResult>
     {
-        object ISyncMessageHandler.Handle(object message) => Handle((TMessage) message);
+        TMessageResult IMessageHandler<TMessage, TMessageResult>.Handle(TMessage message, IHandleContext context)
+        {
+            return Handle(message);
+        }
 
         /// <summary>
         ///     Handles a message
         /// </summary>
         /// <param name="message">the message</param>
         /// <returns>the message result</returns>
-        TMessageResult Handle(TMessage message);
+        new TMessageResult Handle(TMessage message);
     }
 }

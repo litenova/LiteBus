@@ -1,11 +1,16 @@
+using LiteBus.Commands.Extensions.MicrosoftDependencyInjection;
+using LiteBus.Events.Extensions.MicrosoftDependencyInjection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
-using LiteBus.Extensions.MicrosoftDependencyInjection;
+using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
+using LiteBus.Queries.Extensions.MicrosoftDependencyInjection;
 using LiteBus.WebApi.Commands;
+using LiteBus.WebApi.Events;
+using LiteBus.WebApi.Queries;
 
 namespace LiteBus.WebApi
 {
@@ -18,26 +23,38 @@ namespace LiteBus.WebApi
 
         public IConfiguration Configuration { get; }
 
+
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddLiteBus(builder =>
             {
-                builder.Register(typeof(Startup).Assembly);
-                builder.Register(typeof(Startup).Assembly);
-                builder.Register(typeof(CreateSoldierCommandHandler));
+                builder.AddCommands(commandBuilder =>
+                       {
+                           commandBuilder.Register(typeof(CreateNumberCommand).Assembly)
+                                         .RegisterPostHandleHook<GlobalCommandPostHandleAsyncHook>();
+                       })
+                       .AddQueries(queryBuilder =>
+                       {
+                           queryBuilder.Register(typeof(GetNumbersQuery).Assembly);
+                       })
+                       .AddEvents(eventBuilder =>
+                       {
+                           eventBuilder.Register(typeof(NumberCreatedEvent).Assembly);
+                       });
             });
 
             services.AddControllers();
             services.AddSwaggerGen(c =>
             {
-                c.SwaggerDoc("v1", new OpenApiInfo
-                {
-                    Title = "LiteBus.WebApi", Version = "v1"
-                });
+                c.SwaggerDoc("v1",
+                             new OpenApiInfo
+                             {
+                                 Title = "LiteBus.WebApi", Version = "v1"
+                             });
             });
 
-            services.AddTransient(typeof(CreateColorCommandWithResult));
+            services.AddTransient(typeof(CreateNumberCommandWithResult));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
