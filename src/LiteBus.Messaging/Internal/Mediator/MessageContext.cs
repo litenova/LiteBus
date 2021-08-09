@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Descriptors;
 using LiteBus.Messaging.Internal.Exceptions;
@@ -48,7 +49,7 @@ namespace LiteBus.Messaging.Internal.Mediator
 
         private IEnumerable<Lazy<IAsyncHook>> ResolvePreHandleHooks(IReadOnlyCollection<IHookDescriptor> descriptors)
         {
-            foreach (var descriptor in descriptors)
+            foreach (var descriptor in descriptors.OrderBy(d => d.Order))
             {
                 var hookType = descriptor.HookType;
 
@@ -70,7 +71,7 @@ namespace LiteBus.Messaging.Internal.Mediator
 
         private IEnumerable<Lazy<IAsyncHook>> ResolvePostHandleHooks(IReadOnlyCollection<IHookDescriptor> descriptors)
         {
-            foreach (var descriptor in descriptors)
+            foreach (var descriptor in descriptors.OrderBy(d => d.Order))
             {
                 var hookType = descriptor.HookType;
 

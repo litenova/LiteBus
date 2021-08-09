@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Abstractions.MediationStrategies
@@ -15,8 +16,8 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
             _cancellationToken = cancellationToken;
         }
 
-        public IAsyncEnumerable<TMessageResult> Mediate(TMessage message,
-                                                        IMessageContext context)
+        public async IAsyncEnumerable<TMessageResult> Mediate(TMessage message,
+                                                              IMessageContext context)
         {
             if (context.Handlers.Count > 1)
             {
@@ -26,11 +27,19 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
             var handleContext = new HandleContext();
             handleContext.Data.Set(_cancellationToken);
 
+            foreach (var preHandleHook in context.PreHandleAsyncHooks)
+            {
+                await preHandleHook.Value.ExecuteAsync(message, handleContext);
+            }
+
             var handler = context.Handlers.Single().Value;
 
             var result = (IAsyncEnumerable<TMessageResult>)handler!.Handle(message, handleContext);
 
-            return result;
+            await foreach (var messageResult in result.WithCancellation(_cancellationToken))
+            {
+                yield return messageResult;
+            }
         }
     }
 }
