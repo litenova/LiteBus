@@ -40,7 +40,7 @@ namespace LiteBus.WebApi
                        })
                        .AddEvents(eventBuilder =>
                        {
-                           eventBuilder.Register(typeof(ColorCreatedEvent).Assembly);
+                           eventBuilder.Register(typeof(NumberCreatedEvent).Assembly);
                        });
             });
 
