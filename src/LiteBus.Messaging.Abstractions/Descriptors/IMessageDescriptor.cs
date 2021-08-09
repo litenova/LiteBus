@@ -5,7 +5,6 @@ namespace LiteBus.Messaging.Abstractions.Descriptors
 {
     public interface IMessageDescriptor
     {
-        IMessageDescriptor Base { get; }
         Type MessageType { get; }
 
         IReadOnlyCollection<IHandlerDescriptor> HandlerDescriptors { get; }
