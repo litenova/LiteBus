@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Extensions;
+using MorseCode.ITask;
 
 namespace LiteBus.Events
 {
@@ -18,7 +16,7 @@ namespace LiteBus.Events
             _messageMediator = messageMediator;
         }
 
-        public virtual Task PublishAsync<TEvent>(TEvent @event, 
+        public virtual ITask PublishAsync<TEvent>(TEvent @event, 
                                                  CancellationToken cancellationToken = default) 
             where TEvent : IEvent
         {

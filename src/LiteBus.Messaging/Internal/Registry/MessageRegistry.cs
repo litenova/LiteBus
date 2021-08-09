@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Descriptors;
 
@@ -55,7 +54,7 @@ namespace LiteBus.Messaging.Internal.Registry
             foreach (var @interface in preHandleHookType.GetInterfaces())
             {
                 if (@interface.IsGenericType &&
-                    @interface.GetGenericTypeDefinition().IsAssignableTo(typeof(IPreHandleHook<>)))
+                    @interface.GetGenericTypeDefinition().IsAssignableTo(typeof(IPreHandleAsyncHook<>)))
                 {
                     var messageType = @interface.GetGenericArguments()[0];
 

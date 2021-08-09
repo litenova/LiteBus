@@ -7,7 +7,7 @@ using LiteBus.Messaging.Internal.Extensions;
 
 namespace LiteBus.Messaging.Internal.Mediator
 {
-    public class MessageContext<TMessage, TMessageResult> : IMessageContext<TMessage, TMessageResult>
+    public class MessageContext : IMessageContext
     {
         private readonly IServiceProvider _serviceProvider;
 
@@ -16,12 +16,11 @@ namespace LiteBus.Messaging.Internal.Mediator
             _serviceProvider = serviceProvider;
 
             Handlers = ResolveHandlers(descriptor.HandlerDescriptors).ToLazyReadOnlyCollection();
-            PostHandleHooks = ResolvePostHandleHooks(descriptor.PostHandleHookDescriptors).ToLazyReadOnlyCollection();
-            PreHandleHooks = ResolvePreHandleHooks(descriptor.PreHandleHookDescriptors).ToLazyReadOnlyCollection();
+            PostHandleAsyncHooks = ResolvePostHandleHooks(descriptor.PostHandleHookDescriptors).ToLazyReadOnlyCollection();
+            PreHandleAsyncHooks = ResolvePreHandleHooks(descriptor.PreHandleHookDescriptors).ToLazyReadOnlyCollection();
         }
 
-        private IEnumerable<Lazy<IMessageHandler<TMessage, TMessageResult>>> ResolveHandlers(
-            IReadOnlyCollection<IHandlerDescriptor> descriptors)
+        private IEnumerable<Lazy<IMessageHandler>> ResolveHandlers(IReadOnlyCollection<IHandlerDescriptor> descriptors)
         {
             foreach (var descriptor in descriptors)
             {
@@ -36,13 +35,12 @@ namespace LiteBus.Messaging.Internal.Mediator
                         throw new NotResolvedException(descriptor.HandlerType);
                     }
 
-                    return null;
+                    return handler as IMessageHandler;
                 });
             }
         }
 
-        private IEnumerable<Lazy<IPreHandleHook<TMessage>>> ResolvePreHandleHooks(
-            IReadOnlyCollection<IHookDescriptor> descriptors)
+        private IEnumerable<Lazy<IAsyncHook>> ResolvePreHandleHooks(IReadOnlyCollection<IHookDescriptor> descriptors)
         {
             foreach (var descriptor in descriptors)
             {
@@ -59,15 +57,12 @@ namespace LiteBus.Messaging.Internal.Mediator
                         throw new NotResolvedException(hookType);
                     }
 
-                    var result = hook as IPreHandleHook<TMessage>;
-
-                    return result;
+                    return hook as IAsyncHook;
                 });
             }
         }
 
-        private IEnumerable<Lazy<IPostHandleHook<TMessage>>> ResolvePostHandleHooks(
-            IReadOnlyCollection<IHookDescriptor> descriptors)
+        private IEnumerable<Lazy<IAsyncHook>> ResolvePostHandleHooks(IReadOnlyCollection<IHookDescriptor> descriptors)
         {
             foreach (var descriptor in descriptors)
             {
@@ -84,15 +79,15 @@ namespace LiteBus.Messaging.Internal.Mediator
                         throw new NotResolvedException(hookType);
                     }
 
-                    return hook as IPostHandleHook<TMessage>;
+                    return hook as IAsyncHook;
                 });
             }
         }
 
-        public ILazyReadOnlyCollection<IMessageHandler<TMessage, TMessageResult>> Handlers { get; }
+        public ILazyReadOnlyCollection<IMessageHandler> Handlers { get; }
 
-        public ILazyReadOnlyCollection<IPostHandleHook<TMessage>> PostHandleHooks { get; }
+        public ILazyReadOnlyCollection<IAsyncHook> PostHandleAsyncHooks { get; }
 
-        public ILazyReadOnlyCollection<IPreHandleHook<TMessage>> PreHandleHooks { get; }
+        public ILazyReadOnlyCollection<IAsyncHook> PreHandleAsyncHooks { get; }
     }
 }

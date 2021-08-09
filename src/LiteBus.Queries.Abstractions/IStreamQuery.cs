@@ -1,6 +1,3 @@
-using System.Collections.Generic;
-using LiteBus.Messaging.Abstractions;
-
 namespace LiteBus.Queries.Abstractions
 {
     /// <summary>

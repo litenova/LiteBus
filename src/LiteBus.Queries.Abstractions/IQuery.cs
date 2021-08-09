@@ -1,7 +1,4 @@
-﻿using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions;
-
-namespace LiteBus.Queries.Abstractions
+﻿namespace LiteBus.Queries.Abstractions
 {
     /// <summary>
     ///     Represents a query
