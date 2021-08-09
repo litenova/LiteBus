@@ -1,10 +1,9 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
+using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.FindStrategies;
 using LiteBus.Messaging.Abstractions.MediationStrategies;
-using MorseCode.ITask;
 
 namespace LiteBus.Commands
 {
@@ -18,19 +17,24 @@ namespace LiteBus.Commands
             _messageMediator = messageMediator;
         }
 
-        public async ITask SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default) where TCommand : ICommand
+        public async Task SendAsync(ICommand command, CancellationToken cancellationToken = default)
         {
-            var mediationStrategy = new SingleAsyncHandlerMessageMediationStrategy<TCommand>(cancellationToken);
+            var mediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand>(cancellationToken);
 
-            var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy<TCommand>();
+            var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy();
 
             await _messageMediator.Mediate(command, findStrategy, mediationStrategy);
         }
 
-        public async ITask<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
+        public async Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
                                                                     CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            var mediationStrategy =
+                new SingleAsyncHandlerMediationStrategy<ICommand<TCommandResult>, TCommandResult>(cancellationToken);
+
+            var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy();
+
+            return await _messageMediator.Mediate(command, findStrategy, mediationStrategy);
         }
     }
 }

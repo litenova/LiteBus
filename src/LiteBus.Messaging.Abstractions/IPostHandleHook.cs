@@ -1,5 +1,5 @@
 ﻿using System.Threading;
-using MorseCode.ITask;
+using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions
 {
@@ -9,11 +9,11 @@ namespace LiteBus.Messaging.Abstractions
     /// <typeparam name="TMessage">The message type that is handled</typeparam>
     public interface IPostHandleHook<in TMessage> : IAsyncHook
     {
-        ITask IAsyncHook.ExecuteAsync(object message, IHandleContext context)
+        Task IAsyncHook.ExecuteAsync(object message, IHandleContext context)
         {
             return ExecuteAsync((TMessage)message, context.Data.Get<CancellationToken>());
         }
         
-        ITask ExecuteAsync(TMessage message, CancellationToken cancellationToken);
+        Task ExecuteAsync(TMessage message, CancellationToken cancellationToken);
     }
 }

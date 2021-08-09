@@ -1,7 +1,6 @@
-﻿using LiteBus.Commands.Abstractions;
-using LiteBus.WebApi.Commands;
+﻿using System.Threading.Tasks;
+using LiteBus.Commands.Abstractions;
 using Microsoft.AspNetCore.Mvc;
-using MorseCode.ITask;
 
 namespace LiteBus.WebApi.Controllers
 {
@@ -16,24 +15,6 @@ namespace LiteBus.WebApi.Controllers
             _commandMediator = commandMediator;
         }
 
-        [HttpPost("scenario-1")]
-        public async ITask<IActionResult> Post()
-        {
-            CreatePersonCommand command = new CreateSoldierCommand();
 
-            await _commandMediator.SendAsync(command);
-
-            return Ok();
-        }
-        
-        [HttpPost("scenario-2")]
-        public async ITask<IActionResult> Post1()
-        {
-            CreatePersonCommand command = new CreateDoctorCommand();
-
-            await _commandMediator.SendAsync(command);
-
-            return Ok();
-        }
     }
 }
