@@ -5,8 +5,7 @@ using LiteBus.Messaging.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Abstractions.MediationStrategies
 {
-    public class SingleAsyncHandlerMessageMediationStrategy<TMessage, TMessageResult> :
-        IMessageMediationStrategy<TMessage, Task<TMessageResult>>
+    public class SingleAsyncHandlerMessageMediationStrategy<TMessage, TMessageResult> : IMessageMediationStrategy<TMessage, Task<TMessageResult>>
     {
         private readonly CancellationToken _cancellationToken;
 
