@@ -19,7 +19,7 @@ namespace LiteBus.Events.Extensions.MicrosoftDependencyInjection
         public void Build(IServiceCollection services, IMessageRegistry messageRegistry)
         {
             _builder(new LiteBusEventBuilder(messageRegistry));
-            
+
             services.TryAddTransient<IEventMediator, EventMediator>();
             services.TryAddTransient<IEventPublisher, EventMediator>();
         }

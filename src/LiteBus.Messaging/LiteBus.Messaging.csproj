@@ -13,7 +13,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj" />
+        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -23,7 +23,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath="" />
+        <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath=""/>
     </ItemGroup>
 
 </Project>

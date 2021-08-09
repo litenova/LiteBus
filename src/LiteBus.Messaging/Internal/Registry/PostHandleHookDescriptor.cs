@@ -11,8 +11,8 @@ namespace LiteBus.Messaging.Internal.Registry
             HookType = hookType;
             MessageType = messageType;
 
-            HookOrderAttribute hookOrderAttribute =
-                (HookOrderAttribute) Attribute.GetCustomAttribute(hookType, typeof(HookOrderAttribute));
+            var hookOrderAttribute =
+                (HookOrderAttribute)Attribute.GetCustomAttribute(hookType, typeof(HookOrderAttribute));
 
             if (hookOrderAttribute is not null)
             {

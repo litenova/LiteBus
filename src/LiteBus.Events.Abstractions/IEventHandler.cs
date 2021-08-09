@@ -8,6 +8,5 @@ namespace LiteBus.Events.Abstractions
     /// <typeparam name="TEvent">The type of event</typeparam>
     public interface IEventHandler<TEvent> : IAsyncMessageHandler<TEvent> where TEvent : IEvent
     {
-        
     }
 }

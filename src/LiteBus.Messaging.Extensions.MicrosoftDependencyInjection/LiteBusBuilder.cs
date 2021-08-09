@@ -7,16 +7,16 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
 {
     public class LiteBusBuilder : ILiteBusBuilder
     {
-        private readonly IServiceCollection _services;
         private readonly IMessageRegistry _messageRegistry;
         private readonly HashSet<IModule> _modules = new();
+        private readonly IServiceCollection _services;
 
         public LiteBusBuilder(IServiceCollection services, IMessageRegistry messageRegistry)
         {
             _services = services;
             _messageRegistry = messageRegistry;
         }
-        
+
         public ILiteBusBuilder AddModule(IModule module)
         {
             _modules.Add(module);
@@ -30,7 +30,7 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
             {
                 module.Build(_services, _messageRegistry);
             }
-            
+
             foreach (var descriptor in _messageRegistry)
             {
                 foreach (var handlerDescriptor in descriptor.HandlerDescriptors)

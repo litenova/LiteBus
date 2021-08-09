@@ -9,7 +9,8 @@ namespace LiteBus.WebApi.PlainMessages
 {
     public class PlainMessageStreamHandler : IStreamMessageHandler<PlainMessage, string>
     {
-        public async IAsyncEnumerable<string> HandleAsync(PlainMessage message, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        public async IAsyncEnumerable<string> HandleAsync(PlainMessage message,
+                                                          [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             Debug.WriteLine($"{nameof(PlainMessageStreamHandler)} executed!");
 

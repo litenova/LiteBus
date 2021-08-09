@@ -19,7 +19,7 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
         public void Build(IServiceCollection services, IMessageRegistry messageRegistry)
         {
             _builder(new LiteBusCommandBuilder(messageRegistry));
-            
+
             services.TryAddTransient<ICommandMediator, CommandMediator>();
         }
     }
