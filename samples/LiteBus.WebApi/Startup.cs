@@ -36,7 +36,7 @@ namespace LiteBus.WebApi
                        })
                        .AddQueries(queryBuilder =>
                        {
-                           queryBuilder.Register(typeof(ColorQuery).Assembly);
+                           queryBuilder.Register(typeof(GetNumbersQuery).Assembly);
                        })
                        .AddEvents(eventBuilder =>
                        {
