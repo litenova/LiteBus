@@ -7,7 +7,7 @@ using LiteBus.WebApi.Events;
 
 namespace LiteBus.WebApi.Commands
 {
-    public class CreateNumberCommandPostHandleAsyncHook : ICommandPostHandleHook<CreateNumberCommand>
+    public class CreateNumberCommandPostHandleAsyncHook : ICommandPostHandleAsyncHook<CreateNumberCommand>
     {
         private readonly IEventMediator _eventMediator;
 

@@ -5,7 +5,7 @@ using LiteBus.Commands.Abstractions;
 
 namespace LiteBus.WebApi.Commands
 {
-    public class GlobalCommandPostHandleAsyncHook : ICommandPostHandleHook
+    public class GlobalCommandPostHandleAsyncHook : ICommandPostHandleAsyncHook
     {
         public Task ExecuteAsync(ICommandBase message, CancellationToken cancellationToken = default)
         {
