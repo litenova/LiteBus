@@ -10,7 +10,6 @@ namespace LiteBus.Messaging.Internal.Registry
         private readonly HashSet<PostHandleHookDescriptor> _postHandleHooks = new();
         private readonly HashSet<PreHandleHookDescriptor> _preHandleHooks = new();
 
-
         public MessageDescriptor(Type messageType)
         {
             MessageType = messageType;
@@ -23,7 +22,6 @@ namespace LiteBus.Messaging.Internal.Registry
         public IReadOnlyCollection<IHookDescriptor> PostHandleHookDescriptors => _postHandleHooks;
 
         public IReadOnlyCollection<IHookDescriptor> PreHandleHookDescriptors => _preHandleHooks;
-
 
         public void AddHandlerDescriptor(HandlerDescriptor type)
         {

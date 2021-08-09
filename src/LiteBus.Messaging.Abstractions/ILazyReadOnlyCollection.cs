@@ -5,6 +5,5 @@ namespace LiteBus.Messaging.Abstractions
 {
     public interface ILazyReadOnlyCollection<T> : IReadOnlyCollection<Lazy<T>>
     {
-        
     }
 }

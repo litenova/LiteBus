@@ -16,7 +16,7 @@ namespace LiteBus.WebApi.Queries
                                                       CancellationToken cancellationToken = default)
         {
             Debug.WriteLine($"{nameof(GetNumbersQueryHandler)} executed!");
-            
+
             return Task.FromResult(MemoryDatabase.GetNumbers());
         }
     }

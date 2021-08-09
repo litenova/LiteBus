@@ -9,7 +9,7 @@ namespace LiteBus.WebApi.Commands
     {
         public decimal Number { get; set; }
     }
-    
+
     public class CreateNumberCommandWithResultHandler : ICommandHandler<CreateNumberCommandWithResult, string>
     {
         public Task<string> HandleAsync(CreateNumberCommandWithResult message,

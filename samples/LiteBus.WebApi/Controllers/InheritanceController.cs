@@ -10,7 +10,7 @@ namespace LiteBus.WebApi.Controllers
     public class InheritanceController : ControllerBase
     {
         private readonly ICommandMediator _commandMediator;
-        
+
         public InheritanceController(ICommandMediator commandMediator)
         {
             _commandMediator = commandMediator;

@@ -15,7 +15,10 @@ namespace LiteBus.Messaging.Abstractions.Extensions
         /// <param name="assembly">the specified assembly</param>
         public static void Register(this IMessageRegistry registry, Assembly assembly)
         {
-            if (ScannedAssemblies.Contains(assembly)) return;
+            if (ScannedAssemblies.Contains(assembly))
+            {
+                return;
+            }
 
             foreach (var typeInfo in assembly.DefinedTypes)
             {
@@ -35,7 +38,7 @@ namespace LiteBus.Messaging.Abstractions.Extensions
             var interfaces = type.ImplementedInterfaces
                                  .Where(i => i.IsGenericType)
                                  .Select(i => i.GetGenericTypeDefinition());
-            
+
             foreach (var @interface in interfaces)
             {
                 if (@interface.IsAssignableTo(typeof(IMessageHandler<,>)))

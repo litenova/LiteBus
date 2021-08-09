@@ -13,11 +13,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Queries.Abstractions\LiteBus.Queries.Abstractions.csproj" />
+        <ProjectReference Include="..\LiteBus.Queries.Abstractions\LiteBus.Queries.Abstractions.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath="" />
+        <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath=""/>
     </ItemGroup>
 
 </Project>

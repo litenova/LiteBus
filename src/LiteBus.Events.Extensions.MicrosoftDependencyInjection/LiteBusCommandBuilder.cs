@@ -20,7 +20,6 @@ namespace LiteBus.Events.Extensions.MicrosoftDependencyInjection
             return this;
         }
 
-
         public LiteBusEventBuilder RegisterHandler<THandler, TEvent>()
             where THandler : IEventHandler<TEvent>
             where TEvent : IEvent

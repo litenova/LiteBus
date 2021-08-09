@@ -12,7 +12,8 @@ namespace LiteBus.Commands.Abstractions
     /// <summary>
     ///     Represents an action that is executed on <typeparamref cref="TCommand" /> post-handle phase
     /// </summary>
-    public interface ICommandPostHandleAsyncHook<in TCommand> : IPostHandleAsyncHook<TCommand> where TCommand : ICommandBase
+    public interface ICommandPostHandleAsyncHook<in TCommand> : IPostHandleAsyncHook<TCommand>
+        where TCommand : ICommandBase
     {
     }
 }

@@ -13,11 +13,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath="" />
+        <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath=""/>
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\LiteBus.Commands\LiteBus.Commands.csproj" />
-      <ProjectReference Include="..\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.csproj" />
+        <ProjectReference Include="..\LiteBus.Commands\LiteBus.Commands.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.csproj"/>
     </ItemGroup>
 </Project>

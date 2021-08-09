@@ -16,7 +16,7 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
         }
 
         public async Task<TMessageResult> Mediate(TMessage message,
-                                                   IMessageContext context)
+                                                  IMessageContext context)
         {
             if (context.Handlers.Count > 1)
             {
@@ -54,7 +54,7 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
         }
 
         public async Task Mediate(TMessage message,
-                                   IMessageContext context)
+                                  IMessageContext context)
         {
             if (context.Handlers.Count > 1)
             {

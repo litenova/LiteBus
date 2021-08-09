@@ -3,7 +3,7 @@
 namespace LiteBus.Queries.Abstractions
 {
     /// <summary>
-    ///     Represents an asynchronous query handler returning <typeparamref name="TQueryResult"/>
+    ///     Represents an asynchronous query handler returning <typeparamref name="TQueryResult" />
     /// </summary>
     /// <typeparam name="TQuery">Type of query</typeparam>
     /// <typeparam name="TQueryResult">Type of query result</typeparam>
