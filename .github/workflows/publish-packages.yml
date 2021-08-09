@@ -95,20 +95,6 @@ jobs:
         PROJECT_FILE_PATH: src/LiteBus.Queries.Extensions.MicrosoftDependencyInjection/LiteBus.Queries.Extensions.MicrosoftDependencyInjection.csproj
         NUGET_KEY: ${{secrets.Nuget_API_Key}}
         NUGET_SOURCE: https://api.nuget.org
-
-    - name: Publish LiteBus.Registry
-      uses: brandedoutcast/publish-nuget@v2.5.5
-      with:
-        PROJECT_FILE_PATH: src/LiteBus.Registry/LiteBus.Registry.csproj
-        NUGET_KEY: ${{secrets.Nuget_API_Key}}
-        NUGET_SOURCE: https://api.nuget.org
-
-    - name: Publish LiteBus.Registry.Abstractions
-      uses: brandedoutcast/publish-nuget@v2.5.5
-      with:
-        PROJECT_FILE_PATH: src/LiteBus.Registry.Abstractions/LiteBus.Registry.Abstractions.csproj
-        NUGET_KEY: ${{secrets.Nuget_API_Key}}
-        NUGET_SOURCE: https://api.nuget.org
         
     - name: Publish LiteBus.Messaging
       uses: brandedoutcast/publish-nuget@v2.5.5
