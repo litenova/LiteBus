@@ -5,7 +5,7 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Authors>Mohammad ShafieZadeh</Authors>
         <PackageTags>mediator;cqrs</PackageTags>
-        <Version>0.5.0</Version>
+        <Version>0.6.0</Version>
         <PackageIcon>icon.png</PackageIcon>
         <Description>LiteBus extensions to integrate with microsoft dependency injection</Description>
         <PackageProjectUrl>https://github.com/arishk/LiteBus</PackageProjectUrl>
@@ -13,16 +13,14 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Registry\LiteBus.Registry.csproj"/>
-        <ProjectReference Include="..\LiteBus\LiteBus.csproj"/>
+        <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath="" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="5.0.0"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath=""/>
+      <ProjectReference Include="..\LiteBus.Commands.Extensions.MicrosoftDependencyInjection\LiteBus.Commands.Extensions.MicrosoftDependencyInjection.csproj" />
+      <ProjectReference Include="..\LiteBus.Events.Extensions.MicrosoftDependencyInjection\LiteBus.Events.Extensions.MicrosoftDependencyInjection.csproj" />
+      <ProjectReference Include="..\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.csproj" />
+      <ProjectReference Include="..\LiteBus.Queries.Extensions.MicrosoftDependencyInjection\LiteBus.Queries.Extensions.MicrosoftDependencyInjection.csproj" />
     </ItemGroup>
 
 </Project>

@@ -1,37 +1,29 @@
-﻿using System;
-using System.Linq;
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Extensions;
-using LiteBus.Registry.Abstractions;
+using LiteBus.Messaging.Abstractions.FindStrategies;
+using LiteBus.Messaging.Abstractions.MediationStrategies;
 
 namespace LiteBus.Events
 {
     /// <inheritdoc cref="IEventMediator" />
     public class EventMediator : IEventPublisher
     {
-        private readonly IMessageRegistry _messageRegistry;
-        private readonly IServiceProvider _serviceProvider;
+        private readonly IMessageMediator _messageMediator;
 
-        public EventMediator(IServiceProvider serviceProvider,
-                             IMessageRegistry messageRegistry)
+        public EventMediator(IMessageMediator messageMediator)
         {
-            _serviceProvider = serviceProvider;
-            _messageRegistry = messageRegistry;
+            _messageMediator = messageMediator;
         }
 
-        public virtual Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
-            where TEvent : IEvent
+        public async Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
         {
-            var descriptor = _messageRegistry.GetDescriptor(@event.GetType());
+            var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(cancellationToken);
 
-            var handlers = _serviceProvider
-                           .GetHandlers(descriptor.HandlerTypes)
-                           .Cast<IAsyncMessageHandler<TEvent>>();
+            var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy();
 
-            return Task.WhenAll(handlers.Select(h => h.HandleAsync(@event, cancellationToken)));
+            await _messageMediator.Mediate(@event, findStrategy, mediationStrategy);
         }
     }
 }

@@ -4,16 +4,16 @@ namespace LiteBus.WebApi
 {
     public static class MemoryDatabase
     {
-        private static readonly List<string> Colors = new();
+        private static readonly List<decimal> Numbers = new();
 
-        public static void AddColor(string color)
+        public static void AddNumber(decimal number)
         {
-            Colors.Add(color);
+            Numbers.Add(number);
         }
 
-        public static IEnumerable<string> GetColors()
+        public static IEnumerable<decimal> GetNumbers()
         {
-            return Colors;
+            return Numbers;
         }
     }
 }
