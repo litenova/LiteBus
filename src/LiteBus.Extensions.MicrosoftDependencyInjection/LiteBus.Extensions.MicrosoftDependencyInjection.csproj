@@ -5,7 +5,7 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Authors>Mohammad ShafieZadeh</Authors>
         <PackageTags>mediator;cqrs</PackageTags>
-        <Version>0.5.0</Version>
+        <Version>0.6.0</Version>
         <PackageIcon>icon.png</PackageIcon>
         <Description>LiteBus extensions to integrate with microsoft dependency injection</Description>
         <PackageProjectUrl>https://github.com/arishk/LiteBus</PackageProjectUrl>
