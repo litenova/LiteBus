@@ -22,7 +22,6 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\src\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj" />
-      <ProjectReference Include="..\..\src\LiteBus.Registry\LiteBus.Registry.csproj" />
     </ItemGroup>
 
 </Project>
