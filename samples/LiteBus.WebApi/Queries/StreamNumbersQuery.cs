@@ -20,8 +20,12 @@ namespace LiteBus.WebApi.Queries
 
             foreach (var number in MemoryDatabase.GetNumbers())
             {
+                Debug.WriteLine($"{nameof(StreamNumbersQueryHandler)}: {number} streamed!");
+
                 yield return await Task.FromResult(number);
             }
+            
+            Debug.WriteLine($"{nameof(StreamNumbersQueryHandler)} finished!");
         }
     }
 }
