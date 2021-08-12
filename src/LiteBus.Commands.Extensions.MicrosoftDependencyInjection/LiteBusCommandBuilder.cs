@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Reflection;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
@@ -8,6 +9,7 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
     public class LiteBusCommandBuilder
     {
         private readonly IMessageRegistry _messageRegistry;
+        private static readonly HashSet<Assembly> ScannedAssemblies = new();
 
         public LiteBusCommandBuilder(IMessageRegistry messageRegistry)
         {

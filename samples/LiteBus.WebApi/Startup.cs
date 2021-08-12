@@ -4,6 +4,7 @@ using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 using LiteBus.Queries.Extensions.MicrosoftDependencyInjection;
 using LiteBus.WebApi.Commands;
 using LiteBus.WebApi.Events;
+using LiteBus.WebApi.PlainMessages;
 using LiteBus.WebApi.Queries;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -33,8 +34,18 @@ namespace LiteBus.WebApi
                            commandBuilder.Register(typeof(CreateNumberCommand).Assembly)
                                          .RegisterPostHandleHook<GlobalCommandPostHandleAsyncHook>();
                        })
-                       .AddQueries(queryBuilder => { queryBuilder.Register(typeof(GetNumbersQuery).Assembly); })
-                       .AddEvents(eventBuilder => { eventBuilder.Register(typeof(NumberCreatedEvent).Assembly); });
+                       .AddMessaging(messageBuilder =>
+                       {
+                           messageBuilder.Register(typeof(PlainMessage).Assembly);
+                       })
+                       .AddQueries(queryBuilder =>
+                       {
+                           queryBuilder.Register(typeof(GetNumbersQuery).Assembly); 
+                       })
+                       .AddEvents(eventBuilder =>
+                       {
+                           eventBuilder.Register(typeof(NumberCreatedEvent).Assembly);
+                       });
             });
 
             services.AddControllers();

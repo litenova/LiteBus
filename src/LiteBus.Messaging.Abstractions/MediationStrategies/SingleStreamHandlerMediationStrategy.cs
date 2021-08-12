@@ -40,6 +40,11 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
             {
                 yield return messageResult;
             }
+            
+            foreach (var postHandleHook in context.PostHandleAsyncHooks)
+            {
+                await postHandleHook.Value.ExecuteAsync(message, handleContext);
+            }
         }
     }
 }
