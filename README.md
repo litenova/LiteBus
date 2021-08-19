@@ -1,9 +1,31 @@
-# LiteBus
+<h1 align="center">
+  <br>
+  <a href="https://github.com/litenova/LiteBus">
+    <img src="https://raw.githubusercontent.com/litenova/LiteBus/main/assets/logo/icon.png">
+  </a>
+  <br>
+  LiteBus
+  <br>
+</h1>
 
-![.NET 5 CI](https://github.com/arishk/LiteBus/actions/workflows/dotnet-core.yml/badge.svg?branch=main)
-[![NuGet](https://img.shields.io/nuget/vpre/LiteBus.svg)](https://www.nuget.org/packages/LiteBus)
+<h4 align="center">A liteweight and easy to use in-process mediator to implement CQS</h4>
 
-A liteweight and easy to use in-process mediator to implement CQRS
+<p align="center">
+  <a href="#">
+    <img src="https://github.com/arishk/LiteBus/actions/workflows/dotnet-core.yml/badge.svg?branch=main">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/nuget/vpre/LiteBus.svg">
+  </a>
+</p>
+
+<p align="center">
+  <a href="#key-features">Key Features</a> •
+  <a href="#installation-and-configuration">Installation</a> •
+  <a href="#how-to-use">How To Use</a>
+</p>
+
+## Key Features
 
 * Written in .NET 5
 * No Dependencies
@@ -44,7 +66,7 @@ services.AddLiteBus(builder =>
 });
 ```
 
-## Message Handling Usages
+## How to Use
 
 The following examples demonstrates the usages of LiteBus.
 
