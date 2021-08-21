@@ -8,7 +8,7 @@
   <br>
 </h1>
 
-<h4 align="center">A liteweight and easy to use in-process mediator to implement CQS</h4>
+<h4 align="center">An easy-to-use and ambitious and in-process mediator to implement CQS</h4>
 
 <p align="center">
   <a href="#">
@@ -30,12 +30,20 @@
 * Written in .NET 5
 * No Dependencies
 * Minimum Reflection Usage (only for registering handlers)
-* Multiple Messaging Type
-    * Commands
-    * Queries
-    * Events
-* Supports Streaming Queries (IAsyncEnumerable)
-* Supports Both Command with Result and Without Result
+* Utilizing Covariance, Contravariance, and Polymorphism to Dispatch Messages
+* Built-in Messaging Types
+    * Command without Result `ICommand`
+    * Command with Result `ICommand<TResult>`
+    * Query `IQuery<TResult>`
+    * Stream Query `IStreamQuery<TResult>`: A type of query that returns `IAsyncEnumerable<TResult>`
+    * Event `IEvent`
+* Flexible and Extensible 
+* Modular Design, Only Add What You Need
+* Utilizing C# 8 Default Interface Implementation Feature to Provide Logical and Easy to Use API
+* Supports Polymorphism Dispatch
+* Orderable Handlers and Hooks
+* Supports Plain Messages
+* Supports Generic Messages (Development In Progress)
 
 ## Installation and Configuration
 
@@ -62,7 +70,23 @@ and configure the LiteBus as below in the `ConfigureServices` method of `Startup
 ```c#
 services.AddLiteBus(builder =>
 {
-    builder.Register(typeof(Startup).Assembly);
+    builder.AddCommands(commandBuilder =>
+           {
+               commandBuilder.Register(typeof(CreateNumberCommand).Assembly)
+                             .RegisterPostHandleHook<GlobalCommandPostHandleAsyncHook>();
+           })
+           .AddMessaging(messageBuilder =>
+           {
+               messageBuilder.Register(typeof(PlainMessage).Assembly);
+           })
+           .AddQueries(queryBuilder =>
+           {
+               queryBuilder.Register(typeof(GetNumbersQuery).Assembly); 
+           })
+           .AddEvents(eventBuilder =>
+           {
+               eventBuilder.Register(typeof(NumberCreatedEvent).Assembly);
+           });
 });
 ```
 
@@ -176,7 +200,7 @@ Inject ``IEventMediator`` or ``IEventPublisher`` to your class to publish events
     }
 ```
 
-### Plain Messages (To be added in later versions)
+### Plain Messages
 
 You can send any object as a message if the object has any associated handlers. Inject ``IMessageMediator`` to your
 class to publish events.
