@@ -11,10 +11,10 @@
 <h4 align="center">An easy-to-use and ambitious and in-process mediator to implement CQS</h4>
 
 <p align="center">
-  <a href="#">
+  <a href="https://github.com/litenova/LiteBus/actions/workflows/dotnet-core.yml">
     <img src="https://github.com/arishk/LiteBus/actions/workflows/dotnet-core.yml/badge.svg?branch=main">
   </a>
-  <a href="#">
+  <a href="https://www.nuget.org/packages/LiteBus">
     <img src="https://img.shields.io/nuget/vpre/LiteBus.svg">
   </a>
 </p>
