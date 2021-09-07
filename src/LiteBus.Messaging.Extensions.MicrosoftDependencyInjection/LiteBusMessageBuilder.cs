@@ -13,32 +13,29 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
             _messageRegistry = messageRegistry;
         }
 
-        public LiteBusMessageBuilder Register(Assembly assembly)
+        public LiteBusMessageBuilder RegisterFrom(Assembly assembly)
         {
             _messageRegistry.Register(assembly);
             return this;
         }
 
-        public LiteBusMessageBuilder RegisterHandler<THandler, TMessage, TMessageResult>()
-            where THandler : IMessageHandler<TMessage, TMessageResult>
+        public LiteBusMessageBuilder RegisterHandler<THandler>() where THandler : IMessageHandler
         {
             _messageRegistry.RegisterHandler(typeof(THandler));
 
             return this;
         }
 
-        public LiteBusMessageBuilder RegisterPreHandleHook<THook, TMessage>()
-            where THook : IPreHandleAsyncHook<TMessage>
+        public LiteBusMessageBuilder RegisterPreHandler<TPreHandler>() where TPreHandler : IMessagePreHandler
         {
-            _messageRegistry.RegisterPreHandleHook(typeof(THook));
+            _messageRegistry.RegisterPreHandler(typeof(TPreHandler));
 
             return this;
         }
 
-        public LiteBusMessageBuilder RegisterPostHandleHook<THook, TMessage>()
-            where THook : IPostHandleAsyncHook<TMessage>
+        public LiteBusMessageBuilder RegisterPostHandler<TPostHandler>() where TPostHandler : IMessagePostHandler
         {
-            _messageRegistry.RegisterPostHandleHook(typeof(THook));
+            _messageRegistry.RegisterPostHandler(typeof(TPostHandler));
 
             return this;
         }

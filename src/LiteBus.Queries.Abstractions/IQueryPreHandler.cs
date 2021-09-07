@@ -2,17 +2,22 @@
 
 namespace LiteBus.Queries.Abstractions
 {
+    public interface IQueryPreHandlerBase
+    {
+    }
+
     /// <summary>
     ///     Represents an action that is executed on each query pre-handle phase
     /// </summary>
-    public interface IQueryPreHandleAsyncHook : IPreHandleAsyncHook<IQueryBase>
+    public interface IQueryPreHandler : IQueryPreHandlerBase, IMessagePreHandler<IQueryBase>
     {
     }
 
     /// <summary>
     ///     Represents an action that is executed on <typeparamref cref="TQuery" /> pre-handle phase
     /// </summary>
-    public interface IQueryPreHandleAsyncHook<in TQuery> : IPreHandleAsyncHook<TQuery> where TQuery : IQueryBase
+    public interface IQueryPreHandler<in TQuery> : IQueryPreHandlerBase, IMessagePreHandler<TQuery>
+        where TQuery : IQueryBase
     {
     }
 }

@@ -8,8 +8,8 @@ namespace LiteBus.Messaging.Abstractions
     {
         void RegisterHandler(Type handlerType);
 
-        void RegisterPreHandleHook(Type preHandleHookType);
+        void RegisterPreHandler(Type preHandlerType);
 
-        void RegisterPostHandleHook(Type postHandleHookType);
+        void RegisterPostHandler(Type postHandlerType);
     }
 }

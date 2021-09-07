@@ -7,7 +7,7 @@ namespace LiteBus.Queries.Abstractions
     /// </summary>
     /// <typeparam name="TQuery">Type of query</typeparam>
     /// <typeparam name="TQueryResult">Type of query result</typeparam>
-    public interface IQueryHandler<in TQuery, TQueryResult> : IAsyncMessageHandler<TQuery, TQueryResult>
+    public interface IQueryHandler<in TQuery, TQueryResult> : IQueryHandlerBase, IAsyncMessageHandler<TQuery, TQueryResult>
         where TQuery : IQuery<TQueryResult>
     {
     }

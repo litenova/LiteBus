@@ -4,15 +4,16 @@ using LiteBus.Messaging.Abstractions.Descriptors;
 
 namespace LiteBus.Messaging.Internal.Registry
 {
-    internal class PreHandleHookDescriptor : IHookDescriptor
+    internal class PostHandlerDescriptor : IPostHandlerDescriptor
     {
-        public PreHandleHookDescriptor(Type hookType, Type messageType)
+        public PostHandlerDescriptor(Type hookType, Type messageType, Type messageResultType)
         {
-            HookType = hookType;
+            PostHandlerType = hookType;
             MessageType = messageType;
+            MessageResultType = messageResultType;
 
             var hookOrderAttribute =
-                (HookOrderAttribute)Attribute.GetCustomAttribute(hookType, typeof(HookOrderAttribute));
+                (HandlerOrderAttribute)Attribute.GetCustomAttribute(hookType, typeof(HandlerOrderAttribute));
 
             if (hookOrderAttribute is not null)
             {
@@ -20,10 +21,12 @@ namespace LiteBus.Messaging.Internal.Registry
             }
         }
 
-        public Type HookType { get; }
+        public Type PostHandlerType { get; }
 
         public int Order { get; }
 
         public Type MessageType { get; }
+
+        public Type MessageResultType { get; }
     }
 }

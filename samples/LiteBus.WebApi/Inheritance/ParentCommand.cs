@@ -2,7 +2,7 @@
 
 namespace LiteBus.WebApi.Inheritance
 {
-    public class BaseCommand : ICommand
+    public class ParentCommand : ICommand
     {
     }
 }

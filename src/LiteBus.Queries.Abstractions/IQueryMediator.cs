@@ -9,7 +9,7 @@ namespace LiteBus.Queries.Abstractions
     /// </summary>
     public interface IQueryMediator
     {
-        Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> command,
+        Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
                                                     CancellationToken cancellationToken = default);
 
         IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,

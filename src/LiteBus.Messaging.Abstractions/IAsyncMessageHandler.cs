@@ -9,9 +9,9 @@ namespace LiteBus.Messaging.Abstractions
     /// <typeparam name="TMessage">The message type</typeparam>
     public interface IAsyncMessageHandler<in TMessage> : IMessageHandler<TMessage, Task>
     {
-        Task IMessageHandler<TMessage, Task>.Handle(TMessage message, IHandleContext context)
+        Task IMessageHandler<TMessage, Task>.Handle(IHandleContext<TMessage> context)
         {
-            return HandleAsync(message, context.Data.Get<CancellationToken>());
+            return HandleAsync(context.Message, context.CancellationToken);
         }
 
         /// <summary>
@@ -30,9 +30,9 @@ namespace LiteBus.Messaging.Abstractions
     /// <typeparam name="TMessageResult">the message result type</typeparam>
     public interface IAsyncMessageHandler<in TMessage, TMessageResult> : IMessageHandler<TMessage, Task<TMessageResult>>
     {
-        Task<TMessageResult> IMessageHandler<TMessage, Task<TMessageResult>>.Handle(TMessage message, IHandleContext context)
+        Task<TMessageResult> IMessageHandler<TMessage, Task<TMessageResult>>.Handle(IHandleContext<TMessage> context)
         {
-            return HandleAsync(message, context.Data.Get<CancellationToken>());
+            return HandleAsync(context.Message, context.CancellationToken);
         }
 
         /// <summary>

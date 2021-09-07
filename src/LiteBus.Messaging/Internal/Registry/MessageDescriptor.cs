@@ -1,14 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using LiteBus.Messaging.Abstractions.Descriptors;
 
 namespace LiteBus.Messaging.Internal.Registry
 {
     internal class MessageDescriptor : IMessageDescriptor
     {
-        private readonly HashSet<HandlerDescriptor> _handlers = new();
-        private readonly HashSet<PostHandleHookDescriptor> _postHandleHooks = new();
-        private readonly HashSet<PreHandleHookDescriptor> _preHandleHooks = new();
+        private readonly List<HandlerDescriptor> _handlers = new();
+        private readonly List<PostHandlerDescriptor> _postHandlers = new();
+        private readonly List<PreHandlerDescriptor> _preHandlers = new();
 
         public MessageDescriptor(Type messageType)
         {
@@ -17,25 +18,40 @@ namespace LiteBus.Messaging.Internal.Registry
 
         public Type MessageType { get; }
 
-        public IReadOnlyCollection<IHandlerDescriptor> HandlerDescriptors => _handlers;
+        public IReadOnlyCollection<IHandlerDescriptor> Handlers => _handlers;
 
-        public IReadOnlyCollection<IHookDescriptor> PostHandleHookDescriptors => _postHandleHooks;
+        public IReadOnlyCollection<IPostHandlerDescriptor> PostHandlers => _postHandlers;
 
-        public IReadOnlyCollection<IHookDescriptor> PreHandleHookDescriptors => _preHandleHooks;
+        public IReadOnlyCollection<IPreHandlerDescriptor> PreHandlers => _preHandlers;
 
-        public void AddHandlerDescriptor(HandlerDescriptor type)
+        public void AddHandlerDescriptor(HandlerDescriptor handlerDescriptor)
         {
-            _handlers.Add(type);
+            if (_handlers.Any(h => h.HandlerType == handlerDescriptor.HandlerType))
+            {
+                return;
+            }
+            
+            _handlers.Add(handlerDescriptor);
         }
 
-        public void AddPostHandleHookDescriptor(PostHandleHookDescriptor preHandleHookDescriptor)
+        public void AddPostHandler(PostHandlerDescriptor postHandlerDescriptor)
         {
-            _postHandleHooks.Add(preHandleHookDescriptor);
+            if (_postHandlers.Any(h => h.PostHandlerType == postHandlerDescriptor.PostHandlerType))
+            {
+                return;
+            }
+            
+            _postHandlers.Add(postHandlerDescriptor);
         }
 
-        public void AddPreHandleHookDescriptor(PreHandleHookDescriptor preHandleHookDescriptor)
+        public void AddPreHandler(PreHandlerDescriptor preHandlerDescriptor)
         {
-            _preHandleHooks.Add(preHandleHookDescriptor);
+            if (_preHandlers.Any(h => h.PreHandlerType == preHandlerDescriptor.PreHandlerType))
+            {
+                return;
+            }
+            
+            _preHandlers.Add(preHandlerDescriptor);
         }
     }
 }

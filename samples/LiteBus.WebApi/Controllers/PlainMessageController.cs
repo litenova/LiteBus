@@ -1,10 +1,8 @@
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.FindStrategies;
 using LiteBus.Messaging.Abstractions.MediationStrategies;
 using LiteBus.WebApi.PlainMessages;
-using LiteBus.WebApi.Queries;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LiteBus.WebApi.Controllers

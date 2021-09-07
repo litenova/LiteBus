@@ -4,19 +4,17 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Queries.Abstractions;
+using LiteBus.WebApi.Queries;
 
-namespace LiteBus.WebApi.Queries
+namespace LiteBus.WebApi.Stream
 {
-    public class StreamNumbersQuery : IStreamQuery<decimal>
-    {
-    }
-
     public class StreamNumbersQueryHandler : IStreamQueryHandler<StreamNumbersQuery, decimal>
     {
         public async IAsyncEnumerable<decimal> HandleAsync(StreamNumbersQuery message,
-                                                           [EnumeratorCancellation] CancellationToken cancellationToken = default)
+                                                           [EnumeratorCancellation]
+                                                           CancellationToken cancellationToken = default)
         {
-            Debug.WriteLine($"{nameof(StreamNumbersQueryHandler)} executed!");
+            Debug.WriteLine($"{nameof(StreamNumbersQueryHandler)}: stream starting!");
 
             foreach (var number in MemoryDatabase.GetNumbers())
             {
@@ -24,8 +22,8 @@ namespace LiteBus.WebApi.Queries
 
                 yield return await Task.FromResult(number);
             }
-            
-            Debug.WriteLine($"{nameof(StreamNumbersQueryHandler)} finished!");
+
+            Debug.WriteLine($"{nameof(StreamNumbersQueryHandler)}: stream finished!");
         }
     }
 }

@@ -2,11 +2,15 @@
 
 namespace LiteBus.Events.Abstractions
 {
+    public interface IEventHandlerBase
+    {
+    }
+
     /// <summary>
     ///     Represents an asynchronous event handler
     /// </summary>
     /// <typeparam name="TEvent">The type of event</typeparam>
-    public interface IEventHandler<TEvent> : IAsyncMessageHandler<TEvent> where TEvent : IEvent
+    public interface IEventHandler<in TEvent> : IEventHandlerBase, IAsyncMessageHandler<TEvent> where TEvent : IEvent
     {
     }
 }

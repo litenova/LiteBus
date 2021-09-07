@@ -1,18 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace LiteBus.Messaging.Abstractions
 {
-    public interface IHandleContext
-    {
-        IHandleContextData Data { get; }
-    }
-
-    public class HandleContext : IHandleContext
-    {
-        public IHandleContextData Data { get; } = new HandleContextData();
-    }
-
     public interface IHandleContextData
     {
         T Get<T>();
