@@ -2,9 +2,9 @@
 
 namespace LiteBus.Messaging.Abstractions.Descriptors
 {
-    public interface IHookDescriptor
+    public interface IPreHandlerDescriptor
     {
-        Type HookType { get; }
+        Type PreHandlerType { get; }
 
         int Order { get; }
 

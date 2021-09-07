@@ -12,24 +12,24 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
             _cancellationToken = cancellationToken;
         }
 
-        public async Task Mediate(TMessage message, IMessageContext context)
+        public async Task Mediate(TMessage message, IMessageContext messageContext)
         {
-            var handleContext = new HandleContext();
-            handleContext.Data.Set(_cancellationToken);
+            var handleContext = new HandleContext(message, _cancellationToken);
 
-            foreach (var preHandleHook in context.PreHandleAsyncHooks)
+
+            foreach (var preHandler in messageContext.PreHandlers)
             {
-                await preHandleHook.Value.ExecuteAsync(message, handleContext);
+                await preHandler.Value.PreHandleAsync(handleContext);
             }
 
-            foreach (var handler in context.Handlers)
+            foreach (var handler in messageContext.Handlers)
             {
-                await (Task)handler.Value.Handle(message, handleContext);
+                await (Task)handler.Value.Handle(handleContext);
             }
 
-            foreach (var postHandleHook in context.PostHandleAsyncHooks)
+            foreach (var postHandler in messageContext.PostHandlers)
             {
-                await postHandleHook.Value.ExecuteAsync(message, handleContext);
+                await postHandler.Value.PostHandleAsync(handleContext);
             }
         }
     }

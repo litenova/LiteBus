@@ -3,9 +3,9 @@
 namespace LiteBus.Messaging.Abstractions
 {
     [AttributeUsage(AttributeTargets.Class)]
-    public class HookOrderAttribute : Attribute
+    public class HandlerOrderAttribute : Attribute
     {
-        public HookOrderAttribute(int order)
+        public HandlerOrderAttribute(int order)
         {
             Order = order;
         }

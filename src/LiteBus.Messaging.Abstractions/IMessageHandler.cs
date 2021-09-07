@@ -5,7 +5,7 @@ namespace LiteBus.Messaging.Abstractions
     /// </summary>
     public interface IMessageHandler
     {
-        object Handle(object message, IHandleContext context);
+        object Handle(IHandleContext context);
     }
 
     /// <summary>
@@ -13,11 +13,11 @@ namespace LiteBus.Messaging.Abstractions
     /// </summary>
     public interface IMessageHandler<in TMessage, out TMessageResult> : IMessageHandler
     {
-        object IMessageHandler.Handle(object message, IHandleContext context)
+        object IMessageHandler.Handle(IHandleContext context)
         {
-            return Handle((TMessage)message, context);
+            return Handle(new HandleContext<TMessage>(context));
         }
 
-        TMessageResult Handle(TMessage message, IHandleContext context);
+        TMessageResult Handle(IHandleContext<TMessage> context);
     }
 }

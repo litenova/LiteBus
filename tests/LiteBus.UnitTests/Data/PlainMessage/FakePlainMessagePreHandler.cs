@@ -5,9 +5,9 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.UnitTests.Data.PlainMessage
 {
-    public class FakePlainMessagePreHandleAsyncHook : IPreHandleAsyncHook<FakePlainMessage>
+    public class FakePlainMessagePreHandler : IMessagePreHandler<FakePlainMessage>
     {
-        public Task ExecuteAsync(FakePlainMessage message, CancellationToken cancellationToken = default)
+        public Task PreHandleAsync(IHandleContext<FakePlainMessage> context)
         {
             throw new NotImplementedException();
         }

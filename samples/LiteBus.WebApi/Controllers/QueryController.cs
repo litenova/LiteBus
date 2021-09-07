@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using LiteBus.Queries.Abstractions;
 using LiteBus.WebApi.Queries;
+using LiteBus.WebApi.Stream;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LiteBus.WebApi.Controllers
