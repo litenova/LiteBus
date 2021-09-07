@@ -16,31 +16,32 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
         }
 
         public async Task<TMessageResult> Mediate(TMessage message,
-                                                  IMessageContext context)
+                                                  IMessageContext messageContext)
         {
-            if (context.Handlers.Count > 1)
+            if (messageContext.Handlers.Count > 1)
             {
                 throw new MultipleHandlerFoundException(typeof(TMessage));
             }
 
-            var handleContext = new HandleContext();
-            handleContext.Data.Set(_cancellationToken);
+            var handleContext = new HandleContext(message, _cancellationToken);
 
-            foreach (var preHandleHook in context.PreHandleAsyncHooks)
+            foreach (var preHandler in messageContext.PreHandlers)
             {
-                await preHandleHook.Value.ExecuteAsync(message, handleContext);
+                await preHandler.Value.PreHandleAsync(handleContext);
             }
 
-            var handler = context.Handlers.Single().Value;
+            var handler = messageContext.Handlers.Single().Value;
 
-            var result = (Task<TMessageResult>)handler!.Handle(message, handleContext);
+            var result = await (Task<TMessageResult>)handler!.Handle(handleContext);
 
-            foreach (var postHandleHook in context.PostHandleAsyncHooks)
+            handleContext.MessageResult = result;
+            
+            foreach (var postHandleHook in messageContext.PostHandlers)
             {
-                await postHandleHook.Value.ExecuteAsync(message, handleContext);
+                await postHandleHook.Value.PostHandleAsync(handleContext);
             }
 
-            return await result;
+            return result;
         }
     }
 
@@ -54,28 +55,27 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
         }
 
         public async Task Mediate(TMessage message,
-                                  IMessageContext context)
+                                  IMessageContext messageContext)
         {
-            if (context.Handlers.Count > 1)
+            if (messageContext.Handlers.Count > 1)
             {
                 throw new MultipleHandlerFoundException(typeof(TMessage));
             }
 
-            var handleContext = new HandleContext();
-            handleContext.Data.Set(_cancellationToken);
+            var handleContext = new HandleContext(message, _cancellationToken);
 
-            foreach (var preHandleHook in context.PreHandleAsyncHooks)
+            foreach (var preHandler in messageContext.PreHandlers)
             {
-                await preHandleHook.Value.ExecuteAsync(message, handleContext);
+                await preHandler.Value.PreHandleAsync(handleContext);
             }
 
-            var handler = context.Handlers.Single().Value;
+            var handler = messageContext.Handlers.Single().Value;
 
-            await (Task)handler!.Handle(message, handleContext);
+            await (Task)handler!.Handle(handleContext);
 
-            foreach (var postHandleHook in context.PostHandleAsyncHooks)
+            foreach (var postHandler in messageContext.PostHandlers)
             {
-                await postHandleHook.Value.ExecuteAsync(message, handleContext);
+                await postHandler.Value.PostHandleAsync(handleContext);
             }
         }
     }

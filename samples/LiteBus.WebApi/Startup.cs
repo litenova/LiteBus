@@ -31,20 +31,20 @@ namespace LiteBus.WebApi
             {
                 builder.AddCommands(commandBuilder =>
                        {
-                           commandBuilder.Register(typeof(CreateNumberCommand).Assembly)
-                                         .RegisterPostHandleHook<GlobalCommandPostHandleAsyncHook>();
+                           commandBuilder.RegisterFrom(typeof(CreateNumberCommand).Assembly)
+                                         .RegisterPostHandler<GlobalCommandPostHandler>();
                        })
                        .AddMessaging(messageBuilder =>
                        {
-                           messageBuilder.Register(typeof(PlainMessage).Assembly);
+                           messageBuilder.RegisterFrom(typeof(PlainMessage).Assembly);
                        })
                        .AddQueries(queryBuilder =>
                        {
-                           queryBuilder.Register(typeof(GetNumbersQuery).Assembly); 
+                           queryBuilder.RegisterFrom(typeof(GetNumbersQuery).Assembly); 
                        })
                        .AddEvents(eventBuilder =>
                        {
-                           eventBuilder.Register(typeof(NumberCreatedEvent).Assembly);
+                           eventBuilder.RegisterFrom(typeof(NumberCreatedEvent).Assembly);
                        });
             });
 

@@ -9,67 +9,37 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
     public class LiteBusCommandBuilder
     {
         private readonly IMessageRegistry _messageRegistry;
-        private static readonly HashSet<Assembly> ScannedAssemblies = new();
-
+        
         public LiteBusCommandBuilder(IMessageRegistry messageRegistry)
         {
             _messageRegistry = messageRegistry;
         }
 
-        public LiteBusCommandBuilder Register(Assembly assembly)
+        public LiteBusCommandBuilder RegisterFrom(Assembly assembly)
         {
             _messageRegistry.Register(assembly);
             return this;
         }
 
-        public LiteBusCommandBuilder RegisterHandler<THandler, TCommand, TCommandResult>()
-            where THandler : ICommandHandler<TCommand, TCommandResult>
-            where TCommand : ICommand<TCommandResult>
+        public LiteBusCommandBuilder RegisterHandler<THandler>() where THandler : ICommandHandlerBase
         {
             _messageRegistry.RegisterHandler(typeof(THandler));
 
             return this;
         }
 
-        public LiteBusCommandBuilder RegisterHandler<THandler, TCommand>()
-            where THandler : ICommandHandler<TCommand>
-            where TCommand : ICommand
+        public LiteBusCommandBuilder RegisterPreHandler<TCommandPreHandler>()
+            where TCommandPreHandler : ICommandPreHandlerBase
         {
-            _messageRegistry.RegisterHandler(typeof(THandler));
+            _messageRegistry.RegisterPreHandler(typeof(TCommandPreHandler));
 
             return this;
         }
-
-        public LiteBusCommandBuilder RegisterPreHandleHook<THook, TCommand>()
-            where THook : ICommandPreHandleAsyncHook<TCommand>
-            where TCommand : ICommand
+        
+        public LiteBusCommandBuilder RegisterPostHandler<TCommandPostHandler>()
+            where TCommandPostHandler : ICommandPostHandlerBase
         {
-            _messageRegistry.RegisterPreHandleHook(typeof(THook));
-
-            return this;
-        }
-
-        public LiteBusCommandBuilder RegisterPreHandleHook<THook>()
-            where THook : ICommandPreHandleAsyncHook
-        {
-            _messageRegistry.RegisterPreHandleHook(typeof(THook));
-
-            return this;
-        }
-
-        public LiteBusCommandBuilder RegisterPostHandleHook<THook, TCommand>()
-            where THook : ICommandPostHandleAsyncHook<TCommand>
-            where TCommand : ICommand
-        {
-            _messageRegistry.RegisterPostHandleHook(typeof(THook));
-
-            return this;
-        }
-
-        public LiteBusCommandBuilder RegisterPostHandleHook<THook>()
-            where THook : ICommandPostHandleAsyncHook
-        {
-            _messageRegistry.RegisterPostHandleHook(typeof(THook));
+            _messageRegistry.RegisterPostHandler(typeof(TCommandPostHandler));
 
             return this;
         }

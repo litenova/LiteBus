@@ -2,11 +2,16 @@
 
 namespace LiteBus.Commands.Abstractions
 {
+    public interface ICommandHandlerBase
+    {
+    }
+
     /// <summary>
     ///     Represents the definition of a handler that handles a command without result
     /// </summary>
     /// <typeparam name="TCommand">The type of command</typeparam>
-    public interface ICommandHandler<TCommand> : IAsyncMessageHandler<TCommand> where TCommand : ICommand
+    public interface ICommandHandler<in TCommand> : ICommandHandlerBase, IAsyncMessageHandler<TCommand>
+        where TCommand : ICommand
     {
     }
 
@@ -15,7 +20,8 @@ namespace LiteBus.Commands.Abstractions
     /// </summary>
     /// <typeparam name="TCommand">The type of command to</typeparam>
     /// <typeparam name="TCommandResult">The type of command result</typeparam>
-    public interface ICommandHandler<TCommand, TCommandResult> : IAsyncMessageHandler<TCommand, TCommandResult>
+    public interface ICommandHandler<in TCommand, TCommandResult> : ICommandHandlerBase,
+                                                                    IAsyncMessageHandler<TCommand, TCommandResult>
         where TCommand : ICommand<TCommandResult>
     {
     }

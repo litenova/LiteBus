@@ -45,13 +45,13 @@ namespace LiteBus.Messaging.Abstractions.Extensions
                 {
                     registry.RegisterHandler(type);
                 }
-                else if (@interface.IsAssignableTo(typeof(IPreHandleAsyncHook<>)))
+                else if (@interface.IsAssignableTo(typeof(IMessagePreHandler)))
                 {
-                    registry.RegisterPreHandleHook(type);
+                    registry.RegisterPreHandler(type);
                 }
-                else if (@interface.IsAssignableTo(typeof(IPostHandleAsyncHook<>)))
+                else if (@interface.IsAssignableTo(typeof(IMessagePostHandler)))
                 {
-                    registry.RegisterPostHandleHook(type);
+                    registry.RegisterPostHandler(type);
                 }
             }
         }
@@ -60,18 +60,6 @@ namespace LiteBus.Messaging.Abstractions.Extensions
             where THandler : IMessageHandler<TMessage, TMessageResult>
         {
             registry.RegisterHandler(typeof(THandler));
-        }
-
-        public static void RegisterPreHandleHook<THook, TMessage>(this IMessageRegistry registry)
-            where THook : IPreHandleAsyncHook<TMessage>
-        {
-            registry.RegisterPreHandleHook(typeof(THook));
-        }
-
-        public static void RegisterPostHandleHook<THook, TMessage>(this IMessageRegistry registry)
-            where THook : IPostHandleAsyncHook<TMessage>
-        {
-            registry.RegisterPostHandleHook(typeof(THook));
         }
     }
 }

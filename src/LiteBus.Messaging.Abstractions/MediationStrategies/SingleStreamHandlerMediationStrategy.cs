@@ -17,33 +17,34 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
         }
 
         public async IAsyncEnumerable<TMessageResult> Mediate(TMessage message,
-                                                              IMessageContext context)
+                                                              IMessageContext messageContext)
         {
-            if (context.Handlers.Count > 1)
+            if (messageContext.Handlers.Count > 1)
             {
                 throw new MultipleHandlerFoundException(typeof(TMessage));
             }
 
-            var handleContext = new HandleContext();
-            handleContext.Data.Set(_cancellationToken);
+            var handleContext = new HandleContext(message, _cancellationToken);
 
-            foreach (var preHandleHook in context.PreHandleAsyncHooks)
+            foreach (var preHandler in messageContext.PreHandlers)
             {
-                await preHandleHook.Value.ExecuteAsync(message, handleContext);
+                await preHandler.Value.PreHandleAsync(handleContext);
             }
 
-            var handler = context.Handlers.Single().Value;
+            var handler = messageContext.Handlers.Single().Value;
 
-            var result = (IAsyncEnumerable<TMessageResult>)handler!.Handle(message, handleContext);
+            var result = (IAsyncEnumerable<TMessageResult>)handler!.Handle(handleContext);
 
             await foreach (var messageResult in result.WithCancellation(_cancellationToken))
             {
                 yield return messageResult;
             }
+
+            handleContext.MessageResult = result;
             
-            foreach (var postHandleHook in context.PostHandleAsyncHooks)
+            foreach (var postHandler in messageContext.PostHandlers)
             {
-                await postHandleHook.Value.ExecuteAsync(message, handleContext);
+                await postHandler.Value.PostHandleAsync(handleContext);
             }
         }
     }

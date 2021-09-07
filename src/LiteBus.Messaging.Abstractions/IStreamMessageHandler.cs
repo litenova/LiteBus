@@ -10,9 +10,9 @@ namespace LiteBus.Messaging.Abstractions
     /// <typeparam name="TMessageResult">the message result type</typeparam>
     public interface IStreamMessageHandler<in TMessage, out TMessageResult> : IMessageHandler<TMessage, IAsyncEnumerable<TMessageResult>>
     {
-        IAsyncEnumerable<TMessageResult> IMessageHandler<TMessage, IAsyncEnumerable<TMessageResult>>.Handle(TMessage message, IHandleContext context)
+        IAsyncEnumerable<TMessageResult> IMessageHandler<TMessage, IAsyncEnumerable<TMessageResult>>.Handle(IHandleContext<TMessage> context)
         {
-            return HandleAsync(message, context.Data.Get<CancellationToken>());
+            return HandleAsync(context.Message, context.CancellationToken);
         }
 
         /// <summary>

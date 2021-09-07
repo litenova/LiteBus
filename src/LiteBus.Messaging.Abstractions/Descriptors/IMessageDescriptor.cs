@@ -7,10 +7,10 @@ namespace LiteBus.Messaging.Abstractions.Descriptors
     {
         Type MessageType { get; }
 
-        IReadOnlyCollection<IHandlerDescriptor> HandlerDescriptors { get; }
+        IReadOnlyCollection<IHandlerDescriptor> Handlers { get; }
 
-        IReadOnlyCollection<IHookDescriptor> PostHandleHookDescriptors { get; }
+        IReadOnlyCollection<IPostHandlerDescriptor> PostHandlers { get; }
 
-        IReadOnlyCollection<IHookDescriptor> PreHandleHookDescriptors { get; }
+        IReadOnlyCollection<IPreHandlerDescriptor> PreHandlers { get; }
     }
 }

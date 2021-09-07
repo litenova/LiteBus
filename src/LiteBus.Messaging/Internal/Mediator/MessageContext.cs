@@ -16,16 +16,16 @@ namespace LiteBus.Messaging.Internal.Mediator
         {
             _serviceProvider = serviceProvider;
 
-            Handlers = ResolveHandlers(descriptor.HandlerDescriptors).ToLazyReadOnlyCollection();
-            PostHandleAsyncHooks = ResolvePostHandleHooks(descriptor.PostHandleHookDescriptors).ToLazyReadOnlyCollection();
-            PreHandleAsyncHooks = ResolvePreHandleHooks(descriptor.PreHandleHookDescriptors).ToLazyReadOnlyCollection();
+            Handlers = ResolveHandlers(descriptor.Handlers).ToLazyReadOnlyCollection();
+            PostHandlers = ResolvePostHandleHooks(descriptor.PostHandlers).ToLazyReadOnlyCollection();
+            PreHandlers = ResolvePreHandleHooks(descriptor.PreHandlers).ToLazyReadOnlyCollection();
         }
 
         public ILazyReadOnlyCollection<IMessageHandler> Handlers { get; }
 
-        public ILazyReadOnlyCollection<IAsyncHook> PostHandleAsyncHooks { get; }
+        public ILazyReadOnlyCollection<IMessagePostHandler> PostHandlers { get; }
 
-        public ILazyReadOnlyCollection<IAsyncHook> PreHandleAsyncHooks { get; }
+        public ILazyReadOnlyCollection<IMessagePreHandler> PreHandlers { get; }
 
         private IEnumerable<Lazy<IMessageHandler>> ResolveHandlers(IReadOnlyCollection<IHandlerDescriptor> descriptors)
         {
@@ -47,46 +47,46 @@ namespace LiteBus.Messaging.Internal.Mediator
             }
         }
 
-        private IEnumerable<Lazy<IAsyncHook>> ResolvePreHandleHooks(IReadOnlyCollection<IHookDescriptor> descriptors)
+        private IEnumerable<Lazy<IMessagePreHandler>> ResolvePreHandleHooks(IReadOnlyCollection<IPreHandlerDescriptor> descriptors)
         {
             foreach (var descriptor in descriptors.OrderBy(d => d.Order))
             {
-                var hookType = descriptor.HookType;
+                var hookType = descriptor.PreHandlerType;
 
                 var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(hookType));
 
-                yield return new Lazy<IAsyncHook>(() =>
+                yield return new Lazy<IMessagePreHandler>(() =>
                 {
-                    var hook = resolveFunc();
+                    var preHandler = resolveFunc();
 
-                    if (hook is null)
+                    if (preHandler is null)
                     {
                         throw new NotResolvedException(hookType);
                     }
 
-                    return hook as IAsyncHook;
+                    return preHandler as IMessagePreHandler;
                 });
             }
         }
 
-        private IEnumerable<Lazy<IAsyncHook>> ResolvePostHandleHooks(IReadOnlyCollection<IHookDescriptor> descriptors)
+        private IEnumerable<Lazy<IMessagePostHandler>> ResolvePostHandleHooks(IReadOnlyCollection<IPostHandlerDescriptor> descriptors)
         {
             foreach (var descriptor in descriptors.OrderBy(d => d.Order))
             {
-                var hookType = descriptor.HookType;
+                var postHandlerType = descriptor.PostHandlerType;
 
-                var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(hookType));
+                var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(postHandlerType));
 
-                yield return new Lazy<IAsyncHook>(() =>
+                yield return new Lazy<IMessagePostHandler>(() =>
                 {
-                    var hook = resolveFunc();
+                    var postHandler = resolveFunc();
 
-                    if (hook is null)
+                    if (postHandler is null)
                     {
-                        throw new NotResolvedException(hookType);
+                        throw new NotResolvedException(postHandlerType);
                     }
 
-                    return hook as IAsyncHook;
+                    return postHandler as IMessagePostHandler;
                 });
             }
         }

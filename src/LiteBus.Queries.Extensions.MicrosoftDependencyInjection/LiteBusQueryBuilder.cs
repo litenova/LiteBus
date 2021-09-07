@@ -8,32 +8,37 @@ namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection
     public class LiteBusQueryBuilder
     {
         private readonly IMessageRegistry _messageRegistry;
-
+        
         public LiteBusQueryBuilder(IMessageRegistry messageRegistry)
         {
             _messageRegistry = messageRegistry;
         }
 
-        public LiteBusQueryBuilder Register(Assembly assembly)
+        public LiteBusQueryBuilder RegisterFrom(Assembly assembly)
         {
             _messageRegistry.Register(assembly);
             return this;
         }
 
-        public LiteBusQueryBuilder RegisterHandler<THandler, TQuery, TQueryResult>()
-            where THandler : IQueryHandler<TQuery, TQueryResult>
-            where TQuery : IQuery<TQueryResult>
+        public LiteBusQueryBuilder RegisterHandler<THandler>() where THandler : IQueryHandlerBase
         {
             _messageRegistry.RegisterHandler(typeof(THandler));
 
             return this;
         }
 
-        public LiteBusQueryBuilder RegisterStreamHandler<THandler, TQuery, TQueryResult>()
-            where THandler : IStreamQueryHandler<TQuery, TQueryResult>
-            where TQuery : IStreamQuery<TQueryResult>
+        public LiteBusQueryBuilder RegisterPreHandler<TQueryPreHandler>()
+            where TQueryPreHandler : IQueryPreHandlerBase
         {
-            _messageRegistry.RegisterHandler(typeof(THandler));
+            _messageRegistry.RegisterPreHandler(typeof(TQueryPreHandler));
+
+            return this;
+        }
+        
+        public LiteBusQueryBuilder RegisterPostHandler<TQueryPostHandler>() 
+            where TQueryPostHandler : IQueryPostHandlerBase
+        {
+            _messageRegistry.RegisterPostHandler(typeof(TQueryPostHandler));
 
             return this;
         }

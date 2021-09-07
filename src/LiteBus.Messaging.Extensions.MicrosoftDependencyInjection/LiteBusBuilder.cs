@@ -33,19 +33,19 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
 
             foreach (var descriptor in _messageRegistry)
             {
-                foreach (var handlerDescriptor in descriptor.HandlerDescriptors)
+                foreach (var handlerDescriptor in descriptor.Handlers)
                 {
                     _services.TryAddTransient(handlerDescriptor.HandlerType);
                 }
 
-                foreach (var postHandleDescriptor in descriptor.PostHandleHookDescriptors)
+                foreach (var postHandleDescriptor in descriptor.PostHandlers)
                 {
-                    _services.TryAddTransient(postHandleDescriptor.HookType);
+                    _services.TryAddTransient(postHandleDescriptor.PostHandlerType);
                 }
 
-                foreach (var preHandleDescriptor in descriptor.PreHandleHookDescriptors)
+                foreach (var preHandleDescriptor in descriptor.PreHandlers)
                 {
-                    _services.TryAddTransient(preHandleDescriptor.HookType);
+                    _services.TryAddTransient(preHandleDescriptor.PreHandlerType);
                 }
             }
         }

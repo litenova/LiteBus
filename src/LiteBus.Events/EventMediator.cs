@@ -17,13 +17,13 @@ namespace LiteBus.Events
             _messageMediator = messageMediator;
         }
 
-        public async Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
+        public async Task PublishAsync(IEvent @Event, CancellationToken cancellationToken = default)
         {
             var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(cancellationToken);
 
             var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy();
 
-            await _messageMediator.Mediate(@event, findStrategy, mediationStrategy);
+            await _messageMediator.Mediate(@Event, findStrategy, mediationStrategy);
         }
     }
 }

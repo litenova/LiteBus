@@ -4,8 +4,8 @@
     {
         ILazyReadOnlyCollection<IMessageHandler> Handlers { get; }
 
-        ILazyReadOnlyCollection<IAsyncHook> PostHandleAsyncHooks { get; }
+        ILazyReadOnlyCollection<IMessagePreHandler> PreHandlers { get; }
 
-        ILazyReadOnlyCollection<IAsyncHook> PreHandleAsyncHooks { get; }
+        ILazyReadOnlyCollection<IMessagePostHandler> PostHandlers { get; }
     }
 }
