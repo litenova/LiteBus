@@ -39,11 +39,13 @@ namespace LiteBus.Messaging.Internal.Registry
                 if (@interface.IsGenericType &&
                     @interface.GetGenericTypeDefinition().IsAssignableTo(typeof(IMessageHandler<,>)))
                 {
+                    var messageType = @interface.GetGenericArguments()[0];
                     var handlerDescriptor = new HandlerDescriptor
                     {
-                        HandlerType = handlerType,
-                        MessageType = @interface.GetGenericArguments()[0],
-                        MessageResultType = @interface.GetGenericArguments()[1]
+                        HandlerType = handlerType.IsGenericType ? handlerType.GetGenericTypeDefinition() : handlerType,
+                        MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
+                        MessageResultType = @interface.GetGenericArguments()[1],
+                        IsGeneric = handlerType.IsGenericType
                     };
 
                     var messageDescriptor = GetOrAddMessageDescriptor(handlerDescriptor.MessageType);
@@ -59,7 +61,7 @@ namespace LiteBus.Messaging.Internal.Registry
             {
                 return;
             }
-            
+
             foreach (var @interface in preHandlerType.GetInterfaces())
             {
                 if (@interface.IsGenericType &&
@@ -101,7 +103,8 @@ namespace LiteBus.Messaging.Internal.Registry
                         messageResultType = @interface.GetGenericArguments()[1];
                     }
 
-                    var postHandlerDescriptor = new PostHandlerDescriptor(postHandlerType, messageType, messageResultType);
+                    var postHandlerDescriptor =
+                        new PostHandlerDescriptor(postHandlerType, messageType, messageResultType);
 
                     foreach (var messageDescriptor in _messageDescriptors.Values)
                     {
