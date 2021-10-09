@@ -13,6 +13,12 @@ namespace LiteBus.Messaging.Internal.Registry
 
         public MessageDescriptor(Type messageType)
         {
+            if (messageType.IsGenericType)
+            {
+                IsGeneric = true;
+                messageType = messageType.GetGenericTypeDefinition();
+            }
+
             MessageType = messageType;
         }
 
@@ -24,13 +30,15 @@ namespace LiteBus.Messaging.Internal.Registry
 
         public IReadOnlyCollection<IPreHandlerDescriptor> PreHandlers => _preHandlers;
 
+        public bool IsGeneric { get; }
+
         public void AddHandlerDescriptor(HandlerDescriptor handlerDescriptor)
         {
             if (_handlers.Any(h => h.HandlerType == handlerDescriptor.HandlerType))
             {
                 return;
             }
-            
+
             _handlers.Add(handlerDescriptor);
         }
 
@@ -40,7 +48,7 @@ namespace LiteBus.Messaging.Internal.Registry
             {
                 return;
             }
-            
+
             _postHandlers.Add(postHandlerDescriptor);
         }
 
@@ -50,7 +58,7 @@ namespace LiteBus.Messaging.Internal.Registry
             {
                 return;
             }
-            
+
             _preHandlers.Add(preHandlerDescriptor);
         }
     }

@@ -9,5 +9,9 @@ namespace LiteBus.Messaging.Abstractions.Descriptors
         Type MessageType { get; }
 
         Type MessageResultType { get; }
+        
+        bool IsGeneric { get; }
+        
+        
     }
 }

@@ -19,9 +19,11 @@ namespace LiteBus.Messaging.Internal.Mediator
                                                                 IMessageResolveStrategy messageResolveStrategy,
                                                                 IMessageMediationStrategy<TMessage, TMessageResult> messageMediationStrategy)
         {
-            var descriptor = messageResolveStrategy.Find(message.GetType(), _messageRegistry);
+            var messageType = message.GetType();
+            
+            var descriptor = messageResolveStrategy.Find(messageType, _messageRegistry);
 
-            var context = new MessageContext(descriptor, _serviceProvider);
+            var context = new MessageContext(messageType, descriptor, _serviceProvider);
 
             return messageMediationStrategy.Mediate(message, context);
         }
