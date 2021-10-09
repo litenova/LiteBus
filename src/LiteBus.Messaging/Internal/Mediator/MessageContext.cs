@@ -10,10 +10,12 @@ namespace LiteBus.Messaging.Internal.Mediator
 {
     public class MessageContext : IMessageContext
     {
+        private readonly Type _messageType;
         private readonly IServiceProvider _serviceProvider;
 
-        public MessageContext(IMessageDescriptor descriptor, IServiceProvider serviceProvider)
+        public MessageContext(Type messageType, IMessageDescriptor descriptor, IServiceProvider serviceProvider)
         {
+            _messageType = messageType;
             _serviceProvider = serviceProvider;
 
             Handlers = ResolveHandlers(descriptor.Handlers).ToLazyReadOnlyCollection();
@@ -31,7 +33,14 @@ namespace LiteBus.Messaging.Internal.Mediator
         {
             foreach (var descriptor in descriptors)
             {
-                var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(descriptor.HandlerType));
+                var handlerType = descriptor.HandlerType;
+                
+                if (descriptor.IsGeneric)
+                {
+                    handlerType = handlerType.MakeGenericType(_messageType.GetGenericArguments());
+                }
+                
+                var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(handlerType));
 
                 yield return new Lazy<IMessageHandler>(() =>
                 {
@@ -39,7 +48,7 @@ namespace LiteBus.Messaging.Internal.Mediator
 
                     if (handler is null)
                     {
-                        throw new NotResolvedException(descriptor.HandlerType);
+                        throw new NotResolvedException(handlerType);
                     }
 
                     return handler as IMessageHandler;

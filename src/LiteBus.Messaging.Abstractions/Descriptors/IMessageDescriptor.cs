@@ -12,5 +12,7 @@ namespace LiteBus.Messaging.Abstractions.Descriptors
         IReadOnlyCollection<IPostHandlerDescriptor> PostHandlers { get; }
 
         IReadOnlyCollection<IPreHandlerDescriptor> PreHandlers { get; }
+        
+        bool IsGeneric { get; }
     }
 }

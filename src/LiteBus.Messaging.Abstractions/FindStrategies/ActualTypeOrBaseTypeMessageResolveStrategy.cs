@@ -9,6 +9,11 @@ namespace LiteBus.Messaging.Abstractions.FindStrategies
     {
         public IMessageDescriptor Find(Type messageType, IMessageRegistry messageRegistry)
         {
+            if (messageType.IsGenericType)
+            {
+                messageType = messageType.GetGenericTypeDefinition();
+            }
+            
             var descriptor = messageRegistry.SingleOrDefault(d => d.MessageType == messageType) ??
                              messageRegistry.SingleOrDefault(d => d.MessageType == messageType.BaseType);
 
