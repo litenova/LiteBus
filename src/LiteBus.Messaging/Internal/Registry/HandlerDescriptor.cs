@@ -10,5 +10,7 @@ namespace LiteBus.Messaging.Internal.Registry
         public Type MessageType { get; set; }
 
         public Type MessageResultType { get; set; }
+
+        public bool IsGeneric { get; set; }
     }
 }
