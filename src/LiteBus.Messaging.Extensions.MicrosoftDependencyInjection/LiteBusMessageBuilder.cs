@@ -39,5 +39,12 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
 
             return this;
         }
+        
+        public LiteBusMessageBuilder RegisterErrorHandler<TErrorHandler>() where TErrorHandler : IMessageErrorHandler
+        {
+            _messageRegistry.RegisterErrorHandler(typeof(TErrorHandler));
+
+            return this;
+        }
     }
 }

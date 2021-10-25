@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions.Exceptions;
@@ -25,23 +26,42 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
 
             var handleContext = new HandleContext(message, _cancellationToken);
 
-            foreach (var preHandler in messageContext.PreHandlers)
+            try
             {
-                await preHandler.Value.PreHandleAsync(handleContext);
-            }
+                foreach (var preHandler in messageContext.PreHandlers)
+                {
+                    await preHandler.Value.PreHandleAsync(handleContext);
+                }
 
-            var handler = messageContext.Handlers.Single().Value;
+                var handler = messageContext.Handlers.Single().Value;
 
-            var result = await (Task<TMessageResult>)handler!.Handle(handleContext);
+                var result = await (Task<TMessageResult>)handler!.Handle(handleContext);
 
-            handleContext.MessageResult = result;
+                handleContext.MessageResult = result;
             
-            foreach (var postHandleHook in messageContext.PostHandlers)
+                foreach (var postHandler in messageContext.PostHandlers)
+                {
+                    await postHandler.Value.PostHandleAsync(handleContext);
+                }
+
+                return result;
+            }
+            catch (Exception e)
             {
-                await postHandleHook.Value.PostHandleAsync(handleContext);
+                if (messageContext.ErrorHandlers.Count == 0)
+                {
+                    throw;
+                }
+                
+                handleContext.SetException(e);
+
+                foreach (var errorHandler in messageContext.ErrorHandlers)
+                {
+                    await errorHandler.Value.HandleErrorAsync(handleContext);
+                }
             }
 
-            return result;
+            return default;
         }
     }
 
@@ -63,19 +83,36 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
             }
 
             var handleContext = new HandleContext(message, _cancellationToken);
-
-            foreach (var preHandler in messageContext.PreHandlers)
+            
+            try
             {
-                await preHandler.Value.PreHandleAsync(handleContext);
+                foreach (var preHandler in messageContext.PreHandlers)
+                {
+                    await preHandler.Value.PreHandleAsync(handleContext);
+                }
+
+                var handler = messageContext.Handlers.Single().Value;
+
+                await (Task)handler!.Handle(handleContext);
+
+                foreach (var postHandler in messageContext.PostHandlers)
+                {
+                    await postHandler.Value.PostHandleAsync(handleContext);
+                }
             }
-
-            var handler = messageContext.Handlers.Single().Value;
-
-            await (Task)handler!.Handle(handleContext);
-
-            foreach (var postHandler in messageContext.PostHandlers)
+            catch (Exception e)
             {
-                await postHandler.Value.PostHandleAsync(handleContext);
+                if (messageContext.ErrorHandlers.Count == 0)
+                {
+                    throw;
+                }
+                
+                handleContext.SetException(e);
+
+                foreach (var errorHandler in messageContext.ErrorHandlers)
+                {
+                    await errorHandler.Value.HandleErrorAsync(handleContext);
+                }
             }
         }
     }

@@ -5,8 +5,8 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Authors>Mohammad ShafieZadeh</Authors>
         <PackageTags>mediator;cqrs</PackageTags>
-        <Version>0.8.1</Version>
-        <PackageReleaseNotes>Add generic messages</PackageReleaseNotes>
+        <Version>0.9.0</Version>
+        <PackageReleaseNotes>Add error handler</PackageReleaseNotes>
         <PackageIcon>icon.png</PackageIcon>
         <Description>A liteweight and easy to use in-process mediator wirtten in .NET 5</Description>
         <PackageProjectUrl>https://github.com/arishk/LiteBus</PackageProjectUrl>

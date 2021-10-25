@@ -42,5 +42,13 @@ namespace LiteBus.Events.Extensions.MicrosoftDependencyInjection
 
             return this;
         }
+        
+        public LiteBusEventBuilder RegisterErrorHandler<TEventErrorHandler>()
+            where TEventErrorHandler : IEventErrorHandlerBase
+        {
+            _messageRegistry.RegisterErrorHandler(typeof(TEventErrorHandler));
+
+            return this;
+        }
     }
 }

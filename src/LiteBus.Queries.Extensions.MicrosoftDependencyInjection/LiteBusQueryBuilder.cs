@@ -42,5 +42,13 @@ namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection
 
             return this;
         }
+        
+        public LiteBusQueryBuilder RegisterErrorHandler<TQueryErrorHandler>()
+            where TQueryErrorHandler : IQueryErrorHandlerBase
+        {
+            _messageRegistry.RegisterErrorHandler(typeof(TQueryErrorHandler));
+
+            return this;
+        }
     }
 }

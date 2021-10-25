@@ -10,6 +10,7 @@ namespace LiteBus.Messaging.Internal.Registry
         private readonly List<HandlerDescriptor> _handlers = new();
         private readonly List<PostHandlerDescriptor> _postHandlers = new();
         private readonly List<PreHandlerDescriptor> _preHandlers = new();
+        private readonly List<ErrorHandlerDescriptor> _errorHandlers = new();
 
         public MessageDescriptor(Type messageType)
         {
@@ -31,6 +32,8 @@ namespace LiteBus.Messaging.Internal.Registry
         public IReadOnlyCollection<IPreHandlerDescriptor> PreHandlers => _preHandlers;
 
         public bool IsGeneric { get; }
+
+        public IReadOnlyCollection<IErrorHandlerDescriptor> ErrorHandlers => _errorHandlers;
 
         public void AddHandlerDescriptor(HandlerDescriptor handlerDescriptor)
         {
@@ -60,6 +63,16 @@ namespace LiteBus.Messaging.Internal.Registry
             }
 
             _preHandlers.Add(preHandlerDescriptor);
+        }
+        
+        public void AddErrorHandler(ErrorHandlerDescriptor errorHandlerDescriptor)
+        {
+            if (_errorHandlers.Any(h => h.ErrorHandlerType == errorHandlerDescriptor.ErrorHandlerType))
+            {
+                return;
+            }
+
+            _errorHandlers.Add(errorHandlerDescriptor);
         }
     }
 }

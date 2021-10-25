@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 
 namespace LiteBus.Messaging.Abstractions
@@ -11,6 +12,8 @@ namespace LiteBus.Messaging.Abstractions
         object Message { get; }
 
         object MessageResult { get; }
+
+        public Exception Exception { get;  }
     }
 
     public interface IHandleContext<out TMessage> : IHandleContext
@@ -47,6 +50,13 @@ namespace LiteBus.Messaging.Abstractions
         public object Message { get; protected set; }
 
         public object MessageResult { get; set; }
+
+        public Exception Exception { get; protected set; }
+
+        public void SetException(Exception exception)
+        {
+            Exception = exception;
+        }
     }
 
     public class HandleContext<TMessage> : HandleContext, IHandleContext<TMessage>
@@ -57,6 +67,7 @@ namespace LiteBus.Messaging.Abstractions
             CancellationToken = context.CancellationToken;
             Message = (TMessage)context.Message;
             MessageResult = context.MessageResult;
+            Exception = context.Exception;
         }
 
         public new TMessage Message { get; }

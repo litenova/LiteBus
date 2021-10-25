@@ -43,5 +43,13 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
 
             return this;
         }
+        
+        public LiteBusCommandBuilder RegisterErrorHandler<TCommandErrorHandler>()
+            where TCommandErrorHandler : ICommandErrorHandlerBase
+        {
+            _messageRegistry.RegisterErrorHandler(typeof(TCommandErrorHandler));
+
+            return this;
+        }        
     }
 }
