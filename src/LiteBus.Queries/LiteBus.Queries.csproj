@@ -5,8 +5,8 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Authors>Mohammad ShafieZadeh</Authors>
         <PackageTags>mediator;cqrs</PackageTags>
-        <Version>0.9.0</Version>
-        <PackageReleaseNotes>Add error handler</PackageReleaseNotes>
+        <Version>0.9.1</Version>
+        <PackageReleaseNotes>prevent post and pre handlers errors from bieng captured by error handlers</PackageReleaseNotes>
         <PackageIcon>icon.png</PackageIcon>
         <Description>A liteweight and easy to use in-process mediator to query data</Description>
         <PackageProjectUrl>https://github.com/arishk/LiteBus</PackageProjectUrl>
