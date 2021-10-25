@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,21 +18,16 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
         {
             var handleContext = new HandleContext(message, _cancellationToken);
 
+            foreach (var preHandler in messageContext.PreHandlers)
+            {
+                await preHandler.Value.PreHandleAsync(handleContext);
+            }
+            
             try
             {
-                foreach (var preHandler in messageContext.PreHandlers)
-                {
-                    await preHandler.Value.PreHandleAsync(handleContext);
-                }
-
                 foreach (var handler in messageContext.Handlers)
                 {
                     await (Task)handler.Value.Handle(handleContext);
-                }
-
-                foreach (var postHandler in messageContext.PostHandlers)
-                {
-                    await postHandler.Value.PostHandleAsync(handleContext);
                 }
             }
             catch (Exception e)
@@ -47,6 +43,13 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
                 {
                     await errorHandler.Value.HandleErrorAsync(handleContext);
                 }
+                
+                return;
+            }
+            
+            foreach (var postHandler in messageContext.PostHandlers)
+            {
+                await postHandler.Value.PostHandleAsync(handleContext);
             }
         }
     }

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,27 +26,72 @@ namespace LiteBus.Messaging.Abstractions.MediationStrategies
             }
 
             var handleContext = new HandleContext(message, _cancellationToken);
+            IAsyncEnumerable<TMessageResult> result = AsyncEnumerable.Empty<TMessageResult>();
+            var exceptionThrown = false;
 
             foreach (var preHandler in messageContext.PreHandlers)
             {
                 await preHandler.Value.PreHandleAsync(handleContext);
             }
 
-            var handler = messageContext.Handlers.Single().Value;
+            try
+            {
+                var handler = messageContext.Handlers.Single().Value;
 
-            var result = (IAsyncEnumerable<TMessageResult>)handler!.Handle(handleContext);
+                result = (IAsyncEnumerable<TMessageResult>)handler!.Handle(handleContext);
+            }
+            catch (Exception e)
+            {
+                if (messageContext.ErrorHandlers.Count == 0)
+                {
+                    throw;
+                }
+                
+                handleContext.SetException(e);
+
+                foreach (var errorHandler in messageContext.ErrorHandlers)
+                {
+                    await errorHandler.Value.HandleErrorAsync(handleContext);
+                }
+
+                exceptionThrown = true;
+            }
 
             await foreach (var messageResult in result.WithCancellation(_cancellationToken))
             {
                 yield return messageResult;
             }
 
-            handleContext.MessageResult = result;
-            
-            foreach (var postHandler in messageContext.PostHandlers)
+            if (!exceptionThrown)
             {
-                await postHandler.Value.PostHandleAsync(handleContext);
+                handleContext.MessageResult = result;
+            
+                foreach (var postHandler in messageContext.PostHandlers)
+                {
+                    await postHandler.Value.PostHandleAsync(handleContext);
+                }
             }
+        }
+    }
+
+    public static class AsyncEnumerable
+    {
+        /// <summary>
+        /// Creates an <see cref="IAsyncEnumerable{T}"/> which yields no results, similar to <see cref="Enumerable.Empty{TResult}"/>.
+        /// </summary>
+        public static IAsyncEnumerable<T> Empty<T>() => EmptyAsyncEnumerator<T>.Instance;
+
+        private class EmptyAsyncEnumerator<T> : IAsyncEnumerator<T>, IAsyncEnumerable<T>
+        {
+            public static readonly EmptyAsyncEnumerator<T> Instance = new EmptyAsyncEnumerator<T>();
+            public T Current => default;
+            public ValueTask DisposeAsync() => default;
+            public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return this;
+            }
+            public ValueTask<bool> MoveNextAsync() => new ValueTask<bool>(false);
         }
     }
 }
