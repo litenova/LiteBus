@@ -47,6 +47,11 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
                 {
                     _services.TryAddTransient(preHandleDescriptor.PreHandlerType);
                 }
+                
+                foreach (var errorHandlerDescriptor in descriptor.ErrorHandlers)
+                {
+                    _services.TryAddTransient(errorHandlerDescriptor.ErrorHandlerType);
+                }
             }
         }
     }
