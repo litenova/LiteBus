@@ -7,5 +7,7 @@
         ILazyReadOnlyCollection<IMessagePreHandler> PreHandlers { get; }
 
         ILazyReadOnlyCollection<IMessagePostHandler> PostHandlers { get; }
+        
+        ILazyReadOnlyCollection<IMessageErrorHandler> ErrorHandlers { get; }
     }
 }

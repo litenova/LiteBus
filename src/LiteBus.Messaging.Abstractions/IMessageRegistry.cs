@@ -11,5 +11,7 @@ namespace LiteBus.Messaging.Abstractions
         void RegisterPreHandler(Type preHandlerType);
 
         void RegisterPostHandler(Type postHandlerType);
+        
+        void RegisterErrorHandler(Type errorHandlerType);
     }
 }

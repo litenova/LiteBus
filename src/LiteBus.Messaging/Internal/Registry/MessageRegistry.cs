@@ -13,11 +13,13 @@ namespace LiteBus.Messaging.Internal.Registry
         private readonly ConcurrentDictionary<Type, MessageDescriptor> _messageDescriptors = new();
         private readonly ConcurrentDictionary<Type, PostHandlerDescriptor> _postHandlers = new();
         private readonly ConcurrentDictionary<Type, PreHandlerDescriptor> _preHandlers = new();
+        private readonly ConcurrentDictionary<Type, ErrorHandlerDescriptor> _errorHandlers = new();
 
         public MessageRegistry()
         {
             NewMessageDescriptorCreated += UpdateNewMessagePostHandlers;
             NewMessageDescriptorCreated += UpdateNewMessagePreHandlers;
+            NewMessageDescriptorCreated += UpdateNewMessageErrorHandlers;
         }
 
         public int Count => _messageDescriptors.Count;
@@ -80,6 +82,35 @@ namespace LiteBus.Messaging.Internal.Registry
                     }
 
                     _preHandlers[preHandlerType] = preHandlerDescriptor;
+                }
+            }
+        }
+        
+        public void RegisterErrorHandler(Type errorHandlerType)
+        {
+            if (_errorHandlers.ContainsKey(errorHandlerType))
+            {
+                return;
+            }
+
+            foreach (var @interface in errorHandlerType.GetInterfaces())
+            {
+                if (@interface.IsGenericType &&
+                    @interface.GetGenericTypeDefinition().IsAssignableTo(typeof(IMessageErrorHandler<>)))
+                {
+                    var messageType = @interface.GetGenericArguments()[0];
+
+                    var errorHandlerDescriptor = new ErrorHandlerDescriptor(errorHandlerType, messageType);
+
+                    foreach (var messageDescriptor in _messageDescriptors.Values)
+                    {
+                        if (messageDescriptor.MessageType.IsAssignableTo(errorHandlerDescriptor.MessageType))
+                        {
+                            messageDescriptor.AddErrorHandler(errorHandlerDescriptor);
+                        }
+                    }
+
+                    _errorHandlers[errorHandlerType] = errorHandlerDescriptor;
                 }
             }
         }
@@ -151,6 +182,17 @@ namespace LiteBus.Messaging.Internal.Registry
                 if (preHandlerDescriptor.MessageType.IsAssignableFrom(e.MessageType))
                 {
                     e.AddPreHandler(preHandlerDescriptor);
+                }
+            }
+        }
+        
+        private void UpdateNewMessageErrorHandlers(object? sender, MessageDescriptor e)
+        {
+            foreach (var errorHandlerDescriptor in _errorHandlers.Values)
+            {
+                if (errorHandlerDescriptor.MessageType.IsAssignableFrom(e.MessageType))
+                {
+                    e.AddErrorHandler(errorHandlerDescriptor);
                 }
             }
         }

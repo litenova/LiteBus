@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.WebApi.Commands;
+using LiteBus.WebApi.CommandsWithError;
 using LiteBus.WebApi.GenericCommands;
 using Microsoft.AspNetCore.Mvc;
 
@@ -33,6 +34,14 @@ namespace LiteBus.WebApi.Controllers
         public async Task<IActionResult> SendGenericCommand()
         {
             await _commandMediator.SendAsync(new CreateVehicleCommand<string>());
+
+            return Ok();
+        }
+        
+        [HttpPost("error")]
+        public async Task<IActionResult> SendErrorCommand()
+        {
+            await _commandMediator.SendAsync(new ECommand());
 
             return Ok();
         }

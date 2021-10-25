@@ -53,6 +53,10 @@ namespace LiteBus.Messaging.Abstractions.Extensions
                 {
                     registry.RegisterPostHandler(type);
                 }
+                else if (@interface.IsAssignableTo(typeof(IMessageErrorHandler)))
+                {
+                    registry.RegisterErrorHandler(type);
+                }
             }
         }
 
