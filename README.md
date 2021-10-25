@@ -29,7 +29,7 @@
 
 * Written in .NET 5
 * No Dependencies
-* Minimum Reflection Usage (only for registering handlers)
+* Minimum Reflection Usage
 * Utilizing Covariance, Contravariance, and Polymorphism to Dispatch Messages
 * Built-in Messaging Types
     * Command without Result `ICommand`
@@ -39,11 +39,11 @@
     * Event `IEvent`
 * Flexible and Extensible 
 * Modular Design, Only Add What You Need
-* Utilizing C# 8 Default Interface Implementation Feature to Provide Logical and Easy to Use API
+* Utilizing C# 8 Default Interface Implementation Feature Resulting in Easy to Use API
 * Supports Polymorphism Dispatch
-* Orderable Handlers and Hooks
-* Supports Plain Messages
-* Supports Generic Messages (Development In Progress)
+* Orderable Handlers
+* Supports Plain Messages (Classes with no interface implementation)
+* Supports Generic Messages
 
 ## Installation and Configuration
 
@@ -65,7 +65,7 @@ dotnet add package LiteBus
 dotnet add package LiteBus.Extensions.MicrosoftDependencyInjection
 ```
 
-and configure the LiteBus as below in the `ConfigureServices` method of `Startup.cs`:
+and configure each module of LiteBus as needed in the `ConfigureServices` method of `Startup.cs`:
 
 ```c#
 services.AddLiteBus(builder =>
@@ -73,7 +73,7 @@ services.AddLiteBus(builder =>
     builder.AddCommands(commandBuilder =>
            {
                commandBuilder.Register(typeof(CreateNumberCommand).Assembly)
-                             .RegisterPostHandleHook<GlobalCommandPostHandleAsyncHook>();
+                             .RegisterPostHandler<GlobalCommandPostHandleAsyncr>();
            })
            .AddMessaging(messageBuilder =>
            {
@@ -231,59 +231,55 @@ class to publish events.
     }
 ```
 
-## Hooks
+## Post Handlers
 
-Hooks allow you to execute an action in a certain stage of message handling. Currently, hooks are only available for
-commands.
-
-* **Post Handle Hooks**: execute an action after a message is handled
-* **Pre Handle Hooks** execute an action before a message is handled
-
-### Post Handle Hook
+A post-handler executes after a message is handled
 
 ```c#
 
     // Exectues an action after each command is handled
-    public class GlobalCommandPostHandleHook : ICommandPostHandleHook
+    public class GlobalCommandPostHandler : ICommandPostHandler
     {
         public Task ExecuteAsync(IBaseCommand message, CancellationToken cancellationToken = default)
         {
-            Debug.WriteLine("GlobalCommandPostHandleHook executed!");
+            Debug.WriteLine("GlobalCommandPostHandler executed!");
             return Task.CompletedTask;
         }
     }
 
     // Exectues an action after the specified command is handled
-    public class CreateColorCommandPostHandleHook : ICommandPostHandleHook<CreateColorCommand>
+    public class CreateColorCommandPostHandler : ICommandPostHandler<CreateColorCommand>
     {
         public Task ExecuteAsync(CreateColorCommand message, CancellationToken cancellationToken = default)
         {
-            Debug.WriteLine("CreateColorCommandPostHandleHook executed!");
+            Debug.WriteLine("CreateColorCommandPostHandler executed!");
             return Task.CompletedTask;
         }
     }
 ```
 
-### Pre Handle Hook
+### Pre Handlers
+
+A pre-handler executes before a message is handled
 
 ```c#
 
     // Exectues an action beafore each command is handled
-    public class GlobalCommandPreHandleHook : ICommandPreHandleHook
+    public class GlobalCommandPreHandler : ICommandPreHandler
     {
         public Task ExecuteAsync(IBaseCommand message, CancellationToken cancellationToken = default)
         {
-            Debug.WriteLine("GlobalCommandPreHandleHook executed!");
+            Debug.WriteLine("GlobalCommandPreHandler executed!");
             return Task.CompletedTask;
         }
     }
 
     // Exectues an action before the specified command is handled
-    public class CreateColorCommandPreHandleHook : ICommandPreHandleHook<CreateColorCommand>
+    public class CreateColorCommandPreHandler : ICommandPreHandler<CreateColorCommand>
     {
         public Task ExecuteAsync(CreateColorCommand message, CancellationToken cancellationToken = default)
         {
-            Debug.WriteLine("CreateColorCommandPreHandleHook executed!");
+            Debug.WriteLine("CreateColorCommandPreHandler executed!");
             return Task.CompletedTask;
         }
     }
