@@ -1,24 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <TargetFramework>net5.0</TargetFramework>
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Authors>Mohammad ShafieZadeh</Authors>
-        <PackageTags>mediator;cqrs</PackageTags>
-        <Version>0.9.1</Version>
-        <PackageReleaseNotes>prevent post and pre handlers errors from bieng captured by error handlers</PackageReleaseNotes>
-        <PackageIcon>icon.png</PackageIcon>
-        <Description>A liteweight and easy to use in-process mediator to query data</Description>
-        <PackageProjectUrl>https://github.com/arishk/LiteBus</PackageProjectUrl>
-        <RepositoryUrl>https://github.com/arishk/LiteBus</RepositoryUrl>
-    </PropertyGroup>
-
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath="" />
     </ItemGroup>
 
 </Project>

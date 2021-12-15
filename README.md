@@ -27,7 +27,7 @@
 
 ## Key Features
 
-* Written in .NET 5
+* Written in .NET 6
 * No Dependencies
 * Minimum Reflection Usage
 * Utilizing Covariance, Contravariance, and Polymorphism to Dispatch Messages
