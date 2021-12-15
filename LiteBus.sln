@@ -20,6 +20,7 @@ ProjectSection(SolutionItems) = preProject
 	.github\workflows\dotnet-core.yml = .github\workflows\dotnet-core.yml
 	.github\workflows\publish-packages.yml = .github\workflows\publish-packages.yml
 	global.json = global.json
+	Directory.Build.props = Directory.Build.props
 EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Messaging.Abstractions", "src\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj", "{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14}"

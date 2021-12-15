@@ -1,22 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
-    <PropertyGroup>
-        <TargetFramework>net5.0</TargetFramework>
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Authors>Mohammad ShafieZadeh</Authors>
-        <PackageTags>mediator;cqrs</PackageTags>
-        <Version>0.9.1</Version>
-        <PackageReleaseNotes>prevent post and pre handlers errors from bieng captured by error handlers</PackageReleaseNotes>
-        <PackageIcon>icon.png</PackageIcon>
-        <Description>LiteBus extensions to integrate with microsoft dependency injection</Description>
-        <PackageProjectUrl>https://github.com/arishk/LiteBus</PackageProjectUrl>
-        <RepositoryUrl>https://github.com/arishk/LiteBus</RepositoryUrl>
-    </PropertyGroup>
-
-    <ItemGroup>
-        <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath=""/>
-    </ItemGroup>
-
+    
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Commands.Extensions.MicrosoftDependencyInjection\LiteBus.Commands.Extensions.MicrosoftDependencyInjection.csproj"/>
         <ProjectReference Include="..\LiteBus.Events.Extensions.MicrosoftDependencyInjection\LiteBus.Events.Extensions.MicrosoftDependencyInjection.csproj"/>
