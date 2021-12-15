@@ -1,24 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <TargetFramework>net5.0</TargetFramework>
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Authors>Mohammad ShafieZadeh</Authors>
-        <PackageTags>mediator;cqrs</PackageTags>
-        <Version>0.9.1</Version>
-        <PackageReleaseNotes>prevent post and pre handlers errors from bieng captured by error handlers</PackageReleaseNotes>
-        <PackageIcon>icon.png</PackageIcon>
-        <Description>A liteweight and easy to use in-process mediator to send commands</Description>
-        <PackageProjectUrl>https://github.com/arishk/LiteBus</PackageProjectUrl>
-        <RepositoryUrl>https://github.com/arishk/LiteBus</RepositoryUrl>
-    </PropertyGroup>
-
-    <ItemGroup>
-        <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath=""/>
-    </ItemGroup>
-
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Commands\LiteBus.Commands.csproj"/>
         <ProjectReference Include="..\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.csproj"/>
     </ItemGroup>
+
 </Project>
