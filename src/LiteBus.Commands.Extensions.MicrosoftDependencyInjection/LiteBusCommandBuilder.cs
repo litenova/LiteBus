@@ -17,13 +17,13 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
 
         public LiteBusCommandBuilder RegisterFrom(Assembly assembly)
         {
-            _messageRegistry.Register(assembly);
+            _messageRegistry.RegisterFrom<ICommandConstruct>(assembly);
             return this;
         }
 
         public LiteBusCommandBuilder RegisterHandler<THandler>() where THandler : ICommandHandlerBase
         {
-            _messageRegistry.RegisterHandler(typeof(THandler));
+            _messageRegistry.Register(typeof(THandler));
 
             return this;
         }
@@ -31,7 +31,7 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
         public LiteBusCommandBuilder RegisterPreHandler<TCommandPreHandler>()
             where TCommandPreHandler : ICommandPreHandlerBase
         {
-            _messageRegistry.RegisterPreHandler(typeof(TCommandPreHandler));
+            _messageRegistry.Register(typeof(TCommandPreHandler));
 
             return this;
         }
@@ -39,7 +39,7 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
         public LiteBusCommandBuilder RegisterPostHandler<TCommandPostHandler>()
             where TCommandPostHandler : ICommandPostHandlerBase
         {
-            _messageRegistry.RegisterPostHandler(typeof(TCommandPostHandler));
+            _messageRegistry.Register(typeof(TCommandPostHandler));
 
             return this;
         }
@@ -47,7 +47,7 @@ namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection
         public LiteBusCommandBuilder RegisterErrorHandler<TCommandErrorHandler>()
             where TCommandErrorHandler : ICommandErrorHandlerBase
         {
-            _messageRegistry.RegisterErrorHandler(typeof(TCommandErrorHandler));
+            _messageRegistry.Register(typeof(TCommandErrorHandler));
 
             return this;
         }        

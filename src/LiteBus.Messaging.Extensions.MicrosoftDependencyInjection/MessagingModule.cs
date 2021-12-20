@@ -1,10 +1,11 @@
 ﻿using System;
 using LiteBus.Messaging.Abstractions;
-using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Messaging.Internal.Mediator;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
 {
-    internal class MessagingModule : IModule
+    internal class MessagingModule : ILiteBusModule
     {
         private readonly Action<LiteBusMessageBuilder> _builder;
 
@@ -13,9 +14,9 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
             _builder = builder;
         }
 
-        public void Build(IServiceCollection services, IMessageRegistry messageRegistry)
+        public void Build(ILiteBusModuleConfiguration configuration)
         {
-            _builder(new LiteBusMessageBuilder(messageRegistry));
+            _builder(new LiteBusMessageBuilder(configuration.MessageRegistry));
         }
     }
 }

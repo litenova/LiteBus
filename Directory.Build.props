@@ -6,12 +6,14 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Authors>Mohammad Shafie-Zadeh</Authors>
         <PackageTags>mediator;cqrs</PackageTags>
-        <Version>0.10.0</Version>
-        <PackageReleaseNotes>Update to .net 6</PackageReleaseNotes>
+        <Version>0.10.1</Version>
+        <PackageReleaseNotes>Refactor message registry</PackageReleaseNotes>
         <PackageIcon>icon.png</PackageIcon>
         <Description>LiteBus is an easy-to-use and ambitious in-process mediator to implement CQS. It is implemented with minimum reflection usage and streamable query support.</Description>
         <PackageProjectUrl>https://github.com/arishk/LiteBus</PackageProjectUrl>
         <RepositoryUrl>https://github.com/arishk/LiteBus</RepositoryUrl>
+        <PackageLicenseUrl>https://github.com/arishk/LiteBus/blob/main/LICENSE</PackageLicenseUrl>
+        <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>
