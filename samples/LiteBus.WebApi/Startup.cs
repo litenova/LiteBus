@@ -13,71 +13,62 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 
-namespace LiteBus.WebApi
+namespace LiteBus.WebApi;
+
+public class Startup
 {
-    public class Startup
+    public Startup(IConfiguration configuration)
     {
-        public Startup(IConfiguration configuration)
+        Configuration = configuration;
+    }
+
+    public IConfiguration Configuration { get; }
+
+    // This method gets called by the runtime. Use this method to add services to the container.
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services.AddLiteBus(builder =>
         {
-            Configuration = configuration;
+            builder.AddCommands(commandBuilder =>
+                   {
+                       commandBuilder.RegisterFrom(typeof(CreateNumberCommand).Assembly)
+                                     .RegisterPostHandler<GlobalCommandPostHandler>();
+                   })
+                   .AddMessaging(messageBuilder => { messageBuilder.RegisterFrom(typeof(PlainMessage).Assembly); })
+                   .AddQueries(queryBuilder => { queryBuilder.RegisterFrom(typeof(GetNumbersQuery).Assembly); })
+                   .AddEvents(eventBuilder => { eventBuilder.RegisterFrom(typeof(NumberCreatedEvent).Assembly); });
+        });
+
+        services.AddControllers();
+        services.AddSwaggerGen(c =>
+        {
+            c.SwaggerDoc("v1",
+                         new OpenApiInfo
+                         {
+                             Title = "LiteBus.WebApi",
+                             Version = "v1"
+                         });
+        });
+
+        services.AddTransient(typeof(CreateNumberCommandWithResult));
+    }
+
+    // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+    public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+    {
+        if (env.IsDevelopment())
+        {
+            app.UseDeveloperExceptionPage();
+            app.UseSwagger();
+            app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "LiteBus.WebApi v1"));
         }
 
-        public IConfiguration Configuration { get; }
+        app.UseHttpsRedirection();
 
-        // This method gets called by the runtime. Use this method to add services to the container.
-        public void ConfigureServices(IServiceCollection services)
-        {
-            services.AddLiteBus(builder =>
-            {
-                builder.AddCommands(commandBuilder =>
-                       {
-                           commandBuilder.RegisterFrom(typeof(CreateNumberCommand).Assembly)
-                                         .RegisterPostHandler<GlobalCommandPostHandler>();
-                       })
-                       .AddMessaging(messageBuilder =>
-                       {
-                           messageBuilder.RegisterFrom(typeof(PlainMessage).Assembly);
-                       })
-                       .AddQueries(queryBuilder =>
-                       {
-                           queryBuilder.RegisterFrom(typeof(GetNumbersQuery).Assembly); 
-                       })
-                       .AddEvents(eventBuilder =>
-                       {
-                           eventBuilder.RegisterFrom(typeof(NumberCreatedEvent).Assembly);
-                       });
-            });
+        app.UseRouting();
 
-            services.AddControllers();
-            services.AddSwaggerGen(c =>
-            {
-                c.SwaggerDoc("v1",
-                             new OpenApiInfo
-                             {
-                                 Title = "LiteBus.WebApi", Version = "v1"
-                             });
-            });
+        app.UseAuthorization();
 
-            services.AddTransient(typeof(CreateNumberCommandWithResult));
-        }
-
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
-        {
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-                app.UseSwagger();
-                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "LiteBus.WebApi v1"));
-            }
-
-            app.UseHttpsRedirection();
-
-            app.UseRouting();
-
-            app.UseAuthorization();
-
-            app.UseEndpoints(endpoints => { endpoints.MapControllers(); });
-        }
+        app.UseEndpoints(endpoints => { endpoints.MapControllers(); });
     }
 }

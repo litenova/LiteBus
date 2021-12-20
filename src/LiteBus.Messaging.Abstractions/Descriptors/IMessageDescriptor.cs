@@ -1,16 +1,16 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
-namespace LiteBus.Messaging.Abstractions.Descriptors
+namespace LiteBus.Messaging.Abstractions.Descriptors;
+
+public interface IMessageDescriptor : IDescriptor
 {
-    public interface IMessageDescriptor : IDescriptor
-    {
-        IReadOnlyCollection<IHandlerDescriptor> HandlerDescriptors { get; }
+    IReadOnlyCollection<IHandlerDescriptor> HandlerDescriptors { get; }
 
-        IReadOnlyCollection<IPostHandlerDescriptor> PostHandlerDescriptors { get; }
+    IReadOnlyCollection<IPostHandlerDescriptor> PostHandlerDescriptors { get; }
 
-        IReadOnlyCollection<IPreHandlerDescriptor> PreHandlerDescriptors { get; }
-        bool IsGeneric { get; }
-        IReadOnlyCollection<IErrorHandlerDescriptor> ErrorHandlerDescriptors { get; }
-    }
+    IReadOnlyCollection<IPreHandlerDescriptor> PreHandlerDescriptors { get; }
+
+    bool IsGeneric { get; }
+
+    IReadOnlyCollection<IErrorHandlerDescriptor> ErrorHandlerDescriptors { get; }
 }

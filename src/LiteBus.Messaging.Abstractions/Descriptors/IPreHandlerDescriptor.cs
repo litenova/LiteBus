@@ -1,11 +1,10 @@
 ﻿using System;
 
-namespace LiteBus.Messaging.Abstractions.Descriptors
-{
-    public interface IPreHandlerDescriptor : IDescriptor
-    {
-        Type PreHandlerType { get; }
+namespace LiteBus.Messaging.Abstractions.Descriptors;
 
-        int Order { get; }
-    }
+public interface IPreHandlerDescriptor : IDescriptor
+{
+    Type PreHandlerType { get; }
+
+    int Order { get; }
 }

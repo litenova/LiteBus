@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-    
+
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Commands.Extensions.MicrosoftDependencyInjection\LiteBus.Commands.Extensions.MicrosoftDependencyInjection.csproj"/>
         <ProjectReference Include="..\LiteBus.Events.Extensions.MicrosoftDependencyInjection\LiteBus.Events.Extensions.MicrosoftDependencyInjection.csproj"/>

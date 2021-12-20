@@ -6,123 +6,125 @@ using LiteBus.Messaging.Abstractions.Descriptors;
 using LiteBus.Messaging.Internal.Exceptions;
 using LiteBus.Messaging.Internal.Extensions;
 
-namespace LiteBus.Messaging.Internal.Mediator
+namespace LiteBus.Messaging.Internal.Mediator;
+
+public class MessageContext : IMessageContext
 {
-    public class MessageContext : IMessageContext
+    private readonly Type _messageType;
+    private readonly IServiceProvider _serviceProvider;
+
+    public MessageContext(Type messageType, IMessageDescriptor descriptor, IServiceProvider serviceProvider)
     {
-        private readonly Type _messageType;
-        private readonly IServiceProvider _serviceProvider;
+        _messageType = messageType;
+        _serviceProvider = serviceProvider;
 
-        public MessageContext(Type messageType, IMessageDescriptor descriptor, IServiceProvider serviceProvider)
+        Handlers = ResolveHandlers(descriptor.HandlerDescriptors).ToLazyReadOnlyCollection();
+        PostHandlers = ResolvePostHandlers(descriptor.PostHandlerDescriptors).ToLazyReadOnlyCollection();
+        PreHandlers = ResolvePreHandlers(descriptor.PreHandlerDescriptors).ToLazyReadOnlyCollection();
+        ErrorHandlers = ResolveErrorHandlers(descriptor.ErrorHandlerDescriptors).ToLazyReadOnlyCollection();
+    }
+
+    public ILazyReadOnlyCollection<IMessageHandler> Handlers { get; }
+
+    public ILazyReadOnlyCollection<IMessagePostHandler> PostHandlers { get; }
+
+    public ILazyReadOnlyCollection<IMessageErrorHandler> ErrorHandlers { get; }
+
+    public ILazyReadOnlyCollection<IMessagePreHandler> PreHandlers { get; }
+
+    private IEnumerable<Lazy<IMessageHandler>> ResolveHandlers(IReadOnlyCollection<IHandlerDescriptor> descriptors)
+    {
+        foreach (var descriptor in descriptors)
         {
-            _messageType = messageType;
-            _serviceProvider = serviceProvider;
+            var handlerType = descriptor.HandlerType;
 
-            Handlers = ResolveHandlers(descriptor.HandlerDescriptors).ToLazyReadOnlyCollection();
-            PostHandlers = ResolvePostHandlers(descriptor.PostHandlerDescriptors).ToLazyReadOnlyCollection();
-            PreHandlers = ResolvePreHandlers(descriptor.PreHandlerDescriptors).ToLazyReadOnlyCollection();
-            ErrorHandlers = ResolveErrorHandlers(descriptor.ErrorHandlerDescriptors).ToLazyReadOnlyCollection();
-        }
-
-        public ILazyReadOnlyCollection<IMessageHandler> Handlers { get; }
-
-        public ILazyReadOnlyCollection<IMessagePostHandler> PostHandlers { get; }
-
-        public ILazyReadOnlyCollection<IMessageErrorHandler> ErrorHandlers { get; }
-
-        public ILazyReadOnlyCollection<IMessagePreHandler> PreHandlers { get; }
-
-        private IEnumerable<Lazy<IMessageHandler>> ResolveHandlers(IReadOnlyCollection<IHandlerDescriptor> descriptors)
-        {
-            foreach (var descriptor in descriptors)
+            if (descriptor.IsGeneric)
             {
-                var handlerType = descriptor.HandlerType;
-                
-                if (descriptor.IsGeneric)
+                handlerType = handlerType.MakeGenericType(_messageType.GetGenericArguments());
+            }
+
+            var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(handlerType));
+
+            yield return new Lazy<IMessageHandler>(() =>
+            {
+                var handler = resolveFunc();
+
+                if (handler is null)
                 {
-                    handlerType = handlerType.MakeGenericType(_messageType.GetGenericArguments());
+                    throw new NotResolvedException(handlerType);
                 }
-                
-                var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(handlerType));
 
-                yield return new Lazy<IMessageHandler>(() =>
-                {
-                    var handler = resolveFunc();
-
-                    if (handler is null)
-                    {
-                        throw new NotResolvedException(handlerType);
-                    }
-
-                    return handler as IMessageHandler;
-                });
-            }
+                return handler as IMessageHandler;
+            });
         }
+    }
 
-        private IEnumerable<Lazy<IMessagePreHandler>> ResolvePreHandlers(IReadOnlyCollection<IPreHandlerDescriptor> descriptors)
+    private IEnumerable<Lazy<IMessagePreHandler>> ResolvePreHandlers(
+        IReadOnlyCollection<IPreHandlerDescriptor> descriptors)
+    {
+        foreach (var descriptor in descriptors.OrderBy(d => d.Order))
         {
-            foreach (var descriptor in descriptors.OrderBy(d => d.Order))
+            var hookType = descriptor.PreHandlerType;
+
+            var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(hookType));
+
+            yield return new Lazy<IMessagePreHandler>(() =>
             {
-                var hookType = descriptor.PreHandlerType;
+                var preHandler = resolveFunc();
 
-                var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(hookType));
-
-                yield return new Lazy<IMessagePreHandler>(() =>
+                if (preHandler is null)
                 {
-                    var preHandler = resolveFunc();
+                    throw new NotResolvedException(hookType);
+                }
 
-                    if (preHandler is null)
-                    {
-                        throw new NotResolvedException(hookType);
-                    }
-
-                    return preHandler as IMessagePreHandler;
-                });
-            }
+                return preHandler as IMessagePreHandler;
+            });
         }
-        
-        private IEnumerable<Lazy<IMessageErrorHandler>> ResolveErrorHandlers(IReadOnlyCollection<IErrorHandlerDescriptor> descriptors)
+    }
+
+    private IEnumerable<Lazy<IMessageErrorHandler>> ResolveErrorHandlers(
+        IReadOnlyCollection<IErrorHandlerDescriptor> descriptors)
+    {
+        foreach (var descriptor in descriptors.OrderBy(d => d.Order))
         {
-            foreach (var descriptor in descriptors.OrderBy(d => d.Order))
+            var errorHandlerType = descriptor.ErrorHandlerType;
+
+            var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(errorHandlerType));
+
+            yield return new Lazy<IMessageErrorHandler>(() =>
             {
-                var errorHandlerType = descriptor.ErrorHandlerType;
+                var errorHandler = resolveFunc();
 
-                var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(errorHandlerType));
-
-                yield return new Lazy<IMessageErrorHandler>(() =>
+                if (errorHandler is null)
                 {
-                    var errorHandler = resolveFunc();
+                    throw new NotResolvedException(errorHandlerType);
+                }
 
-                    if (errorHandler is null)
-                    {
-                        throw new NotResolvedException(errorHandlerType);
-                    }
-
-                    return errorHandler as IMessageErrorHandler;
-                });
-            }
+                return errorHandler as IMessageErrorHandler;
+            });
         }
+    }
 
-        private IEnumerable<Lazy<IMessagePostHandler>> ResolvePostHandlers(IReadOnlyCollection<IPostHandlerDescriptor> descriptors)
+    private IEnumerable<Lazy<IMessagePostHandler>> ResolvePostHandlers(
+        IReadOnlyCollection<IPostHandlerDescriptor> descriptors)
+    {
+        foreach (var descriptor in descriptors.OrderBy(d => d.Order))
         {
-            foreach (var descriptor in descriptors.OrderBy(d => d.Order))
+            var postHandlerType = descriptor.PostHandlerType;
+
+            var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(postHandlerType));
+
+            yield return new Lazy<IMessagePostHandler>(() =>
             {
-                var postHandlerType = descriptor.PostHandlerType;
+                var postHandler = resolveFunc();
 
-                var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(postHandlerType));
-
-                yield return new Lazy<IMessagePostHandler>(() =>
+                if (postHandler is null)
                 {
-                    var postHandler = resolveFunc();
+                    throw new NotResolvedException(postHandlerType);
+                }
 
-                    if (postHandler is null)
-                    {
-                        throw new NotResolvedException(postHandlerType);
-                    }
-
-                    return postHandler as IMessagePostHandler;
-                });
-            }
+                return postHandler as IMessagePostHandler;
+            });
         }
     }
 }

@@ -1,6 +1,5 @@
-namespace LiteBus.UnitTests.Data.PlainMessage
+namespace LiteBus.UnitTests.Data.PlainMessage;
+
+public class FakePlainMessage
 {
-    public class FakePlainMessage
-    {
-    }
 }

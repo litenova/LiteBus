@@ -1,10 +1,8 @@
-namespace LiteBus.Queries.Abstractions
+namespace LiteBus.Queries.Abstractions;
+
+/// <summary>
+///     the base of all queries
+/// </summary>
+public interface IQueryBase : IQueryConstruct
 {
-    /// <summary>
-    ///     the base of all queries
-    /// </summary>
-    public interface IQueryBase : IQueryConstruct
-    {
-        
-    }
 }

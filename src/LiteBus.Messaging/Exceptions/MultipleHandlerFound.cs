@@ -1,13 +1,12 @@
 ﻿using System;
 
-namespace LiteBus.Messaging.Exceptions
+namespace LiteBus.Messaging.Exceptions;
+
+[Serializable]
+public class MultipleMessageHandlerFoundException : Exception
 {
-    [Serializable]
-    public class MultipleMessageHandlerFoundException : Exception
+    public MultipleMessageHandlerFoundException(string messageName) :
+        base($"Multiple handler found for {messageName}.")
     {
-        public MultipleMessageHandlerFoundException(string messageName) :
-            base($"Multiple handler found for {messageName}.")
-        {
-        }
     }
 }

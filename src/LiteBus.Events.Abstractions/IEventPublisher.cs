@@ -1,7 +1,6 @@
-﻿namespace LiteBus.Events.Abstractions
+﻿namespace LiteBus.Events.Abstractions;
+
+/// <inheritdoc cref="IEventMediator" />
+public interface IEventPublisher : IEventMediator
 {
-    /// <inheritdoc cref="IEventMediator" />
-    public interface IEventPublisher : IEventMediator
-    {
-    }
 }

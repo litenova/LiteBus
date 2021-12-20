@@ -48,7 +48,7 @@ public static class MessageRegistryBuilderExtensions
 
         return builder;
     }
-    
+
     public static IMessageRegistry RegisterFrom(this IMessageRegistry builder, Assembly assembly)
     {
         foreach (var typeInfo in assembly.DefinedTypes)

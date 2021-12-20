@@ -3,52 +3,51 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Extensions;
 using LiteBus.Queries.Abstractions;
 
-namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection
+namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection;
+
+public class LiteBusQueryBuilder
 {
-    public class LiteBusQueryBuilder
+    private readonly IMessageRegistry _messageRegistry;
+
+    public LiteBusQueryBuilder(IMessageRegistry messageRegistry)
     {
-        private readonly IMessageRegistry _messageRegistry;
+        _messageRegistry = messageRegistry;
+    }
 
-        public LiteBusQueryBuilder(IMessageRegistry messageRegistry)
-        {
-            _messageRegistry = messageRegistry;
-        }
+    public LiteBusQueryBuilder RegisterFrom(Assembly assembly)
+    {
+        _messageRegistry.RegisterFrom<IQueryConstruct>(assembly);
+        return this;
+    }
 
-        public LiteBusQueryBuilder RegisterFrom(Assembly assembly)
-        {
-            _messageRegistry.RegisterFrom<IQueryConstruct>(assembly);
-            return this;
-        }
+    public LiteBusQueryBuilder RegisterHandler<THandler>() where THandler : IQueryHandlerBase
+    {
+        _messageRegistry.Register(typeof(THandler));
 
-        public LiteBusQueryBuilder RegisterHandler<THandler>() where THandler : IQueryHandlerBase
-        {
-            _messageRegistry.Register(typeof(THandler));
+        return this;
+    }
 
-            return this;
-        }
+    public LiteBusQueryBuilder RegisterPreHandler<TQueryPreHandler>()
+        where TQueryPreHandler : IQueryPreHandlerBase
+    {
+        _messageRegistry.Register(typeof(TQueryPreHandler));
 
-        public LiteBusQueryBuilder RegisterPreHandler<TQueryPreHandler>()
-            where TQueryPreHandler : IQueryPreHandlerBase
-        {
-            _messageRegistry.Register(typeof(TQueryPreHandler));
+        return this;
+    }
 
-            return this;
-        }
+    public LiteBusQueryBuilder RegisterPostHandler<TQueryPostHandler>()
+        where TQueryPostHandler : IQueryPostHandlerBase
+    {
+        _messageRegistry.Register(typeof(TQueryPostHandler));
 
-        public LiteBusQueryBuilder RegisterPostHandler<TQueryPostHandler>()
-            where TQueryPostHandler : IQueryPostHandlerBase
-        {
-            _messageRegistry.Register(typeof(TQueryPostHandler));
+        return this;
+    }
 
-            return this;
-        }
+    public LiteBusQueryBuilder RegisterErrorHandler<TQueryErrorHandler>()
+        where TQueryErrorHandler : IQueryErrorHandlerBase
+    {
+        _messageRegistry.Register(typeof(TQueryErrorHandler));
 
-        public LiteBusQueryBuilder RegisterErrorHandler<TQueryErrorHandler>()
-            where TQueryErrorHandler : IQueryErrorHandlerBase
-        {
-            _messageRegistry.Register(typeof(TQueryErrorHandler));
-
-            return this;
-        }
+        return this;
     }
 }

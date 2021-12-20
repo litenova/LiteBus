@@ -1,12 +1,10 @@
 using System;
 
-namespace LiteBus.Messaging.Abstractions.Descriptors
+namespace LiteBus.Messaging.Abstractions.Descriptors;
+
+public interface IErrorHandlerDescriptor : IDescriptor
 {
-    public interface IErrorHandlerDescriptor : IDescriptor
-    {
-        Type ErrorHandlerType { get; }
+    Type ErrorHandlerType { get; }
 
-        int Order { get; }
-
-    }
+    int Order { get; }
 }

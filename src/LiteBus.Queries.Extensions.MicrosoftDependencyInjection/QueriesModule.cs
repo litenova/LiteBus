@@ -3,22 +3,21 @@ using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 using LiteBus.Queries.Abstractions;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection
+namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection;
+
+internal class QueriesModule : ILiteBusModule
 {
-    internal class QueriesModule : ILiteBusModule
+    private readonly Action<LiteBusQueryBuilder> _builder;
+
+    public QueriesModule(Action<LiteBusQueryBuilder> builder)
     {
-        private readonly Action<LiteBusQueryBuilder> _builder;
+        _builder = builder;
+    }
 
-        public QueriesModule(Action<LiteBusQueryBuilder> builder)
-        {
-            _builder = builder;
-        }
+    public void Build(ILiteBusModuleConfiguration configuration)
+    {
+        _builder(new LiteBusQueryBuilder(configuration.MessageRegistry));
 
-        public void Build(ILiteBusModuleConfiguration configuration)
-        {
-            _builder(new LiteBusQueryBuilder(configuration.MessageRegistry));
-
-            configuration.Services.TryAddTransient<IQueryMediator, QueryMediator>();
-        }
+        configuration.Services.TryAddTransient<IQueryMediator, QueryMediator>();
     }
 }

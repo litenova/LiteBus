@@ -1,14 +1,14 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 
-namespace LiteBus.WebApi.CommandsWithError
+namespace LiteBus.WebApi.CommandsWithError;
+
+public class ECommandHandler : ICommandHandler<ECommand>
 {
-    public class ECommandHandler : ICommandHandler<ECommand>
+    public Task HandleAsync(ECommand message, CancellationToken cancellationToken = default)
     {
-        public Task HandleAsync(ECommand message, CancellationToken cancellationToken = default)
-        {
-            throw new System.NotImplementedException();
-        }
+        throw new NotImplementedException();
     }
 }

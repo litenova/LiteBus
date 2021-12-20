@@ -1,48 +1,47 @@
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
 
-namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
+namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
+
+public class LiteBusMessageBuilder
 {
-    public class LiteBusMessageBuilder
+    private readonly IMessageRegistry _messageRegistry;
+
+    public LiteBusMessageBuilder(IMessageRegistry messageRegistry)
     {
-        private readonly IMessageRegistry _messageRegistry;
+        _messageRegistry = messageRegistry;
+    }
 
-        public LiteBusMessageBuilder(IMessageRegistry messageRegistry)
-        {
-            _messageRegistry = messageRegistry;
-        }
+    public LiteBusMessageBuilder RegisterFrom(Assembly assembly)
+    {
+        return this;
+    }
 
-        public LiteBusMessageBuilder RegisterFrom(Assembly assembly)
-        {
-            return this;
-        }
+    public LiteBusMessageBuilder RegisterHandler<THandler>() where THandler : IMessageHandler
+    {
+        _messageRegistry.Register(typeof(THandler));
 
-        public LiteBusMessageBuilder RegisterHandler<THandler>() where THandler : IMessageHandler
-        {
-            _messageRegistry.Register(typeof(THandler));
+        return this;
+    }
 
-            return this;
-        }
+    public LiteBusMessageBuilder RegisterPreHandler<TPreHandler>() where TPreHandler : IMessagePreHandler
+    {
+        _messageRegistry.Register(typeof(TPreHandler));
 
-        public LiteBusMessageBuilder RegisterPreHandler<TPreHandler>() where TPreHandler : IMessagePreHandler
-        {
-            _messageRegistry.Register(typeof(TPreHandler));
+        return this;
+    }
 
-            return this;
-        }
+    public LiteBusMessageBuilder RegisterPostHandler<TPostHandler>() where TPostHandler : IMessagePostHandler
+    {
+        _messageRegistry.Register(typeof(TPostHandler));
 
-        public LiteBusMessageBuilder RegisterPostHandler<TPostHandler>() where TPostHandler : IMessagePostHandler
-        {
-            _messageRegistry.Register(typeof(TPostHandler));
+        return this;
+    }
 
-            return this;
-        }
+    public LiteBusMessageBuilder RegisterErrorHandler<TErrorHandler>() where TErrorHandler : IMessageErrorHandler
+    {
+        _messageRegistry.Register(typeof(TErrorHandler));
 
-        public LiteBusMessageBuilder RegisterErrorHandler<TErrorHandler>() where TErrorHandler : IMessageErrorHandler
-        {
-            _messageRegistry.Register(typeof(TErrorHandler));
-
-            return this;
-        }
+        return this;
     }
 }

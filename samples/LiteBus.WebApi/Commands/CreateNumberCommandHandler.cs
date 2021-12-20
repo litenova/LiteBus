@@ -3,17 +3,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 
-namespace LiteBus.WebApi.Commands
+namespace LiteBus.WebApi.Commands;
+
+public class CreateNumberCommandHandler : ICommandHandler<CreateNumberCommand>
 {
-    public class CreateNumberCommandHandler : ICommandHandler<CreateNumberCommand>
+    public Task HandleAsync(CreateNumberCommand message, CancellationToken cancellationToken = default)
     {
-        public Task HandleAsync(CreateNumberCommand message, CancellationToken cancellationToken = default)
-        {
-            Debug.WriteLine($"{nameof(CreateNumberCommandHandler)} executed!");
+        Debug.WriteLine($"{nameof(CreateNumberCommandHandler)} executed!");
 
-            MemoryDatabase.AddNumber(message.Number);
+        MemoryDatabase.AddNumber(message.Number);
 
-            return Task.CompletedTask;
-        }
+        return Task.CompletedTask;
     }
 }
