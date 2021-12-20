@@ -3,7 +3,7 @@
     /// <summary>
     ///     Represents an event
     /// </summary>
-    public interface IEvent
+    public interface IEvent : IEventConstruct
     {
     }
 }

@@ -1,6 +1,6 @@
 ﻿namespace LiteBus.Commands.Abstractions
 {
-    public interface ICommandBase
+    public interface ICommandBase : ICommandConstruct
     {
     }
 

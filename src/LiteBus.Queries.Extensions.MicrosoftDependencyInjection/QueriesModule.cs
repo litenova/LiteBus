@@ -1,13 +1,11 @@
 ﻿using System;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 using LiteBus.Queries.Abstractions;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection
 {
-    internal class QueriesModule : IModule
+    internal class QueriesModule : ILiteBusModule
     {
         private readonly Action<LiteBusQueryBuilder> _builder;
 
@@ -16,12 +14,11 @@ namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection
             _builder = builder;
         }
 
-        public void Build(IServiceCollection services,
-                          IMessageRegistry messageRegistry)
+        public void Build(ILiteBusModuleConfiguration configuration)
         {
-            _builder(new LiteBusQueryBuilder(messageRegistry));
+            _builder(new LiteBusQueryBuilder(configuration.MessageRegistry));
 
-            services.TryAddTransient<IQueryMediator, QueryMediator>();
+            configuration.Services.TryAddTransient<IQueryMediator, QueryMediator>();
         }
     }
 }

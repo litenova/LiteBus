@@ -18,10 +18,10 @@ namespace LiteBus.Messaging.Internal.Mediator
             _messageType = messageType;
             _serviceProvider = serviceProvider;
 
-            Handlers = ResolveHandlers(descriptor.Handlers).ToLazyReadOnlyCollection();
-            PostHandlers = ResolvePostHandlers(descriptor.PostHandlers).ToLazyReadOnlyCollection();
-            PreHandlers = ResolvePreHandlers(descriptor.PreHandlers).ToLazyReadOnlyCollection();
-            ErrorHandlers = ResolveErrorHandlers(descriptor.ErrorHandlers).ToLazyReadOnlyCollection();
+            Handlers = ResolveHandlers(descriptor.HandlerDescriptors).ToLazyReadOnlyCollection();
+            PostHandlers = ResolvePostHandlers(descriptor.PostHandlerDescriptors).ToLazyReadOnlyCollection();
+            PreHandlers = ResolvePreHandlers(descriptor.PreHandlerDescriptors).ToLazyReadOnlyCollection();
+            ErrorHandlers = ResolveErrorHandlers(descriptor.ErrorHandlerDescriptors).ToLazyReadOnlyCollection();
         }
 
         public ILazyReadOnlyCollection<IMessageHandler> Handlers { get; }

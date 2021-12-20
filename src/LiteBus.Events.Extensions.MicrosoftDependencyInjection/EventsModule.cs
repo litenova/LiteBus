@@ -1,27 +1,25 @@
 ﻿using System;
 using LiteBus.Events.Abstractions;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LiteBus.Events.Extensions.MicrosoftDependencyInjection
 {
-    internal class EventsModule : IModule
+    internal class EventsModule : ILiteBusModule
     {
-        private readonly Action<LiteBusEventBuilder> _builder;
+        private readonly Action<LiteBusEventsConfiguration> _builder;
 
-        public EventsModule(Action<LiteBusEventBuilder> builder)
+        public EventsModule(Action<LiteBusEventsConfiguration> builder)
         {
             _builder = builder;
         }
 
-        public void Build(IServiceCollection services, IMessageRegistry messageRegistry)
+        public void Build(ILiteBusModuleConfiguration configuration)
         {
-            _builder(new LiteBusEventBuilder(messageRegistry));
+            _builder(new LiteBusEventsConfiguration(configuration.MessageRegistry));
 
-            services.TryAddTransient<IEventMediator, EventMediator>();
-            services.TryAddTransient<IEventPublisher, EventMediator>();
+            configuration.Services.TryAddTransient<IEventMediator, EventMediator>();
+            configuration.Services.TryAddTransient<IEventPublisher, EventMediator>();
         }
     }
 }
