@@ -38,13 +38,13 @@
     * Query `IQuery<TResult>`
     * Stream Query `IStreamQuery<TResult>`: A type of query that returns `IAsyncEnumerable<TResult>`
     * Event `IEvent`
-* Flexible and Extensible
-* Modular Design, Only Add What You Need
+* Flexible and Extensible `[Guideline Not Documented Yet]`
+* Modular Design, Only Add What You Need `[Implemented but Not Documented Yet]`
 * Utilizing C# 8 Default Interface Implementation Feature Resulting in Easy to Use API
-* Supports Polymorphism Dispatch
-* Orderable Handlers
-* Supports Plain Messages (Classes with no interface implementation)
-* Supports Generic Messages
+* Supports Polymorphism Dispatch `[Implemented but Not Documented Yet]`
+* Orderable Handlers `[Implemented but Not Documented Yet]`
+* Supports Plain Messages (Classes with no interface implementation) `[Implemented but Not Documented Yet]`
+* Supports Generic Messages `[Implemented but Not Documented Yet]`
 
 ## Installation and Configuration
 
@@ -73,20 +73,20 @@ services.AddLiteBus(builder =>
 {
     builder.AddCommands(commandBuilder =>
            {
-               commandBuilder.Register(typeof(CreateNumberCommand).Assembly)
+               commandBuilder.RegisterFrom(typeof(CreateNumberCommand).Assembly)
                              .RegisterPostHandler<GlobalCommandPostHandleAsyncr>();
            })
            .AddMessaging(messageBuilder =>
            {
-               messageBuilder.Register(typeof(PlainMessage).Assembly);
+               messageBuilder.RegisterFrom(typeof(PlainMessage).Assembly);
            })
            .AddQueries(queryBuilder =>
            {
-               queryBuilder.Register(typeof(GetNumbersQuery).Assembly); 
+               queryBuilder.RegisterFrom(typeof(GetNumbersQuery).Assembly); 
            })
            .AddEvents(eventBuilder =>
            {
-               eventBuilder.Register(typeof(NumberCreatedEvent).Assembly);
+               eventBuilder.RegisterFrom(typeof(NumberCreatedEvent).Assembly);
            });
 });
 ```
