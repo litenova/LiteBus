@@ -20,17 +20,18 @@ public class CommandTests
                               {
                                   configuration.AddCommands(builder =>
                                   {
-                                      builder.RegisterFrom(typeof(FakeCommand).Assembly);
+                                      builder.RegisterFrom(typeof(FakeCommand)
+                                                               .Assembly);
                                   });
                               })
                               .BuildServiceProvider();
 
         var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
         var command = new FakeCommand();
-        
+
         // Act
         await commandMediator.SendAsync(command);
-        
+
         // Assert
         command.ExecutedTypes.Should().HaveCount(5);
     }

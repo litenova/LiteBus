@@ -4,20 +4,19 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Queries.Abstractions;
 
-namespace LiteBus.WebApi.Queries
+namespace LiteBus.WebApi.Queries;
+
+public class GetNumbersQuery : IQuery<IEnumerable<decimal>>
 {
-    public class GetNumbersQuery : IQuery<IEnumerable<decimal>>
-    {
-    }
+}
 
-    public class GetNumbersQueryHandler : IQueryHandler<GetNumbersQuery, IEnumerable<decimal>>
+public class GetNumbersQueryHandler : IQueryHandler<GetNumbersQuery, IEnumerable<decimal>>
+{
+    public Task<IEnumerable<decimal>> HandleAsync(GetNumbersQuery message,
+                                                  CancellationToken cancellationToken = default)
     {
-        public Task<IEnumerable<decimal>> HandleAsync(GetNumbersQuery message,
-                                                      CancellationToken cancellationToken = default)
-        {
-            Debug.WriteLine($"{nameof(GetNumbersQueryHandler)} executed!");
+        Debug.WriteLine($"{nameof(GetNumbersQueryHandler)} executed!");
 
-            return Task.FromResult(MemoryDatabase.GetNumbers());
-        }
+        return Task.FromResult(MemoryDatabase.GetNumbers());
     }
 }

@@ -1,19 +1,18 @@
 ﻿using System.Collections.Generic;
 
-namespace LiteBus.WebApi
+namespace LiteBus.WebApi;
+
+public static class MemoryDatabase
 {
-    public static class MemoryDatabase
+    private static readonly List<decimal> Numbers = new();
+
+    public static void AddNumber(decimal number)
     {
-        private static readonly List<decimal> Numbers = new();
+        Numbers.Add(number);
+    }
 
-        public static void AddNumber(decimal number)
-        {
-            Numbers.Add(number);
-        }
-
-        public static IEnumerable<decimal> GetNumbers()
-        {
-            return Numbers;
-        }
+    public static IEnumerable<decimal> GetNumbers()
+    {
+        return Numbers;
     }
 }

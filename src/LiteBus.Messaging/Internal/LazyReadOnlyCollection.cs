@@ -3,27 +3,26 @@ using System.Collections;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
 
-namespace LiteBus.Messaging.Internal
+namespace LiteBus.Messaging.Internal;
+
+public class LazyReadOnlyCollection<T> : ILazyReadOnlyCollection<T>
 {
-    public class LazyReadOnlyCollection<T> : ILazyReadOnlyCollection<T>
+    private readonly List<Lazy<T>> _list;
+
+    public LazyReadOnlyCollection(IEnumerable<Lazy<T>> source)
     {
-        private readonly List<Lazy<T>> _list;
-
-        public LazyReadOnlyCollection(IEnumerable<Lazy<T>> source)
-        {
-            _list = new List<Lazy<T>>(source);
-        }
-
-        public IEnumerator<Lazy<T>> GetEnumerator()
-        {
-            return _list.GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
-
-        public int Count => _list.Count;
+        _list = new List<Lazy<T>>(source);
     }
+
+    public IEnumerator<Lazy<T>> GetEnumerator()
+    {
+        return _list.GetEnumerator();
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+
+    public int Count => _list.Count;
 }

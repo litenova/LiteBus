@@ -1,25 +1,22 @@
-﻿using System.Threading;
-using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions;
+﻿using LiteBus.Messaging.Abstractions;
 
-namespace LiteBus.Events.Abstractions
+namespace LiteBus.Events.Abstractions;
+
+public interface IEventPreHandlerBase : IEventConstruct
 {
-    public interface IEventPreHandlerBase : IEventConstruct
-    {
-    }
+}
 
-    /// <summary>
-    ///     Represents an action that is executed on each event pre-handle phase
-    /// </summary>
-    public interface IEventPreHandler : IEventPreHandlerBase, IMessagePreHandler<IEvent>
-    {
-    }
+/// <summary>
+///     Represents an action that is executed on each event pre-handle phase
+/// </summary>
+public interface IEventPreHandler : IEventPreHandlerBase, IMessagePreHandler<IEvent>
+{
+}
 
-    /// <summary>
-    ///     Represents an action that is executed on <typeparamref cref="TEvent" /> pre-handle phase
-    /// </summary>
-    public interface IEventPreHandler<in TEvent> : IEventPreHandlerBase, IMessagePreHandler<TEvent>
-        where TEvent : IEvent
-    {
-    }
+/// <summary>
+///     Represents an action that is executed on <typeparamref cref="TEvent" /> pre-handle phase
+/// </summary>
+public interface IEventPreHandler<in TEvent> : IEventPreHandlerBase, IMessagePreHandler<TEvent>
+    where TEvent : IEvent
+{
 }

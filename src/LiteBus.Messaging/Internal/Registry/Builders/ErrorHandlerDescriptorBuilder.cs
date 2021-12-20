@@ -18,7 +18,7 @@ internal class ErrorHandlerDescriptorBuilder : IDescriptorBuilder<IErrorHandlerD
     public IEnumerable<IErrorHandlerDescriptor> Build(Type handlerType)
     {
         var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessageErrorHandler<>));
-        int order = handlerType.GetOrderFromAttribute();
+        var order = handlerType.GetOrderFromAttribute();
 
         foreach (var @interface in interfaces)
         {

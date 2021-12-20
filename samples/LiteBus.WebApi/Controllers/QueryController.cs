@@ -5,29 +5,28 @@ using LiteBus.WebApi.Queries;
 using LiteBus.WebApi.Stream;
 using Microsoft.AspNetCore.Mvc;
 
-namespace LiteBus.WebApi.Controllers
+namespace LiteBus.WebApi.Controllers;
+
+[ApiController]
+[Route("[controller]")]
+public class QueryController : ControllerBase
 {
-    [ApiController]
-    [Route("[controller]")]
-    public class QueryController : ControllerBase
+    private readonly IQueryMediator _queryMediator;
+
+    public QueryController(IQueryMediator queryMediator)
     {
-        private readonly IQueryMediator _queryMediator;
+        _queryMediator = queryMediator;
+    }
 
-        public QueryController(IQueryMediator queryMediator)
-        {
-            _queryMediator = queryMediator;
-        }
+    [HttpGet]
+    public Task<IEnumerable<decimal>> GetNumbers()
+    {
+        return _queryMediator.QueryAsync(new GetNumbersQuery());
+    }
 
-        [HttpGet]
-        public Task<IEnumerable<decimal>> GetNumbers()
-        {
-            return _queryMediator.QueryAsync(new GetNumbersQuery());
-        }
-
-        [HttpGet("stream")]
-        public IAsyncEnumerable<decimal> StreamNumbers()
-        {
-            return _queryMediator.StreamAsync(new StreamNumbersQuery());
-        }
+    [HttpGet("stream")]
+    public IAsyncEnumerable<decimal> StreamNumbers()
+    {
+        return _queryMediator.StreamAsync(new StreamNumbersQuery());
     }
 }
