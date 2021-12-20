@@ -1,6 +1,6 @@
 namespace LiteBus.Queries.Abstractions
 {
-    public interface IQueryHandlerBase
+    public interface IQueryHandlerBase: IQueryConstruct
     {
         
     }

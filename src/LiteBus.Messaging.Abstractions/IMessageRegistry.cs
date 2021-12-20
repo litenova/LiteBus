@@ -6,12 +6,6 @@ namespace LiteBus.Messaging.Abstractions
 {
     public interface IMessageRegistry : IReadOnlyCollection<IMessageDescriptor>
     {
-        void RegisterHandler(Type handlerType);
-
-        void RegisterPreHandler(Type preHandlerType);
-
-        void RegisterPostHandler(Type postHandlerType);
-        
-        void RegisterErrorHandler(Type errorHandlerType);
+        IMessageRegistry Register(Type type);
     }
 }

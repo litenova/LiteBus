@@ -5,7 +5,7 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Events.Abstractions
 {
-    public interface IEventPostHandlerBase
+    public interface IEventPostHandlerBase : IEventConstruct
     {
     }
 

@@ -2,7 +2,7 @@
 
 namespace LiteBus.Events.Abstractions
 {
-    public interface IEventHandlerBase
+    public interface IEventHandlerBase : IEventConstruct
     {
     }
 
