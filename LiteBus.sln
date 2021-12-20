@@ -17,8 +17,6 @@ ProjectSection(SolutionItems) = preProject
 	.gitignore = .gitignore
 	LICENSE = LICENSE
 	README.md = README.md
-	.github\workflows\dotnet-core.yml = .github\workflows\dotnet-core.yml
-	.github\workflows\publish-packages.yml = .github\workflows\publish-packages.yml
 	global.json = global.json
 	Directory.Build.props = Directory.Build.props
 EndProjectSection
