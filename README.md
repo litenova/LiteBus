@@ -1,7 +1,7 @@
 <h1 align="center">
   <br>
   <a href="https://github.com/litenova/LiteBus">
-    <img src="https://raw.githubusercontent.com/litenova/LiteBus/main/assets/logo/icon.png">
+    <img src="assets/logo/icon.png">
   </a>
   <br>
   LiteBus
@@ -20,12 +20,13 @@
 </p>
 
 <p align="center">
-  <a href="#key-features">Key Features</a> •
+  <a href="#overview">Overview</a> •
   <a href="#installation-and-configuration">Installation</a> •
-  <a href="#how-to-use">How To Use</a>
+  <a href="#key-features">Features</a> •
+  <a href="#how-to-use">Extensibility</a>
 </p>
 
-## Key Features
+## Overview
 
 * Written in .NET 6
 * No Dependencies
@@ -37,7 +38,7 @@
     * Query `IQuery<TResult>`
     * Stream Query `IStreamQuery<TResult>`: A type of query that returns `IAsyncEnumerable<TResult>`
     * Event `IEvent`
-* Flexible and Extensible 
+* Flexible and Extensible
 * Modular Design, Only Add What You Need
 * Utilizing C# 8 Default Interface Implementation Feature Resulting in Easy to Use API
 * Supports Polymorphism Dispatch

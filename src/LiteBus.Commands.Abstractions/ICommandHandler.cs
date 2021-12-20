@@ -2,7 +2,7 @@
 
 namespace LiteBus.Commands.Abstractions
 {
-    public interface ICommandHandlerBase
+    public interface ICommandHandlerBase : ICommandConstruct
     {
     }
 
