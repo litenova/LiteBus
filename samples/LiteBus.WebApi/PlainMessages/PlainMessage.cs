@@ -1,6 +1,5 @@
-namespace LiteBus.WebApi.PlainMessages
+namespace LiteBus.WebApi.PlainMessages;
+
+public class PlainMessage
 {
-    public class PlainMessage
-    {
-    }
 }

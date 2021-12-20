@@ -1,10 +1,9 @@
 ﻿using System;
 using LiteBus.Messaging.Abstractions.Descriptors;
 
-namespace LiteBus.Messaging.Abstractions
+namespace LiteBus.Messaging.Abstractions;
+
+public interface IMessageResolveStrategy
 {
-    public interface IMessageResolveStrategy
-    {
-        IMessageDescriptor Find(Type messageType, IMessageRegistry messageRegistry);
-    }
+    IMessageDescriptor Find(Type messageType, IMessageRegistry messageRegistry);
 }

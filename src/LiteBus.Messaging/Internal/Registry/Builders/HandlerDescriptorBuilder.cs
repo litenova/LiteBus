@@ -27,7 +27,7 @@ public class HandlerDescriptorBuilder : IDescriptorBuilder<IHandlerDescriptor>
             isHandlerGeneric = true;
         }
 
-        int order = handlerType.GetOrderFromAttribute();
+        var order = handlerType.GetOrderFromAttribute();
 
         foreach (var @interface in interfaces)
         {

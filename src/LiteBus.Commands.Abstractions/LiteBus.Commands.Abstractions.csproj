@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
-    
+
     <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj" />
+        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
     </ItemGroup>
 
 </Project>

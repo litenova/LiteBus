@@ -1,9 +1,8 @@
 using LiteBus.Commands.Abstractions;
 
-namespace LiteBus.WebApi.Commands
+namespace LiteBus.WebApi.Commands;
+
+public class CreateNumberCommandWithResult : ICommand<string>
 {
-    public class CreateNumberCommandWithResult : ICommand<string>
-    {
-        public decimal Number { get; set; }
-    }
+    public decimal Number { get; set; }
 }

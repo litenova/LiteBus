@@ -1,9 +1,6 @@
-﻿using System.Collections.Generic;
+﻿namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 
-namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
+public interface ILiteBusConfiguration
 {
-    public interface ILiteBusConfiguration
-    {
-        ILiteBusConfiguration AddModule(ILiteBusModule liteBusModule);
-    }
+    ILiteBusConfiguration AddModule(ILiteBusModule liteBusModule);
 }

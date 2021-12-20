@@ -1,20 +1,19 @@
 ﻿using System;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
+namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
+
+public static class ServiceCollectionExtensions
 {
-    public static class ServiceCollectionExtensions
+    public static IServiceCollection AddLiteBus(this IServiceCollection services,
+                                                Action<ILiteBusConfiguration> liteBusBuilderAction)
     {
-        public static IServiceCollection AddLiteBus(this IServiceCollection services,
-                                                    Action<ILiteBusConfiguration> liteBusBuilderAction)
-        {
-            var liteBusBuilder = new LiteBusConfiguration(services);
+        var liteBusBuilder = new LiteBusConfiguration(services);
 
-            liteBusBuilderAction(liteBusBuilder);
+        liteBusBuilderAction(liteBusBuilder);
 
-            liteBusBuilder.Initialize();
+        liteBusBuilder.Initialize();
 
-            return services;
-        }
+        return services;
     }
 }

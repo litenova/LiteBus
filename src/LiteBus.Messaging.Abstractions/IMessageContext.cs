@@ -1,13 +1,12 @@
-﻿namespace LiteBus.Messaging.Abstractions
+﻿namespace LiteBus.Messaging.Abstractions;
+
+public interface IMessageContext
 {
-    public interface IMessageContext
-    {
-        ILazyReadOnlyCollection<IMessageHandler> Handlers { get; }
+    ILazyReadOnlyCollection<IMessageHandler> Handlers { get; }
 
-        ILazyReadOnlyCollection<IMessagePreHandler> PreHandlers { get; }
+    ILazyReadOnlyCollection<IMessagePreHandler> PreHandlers { get; }
 
-        ILazyReadOnlyCollection<IMessagePostHandler> PostHandlers { get; }
-        
-        ILazyReadOnlyCollection<IMessageErrorHandler> ErrorHandlers { get; }
-    }
+    ILazyReadOnlyCollection<IMessagePostHandler> PostHandlers { get; }
+
+    ILazyReadOnlyCollection<IMessageErrorHandler> ErrorHandlers { get; }
 }

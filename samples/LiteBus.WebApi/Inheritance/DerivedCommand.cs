@@ -1,6 +1,5 @@
-namespace LiteBus.WebApi.Inheritance
+namespace LiteBus.WebApi.Inheritance;
+
+public class DerivedCommand : ParentCommand
 {
-    public class DerivedCommand : ParentCommand
-    {
-    }
 }

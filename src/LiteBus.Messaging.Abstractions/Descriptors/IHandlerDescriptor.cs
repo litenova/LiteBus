@@ -1,13 +1,12 @@
 ﻿using System;
 
-namespace LiteBus.Messaging.Abstractions.Descriptors
+namespace LiteBus.Messaging.Abstractions.Descriptors;
+
+public interface IHandlerDescriptor : IDescriptor
 {
-    public interface IHandlerDescriptor : IDescriptor
-    {
-        Type HandlerType { get; }
+    Type HandlerType { get; }
 
-        Type MessageResultType { get; }
+    Type MessageResultType { get; }
 
-        bool IsGeneric { get; }
-    }
+    bool IsGeneric { get; }
 }

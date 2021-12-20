@@ -1,13 +1,12 @@
 using System;
 
-namespace LiteBus.Messaging.Abstractions.Descriptors
+namespace LiteBus.Messaging.Abstractions.Descriptors;
+
+public interface IPostHandlerDescriptor : IDescriptor
 {
-    public interface IPostHandlerDescriptor : IDescriptor
-    {
-        Type PostHandlerType { get; }
+    Type PostHandlerType { get; }
 
-        int Order { get; }
+    int Order { get; }
 
-        Type MessageResultType { get; }
-    }
+    Type MessageResultType { get; }
 }
