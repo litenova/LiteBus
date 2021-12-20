@@ -25,8 +25,8 @@
 <p align="center">
   <a href="#overview">Overview</a> •
   <a href="#installation-and-configuration">Installation</a> •
-  <a href="#key-features">Features</a> •
-  <a href="#how-to-use">Extensibility</a>
+  <a href="#usages">Usages</a> •
+  <a href="#extensibility">Extensibility</a>
 </p>
 
 ## Overview
@@ -94,7 +94,7 @@ services.AddLiteBus(builder =>
 });
 ```
 
-## How to Use
+## Usages
 
 The following examples demonstrates the usages of LiteBus.
 
