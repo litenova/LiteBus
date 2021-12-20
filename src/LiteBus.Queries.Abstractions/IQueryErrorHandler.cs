@@ -2,7 +2,7 @@
 
 namespace LiteBus.Queries.Abstractions
 {
-    public interface IQueryErrorHandlerBase
+    public interface IQueryErrorHandlerBase: IQueryConstruct
     {
     }
 
