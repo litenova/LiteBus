@@ -6,7 +6,7 @@ namespace LiteBus.Commands.Abstractions
     /// <summary>
     ///     Sends commands to their corresponding handlers
     /// </summary>
-    public interface ICommandMediator
+    public interface ICommandMediator : ICommandConstruct
     {
         /// <summary>
         ///     Sends a command without result to its corresponding handler

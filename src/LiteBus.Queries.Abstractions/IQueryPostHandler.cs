@@ -1,8 +1,9 @@
-﻿using LiteBus.Messaging.Abstractions;
+﻿using System.Threading.Tasks;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Queries.Abstractions
 {
-    public interface IQueryPostHandlerBase
+    public interface IQueryPostHandlerBase: IQueryConstruct
     {
     }
 

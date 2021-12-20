@@ -3,8 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
 {
-    public interface IModule
+    public interface ILiteBusModule
     {
-        void Build(IServiceCollection services, IMessageRegistry messageRegistry);
+        void Build(ILiteBusModuleConfiguration configuration);
     }
 }

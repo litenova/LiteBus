@@ -2,16 +2,12 @@
 
 namespace LiteBus.Messaging.Abstractions.Descriptors
 {
-    public interface IHandlerDescriptor
+    public interface IHandlerDescriptor : IDescriptor
     {
         Type HandlerType { get; }
 
-        Type MessageType { get; }
-
         Type MessageResultType { get; }
-        
+
         bool IsGeneric { get; }
-        
-        
     }
 }
