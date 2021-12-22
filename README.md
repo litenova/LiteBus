@@ -14,16 +14,19 @@
   <a href="https://github.com/litenova/LiteBus/actions/workflows/dotnet-core.yml">
     <img src="https://github.com/arishk/LiteBus/actions/workflows/dotnet-core.yml/badge.svg?branch=main">
   </a>
+   <a href='https://coveralls.io/github/litenova/LiteBus?branch=main'>
+    <img src='https://coveralls.io/repos/github/litenova/LiteBus/badge.svg?branch=main' alt='Coverage Status' />
+  </a>
   <a href="https://www.nuget.org/packages/LiteBus">
-    <img src="https://img.shields.io/nuget/vpre/LiteBus.svg">
+    <img src="https://img.shields.io/nuget/vpre/LiteBus.svg" alt="LiteBus Nuget Version">
   </a>
 </p>
 
 <p align="center">
   <a href="#overview">Overview</a> •
   <a href="#installation-and-configuration">Installation</a> •
-  <a href="#key-features">Features</a> •
-  <a href="#how-to-use">Extensibility</a>
+  <a href="#usages">Usages</a> •
+  <a href="#extensibility">Extensibility</a>
 </p>
 
 ## Overview
@@ -91,7 +94,7 @@ services.AddLiteBus(builder =>
 });
 ```
 
-## How to Use
+## Usages
 
 The following examples demonstrates the usages of LiteBus.
 
