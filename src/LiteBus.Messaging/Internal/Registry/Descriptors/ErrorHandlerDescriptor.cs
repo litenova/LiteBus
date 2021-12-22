@@ -9,12 +9,15 @@ internal class ErrorHandlerDescriptor : IErrorHandlerDescriptor
     {
         ErrorHandlerType = errorHandlerType;
         Order = order;
-        MessageType = messageType;
+        IsGeneric = messageType.IsGenericType;
+        MessageType = IsGeneric ? messageType.GetGenericTypeDefinition() : messageType;
     }
 
     public Type ErrorHandlerType { get; }
 
     public int Order { get; }
+
+    public bool IsGeneric { get; set; }
 
     public Type MessageType { get; }
 }

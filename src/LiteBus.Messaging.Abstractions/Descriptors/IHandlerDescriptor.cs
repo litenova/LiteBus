@@ -9,4 +9,6 @@ public interface IHandlerDescriptor : IDescriptor
     Type MessageResultType { get; }
 
     bool IsGeneric { get; }
+
+    int Order { get; }
 }

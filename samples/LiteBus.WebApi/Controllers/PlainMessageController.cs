@@ -22,7 +22,7 @@ public class PlainMessageController
     public async Task GetNumbers()
     {
         var message = new PlainMessage();
-        var resolveStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy();
+        var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
         var mediationStrategy = new AsyncBroadcastMediationStrategy<PlainMessage>(default);
 
         await _messageMediator.Mediate(message, resolveStrategy, mediationStrategy);

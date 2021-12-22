@@ -21,7 +21,7 @@ public class EventMediator : IEventPublisher
     {
         var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(cancellationToken);
 
-        var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy();
+        var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
         await _messageMediator.Mediate(Event, findStrategy, mediationStrategy);
     }

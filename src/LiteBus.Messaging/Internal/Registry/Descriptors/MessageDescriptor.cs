@@ -6,10 +6,14 @@ namespace LiteBus.Messaging.Internal.Registry.Descriptors;
 
 internal class MessageDescriptor : IMessageDescriptor
 {
-    private readonly List<IErrorHandlerDescriptor> _errorHandlerDescriptors = new();
-    private readonly List<IHandlerDescriptor> _handlerDescriptors = new();
-    private readonly List<IPostHandlerDescriptor> _postHandlerDescriptors = new();
-    private readonly List<IPreHandlerDescriptor> _preHandlerDescriptors = new();
+    private readonly List<IErrorHandlerDescriptor> _errorHandlers = new();
+    private readonly List<IHandlerDescriptor> _handlers = new();
+    private readonly List<IPostHandlerDescriptor> _postHandlers = new();
+    private readonly List<IPreHandlerDescriptor> _preHandlers = new();
+    private readonly List<IHandlerDescriptor> _indirectHandlers = new();
+    private readonly List<IPostHandlerDescriptor> _indirectPostHandlers = new();
+    private readonly List<IPreHandlerDescriptor> _indirectPreHandlers = new();
+    private readonly List<IErrorHandlerDescriptor> _indirectErrorHandlers = new();
 
     public MessageDescriptor(Type messageType)
     {
@@ -21,32 +25,67 @@ internal class MessageDescriptor : IMessageDescriptor
 
     public bool IsGeneric { get; }
 
-    public IReadOnlyCollection<IHandlerDescriptor> HandlerDescriptors => _handlerDescriptors;
+    public IReadOnlyCollection<IHandlerDescriptor> Handlers => _handlers;
 
-    public IReadOnlyCollection<IPostHandlerDescriptor> PostHandlerDescriptors => _postHandlerDescriptors;
+    public IReadOnlyCollection<IHandlerDescriptor> IndirectHandlers => _indirectHandlers;
 
-    public IReadOnlyCollection<IPreHandlerDescriptor> PreHandlerDescriptors => _preHandlerDescriptors;
+    public IReadOnlyCollection<IPostHandlerDescriptor> PostHandlers => _postHandlers;
 
-    public IReadOnlyCollection<IErrorHandlerDescriptor> ErrorHandlerDescriptors => _errorHandlerDescriptors;
+    public IReadOnlyCollection<IPostHandlerDescriptor> IndirectPostHandlers => _indirectPostHandlers;
+
+    public IReadOnlyCollection<IPreHandlerDescriptor> PreHandlers => _preHandlers;
+
+    public IReadOnlyCollection<IPreHandlerDescriptor> IndirectPreHandlers => _indirectPreHandlers;
+
+    public IReadOnlyCollection<IErrorHandlerDescriptor> ErrorHandlers => _errorHandlers;
+
+    public IReadOnlyCollection<IErrorHandlerDescriptor> IndirectErrorHandlers => _indirectErrorHandlers;
+
+    public void AddDescriptors(IEnumerable<IDescriptor> descriptors)
+    {
+        foreach (var descriptor in descriptors)
+        {
+            AddDescriptor(descriptor);
+        }
+    }
 
     public void AddDescriptor(IDescriptor descriptor)
     {
-        switch (descriptor)
+        if (MessageType == descriptor.MessageType)
         {
-            case IErrorHandlerDescriptor errorHandlerDescriptor:
-                _errorHandlerDescriptors.Add(errorHandlerDescriptor);
-                break;
-            case IHandlerDescriptor handlerDescriptor:
-                _handlerDescriptors.Add(handlerDescriptor);
-                break;
-            case IPostHandlerDescriptor postHandlerDescriptor:
-                _postHandlerDescriptors.Add(postHandlerDescriptor);
-                break;
-            case IPreHandlerDescriptor preHandlerDescriptor:
-                _preHandlerDescriptors.Add(preHandlerDescriptor);
-                break;
-            default:
-                throw new NotSupportedException($"The type '{descriptor.GetType().Name}' cannot be identified");
+            switch (descriptor)
+            {
+                case IErrorHandlerDescriptor errorHandlerDescriptor:
+                    _errorHandlers.Add(errorHandlerDescriptor);
+                    break;
+                case IHandlerDescriptor handlerDescriptor:
+                    _handlers.Add(handlerDescriptor);
+                    break;
+                case IPostHandlerDescriptor postHandlerDescriptor:
+                    _postHandlers.Add(postHandlerDescriptor);
+                    break;
+                case IPreHandlerDescriptor preHandlerDescriptor:
+                    _preHandlers.Add(preHandlerDescriptor);
+                    break;
+            }
+        }
+        else if (MessageType.IsAssignableTo(descriptor.MessageType))
+        {
+            switch (descriptor)
+            {
+                case IErrorHandlerDescriptor errorHandlerDescriptor:
+                    _indirectErrorHandlers.Add(errorHandlerDescriptor);
+                    break;
+                case IHandlerDescriptor handlerDescriptor:
+                    _indirectHandlers.Add(handlerDescriptor);
+                    break;
+                case IPostHandlerDescriptor postHandlerDescriptor:
+                    _indirectPostHandlers.Add(postHandlerDescriptor);
+                    break;
+                case IPreHandlerDescriptor preHandlerDescriptor:
+                    _indirectPreHandlers.Add(preHandlerDescriptor);
+                    break;
+            }
         }
     }
 }

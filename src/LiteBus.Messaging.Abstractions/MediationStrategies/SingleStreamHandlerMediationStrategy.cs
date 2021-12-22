@@ -4,11 +4,12 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions.Exceptions;
+using LiteBus.Messaging.Abstractions.Extensions;
 
 namespace LiteBus.Messaging.Abstractions.MediationStrategies;
 
 public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
-    IMessageMediationStrategy<TMessage, IAsyncEnumerable<TMessageResult>>
+    IMessageMediationStrategy<TMessage, IAsyncEnumerable<TMessageResult>> where TMessage : notnull
 {
     private readonly CancellationToken _cancellationToken;
 
@@ -29,10 +30,7 @@ public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
         var result = AsyncEnumerable.Empty<TMessageResult>();
         var exceptionThrown = false;
 
-        foreach (var preHandler in messageContext.PreHandlers)
-        {
-            await preHandler.Value.PreHandleAsync(handleContext);
-        }
+        await messageContext.RunPreHandlers(handleContext);
 
         try
         {
@@ -47,12 +45,9 @@ public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
                 throw;
             }
 
-            handleContext.SetException(e);
+            handleContext.Exception = e;
 
-            foreach (var errorHandler in messageContext.ErrorHandlers)
-            {
-                await errorHandler.Value.HandleErrorAsync(handleContext);
-            }
+            await messageContext.RunErrorHandlers(handleContext);
 
             exceptionThrown = true;
         }
@@ -66,10 +61,7 @@ public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
         {
             handleContext.MessageResult = result;
 
-            foreach (var postHandler in messageContext.PostHandlers)
-            {
-                await postHandler.Value.PostHandleAsync(handleContext);
-            }
+            await messageContext.RunPostHandlers(handleContext);
         }
     }
 }
