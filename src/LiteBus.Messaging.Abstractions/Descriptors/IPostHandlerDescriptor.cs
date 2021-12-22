@@ -9,4 +9,6 @@ public interface IPostHandlerDescriptor : IDescriptor
     int Order { get; }
 
     Type MessageResultType { get; }
+
+    bool IsGeneric { get; }
 }

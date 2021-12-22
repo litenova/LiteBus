@@ -1,14 +1,15 @@
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.UnitTests.Data.Global.Commands;
 
-namespace LiteBus.UnitTests.Data.Commands;
+namespace LiteBus.UnitTests.Data.Global.CommandGlobalPostHandlers;
 
 public class FakeGlobalCommandPostHandler : ICommandPostHandler
 {
     public Task PostHandleAsync(IHandleContext<ICommandBase> context)
     {
-        (context.Message as FakeCommand)!.ExecutedTypes.Add(typeof(FakeGlobalCommandPostHandler));
+        (context.Message as FakeParentCommand)!.ExecutedTypes.Add(typeof(FakeGlobalCommandPostHandler));
         return Task.CompletedTask;
     }
 }

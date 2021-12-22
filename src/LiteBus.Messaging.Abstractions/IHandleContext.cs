@@ -11,31 +11,27 @@ public interface IHandleContext
 
     object Message { get; }
 
-    object MessageResult { get; }
+    object? MessageResult { get; }
 
-    public Exception Exception { get; }
+    Exception? Exception { get; }
 }
 
-public interface IHandleContext<out TMessage> : IHandleContext
+public interface IHandleContext<out TMessage> : IHandleContext where TMessage : notnull
 {
     new TMessage Message { get; }
 
     object IHandleContext.Message => Message;
 }
 
-public interface IHandleContext<out TMessage, out TMessageResult> : IHandleContext<TMessage>
+public interface IHandleContext<out TMessage, out TMessageResult> : IHandleContext<TMessage> where TMessage : notnull
 {
-    new TMessageResult MessageResult { get; }
+    new TMessageResult? MessageResult { get; }
 
-    object IHandleContext.MessageResult => MessageResult;
+    object? IHandleContext.MessageResult => MessageResult;
 }
 
 public class HandleContext : IHandleContext
 {
-    protected HandleContext()
-    {
-    }
-
     public HandleContext(object message, CancellationToken cancellationToken)
     {
         Message = message;
@@ -46,39 +42,33 @@ public class HandleContext : IHandleContext
 
     public CancellationToken CancellationToken { get; protected set; }
 
-    public object Message { get; protected set; }
+    public object Message { get; }
 
-    public object MessageResult { get; set; }
+    public object? MessageResult { get; set; }
 
-    public Exception Exception { get; protected set; }
-
-    public void SetException(Exception exception)
-    {
-        Exception = exception;
-    }
+    public Exception? Exception { get; set; }
 }
 
-public class HandleContext<TMessage> : HandleContext, IHandleContext<TMessage>
+public class HandleContext<TMessage> : HandleContext, IHandleContext<TMessage> where TMessage : notnull
 {
-    public HandleContext(IHandleContext context)
+    public HandleContext(IHandleContext context) : base(context.Message, context.CancellationToken)
     {
         Data = context.Data;
-        CancellationToken = context.CancellationToken;
-        Message = (TMessage) context.Message;
         MessageResult = context.MessageResult;
         Exception = context.Exception;
     }
 
-    public new TMessage Message { get; }
+    public new TMessage Message => (TMessage) base.Message;
 }
 
 public class HandleContext<TMessage, TMessageResult> : HandleContext<TMessage>,
                                                        IHandleContext<TMessage, TMessageResult>
+    where TMessage : notnull
 {
     public HandleContext(IHandleContext context) : base(context)
     {
-        MessageResult = (TMessageResult) context.MessageResult;
+        MessageResult = context.MessageResult is not null ? (TMessageResult) context.MessageResult : default;
     }
 
-    public new TMessageResult MessageResult { get; set; }
+    public new TMessageResult? MessageResult { get; }
 }

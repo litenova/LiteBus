@@ -23,7 +23,7 @@ public class QueryMediator : IQueryMediator
         var mediationStrategy =
             new SingleAsyncHandlerMediationStrategy<IQuery<TQueryResult>, TQueryResult>(cancellationToken);
 
-        var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy();
+        var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
         return _messageMediator.Mediate(query, findStrategy, mediationStrategy);
     }
@@ -34,7 +34,7 @@ public class QueryMediator : IQueryMediator
         var mediationStrategy =
             new SingleStreamHandlerMediationStrategy<IStreamQuery<TQueryResult>, TQueryResult>(cancellationToken);
 
-        var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy();
+        var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
         return _messageMediator.Mediate(query, findStrategy, mediationStrategy);
     }

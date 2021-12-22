@@ -15,7 +15,9 @@ internal class MessageRegistry : IMessageRegistry
 {
     private readonly List<IDescriptorBuilder> _descriptorBuilders;
     private readonly List<MessageDescriptor> _messages = new();
+    private readonly List<IDescriptor> _descriptors = new();
     private readonly ConcurrentDictionary<Type, byte> _processedTypes = new();
+    private readonly List<MessageDescriptor> _newMessages = new();
 
     public MessageRegistry()
     {
@@ -47,40 +49,51 @@ internal class MessageRegistry : IMessageRegistry
             return this;
         }
 
-        var descriptors = _descriptorBuilders
-                          .Where(d => d.CanBuild(type))
-                          .SelectMany(d => d.Build(type));
+        var newDescriptors = _descriptorBuilders
+                             .Where(d => d.CanBuild(type))
+                             .SelectMany(d => d.Build(type))
+                             .ToList();
 
-        foreach (var descriptor in descriptors)
+        foreach (var descriptor in newDescriptors)
         {
-            AddMessageIfNotExist(descriptor.MessageType);
+            RegisterMessage(descriptor.MessageType);
+            _descriptors.Add(descriptor);
+        }
 
-            var relevantMessages = _messages
-                .Where(d => d.MessageType.IsAssignableTo(descriptor.MessageType));
+        // Sync New Messages
+        foreach (var messageDescriptor in _newMessages)
+        {
+            messageDescriptor.AddDescriptors(_descriptors);
+        }
 
-            foreach (var messageDescriptor in relevantMessages)
-            {
-                messageDescriptor.AddDescriptor(descriptor);
-            }
+        // Sync Existing Messages
+        foreach (var messageDescriptor in _messages)
+        {
+            messageDescriptor.AddDescriptors(newDescriptors);
         }
 
         _processedTypes[type] = new byte();
+        _messages.AddRange(_newMessages);
+        _newMessages.Clear();
 
         return this;
     }
 
-    private void AddMessageIfNotExist(Type type)
+    private void RegisterMessage(Type messageType)
     {
-        if (type.IsAbstract || type.IsInterface)
+        if (messageType.IsInterface || messageType.IsAbstract)
         {
             return;
         }
 
-        var existingMessage = _messages.SingleOrDefault(d => d.MessageType == type);
+        messageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType;
 
-        if (existingMessage is null)
+        var existingMessage = _messages.SingleOrDefault(d => d.MessageType == messageType);
+        var isNewMessage = _newMessages.SingleOrDefault(d => d.MessageType == messageType);
+
+        if (existingMessage is null && isNewMessage is null)
         {
-            _messages.Add(new MessageDescriptor(type));
+            _newMessages.Add(new MessageDescriptor(messageType));
         }
     }
 }

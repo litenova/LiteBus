@@ -1,3 +1,4 @@
+using System;
 using System.Reflection;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
@@ -26,11 +27,25 @@ public class LiteBusCommandBuilder
 
         return this;
     }
+    
+    public LiteBusCommandBuilder RegisterHandler(Type handlerType)
+    {
+        _messageRegistry.Register(handlerType);
+
+        return this;
+    }
 
     public LiteBusCommandBuilder RegisterPreHandler<TCommandPreHandler>()
         where TCommandPreHandler : ICommandPreHandlerBase
     {
         _messageRegistry.Register(typeof(TCommandPreHandler));
+
+        return this;
+    }
+
+    public LiteBusCommandBuilder RegisterPreHandler(Type commandPreHandlerType)
+    {
+        _messageRegistry.Register(commandPreHandlerType);
 
         return this;
     }
@@ -43,10 +58,24 @@ public class LiteBusCommandBuilder
         return this;
     }
 
+    public LiteBusCommandBuilder RegisterPostHandler(Type commandPostHandlerType)
+    {
+        _messageRegistry.Register(commandPostHandlerType);
+
+        return this;
+    }
+
     public LiteBusCommandBuilder RegisterErrorHandler<TCommandErrorHandler>()
         where TCommandErrorHandler : ICommandErrorHandlerBase
     {
         _messageRegistry.Register(typeof(TCommandErrorHandler));
+
+        return this;
+    }
+
+    public LiteBusCommandBuilder RegisterErrorHandler(Type errorHandlerType)
+    {
+        _messageRegistry.Register(errorHandlerType);
 
         return this;
     }
