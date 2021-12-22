@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Linq;
+using System.Reflection;
 using LiteBus.Messaging.Abstractions.Descriptors;
 using LiteBus.Messaging.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Abstractions.FindStrategies;
 
-public class ActualTypeOrBaseTypeMessageResolveStrategy : IMessageResolveStrategy
+public class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMessageResolveStrategy
 {
     public IMessageDescriptor Find(Type messageType, IMessageRegistry messageRegistry)
     {
@@ -15,7 +16,7 @@ public class ActualTypeOrBaseTypeMessageResolveStrategy : IMessageResolveStrateg
         }
 
         var descriptor = messageRegistry.SingleOrDefault(d => d.MessageType == messageType) ??
-                         messageRegistry.SingleOrDefault(d => d.MessageType == messageType.BaseType);
+                         messageRegistry.FirstOrDefault(d => d.MessageType.IsAssignableFrom(messageType));
 
         if (descriptor is null)
         {

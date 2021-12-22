@@ -19,14 +19,6 @@ public class HandlerDescriptorBuilder : IDescriptorBuilder<IHandlerDescriptor>
     {
         var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessageHandler<,>));
 
-        var isHandlerGeneric = false;
-
-        if (handlerType.IsGenericType)
-        {
-            handlerType = handlerType.GetGenericTypeDefinition();
-            isHandlerGeneric = true;
-        }
-
         var order = handlerType.GetOrderFromAttribute();
 
         foreach (var @interface in interfaces)
@@ -34,7 +26,7 @@ public class HandlerDescriptorBuilder : IDescriptorBuilder<IHandlerDescriptor>
             var messageType = @interface.GetGenericArguments()[0];
             var messageResultType = @interface.GetGenericArguments()[1];
 
-            yield return new HandlerDescriptor(handlerType, messageType, messageResultType, order, isHandlerGeneric);
+            yield return new HandlerDescriptor(handlerType, messageType, messageResultType, order);
         }
     }
 }

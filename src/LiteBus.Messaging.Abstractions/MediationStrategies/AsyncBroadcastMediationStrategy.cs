@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging.Abstractions.Extensions;
 
 namespace LiteBus.Messaging.Abstractions.MediationStrategies;
 
 public class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task>
+    where TMessage : notnull
 {
     private readonly CancellationToken _cancellationToken;
 
@@ -17,10 +19,7 @@ public class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediationStrate
     {
         var handleContext = new HandleContext(message, _cancellationToken);
 
-        foreach (var preHandler in messageContext.PreHandlers)
-        {
-            await preHandler.Value.PreHandleAsync(handleContext);
-        }
+        await messageContext.RunPreHandlers(handleContext);
 
         try
         {
@@ -36,19 +35,13 @@ public class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediationStrate
                 throw;
             }
 
-            handleContext.SetException(e);
+            handleContext.Exception = e;
 
-            foreach (var errorHandler in messageContext.ErrorHandlers)
-            {
-                await errorHandler.Value.HandleErrorAsync(handleContext);
-            }
+            await messageContext.RunErrorHandlers(handleContext);
 
             return;
         }
 
-        foreach (var postHandler in messageContext.PostHandlers)
-        {
-            await postHandler.Value.PostHandleAsync(handleContext);
-        }
+        await messageContext.RunPostHandlers(handleContext);
     }
 }

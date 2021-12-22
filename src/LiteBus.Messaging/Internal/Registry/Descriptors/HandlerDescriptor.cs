@@ -5,12 +5,12 @@ namespace LiteBus.Messaging.Internal.Registry.Descriptors;
 
 internal class HandlerDescriptor : IHandlerDescriptor
 {
-    public HandlerDescriptor(Type handlerType, Type messageType, Type messageResultType, int order, bool isGeneric)
+    public HandlerDescriptor(Type handlerType, Type messageType, Type messageResultType, int order)
     {
         HandlerType = handlerType;
-        MessageType = messageType;
+        IsGeneric = messageType.IsGenericType;
+        MessageType = IsGeneric ? messageType.GetGenericTypeDefinition() : messageType;
         MessageResultType = messageResultType;
-        IsGeneric = isGeneric;
         Order = order;
     }
 

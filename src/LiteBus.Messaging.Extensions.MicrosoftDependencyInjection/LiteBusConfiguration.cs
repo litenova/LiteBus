@@ -39,22 +39,42 @@ internal class LiteBusConfiguration : ILiteBusConfiguration
 
         foreach (var descriptor in messageRegistry)
         {
-            foreach (var handlerDescriptor in descriptor.HandlerDescriptors)
+            foreach (var handlerDescriptor in descriptor.Handlers)
             {
                 _services.TryAddTransient(handlerDescriptor.HandlerType);
             }
 
-            foreach (var postHandleDescriptor in descriptor.PostHandlerDescriptors)
+            foreach (var handlerDescriptor in descriptor.IndirectHandlers)
+            {
+                _services.TryAddTransient(handlerDescriptor.HandlerType);
+            }
+
+            foreach (var postHandleDescriptor in descriptor.PostHandlers)
             {
                 _services.TryAddTransient(postHandleDescriptor.PostHandlerType);
             }
 
-            foreach (var preHandleDescriptor in descriptor.PreHandlerDescriptors)
+            foreach (var postHandleDescriptor in descriptor.IndirectPostHandlers)
+            {
+                _services.TryAddTransient(postHandleDescriptor.PostHandlerType);
+            }
+
+            foreach (var preHandleDescriptor in descriptor.PreHandlers)
             {
                 _services.TryAddTransient(preHandleDescriptor.PreHandlerType);
             }
 
-            foreach (var errorHandlerDescriptor in descriptor.ErrorHandlerDescriptors)
+            foreach (var preHandleDescriptor in descriptor.IndirectPreHandlers)
+            {
+                _services.TryAddTransient(preHandleDescriptor.PreHandlerType);
+            }
+
+            foreach (var errorHandlerDescriptor in descriptor.ErrorHandlers)
+            {
+                _services.TryAddTransient(errorHandlerDescriptor.ErrorHandlerType);
+            }
+
+            foreach (var errorHandlerDescriptor in descriptor.IndirectErrorHandlers)
             {
                 _services.TryAddTransient(errorHandlerDescriptor.ErrorHandlerType);
             }

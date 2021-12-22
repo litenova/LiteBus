@@ -21,7 +21,7 @@ public class CommandMediator : ICommandMediator
     {
         var mediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand>(cancellationToken);
 
-        var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy();
+        var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
         await _messageMediator.Mediate(command, findStrategy, mediationStrategy);
     }
@@ -32,7 +32,7 @@ public class CommandMediator : ICommandMediator
         var mediationStrategy =
             new SingleAsyncHandlerMediationStrategy<ICommand<TCommandResult>, TCommandResult>(cancellationToken);
 
-        var findStrategy = new ActualTypeOrBaseTypeMessageResolveStrategy();
+        var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
         return await _messageMediator.Mediate(command, findStrategy, mediationStrategy);
     }

@@ -3,11 +3,12 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions.Exceptions;
+using LiteBus.Messaging.Abstractions.Extensions;
 
 namespace LiteBus.Messaging.Abstractions.MediationStrategies;
 
 public class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> :
-    IMessageMediationStrategy<TMessage, Task<TMessageResult>>
+    IMessageMediationStrategy<TMessage, Task<TMessageResult>> where TMessage : notnull
 {
     private readonly CancellationToken _cancellationToken;
 
@@ -27,10 +28,7 @@ public class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> :
         var handleContext = new HandleContext(message, _cancellationToken);
         TMessageResult result = default;
 
-        foreach (var preHandler in messageContext.PreHandlers)
-        {
-            await preHandler.Value.PreHandleAsync(handleContext);
-        }
+        await messageContext.RunPreHandlers(handleContext);
 
         try
         {
@@ -47,20 +45,14 @@ public class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> :
                 throw;
             }
 
-            handleContext.SetException(e);
+            handleContext.Exception = e;
 
-            foreach (var errorHandler in messageContext.ErrorHandlers)
-            {
-                await errorHandler.Value.HandleErrorAsync(handleContext);
-            }
-
+            await messageContext.RunErrorHandlers(handleContext);
+            
             return result;
         }
 
-        foreach (var postHandler in messageContext.PostHandlers)
-        {
-            await postHandler.Value.PostHandleAsync(handleContext);
-        }
+        await messageContext.RunPostHandlers(handleContext);
 
         return result;
     }
@@ -85,16 +77,13 @@ public class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMediationSt
 
         var handleContext = new HandleContext(message, _cancellationToken);
 
-        foreach (var preHandler in messageContext.PreHandlers)
-        {
-            await preHandler.Value.PreHandleAsync(handleContext);
-        }
+        await messageContext.RunPreHandlers(handleContext);
 
         try
         {
             var handler = messageContext.Handlers.Single().Value;
 
-            await (Task) handler!.Handle(handleContext);
+            await (Task) handler.Handle(handleContext);
         }
         catch (Exception e)
         {
@@ -103,19 +92,13 @@ public class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMediationSt
                 throw;
             }
 
-            handleContext.SetException(e);
+            handleContext.Exception = e;
 
-            foreach (var errorHandler in messageContext.ErrorHandlers)
-            {
-                await errorHandler.Value.HandleErrorAsync(handleContext);
-            }
+            await messageContext.RunErrorHandlers(handleContext);
 
             return;
         }
 
-        foreach (var postHandler in messageContext.PostHandlers)
-        {
-            await postHandler.Value.PostHandleAsync(handleContext);
-        }
+        await messageContext.RunPostHandlers(handleContext);
     }
 }

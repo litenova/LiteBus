@@ -8,7 +8,8 @@ internal class PostHandlerDescriptor : IPostHandlerDescriptor
     public PostHandlerDescriptor(Type postHandlerType, Type messageType, Type? messageResultType, int order)
     {
         PostHandlerType = postHandlerType;
-        MessageType = messageType;
+        IsGeneric = messageType.IsGenericType;
+        MessageType = IsGeneric ? messageType.GetGenericTypeDefinition() : messageType;
         MessageResultType = messageResultType;
         Order = order;
     }
@@ -18,6 +19,8 @@ internal class PostHandlerDescriptor : IPostHandlerDescriptor
     public Type MessageType { get; }
 
     public Type? MessageResultType { get; }
+
+    public bool IsGeneric { get; }
 
     public int Order { get; }
 }

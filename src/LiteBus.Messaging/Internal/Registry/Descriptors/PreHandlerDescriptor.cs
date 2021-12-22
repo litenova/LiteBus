@@ -9,12 +9,15 @@ internal class PreHandlerDescriptor : IPreHandlerDescriptor
     {
         PreHandlerType = preHandlerType;
         Order = order;
-        MessageType = messageType;
+        IsGeneric = messageType.IsGenericType;
+        MessageType = IsGeneric ? messageType.GetGenericTypeDefinition() : messageType;
     }
 
     public Type PreHandlerType { get; }
 
     public int Order { get; }
+
+    public bool IsGeneric { get; }
 
     public Type MessageType { get; }
 }
