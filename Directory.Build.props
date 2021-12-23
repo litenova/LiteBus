@@ -12,7 +12,7 @@
         <Description>LiteBus is an easy-to-use and ambitious in-process mediator to implement CQS. It is implemented with minimum reflection usage and streamable query support.</Description>
         <PackageProjectUrl>https://github.com/arishk/LiteBus</PackageProjectUrl>
         <RepositoryUrl>https://github.com/arishk/LiteBus</RepositoryUrl>
-        <PackageLicenseUrl>https://github.com/arishk/LiteBus/blob/main/LICENSE</PackageLicenseUrl>
+        <License>https://github.com/arishk/LiteBus/blob/main/LICENSE</License>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 

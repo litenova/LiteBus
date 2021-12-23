@@ -28,6 +28,7 @@ jobs:
 
       - name: Publish LiteBus
         uses: brandedoutcast/publish-nuget@v2.5.5
+        run: cp Release-Notes.txt src/LiteBus/Release-Notes.txt
         with:
           PROJECT_FILE_PATH: src/LiteBus/LiteBus.csproj
           NUGET_KEY: ${{secrets.Nuget_API_Key}}
