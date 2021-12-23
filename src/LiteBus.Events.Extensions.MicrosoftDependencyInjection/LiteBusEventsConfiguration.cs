@@ -1,3 +1,4 @@
+using System;
 using System.Reflection;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
@@ -28,10 +29,24 @@ public class LiteBusEventsConfiguration
         return this;
     }
 
+    public LiteBusEventsConfiguration RegisterHandler(Type handlerType)
+    {
+        _messageRegistry.Register(handlerType);
+
+        return this;
+    }
+
     public LiteBusEventsConfiguration RegisterPreHandler<TEventPreHandler>()
         where TEventPreHandler : IEventPreHandlerBase
     {
         _messageRegistry.Register(typeof(TEventPreHandler));
+
+        return this;
+    }
+
+    public LiteBusEventsConfiguration RegisterPreHandler(Type eventPreHandlerType)
+    {
+        _messageRegistry.Register(eventPreHandlerType);
 
         return this;
     }
@@ -44,10 +59,24 @@ public class LiteBusEventsConfiguration
         return this;
     }
 
+    public LiteBusEventsConfiguration RegisterPostHandler(Type eventPostHandlerType)
+    {
+        _messageRegistry.Register(eventPostHandlerType);
+
+        return this;
+    }
+
     public LiteBusEventsConfiguration RegisterErrorHandler<TEventErrorHandler>()
         where TEventErrorHandler : IEventErrorHandlerBase
     {
         _messageRegistry.Register(typeof(TEventErrorHandler));
+
+        return this;
+    }
+
+    public LiteBusEventsConfiguration RegisterErrorHandler(Type eventErrorHandlerType)
+    {
+        _messageRegistry.Register(eventErrorHandlerType);
 
         return this;
     }
