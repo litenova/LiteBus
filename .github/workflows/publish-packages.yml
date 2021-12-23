@@ -15,7 +15,7 @@ jobs:
       - name: Setup .NET 6
         uses: actions/setup-dotnet@v1
         with:
-          dotnet-version: 6.0.100
+          dotnet-version: 6.0.x
 
       - name: Restore
         run: dotnet restore
@@ -24,117 +24,7 @@ jobs:
         run: dotnet build --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --no-restore --verbosity normal
+        run: dotnet test --no-build --verbosity normal
 
-      - name: Publish LiteBus
-        uses: brandedoutcast/publish-nuget@v2.5.5
-        run: cp Release-Notes.txt src/LiteBus/Release-Notes.txt
-        with:
-          PROJECT_FILE_PATH: src/LiteBus/LiteBus.csproj
-          NUGET_KEY: ${{secrets.Nuget_API_Key}}
-          NUGET_SOURCE: https://api.nuget.org
-          VERSION_FILE_PATH: Directory.Build.props
-
-      - name: Publish LiteBus.Extensions.MicrosoftDependencyInjection
-        uses: brandedoutcast/publish-nuget@v2.5.5
-        with:
-          PROJECT_FILE_PATH: src/LiteBus.Extensions.MicrosoftDependencyInjection/LiteBus.Extensions.MicrosoftDependencyInjection.csproj
-          NUGET_KEY: ${{secrets.Nuget_API_Key}}
-          NUGET_SOURCE: https://api.nuget.org
-          VERSION_FILE_PATH: Directory.Build.props
-
-      - name: Publish LiteBus.Commands
-        uses: brandedoutcast/publish-nuget@v2.5.5
-        with:
-          PROJECT_FILE_PATH: src/LiteBus.Commands/LiteBus.Commands.csproj
-          NUGET_KEY: ${{secrets.Nuget_API_Key}}
-          NUGET_SOURCE: https://api.nuget.org
-          VERSION_FILE_PATH: Directory.Build.props
-
-      - name: Publish LiteBus.Commands.Abstractions
-        uses: brandedoutcast/publish-nuget@v2.5.5
-        with:
-          PROJECT_FILE_PATH: src/LiteBus.Commands.Abstractions/LiteBus.Commands.Abstractions.csproj
-          NUGET_KEY: ${{secrets.Nuget_API_Key}}
-          NUGET_SOURCE: https://api.nuget.org
-          VERSION_FILE_PATH: Directory.Build.props
-
-      - name: Publish LiteBus.Commands.Extensions.MicrosoftDependencyInjection
-        uses: brandedoutcast/publish-nuget@v2.5.5
-        with:
-          PROJECT_FILE_PATH: src/LiteBus.Commands.Extensions.MicrosoftDependencyInjection/LiteBus.Commands.Extensions.MicrosoftDependencyInjection.csproj
-          NUGET_KEY: ${{secrets.Nuget_API_Key}}
-          NUGET_SOURCE: https://api.nuget.org
-          VERSION_FILE_PATH: Directory.Build.props
-
-      - name: Publish LiteBus.Events
-        uses: brandedoutcast/publish-nuget@v2.5.5
-        with:
-          PROJECT_FILE_PATH: src/LiteBus.Events/LiteBus.Events.csproj
-          NUGET_KEY: ${{secrets.Nuget_API_Key}}
-          NUGET_SOURCE: https://api.nuget.org
-          VERSION_FILE_PATH: Directory.Build.props
-
-      - name: Publish LiteBus.Events.Abstractions
-        uses: brandedoutcast/publish-nuget@v2.5.5
-        with:
-          PROJECT_FILE_PATH: src/LiteBus.Events.Abstractions/LiteBus.Events.Abstractions.csproj
-          NUGET_KEY: ${{secrets.Nuget_API_Key}}
-          NUGET_SOURCE: https://api.nuget.org
-          VERSION_FILE_PATH: Directory.Build.props
-
-      - name: Publish LiteBus.Events.Extensions.MicrosoftDependencyInjection
-        uses: brandedoutcast/publish-nuget@v2.5.5
-        with:
-          PROJECT_FILE_PATH: src/LiteBus.Events.Extensions.MicrosoftDependencyInjection/LiteBus.Events.Extensions.MicrosoftDependencyInjection.csproj
-          NUGET_KEY: ${{secrets.Nuget_API_Key}}
-          NUGET_SOURCE: https://api.nuget.org
-          VERSION_FILE_PATH: Directory.Build.props
-
-      - name: Publish LiteBus.Queries
-        uses: brandedoutcast/publish-nuget@v2.5.5
-        with:
-          PROJECT_FILE_PATH: src/LiteBus.Queries/LiteBus.Queries.csproj
-          NUGET_KEY: ${{secrets.Nuget_API_Key}}
-          NUGET_SOURCE: https://api.nuget.org
-          VERSION_FILE_PATH: Directory.Build.props
-
-      - name: Publish LiteBus.Queries.Abstractions
-        uses: brandedoutcast/publish-nuget@v2.5.5
-        with:
-          PROJECT_FILE_PATH: src/LiteBus.Queries.Abstractions/LiteBus.Queries.Abstractions.csproj
-          NUGET_KEY: ${{secrets.Nuget_API_Key}}
-          NUGET_SOURCE: https://api.nuget.org
-          VERSION_FILE_PATH: Directory.Build.props
-
-      - name: Publish LiteBus.Queries.Extensions.MicrosoftDependencyInjection
-        uses: brandedoutcast/publish-nuget@v2.5.5
-        with:
-          PROJECT_FILE_PATH: src/LiteBus.Queries.Extensions.MicrosoftDependencyInjection/LiteBus.Queries.Extensions.MicrosoftDependencyInjection.csproj
-          NUGET_KEY: ${{secrets.Nuget_API_Key}}
-          NUGET_SOURCE: https://api.nuget.org
-          VERSION_FILE_PATH: Directory.Build.props
-
-      - name: Publish LiteBus.Messaging
-        uses: brandedoutcast/publish-nuget@v2.5.5
-        with:
-          PROJECT_FILE_PATH: src/LiteBus.Messaging/LiteBus.Messaging.csproj
-          NUGET_KEY: ${{secrets.Nuget_API_Key}}
-          NUGET_SOURCE: https://api.nuget.org
-          VERSION_FILE_PATH: Directory.Build.props
-
-      - name: Publish LiteBus.Messaging.Abstractions
-        uses: brandedoutcast/publish-nuget@v2.5.5
-        with:
-          PROJECT_FILE_PATH: src/LiteBus.Messaging.Abstractions/LiteBus.Messaging.Abstractions.csproj
-          NUGET_KEY: ${{secrets.Nuget_API_Key}}
-          NUGET_SOURCE: https://api.nuget.org
-          VERSION_FILE_PATH: Directory.Build.props
-
-      - name: Publish LiteBus.Messaging.Extensions.MicrosoftDependencyInjection
-        uses: brandedoutcast/publish-nuget@v2.5.5
-        with:
-          PROJECT_FILE_PATH: src/LiteBus.Messaging.Extensions.MicrosoftDependencyInjection/LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.csproj
-          NUGET_KEY: ${{secrets.Nuget_API_Key}}
-          NUGET_SOURCE: https://api.nuget.org
-          VERSION_FILE_PATH: Directory.Build.props
+      - name: Publish Packages
+        run: dotnet nuget push src/**/bin/Release/*.nupkg -k ${{secrets.Nuget_API_Key}} -s https://api.nuget.org/v3/index.json --skip-duplicate 
