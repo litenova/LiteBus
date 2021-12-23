@@ -24,7 +24,7 @@ jobs:
         run: dotnet build --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --no-build --verbosity normal
+        run: dotnet test --no-restore --verbosity normal
 
       - name: Publish Packages
         run: dotnet nuget push src/**/bin/Release/*.nupkg -k ${{secrets.Nuget_API_Key}} -s https://api.nuget.org/v3/index.json --skip-duplicate 
