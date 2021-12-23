@@ -1,0 +1,5 @@
+v.0.11.0
+
+⦁ Add non-generic message registration overloads to events, queries and messaging configuration
+⦁ Remove the sample project
+⦁ Add events and queries unit tests
