@@ -1,7 +1,5 @@
-using System;
-using System.Collections.Generic;
 using LiteBus.Commands.Abstractions;
-using LiteBus.UnitTests.Data.Global.Commands;
+using LiteBus.UnitTests.Data.Shared.Commands;
 
 namespace LiteBus.UnitTests.Data.FakeCommand.Messages;
 

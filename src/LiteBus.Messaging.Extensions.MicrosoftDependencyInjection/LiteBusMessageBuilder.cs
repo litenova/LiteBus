@@ -1,3 +1,4 @@
+using System;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
 
@@ -24,9 +25,23 @@ public class LiteBusMessageBuilder
         return this;
     }
 
+    public LiteBusMessageBuilder RegisterHandler(Type handlerType)
+    {
+        _messageRegistry.Register(handlerType);
+
+        return this;
+    }
+
     public LiteBusMessageBuilder RegisterPreHandler<TPreHandler>() where TPreHandler : IMessagePreHandler
     {
         _messageRegistry.Register(typeof(TPreHandler));
+
+        return this;
+    }
+
+    public LiteBusMessageBuilder RegisterPreHandler(Type preHandlerType)
+    {
+        _messageRegistry.Register(preHandlerType);
 
         return this;
     }
@@ -38,9 +53,23 @@ public class LiteBusMessageBuilder
         return this;
     }
 
+    public LiteBusMessageBuilder RegisterPostHandler(Type postHandlerType)
+    {
+        _messageRegistry.Register(postHandlerType);
+
+        return this;
+    }
+
     public LiteBusMessageBuilder RegisterErrorHandler<TErrorHandler>() where TErrorHandler : IMessageErrorHandler
     {
         _messageRegistry.Register(typeof(TErrorHandler));
+
+        return this;
+    }
+    
+    public LiteBusMessageBuilder RegisterErrorHandler(Type errorHandlerType)
+    {
+        _messageRegistry.Register(errorHandlerType);
 
         return this;
     }

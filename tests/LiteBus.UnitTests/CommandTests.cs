@@ -11,8 +11,8 @@ using LiteBus.UnitTests.Data.FakeGenericCommand.Handlers;
 using LiteBus.UnitTests.Data.FakeGenericCommand.Messages;
 using LiteBus.UnitTests.Data.FakeGenericCommand.PostHandlers;
 using LiteBus.UnitTests.Data.FakeGenericCommand.PreHandlers;
-using LiteBus.UnitTests.Data.Global.CommandGlobalPostHandlers;
-using LiteBus.UnitTests.Data.Global.CommandGlobalPreHandlers;
+using LiteBus.UnitTests.Data.Shared.CommandGlobalPostHandlers;
+using LiteBus.UnitTests.Data.Shared.CommandGlobalPreHandlers;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 

@@ -1,3 +1,4 @@
+using System;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Extensions;
@@ -27,10 +28,24 @@ public class LiteBusQueryBuilder
         return this;
     }
 
+    public LiteBusQueryBuilder RegisterHandler(Type type)
+    {
+        _messageRegistry.Register(type);
+
+        return this;
+    }
+
     public LiteBusQueryBuilder RegisterPreHandler<TQueryPreHandler>()
         where TQueryPreHandler : IQueryPreHandlerBase
     {
         _messageRegistry.Register(typeof(TQueryPreHandler));
+
+        return this;
+    }
+
+    public LiteBusQueryBuilder RegisterPreHandler(Type type)
+    {
+        _messageRegistry.Register(type);
 
         return this;
     }
@@ -43,10 +58,23 @@ public class LiteBusQueryBuilder
         return this;
     }
 
+    public LiteBusQueryBuilder RegisterPostHandler(Type type)
+    {
+        _messageRegistry.Register(type);
+
+        return this;
+    }
+
     public LiteBusQueryBuilder RegisterErrorHandler<TQueryErrorHandler>()
-        where TQueryErrorHandler : IQueryErrorHandlerBase
     {
         _messageRegistry.Register(typeof(TQueryErrorHandler));
+
+        return this;
+    }
+
+    public LiteBusQueryBuilder RegisterErrorHandler(Type type)
+    {
+        _messageRegistry.Register(type);
 
         return this;
     }
