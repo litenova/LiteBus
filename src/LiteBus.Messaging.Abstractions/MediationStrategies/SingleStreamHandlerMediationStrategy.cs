@@ -28,12 +28,11 @@ public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
 
         var handleContext = new HandleContext(message, _cancellationToken);
         var result = AsyncEnumerable.Empty<TMessageResult>();
-        var exceptionThrown = false;
-
-        await messageContext.RunPreHandlers(handleContext);
 
         try
         {
+            await messageContext.RunPreHandlers(handleContext);
+
             var handler = messageContext.Handlers.Single().Value;
 
             result = (IAsyncEnumerable<TMessageResult>) handler!.Handle(handleContext);
@@ -48,8 +47,6 @@ public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
             handleContext.Exception = e;
 
             await messageContext.RunErrorHandlers(handleContext);
-
-            exceptionThrown = true;
         }
 
         await foreach (var messageResult in result.WithCancellation(_cancellationToken))
@@ -57,11 +54,22 @@ public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
             yield return messageResult;
         }
 
-        if (!exceptionThrown)
-        {
-            handleContext.MessageResult = result;
+        handleContext.MessageResult = result;
 
+        try
+        {
             await messageContext.RunPostHandlers(handleContext);
+        }
+        catch (Exception e)
+        {
+            if (messageContext.ErrorHandlers.Count == 0)
+            {
+                throw;
+            }
+
+            handleContext.Exception = e;
+
+            await messageContext.RunErrorHandlers(handleContext);
         }
     }
 }

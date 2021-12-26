@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq;
-using System.Reflection;
 using LiteBus.Messaging.Abstractions.Descriptors;
 using LiteBus.Messaging.Abstractions.Exceptions;
 

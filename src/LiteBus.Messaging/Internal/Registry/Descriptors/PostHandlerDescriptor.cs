@@ -5,7 +5,7 @@ namespace LiteBus.Messaging.Internal.Registry.Descriptors;
 
 internal class PostHandlerDescriptor : IPostHandlerDescriptor
 {
-    public PostHandlerDescriptor(Type postHandlerType, Type messageType, Type? messageResultType, int order)
+    public PostHandlerDescriptor(Type postHandlerType, Type messageType, Type messageResultType, int order)
     {
         PostHandlerType = postHandlerType;
         IsGeneric = messageType.IsGenericType;
@@ -18,7 +18,7 @@ internal class PostHandlerDescriptor : IPostHandlerDescriptor
 
     public Type MessageType { get; }
 
-    public Type? MessageResultType { get; }
+    public Type MessageResultType { get; }
 
     public bool IsGeneric { get; }
 
