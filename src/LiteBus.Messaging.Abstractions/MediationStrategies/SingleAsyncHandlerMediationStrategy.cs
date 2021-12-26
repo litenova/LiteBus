@@ -28,15 +28,17 @@ public class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> :
         var handleContext = new HandleContext(message, _cancellationToken);
         TMessageResult result = default;
 
-        await messageContext.RunPreHandlers(handleContext);
-
         try
         {
+            await messageContext.RunPreHandlers(handleContext);
+            
             var handler = messageContext.Handlers.Single().Value;
 
             result = await (Task<TMessageResult>) handler!.Handle(handleContext);
 
             handleContext.MessageResult = result;
+            
+            await messageContext.RunPostHandlers(handleContext);
         }
         catch (Exception e)
         {
@@ -48,11 +50,7 @@ public class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> :
             handleContext.Exception = e;
 
             await messageContext.RunErrorHandlers(handleContext);
-            
-            return result;
         }
-
-        await messageContext.RunPostHandlers(handleContext);
 
         return result;
     }
@@ -77,13 +75,15 @@ public class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMediationSt
 
         var handleContext = new HandleContext(message, _cancellationToken);
 
-        await messageContext.RunPreHandlers(handleContext);
-
         try
         {
+            await messageContext.RunPreHandlers(handleContext);
+            
             var handler = messageContext.Handlers.Single().Value;
 
             await (Task) handler.Handle(handleContext);
+            
+            await messageContext.RunPostHandlers(handleContext);
         }
         catch (Exception e)
         {
@@ -95,10 +95,6 @@ public class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMediationSt
             handleContext.Exception = e;
 
             await messageContext.RunErrorHandlers(handleContext);
-
-            return;
         }
-
-        await messageContext.RunPostHandlers(handleContext);
     }
 }
