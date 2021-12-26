@@ -59,7 +59,7 @@ public class MessageContext : IMessageContext
                 handlerType = handlerType.MakeGenericType(_messageType.GetGenericArguments());
             }
 
-            var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(handlerType));
+            var resolveFunc = new Func<object>(() => _serviceProvider.GetService(handlerType));
 
             yield return new Lazy<IMessageHandler>(() =>
             {
@@ -87,7 +87,7 @@ public class MessageContext : IMessageContext
                 preHandlerType = preHandlerType.MakeGenericType(_messageType.GetGenericArguments());
             }
 
-            var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(preHandlerType));
+            var resolveFunc = new Func<object>(() => _serviceProvider.GetService(preHandlerType));
 
             yield return new Lazy<IMessagePreHandler>(() =>
             {
@@ -115,7 +115,7 @@ public class MessageContext : IMessageContext
                 errorHandlerType = errorHandlerType.MakeGenericType(_messageType.GetGenericArguments());
             }
 
-            var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(errorHandlerType));
+            var resolveFunc = new Func<object>(() => _serviceProvider.GetService(errorHandlerType));
 
             yield return new Lazy<IMessageErrorHandler>(() =>
             {
@@ -143,7 +143,7 @@ public class MessageContext : IMessageContext
                 postHandlerType = postHandlerType.MakeGenericType(_messageType.GetGenericArguments());
             }
 
-            var resolveFunc = new Func<object?>(() => _serviceProvider.GetService(postHandlerType));
+            var resolveFunc = new Func<object>(() => _serviceProvider.GetService(postHandlerType));
 
             yield return new Lazy<IMessagePostHandler>(() =>
             {

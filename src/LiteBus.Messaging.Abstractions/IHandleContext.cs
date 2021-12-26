@@ -11,9 +11,9 @@ public interface IHandleContext
 
     object Message { get; }
 
-    object? MessageResult { get; }
+    object MessageResult { get; }
 
-    Exception? Exception { get; }
+    Exception Exception { get; }
 }
 
 public interface IHandleContext<out TMessage> : IHandleContext where TMessage : notnull
@@ -25,9 +25,9 @@ public interface IHandleContext<out TMessage> : IHandleContext where TMessage : 
 
 public interface IHandleContext<out TMessage, out TMessageResult> : IHandleContext<TMessage> where TMessage : notnull
 {
-    new TMessageResult? MessageResult { get; }
+    new TMessageResult MessageResult { get; }
 
-    object? IHandleContext.MessageResult => MessageResult;
+    object IHandleContext.MessageResult => MessageResult;
 }
 
 public class HandleContext : IHandleContext
@@ -44,9 +44,9 @@ public class HandleContext : IHandleContext
 
     public object Message { get; }
 
-    public object? MessageResult { get; set; }
+    public object MessageResult { get; set; }
 
-    public Exception? Exception { get; set; }
+    public Exception Exception { get; set; }
 }
 
 public class HandleContext<TMessage> : HandleContext, IHandleContext<TMessage> where TMessage : notnull
@@ -70,5 +70,5 @@ public class HandleContext<TMessage, TMessageResult> : HandleContext<TMessage>,
         MessageResult = context.MessageResult is not null ? (TMessageResult) context.MessageResult : default;
     }
 
-    public new TMessageResult? MessageResult { get; }
+    public new TMessageResult MessageResult { get; }
 }
