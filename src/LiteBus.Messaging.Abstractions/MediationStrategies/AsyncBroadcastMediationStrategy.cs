@@ -19,14 +19,16 @@ public class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediationStrate
     {
         var handleContext = new HandleContext(message, _cancellationToken);
 
-        await messageContext.RunPreHandlers(handleContext);
-
         try
         {
+            await messageContext.RunPreHandlers(handleContext);
+
             foreach (var handler in messageContext.Handlers)
             {
                 await (Task) handler.Value.Handle(handleContext);
             }
+
+            await messageContext.RunPostHandlers(handleContext);
         }
         catch (Exception e)
         {
@@ -38,10 +40,6 @@ public class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediationStrate
             handleContext.Exception = e;
 
             await messageContext.RunErrorHandlers(handleContext);
-
-            return;
         }
-
-        await messageContext.RunPostHandlers(handleContext);
     }
 }
