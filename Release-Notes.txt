@@ -1,3 +1,8 @@
+v.0.11.1
+
+⦁ Disable nullable reference types
+⦁ Cover pre handler and post handlers errors with error handlers
+
 v.0.11.0
 
 ⦁ Add non-generic message registration overloads to events, queries and messaging configuration
