@@ -19,14 +19,14 @@ public static class MessageContextExtensions
     
     public static async Task RunErrorHandlers(this IMessageContext messageContext, HandleContext handleContext)
     {
-        foreach (var preHandler in messageContext.IndirectPreHandlers)
+        foreach (var errorHandler in messageContext.IndirectErrorHandlers)
         {
-            await preHandler.Value.PreHandleAsync(handleContext);
+            await errorHandler.Value.HandleErrorAsync(handleContext);
         }
 
-        foreach (var preHandler in messageContext.PreHandlers)
+        foreach (var errorHandler in messageContext.ErrorHandlers)
         {
-            await preHandler.Value.PreHandleAsync(handleContext);
+            await errorHandler.Value.HandleErrorAsync(handleContext);
         }
     }
 
