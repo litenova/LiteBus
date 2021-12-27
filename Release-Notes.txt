@@ -1,6 +1,10 @@
+v.0.11.3
+
+⦁ Bug fix: run error handlers instead of pre handlers in error phase
+
 v.0.11.2
 
-⦁ Bug fix: the number of indirect error handlers into account when rethrowing the exception
+⦁ Bug fix: take the number of indirect error handlers into account when rethrowing the exception
 
 v.0.11.1
 
