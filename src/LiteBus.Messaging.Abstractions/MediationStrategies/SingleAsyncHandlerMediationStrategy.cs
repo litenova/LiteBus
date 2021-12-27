@@ -18,7 +18,7 @@ public class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> :
     }
 
     public async Task<TMessageResult> Mediate(TMessage message,
-                                              IMessageContext messageContext)
+        IMessageContext messageContext)
     {
         if (messageContext.Handlers.Count > 1)
         {
@@ -31,18 +31,18 @@ public class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> :
         try
         {
             await messageContext.RunPreHandlers(handleContext);
-            
+
             var handler = messageContext.Handlers.Single().Value;
 
             result = await (Task<TMessageResult>) handler!.Handle(handleContext);
 
             handleContext.MessageResult = result;
-            
+
             await messageContext.RunPostHandlers(handleContext);
         }
         catch (Exception e)
         {
-            if (messageContext.ErrorHandlers.Count == 0)
+            if (messageContext.ErrorHandlers.Count + messageContext.IndirectErrorHandlers.Count == 0)
             {
                 throw;
             }
@@ -66,7 +66,7 @@ public class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMediationSt
     }
 
     public async Task Mediate(TMessage message,
-                              IMessageContext messageContext)
+        IMessageContext messageContext)
     {
         if (messageContext.Handlers.Count > 1)
         {
@@ -78,16 +78,16 @@ public class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMediationSt
         try
         {
             await messageContext.RunPreHandlers(handleContext);
-            
+
             var handler = messageContext.Handlers.Single().Value;
 
             await (Task) handler.Handle(handleContext);
-            
+
             await messageContext.RunPostHandlers(handleContext);
         }
         catch (Exception e)
         {
-            if (messageContext.ErrorHandlers.Count == 0)
+            if (messageContext.ErrorHandlers.Count + messageContext.IndirectErrorHandlers.Count == 0)
             {
                 throw;
             }
