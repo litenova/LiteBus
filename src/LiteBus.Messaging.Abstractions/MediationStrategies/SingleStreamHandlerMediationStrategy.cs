@@ -39,7 +39,7 @@ public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
         }
         catch (Exception e)
         {
-            if (messageContext.ErrorHandlers.Count == 0)
+            if (messageContext.ErrorHandlers.Count + messageContext.IndirectErrorHandlers.Count == 0)
             {
                 throw;
             }
@@ -62,7 +62,7 @@ public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
         }
         catch (Exception e)
         {
-            if (messageContext.ErrorHandlers.Count == 0)
+            if (messageContext.ErrorHandlers.Count + messageContext.IndirectErrorHandlers.Count == 0)
             {
                 throw;
             }
