@@ -11,9 +11,11 @@
 <h4 align="center">An easy-to-use and ambitious and in-process mediator to implement CQS</h4>
 
 <p align="center">
-  <a href="https://github.com/litenova/LiteBus/actions/workflows/release">
-    <img src="https://github.com/litenova/LiteBus/actions/workflows/release/badge.svg?branch=main">
+
+  <a href="https://github.com/litenova/LiteBus/actions/workflows/release.yml">
+    <img src="https://github.com/litenova/LiteBus/actions/workflows/release.yml/badge.svg" alt="CI/CD Badge">
   </a>
+
    <a href='https://coveralls.io/github/litenova/LiteBus?branch=main'>
     <img src='https://coveralls.io/repos/github/litenova/LiteBus/badge.svg?branch=main' alt='Coverage Status' />
   </a>
