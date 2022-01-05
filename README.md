@@ -11,8 +11,8 @@
 <h4 align="center">An easy-to-use and ambitious and in-process mediator to implement CQS</h4>
 
 <p align="center">
-  <a href="https://github.com/litenova/LiteBus/actions/workflows/dotnet-core.yml">
-    <img src="https://github.com/arishk/LiteBus/actions/workflows/dotnet-core.yml/badge.svg?branch=main">
+  <a href="https://github.com/litenova/LiteBus/actions/workflows/release">
+    <img src="https://github.com/litenova/LiteBus/actions/workflows/release/badge.svg?branch=main">
   </a>
    <a href='https://coveralls.io/github/litenova/LiteBus?branch=main'>
     <img src='https://coveralls.io/repos/github/litenova/LiteBus/badge.svg?branch=main' alt='Coverage Status' />
@@ -24,7 +24,8 @@
 
 <p align="center">
   <a href="#overview">Overview</a> •
-  <a href="#installation-and-configuration">Installation</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#configuration">Configuration</a> •
   <a href="#usages">Usages</a> •
   <a href="#extensibility">Extensibility</a>
 </p>
@@ -34,7 +35,7 @@
 * Written in .NET 6
 * No Dependencies
 * Minimum Reflection Usage
-* Utilizing Covariance, Contravariance, and Polymorphism to Dispatch Messages
+* Utilizing Covariance, Contravariance, and Polymorphism to Dispatch and Handle Messages
 * Built-in Messaging Types
     * Command without Result `ICommand`
     * Command with Result `ICommand<TResult>`
@@ -49,27 +50,51 @@
 * Supports Plain Messages (Classes with no interface implementation) `[Implemented but Not Documented Yet]`
 * Supports Generic Messages `[Implemented but Not Documented Yet]`
 
-## Installation and Configuration
+## Installation
 
-Depending on your usage, follow one of the guidelines below.
+LiteBus modules and features are released in separate **Nuget Packages**. Follow the instructions to install packages:
 
-### ASP.NET Core
+### Metapackage
 
-Install with NuGet:
+The metapackage contains all the features. You can find the configuration of this package in **Configuration** section.
 
-```
-Install-Package LiteBus
-Install-Package LiteBus.Extensions.MicrosoftDependencyInjection
-```
+* [`LiteBus`](https://www.nuget.org/packages/LiteBus.Commands) contains the implementation of all features
+* [`LiteBus.Commands.Extensions.MicrosoftDependencyInjection`](https://www.nuget.org/packages/LiteBus.Extensions.MicrosoftDependencyInjection) provides integration with Microsoft Dependency Injection. It's useful for ASP.NET Core applications.
 
-or with .NET CLI:
 
-```
-dotnet add package LiteBus
-dotnet add package LiteBus.Extensions.MicrosoftDependencyInjection
-```
+### Commands
 
-and configure each module of LiteBus as needed in the `ConfigureServices` method of `Startup.cs`:
+The commands feature consists of following packages:
+
+* [`LiteBus.Commands.Abstractions`](https://www.nuget.org/packages/LiteBus.Commands.Abstractions) this package has no dependency and contains all the commands abstractions such `ICommand`, `ICommandHandler`, etc.
+* [`LiteBus.Commands`](https://www.nuget.org/packages/LiteBus.Commands) the implementation of commands
+* [`LiteBus.Commands.Extensions.MicrosoftDependencyInjection`](https://www.nuget.org/packages/LiteBus.Extensions.MicrosoftDependencyInjection) provides integration with Microsoft Dependency Injection. It's useful for ASP.NET Core applications.  
+
+### Queries
+
+The queries feature consists of following packages:
+
+* [`LiteBus.Queries.Abstractions`](https://www.nuget.org/packages/LiteBus.Queries.Abstractions) this package has no dependency and contains all the queries abstractions such `IQuery`, `IStreamQuery`, `IQueryHandler`, etc.
+* [`LiteBus.Queries`](https://www.nuget.org/packages/LiteBus.Queries) the implementation of queries
+* [`LiteBus.Queries.Extensions.MicrosoftDependencyInjection`](https://www.nuget.org/packages/LiteBus.Extensions.MicrosoftDependencyInjection) provides integration with Microsoft Dependency Injection. It's useful for ASP.NET Core applications.
+
+### Events
+
+The events feature consists of following packages:
+
+* [`LiteBus.Events.Abstractions`](https://www.nuget.org/packages/LiteBus.Events.Abstractions) this package has no dependency and contains all the events abstractions such `IEvent`, `IEventHandler`, etc.
+* [`LiteBus.Events`](https://www.nuget.org/packages/LiteBus.Events) the implementation of events
+* [`LiteBus.Events.Extensions.MicrosoftDependencyInjection`](https://www.nuget.org/packages/LiteBus.Extensions.MicrosoftDependencyInjection) provides integration with Microsoft Dependency Injection. It's useful for ASP.NET Core applications.
+
+
+
+## Configuration
+
+Follow the instruction below to configure LiteBus.
+
+### Microsoft Dependency Injection (ASP.NET Core, etc.)
+
+You can configure each module of LiteBus as needed in the `ConfigureServices` method of `Startup.cs`:
 
 ```c#
 services.AddLiteBus(builder =>

@@ -1,11 +1,13 @@
-name: Publish Packages
+name: Build & Test
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - '!main'
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
 
     steps:
@@ -25,6 +27,3 @@ jobs:
 
       - name: Test
         run: dotnet test --no-restore --verbosity normal
-
-      - name: Publish Packages
-        run: dotnet nuget push src/**/bin/Release/*.nupkg -k ${{secrets.Nuget_API_Key}} -s https://api.nuget.org/v3/index.json --skip-duplicate 
