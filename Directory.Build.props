@@ -10,8 +10,8 @@
         <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(SolutionDir)\Release-Notes.txt"))</PackageReleaseNotes>
         <PackageIcon>icon.png</PackageIcon>
         <Description>LiteBus is an easy-to-use and ambitious in-process mediator to implement CQS. It is implemented with minimum reflection usage and streamable query support.</Description>
-        <PackageProjectUrl>https://github.com/arishk/LiteBus</PackageProjectUrl>
-        <RepositoryUrl>https://github.com/arishk/LiteBus</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/litenova/LiteBus</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/litenova/LiteBus</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <Nullable>disable</Nullable>
     </PropertyGroup>
