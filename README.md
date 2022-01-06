@@ -118,199 +118,350 @@ services.AddLiteBus(builder =>
 });
 ```
 
-## Usages
+## Features and Usages
 
-The following examples demonstrates the usages of LiteBus.
+The following examples demonstrates the features and usages of LiteBus.
 
 ### Commands
 
-Inject ``ICommandMediator`` to your class to send your commands.
+Commands are intended to perform actions that changes the state of the system. To use commands follow the instructions below.
+
+#### Command Contracts 
+
+Specify your commands by implementing
+
+* `ICommand` a command without result
+* `ICommand<TCommandResult>` a command with result
+
+#### Command Handler Contracts
+
+* `ICommandHandler<TCommand>` an asynchronous command handler that does not return a result
+* `ICommandHandler<TCommand, TCommandResult>` an asynchronous command handler that returns a result
+* `ISyncCommandHandler<TCommand>` a synchronous command handler that does not return a result
+* `ISyncCommandHandler<TCommand, TCommandResult>` a synchronous command handler that returns a result
+
+#### Command Mediator/Dispatcher
+
+You can use the `ICommandMediator` or `ICommandDispatcher` to execute your commands. Use them by Injecting one of the interfaces to your desired class.
+
+#### Command Pre Handlers
+
+Pre-handlers allow you to perform actions before a command gets handled. They are handy for performing validation and starting transactions. By implementing the pre handlers, the pre handlers are executed automatically when executing a command. 
+
+* `ICommandPreHandler<TCommand>` This generic pre handler is executed on the pre handle phase of the specified `TCommand`. This pre handler supports generic variance. 
+* `ICommandPreHandler` This pre handler acts as a global command pre handler. It's executed on every command pre-handle phase.
+
+#### Command Post-Handlers
+
+Post-handlers allow you to perform actions after a command gets handled. They are handy for commiting transactions and auditing. By implementing the post-handlers, the post-handlers are executed automatically when executing a command.
+
+* `ICommandPostHandler<TCommand>` This generic post-handler is executed on the post handle phase of the specified `TCommand`. This post-handler supports generic variance.
+* `ICommandPostHandler<TCommand, TCommandResult>` This generic post-handler is executed on the post handle phase of the specified `TCommand` which has `TCommandResult` type.
+* `ICommandPostHandler` This post-handler acts as a global command post-handler. It's executed on every command post-handle phase.
+
+#### Examples
+
+A Command without Result
 
 ```c#
     // A command without result
-    public class CreateColorCommand : ICommand
+    public class CreateProductCommand : ICommand
     {
-        public string ColorName { get; set; }
+        public string Title { get; set; }
     }
 
-    // The handler
-    public class CreateColorCommandHandler : ICommandHandler<CreateColorCommand>
+    // The async handler
+    public class CreateProductCommandHandler : ICommandHandler<CreateProductCommand>
     {
-        public Task HandleAsync(CreateColorCommand command, CancellationToken cancellationToken = default)
+        public Task HandleAsync(CreateProductCommand command, CancellationToken cancellationToken = default)
         {
-            // Proccess the command
+            // Process here...
         }
-    }
-```
-
-```c#
-    // A command with result
-    public class CreateUserCommand : ICommand<int>
-    {
-        public string Name { get; set; }
     }
     
-    // The handler
-    public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand, int>
+    // The sync handler
+    public class CreateProductSyncCommandHandler : ISyncCommandHandler<CreateProductCommand>
     {
-        public Task<int> HandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
+        public void Handle(CreateProductCommand command)
         {
-            return Task.FromResult(1);
+            // Process here...
         }
     }
+    
+    // The pre handler
+    public class ProductCommandPreHandler : ICommandPreHandler<CreateProductCommand>
+    {
+        public Task PreHandleAsync(IHandleContext<CreateProductCommand> context)
+        {
+            // You can access the command though the context
+            // Process here...
+        }
+    }
+    
+    // The post handler
+    public class ProductCommandPostHandler : ICommandPostHandler<CreateProductCommand, long>
+    {
+        public Task PostHandleAsync(IHandleContext<CreateProductCommand, long> context)
+        {
+            // You can access the command and its result though the context
+            // Process here...
+        }
+    }    
+```
+
+A command with result
+```c#
+    // A command with result
+    public class CreateProductCommand : ICommand<long>
+    {
+        public string Title { get; set; }
+    }
+
+    // The async handler
+    public class CreateProductCommandHandler : ICommandHandler<CreateProductCommand, long>
+    {
+        public Task<long> HandleAsync(CreateProductCommand command, CancellationToken cancellationToken = default)
+        {
+            // Process here...
+        }
+    }
+    
+    // The sync handler
+    public class CreateProductSyncCommandHandler : ISyncCommandHandler<CreateProductCommand, long>
+    {
+        public long Handle(CreateProductCommand command)
+        {
+            // Process here...
+        }
+    }
+    
+    // The pre handler
+    public class ProductCommandPreHandler : ICommandPreHandler<CreateProductCommand>
+    {
+        public Task PreHandleAsync(IHandleContext<CreateProductCommand> context)
+        {
+            // You can access the command though the context
+            // Process here...
+        }
+    }
+    
+    // The post handler
+    public class ProductCommandPostHandler : ICommandPostHandler<CreateProductCommand>
+    {
+        public Task PostHandleAsync(IHandleContext<CreateProductCommand> context)
+        {
+            // You can access the command though the context
+            // Process here...
+        }
+    }    
 ```
 
 ### Queries
 
-Inject ``IQueryMediator`` to your class to query data.
+Queries are intended to query data without changing the state of the system. To use queries follow the instructions below.
 
-```C#
-    // A query
-    public class ColorQuery : IQuery<ColorReadModel>
-    {
-        public int Id { get; set; }
-    }
-    
-    // The handler
-    public class ColorQueryHandler : IQueryHandler<ColorQuery, ColorReadModel>
-    {
-        public Task<ColorReadModel> HandleAsync(ColorQuery query, CancellationToken cancellationToken = default)
-        {
-            // Process the query
-        }
-    }
-```
+#### Query Contracts
+
+Specify your queries by implementing
+
+* `IStreamQuery<TQueryResult>` a query that returns an stream of data. The result is represented in the form `IAsyncEnumerable<TQueryResult`.
+* `IQuery<TQueryResult>` a query with result
+
+#### Query Handler Contracts
+
+* `IQueryHandler<TQuery, TQueryResult>` an asynchronous query handler that returns a result
+* `IStreamQueryHandler<TQuery, TQueryResult>` an asynchronous query handler that returns a stream of data in form `IAsyncEnumerable<TQueryResult`.
+* `ISyncQueryHandler<TQuery, TQueryResult>` a synchronous query handler that returns a result
+
+#### Query Mediator/Dispatcher
+
+You can use the `IQueryMediator` or `IQueryDispatcher` to execute your queries. Use them by Injecting one of the interfaces to your desired class.
+
+#### Query Pre Handlers
+
+Pre-handlers allow you to perform actions before a query gets handled. They are handy for performing validation and starting transactions. By implementing the pre handlers, the pre handlers are executed automatically when executing a query.
+
+* `IQueryPreHandler<TQuery>` This generic pre handler is executed on the pre handle phase of the specified `TQuery`. This pre handler supports generic variance.
+* `IQueryPreHandler` This pre handler acts as a global query pre handler. It's executed on every query pre-handle phase.
+
+#### Query Post-Handlers
+
+Post-handlers allow you to perform actions after a query gets handled. They are handy for commiting transactions and auditing. By implementing the post-handlers, the post-handlers are executed automatically when executing a query.
+
+* `IQueryPostHandler<TQuery>` This generic post-handler is executed on the post handle phase of the specified `TQuery`. This post-handler supports generic variance.
+* `IQueryPostHandler<TQuery, TQueryResult>` This generic post-handler is executed on the post handle phase of the specified `TQuery` which has `TQueryResult` type.
+* `IQueryPostHandler` This post-handler acts as a global query post-handler. It's executed on every query post-handle phase.
+
+Please note, post handlers are not supported for stream queries.
+
+#### Examples
+
+A simple query
 
 ```c#
-    // A stream query
-    public class ColorStreamQuery : IStreamQuery<ColorReadModel>
+    // A simple query
+    public class GetSingleProductQuery : IQuery<Product>
     {
-        public int Id { get; set; }
+        public long Id { get; set; }
     }
-    
-    // The handler
-    public class ColorStreamQueryHandler : IStreamQueryHandler<ColorStreamQuery, ColorReadModel>
+
+    // The async handler
+    public class GetSingleProductQueryHandler : IQueryHandler<GetSingleProductQuery, Product>
     {
-        public IAsyncEnumerable<ColorReadModel> HandleAsync(ColorStreamQuery query, CancellationToken cancellationToken = default)
+        public Task<Product> HandleAsync(GetSingleProductQuery query, CancellationToken cancellationToken = default)
         {
-            // Process the query
+            // Process here...
         }
     }
+    
+    // The sync handler
+    public class GetSingleProductSyncQueryHandler : ISyncQueryHandler<GetSingleProductQuery, Product>
+    {
+        public Product Handle(GetSingleProductQuery query)
+        {
+            // Process here...
+        }
+    }
+    
+    // The pre handler
+    public class ProductQueryPreHandler : IQueryPreHandler<GetSingleProductQuery>
+    {
+        public Task PreHandleAsync(IHandleContext<GetSingleProductQuery> context)
+        {
+            // You can access the query though the context
+            // Process here...
+        }
+    }
+    
+    // The post handler
+    public class ProductQueryPostHandler : IQueryPostHandler<GetSingleProductQuery>
+    {
+        public Task PostHandleAsync(IHandleContext<GetSingleProductQuery> context)
+        {
+            // You can access the query though the context
+            // Process here...
+        }
+    }    
+```
+An stream query
+
+```c#
+    // An stream query
+    public class GetAllProductsQuery : IStreamQuery<Product>
+    {
+        
+    }
+
+    // The async handler
+    public class GetSingleProductQueryHandler : IQueryHandler<GetSingleProductQuery, Product>
+    {
+        public IAsyncEnumerable<Product> StreamAsync(GetSingleProductQuery query, CancellationToken cancellationToken = default)
+        {
+            // Process here...
+        }
+    }
+    
+    // The pre handler
+    public class ProductQueryPreHandler : IQueryPreHandler<GetSingleProductQuery>
+    {
+        public Task PreHandleAsync(IHandleContext<GetSingleProductQuery> context)
+        {
+            // You can access the query though the context
+            // Process here...
+        }
+    }    
 ```
 
 ### Events
 
-Inject ``IEventMediator`` or ``IEventPublisher`` to your class to publish events.
+Events act as informative messages. They can have multiple handlers. 
+
+#### Event Contracts
+
+Specify your events by implementing
+
+* `IEvent`
+
+#### Event Handler Contracts
+
+* `IEventHandler<TEvent>` an asynchronous event handler
+* `ISyncEventHandler<TEvent>` a synchronous event handler
+
+#### Event Mediator/Dispatcher
+
+You can use the `IEventMediator` or `IEventDispatcher` or `IEventPublisher` to execute your events. Use them by Injecting one of the interfaces to your desired class.
+
+#### Event Pre Handlers
+
+Pre-handlers allow you to perform actions before a event gets handled. They are handy for performing validation and starting transactions. By implementing the pre handlers, the pre handlers are executed automatically when executing a event.
+
+* `IEventPreHandler<TEvent>` This generic pre handler is executed on the pre handle phase of the specified `TEvent`. This pre handler supports generic variance.
+* `IEventPreHandler` This pre handler acts as a global event pre handler. It's executed on every event pre-handle phase.
+
+#### Event Post-Handlers
+
+Post-handlers allow you to perform actions after a event gets handled. They are handy for commiting transactions and auditing. By implementing the post-handlers, the post-handlers are executed automatically when executing a event.
+
+* `IEventPostHandler<TEvent>` This generic post-handler is executed on the post handle phase of the specified `TEvent`. This post-handler supports generic variance.
+* `IEventPostHandler` This post-handler acts as a global event post-handler. It's executed on every event post-handle phase.
+
+#### Examples
+
+A simple event
 
 ```c#
-    // An event
-    public class ColorCreatedEvent : IEvent
+    // A simple event
+    public class ProductCreatedEvent : IEvent
     {
-        public string ColorName { get; set; }
+        public long Id { get; set; }
+    }
+
+    // The async handler 1
+    public class ProductCreatedEventHandler1 : IEventHandler<ProductCreatedEvent>
+    {
+        public Task HandleAsync(ProductCreatedEvent @event, CancellationToken cancellationToken = default)
+        {
+            // Process here...
+        }
     }
     
-    // The first handler
-    public class ColorCreatedEventHandler1 : IEventHandler<ColorCreatedEvent>
+    // The async handler 2
+    public class ProductCreatedEventHandler2 : IEventHandler<ProductCreatedEvent>
     {
-        public Task HandleAsync(ColorCreatedEvent @event, CancellationToken cancellationToken = default)
+        public Task HandleAsync(ProductCreatedEvent @event, CancellationToken cancellationToken = default)
         {
-            // process the event
-        }
-    }
-
-    // The second handler
-    public class ColorCreatedEventHandler2 : IEventHandler<ColorCreatedEvent>
-    {
-        public Task HandleAsync(ColorCreatedEvent input, CancellationToken cancellationToken = default)
-        {
-            // process the event
-        }
-    }
-```
-
-### Plain Messages
-
-You can send any object as a message if the object has any associated handlers. Inject ``IMessageMediator`` to your
-class to publish events.
-
-```c#
-    // A plain message
-    public class PlainMessage
-    {
-        public int Number { get; set; }
-    }
-    
-    // The handler to handle the message with result
-    public class PlainMessageHandler : IMessageHandler<PlainMessage, Task<int>>
-    {
-        public Task<int> HandleAsync(PlainMessage message, CancellationToken cancellationToken = default)
-        {
-            // process the message
+            // Process here...
         }
     }
     
-    // The handler to handle the message without result
-    public class PlainMessageHandler2 : IMessageHandler<PlainMessage>
+    // The async handler 3
+    public class ProductCreatedEventHandler3 : ISyncEventHandler<ProductCreatedEvent>
     {
-        public Task HandleAsync(PlainMessage message, CancellationToken cancellationToken = default)
+        public void HandleAsync(ProductCreatedEvent @event, CancellationToken cancellationToken = default)
         {
-            // process the message
+            // Process here...
         }
     }
-```
-
-## Post Handlers
-
-A post-handler executes after a message is handled
-
-```c#
-
-    // Exectues an action after each command is handled
-    public class GlobalCommandPostHandler : ICommandPostHandler
+    
+    // The pre handler
+    public class ProductEventPreHandler : IEventPreHandler<ProductCreatedEvent>
     {
-        public Task ExecuteAsync(IBaseCommand message, CancellationToken cancellationToken = default)
+        public Task PreHandleAsync(IHandleContext<ProductCreatedEvent> context)
         {
-            Debug.WriteLine("GlobalCommandPostHandler executed!");
-            return Task.CompletedTask;
+            // You can access the event though the context
+            // Process here...
         }
     }
-
-    // Exectues an action after the specified command is handled
-    public class CreateColorCommandPostHandler : ICommandPostHandler<CreateColorCommand>
+    
+    // The post handler
+    public class ProductEventPostHandler : IEventPostHandler<ProductCreatedEvent>
     {
-        public Task ExecuteAsync(CreateColorCommand message, CancellationToken cancellationToken = default)
+        public Task PostHandleAsync(IHandleContext<ProductCreatedEvent> context)
         {
-            Debug.WriteLine("CreateColorCommandPostHandler executed!");
-            return Task.CompletedTask;
+            // You can access the event and its result though the context
+            // Process here...
         }
-    }
-```
-
-### Pre Handlers
-
-A pre-handler executes before a message is handled
-
-```c#
-
-    // Exectues an action beafore each command is handled
-    public class GlobalCommandPreHandler : ICommandPreHandler
-    {
-        public Task ExecuteAsync(IBaseCommand message, CancellationToken cancellationToken = default)
-        {
-            Debug.WriteLine("GlobalCommandPreHandler executed!");
-            return Task.CompletedTask;
-        }
-    }
-
-    // Exectues an action before the specified command is handled
-    public class CreateColorCommandPreHandler : ICommandPreHandler<CreateColorCommand>
-    {
-        public Task ExecuteAsync(CreateColorCommand message, CancellationToken cancellationToken = default)
-        {
-            Debug.WriteLine("CreateColorCommandPreHandler executed!");
-            return Task.CompletedTask;
-        }
-    }
+    }    
 ```
 
 ## Inheritance
