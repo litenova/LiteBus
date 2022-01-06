@@ -159,6 +159,13 @@ Post-handlers allow you to perform actions after a command gets handled. They ar
 * `ICommandPostHandler<TCommand, TCommandResult>` This generic post-handler is executed on the post handle phase of the specified `TCommand` which has `TCommandResult` type.
 * `ICommandPostHandler` This post-handler acts as a global command post-handler. It's executed on every command post-handle phase.
 
+#### Command Error Handlers
+
+Error handlers allow you to catch and handle any errors thrown during the pre-handle, handle and post handle phase of a command. You can implement error handlers by deriving from:
+
+* `ICommandErrorHandler<TCommand>` This generic post-handler is executed on any phase of the specified command that runs into error. It supports generic variance.
+* `ICommandErrorHandler` Acts as the global command error handler.
+
 #### Examples
 
 A Command without Result
@@ -294,6 +301,15 @@ Post-handlers allow you to perform actions after a query gets handled. They are 
 
 Please note, post handlers are not supported for stream queries.
 
+#### Query Error Handlers
+
+Error handlers allow you to catch and handle any errors thrown during the pre-handle, handle and post handle phase of a query. You can implement error handlers by deriving from:
+
+* `IQueryErrorHandler<TQuery>` This generic post-handler is executed on any phase of the specified query that runs into error. It supports generic variance.
+* `IQueryErrorHandler` Acts as the global query error handler.
+
+Please note, error handlers are not supported for stream queries.
+
 #### Examples
 
 A simple query
@@ -404,6 +420,13 @@ Post-handlers allow you to perform actions after a event gets handled. They are 
 
 * `IEventPostHandler<TEvent>` This generic post-handler is executed on the post handle phase of the specified `TEvent`. This post-handler supports generic variance.
 * `IEventPostHandler` This post-handler acts as a global event post-handler. It's executed on every event post-handle phase.
+
+#### Event Error Handlers
+
+Error handlers allow you to catch and handle any errors thrown during the pre-handle, handle and post handle phase of a event. You can implement error handlers by deriving from:
+
+* `IEventErrorHandler<TEvent>` This generic post-handler is executed on any phase of the specified event that runs into error. It supports generic variance.
+* `IEventErrorHandler` Acts as the global event error handler.
 
 #### Examples
 
