@@ -103,16 +103,13 @@ services.AddLiteBus(builder =>
 {
     builder.AddCommands(commandBuilder =>
            {
-               commandBuilder.RegisterFrom(typeof(CreateNumberCommand).Assembly)
-                             .RegisterPostHandler<GlobalCommandPostHandleAsyncr>();
-           })
-           .AddMessaging(messageBuilder =>
-           {
-               messageBuilder.RegisterFrom(typeof(PlainMessage).Assembly);
+               commandBuilder.RegisterFrom(typeof(CreateProductCommand).Assembly) // Register all handlers from the specified Assembly
+                             .RegisterPreHandler<ProductValidationHandler>()
+                             .RegisterPostHandler<ProductAuditingHandler>();
            })
            .AddQueries(queryBuilder =>
            {
-               queryBuilder.RegisterFrom(typeof(GetNumbersQuery).Assembly); 
+               queryBuilder.RegisterFrom(typeof(GetAllProducts).Assembly); 
            })
            .AddEvents(eventBuilder =>
            {

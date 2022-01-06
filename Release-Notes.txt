@@ -1,3 +1,7 @@
+v.0.12.0
+
+⦁ Add support to message registry to register any class type as a message
+
 v.0.11.3
 
 ⦁ Bug fix: run error handlers instead of pre handlers in error phase
