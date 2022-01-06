@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Extensions;
 
 namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 
@@ -13,8 +14,17 @@ public class LiteBusMessageBuilder
         _messageRegistry = messageRegistry;
     }
 
+    public LiteBusMessageBuilder RegisterFrom<TMessage>()
+    {
+        _messageRegistry.Register(typeof(TMessage));
+
+        return this;
+    }
+
     public LiteBusMessageBuilder RegisterFrom(Assembly assembly)
     {
+        _messageRegistry.RegisterFrom(assembly);
+
         return this;
     }
 
@@ -66,7 +76,7 @@ public class LiteBusMessageBuilder
 
         return this;
     }
-    
+
     public LiteBusMessageBuilder RegisterErrorHandler(Type errorHandlerType)
     {
         _messageRegistry.Register(errorHandlerType);

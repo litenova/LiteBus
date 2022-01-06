@@ -15,6 +15,12 @@ public class LiteBusQueryBuilder
         _messageRegistry = messageRegistry;
     }
 
+    public LiteBusQueryBuilder Register<TQuery>() where TQuery : IQueryBase
+    {
+        _messageRegistry.Register(typeof(TQuery));
+        return this;
+    }
+
     public LiteBusQueryBuilder RegisterFrom(Assembly assembly)
     {
         _messageRegistry.RegisterFrom<IQueryConstruct>(assembly);

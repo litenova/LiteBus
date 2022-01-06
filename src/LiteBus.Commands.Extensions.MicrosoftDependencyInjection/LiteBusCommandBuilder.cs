@@ -15,6 +15,12 @@ public class LiteBusCommandBuilder
         _messageRegistry = messageRegistry;
     }
 
+    public LiteBusCommandBuilder Register<TCommand>() where TCommand : ICommand
+    {
+        _messageRegistry.Register(typeof(TCommand));
+        return this;
+    }
+
     public LiteBusCommandBuilder RegisterFrom(Assembly assembly)
     {
         _messageRegistry.RegisterFrom<ICommandConstruct>(assembly);
@@ -27,7 +33,7 @@ public class LiteBusCommandBuilder
 
         return this;
     }
-    
+
     public LiteBusCommandBuilder RegisterHandler(Type handlerType)
     {
         _messageRegistry.Register(handlerType);

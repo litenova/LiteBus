@@ -1,13 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj" />
+        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-            <_Parameter1>$(AssemblyName).Extensions.MicrosoftDependencyInjection</_Parameter1>
-        </AssemblyAttribute>
+        <InternalsVisibleTo Include="$(AssemblyName).Extensions.MicrosoftDependencyInjection"/>
     </ItemGroup>
 
 </Project>
