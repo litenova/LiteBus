@@ -61,7 +61,7 @@ LiteBus modules and features are released in separate **Nuget Packages**. Follow
 The metapackage contains all the features. You can find the configuration of this package in **Configuration** section.
 
 * [`LiteBus`](https://www.nuget.org/packages/LiteBus.Commands) contains the implementation of all features
-* [`LiteBus.Commands.Extensions.MicrosoftDependencyInjection`](https://www.nuget.org/packages/LiteBus.Extensions.MicrosoftDependencyInjection) provides integration with Microsoft Dependency Injection. It's useful for ASP.NET Core applications.
+* [`LiteBus.Extensions.MicrosoftDependencyInjection`](https://www.nuget.org/packages/LiteBus.Extensions.MicrosoftDependencyInjection) provides integration with Microsoft Dependency Injection. It's useful for ASP.NET Core applications.
 
 
 ### Commands
