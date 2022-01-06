@@ -49,27 +49,34 @@ internal class MessageRegistry : IMessageRegistry
             return this;
         }
 
-        var newDescriptors = _descriptorBuilders
-                             .Where(d => d.CanBuild(type))
-                             .SelectMany(d => d.Build(type))
-                             .ToList();
+        var newDescriptors = _descriptorBuilders.Where(d => d.CanBuild(type))
+                                                .SelectMany(d => d.Build(type))
+                                                .ToList();
 
-        foreach (var descriptor in newDescriptors)
+        // If no descriptor found, treat the type as a message
+        if (newDescriptors.Count == 0)
         {
-            RegisterMessage(descriptor.MessageType);
-            _descriptors.Add(descriptor);
+            RegisterMessage(type);
+        }
+        else
+        {
+            foreach (var descriptor in newDescriptors)
+            {
+                RegisterMessage(descriptor.MessageType);
+                _descriptors.Add(descriptor);
+            }
+
+            // Sync existing messages with new descriptors
+            foreach (var messageDescriptor in _messages)
+            {
+                messageDescriptor.AddDescriptors(newDescriptors);
+            }
         }
 
-        // Sync New Messages
+        // Sync new messages with all the descriptors
         foreach (var messageDescriptor in _newMessages)
         {
             messageDescriptor.AddDescriptors(_descriptors);
-        }
-
-        // Sync Existing Messages
-        foreach (var messageDescriptor in _messages)
-        {
-            messageDescriptor.AddDescriptors(newDescriptors);
         }
 
         _processedTypes[type] = new byte();
@@ -81,7 +88,7 @@ internal class MessageRegistry : IMessageRegistry
 
     private void RegisterMessage(Type messageType)
     {
-        if (messageType.IsInterface || messageType.IsAbstract)
+        if (!messageType.IsClass || messageType.Namespace is not null && messageType.Namespace.StartsWith("System"))
         {
             return;
         }
