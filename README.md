@@ -30,6 +30,7 @@
   <a href="#configuration">Configuration</a> •
   <a href="#usages">Usages</a> •
   <a href="#extensibility">Extensibility</a>
+  <a href="#roadmap">Roadmap</a>
 </p>
 
 ## Overview
@@ -562,3 +563,17 @@ command to ``CreateFileCommandHandler`` since the ``CreateDocumentCommand`` does
 
 **Note:** In such scenarios, the LiteBus will only deliver the message to the direct base class' handler if there is
 any.
+
+## Extensibility
+
+To be added
+
+## Roadmap
+
+- [ ] Integration with Message Brokers
+  - [ ] RabbitMQ
+  - [ ] Kafak
+  - [ ] Azure Event Bus
+- [ ] Saga Support
+- [ ] Outbox Support
+- [ ] More Parallel Capabilities
