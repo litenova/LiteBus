@@ -2,13 +2,14 @@
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions.Exceptions;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Extensions;
+using LiteBus.Messaging.Workflows.Execution.Exceptions;
 
-namespace LiteBus.Messaging.Abstractions.MediationStrategies;
+namespace LiteBus.Messaging.Workflows.Execution;
 
 public class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> :
-    IMessageMediationStrategy<TMessage, Task<TMessageResult>> where TMessage : notnull
+    IExecutionWorkflow<TMessage, Task<TMessageResult>> where TMessage : notnull
 {
     private readonly CancellationToken _cancellationToken;
 
@@ -17,8 +18,8 @@ public class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> :
         _cancellationToken = cancellationToken;
     }
 
-    public async Task<TMessageResult> Mediate(TMessage message,
-        IMessageContext messageContext)
+    public async Task<TMessageResult> Execute(TMessage message,
+                                              IMessageContext messageContext)
     {
         if (messageContext.Handlers.Count > 1)
         {
@@ -56,7 +57,7 @@ public class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> :
     }
 }
 
-public class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task>
+public class SingleAsyncHandlerMediationStrategy<TMessage> : IExecutionWorkflow<TMessage, Task>
 {
     private readonly CancellationToken _cancellationToken;
 
@@ -65,8 +66,8 @@ public class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMediationSt
         _cancellationToken = cancellationToken;
     }
 
-    public async Task Mediate(TMessage message,
-        IMessageContext messageContext)
+    public async Task Execute(TMessage message,
+                              IMessageContext messageContext)
     {
         if (messageContext.Handlers.Count > 1)
         {

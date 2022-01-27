@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace LiteBus.Messaging.Abstractions.Exceptions;
+namespace LiteBus.Messaging.Workflows.Execution.Exceptions;
 
 [Serializable]
 internal class MultipleHandlerFoundException : Exception

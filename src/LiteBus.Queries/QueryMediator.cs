@@ -2,8 +2,8 @@
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.FindStrategies;
-using LiteBus.Messaging.Abstractions.MediationStrategies;
+using LiteBus.Messaging.Workflows.Discovery;
+using LiteBus.Messaging.Workflows.Execution;
 using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.Queries;
@@ -23,7 +23,7 @@ public class QueryMediator : IQueryMediator
         var mediationStrategy =
             new SingleAsyncHandlerMediationStrategy<IQuery<TQueryResult>, TQueryResult>(cancellationToken);
 
-        var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
+        var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
         return _messageMediator.Mediate(query, findStrategy, mediationStrategy);
     }
@@ -34,7 +34,7 @@ public class QueryMediator : IQueryMediator
         var mediationStrategy =
             new SingleStreamHandlerMediationStrategy<IStreamQuery<TQueryResult>, TQueryResult>(cancellationToken);
 
-        var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
+        var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
         return _messageMediator.Mediate(query, findStrategy, mediationStrategy);
     }

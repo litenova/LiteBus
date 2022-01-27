@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions.Exceptions;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Extensions;
+using LiteBus.Messaging.Workflows.Execution.Exceptions;
 
-namespace LiteBus.Messaging.Abstractions.MediationStrategies;
+namespace LiteBus.Messaging.Workflows.Execution;
 
 public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
-    IMessageMediationStrategy<TMessage, IAsyncEnumerable<TMessageResult>> where TMessage : notnull
+    IExecutionWorkflow<TMessage, IAsyncEnumerable<TMessageResult>> where TMessage : notnull
 {
     private readonly CancellationToken _cancellationToken;
 
@@ -18,7 +19,7 @@ public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
         _cancellationToken = cancellationToken;
     }
 
-    public async IAsyncEnumerable<TMessageResult> Mediate(TMessage message,
+    public async IAsyncEnumerable<TMessageResult> Execute(TMessage message,
                                                           IMessageContext messageContext)
     {
         if (messageContext.Handlers.Count > 1)
