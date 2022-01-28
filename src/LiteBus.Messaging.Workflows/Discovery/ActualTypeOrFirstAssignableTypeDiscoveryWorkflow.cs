@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Linq;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Descriptors;
-using LiteBus.Messaging.Abstractions.Exceptions;
+using LiteBus.Messaging.Workflows.Discovery.Exceptions;
 
-namespace LiteBus.Messaging.Abstractions.FindStrategies;
+namespace LiteBus.Messaging.Workflows.Discovery;
 
-public class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMessageResolveStrategy
+public class ActualTypeOrFirstAssignableTypeDiscoveryWorkflow : IDiscoveryWorkflow
 {
-    public IMessageDescriptor Find(Type messageType, IMessageRegistry messageRegistry)
+    public IMessageDescriptor Discover(IMessageRegistry messageRegistry, Type messageType)
     {
         if (messageType.IsGenericType)
         {

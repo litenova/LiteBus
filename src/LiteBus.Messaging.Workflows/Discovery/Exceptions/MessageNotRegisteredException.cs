@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace LiteBus.Messaging.Abstractions.Exceptions;
+namespace LiteBus.Messaging.Workflows.Discovery.Exceptions;
 
 [Serializable]
 internal class MessageNotRegisteredException : Exception

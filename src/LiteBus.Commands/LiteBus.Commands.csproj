@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj" />
+        <ProjectReference Include="..\LiteBus.Messaging.Workflows\LiteBus.Messaging.Workflows.csproj" />
     </ItemGroup>
 
 </Project>

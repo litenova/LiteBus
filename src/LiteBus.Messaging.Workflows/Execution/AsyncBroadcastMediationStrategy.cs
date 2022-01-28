@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Extensions;
 
-namespace LiteBus.Messaging.Abstractions.MediationStrategies;
+namespace LiteBus.Messaging.Workflows.Execution;
 
-public class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task>
+public class AsyncBroadcastMediationStrategy<TMessage> : IExecutionWorkflow<TMessage, Task>
     where TMessage : notnull
 {
     private readonly CancellationToken _cancellationToken;
@@ -15,7 +16,7 @@ public class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediationStrate
         _cancellationToken = cancellationToken;
     }
 
-    public async Task Mediate(TMessage message, IMessageContext messageContext)
+    public async Task Execute(TMessage message, IMessageContext messageContext)
     {
         var handleContext = new HandleContext(message, _cancellationToken);
 

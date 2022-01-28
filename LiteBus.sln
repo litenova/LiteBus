@@ -53,6 +53,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{
 		.github\workflows\pre-release.yml = .github\workflows\pre-release.yml
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Messaging.Workflows", "src\LiteBus.Messaging.Workflows\LiteBus.Messaging.Workflows.csproj", "{1EC4BF27-81FC-4FB5-B6DF-9411F737541C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -75,6 +77,7 @@ Global
 		{5304A13D-7C9E-4B79-8CCA-885266EAD744} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
 		{927C34A3-67E0-4CFB-882D-2C3D2604CFF4} = {0EFE2493-E2D3-499C-BB05-B9794298273D}
 		{6DDDBFD2-8D06-4620-9BA4-1666FCA0524E} = {4F94FB13-B936-4AD4-A609-70ED7A1158E9}
+		{1EC4BF27-81FC-4FB5-B6DF-9411F737541C} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{B1FDAB62-C743-4D41-A8F6-727FEFCA882D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -137,5 +140,9 @@ Global
 		{927C34A3-67E0-4CFB-882D-2C3D2604CFF4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{927C34A3-67E0-4CFB-882D-2C3D2604CFF4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{927C34A3-67E0-4CFB-882D-2C3D2604CFF4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1EC4BF27-81FC-4FB5-B6DF-9411F737541C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1EC4BF27-81FC-4FB5-B6DF-9411F737541C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1EC4BF27-81FC-4FB5-B6DF-9411F737541C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1EC4BF27-81FC-4FB5-B6DF-9411F737541C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

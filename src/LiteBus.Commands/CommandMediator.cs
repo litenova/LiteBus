@@ -2,8 +2,8 @@
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.FindStrategies;
-using LiteBus.Messaging.Abstractions.MediationStrategies;
+using LiteBus.Messaging.Workflows.Discovery;
+using LiteBus.Messaging.Workflows.Execution;
 
 namespace LiteBus.Commands;
 
@@ -21,7 +21,7 @@ public class CommandMediator : ICommandMediator
     {
         var mediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand>(cancellationToken);
 
-        var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
+        var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
         await _messageMediator.Mediate(command, findStrategy, mediationStrategy);
     }
@@ -32,7 +32,7 @@ public class CommandMediator : ICommandMediator
         var mediationStrategy =
             new SingleAsyncHandlerMediationStrategy<ICommand<TCommandResult>, TCommandResult>(cancellationToken);
 
-        var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
+        var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
         return await _messageMediator.Mediate(command, findStrategy, mediationStrategy);
     }

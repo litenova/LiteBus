@@ -2,8 +2,8 @@
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.FindStrategies;
-using LiteBus.Messaging.Abstractions.MediationStrategies;
+using LiteBus.Messaging.Workflows.Discovery;
+using LiteBus.Messaging.Workflows.Execution;
 
 namespace LiteBus.Events;
 
@@ -21,7 +21,7 @@ public class EventMediator : IEventPublisher
     {
         var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(cancellationToken);
 
-        var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
+        var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
         await _messageMediator.Mediate(@event, findStrategy, mediationStrategy);
     }
