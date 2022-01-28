@@ -16,16 +16,16 @@ internal class MessageMediator : IMessageMediator
     }
 
     public TMessageResult Mediate<TMessage, TMessageResult>(TMessage message,
-                                                            IDiscoveryWorkflow discoveryWorkflow,
+                                                            IDiscoveryWorkflow discovery,
                                                             IExecutionWorkflow<TMessage, TMessageResult>
-                                                                executionWorkflow)
+                                                                execution)
     {
         var messageType = message.GetType();
 
-        var descriptor = discoveryWorkflow.Discover(_messageRegistry, messageType);
+        var descriptor = discovery.Discover(_messageRegistry, messageType);
 
         var context = new MessageContext(messageType, descriptor, _serviceProvider);
 
-        return executionWorkflow.Execute(message, context);
+        return execution.Execute(message, context);
     }
 }

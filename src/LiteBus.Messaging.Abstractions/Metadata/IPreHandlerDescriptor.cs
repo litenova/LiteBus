@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace LiteBus.Messaging.Abstractions.Descriptors;
+namespace LiteBus.Messaging.Abstractions.Metadata;
 
 public interface IPreHandlerDescriptor : IDescriptor
 {

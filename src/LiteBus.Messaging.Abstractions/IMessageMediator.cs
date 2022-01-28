@@ -3,7 +3,6 @@ namespace LiteBus.Messaging.Abstractions;
 public interface IMessageMediator
 {
     TMessageResult Mediate<TMessage, TMessageResult>(TMessage message,
-                                                     IDiscoveryWorkflow discoveryWorkflow,
-                                                     IExecutionWorkflow<TMessage, TMessageResult>
-                                                         executionWorkflow);
+                                                     IDiscoveryWorkflow discovery,
+                                                     IExecutionWorkflow<TMessage, TMessageResult> execution);
 }
