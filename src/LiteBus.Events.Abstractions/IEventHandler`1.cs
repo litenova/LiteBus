@@ -2,10 +2,6 @@
 
 namespace LiteBus.Events.Abstractions;
 
-public interface IEventHandlerBase : IEventConstruct
-{
-}
-
 /// <summary>
 ///     Represents an asynchronous event handler
 /// </summary>
