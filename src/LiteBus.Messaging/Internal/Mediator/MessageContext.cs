@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Descriptors;
+using LiteBus.Messaging.Abstractions.Metadata;
 using LiteBus.Messaging.Internal.Exceptions;
 using LiteBus.Messaging.Internal.Extensions;
 
