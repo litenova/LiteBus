@@ -1,33 +1,43 @@
 ﻿using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Extensions;
+using LiteBus.Messaging.Workflows.Execution.Exceptions;
 
 namespace LiteBus.Messaging.Workflows.Execution;
 
-public class AsyncBroadcastMediationStrategy<TMessage> : IExecutionWorkflow<TMessage, Task>
-    where TMessage : notnull
+public class SingleAsyncHandlerExecutionWorkflow<TMessage> : IExecutionWorkflow<TMessage, Task>
 {
     private readonly CancellationToken _cancellationToken;
 
-    public AsyncBroadcastMediationStrategy(CancellationToken cancellationToken)
+    public SingleAsyncHandlerExecutionWorkflow(CancellationToken cancellationToken)
     {
         _cancellationToken = cancellationToken;
     }
 
-    public async Task Execute(TMessage message, IMessageContext messageContext)
+    public async Task Execute(TMessage message,
+                              IMessageContext messageContext)
     {
+        var handlers = messageContext.Handlers
+                                     .Where(h => h.Descriptor.IsAsynchronous())
+                                     .ToList();
+
+        if (handlers.Count > 1)
+        {
+            throw new MultipleHandlerFoundException(typeof(TMessage));
+        }
+
         var handleContext = new HandleContext(message, _cancellationToken);
 
         try
         {
             await messageContext.RunPreHandlers(handleContext);
 
-            foreach (var handler in messageContext.Handlers)
-            {
-                await (Task) handler.Value.Handle(handleContext);
-            }
+            var handler = handlers.Single().Instance;
+
+            await (Task) handler.Handle(handleContext);
 
             await messageContext.RunPostHandlers(handleContext);
         }

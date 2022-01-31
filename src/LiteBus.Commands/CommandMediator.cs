@@ -19,21 +19,39 @@ public class CommandMediator : ICommandMediator
 
     public async Task SendAsync(ICommand command, CancellationToken cancellationToken = default)
     {
-        var mediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand>(cancellationToken);
+        var executionWorkflow = new SingleAsyncHandlerExecutionWorkflow<ICommand>(cancellationToken);
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        await _messageMediator.Mediate(command, findStrategy, mediationStrategy);
+        await _messageMediator.Mediate(command, findStrategy, executionWorkflow);
+    }
+
+    public void Send(ICommand command)
+    {
+        var executionWorkflow = new SingleSyncHandlerExecutionWorkflow<ICommand>();
+
+        var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
+
+        _messageMediator.Mediate(command, findStrategy, executionWorkflow);
     }
 
     public async Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
                                                                 CancellationToken cancellationToken = default)
     {
-        var mediationStrategy =
-            new SingleAsyncHandlerMediationStrategy<ICommand<TCommandResult>, TCommandResult>(cancellationToken);
+        var executionWorkflow =
+            new SingleAsyncHandlerExecutionWorkflow<ICommand<TCommandResult>, TCommandResult>(cancellationToken);
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        return await _messageMediator.Mediate(command, findStrategy, mediationStrategy);
+        return await _messageMediator.Mediate(command, findStrategy, executionWorkflow);
+    }
+
+    public TCommandResult Send<TCommandResult>(ICommand<TCommandResult> command)
+    {
+        var executionWorkflow = new SingleSyncHandlerExecutionWorkflow<ICommand<TCommandResult>, TCommandResult>();
+
+        var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
+
+        return _messageMediator.Mediate(command, findStrategy, executionWorkflow);
     }
 }

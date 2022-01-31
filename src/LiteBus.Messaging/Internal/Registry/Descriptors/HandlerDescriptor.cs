@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions.Metadata;
 
 namespace LiteBus.Messaging.Internal.Registry.Descriptors;

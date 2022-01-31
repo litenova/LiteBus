@@ -8,25 +8,25 @@ public static class MessageContextExtensions
     {
         foreach (var preHandler in messageContext.IndirectPreHandlers)
         {
-            await preHandler.Value.PreHandleAsync(handleContext);
+            await preHandler.Instance.PreHandleAsync(handleContext);
         }
 
         foreach (var preHandler in messageContext.PreHandlers)
         {
-            await preHandler.Value.PreHandleAsync(handleContext);
+            await preHandler.Instance.PreHandleAsync(handleContext);
         }
     }
-    
+
     public static async Task RunErrorHandlers(this IMessageContext messageContext, HandleContext handleContext)
     {
         foreach (var errorHandler in messageContext.IndirectErrorHandlers)
         {
-            await errorHandler.Value.HandleErrorAsync(handleContext);
+            await errorHandler.Instance.HandleErrorAsync(handleContext);
         }
 
         foreach (var errorHandler in messageContext.ErrorHandlers)
         {
-            await errorHandler.Value.HandleErrorAsync(handleContext);
+            await errorHandler.Instance.HandleErrorAsync(handleContext);
         }
     }
 
@@ -34,12 +34,12 @@ public static class MessageContextExtensions
     {
         foreach (var preHandler in messageContext.PostHandlers)
         {
-            await preHandler.Value.PostHandleAsync(handleContext);
+            await preHandler.Instance.PostHandleAsync(handleContext);
         }
 
         foreach (var preHandler in messageContext.IndirectPostHandlers)
         {
-            await preHandler.Value.PostHandleAsync(handleContext);
+            await preHandler.Instance.PostHandleAsync(handleContext);
         }
     }
 }

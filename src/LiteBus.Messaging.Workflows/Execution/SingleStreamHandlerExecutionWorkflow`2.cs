@@ -6,15 +6,16 @@ using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Extensions;
 using LiteBus.Messaging.Workflows.Execution.Exceptions;
+using LiteBus.Messaging.Workflows.Utilities;
 
 namespace LiteBus.Messaging.Workflows.Execution;
 
-public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
+public class SingleStreamHandlerExecutionWorkflow<TMessage, TMessageResult> :
     IExecutionWorkflow<TMessage, IAsyncEnumerable<TMessageResult>> where TMessage : notnull
 {
     private readonly CancellationToken _cancellationToken;
 
-    public SingleStreamHandlerMediationStrategy(CancellationToken cancellationToken)
+    public SingleStreamHandlerExecutionWorkflow(CancellationToken cancellationToken)
     {
         _cancellationToken = cancellationToken;
     }
@@ -22,7 +23,11 @@ public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
     public async IAsyncEnumerable<TMessageResult> Execute(TMessage message,
                                                           IMessageContext messageContext)
     {
-        if (messageContext.Handlers.Count > 1)
+        var handlers = messageContext.Handlers
+                                     .Where(h => h.Descriptor.IsAsynchronousEnumerable())
+                                     .ToList();
+
+        if (handlers.Count > 1)
         {
             throw new MultipleHandlerFoundException(typeof(TMessage));
         }
@@ -34,7 +39,7 @@ public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
         {
             await messageContext.RunPreHandlers(handleContext);
 
-            var handler = messageContext.Handlers.Single().Value;
+            var handler = handlers.Single().Instance;
 
             result = (IAsyncEnumerable<TMessageResult>) handler!.Handle(handleContext);
         }
@@ -71,41 +76,6 @@ public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
             handleContext.Exception = e;
 
             await messageContext.RunErrorHandlers(handleContext);
-        }
-    }
-}
-
-public static class AsyncEnumerable
-{
-    /// <summary>
-    ///     Creates an <see cref="IAsyncEnumerable{T}" /> which yields no results, similar to
-    ///     <see cref="Enumerable.Empty{TResult}" />.
-    /// </summary>
-    public static IAsyncEnumerable<T> Empty<T>()
-    {
-        return EmptyAsyncEnumerator<T>.Instance;
-    }
-
-    private class EmptyAsyncEnumerator<T> : IAsyncEnumerator<T>, IAsyncEnumerable<T>
-    {
-        public static readonly EmptyAsyncEnumerator<T> Instance = new();
-
-        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return this;
-        }
-
-        public T Current => default;
-
-        public ValueTask DisposeAsync()
-        {
-            return default;
-        }
-
-        public ValueTask<bool> MoveNextAsync()
-        {
-            return new ValueTask<bool>(false);
         }
     }
 }

@@ -1,19 +1,23 @@
-﻿namespace LiteBus.Messaging.Abstractions;
+﻿using System.Collections.Generic;
+using LiteBus.Messaging.Abstractions.Metadata;
+
+namespace LiteBus.Messaging.Abstractions;
 
 public interface IMessageContext
 {
-    ILazyReadOnlyCollection<IMessageHandler> Handlers { get; }
-    
-    ILazyReadOnlyCollection<IMessageHandler> IndirectHandlers { get; }
+    IInstances<IMessageHandler, IHandlerDescriptor> Handlers { get; }
 
-    ILazyReadOnlyCollection<IMessagePreHandler> PreHandlers { get; }
-    
-    ILazyReadOnlyCollection<IMessagePreHandler> IndirectPreHandlers { get; }
+    IInstances<IMessageHandler, IHandlerDescriptor> IndirectHandlers { get; }
 
-    ILazyReadOnlyCollection<IMessagePostHandler> PostHandlers { get; }
-    
-    ILazyReadOnlyCollection<IMessagePostHandler> IndirectPostHandlers { get; }
+    IInstances<IMessagePreHandler, IPreHandlerDescriptor> PreHandlers { get; }
 
-    ILazyReadOnlyCollection<IMessageErrorHandler> ErrorHandlers { get; }
-    ILazyReadOnlyCollection<IMessageErrorHandler> IndirectErrorHandlers { get; }
+    IInstances<IMessagePreHandler, IPreHandlerDescriptor> IndirectPreHandlers { get; }
+
+    IInstances<IMessagePostHandler, IPostHandlerDescriptor> PostHandlers { get; }
+
+    IInstances<IMessagePostHandler, IPostHandlerDescriptor> IndirectPostHandlers { get; }
+
+    IInstances<IMessageErrorHandler, IErrorHandlerDescriptor> ErrorHandlers { get; }
+
+    IInstances<IMessageErrorHandler, IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
 }

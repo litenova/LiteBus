@@ -20,22 +20,22 @@ public class QueryMediator : IQueryMediator
     public Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
                                                        CancellationToken cancellationToken = default)
     {
-        var mediationStrategy =
-            new SingleAsyncHandlerMediationStrategy<IQuery<TQueryResult>, TQueryResult>(cancellationToken);
+        var executionWorkflow =
+            new SingleAsyncHandlerExecutionWorkflow<IQuery<TQueryResult>, TQueryResult>(cancellationToken);
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        return _messageMediator.Mediate(query, findStrategy, mediationStrategy);
+        return _messageMediator.Mediate(query, findStrategy, executionWorkflow);
     }
 
     public IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
                                                                     CancellationToken cancellationToken = default)
     {
-        var mediationStrategy =
-            new SingleStreamHandlerMediationStrategy<IStreamQuery<TQueryResult>, TQueryResult>(cancellationToken);
+        var executionWorkflow =
+            new SingleStreamHandlerExecutionWorkflow<IStreamQuery<TQueryResult>, TQueryResult>(cancellationToken);
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        return _messageMediator.Mediate(query, findStrategy, mediationStrategy);
+        return _messageMediator.Mediate(query, findStrategy, executionWorkflow);
     }
 }

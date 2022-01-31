@@ -17,6 +17,13 @@ public interface ICommandMediator : ICommandConstruct
     Task SendAsync(ICommand command, CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     Sends a command without result to its corresponding sync handler
+    /// </summary>
+    /// <param name="command">the command to send</param>
+    /// <returns></returns>
+    void Send(ICommand command);
+
+    /// <summary>
     ///     Sends a command to its corresponding handler and returns the command result
     /// </summary>
     /// <param name="command">the command to send</param>
@@ -24,4 +31,11 @@ public interface ICommandMediator : ICommandConstruct
     /// <returns>The command result</returns>
     Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
                                                    CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Sends a command to its corresponding sync handler and returns the command result
+    /// </summary>
+    /// <param name="command">the command to send</param>
+    /// <returns>The command result</returns>
+    TCommandResult Send<TCommandResult>(ICommand<TCommandResult> command);
 }

@@ -19,10 +19,10 @@ public class EventMediator : IEventPublisher
 
     public async Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
     {
-        var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(cancellationToken);
+        var executionWorkflow = new AsyncBroadcastExecutionWorkflow<IEvent>(cancellationToken);
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        await _messageMediator.Mediate(@event, findStrategy, mediationStrategy);
+        await _messageMediator.Mediate(@event, findStrategy, executionWorkflow);
     }
 }
