@@ -21,7 +21,7 @@ namespace LiteBus.UnitTests;
 public class EventTests
 {
     [Fact]
-    public async Task Send_FakeEvent_ShouldGoThroughHandlersCorrectly()
+    public async Task SendAsync_FakeEvent_ShouldGoThroughHandlersCorrectly()
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
@@ -61,7 +61,7 @@ public class EventTests
     }
 
     [Fact]
-    public async Task Send_FakeGenericEvent_ShouldGoThroughHandlersCorrectly()
+    public async Task SendAsync_FakeGenericEvent_ShouldGoThroughHandlersCorrectly()
     {
         // Arrange
         var serviceProvider = new ServiceCollection()

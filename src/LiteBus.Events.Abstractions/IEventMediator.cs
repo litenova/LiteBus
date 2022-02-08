@@ -9,4 +9,6 @@ namespace LiteBus.Events.Abstractions;
 public interface IEventMediator : IEventConstruct
 {
     Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default);
+
+    void Publish(IEvent @event);
 }

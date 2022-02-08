@@ -25,4 +25,13 @@ public class EventMediator : IEventPublisher
 
         await _mediator.Mediate(@event, findStrategy, executionWorkflow);
     }
+
+    public void Publish(IEvent @event)
+    {
+        var executionWorkflow = new SyncBroadcastExecutionWorkflow<IEvent>();
+
+        var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
+
+        _mediator.Mediate(@event, findStrategy, executionWorkflow);
+    }
 }
