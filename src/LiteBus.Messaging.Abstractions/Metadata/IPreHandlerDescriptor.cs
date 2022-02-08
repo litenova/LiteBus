@@ -1,12 +1,6 @@
-﻿using System;
+﻿namespace LiteBus.Messaging.Abstractions.Metadata;
 
-namespace LiteBus.Messaging.Abstractions.Metadata;
-
-public interface IPreHandlerDescriptor : IDescriptor
+public interface IPreHandlerDescriptor : IHandlerDescriptor
 {
-    Type PreHandlerType { get; }
 
-    int Order { get; }
-
-    bool IsGeneric { get; }
 }

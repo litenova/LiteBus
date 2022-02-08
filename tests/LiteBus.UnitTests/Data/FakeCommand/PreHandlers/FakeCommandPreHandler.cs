@@ -6,7 +6,7 @@ namespace LiteBus.UnitTests.Data.FakeCommand.PreHandlers;
 
 public class FakeCommandPreHandler : ICommandPreHandler<FakeCommand.Messages.FakeCommand>
 {
-    public Task PreHandleAsync(IHandleContext<FakeCommand.Messages.FakeCommand> context)
+    public Task HandleAsync(IHandleContext<FakeCommand.Messages.FakeCommand> context)
     {
         context.Message.ExecutedTypes.Add(typeof(FakeCommandPreHandler));
         return Task.CompletedTask;

@@ -7,7 +7,7 @@ namespace LiteBus.UnitTests.Data.Shared.EventGlobalPostHandlers;
 
 public class FakeGlobalEventPostHandler : IEventPostHandler
 {
-    public Task PostHandleAsync(IHandleContext<IEvent> context)
+    public Task HandleAsync(IHandleContext<IEvent> context)
     {
         (context.Message as FakeParentEvent)!.ExecutedTypes.Add(typeof(FakeGlobalEventPostHandler));
         return Task.CompletedTask;

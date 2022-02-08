@@ -7,7 +7,7 @@ namespace LiteBus.UnitTests.Data.Shared.EventGlobalPreHandlers;
 
 public class FakeGlobalEventPreHandler : IEventPreHandler
 {
-    public Task PreHandleAsync(IHandleContext<IEvent> context)
+    public Task HandleAsync(IHandleContext<IEvent> context)
     {
         (context.Message as FakeParentEvent)!.ExecutedTypes.Add(typeof(FakeGlobalEventPreHandler));
         return Task.CompletedTask;

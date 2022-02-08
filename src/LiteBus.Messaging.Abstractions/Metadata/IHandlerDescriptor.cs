@@ -8,7 +8,11 @@ public interface IHandlerDescriptor : IDescriptor
 
     Type MessageResultType { get; }
 
+    Type OutputType { get; }
+
     bool IsGeneric { get; }
 
     int Order { get; }
+
+    ExecutionMode ExecutionMode { get; }
 }

@@ -6,7 +6,7 @@ namespace LiteBus.Messaging.Abstractions.Extensions;
 public static class MessageRegistryBuilderExtensions
 {
     public static IMessageRegistry RegisterHandler<THandler>(this IMessageRegistry builder)
-        where THandler : IMessageHandler
+        where THandler : IHandler
     {
         builder.Register(typeof(THandler));
 
@@ -14,7 +14,7 @@ public static class MessageRegistryBuilderExtensions
     }
 
     public static IMessageRegistry RegisterPreHandler<TEventPreHandler>(this IMessageRegistry builder)
-        where TEventPreHandler : IMessagePreHandler
+        where TEventPreHandler : IPreHandler
     {
         builder.Register(typeof(TEventPreHandler));
 
@@ -22,7 +22,7 @@ public static class MessageRegistryBuilderExtensions
     }
 
     public static IMessageRegistry RegisterPostHandler<TEventPostHandler>(this IMessageRegistry builder)
-        where TEventPostHandler : IMessagePostHandler
+        where TEventPostHandler : IPostHandler
     {
         builder.Register(typeof(TEventPostHandler));
 
@@ -30,7 +30,7 @@ public static class MessageRegistryBuilderExtensions
     }
 
     public static IMessageRegistry RegisterErrorHandler<TEventErrorHandler>(this IMessageRegistry builder)
-        where TEventErrorHandler : IMessageErrorHandler
+        where TEventErrorHandler : IErrorHandler
     {
         builder.Register(typeof(TEventErrorHandler));
 

@@ -58,14 +58,14 @@ internal class MessageDescriptor : IMessageDescriptor
                 case IErrorHandlerDescriptor errorHandlerDescriptor:
                     _errorHandlers.Add(errorHandlerDescriptor);
                     break;
-                case IHandlerDescriptor handlerDescriptor:
-                    _handlers.Add(handlerDescriptor);
-                    break;
                 case IPostHandlerDescriptor postHandlerDescriptor:
                     _postHandlers.Add(postHandlerDescriptor);
                     break;
                 case IPreHandlerDescriptor preHandlerDescriptor:
                     _preHandlers.Add(preHandlerDescriptor);
+                    break;
+                case IHandlerDescriptor handlerDescriptor:
+                    _handlers.Add(handlerDescriptor);
                     break;
             }
         }
@@ -76,14 +76,14 @@ internal class MessageDescriptor : IMessageDescriptor
                 case IErrorHandlerDescriptor errorHandlerDescriptor:
                     _indirectErrorHandlers.Add(errorHandlerDescriptor);
                     break;
-                case IHandlerDescriptor handlerDescriptor:
-                    _indirectHandlers.Add(handlerDescriptor);
-                    break;
                 case IPostHandlerDescriptor postHandlerDescriptor:
                     _indirectPostHandlers.Add(postHandlerDescriptor);
                     break;
                 case IPreHandlerDescriptor preHandlerDescriptor:
                     _indirectPreHandlers.Add(preHandlerDescriptor);
+                    break;
+                case IHandlerDescriptor handlerDescriptor:
+                    _indirectHandlers.Add(handlerDescriptor);
                     break;
             }
         }

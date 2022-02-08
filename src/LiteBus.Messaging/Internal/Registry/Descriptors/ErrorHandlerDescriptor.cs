@@ -3,21 +3,10 @@ using LiteBus.Messaging.Abstractions.Metadata;
 
 namespace LiteBus.Messaging.Internal.Registry.Descriptors;
 
-internal class ErrorHandlerDescriptor : IErrorHandlerDescriptor
+internal class ErrorHandlerDescriptor : HandlerDescriptor, IErrorHandlerDescriptor
 {
-    public ErrorHandlerDescriptor(Type errorHandlerType, Type messageType, int order)
+    public ErrorHandlerDescriptor(Type handlerType, Type messageType, Type outputType, int order) :
+        base(handlerType, messageType, null, outputType, order)
     {
-        ErrorHandlerType = errorHandlerType;
-        Order = order;
-        IsGeneric = messageType.IsGenericType;
-        MessageType = IsGeneric ? messageType.GetGenericTypeDefinition() : messageType;
     }
-
-    public Type ErrorHandlerType { get; }
-
-    public int Order { get; }
-
-    public bool IsGeneric { get; set; }
-
-    public Type MessageType { get; }
 }

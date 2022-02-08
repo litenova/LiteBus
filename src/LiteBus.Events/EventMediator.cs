@@ -10,19 +10,19 @@ namespace LiteBus.Events;
 /// <inheritdoc cref="IEventMediator" />
 public class EventMediator : IEventPublisher
 {
-    private readonly IMessageMediator _messageMediator;
+    private readonly IMediator _mediator;
 
-    public EventMediator(IMessageMediator messageMediator)
+    public EventMediator(IMediator mediator)
     {
-        _messageMediator = messageMediator;
+        _mediator = mediator;
     }
 
     public async Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
     {
-        var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(cancellationToken);
+        var executionWorkflow = new AsyncBroadcastExecutionWorkflow<IEvent>(cancellationToken);
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        await _messageMediator.Mediate(@event, findStrategy, mediationStrategy);
+        await _mediator.Mediate(@event, findStrategy, executionWorkflow);
     }
 }

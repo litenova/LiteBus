@@ -12,18 +12,21 @@ internal class ErrorHandlerDescriptorBuilder : IDescriptorBuilder<IErrorHandlerD
 {
     public bool CanBuild(Type type)
     {
-        return type.IsAssignableTo(typeof(IMessageErrorHandler));
+        return type.IsAssignableTo(typeof(IErrorHandler));
     }
 
     public IEnumerable<IErrorHandlerDescriptor> Build(Type handlerType)
     {
-        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessageErrorHandler<>));
+        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IErrorHandler<,>));
+
         var order = handlerType.GetOrderFromAttribute();
 
         foreach (var @interface in interfaces)
         {
             var messageType = @interface.GetGenericArguments()[0];
-            yield return new ErrorHandlerDescriptor(handlerType, messageType, order);
+            var messageResultType = @interface.GetGenericArguments()[1];
+
+            yield return new ErrorHandlerDescriptor(handlerType, messageType, messageResultType, order);
         }
     }
 }

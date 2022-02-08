@@ -5,7 +5,7 @@ namespace LiteBus.Commands.Abstractions;
 /// <summary>
 ///     Represents an action that is executed on <typeparamref cref="TCommand" /> error-handle phase
 /// </summary>
-public interface ICommandErrorHandler<in TCommand> : ICommandErrorHandlerBase, IMessageErrorHandler<TCommand>
+public interface ICommandErrorHandler<in TCommand> : ICommandErrorHandlerBase, IAsyncErrorHandler<TCommand>
     where TCommand : ICommandBase
 {
 }

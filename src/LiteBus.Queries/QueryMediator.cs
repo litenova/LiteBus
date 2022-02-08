@@ -10,32 +10,32 @@ namespace LiteBus.Queries;
 
 public class QueryMediator : IQueryMediator
 {
-    private readonly IMessageMediator _messageMediator;
+    private readonly IMediator _mediator;
 
-    public QueryMediator(IMessageMediator messageMediator)
+    public QueryMediator(IMediator mediator)
     {
-        _messageMediator = messageMediator;
+        _mediator = mediator;
     }
 
     public Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
                                                        CancellationToken cancellationToken = default)
     {
-        var mediationStrategy =
-            new SingleAsyncHandlerMediationStrategy<IQuery<TQueryResult>, TQueryResult>(cancellationToken);
+        var executionWorkflow =
+            new SingleAsyncHandlerExecutionWorkflow<IQuery<TQueryResult>, TQueryResult>(cancellationToken);
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        return _messageMediator.Mediate(query, findStrategy, mediationStrategy);
+        return _mediator.Mediate(query, findStrategy, executionWorkflow);
     }
 
     public IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
                                                                     CancellationToken cancellationToken = default)
     {
-        var mediationStrategy =
-            new SingleStreamHandlerMediationStrategy<IStreamQuery<TQueryResult>, TQueryResult>(cancellationToken);
+        var executionWorkflow =
+            new SingleStreamHandlerExecutionWorkflow<IStreamQuery<TQueryResult>, TQueryResult>(cancellationToken);
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        return _messageMediator.Mediate(query, findStrategy, mediationStrategy);
+        return _mediator.Mediate(query, findStrategy, executionWorkflow);
     }
 }

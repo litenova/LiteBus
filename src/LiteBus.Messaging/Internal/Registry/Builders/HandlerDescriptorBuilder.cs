@@ -12,12 +12,12 @@ public class HandlerDescriptorBuilder : IDescriptorBuilder<IHandlerDescriptor>
 {
     public bool CanBuild(Type type)
     {
-        return type.IsAssignableTo(typeof(IMessageHandler));
+        return type.IsAssignableTo(typeof(IHandler));
     }
 
     public IEnumerable<IHandlerDescriptor> Build(Type handlerType)
     {
-        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessageHandler<,>));
+        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IHandler<,>));
 
         var order = handlerType.GetOrderFromAttribute();
 
@@ -26,7 +26,7 @@ public class HandlerDescriptorBuilder : IDescriptorBuilder<IHandlerDescriptor>
             var messageType = @interface.GetGenericArguments()[0];
             var messageResultType = @interface.GetGenericArguments()[1];
 
-            yield return new HandlerDescriptor(handlerType, messageType, messageResultType, order);
+            yield return new HandlerDescriptor(handlerType, messageType, messageResultType, messageResultType, order);
         }
     }
 }
