@@ -5,7 +5,7 @@ namespace LiteBus.Events.Abstractions;
 /// <summary>
 ///     Represents an action that is executed on <typeparamref cref="TEvent" /> post-handle phase
 /// </summary>
-public interface IEventPostHandler<in TEvent> : IEventPostHandlerBase, IMessagePostHandler<TEvent>
+public interface IEventPostHandler<in TEvent> : IEventPostHandlerBase, IAsyncPostHandler<TEvent>
     where TEvent : IEvent
 {
 }

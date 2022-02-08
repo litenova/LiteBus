@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Extensions;
+using LiteBus.Messaging.Abstractions.Metadata;
 using LiteBus.Messaging.Workflows.Execution.Exceptions;
+using LiteBus.Messaging.Workflows.Extensions;
 
 namespace LiteBus.Messaging.Workflows.Execution;
 
@@ -13,7 +12,7 @@ public class SingleSyncHandlerExecutionWorkflow<TMessage> : IExecutionWorkflow<T
     public NoResult Execute(TMessage message, IMessageContext messageContext)
     {
         var handlers = messageContext.Handlers
-                                     .Where(h => h.Descriptor.IsSynchronous())
+                                     .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.Synchronous)
                                      .ToList();
 
         if (handlers.Count > 1)
@@ -25,13 +24,13 @@ public class SingleSyncHandlerExecutionWorkflow<TMessage> : IExecutionWorkflow<T
 
         try
         {
-            messageContext.RunPreHandlers(handleContext).RunSynchronously();
+            messageContext.RunSyncPreHandlers(handleContext);
 
             var handler = handlers.Single().Instance;
 
             handler.Handle(handleContext);
 
-            messageContext.RunPostHandlers(handleContext).RunSynchronously();
+            messageContext.RunSyncPostHandlers(handleContext);
         }
         catch (Exception e)
         {
@@ -42,7 +41,7 @@ public class SingleSyncHandlerExecutionWorkflow<TMessage> : IExecutionWorkflow<T
 
             handleContext.Exception = e;
 
-            messageContext.RunErrorHandlers(handleContext).RunSynchronously();
+            messageContext.RunSyncErrorHandlers(handleContext);
         }
 
         return new NoResult();

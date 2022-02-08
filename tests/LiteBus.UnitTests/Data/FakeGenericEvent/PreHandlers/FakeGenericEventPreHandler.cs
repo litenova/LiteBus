@@ -6,7 +6,7 @@ namespace LiteBus.UnitTests.Data.FakeGenericEvent.PreHandlers;
 
 public class FakeGenericEventPreHandler<TPayload> : IEventPreHandler<Messages.FakeGenericEvent<TPayload>>
 {
-    public Task PreHandleAsync(IHandleContext<Messages.FakeGenericEvent<TPayload>> context)
+    public Task HandleAsync(IHandleContext<Messages.FakeGenericEvent<TPayload>> context)
     {
         context.Message.ExecutedTypes.Add(typeof(FakeGenericEventPreHandler<TPayload>));
         return Task.CompletedTask;

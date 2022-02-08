@@ -3,8 +3,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Extensions;
+using LiteBus.Messaging.Abstractions.Metadata;
 using LiteBus.Messaging.Workflows.Execution.Exceptions;
+using LiteBus.Messaging.Workflows.Extensions;
 
 namespace LiteBus.Messaging.Workflows.Execution;
 
@@ -22,7 +23,7 @@ public class SingleAsyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
                                               IMessageContext messageContext)
     {
         var handlers = messageContext.Handlers
-                                     .Where(h => h.Descriptor.IsAsynchronous())
+                                     .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.Asynchronous)
                                      .ToList();
 
         if (handlers.Count > 1)
@@ -35,7 +36,7 @@ public class SingleAsyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
 
         try
         {
-            await messageContext.RunPreHandlers(handleContext);
+            await messageContext.RunAsyncPreHandlers(handleContext);
 
             var handler = handlers.Single().Instance;
 
@@ -43,7 +44,7 @@ public class SingleAsyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
 
             handleContext.MessageResult = result;
 
-            await messageContext.RunPostHandlers(handleContext);
+            await messageContext.RunAsyncPostHandlers(handleContext);
         }
         catch (Exception e)
         {
@@ -54,7 +55,7 @@ public class SingleAsyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
 
             handleContext.Exception = e;
 
-            await messageContext.RunErrorHandlers(handleContext);
+            await messageContext.RunAsyncErrorHandlers(handleContext);
         }
 
         return result;

@@ -199,7 +199,7 @@ A Command without Result
     // The pre handler
     public class ProductCommandPreHandler : ICommandPreHandler<CreateProductCommand>
     {
-        public Task PreHandleAsync(IHandleContext<CreateProductCommand> context)
+        public Task HandleAsync(IHandleContext<CreateProductCommand> context)
         {
             // You can access the command though the context
             // Process here...
@@ -209,7 +209,7 @@ A Command without Result
     // The post handler
     public class ProductCommandPostHandler : ICommandPostHandler<CreateProductCommand, long>
     {
-        public Task PostHandleAsync(IHandleContext<CreateProductCommand, long> context)
+        public Task HandleAsync(IHandleContext<CreateProductCommand, long> context)
         {
             // You can access the command and its result though the context
             // Process here...
@@ -246,7 +246,7 @@ A command with result
     // The pre handler
     public class ProductCommandPreHandler : ICommandPreHandler<CreateProductCommand>
     {
-        public Task PreHandleAsync(IHandleContext<CreateProductCommand> context)
+        public Task HandleAsync(IHandleContext<CreateProductCommand> context)
         {
             // You can access the command though the context
             // Process here...
@@ -256,7 +256,7 @@ A command with result
     // The post handler
     public class ProductCommandPostHandler : ICommandPostHandler<CreateProductCommand>
     {
-        public Task PostHandleAsync(IHandleContext<CreateProductCommand> context)
+        public Task HandleAsync(IHandleContext<CreateProductCommand> context)
         {
             // You can access the command though the context
             // Process here...
@@ -343,7 +343,7 @@ A simple query
     // The pre handler
     public class ProductQueryPreHandler : IQueryPreHandler<GetSingleProductQuery>
     {
-        public Task PreHandleAsync(IHandleContext<GetSingleProductQuery> context)
+        public Task HandleAsync(IHandleContext<GetSingleProductQuery> context)
         {
             // You can access the query though the context
             // Process here...
@@ -353,7 +353,7 @@ A simple query
     // The post handler
     public class ProductQueryPostHandler : IQueryPostHandler<GetSingleProductQuery>
     {
-        public Task PostHandleAsync(IHandleContext<GetSingleProductQuery> context)
+        public Task HandleAsync(IHandleContext<GetSingleProductQuery> context)
         {
             // You can access the query though the context
             // Process here...
@@ -381,7 +381,7 @@ An stream query
     // The pre handler
     public class ProductQueryPreHandler : IQueryPreHandler<GetSingleProductQuery>
     {
-        public Task PreHandleAsync(IHandleContext<GetSingleProductQuery> context)
+        public Task HandleAsync(IHandleContext<GetSingleProductQuery> context)
         {
             // You can access the query though the context
             // Process here...
@@ -470,7 +470,7 @@ A simple event
     // The pre handler
     public class ProductEventPreHandler : IEventPreHandler<ProductCreatedEvent>
     {
-        public Task PreHandleAsync(IHandleContext<ProductCreatedEvent> context)
+        public Task HandleAsync(IHandleContext<ProductCreatedEvent> context)
         {
             // You can access the event though the context
             // Process here...
@@ -480,7 +480,7 @@ A simple event
     // The post handler
     public class ProductEventPostHandler : IEventPostHandler<ProductCreatedEvent>
     {
-        public Task PostHandleAsync(IHandleContext<ProductCreatedEvent> context)
+        public Task HandleAsync(IHandleContext<ProductCreatedEvent> context)
         {
             // You can access the event and its result though the context
             // Process here...

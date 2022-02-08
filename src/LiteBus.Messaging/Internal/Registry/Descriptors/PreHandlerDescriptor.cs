@@ -3,21 +3,10 @@ using LiteBus.Messaging.Abstractions.Metadata;
 
 namespace LiteBus.Messaging.Internal.Registry.Descriptors;
 
-internal class PreHandlerDescriptor : IPreHandlerDescriptor
+internal class PreHandlerDescriptor : HandlerDescriptor, IPreHandlerDescriptor
 {
-    public PreHandlerDescriptor(Type preHandlerType, Type messageType, int order)
+    public PreHandlerDescriptor(Type handlerType, Type messageType, Type outputType, int order) :
+        base(handlerType, messageType, null, outputType, order)
     {
-        PreHandlerType = preHandlerType;
-        Order = order;
-        IsGeneric = messageType.IsGenericType;
-        MessageType = IsGeneric ? messageType.GetGenericTypeDefinition() : messageType;
     }
-
-    public Type PreHandlerType { get; }
-
-    public int Order { get; }
-
-    public bool IsGeneric { get; }
-
-    public Type MessageType { get; }
 }

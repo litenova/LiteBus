@@ -104,14 +104,14 @@ public class CommandTests
                                   configuration.AddCommands(builder =>
                                   {
                                       // Global Handlers
-                                      builder.RegisterPreHandler<FakeGlobalCommandPreHandler>();
-                                      builder.RegisterPostHandler<FakeGlobalCommandPostHandler>();
+                                      builder.RegisterPreHandler<FakeGlobalSyncCommandPreHandler>();
+                                      builder.RegisterPostHandler<FakeGlobalSyncCommandPostHandler>();
 
                                       // Fake Command Handlers
-                                      builder.RegisterPreHandler<FakeCommandPreHandler>();
+                                      builder.RegisterPreHandler<FakeSyncCommandPreHandler>();
                                       builder.RegisterHandler<FakeCommandHandler>();
                                       builder.RegisterHandler<FakeSyncCommandHandler>();
-                                      builder.RegisterPostHandler<FakeCommandPostHandler>();
+                                      builder.RegisterPostHandler<FakeSyncCommandPostHandler>();
                                   });
                               })
                               .BuildServiceProvider();
@@ -125,10 +125,10 @@ public class CommandTests
         // Assert
         commandResult.CorrelationId.Should().Be(command.CorrelationId);
         command.ExecutedTypes.Should().HaveCount(5);
-        command.ExecutedTypes[0].Should().Be<FakeGlobalCommandPreHandler>();
-        command.ExecutedTypes[1].Should().Be<FakeCommandPreHandler>();
+        command.ExecutedTypes[0].Should().Be<FakeGlobalSyncCommandPreHandler>();
+        command.ExecutedTypes[1].Should().Be<FakeSyncCommandPreHandler>();
         command.ExecutedTypes[2].Should().Be<FakeSyncCommandHandler>();
-        command.ExecutedTypes[3].Should().Be<FakeCommandPostHandler>();
-        command.ExecutedTypes[4].Should().Be<FakeGlobalCommandPostHandler>();
+        command.ExecutedTypes[3].Should().Be<FakeSyncCommandPostHandler>();
+        command.ExecutedTypes[4].Should().Be<FakeGlobalSyncCommandPostHandler>();
     }
 }

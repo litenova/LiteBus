@@ -14,12 +14,3 @@ public class FakeCommandHandler : ICommandHandler<Messages.FakeCommand, FakeComm
         return Task.FromResult(new FakeCommandResult(message.CorrelationId));
     }
 }
-
-public class FakeSyncCommandHandler : ISyncCommandHandler<Messages.FakeCommand, FakeCommandResult>
-{
-    public FakeCommandResult Handle(Messages.FakeCommand message)
-    {
-        message.ExecutedTypes.Add(typeof(FakeSyncCommandHandler));
-        return new FakeCommandResult(message.CorrelationId);
-    }
-}

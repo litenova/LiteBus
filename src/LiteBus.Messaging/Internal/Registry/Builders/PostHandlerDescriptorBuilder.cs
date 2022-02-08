@@ -12,7 +12,7 @@ public class PostHandlerDescriptorBuilder : IDescriptorBuilder<IPostHandlerDescr
 {
     public bool CanBuild(Type type)
     {
-        return type.IsAssignableTo(typeof(IMessagePostHandler));
+        return type.IsAssignableTo(typeof(IPostHandler));
     }
 
     public IEnumerable<IPostHandlerDescriptor> Build(Type handlerType)
@@ -31,28 +31,30 @@ public class PostHandlerDescriptorBuilder : IDescriptorBuilder<IPostHandlerDescr
 
     public IEnumerable<IPostHandlerDescriptor> WithResponse(Type handlerType)
     {
-        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessagePostHandler<,>));
+        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IPostHandler<,,>));
         var order = handlerType.GetOrderFromAttribute();
 
         foreach (var @interface in interfaces)
         {
             var messageType = @interface.GetGenericArguments()[0];
             var messageResultType = @interface.GetGenericArguments()[1];
+            var outputType = @interface.GetGenericArguments()[2];
 
-            yield return new PostHandlerDescriptor(handlerType, messageType, messageResultType, order);
+            yield return new PostHandlerDescriptor(handlerType, messageType, messageResultType, outputType, order);
         }
     }
 
     public IEnumerable<IPostHandlerDescriptor> WithoutResponse(Type handlerType)
     {
-        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessagePostHandler<>));
+        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IPostHandler<,>));
         var order = handlerType.GetOrderFromAttribute();
 
         foreach (var @interface in interfaces)
         {
             var messageType = @interface.GetGenericArguments()[0];
+            var outputType = @interface.GetGenericArguments()[1];
 
-            yield return new PostHandlerDescriptor(handlerType, messageType, null, order);
+            yield return new PostHandlerDescriptor(handlerType, messageType, null, outputType, order);
         }
     }
 }

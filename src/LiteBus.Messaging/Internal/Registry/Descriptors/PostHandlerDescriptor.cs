@@ -3,24 +3,14 @@ using LiteBus.Messaging.Abstractions.Metadata;
 
 namespace LiteBus.Messaging.Internal.Registry.Descriptors;
 
-internal class PostHandlerDescriptor : IPostHandlerDescriptor
+internal class PostHandlerDescriptor : HandlerDescriptor, IPostHandlerDescriptor
 {
-    public PostHandlerDescriptor(Type postHandlerType, Type messageType, Type messageResultType, int order)
+    public PostHandlerDescriptor(Type handlerType,
+                                 Type messageType,
+                                 Type messageResultType,
+                                 Type outputType,
+                                 int order) :
+        base(handlerType, messageType, messageResultType, outputType, order)
     {
-        PostHandlerType = postHandlerType;
-        IsGeneric = messageType.IsGenericType;
-        MessageType = IsGeneric ? messageType.GetGenericTypeDefinition() : messageType;
-        MessageResultType = messageResultType;
-        Order = order;
     }
-
-    public Type PostHandlerType { get; }
-
-    public Type MessageType { get; }
-
-    public Type MessageResultType { get; }
-
-    public bool IsGeneric { get; }
-
-    public int Order { get; }
 }

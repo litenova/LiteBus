@@ -4,8 +4,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Extensions;
+using LiteBus.Messaging.Abstractions.Metadata;
 using LiteBus.Messaging.Workflows.Execution.Exceptions;
+using LiteBus.Messaging.Workflows.Extensions;
 using LiteBus.Messaging.Workflows.Utilities;
 
 namespace LiteBus.Messaging.Workflows.Execution;
@@ -24,7 +25,7 @@ public class SingleStreamHandlerExecutionWorkflow<TMessage, TMessageResult> :
                                                           IMessageContext messageContext)
     {
         var handlers = messageContext.Handlers
-                                     .Where(h => h.Descriptor.IsAsynchronousEnumerable())
+                                     .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.AsynchronousStreaming)
                                      .ToList();
 
         if (handlers.Count > 1)
@@ -37,7 +38,7 @@ public class SingleStreamHandlerExecutionWorkflow<TMessage, TMessageResult> :
 
         try
         {
-            await messageContext.RunPreHandlers(handleContext);
+            await messageContext.RunAsyncPreHandlers(handleContext);
 
             var handler = handlers.Single().Instance;
 
@@ -52,7 +53,7 @@ public class SingleStreamHandlerExecutionWorkflow<TMessage, TMessageResult> :
 
             handleContext.Exception = e;
 
-            await messageContext.RunErrorHandlers(handleContext);
+            await messageContext.RunAsyncErrorHandlers(handleContext);
         }
 
         await foreach (var messageResult in result.WithCancellation(_cancellationToken))
@@ -64,7 +65,7 @@ public class SingleStreamHandlerExecutionWorkflow<TMessage, TMessageResult> :
 
         try
         {
-            await messageContext.RunPostHandlers(handleContext);
+            await messageContext.RunAsyncPostHandlers(handleContext);
         }
         catch (Exception e)
         {
@@ -75,7 +76,7 @@ public class SingleStreamHandlerExecutionWorkflow<TMessage, TMessageResult> :
 
             handleContext.Exception = e;
 
-            await messageContext.RunErrorHandlers(handleContext);
+            await messageContext.RunAsyncErrorHandlers(handleContext);
         }
     }
 }

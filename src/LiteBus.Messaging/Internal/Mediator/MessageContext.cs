@@ -31,7 +31,7 @@ public class MessageContext : IMessageContext
         IndirectErrorHandlers = ResolveErrorHandlers(descriptor.IndirectErrorHandlers).ToInstances();
     }
 
-    private IEnumerable<LazyInstance<IMessageHandler, IHandlerDescriptor>> ResolveHandlers(
+    private IEnumerable<LazyInstance<IHandler, IHandlerDescriptor>> ResolveHandlers(
         IEnumerable<IHandlerDescriptor> descriptors)
     {
         foreach (var handlerDescriptor in descriptors.OrderBy(h => h.Order))
@@ -45,7 +45,7 @@ public class MessageContext : IMessageContext
 
             var resolveFunc = new Func<object>(() => _serviceProvider.GetService(handlerType));
 
-            var lazy = new Lazy<IMessageHandler>(() =>
+            var lazy = new Lazy<IHandler>(() =>
             {
                 var handler = resolveFunc();
 
@@ -54,19 +54,19 @@ public class MessageContext : IMessageContext
                     throw new NotResolvedException(handlerType);
                 }
 
-                return (IMessageHandler) handler;
+                return (IHandler) handler;
             });
 
-            yield return new LazyInstance<IMessageHandler, IHandlerDescriptor>(lazy, handlerDescriptor);
+            yield return new LazyInstance<IHandler, IHandlerDescriptor>(lazy, handlerDescriptor);
         }
     }
 
-    private IEnumerable<LazyInstance<IMessagePreHandler, IPreHandlerDescriptor>> ResolvePreHandlers(
+    private IEnumerable<LazyInstance<IPreHandler, IPreHandlerDescriptor>> ResolvePreHandlers(
         IEnumerable<IPreHandlerDescriptor> descriptors)
     {
         foreach (var descriptor in descriptors.OrderBy(d => d.Order))
         {
-            var preHandlerType = descriptor.PreHandlerType;
+            var preHandlerType = descriptor.HandlerType;
 
             if (descriptor.IsGeneric)
             {
@@ -75,7 +75,7 @@ public class MessageContext : IMessageContext
 
             var resolveFunc = new Func<object>(() => _serviceProvider.GetService(preHandlerType));
 
-            var lazy = new Lazy<IMessagePreHandler>(() =>
+            var lazy = new Lazy<IPreHandler>(() =>
             {
                 var preHandler = resolveFunc();
 
@@ -84,19 +84,19 @@ public class MessageContext : IMessageContext
                     throw new NotResolvedException(preHandlerType);
                 }
 
-                return (IMessagePreHandler) preHandler;
+                return (IPreHandler) preHandler;
             });
 
-            yield return new LazyInstance<IMessagePreHandler, IPreHandlerDescriptor>(lazy, descriptor);
+            yield return new LazyInstance<IPreHandler, IPreHandlerDescriptor>(lazy, descriptor);
         }
     }
 
-    private IEnumerable<LazyInstance<IMessageErrorHandler, IErrorHandlerDescriptor>> ResolveErrorHandlers(
+    private IEnumerable<LazyInstance<IErrorHandler, IErrorHandlerDescriptor>> ResolveErrorHandlers(
         IEnumerable<IErrorHandlerDescriptor> descriptors)
     {
         foreach (var descriptor in descriptors.OrderBy(d => d.Order))
         {
-            var errorHandlerType = descriptor.ErrorHandlerType;
+            var errorHandlerType = descriptor.HandlerType;
 
             if (descriptor.IsGeneric)
             {
@@ -105,7 +105,7 @@ public class MessageContext : IMessageContext
 
             var resolveFunc = new Func<object>(() => _serviceProvider.GetService(errorHandlerType));
 
-            var lazy = new Lazy<IMessageErrorHandler>(() =>
+            var lazy = new Lazy<IErrorHandler>(() =>
             {
                 var errorHandler = resolveFunc();
 
@@ -114,19 +114,19 @@ public class MessageContext : IMessageContext
                     throw new NotResolvedException(errorHandlerType);
                 }
 
-                return (IMessageErrorHandler) errorHandler;
+                return (IErrorHandler) errorHandler;
             });
 
-            yield return new LazyInstance<IMessageErrorHandler, IErrorHandlerDescriptor>(lazy, descriptor);
+            yield return new LazyInstance<IErrorHandler, IErrorHandlerDescriptor>(lazy, descriptor);
         }
     }
 
-    private IEnumerable<LazyInstance<IMessagePostHandler, IPostHandlerDescriptor>> ResolvePostHandlers(
+    private IEnumerable<LazyInstance<IPostHandler, IPostHandlerDescriptor>> ResolvePostHandlers(
         IEnumerable<IPostHandlerDescriptor> descriptors)
     {
         foreach (var descriptor in descriptors.OrderBy(d => d.Order))
         {
-            var postHandlerType = descriptor.PostHandlerType;
+            var postHandlerType = descriptor.HandlerType;
 
             if (descriptor.IsGeneric)
             {
@@ -135,7 +135,7 @@ public class MessageContext : IMessageContext
 
             var resolveFunc = new Func<object>(() => _serviceProvider.GetService(postHandlerType));
 
-            var lazy = new Lazy<IMessagePostHandler>(() =>
+            var lazy = new Lazy<IPostHandler>(() =>
             {
                 var postHandler = resolveFunc();
 
@@ -144,26 +144,26 @@ public class MessageContext : IMessageContext
                     throw new NotResolvedException(postHandlerType);
                 }
 
-                return (IMessagePostHandler) postHandler;
+                return (IPostHandler) postHandler;
             });
 
-            yield return new LazyInstance<IMessagePostHandler, IPostHandlerDescriptor>(lazy, descriptor);
+            yield return new LazyInstance<IPostHandler, IPostHandlerDescriptor>(lazy, descriptor);
         }
     }
 
-    public IInstances<IMessageHandler, IHandlerDescriptor> Handlers { get; }
+    public IInstances<IHandler, IHandlerDescriptor> Handlers { get; }
 
-    public IInstances<IMessageHandler, IHandlerDescriptor> IndirectHandlers { get; }
+    public IInstances<IHandler, IHandlerDescriptor> IndirectHandlers { get; }
 
-    public IInstances<IMessagePreHandler, IPreHandlerDescriptor> PreHandlers { get; }
+    public IInstances<IPreHandler, IPreHandlerDescriptor> PreHandlers { get; }
 
-    public IInstances<IMessagePreHandler, IPreHandlerDescriptor> IndirectPreHandlers { get; }
+    public IInstances<IPreHandler, IPreHandlerDescriptor> IndirectPreHandlers { get; }
 
-    public IInstances<IMessagePostHandler, IPostHandlerDescriptor> PostHandlers { get; }
+    public IInstances<IPostHandler, IPostHandlerDescriptor> PostHandlers { get; }
 
-    public IInstances<IMessagePostHandler, IPostHandlerDescriptor> IndirectPostHandlers { get; }
+    public IInstances<IPostHandler, IPostHandlerDescriptor> IndirectPostHandlers { get; }
 
-    public IInstances<IMessageErrorHandler, IErrorHandlerDescriptor> ErrorHandlers { get; }
+    public IInstances<IErrorHandler, IErrorHandlerDescriptor> ErrorHandlers { get; }
 
-    public IInstances<IMessageErrorHandler, IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
+    public IInstances<IErrorHandler, IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
 }

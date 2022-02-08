@@ -7,7 +7,7 @@ namespace LiteBus.UnitTests.Data.FakeQuery.PostHandlers;
 
 public class FakeQueryPostHandler : IQueryPostHandler<FakeQuery.Messages.FakeQuery, FakeQueryResult>
 {
-    public Task PostHandleAsync(IHandleContext<FakeQuery.Messages.FakeQuery, FakeQueryResult> context)
+    public Task HandleAsync(IHandleContext<FakeQuery.Messages.FakeQuery, FakeQueryResult> context)
     {
         context.Message.ExecutedTypes.Add(typeof(FakeQueryPostHandler));
         return Task.CompletedTask;

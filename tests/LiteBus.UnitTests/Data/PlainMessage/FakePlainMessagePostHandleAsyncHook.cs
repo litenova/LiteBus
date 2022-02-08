@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace LiteBus.UnitTests.Data.PlainMessage;
 
-public class FakePlainMessagePostHandleAsyncHook
+public class FakePlainMessageHandleAsyncHook
 {
     public Task ExecuteAsync(FakePlainMessage message, CancellationToken cancellationToken = default)
     {

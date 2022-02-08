@@ -34,7 +34,7 @@ internal class LiteBusConfiguration : ILiteBusConfiguration
             module.Build(moduleConfiguration);
         }
 
-        _services.TryAddTransient<IMessageMediator, MessageMediator>();
+        _services.TryAddTransient<IMediator, Mediator>();
         _services.TryAddSingleton<IMessageRegistry>(messageRegistry);
 
         foreach (var descriptor in messageRegistry)
@@ -51,32 +51,32 @@ internal class LiteBusConfiguration : ILiteBusConfiguration
 
             foreach (var postHandleDescriptor in descriptor.PostHandlers)
             {
-                _services.TryAddTransient(postHandleDescriptor.PostHandlerType);
+                _services.TryAddTransient(postHandleDescriptor.HandlerType);
             }
 
             foreach (var postHandleDescriptor in descriptor.IndirectPostHandlers)
             {
-                _services.TryAddTransient(postHandleDescriptor.PostHandlerType);
+                _services.TryAddTransient(postHandleDescriptor.HandlerType);
             }
 
             foreach (var preHandleDescriptor in descriptor.PreHandlers)
             {
-                _services.TryAddTransient(preHandleDescriptor.PreHandlerType);
+                _services.TryAddTransient(preHandleDescriptor.HandlerType);
             }
 
             foreach (var preHandleDescriptor in descriptor.IndirectPreHandlers)
             {
-                _services.TryAddTransient(preHandleDescriptor.PreHandlerType);
+                _services.TryAddTransient(preHandleDescriptor.HandlerType);
             }
 
             foreach (var errorHandlerDescriptor in descriptor.ErrorHandlers)
             {
-                _services.TryAddTransient(errorHandlerDescriptor.ErrorHandlerType);
+                _services.TryAddTransient(errorHandlerDescriptor.HandlerType);
             }
 
             foreach (var errorHandlerDescriptor in descriptor.IndirectErrorHandlers)
             {
-                _services.TryAddTransient(errorHandlerDescriptor.ErrorHandlerType);
+                _services.TryAddTransient(errorHandlerDescriptor.HandlerType);
             }
         }
     }

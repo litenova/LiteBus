@@ -3,7 +3,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Extensions;
+using LiteBus.Messaging.Abstractions.Metadata;
+using LiteBus.Messaging.Workflows.Extensions;
 
 namespace LiteBus.Messaging.Workflows.Execution;
 
@@ -20,21 +21,21 @@ public class AsyncBroadcastExecutionWorkflow<TMessage> : IExecutionWorkflow<TMes
     public async Task Execute(TMessage message, IMessageContext messageContext)
     {
         var handlers = messageContext.Handlers
-                                     .Where(h => h.Descriptor.IsAsynchronous())
+                                     .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.Asynchronous)
                                      .ToList();
         
         var handleContext = new HandleContext(message, _cancellationToken);
 
         try
         {
-            await messageContext.RunPreHandlers(handleContext);
+            await messageContext.RunAsyncPreHandlers(handleContext);
 
             foreach (var handler in handlers)
             {
                 await (Task) handler.Instance.Handle(handleContext);
             }
 
-            await messageContext.RunPostHandlers(handleContext);
+            await messageContext.RunAsyncPostHandlers(handleContext);
         }
         catch (Exception e)
         {
@@ -45,7 +46,7 @@ public class AsyncBroadcastExecutionWorkflow<TMessage> : IExecutionWorkflow<TMes
 
             handleContext.Exception = e;
 
-            await messageContext.RunErrorHandlers(handleContext);
+            await messageContext.RunAsyncErrorHandlers(handleContext);
         }
     }
 }

@@ -6,7 +6,7 @@ namespace LiteBus.UnitTests.Data.FakeEvent.PreHandlers;
 
 public class FakeEventPreHandler : IEventPreHandler<FakeEvent.Messages.FakeEvent>
 {
-    public Task PreHandleAsync(IHandleContext<FakeEvent.Messages.FakeEvent> context)
+    public Task HandleAsync(IHandleContext<FakeEvent.Messages.FakeEvent> context)
     {
         context.Message.ExecutedTypes.Add(typeof(FakeEventPreHandler));
         return Task.CompletedTask;

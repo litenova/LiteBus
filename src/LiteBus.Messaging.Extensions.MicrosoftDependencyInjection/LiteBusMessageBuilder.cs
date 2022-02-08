@@ -28,7 +28,7 @@ public class LiteBusMessageBuilder
         return this;
     }
 
-    public LiteBusMessageBuilder RegisterHandler<THandler>() where THandler : IMessageHandler
+    public LiteBusMessageBuilder RegisterHandler<THandler>() where THandler : IHandler
     {
         _messageRegistry.Register(typeof(THandler));
 
@@ -42,7 +42,7 @@ public class LiteBusMessageBuilder
         return this;
     }
 
-    public LiteBusMessageBuilder RegisterPreHandler<TPreHandler>() where TPreHandler : IMessagePreHandler
+    public LiteBusMessageBuilder RegisterPreHandler<TPreHandler>() where TPreHandler : IPreHandler
     {
         _messageRegistry.Register(typeof(TPreHandler));
 
@@ -56,7 +56,7 @@ public class LiteBusMessageBuilder
         return this;
     }
 
-    public LiteBusMessageBuilder RegisterPostHandler<TPostHandler>() where TPostHandler : IMessagePostHandler
+    public LiteBusMessageBuilder RegisterPostHandler<TPostHandler>() where TPostHandler : IPostHandler
     {
         _messageRegistry.Register(typeof(TPostHandler));
 
@@ -70,7 +70,7 @@ public class LiteBusMessageBuilder
         return this;
     }
 
-    public LiteBusMessageBuilder RegisterErrorHandler<TErrorHandler>() where TErrorHandler : IMessageErrorHandler
+    public LiteBusMessageBuilder RegisterErrorHandler<TErrorHandler>() where TErrorHandler : IErrorHandler
     {
         _messageRegistry.Register(typeof(TErrorHandler));
 

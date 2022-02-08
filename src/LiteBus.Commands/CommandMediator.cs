@@ -10,11 +10,11 @@ namespace LiteBus.Commands;
 /// <inheritdoc cref="ICommandMediator" />
 public class CommandMediator : ICommandMediator
 {
-    private readonly IMessageMediator _messageMediator;
+    private readonly IMediator _mediator;
 
-    public CommandMediator(IMessageMediator messageMediator)
+    public CommandMediator(IMediator mediator)
     {
-        _messageMediator = messageMediator;
+        _mediator = mediator;
     }
 
     public async Task SendAsync(ICommand command, CancellationToken cancellationToken = default)
@@ -23,7 +23,7 @@ public class CommandMediator : ICommandMediator
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        await _messageMediator.Mediate(command, findStrategy, executionWorkflow);
+        await _mediator.Mediate(command, findStrategy, executionWorkflow);
     }
 
     public void Send(ICommand command)
@@ -32,7 +32,7 @@ public class CommandMediator : ICommandMediator
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        _messageMediator.Mediate(command, findStrategy, executionWorkflow);
+        _mediator.Mediate(command, findStrategy, executionWorkflow);
     }
 
     public async Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
@@ -43,7 +43,7 @@ public class CommandMediator : ICommandMediator
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        return await _messageMediator.Mediate(command, findStrategy, executionWorkflow);
+        return await _mediator.Mediate(command, findStrategy, executionWorkflow);
     }
 
     public TCommandResult Send<TCommandResult>(ICommand<TCommandResult> command)
@@ -52,6 +52,6 @@ public class CommandMediator : ICommandMediator
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        return _messageMediator.Mediate(command, findStrategy, executionWorkflow);
+        return _mediator.Mediate(command, findStrategy, executionWorkflow);
     }
 }

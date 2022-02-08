@@ -5,6 +5,6 @@ namespace LiteBus.Events.Abstractions;
 /// <summary>
 ///     Represents an action that is executed on each event pre-handle phase
 /// </summary>
-public interface IEventPreHandler : IEventPreHandlerBase, IMessagePreHandler<IEvent>
+public interface IEventPreHandler : IEventPreHandlerBase, IAsyncPreHandler<IEvent>
 {
 }

@@ -12,19 +12,20 @@ public class PreHandlerDescriptorBuilder : IDescriptorBuilder<IPreHandlerDescrip
 {
     public bool CanBuild(Type type)
     {
-        return type.IsAssignableTo(typeof(IMessagePreHandler));
+        return type.IsAssignableTo(typeof(IPreHandler));
     }
 
     public IEnumerable<IPreHandlerDescriptor> Build(Type handlerType)
     {
-        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessagePreHandler<>));
+        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IPreHandler<,>));
         var order = handlerType.GetOrderFromAttribute();
 
         foreach (var @interface in interfaces)
         {
             var messageType = @interface.GetGenericArguments()[0];
+            var messageResultType = @interface.GetGenericArguments()[1];
 
-            yield return new PreHandlerDescriptor(handlerType, messageType, order);
+            yield return new PreHandlerDescriptor(handlerType, messageType, messageResultType, order);
         }
     }
 }

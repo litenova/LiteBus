@@ -7,7 +7,7 @@ namespace LiteBus.UnitTests.Data.FakeGenericEvent.PostHandlers;
 
 public class FakeGenericEventPostHandler<TPayload> : IEventPostHandler<FakeGenericEvent<TPayload>>
 {
-    public Task PostHandleAsync(IHandleContext<FakeGenericEvent<TPayload>> context)
+    public Task HandleAsync(IHandleContext<FakeGenericEvent<TPayload>> context)
     {
         context.Message.ExecutedTypes.Add(typeof(FakeGenericEventPostHandler<TPayload>));
         return Task.CompletedTask;

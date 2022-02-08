@@ -1,14 +1,6 @@
-using System;
-
 namespace LiteBus.Messaging.Abstractions.Metadata;
 
-public interface IPostHandlerDescriptor : IDescriptor
+public interface IPostHandlerDescriptor : IHandlerDescriptor
 {
-    Type PostHandlerType { get; }
 
-    int Order { get; }
-
-    Type MessageResultType { get; }
-
-    bool IsGeneric { get; }
 }

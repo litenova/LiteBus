@@ -1,12 +1,6 @@
-using System;
-
 namespace LiteBus.Messaging.Abstractions.Metadata;
 
-public interface IErrorHandlerDescriptor : IDescriptor
+public interface IErrorHandlerDescriptor : IHandlerDescriptor
 {
-    Type ErrorHandlerType { get; }
 
-    int Order { get; }
-
-    bool IsGeneric { get; set; }
 }

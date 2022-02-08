@@ -6,7 +6,7 @@ namespace LiteBus.Queries.Abstractions;
 ///     Represents an action that is executed on <typeparamref cref="TQuery" /> post-handle phase
 /// </summary>
 public interface IQueryPostHandler<in TQuery, in TQueryResult> : IQueryPostHandlerBase,
-                                                                 IMessagePostHandler<TQuery, TQueryResult>
+                                                                 IAsyncPostHandler<TQuery, TQueryResult>
     where TQuery : IQuery<TQueryResult>
 {
 }

@@ -10,11 +10,11 @@ namespace LiteBus.Queries;
 
 public class QueryMediator : IQueryMediator
 {
-    private readonly IMessageMediator _messageMediator;
+    private readonly IMediator _mediator;
 
-    public QueryMediator(IMessageMediator messageMediator)
+    public QueryMediator(IMediator mediator)
     {
-        _messageMediator = messageMediator;
+        _mediator = mediator;
     }
 
     public Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
@@ -25,7 +25,7 @@ public class QueryMediator : IQueryMediator
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        return _messageMediator.Mediate(query, findStrategy, executionWorkflow);
+        return _mediator.Mediate(query, findStrategy, executionWorkflow);
     }
 
     public IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
@@ -36,6 +36,6 @@ public class QueryMediator : IQueryMediator
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        return _messageMediator.Mediate(query, findStrategy, executionWorkflow);
+        return _mediator.Mediate(query, findStrategy, executionWorkflow);
     }
 }
