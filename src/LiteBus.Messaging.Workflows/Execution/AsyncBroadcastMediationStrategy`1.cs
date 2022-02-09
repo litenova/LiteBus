@@ -23,7 +23,7 @@ public class AsyncBroadcastExecutionWorkflow<TMessage> : IExecutionWorkflow<TMes
         var handlers = messageContext.Handlers
                                      .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.Asynchronous)
                                      .ToList();
-        
+
         var handleContext = new HandleContext(message, _cancellationToken);
 
         try
