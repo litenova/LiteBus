@@ -31,7 +31,7 @@ jobs:
         run: dotnet test --no-restore
 
       - name: Generate Preview Nuget Packages
-        run: dotnet pack --version-suffix "preview.${{ env.$NOW }}" --configuration Release
+        run: dotnet pack --version-suffix "preview.${{ env.NOW }}" --configuration Release
 
       - name: Publish Preview Packages to Github
         run: |
