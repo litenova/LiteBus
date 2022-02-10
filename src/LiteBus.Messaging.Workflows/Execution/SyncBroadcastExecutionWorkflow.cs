@@ -15,7 +15,7 @@ public class SyncBroadcastExecutionWorkflow<TMessage> : IExecutionWorkflow<TMess
                                      .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.Synchronous)
                                      .ToList();
 
-        var handleContext = new HandleContext(message, default);
+        var handleContext = new HandleContext(message);
 
         try
         {

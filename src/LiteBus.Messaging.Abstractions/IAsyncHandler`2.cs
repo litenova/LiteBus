@@ -12,7 +12,7 @@ public interface IAsyncHandler<in TMessage, TMessageResult> : IHandler<TMessage,
 {
     Task<TMessageResult> IHandler<TMessage, Task<TMessageResult>>.Handle(IHandleContext<TMessage> context)
     {
-        return HandleAsync(context.Message, context.CancellationToken);
+        return HandleAsync(context.Message, context.Data.Get<CancellationToken>());
     }
 
     /// <summary>

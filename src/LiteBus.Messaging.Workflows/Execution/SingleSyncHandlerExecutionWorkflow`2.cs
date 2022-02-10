@@ -22,7 +22,7 @@ public class SingleSyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
             throw new MultipleHandlerFoundException(typeof(TMessage));
         }
 
-        var handleContext = new HandleContext(message, default);
+        var handleContext = new HandleContext(message);
         TMessageResult result = default;
 
         try

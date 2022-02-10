@@ -9,9 +9,8 @@ public interface IHandleContext<out TMessage> : IHandleContext where TMessage : 
 
 public class HandleContext<TMessage> : HandleContext, IHandleContext<TMessage> where TMessage : notnull
 {
-    public HandleContext(IHandleContext context) : base(context.Message, context.CancellationToken)
+    public HandleContext(IHandleContext context) : base(context)
     {
-        Data = context.Data;
         MessageResult = context.MessageResult;
         Exception = context.Exception;
     }

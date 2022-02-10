@@ -33,7 +33,8 @@ public class SingleStreamHandlerExecutionWorkflow<TMessage, TMessageResult> :
             throw new MultipleHandlerFoundException(typeof(TMessage));
         }
 
-        var handleContext = new HandleContext(message, _cancellationToken);
+        var handleContext = new HandleContext(message);
+        handleContext.Data.Set(_cancellationToken);
         var result = AsyncEnumerable.Empty<TMessageResult>();
 
         try

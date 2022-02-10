@@ -24,7 +24,8 @@ public class AsyncBroadcastExecutionWorkflow<TMessage> : IExecutionWorkflow<TMes
                                      .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.Asynchronous)
                                      .ToList();
 
-        var handleContext = new HandleContext(message, _cancellationToken);
+        var handleContext = new HandleContext(message);
+        handleContext.Data.Set(_cancellationToken);
 
         try
         {

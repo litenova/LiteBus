@@ -7,8 +7,6 @@ public interface IHandleContext
 {
     IHandleContextData Data { get; }
 
-    CancellationToken CancellationToken { get; }
-
     object Message { get; }
 
     object MessageResult { get; }
@@ -18,15 +16,19 @@ public interface IHandleContext
 
 public class HandleContext : IHandleContext
 {
-    public HandleContext(object message, CancellationToken cancellationToken)
+    public HandleContext(object message)
     {
         Message = message;
-        CancellationToken = cancellationToken;
+        Data = new HandleContextData();
     }
 
-    public IHandleContextData Data { get; protected set; } = new HandleContextData();
+    protected HandleContext(IHandleContext context)
+    {
+        Message = context.Message;
+        Data = context.Data;
+    }
 
-    public CancellationToken CancellationToken { get; protected set; }
+    public IHandleContextData Data { get; }
 
     public object Message { get; }
 

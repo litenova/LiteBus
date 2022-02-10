@@ -30,7 +30,8 @@ public class SingleAsyncHandlerExecutionWorkflow<TMessage> : IExecutionWorkflow<
             throw new MultipleHandlerFoundException(typeof(TMessage));
         }
 
-        var handleContext = new HandleContext(message, _cancellationToken);
+        var handleContext = new HandleContext(message);
+        handleContext.Data.Set(_cancellationToken);
 
         try
         {

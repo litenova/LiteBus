@@ -20,7 +20,7 @@ public class SingleSyncHandlerExecutionWorkflow<TMessage> : IExecutionWorkflow<T
             throw new MultipleHandlerFoundException(typeof(TMessage));
         }
 
-        var handleContext = new HandleContext(message, default);
+        var handleContext = new HandleContext(message);
 
         try
         {

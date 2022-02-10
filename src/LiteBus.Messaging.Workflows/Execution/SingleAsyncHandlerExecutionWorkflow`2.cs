@@ -31,7 +31,8 @@ public class SingleAsyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
             throw new MultipleHandlerFoundException(typeof(TMessage));
         }
 
-        var handleContext = new HandleContext(message, _cancellationToken);
+        var handleContext = new HandleContext(message);
+        handleContext.Data.Set(_cancellationToken);
         TMessageResult result = default;
 
         try
