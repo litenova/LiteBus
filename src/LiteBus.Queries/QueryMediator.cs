@@ -28,6 +28,16 @@ public class QueryMediator : IQueryMediator
         return _mediator.Mediate(query, findStrategy, executionWorkflow);
     }
 
+    public TQueryResult Query<TQueryResult>(IQuery<TQueryResult> query)
+    {
+        var executionWorkflow =
+            new SingleSyncHandlerExecutionWorkflow<IQuery<TQueryResult>, TQueryResult>();
+
+        var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
+
+        return _mediator.Mediate(query, findStrategy, executionWorkflow);
+    }
+
     public IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
                                                                     CancellationToken cancellationToken = default)
     {

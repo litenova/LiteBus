@@ -12,6 +12,8 @@ public interface IQueryMediator : IQueryConstruct
     Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
                                                 CancellationToken cancellationToken = default);
 
+    TQueryResult Query<TQueryResult>(IQuery<TQueryResult> query);
+    
     IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
                                                              CancellationToken cancellationToken = default);
 }

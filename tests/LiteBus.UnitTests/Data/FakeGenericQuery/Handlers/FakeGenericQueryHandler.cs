@@ -5,12 +5,12 @@ using LiteBus.UnitTests.Data.FakeGenericQuery.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeGenericQuery.Handlers;
 
-public class FakeGenericQueryHandlerWithoutResult<TPayload> : IQueryHandler<FakeGenericQuery<TPayload>, FakeGenericQueryResult>
+public class FakeGenericQueryHandler<TPayload> : IQueryHandler<FakeGenericQuery<TPayload>, FakeGenericQueryResult>
 {
     public Task<FakeGenericQueryResult> HandleAsync(FakeGenericQuery<TPayload> message,
-                                               CancellationToken cancellationToken = default)
+                                                    CancellationToken cancellationToken = default)
     {
-        message.ExecutedTypes.Add(typeof(FakeGenericQueryHandlerWithoutResult<TPayload>));
+        message.ExecutedTypes.Add(typeof(FakeGenericQueryHandler<TPayload>));
         return Task.FromResult(new FakeGenericQueryResult(message.CorrelationId));
     }
 }
