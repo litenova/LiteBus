@@ -4,7 +4,7 @@ using LiteBus.UnitTests.Data.FakeGenericQuery.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeGenericQuery.PreHandlers;
 
-public class FakeSyncGenericQueryPreHandler<TPayload> : ISyncQueryPreHandler<Messages.FakeGenericQuery<TPayload>>
+public class FakeSyncGenericQueryPreHandler<TPayload> : ISyncQueryPreHandler<FakeGenericQuery<TPayload>>
 {
     public void Handle(IHandleContext<FakeGenericQuery<TPayload>> context)
     {

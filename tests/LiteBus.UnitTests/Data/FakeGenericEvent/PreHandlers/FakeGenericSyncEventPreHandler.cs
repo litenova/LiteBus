@@ -4,7 +4,7 @@ using LiteBus.UnitTests.Data.FakeGenericEvent.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeGenericEvent.PreHandlers;
 
-public class FakeGenericSyncEventPreHandler<TPayload> : ISyncEventPreHandler<Messages.FakeGenericEvent<TPayload>>
+public class FakeGenericSyncEventPreHandler<TPayload> : ISyncEventPreHandler<FakeGenericEvent<TPayload>>
 {
     public void Handle(IHandleContext<FakeGenericEvent<TPayload>> context)
     {
