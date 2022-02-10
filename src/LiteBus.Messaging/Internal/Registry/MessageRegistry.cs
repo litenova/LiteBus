@@ -25,7 +25,8 @@ internal class MessageRegistry : IMessageRegistry
         {
             new HandlerDescriptorBuilder(),
             new ErrorHandlerDescriptorBuilder(),
-            new PostHandlerDescriptorBuilder(),
+            new PostHandlerExcludingResultDescriptorBuilder(),
+            new PostHandlerIncludingResultDescriptorBuilder(),
             new PreHandlerDescriptorBuilder()
         };
     }

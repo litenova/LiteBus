@@ -3,17 +3,16 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Internal.Resolution;
 
-public class LazyInstance<TInstance, TDescriptor> : IInstance<TInstance, TDescriptor>
+public class LazyInstance<TDescriptor> : IInstance<TDescriptor>
 {
-    private readonly Lazy<TInstance> _lazyInstance;
+    private readonly Lazy<IHandler> _handlerInstance;
 
-    public LazyInstance(Lazy<TInstance> lazyInstance, TDescriptor descriptor)
+    public LazyInstance(Lazy<IHandler> handlerInstance, TDescriptor descriptor)
     {
-        _lazyInstance = lazyInstance;
+        _handlerInstance = handlerInstance;
         Descriptor = descriptor;
     }
 
-    public TInstance Instance => _lazyInstance.Value;
-
+    public IHandler Instance => _handlerInstance.Value;
     public TDescriptor Descriptor { get; }
 }

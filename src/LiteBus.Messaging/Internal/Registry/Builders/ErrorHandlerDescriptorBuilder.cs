@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Metadata;
 using LiteBus.Messaging.Internal.Extensions;
@@ -12,7 +13,8 @@ internal class ErrorHandlerDescriptorBuilder : IDescriptorBuilder<IErrorHandlerD
 {
     public bool CanBuild(Type type)
     {
-        return type.IsAssignableTo(typeof(IErrorHandler));
+        return type.GetInterfaces()
+                   .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IErrorHandler<,>));
     }
 
     public IEnumerable<IErrorHandlerDescriptor> Build(Type handlerType)

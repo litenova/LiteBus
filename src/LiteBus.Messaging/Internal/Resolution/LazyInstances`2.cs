@@ -4,16 +4,16 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Internal.Resolution;
 
-public class LazyInstances<TInstance, TDescriptor> : IInstances<TInstance, TDescriptor>
+public class LazyInstances<TDescriptor> : IInstances<TDescriptor>
 {
-    private readonly List<LazyInstance<TInstance, TDescriptor>> _instances;
+    private readonly List<LazyInstance<TDescriptor>> _instances;
 
-    public LazyInstances(IEnumerable<LazyInstance<TInstance, TDescriptor>> instances)
+    public LazyInstances(IEnumerable<LazyInstance<TDescriptor>> instances)
     {
-        _instances = new List<LazyInstance<TInstance, TDescriptor>>(instances);
+        _instances = new List<LazyInstance<TDescriptor>>(instances);
     }
 
-    public IEnumerator<IInstance<TInstance, TDescriptor>> GetEnumerator() => _instances.GetEnumerator();
+    public IEnumerator<IInstance<TDescriptor>> GetEnumerator() => _instances.GetEnumerator();
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 

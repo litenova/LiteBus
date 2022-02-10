@@ -9,25 +9,25 @@ using LiteBus.Messaging.Internal.Registry.Descriptors;
 
 namespace LiteBus.Messaging.Internal.Registry.Builders;
 
-public class PreHandlerDescriptorBuilder : IDescriptorBuilder<IPreHandlerDescriptor>
+public class PostHandlerExcludingResultDescriptorBuilder : IDescriptorBuilder<IPostHandlerDescriptor>
 {
     public bool CanBuild(Type type)
     {
         return type.GetInterfaces()
-                   .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPreHandler<,>));
+                   .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPostHandler<,>));    
     }
 
-    public IEnumerable<IPreHandlerDescriptor> Build(Type handlerType)
+    public IEnumerable<IPostHandlerDescriptor> Build(Type handlerType)
     {
-        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IPreHandler<,>));
+        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IPostHandler<,>));
         var order = handlerType.GetOrderFromAttribute();
 
         foreach (var @interface in interfaces)
         {
             var messageType = @interface.GetGenericArguments()[0];
-            var messageResultType = @interface.GetGenericArguments()[1];
+            var outputType = @interface.GetGenericArguments()[1];
 
-            yield return new PreHandlerDescriptor(handlerType, messageType, messageResultType, order);
+            yield return new PostHandlerDescriptor(handlerType, messageType, null, outputType, order);
         }
     }
 }

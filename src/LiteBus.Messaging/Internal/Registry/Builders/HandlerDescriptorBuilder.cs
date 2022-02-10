@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Metadata;
 using LiteBus.Messaging.Internal.Extensions;
@@ -12,7 +13,8 @@ public class HandlerDescriptorBuilder : IDescriptorBuilder<IHandlerDescriptor>
 {
     public bool CanBuild(Type type)
     {
-        return type.IsAssignableTo(typeof(IHandler));
+        return type.GetInterfaces()
+                   .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IHandler<,>));
     }
 
     public IEnumerable<IHandlerDescriptor> Build(Type handlerType)

@@ -14,13 +14,6 @@ public class LiteBusMessageBuilder
         _messageRegistry = messageRegistry;
     }
 
-    public LiteBusMessageBuilder RegisterFrom<TMessage>()
-    {
-        _messageRegistry.Register(typeof(TMessage));
-
-        return this;
-    }
-
     public LiteBusMessageBuilder RegisterFrom(Assembly assembly)
     {
         _messageRegistry.RegisterFrom(assembly);
@@ -28,58 +21,16 @@ public class LiteBusMessageBuilder
         return this;
     }
 
-    public LiteBusMessageBuilder RegisterHandler<THandler>() where THandler : IHandler
+    public LiteBusMessageBuilder Register<T>() where T : IHandler
     {
-        _messageRegistry.Register(typeof(THandler));
+        _messageRegistry.Register(typeof(T));
 
         return this;
     }
 
-    public LiteBusMessageBuilder RegisterHandler(Type handlerType)
+    public LiteBusMessageBuilder Register(Type type)
     {
-        _messageRegistry.Register(handlerType);
-
-        return this;
-    }
-
-    public LiteBusMessageBuilder RegisterPreHandler<TPreHandler>() where TPreHandler : IPreHandler
-    {
-        _messageRegistry.Register(typeof(TPreHandler));
-
-        return this;
-    }
-
-    public LiteBusMessageBuilder RegisterPreHandler(Type preHandlerType)
-    {
-        _messageRegistry.Register(preHandlerType);
-
-        return this;
-    }
-
-    public LiteBusMessageBuilder RegisterPostHandler<TPostHandler>() where TPostHandler : IPostHandler
-    {
-        _messageRegistry.Register(typeof(TPostHandler));
-
-        return this;
-    }
-
-    public LiteBusMessageBuilder RegisterPostHandler(Type postHandlerType)
-    {
-        _messageRegistry.Register(postHandlerType);
-
-        return this;
-    }
-
-    public LiteBusMessageBuilder RegisterErrorHandler<TErrorHandler>() where TErrorHandler : IErrorHandler
-    {
-        _messageRegistry.Register(typeof(TErrorHandler));
-
-        return this;
-    }
-
-    public LiteBusMessageBuilder RegisterErrorHandler(Type errorHandlerType)
-    {
-        _messageRegistry.Register(errorHandlerType);
+        _messageRegistry.Register(type);
 
         return this;
     }

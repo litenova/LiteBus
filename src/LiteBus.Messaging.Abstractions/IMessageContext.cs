@@ -4,19 +4,19 @@ namespace LiteBus.Messaging.Abstractions;
 
 public interface IMessageContext
 {
-    IInstances<IHandler, IHandlerDescriptor> Handlers { get; }
+    IInstances<IHandlerDescriptor> Handlers { get; }
 
-    IInstances<IHandler, IHandlerDescriptor> IndirectHandlers { get; }
+    IInstances<IHandlerDescriptor> IndirectHandlers { get; }
 
-    IInstances<IPreHandler, IPreHandlerDescriptor> PreHandlers { get; }
+    IInstances<IPreHandlerDescriptor> PreHandlers { get; }
 
-    IInstances<IPreHandler, IPreHandlerDescriptor> IndirectPreHandlers { get; }
+    IInstances<IPreHandlerDescriptor> IndirectPreHandlers { get; }
 
-    IInstances<IPostHandler, IPostHandlerDescriptor> PostHandlers { get; }
+    IInstances<IPostHandlerDescriptor> PostHandlers { get; }
 
-    IInstances<IPostHandler, IPostHandlerDescriptor> IndirectPostHandlers { get; }
+    IInstances<IPostHandlerDescriptor> IndirectPostHandlers { get; }
 
-    IInstances<IErrorHandler, IErrorHandlerDescriptor> ErrorHandlers { get; }
+    IInstances<IErrorHandlerDescriptor> ErrorHandlers { get; }
 
-    IInstances<IErrorHandler, IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
+    IInstances<IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
 }

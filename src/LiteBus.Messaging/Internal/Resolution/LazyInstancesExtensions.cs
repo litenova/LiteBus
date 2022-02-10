@@ -5,9 +5,9 @@ namespace LiteBus.Messaging.Internal.Resolution;
 
 public static class LazyInstancesExtensions
 {
-    public static IInstances<TInstance, TDescriptor> ToInstances<TInstance, TDescriptor>(
-        this IEnumerable<LazyInstance<TInstance, TDescriptor>> instances)
+    public static IInstances<TDescriptor> ToInstances<TDescriptor>(
+        this IEnumerable<LazyInstance<TDescriptor>> instances)
     {
-        return new LazyInstances<TInstance, TDescriptor>(instances);
+        return new LazyInstances<TDescriptor>(instances);
     }
 }

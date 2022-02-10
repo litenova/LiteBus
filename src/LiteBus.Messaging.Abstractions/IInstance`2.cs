@@ -1,8 +1,8 @@
 namespace LiteBus.Messaging.Abstractions;
 
-public interface IInstance<out TInstance, out TDescriptor>
+public interface IInstance<out TDescriptor>
 {
-    public TInstance Instance { get; }
+    public IHandler Instance { get; }
 
     public TDescriptor Descriptor { get; }
 }
