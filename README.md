@@ -488,6 +488,68 @@ A simple event
     }    
 ```
 
+## Open-Generic Messages
+You can handles messages (i.e., Commands, Events, Queries) in a open generic form. This feature is specially useful for queries where you might need to return a different result based on the specified type on the message.
+
+See the example below:
+
+```c#
+    // The open-generic query
+    public class GetPersonByIdQuery<TPerson> : IQuery<Person> where T: Person
+    {
+        public long Id { get; set; }
+    }
+    
+    // The handler
+    public class GetPersonByIdQueryHandler<TPerson> : IQueryHandler<GetPersonByIdQuery<TPerson>, Person> where T: Person
+    {
+        private DbContext _dbContext;
+    
+        public Task<Product> QueryAsync(GetPersonByIdQuery<TPerson> query, CancellationToken cancellationToken = default)
+        {
+            var people = _dbContext.Set<TPerson>().AsQueryable();
+            
+            // Process here...
+        }
+    }
+    
+    // The pre handler (if needed)
+    public class GetPersonByIdQueryValidator<TPerson> : IQueryPreHandler<GetPersonByIdQuery<TPerson>> where T: Person
+    {
+        public Task HandleAsync(IHandleContext<GetPersonByIdQuery<TPerson>> context)
+        {
+            // your code goes here
+        }
+    }
+    
+    // How to use query mediator
+    public class PeopleController
+    {
+        private readonly IQueryMediator _queryMediator;
+        
+        public PeopleController(IQueryMediator queryMediator)
+        {
+            _queryMediator = queryMediator;
+        }
+        
+        [HttpGet("employees/{id}"]
+        public Task<Employee> GetEmployee(long id)
+        {
+            var query = new GetPersonByIdQuery<Employee>() { Id = id };
+            
+            var result = await _queryMediator.QueryAsync(query);
+            
+            return result as Employee;
+        }
+    }
+    
+    
+```
+
+Please note:
+* This feature is supported in all message types (i.e., Commands, Events, Queries).
+* To use post-handlers and pre-handlers for generic types, they should also be in open-generic form. However, this is not needed for global pre and post handlers. 
+
 ## Inheritance
 
 The LiteBus uses the actual type of a message to determine the corresponding handler(s). Consider the following
@@ -572,7 +634,7 @@ To be added
 
 - [ ] Integration with Message Brokers
   - [ ] RabbitMQ
-  - [ ] Kafak
+  - [ ] Kafka
   - [ ] Azure Event Bus
 - [ ] Saga Support
 - [ ] Outbox Support
