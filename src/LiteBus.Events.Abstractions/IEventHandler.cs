@@ -1,5 +1,6 @@
 namespace LiteBus.Events.Abstractions;
 
-public interface IEventConstruct
+public interface IEventHandler
 {
+    
 }

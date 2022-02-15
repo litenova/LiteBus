@@ -30,15 +30,15 @@ public class EventTests
                                   configuration.AddEvents(builder =>
                                   {
                                       // Global Handlers
-                                      builder.RegisterPreHandler<FakeGlobalSyncEventPreHandler>();
-                                      builder.RegisterPostHandler<FakeGlobalSyncEventPostHandler>();
+                                      builder.Register<FakeGlobalSyncEventPreHandler>();
+                                      builder.Register<FakeGlobalSyncEventPostHandler>();
 
                                       // Fake Event Handlers
-                                      builder.RegisterPreHandler<FakeSyncEventPreHandler>();
-                                      builder.RegisterHandler<FakeSyncEventHandler1>();
-                                      builder.RegisterHandler<FakeSyncEventHandler2>();
-                                      builder.RegisterHandler<FakeSyncEventHandler3>();
-                                      builder.RegisterPostHandler<FakeSyncEventPostHandler>();
+                                      builder.Register<FakeSyncEventPreHandler>();
+                                      builder.Register<FakeSyncEventHandler1>();
+                                      builder.Register<FakeSyncEventHandler2>();
+                                      builder.Register<FakeSyncEventHandler3>();
+                                      builder.Register<FakeSyncEventPostHandler>();
                                   });
                               })
                               .BuildServiceProvider();
@@ -70,15 +70,15 @@ public class EventTests
                                   configuration.AddEvents(builder =>
                                   {
                                       // Global Handlers
-                                      builder.RegisterPreHandler<FakeGlobalSyncEventPreHandler>();
-                                      builder.RegisterPostHandler<FakeGlobalSyncEventPostHandler>();
+                                      builder.Register<FakeGlobalSyncEventPreHandler>();
+                                      builder.Register<FakeGlobalSyncEventPostHandler>();
 
                                       // Fake Event Handlers
-                                      builder.RegisterPreHandler(typeof(FakeGenericSyncEventPreHandler<>));
-                                      builder.RegisterHandler(typeof(FakeGenericSyncEventHandler1<>));
-                                      builder.RegisterHandler(typeof(FakeGenericSyncEventHandler2<>));
-                                      builder.RegisterHandler(typeof(FakeGenericSyncEventHandler3<>));
-                                      builder.RegisterPostHandler(typeof(FakeGenericSyncEventPostHandler<>));
+                                      builder.Register(typeof(FakeGenericSyncEventPreHandler<>));
+                                      builder.Register(typeof(FakeGenericSyncEventHandler1<>));
+                                      builder.Register(typeof(FakeGenericSyncEventHandler2<>));
+                                      builder.Register(typeof(FakeGenericSyncEventHandler3<>));
+                                      builder.Register(typeof(FakeGenericSyncEventPostHandler<>));
                                   });
                               })
                               .BuildServiceProvider();
@@ -110,15 +110,15 @@ public class EventTests
                                   configuration.AddEvents(builder =>
                                   {
                                       // Global Handlers
-                                      builder.RegisterPreHandler<FakeGlobalEventPreHandler>();
-                                      builder.RegisterPostHandler<FakeGlobalEventPostHandler>();
+                                      builder.Register<FakeGlobalEventPreHandler>();
+                                      builder.Register<FakeGlobalEventPostHandler>();
 
                                       // Fake Event Handlers
-                                      builder.RegisterPreHandler<FakeEventPreHandler>();
-                                      builder.RegisterHandler<FakeEventHandler1>();
-                                      builder.RegisterHandler<FakeEventHandler2>();
-                                      builder.RegisterHandler<FakeEventHandler3>();
-                                      builder.RegisterPostHandler<FakeEventPostHandler>();
+                                      builder.Register<FakeEventPreHandler>();
+                                      builder.Register<FakeEventHandler1>();
+                                      builder.Register<FakeEventHandler2>();
+                                      builder.Register<FakeEventHandler3>();
+                                      builder.Register<FakeEventPostHandler>();
                                   });
                               })
                               .BuildServiceProvider();
@@ -150,15 +150,15 @@ public class EventTests
                                   configuration.AddEvents(builder =>
                                   {
                                       // Global Handlers
-                                      builder.RegisterPreHandler<FakeGlobalEventPreHandler>();
-                                      builder.RegisterPostHandler<FakeGlobalEventPostHandler>();
+                                      builder.Register<FakeGlobalEventPreHandler>();
+                                      builder.Register<FakeGlobalEventPostHandler>();
 
                                       // Fake Event Handlers
-                                      builder.RegisterPreHandler(typeof(FakeGenericEventPreHandler<>));
-                                      builder.RegisterHandler(typeof(FakeGenericEventHandler1<>));
-                                      builder.RegisterHandler(typeof(FakeGenericEventHandler2<>));
-                                      builder.RegisterHandler(typeof(FakeGenericEventHandler3<>));
-                                      builder.RegisterPostHandler(typeof(FakeGenericEventPostHandler<>));
+                                      builder.Register(typeof(FakeGenericEventPreHandler<>));
+                                      builder.Register(typeof(FakeGenericEventHandler1<>));
+                                      builder.Register(typeof(FakeGenericEventHandler2<>));
+                                      builder.Register(typeof(FakeGenericEventHandler3<>));
+                                      builder.Register(typeof(FakeGenericEventPostHandler<>));
                                   });
                               })
                               .BuildServiceProvider();

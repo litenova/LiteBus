@@ -6,7 +6,7 @@ namespace LiteBus.Events.Extensions.MicrosoftDependencyInjection;
 public static class LiteBusConfigurationExtensions
 {
     public static ILiteBusConfiguration AddEvents(this ILiteBusConfiguration liteBusConfiguration,
-                                                  Action<LiteBusEventsBuilder> builder)
+                                                  Action<LiteBusEventBuilder> builder)
     {
         liteBusConfiguration.AddModule(new EventsModule(builder));
 

@@ -6,83 +6,57 @@ using LiteBus.Messaging.Abstractions.Extensions;
 
 namespace LiteBus.Events.Extensions.MicrosoftDependencyInjection;
 
-public class LiteBusEventsBuilder
+public class LiteBusEventBuilder
 {
     private readonly IMessageRegistry _messageRegistry;
 
-    public LiteBusEventsBuilder(IMessageRegistry messageRegistry)
+    public LiteBusEventBuilder(IMessageRegistry messageRegistry)
     {
         _messageRegistry = messageRegistry;
     }
 
-    public LiteBusEventsBuilder Register<TEvent>() where TEvent : IEvent
+    /// <summary>
+    ///     Register a event or event handler (i.e., handlers, pre-handlers, post-handlers, error-handlers)
+    /// </summary>
+    /// <typeparam name="T">The type of event or event handler</typeparam>
+    /// <returns>The instance of <see cref="LiteBusEventBuilder"/></returns>
+    /// <exception cref="NotSupportedException">In case the given type is neither event nor event handler</exception>
+    public LiteBusEventBuilder Register<T>()
     {
-        _messageRegistry.Register(typeof(TEvent));
-        return this;
-    }
-    
-    public LiteBusEventsBuilder RegisterFrom(Assembly assembly)
-    {
-        _messageRegistry.RegisterFrom<IEventConstruct>(assembly);
-
-        return this;
+        return Register(typeof(T));
     }
 
-    public LiteBusEventsBuilder RegisterHandler<THandler>() where THandler : IEventHandlerBase
+    /// <summary>
+    ///     Register a event or event handler (i.e., handlers, pre-handlers, post-handlers, error-handlers)
+    /// </summary>
+    /// <param name="type">The type of event or event handler</param>
+    /// <returns>The instance of <see cref="LiteBusEventBuilder"/></returns>
+    /// <exception cref="NotSupportedException">In case the given type is neither event nor event handler</exception>
+    public LiteBusEventBuilder Register(Type type)
     {
-        _messageRegistry.Register(typeof(THandler));
+        if (type.IsAssignableTo(typeof(IEventHandler)) || type.IsAssignableTo(typeof(IEvent)))
+        {
+            _messageRegistry.Register(type);
+            return this;
+        }
 
-        return this;
+        throw new NotSupportedException($"The type of '{type.Name}' cannot be registered");
     }
 
-    public LiteBusEventsBuilder RegisterHandler(Type handlerType)
+    /// <summary>
+    ///     Registers events and event handlers found in the given assembly
+    /// </summary>
+    /// <param name="assembly">The assembly to search</param>
+    /// <returns>The instance of <see cref="LiteBusEventBuilder"/></returns>
+    public LiteBusEventBuilder RegisterFrom(Assembly assembly)
     {
-        _messageRegistry.Register(handlerType);
-
-        return this;
-    }
-
-    public LiteBusEventsBuilder RegisterPreHandler<TEventPreHandler>()
-        where TEventPreHandler : IEventPreHandlerBase
-    {
-        _messageRegistry.Register(typeof(TEventPreHandler));
-
-        return this;
-    }
-
-    public LiteBusEventsBuilder RegisterPreHandler(Type eventPreHandlerType)
-    {
-        _messageRegistry.Register(eventPreHandlerType);
-
-        return this;
-    }
-
-    public LiteBusEventsBuilder RegisterPostHandler<TEventPostHandler>()
-        where TEventPostHandler : IEventPostHandlerBase
-    {
-        _messageRegistry.Register(typeof(TEventPostHandler));
-
-        return this;
-    }
-
-    public LiteBusEventsBuilder RegisterPostHandler(Type eventPostHandlerType)
-    {
-        _messageRegistry.Register(eventPostHandlerType);
-
-        return this;
-    }
-
-    public LiteBusEventsBuilder RegisterErrorHandler<TEventErrorHandler>()
-        where TEventErrorHandler : IEventErrorHandlerBase
-    {
-        _messageRegistry.Register(typeof(TEventErrorHandler));
-
-        return this;
-    }
-
-    public LiteBusEventsBuilder RegisterErrorHandler(Type eventErrorHandlerType)
-    {
-        _messageRegistry.Register(eventErrorHandlerType);
+        foreach (var type in assembly.GetTypes())
+        {
+            if (type.IsAssignableTo(typeof(IEventHandler)) || type.IsAssignableTo(typeof(IEvent)))
+            {
+                _messageRegistry.Register(type);
+            }
+        }
 
         return this;
     }
