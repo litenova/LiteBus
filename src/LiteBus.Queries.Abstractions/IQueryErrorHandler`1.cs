@@ -5,7 +5,6 @@ namespace LiteBus.Queries.Abstractions;
 /// <summary>
 ///     Represents an action that is executed on <typeparamref cref="TQuery" /> error-handle phase
 /// </summary>
-public interface IQueryErrorHandler<in TQuery> : IQueryErrorHandlerBase, IAsyncErrorHandler<TQuery>
-    where TQuery : IQueryBase
+public interface IQueryErrorHandler<in TQuery> : IQueryHandler, IAsyncErrorHandler<TQuery> where TQuery : IQuery
 {
 }

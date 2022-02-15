@@ -4,6 +4,6 @@
 ///     Represents a query
 /// </summary>
 /// <typeparam name="TQueryResult">The result type of query</typeparam>
-public interface IQuery<TQueryResult> : IQueryBase
+public interface IQuery<TQueryResult> : IQuery
 {
 }

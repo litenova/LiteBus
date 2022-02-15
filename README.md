@@ -105,8 +105,8 @@ services.AddLiteBus(builder =>
     builder.AddCommands(commandBuilder =>
            {
                commandBuilder.RegisterFrom(typeof(CreateProductCommand).Assembly) // Register all handlers from the specified Assembly
-                             .RegisterPreHandler<ProductValidationHandler>()
-                             .RegisterPostHandler<ProductAuditingHandler>();
+                             .Register<ProductValidationHandler>()
+                             .Register<ProductAuditingHandler>();
            })
            .AddQueries(queryBuilder =>
            {

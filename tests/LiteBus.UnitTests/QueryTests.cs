@@ -30,13 +30,13 @@ public class QueryTests
                                   configuration.AddQueries(builder =>
                                   {
                                       // Global Handlers
-                                      builder.RegisterPreHandler<FakeGlobalQueryPreHandler>();
-                                      builder.RegisterPostHandler<FakeGlobalQueryPostHandler>();
+                                      builder.Register<FakeGlobalQueryPreHandler>();
+                                      builder.Register<FakeGlobalQueryPostHandler>();
 
                                       // Fake Query Handlers
-                                      builder.RegisterPreHandler<FakeQueryPreHandler>();
-                                      builder.RegisterHandler<FakeQueryHandler>();
-                                      builder.RegisterPostHandler<FakeQueryPostHandler>();
+                                      builder.Register<FakeQueryPreHandler>();
+                                      builder.Register<FakeQueryHandler>();
+                                      builder.Register<FakeQueryPostHandler>();
                                   });
                               })
                               .BuildServiceProvider();
@@ -67,13 +67,13 @@ public class QueryTests
                                   configuration.AddQueries(builder =>
                                   {
                                       // Global Handlers
-                                      builder.RegisterPreHandler<FakeGlobalQueryPreHandler>();
-                                      builder.RegisterPostHandler<FakeGlobalQueryPostHandler>();
+                                      builder.Register<FakeGlobalQueryPreHandler>();
+                                      builder.Register<FakeGlobalQueryPostHandler>();
 
                                       // Fake Query Handlers
-                                      builder.RegisterPreHandler(typeof(FakeGenericQueryPreHandler<>));
-                                      builder.RegisterHandler(typeof(FakeGenericQueryHandler<>));
-                                      builder.RegisterPostHandler(typeof(FakeGenericQueryPostHandler<>));
+                                      builder.Register(typeof(FakeGenericQueryPreHandler<>));
+                                      builder.Register(typeof(FakeGenericQueryHandler<>));
+                                      builder.Register(typeof(FakeGenericQueryPostHandler<>));
                                   });
                               })
                               .BuildServiceProvider();
@@ -104,13 +104,13 @@ public class QueryTests
                                   configuration.AddQueries(builder =>
                                   {
                                       // Global Handlers
-                                      builder.RegisterPreHandler<FakeSyncGlobalQueryPreHandler>();
-                                      builder.RegisterPostHandler<FakeSyncGlobalQueryPostHandler>();
+                                      builder.Register<FakeSyncGlobalQueryPreHandler>();
+                                      builder.Register<FakeSyncGlobalQueryPostHandler>();
 
                                       // Fake Query Handlers
-                                      builder.RegisterPreHandler<FakeSyncQueryPreHandler>();
-                                      builder.RegisterHandler<FakeSyncQueryHandler>();
-                                      builder.RegisterPostHandler<FakeSyncQueryPostHandler>();
+                                      builder.Register<FakeSyncQueryPreHandler>();
+                                      builder.Register<FakeSyncQueryHandler>();
+                                      builder.Register<FakeSyncQueryPostHandler>();
                                   });
                               })
                               .BuildServiceProvider();
@@ -141,13 +141,13 @@ public class QueryTests
                                   configuration.AddQueries(builder =>
                                   {
                                       // Global Handlers
-                                      builder.RegisterPreHandler<FakeSyncGlobalQueryPreHandler>();
-                                      builder.RegisterPostHandler<FakeSyncGlobalQueryPostHandler>();
+                                      builder.Register<FakeSyncGlobalQueryPreHandler>();
+                                      builder.Register<FakeSyncGlobalQueryPostHandler>();
 
                                       // Fake Query Handlers
-                                      builder.RegisterPreHandler(typeof(FakeSyncGenericQueryPreHandler<>));
-                                      builder.RegisterHandler(typeof(FakeSyncGenericQueryHandler<>));
-                                      builder.RegisterPostHandler(typeof(FakeSyncGenericQueryPostHandler<>));
+                                      builder.Register(typeof(FakeSyncGenericQueryPreHandler<>));
+                                      builder.Register(typeof(FakeSyncGenericQueryHandler<>));
+                                      builder.Register(typeof(FakeSyncGenericQueryPostHandler<>));
                                   });
                               })
                               .BuildServiceProvider();

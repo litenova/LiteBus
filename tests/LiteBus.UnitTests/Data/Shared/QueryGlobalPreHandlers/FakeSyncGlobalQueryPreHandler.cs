@@ -6,7 +6,7 @@ namespace LiteBus.UnitTests.Data.Shared.QueryGlobalPreHandlers;
 
 public class FakeSyncGlobalQueryPreHandler : ISyncQueryPreHandler
 {
-    public void Handle(IHandleContext<IQueryBase> context)
+    public void Handle(IHandleContext<IQuery> context)
     {
         (context.Message as FakeParentQuery)!.ExecutedTypes.Add(typeof(FakeSyncGlobalQueryPreHandler));
     }

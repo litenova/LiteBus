@@ -2,6 +2,6 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Queries.Abstractions;
 
-public interface ISyncQueryErrorHandler : IQueryErrorHandlerBase, ISyncErrorHandler<IQueryBase>
+public interface ISyncQueryErrorHandler : IQueryHandler, ISyncErrorHandler<IQuery>
 {
 }

@@ -15,72 +15,48 @@ public class LiteBusQueryBuilder
         _messageRegistry = messageRegistry;
     }
 
-    public LiteBusQueryBuilder Register<TQuery>() where TQuery : IQueryBase
+    /// <summary>
+    ///     Register a query or query handler (i.e., handlers, pre-handlers, post-handlers, error-handlers)
+    /// </summary>
+    /// <typeparam name="T">The type of query or query handler</typeparam>
+    /// <returns>The instance of <see cref="LiteBusQueryBuilder"/></returns>
+    /// <exception cref="NotSupportedException">In case the given type is neither query nor query handler</exception>
+    public LiteBusQueryBuilder Register<T>()
     {
-        _messageRegistry.Register(typeof(TQuery));
-        return this;
+        return Register(typeof(T));
     }
 
+    /// <summary>
+    ///     Register a query or query handler (i.e., handlers, pre-handlers, post-handlers, error-handlers)
+    /// </summary>
+    /// <param name="type">The type of query or query handler</param>
+    /// <returns>The instance of <see cref="LiteBusQueryBuilder"/></returns>
+    /// <exception cref="NotSupportedException">In case the given type is neither query nor query handler</exception>
+    public LiteBusQueryBuilder Register(Type type)
+    {
+        if (type.IsAssignableTo(typeof(IQueryHandler)) || type.IsAssignableTo(typeof(IQuery)))
+        {
+            _messageRegistry.Register(type);
+            return this;
+        }
+
+        throw new NotSupportedException($"The type of '{type.Name}' cannot be registered");
+    }
+
+    /// <summary>
+    ///     Registers queries and query handlers found in the given assembly
+    /// </summary>
+    /// <param name="assembly">The assembly to search</param>
+    /// <returns>The instance of <see cref="LiteBusQueryBuilder"/></returns>
     public LiteBusQueryBuilder RegisterFrom(Assembly assembly)
     {
-        _messageRegistry.RegisterFrom<IQueryConstruct>(assembly);
-        return this;
-    }
-
-    public LiteBusQueryBuilder RegisterHandler<THandler>() where THandler : IQueryHandlerBase
-    {
-        _messageRegistry.Register(typeof(THandler));
-
-        return this;
-    }
-
-    public LiteBusQueryBuilder RegisterHandler(Type type)
-    {
-        _messageRegistry.Register(type);
-
-        return this;
-    }
-
-    public LiteBusQueryBuilder RegisterPreHandler<TQueryPreHandler>()
-        where TQueryPreHandler : IQueryPreHandlerBase
-    {
-        _messageRegistry.Register(typeof(TQueryPreHandler));
-
-        return this;
-    }
-
-    public LiteBusQueryBuilder RegisterPreHandler(Type type)
-    {
-        _messageRegistry.Register(type);
-
-        return this;
-    }
-
-    public LiteBusQueryBuilder RegisterPostHandler<TQueryPostHandler>()
-        where TQueryPostHandler : IQueryPostHandlerBase
-    {
-        _messageRegistry.Register(typeof(TQueryPostHandler));
-
-        return this;
-    }
-
-    public LiteBusQueryBuilder RegisterPostHandler(Type type)
-    {
-        _messageRegistry.Register(type);
-
-        return this;
-    }
-
-    public LiteBusQueryBuilder RegisterErrorHandler<TQueryErrorHandler>()
-    {
-        _messageRegistry.Register(typeof(TQueryErrorHandler));
-
-        return this;
-    }
-
-    public LiteBusQueryBuilder RegisterErrorHandler(Type type)
-    {
-        _messageRegistry.Register(type);
+        foreach (var type in assembly.GetTypes())
+        {
+            if (type.IsAssignableTo(typeof(IQueryHandler)) || type.IsAssignableTo(typeof(IQuery)))
+            {
+                _messageRegistry.Register(type);
+            }
+        }
 
         return this;
     }

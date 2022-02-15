@@ -31,13 +31,13 @@ public class StreamQueryTests
                                   configuration.AddQueries(builder =>
                                   {
                                       // Global Handlers
-                                      builder.RegisterPreHandler<FakeGlobalQueryPreHandler>();
-                                      builder.RegisterPostHandler<FakeGlobalQueryPostHandler>();
+                                      builder.Register<FakeGlobalQueryPreHandler>();
+                                      builder.Register<FakeGlobalQueryPostHandler>();
 
                                       // Fake Query Handlers
-                                      builder.RegisterPreHandler<FakeStreamQueryPreHandler>();
-                                      builder.RegisterHandler<FakeStreamQueryHandler>();
-                                      builder.RegisterPostHandler<FakeStreamQueryPostHandler>();
+                                      builder.Register<FakeStreamQueryPreHandler>();
+                                      builder.Register<FakeStreamQueryHandler>();
+                                      builder.Register<FakeStreamQueryPostHandler>();
                                   });
                               })
                               .BuildServiceProvider();
@@ -67,13 +67,13 @@ public class StreamQueryTests
                                   configuration.AddQueries(builder =>
                                   {
                                       // Global Handlers
-                                      builder.RegisterPreHandler<FakeGlobalQueryPreHandler>();
-                                      builder.RegisterPostHandler<FakeGlobalQueryPostHandler>();
+                                      builder.Register<FakeGlobalQueryPreHandler>();
+                                      builder.Register<FakeGlobalQueryPostHandler>();
 
                                       // Fake Query Handlers
-                                      builder.RegisterPreHandler(typeof(FakeGenericStreamQueryPreHandler<>));
-                                      builder.RegisterHandler(typeof(FakeGenericStreamQueryHandler<>));
-                                      builder.RegisterPostHandler(typeof(FakeGenericStreamQueryPostHandler<>));
+                                      builder.Register(typeof(FakeGenericStreamQueryPreHandler<>));
+                                      builder.Register(typeof(FakeGenericStreamQueryHandler<>));
+                                      builder.Register(typeof(FakeGenericStreamQueryPostHandler<>));
                                   });
                               })
                               .BuildServiceProvider();

@@ -4,6 +4,6 @@ namespace LiteBus.Queries.Abstractions;
 ///     Represents a query
 /// </summary>
 /// <typeparam name="TQueryResult">The result type of query</typeparam>
-public interface IStreamQuery<out TQueryResult> : IQueryBase
+public interface IStreamQuery<out TQueryResult> : IQuery
 {
 }
