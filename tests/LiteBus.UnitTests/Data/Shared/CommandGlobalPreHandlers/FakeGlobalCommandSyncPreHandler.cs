@@ -4,10 +4,10 @@ using LiteBus.UnitTests.Data.Shared.Commands;
 
 namespace LiteBus.UnitTests.Data.Shared.CommandGlobalPreHandlers;
 
-public class FakeGlobalSyncCommandPreHandler : ISyncCommandPreHandler
+public class FakeGlobalCommandSyncPreHandler : ISyncCommandPreHandler
 {
     public void Handle(IHandleContext<ICommand> context)
     {
-        (context.Message as FakeParentCommand)!.ExecutedTypes.Add(typeof(FakeGlobalSyncCommandPreHandler));
+        (context.Message as FakeParentCommand)!.ExecutedTypes.Add(typeof(FakeGlobalCommandSyncPreHandler));
     }
 }
