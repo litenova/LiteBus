@@ -6,7 +6,7 @@ namespace LiteBus.UnitTests.Data.Shared.CommandGlobalPreHandlers;
 
 public class FakeGlobalSyncCommandPreHandler : ISyncCommandPreHandler
 {
-    public void Handle(IHandleContext<ICommandBase> context)
+    public void Handle(IHandleContext<ICommand> context)
     {
         (context.Message as FakeParentCommand)!.ExecutedTypes.Add(typeof(FakeGlobalSyncCommandPreHandler));
     }

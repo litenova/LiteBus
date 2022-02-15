@@ -6,7 +6,7 @@ namespace LiteBus.UnitTests.Data.Shared.CommandGlobalPostHandlers;
 
 public class FakeGlobalSyncCommandPostHandler : ISyncCommandPostHandler
 {
-    public void Handle(IHandleContext<ICommandBase> context)
+    public void Handle(IHandleContext<ICommand> context)
     {
         (context.Message as FakeParentCommand)!.ExecutedTypes.Add(typeof(FakeGlobalSyncCommandPostHandler));
     }

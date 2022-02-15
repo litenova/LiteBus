@@ -5,6 +5,6 @@ namespace LiteBus.Commands.Abstractions;
 /// <summary>
 ///     Represents an action that is executed on each command error-handle phase
 /// </summary>
-public interface ICommandErrorHandler : ICommandErrorHandlerBase, IAsyncErrorHandler<ICommandBase>
+public interface ICommandErrorHandler : IAsyncErrorHandler<ICommand>
 {
 }

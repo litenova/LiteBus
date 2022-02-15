@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
@@ -15,73 +16,36 @@ public class LiteBusCommandBuilder
         _messageRegistry = messageRegistry;
     }
 
-    public LiteBusCommandBuilder Register<TCommand>() where TCommand : ICommand
+    /// <summary>
+    ///     Register a command or command handler (i.e., handlers, pre-handlers, post-handlers, error-handlers)
+    /// </summary>
+    /// <typeparam name="T">The type of command or command handler</typeparam>
+    /// <returns>The instance of <see cref="LiteBusCommandBuilder"/></returns>
+    public LiteBusCommandBuilder Register<T>()
     {
-        _messageRegistry.Register(typeof(TCommand));
-        return this;
+        return Register(typeof(T));
+    }
+
+    public LiteBusCommandBuilder Register(Type type)
+    {
+        if (type.IsAssignableTo(typeof(ICommandHandler)) || type.IsAssignableTo(typeof(ICommand)))
+        {
+            _messageRegistry.Register(type);
+            return this;
+        }
+
+        throw new NotSupportedException($"The type of '{type.Name}' cannot be registered");
     }
 
     public LiteBusCommandBuilder RegisterFrom(Assembly assembly)
     {
-        _messageRegistry.RegisterFrom<ICommandConstruct>(assembly);
-        return this;
-    }
-
-    public LiteBusCommandBuilder RegisterHandler<THandler>() where THandler : ICommandHandlerBase
-    {
-        _messageRegistry.Register(typeof(THandler));
-
-        return this;
-    }
-
-    public LiteBusCommandBuilder RegisterHandler(Type handlerType)
-    {
-        _messageRegistry.Register(handlerType);
-
-        return this;
-    }
-
-    public LiteBusCommandBuilder RegisterPreHandler<TCommandPreHandler>()
-        where TCommandPreHandler : ICommandPreHandlerBase
-    {
-        _messageRegistry.Register(typeof(TCommandPreHandler));
-
-        return this;
-    }
-
-    public LiteBusCommandBuilder RegisterPreHandler(Type commandPreHandlerType)
-    {
-        _messageRegistry.Register(commandPreHandlerType);
-
-        return this;
-    }
-
-    public LiteBusCommandBuilder RegisterPostHandler<TCommandPostHandler>()
-        where TCommandPostHandler : ICommandPostHandlerBase
-    {
-        _messageRegistry.Register(typeof(TCommandPostHandler));
-
-        return this;
-    }
-
-    public LiteBusCommandBuilder RegisterPostHandler(Type commandPostHandlerType)
-    {
-        _messageRegistry.Register(commandPostHandlerType);
-
-        return this;
-    }
-
-    public LiteBusCommandBuilder RegisterErrorHandler<TCommandErrorHandler>()
-        where TCommandErrorHandler : ICommandErrorHandlerBase
-    {
-        _messageRegistry.Register(typeof(TCommandErrorHandler));
-
-        return this;
-    }
-
-    public LiteBusCommandBuilder RegisterErrorHandler(Type errorHandlerType)
-    {
-        _messageRegistry.Register(errorHandlerType);
+        foreach (var type in assembly.GetTypes())
+        {
+            if (type.IsAssignableTo(typeof(ICommandHandler)) || type.IsAssignableTo(typeof(ICommand)))
+            {
+                _messageRegistry.Register(type);
+            }
+        }
 
         return this;
     }

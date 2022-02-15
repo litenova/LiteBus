@@ -3,6 +3,6 @@
 /// <summary>
 ///     Represents a command with result
 /// </summary>
-public interface ICommand<TCommandResult> : ICommandBase
+public interface ICommand<TCommandResult> : ICommand
 {
 }

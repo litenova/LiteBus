@@ -3,6 +3,6 @@
 /// <summary>
 ///     Represents a command without result
 /// </summary>
-public interface ICommand : ICommandBase
+public interface ICommand
 {
 }

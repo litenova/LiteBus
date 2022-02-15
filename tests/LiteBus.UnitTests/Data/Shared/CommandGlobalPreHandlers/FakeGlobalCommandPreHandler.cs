@@ -7,7 +7,7 @@ namespace LiteBus.UnitTests.Data.Shared.CommandGlobalPreHandlers;
 
 public class FakeGlobalCommandPreHandler : ICommandPreHandler
 {
-    public Task HandleAsync(IHandleContext<ICommandBase> context)
+    public Task HandleAsync(IHandleContext<ICommand> context)
     {
         (context.Message as FakeParentCommand)!.ExecutedTypes.Add(typeof(FakeGlobalCommandPreHandler));
         return Task.CompletedTask;

@@ -7,8 +7,7 @@ namespace LiteBus.Commands.Abstractions;
 /// </summary>
 /// <typeparam name="TCommand">The type of command to</typeparam>
 /// <typeparam name="TCommandResult">The type of command result</typeparam>
-public interface ICommandHandler<in TCommand, TCommandResult> : ICommandHandlerBase,
-                                                                IAsyncHandler<TCommand, TCommandResult>
+public interface ICommandHandler<in TCommand, TCommandResult> : ICommandHandler, IAsyncHandler<TCommand, TCommandResult>
     where TCommand : ICommand<TCommandResult>
 {
 }

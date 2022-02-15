@@ -2,6 +2,6 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Commands.Abstractions;
 
-public interface ISyncCommandPostHandler : ICommandPostHandlerBase, ISyncPostHandler<ICommandBase>
+public interface ISyncCommandPostHandler : ICommandHandler, ISyncPostHandler<ICommand>
 {
 }
