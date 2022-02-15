@@ -4,7 +4,7 @@ using LiteBus.Messaging.Abstractions.Metadata;
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Represents a workflow of finding a registered message from message message registry 
+///     Represents a workflow of finding a registered message from message message registry
 /// </summary>
 public interface IDiscoveryWorkflow
 {

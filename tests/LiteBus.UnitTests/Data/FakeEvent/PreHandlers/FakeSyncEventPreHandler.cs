@@ -3,7 +3,7 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.UnitTests.Data.FakeEvent.PreHandlers;
 
-public class FakeSyncEventPreHandler : ISyncEventPreHandler<FakeEvent.Messages.FakeEvent>
+public class FakeSyncEventPreHandler : ISyncEventPreHandler<Messages.FakeEvent>
 {
     public void Handle(IHandleContext<Messages.FakeEvent> context)
     {

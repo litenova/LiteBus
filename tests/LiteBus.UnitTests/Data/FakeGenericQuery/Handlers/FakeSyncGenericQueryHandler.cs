@@ -3,7 +3,8 @@ using LiteBus.UnitTests.Data.FakeGenericQuery.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeGenericQuery.Handlers;
 
-public class FakeSyncGenericQueryHandler<TPayload> : ISyncQueryHandler<FakeGenericQuery<TPayload>, FakeGenericQueryResult>
+public class
+    FakeSyncGenericQueryHandler<TPayload> : ISyncQueryHandler<FakeGenericQuery<TPayload>, FakeGenericQueryResult>
 {
     public FakeGenericQueryResult Handle(FakeGenericQuery<TPayload> message)
     {

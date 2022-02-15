@@ -116,7 +116,7 @@ public static class MessageContextExtensions
             await (Task) asyncPostHandler.Handle(handleContext);
         }
     }
-    
+
     public static void RunSyncPostHandlers(this IMessageContext messageContext, HandleContext handleContext)
     {
         var asyncPostHandlers = messageContext.PostHandlers
@@ -129,7 +129,8 @@ public static class MessageContextExtensions
         }
 
         var asyncIndirectPostHandlers = messageContext.IndirectPostHandlers
-                                                      .Where(ph => ph.Descriptor.ExecutionMode == ExecutionMode.Synchronous)
+                                                      .Where(ph => ph.Descriptor.ExecutionMode ==
+                                                                   ExecutionMode.Synchronous)
                                                       .Select(ph => ph.Instance);
 
         foreach (var asyncPostHandler in asyncIndirectPostHandlers)
@@ -137,5 +138,4 @@ public static class MessageContextExtensions
             asyncPostHandler.Handle(handleContext);
         }
     }
-
 }

@@ -1,12 +1,13 @@
 using System.Threading.Tasks;
-using LiteBus.Queries.Abstractions;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Queries.Abstractions;
+using LiteBus.UnitTests.Data.FakeGenericQuery.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeGenericQuery.PreHandlers;
 
-public class FakeGenericQueryPreHandler<TPayload> : IQueryPreHandler<Messages.FakeGenericQuery<TPayload>>
+public class FakeGenericQueryPreHandler<TPayload> : IQueryPreHandler<FakeGenericQuery<TPayload>>
 {
-    public Task HandleAsync(IHandleContext<Messages.FakeGenericQuery<TPayload>> context)
+    public Task HandleAsync(IHandleContext<FakeGenericQuery<TPayload>> context)
     {
         context.Message.ExecutedTypes.Add(typeof(FakeGenericQueryPreHandler<TPayload>));
         return Task.CompletedTask;

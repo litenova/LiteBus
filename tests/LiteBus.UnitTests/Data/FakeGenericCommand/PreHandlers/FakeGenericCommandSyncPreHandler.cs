@@ -4,7 +4,7 @@ using LiteBus.UnitTests.Data.FakeGenericCommand.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeGenericCommand.PreHandlers;
 
-public class FakeGenericCommandSyncPreHandler<TPayload> : ISyncCommandPreHandler<Messages.FakeGenericCommand<TPayload>>
+public class FakeGenericCommandSyncPreHandler<TPayload> : ISyncCommandPreHandler<FakeGenericCommand<TPayload>>
 {
     public void Handle(IHandleContext<FakeGenericCommand<TPayload>> context)
     {

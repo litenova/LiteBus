@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
-using LiteBus.Queries.Abstractions;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Queries.Abstractions;
 using LiteBus.UnitTests.Data.FakeGenericQuery.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeGenericQuery.PostHandlers;

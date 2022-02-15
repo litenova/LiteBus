@@ -1,7 +1,6 @@
 using System;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Extensions;
 using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection;
@@ -19,7 +18,7 @@ public class LiteBusQueryBuilder
     ///     Register a query or query handler (i.e., handlers, pre-handlers, post-handlers, error-handlers)
     /// </summary>
     /// <typeparam name="T">The type of query or query handler</typeparam>
-    /// <returns>The instance of <see cref="LiteBusQueryBuilder"/></returns>
+    /// <returns>The instance of <see cref="LiteBusQueryBuilder" /></returns>
     /// <exception cref="NotSupportedException">In case the given type is neither query nor query handler</exception>
     public LiteBusQueryBuilder Register<T>()
     {
@@ -30,7 +29,7 @@ public class LiteBusQueryBuilder
     ///     Register a query or query handler (i.e., handlers, pre-handlers, post-handlers, error-handlers)
     /// </summary>
     /// <param name="type">The type of query or query handler</param>
-    /// <returns>The instance of <see cref="LiteBusQueryBuilder"/></returns>
+    /// <returns>The instance of <see cref="LiteBusQueryBuilder" /></returns>
     /// <exception cref="NotSupportedException">In case the given type is neither query nor query handler</exception>
     public LiteBusQueryBuilder Register(Type type)
     {
@@ -47,7 +46,7 @@ public class LiteBusQueryBuilder
     ///     Registers queries and query handlers found in the given assembly
     /// </summary>
     /// <param name="assembly">The assembly to search</param>
-    /// <returns>The instance of <see cref="LiteBusQueryBuilder"/></returns>
+    /// <returns>The instance of <see cref="LiteBusQueryBuilder" /></returns>
     public LiteBusQueryBuilder RegisterFrom(Assembly assembly)
     {
         foreach (var type in assembly.GetTypes())

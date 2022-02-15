@@ -5,9 +5,9 @@ using LiteBus.UnitTests.Data.FakeCommand.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeCommand.PostHandlers;
 
-public class FakeCommandPostHandler : ICommandPostHandler<FakeCommand.Messages.FakeCommand, FakeCommandResult>
+public class FakeCommandPostHandler : ICommandPostHandler<Messages.FakeCommand, FakeCommandResult>
 {
-    public Task HandleAsync(IHandleContext<FakeCommand.Messages.FakeCommand, FakeCommandResult> context)
+    public Task HandleAsync(IHandleContext<Messages.FakeCommand, FakeCommandResult> context)
     {
         context.Message.ExecutedTypes.Add(typeof(FakeCommandPostHandler));
         return Task.CompletedTask;

@@ -93,8 +93,8 @@ public class QueryTests
         query.ExecutedTypes[3].Should().Be<FakeGenericQueryPostHandler<string>>();
         query.ExecutedTypes[4].Should().Be<FakeGlobalQueryPostHandler>();
     }
-    
-        [Fact]
+
+    [Fact]
     public void Query_FakeQuery_ShouldGoThroughHandlersCorrectly()
     {
         // Arrange

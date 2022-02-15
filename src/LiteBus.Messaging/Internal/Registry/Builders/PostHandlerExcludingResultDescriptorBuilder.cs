@@ -14,7 +14,7 @@ public class PostHandlerExcludingResultDescriptorBuilder : IDescriptorBuilder<IP
     public bool CanBuild(Type type)
     {
         return type.GetInterfaces()
-                   .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPostHandler<,>));    
+                   .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPostHandler<,>));
     }
 
     public IEnumerable<IPostHandlerDescriptor> Build(Type handlerType)

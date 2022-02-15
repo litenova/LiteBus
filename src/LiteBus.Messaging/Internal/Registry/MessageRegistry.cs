@@ -14,10 +14,10 @@ namespace LiteBus.Messaging.Internal.Registry;
 internal class MessageRegistry : IMessageRegistry
 {
     private readonly List<IDescriptorBuilder> _descriptorBuilders;
-    private readonly List<MessageDescriptor> _messages = new();
     private readonly List<IDescriptor> _descriptors = new();
-    private readonly ConcurrentDictionary<Type, byte> _processedTypes = new();
+    private readonly List<MessageDescriptor> _messages = new();
     private readonly List<MessageDescriptor> _newMessages = new();
+    private readonly ConcurrentDictionary<Type, byte> _processedTypes = new();
 
     public MessageRegistry()
     {

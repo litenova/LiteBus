@@ -3,7 +3,7 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.UnitTests.Data.FakeCommand.PreHandlers;
 
-public class FakeCommandSyncPreHandler : ISyncCommandPreHandler<FakeCommand.Messages.FakeCommand>
+public class FakeCommandSyncPreHandler : ISyncCommandPreHandler<Messages.FakeCommand>
 {
     public void Handle(IHandleContext<Messages.FakeCommand> context)
     {

@@ -4,7 +4,7 @@ using LiteBus.UnitTests.Data.FakeQuery.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeQuery.PostHandlers;
 
-public class FakeSyncQueryPostHandler : ISyncQueryPostHandler<FakeQuery.Messages.FakeQuery, FakeQueryResult>
+public class FakeSyncQueryPostHandler : ISyncQueryPostHandler<Messages.FakeQuery, FakeQueryResult>
 {
     public void Handle(IHandleContext<Messages.FakeQuery, FakeQueryResult> context)
     {

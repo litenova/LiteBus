@@ -4,7 +4,7 @@ using LiteBus.UnitTests.Data.FakeCommand.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeCommand.PostHandlers;
 
-public class FakeCommandSyncPostHandler : ISyncCommandPostHandler<FakeCommand.Messages.FakeCommand, FakeCommandResult>
+public class FakeCommandSyncPostHandler : ISyncCommandPostHandler<Messages.FakeCommand, FakeCommandResult>
 {
     public void Handle(IHandleContext<Messages.FakeCommand, FakeCommandResult> context)
     {

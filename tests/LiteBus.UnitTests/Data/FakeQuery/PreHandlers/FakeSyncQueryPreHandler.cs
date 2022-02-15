@@ -3,7 +3,7 @@ using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.UnitTests.Data.FakeQuery.PreHandlers;
 
-public class FakeSyncQueryPreHandler : ISyncQueryPreHandler<FakeQuery.Messages.FakeQuery>
+public class FakeSyncQueryPreHandler : ISyncQueryPreHandler<Messages.FakeQuery>
 {
     public void Handle(IHandleContext<Messages.FakeQuery> context)
     {

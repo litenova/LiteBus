@@ -1,7 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
-using LiteBus.UnitTests.Data.FakeCommandWithoutResult.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeCommandWithoutResult.Handlers;
 

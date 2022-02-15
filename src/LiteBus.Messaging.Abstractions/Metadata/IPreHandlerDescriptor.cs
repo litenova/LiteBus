@@ -2,5 +2,4 @@
 
 public interface IPreHandlerDescriptor : IHandlerDescriptor
 {
-
 }

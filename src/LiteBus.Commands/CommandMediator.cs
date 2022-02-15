@@ -17,7 +17,8 @@ public class CommandMediator : ICommandMediator
         _mediator = mediator;
     }
 
-    public async Task SendAsync(ICommand command, CancellationToken cancellationToken = default)
+    public async Task SendAsync(ICommand command,
+                                CancellationToken cancellationToken = default)
     {
         var executionWorkflow = new SingleAsyncHandlerExecutionWorkflow<ICommand>(cancellationToken);
 

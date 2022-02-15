@@ -5,7 +5,9 @@ using LiteBus.UnitTests.Data.FakeGenericCommand.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeGenericCommand.PostHandlers;
 
-public class FakeGenericCommandPostHandler<TPayload> : ICommandPostHandler<FakeGenericCommand<TPayload>, FakeGenericCommandResult>
+public class
+    FakeGenericCommandPostHandler<TPayload> : ICommandPostHandler<FakeGenericCommand<TPayload>,
+        FakeGenericCommandResult>
 {
     public Task HandleAsync(IHandleContext<FakeGenericCommand<TPayload>, FakeGenericCommandResult> context)
     {

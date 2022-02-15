@@ -14,5 +14,6 @@ public class LazyInstance<TDescriptor> : IInstance<TDescriptor>
     }
 
     public IHandler Instance => _handlerInstance.Value;
+
     public TDescriptor Descriptor { get; }
 }

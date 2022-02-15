@@ -5,5 +5,5 @@ public enum ExecutionMode
     Unknown,
     Synchronous,
     Asynchronous,
-    AsynchronousStreaming,
+    AsynchronousStreaming
 }

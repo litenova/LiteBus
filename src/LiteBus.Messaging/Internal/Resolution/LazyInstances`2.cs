@@ -13,9 +13,15 @@ public class LazyInstances<TDescriptor> : IInstances<TDescriptor>
         _instances = new List<LazyInstance<TDescriptor>>(instances);
     }
 
-    public IEnumerator<IInstance<TDescriptor>> GetEnumerator() => _instances.GetEnumerator();
+    public IEnumerator<IInstance<TDescriptor>> GetEnumerator()
+    {
+        return _instances.GetEnumerator();
+    }
 
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
 
     public int Count => _instances.Count;
 }

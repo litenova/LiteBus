@@ -3,7 +3,7 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.UnitTests.Data.FakeCommandWithoutResult.PostHandlers;
 
-public class FakeCommandWithoutResultSyncPostHandler : ISyncCommandPostHandler<FakeCommandWithoutResult.Messages.FakeCommandWithoutResult>
+public class FakeCommandWithoutResultSyncPostHandler : ISyncCommandPostHandler<Messages.FakeCommandWithoutResult>
 {
     public void Handle(IHandleContext<Messages.FakeCommandWithoutResult> context)
     {

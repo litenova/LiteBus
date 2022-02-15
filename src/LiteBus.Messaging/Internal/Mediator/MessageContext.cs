@@ -31,6 +31,22 @@ public class MessageContext : IMessageContext
         IndirectErrorHandlers = ResolveErrorHandlers(descriptor.IndirectErrorHandlers).ToInstances();
     }
 
+    public IInstances<IHandlerDescriptor> Handlers { get; }
+
+    public IInstances<IHandlerDescriptor> IndirectHandlers { get; }
+
+    public IInstances<IPreHandlerDescriptor> PreHandlers { get; }
+
+    public IInstances<IPreHandlerDescriptor> IndirectPreHandlers { get; }
+
+    public IInstances<IPostHandlerDescriptor> PostHandlers { get; }
+
+    public IInstances<IPostHandlerDescriptor> IndirectPostHandlers { get; }
+
+    public IInstances<IErrorHandlerDescriptor> ErrorHandlers { get; }
+
+    public IInstances<IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
+
     private IEnumerable<LazyInstance<IHandlerDescriptor>> ResolveHandlers(IEnumerable<IHandlerDescriptor> descriptors)
     {
         foreach (var handlerDescriptor in descriptors.OrderBy(h => h.Order))
@@ -149,20 +165,4 @@ public class MessageContext : IMessageContext
             yield return new LazyInstance<IPostHandlerDescriptor>(lazy, descriptor);
         }
     }
-
-    public IInstances<IHandlerDescriptor> Handlers { get; }
-
-    public IInstances<IHandlerDescriptor> IndirectHandlers { get; }
-
-    public IInstances<IPreHandlerDescriptor> PreHandlers { get; }
-
-    public IInstances<IPreHandlerDescriptor> IndirectPreHandlers { get; }
-
-    public IInstances<IPostHandlerDescriptor> PostHandlers { get; }
-
-    public IInstances<IPostHandlerDescriptor> IndirectPostHandlers { get; }
-
-    public IInstances<IErrorHandlerDescriptor> ErrorHandlers { get; }
-
-    public IInstances<IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
 }
