@@ -112,7 +112,7 @@ public class CommandTests
 
                                       // Fake Command Handlers
                                       builder.Register(typeof(FakeGenericCommandPreHandler<>));
-                                      builder.Register(typeof(FakeGenericCommandHandlerWithoutResult<>));
+                                      builder.Register(typeof(FakeGenericCommandHandler<>));
                                       builder.Register(typeof(FakeGenericCommandPostHandler<>));
                                   });
                               })
@@ -129,7 +129,7 @@ public class CommandTests
         command.ExecutedTypes.Should().HaveCount(5);
         command.ExecutedTypes[0].Should().Be<FakeGlobalCommandPreHandler>();
         command.ExecutedTypes[1].Should().Be<FakeGenericCommandPreHandler<string>>();
-        command.ExecutedTypes[2].Should().Be<FakeGenericCommandHandlerWithoutResult<string>>();
+        command.ExecutedTypes[2].Should().Be<FakeGenericCommandHandler<string>>();
         command.ExecutedTypes[3].Should().Be<FakeGenericCommandPostHandler<string>>();
         command.ExecutedTypes[4].Should().Be<FakeGlobalCommandPostHandler>();
     }
@@ -206,6 +206,43 @@ public class CommandTests
         command.ExecutedTypes[1].Should().Be<FakeCommandWithoutResultSyncPreHandler>();
         command.ExecutedTypes[2].Should().Be<FakeCommandWithoutResultSyncHandler>();
         command.ExecutedTypes[3].Should().Be<FakeCommandWithoutResultSyncPostHandler>();
+        command.ExecutedTypes[4].Should().Be<FakeGlobalSyncCommandPostHandler>();
+    }
+    
+    [Fact]
+    public void Send_FakeGenericCommand_ShouldGoThroughHandlersCorrectly()
+    {
+        // Arrange
+        var serviceProvider = new ServiceCollection()
+                              .AddLiteBus(configuration =>
+                              {
+                                  configuration.AddCommands(builder =>
+                                  {
+                                      // Global Handlers
+                                      builder.Register<FakeGlobalSyncCommandPreHandler>();
+                                      builder.Register<FakeGlobalSyncCommandPostHandler>();
+
+                                      // Fake Command Handlers
+                                      builder.Register(typeof(FakeGenericCommandSyncPreHandler<>));
+                                      builder.Register(typeof(FakeGenericCommandSyncHandler<>));
+                                      builder.Register(typeof(FakeGenericCommandSyncPostHandler<>));
+                                  });
+                              })
+                              .BuildServiceProvider();
+
+        var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
+        var command = new FakeGenericCommand<string>();
+
+        // Act
+        var commandResult = commandMediator.Send(command);
+
+        // Assert
+        commandResult.CorrelationId.Should().Be(command.CorrelationId);
+        command.ExecutedTypes.Should().HaveCount(5);
+        command.ExecutedTypes[0].Should().Be<FakeGlobalSyncCommandPreHandler>();
+        command.ExecutedTypes[1].Should().Be<FakeGenericCommandSyncPreHandler<string>>();
+        command.ExecutedTypes[2].Should().Be<FakeGenericCommandSyncHandler<string>>();
+        command.ExecutedTypes[3].Should().Be<FakeGenericCommandSyncPostHandler<string>>();
         command.ExecutedTypes[4].Should().Be<FakeGlobalSyncCommandPostHandler>();
     }
 }
