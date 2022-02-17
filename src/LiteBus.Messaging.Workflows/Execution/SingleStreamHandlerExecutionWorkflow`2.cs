@@ -22,9 +22,9 @@ public class SingleStreamHandlerExecutionWorkflow<TMessage, TMessageResult> :
     }
 
     public async IAsyncEnumerable<TMessageResult> Execute(TMessage message,
-                                                          IMessageContext messageContext)
+                                                          IResolutionContext resolutionContext)
     {
-        var handlers = messageContext.Handlers
+        var handlers = resolutionContext.Handlers
                                      .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.AsynchronousStreaming)
                                      .ToList();
 
@@ -39,7 +39,7 @@ public class SingleStreamHandlerExecutionWorkflow<TMessage, TMessageResult> :
 
         try
         {
-            await messageContext.RunAsyncPreHandlers(handleContext);
+            await resolutionContext.RunAsyncPreHandlers(handleContext);
 
             var handler = handlers.Single().Instance;
 
@@ -47,14 +47,14 @@ public class SingleStreamHandlerExecutionWorkflow<TMessage, TMessageResult> :
         }
         catch (Exception e)
         {
-            if (messageContext.ErrorHandlers.Count + messageContext.IndirectErrorHandlers.Count == 0)
+            if (resolutionContext.ErrorHandlers.Count + resolutionContext.IndirectErrorHandlers.Count == 0)
             {
                 throw;
             }
 
             handleContext.Exception = e;
 
-            await messageContext.RunAsyncErrorHandlers(handleContext);
+            await resolutionContext.RunAsyncErrorHandlers(handleContext);
         }
 
         await foreach (var messageResult in result.WithCancellation(_cancellationToken))
@@ -66,18 +66,18 @@ public class SingleStreamHandlerExecutionWorkflow<TMessage, TMessageResult> :
 
         try
         {
-            await messageContext.RunAsyncPostHandlers(handleContext);
+            await resolutionContext.RunAsyncPostHandlers(handleContext);
         }
         catch (Exception e)
         {
-            if (messageContext.ErrorHandlers.Count + messageContext.IndirectErrorHandlers.Count == 0)
+            if (resolutionContext.ErrorHandlers.Count + resolutionContext.IndirectErrorHandlers.Count == 0)
             {
                 throw;
             }
 
             handleContext.Exception = e;
 
-            await messageContext.RunAsyncErrorHandlers(handleContext);
+            await resolutionContext.RunAsyncErrorHandlers(handleContext);
         }
     }
 }

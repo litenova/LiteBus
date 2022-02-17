@@ -18,9 +18,9 @@ public class AsyncBroadcastExecutionWorkflow<TMessage> : IExecutionWorkflow<TMes
         _cancellationToken = cancellationToken;
     }
 
-    public async Task Execute(TMessage message, IMessageContext messageContext)
+    public async Task Execute(TMessage message, IResolutionContext resolutionContext)
     {
-        var handlers = messageContext.Handlers
+        var handlers = resolutionContext.Handlers
                                      .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.Asynchronous)
                                      .ToList();
 
@@ -29,25 +29,25 @@ public class AsyncBroadcastExecutionWorkflow<TMessage> : IExecutionWorkflow<TMes
 
         try
         {
-            await messageContext.RunAsyncPreHandlers(handleContext);
+            await resolutionContext.RunAsyncPreHandlers(handleContext);
 
             foreach (var handler in handlers)
             {
                 await (Task) handler.Instance.Handle(handleContext);
             }
 
-            await messageContext.RunAsyncPostHandlers(handleContext);
+            await resolutionContext.RunAsyncPostHandlers(handleContext);
         }
         catch (Exception e)
         {
-            if (messageContext.ErrorHandlers.Count + messageContext.IndirectErrorHandlers.Count == 0)
+            if (resolutionContext.ErrorHandlers.Count + resolutionContext.IndirectErrorHandlers.Count == 0)
             {
                 throw;
             }
 
             handleContext.Exception = e;
 
-            await messageContext.RunAsyncErrorHandlers(handleContext);
+            await resolutionContext.RunAsyncErrorHandlers(handleContext);
         }
     }
 }

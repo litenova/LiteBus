@@ -11,9 +11,9 @@ public class SingleSyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
     IExecutionWorkflow<TMessage, TMessageResult> where TMessage : notnull
 {
     public TMessageResult Execute(TMessage message,
-                                  IMessageContext messageContext)
+                                  IResolutionContext resolutionContext)
     {
-        var handlers = messageContext.Handlers
+        var handlers = resolutionContext.Handlers
                                      .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.Synchronous)
                                      .ToList();
 
@@ -27,7 +27,7 @@ public class SingleSyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
 
         try
         {
-            messageContext.RunSyncPreHandlers(handleContext);
+            resolutionContext.RunSyncPreHandlers(handleContext);
 
             var handler = handlers.Single().Instance;
 
@@ -35,18 +35,18 @@ public class SingleSyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
 
             handleContext.MessageResult = result;
 
-            messageContext.RunSyncPostHandlers(handleContext);
+            resolutionContext.RunSyncPostHandlers(handleContext);
         }
         catch (Exception e)
         {
-            if (messageContext.ErrorHandlers.Count + messageContext.IndirectErrorHandlers.Count == 0)
+            if (resolutionContext.ErrorHandlers.Count + resolutionContext.IndirectErrorHandlers.Count == 0)
             {
                 throw;
             }
 
             handleContext.Exception = e;
 
-            messageContext.RunSyncErrorHandlers(handleContext);
+            resolutionContext.RunSyncErrorHandlers(handleContext);
         }
 
         return result;

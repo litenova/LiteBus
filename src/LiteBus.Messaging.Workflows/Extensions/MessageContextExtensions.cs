@@ -7,9 +7,9 @@ namespace LiteBus.Messaging.Workflows.Extensions;
 
 public static class MessageContextExtensions
 {
-    public static async Task RunAsyncPreHandlers(this IMessageContext messageContext, HandleContext handleContext)
+    public static async Task RunAsyncPreHandlers(this IResolutionContext resolutionContext, HandleContext handleContext)
     {
-        var asyncIndirectPreHandlers = messageContext.IndirectPreHandlers
+        var asyncIndirectPreHandlers = resolutionContext.IndirectPreHandlers
                                                      .Where(ph => ph.Descriptor.ExecutionMode ==
                                                                   ExecutionMode.Asynchronous)
                                                      .Select(ph => ph.Instance);
@@ -19,7 +19,7 @@ public static class MessageContextExtensions
             await (Task) asyncPreHandler.Handle(handleContext);
         }
 
-        var asyncPreHandlers = messageContext.PreHandlers
+        var asyncPreHandlers = resolutionContext.PreHandlers
                                              .Where(ph => ph.Descriptor.ExecutionMode == ExecutionMode.Asynchronous)
                                              .Select(ph => ph.Instance);
 
@@ -29,9 +29,9 @@ public static class MessageContextExtensions
         }
     }
 
-    public static void RunSyncPreHandlers(this IMessageContext messageContext, HandleContext handleContext)
+    public static void RunSyncPreHandlers(this IResolutionContext resolutionContext, HandleContext handleContext)
     {
-        var asyncIndirectPreHandlers = messageContext.IndirectPreHandlers
+        var asyncIndirectPreHandlers = resolutionContext.IndirectPreHandlers
                                                      .Where(ph => ph.Descriptor.ExecutionMode ==
                                                                   ExecutionMode.Synchronous)
                                                      .Select(ph => ph.Instance);
@@ -41,7 +41,7 @@ public static class MessageContextExtensions
             asyncPreHandler.Handle(handleContext);
         }
 
-        var asyncPreHandlers = messageContext.PreHandlers
+        var asyncPreHandlers = resolutionContext.PreHandlers
                                              .Where(ph => ph.Descriptor.ExecutionMode == ExecutionMode.Synchronous)
                                              .Select(ph => ph.Instance);
 
@@ -51,9 +51,9 @@ public static class MessageContextExtensions
         }
     }
 
-    public static async Task RunAsyncErrorHandlers(this IMessageContext messageContext, HandleContext handleContext)
+    public static async Task RunAsyncErrorHandlers(this IResolutionContext resolutionContext, HandleContext handleContext)
     {
-        var asyncErrorHandlers = messageContext.ErrorHandlers
+        var asyncErrorHandlers = resolutionContext.ErrorHandlers
                                                .Where(ph => ph.Descriptor.ExecutionMode == ExecutionMode.Asynchronous)
                                                .Select(ph => ph.Instance);
 
@@ -62,7 +62,7 @@ public static class MessageContextExtensions
             await (Task) asyncErrorHandler.Handle(handleContext);
         }
 
-        var asyncIndirectErrorHandlers = messageContext.IndirectErrorHandlers
+        var asyncIndirectErrorHandlers = resolutionContext.IndirectErrorHandlers
                                                        .Where(ph => ph.Descriptor.ExecutionMode ==
                                                                     ExecutionMode.Asynchronous)
                                                        .Select(ph => ph.Instance);
@@ -73,9 +73,9 @@ public static class MessageContextExtensions
         }
     }
 
-    public static void RunSyncErrorHandlers(this IMessageContext messageContext, HandleContext handleContext)
+    public static void RunSyncErrorHandlers(this IResolutionContext resolutionContext, HandleContext handleContext)
     {
-        var asyncErrorHandlers = messageContext.ErrorHandlers
+        var asyncErrorHandlers = resolutionContext.ErrorHandlers
                                                .Where(ph => ph.Descriptor.ExecutionMode == ExecutionMode.Synchronous)
                                                .Select(ph => ph.Instance);
 
@@ -84,7 +84,7 @@ public static class MessageContextExtensions
             asyncErrorHandler.Handle(handleContext);
         }
 
-        var asyncIndirectErrorHandlers = messageContext.IndirectErrorHandlers
+        var asyncIndirectErrorHandlers = resolutionContext.IndirectErrorHandlers
                                                        .Where(ph => ph.Descriptor.ExecutionMode ==
                                                                     ExecutionMode.Synchronous)
                                                        .Select(ph => ph.Instance);
@@ -95,9 +95,9 @@ public static class MessageContextExtensions
         }
     }
 
-    public static async Task RunAsyncPostHandlers(this IMessageContext messageContext, HandleContext handleContext)
+    public static async Task RunAsyncPostHandlers(this IResolutionContext resolutionContext, HandleContext handleContext)
     {
-        var asyncPostHandlers = messageContext.PostHandlers
+        var asyncPostHandlers = resolutionContext.PostHandlers
                                               .Where(ph => ph.Descriptor.ExecutionMode == ExecutionMode.Asynchronous)
                                               .Select(ph => ph.Instance);
 
@@ -106,7 +106,7 @@ public static class MessageContextExtensions
             await (Task) asyncPostHandler.Handle(handleContext);
         }
 
-        var asyncIndirectPostHandlers = messageContext.IndirectPostHandlers
+        var asyncIndirectPostHandlers = resolutionContext.IndirectPostHandlers
                                                       .Where(ph => ph.Descriptor.ExecutionMode ==
                                                                    ExecutionMode.Asynchronous)
                                                       .Select(ph => ph.Instance);
@@ -117,9 +117,9 @@ public static class MessageContextExtensions
         }
     }
 
-    public static void RunSyncPostHandlers(this IMessageContext messageContext, HandleContext handleContext)
+    public static void RunSyncPostHandlers(this IResolutionContext resolutionContext, HandleContext handleContext)
     {
-        var asyncPostHandlers = messageContext.PostHandlers
+        var asyncPostHandlers = resolutionContext.PostHandlers
                                               .Where(ph => ph.Descriptor.ExecutionMode == ExecutionMode.Synchronous)
                                               .Select(ph => ph.Instance);
 
@@ -128,7 +128,7 @@ public static class MessageContextExtensions
             asyncPostHandler.Handle(handleContext);
         }
 
-        var asyncIndirectPostHandlers = messageContext.IndirectPostHandlers
+        var asyncIndirectPostHandlers = resolutionContext.IndirectPostHandlers
                                                       .Where(ph => ph.Descriptor.ExecutionMode ==
                                                                    ExecutionMode.Synchronous)
                                                       .Select(ph => ph.Instance);

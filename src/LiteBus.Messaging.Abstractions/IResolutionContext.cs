@@ -2,7 +2,10 @@
 
 namespace LiteBus.Messaging.Abstractions;
 
-public interface IMessageContext
+/// <summary>
+///     Represents the resolved instances of handlers
+/// </summary>
+public interface IResolutionContext
 {
     IInstances<IHandlerDescriptor> Handlers { get; }
 

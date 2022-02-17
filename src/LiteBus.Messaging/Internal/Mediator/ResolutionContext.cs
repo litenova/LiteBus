@@ -8,12 +8,12 @@ using LiteBus.Messaging.Internal.Resolution;
 
 namespace LiteBus.Messaging.Internal.Mediator;
 
-public class MessageContext : IMessageContext
+public class ResolutionContext : IResolutionContext
 {
     private readonly Type _messageType;
     private readonly IServiceProvider _serviceProvider;
 
-    public MessageContext(Type messageType, IMessageDescriptor descriptor, IServiceProvider serviceProvider)
+    public ResolutionContext(Type messageType, IMessageDescriptor descriptor, IServiceProvider serviceProvider)
     {
         _messageType = messageType;
         _serviceProvider = serviceProvider;

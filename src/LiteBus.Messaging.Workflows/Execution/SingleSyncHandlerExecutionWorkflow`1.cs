@@ -9,9 +9,9 @@ namespace LiteBus.Messaging.Workflows.Execution;
 
 public class SingleSyncHandlerExecutionWorkflow<TMessage> : IExecutionWorkflow<TMessage, NoResult>
 {
-    public NoResult Execute(TMessage message, IMessageContext messageContext)
+    public NoResult Execute(TMessage message, IResolutionContext resolutionContext)
     {
-        var handlers = messageContext.Handlers
+        var handlers = resolutionContext.Handlers
                                      .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.Synchronous)
                                      .ToList();
 
@@ -24,24 +24,24 @@ public class SingleSyncHandlerExecutionWorkflow<TMessage> : IExecutionWorkflow<T
 
         try
         {
-            messageContext.RunSyncPreHandlers(handleContext);
+            resolutionContext.RunSyncPreHandlers(handleContext);
 
             var handler = handlers.Single().Instance;
 
             handler.Handle(handleContext);
 
-            messageContext.RunSyncPostHandlers(handleContext);
+            resolutionContext.RunSyncPostHandlers(handleContext);
         }
         catch (Exception e)
         {
-            if (messageContext.ErrorHandlers.Count + messageContext.IndirectErrorHandlers.Count == 0)
+            if (resolutionContext.ErrorHandlers.Count + resolutionContext.IndirectErrorHandlers.Count == 0)
             {
                 throw;
             }
 
             handleContext.Exception = e;
 
-            messageContext.RunSyncErrorHandlers(handleContext);
+            resolutionContext.RunSyncErrorHandlers(handleContext);
         }
 
         return new NoResult();

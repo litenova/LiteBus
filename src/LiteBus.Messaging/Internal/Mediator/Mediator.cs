@@ -22,7 +22,7 @@ internal class Mediator : IMediator
 
         var descriptor = discovery.Discover(_messageRegistry, messageType);
 
-        var context = new MessageContext(messageType, descriptor, _serviceProvider);
+        var context = new ResolutionContext(messageType, descriptor, _serviceProvider);
 
         return execution.Execute(message, context);
     }
