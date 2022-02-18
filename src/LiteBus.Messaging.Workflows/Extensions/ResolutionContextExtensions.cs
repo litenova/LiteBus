@@ -5,7 +5,7 @@ using LiteBus.Messaging.Abstractions.Metadata;
 
 namespace LiteBus.Messaging.Workflows.Extensions;
 
-public static class MessageContextExtensions
+public static class ResolutionContextExtensions
 {
     public static async Task RunAsyncPreHandlers(this IResolutionContext resolutionContext, HandleContext handleContext)
     {
