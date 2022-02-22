@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,10 +7,9 @@ using LiteBus.Messaging.Abstractions.Metadata;
 using LiteBus.Messaging.Workflows.Execution.Exceptions;
 using LiteBus.Messaging.Workflows.Extensions;
 
-namespace LiteBus.Messaging.Workflows.Execution;
+namespace LiteBus.Messaging.Workflows.Execution.Handle;
 
-public class SingleAsyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
-    IExecutionWorkflow<TMessage, Task<TMessageResult>> where TMessage : notnull
+public class SingleAsyncHandlerExecutionWorkflow<TMessage> : IExecutionWorkflow<TMessage, Task>
 {
     private readonly CancellationToken _cancellationToken;
 
@@ -19,8 +18,8 @@ public class SingleAsyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
         _cancellationToken = cancellationToken;
     }
 
-    public async Task<TMessageResult> Execute(TMessage message,
-                                              IResolutionContext resolutionContext)
+    public async Task Execute(TMessage message,
+                              IResolutionContext resolutionContext)
     {
         var handlers = resolutionContext.Handlers
                                      .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.Asynchronous)
@@ -33,7 +32,6 @@ public class SingleAsyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
 
         var handleContext = new HandleContext(message);
         handleContext.Data.Set(_cancellationToken);
-        TMessageResult result = default;
 
         try
         {
@@ -41,9 +39,7 @@ public class SingleAsyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
 
             var handler = handlers.Single().Instance;
 
-            result = await (Task<TMessageResult>) handler!.Handle(handleContext);
-
-            handleContext.MessageResult = result;
+            await (Task) handler.Handle(handleContext);
 
             await resolutionContext.RunAsyncPostHandlers(handleContext);
         }
@@ -58,7 +54,5 @@ public class SingleAsyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
 
             await resolutionContext.RunAsyncErrorHandlers(handleContext);
         }
-
-        return result;
     }
 }

@@ -9,7 +9,7 @@ using LiteBus.Messaging.Workflows.Execution.Exceptions;
 using LiteBus.Messaging.Workflows.Extensions;
 using LiteBus.Messaging.Workflows.Utilities;
 
-namespace LiteBus.Messaging.Workflows.Execution;
+namespace LiteBus.Messaging.Workflows.Execution.Handle;
 
 public class SingleStreamHandlerExecutionWorkflow<TMessage, TMessageResult> :
     IExecutionWorkflow<TMessage, IAsyncEnumerable<TMessageResult>> where TMessage : notnull

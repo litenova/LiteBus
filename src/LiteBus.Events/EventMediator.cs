@@ -4,6 +4,7 @@ using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Workflows.Discovery;
 using LiteBus.Messaging.Workflows.Execution;
+using LiteBus.Messaging.Workflows.Execution.Handle;
 
 namespace LiteBus.Events;
 

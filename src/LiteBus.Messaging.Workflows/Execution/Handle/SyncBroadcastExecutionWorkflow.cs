@@ -1,39 +1,30 @@
-﻿using System;
+using System;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Metadata;
-using LiteBus.Messaging.Workflows.Execution.Exceptions;
 using LiteBus.Messaging.Workflows.Extensions;
 
-namespace LiteBus.Messaging.Workflows.Execution;
+namespace LiteBus.Messaging.Workflows.Execution.Handle;
 
-public class SingleSyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
-    IExecutionWorkflow<TMessage, TMessageResult> where TMessage : notnull
+public class SyncBroadcastExecutionWorkflow<TMessage> : IExecutionWorkflow<TMessage, NoResult>
+    where TMessage : notnull
 {
-    public TMessageResult Execute(TMessage message,
-                                  IResolutionContext resolutionContext)
+    public NoResult Execute(TMessage message, IResolutionContext resolutionContext)
     {
         var handlers = resolutionContext.Handlers
                                      .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.Synchronous)
                                      .ToList();
 
-        if (handlers.Count > 1)
-        {
-            throw new MultipleHandlerFoundException(typeof(TMessage));
-        }
-
         var handleContext = new HandleContext(message);
-        TMessageResult result = default;
 
         try
         {
             resolutionContext.RunSyncPreHandlers(handleContext);
 
-            var handler = handlers.Single().Instance;
-
-            result = (TMessageResult) handler!.Handle(handleContext);
-
-            handleContext.MessageResult = result;
+            foreach (var handler in handlers)
+            {
+                handler.Instance.Handle(handleContext);
+            }
 
             resolutionContext.RunSyncPostHandlers(handleContext);
         }
@@ -49,6 +40,6 @@ public class SingleSyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
             resolutionContext.RunSyncErrorHandlers(handleContext);
         }
 
-        return result;
+        return new NoResult();
     }
 }

@@ -5,11 +5,13 @@ using LiteBus.Messaging.Abstractions.Metadata;
 using LiteBus.Messaging.Workflows.Execution.Exceptions;
 using LiteBus.Messaging.Workflows.Extensions;
 
-namespace LiteBus.Messaging.Workflows.Execution;
+namespace LiteBus.Messaging.Workflows.Execution.Handle;
 
-public class SingleSyncHandlerExecutionWorkflow<TMessage> : IExecutionWorkflow<TMessage, NoResult>
+public class SingleSyncHandlerExecutionWorkflow<TMessage, TMessageResult> :
+    IExecutionWorkflow<TMessage, TMessageResult> where TMessage : notnull
 {
-    public NoResult Execute(TMessage message, IResolutionContext resolutionContext)
+    public TMessageResult Execute(TMessage message,
+                                  IResolutionContext resolutionContext)
     {
         var handlers = resolutionContext.Handlers
                                      .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.Synchronous)
@@ -21,6 +23,7 @@ public class SingleSyncHandlerExecutionWorkflow<TMessage> : IExecutionWorkflow<T
         }
 
         var handleContext = new HandleContext(message);
+        TMessageResult result = default;
 
         try
         {
@@ -28,7 +31,9 @@ public class SingleSyncHandlerExecutionWorkflow<TMessage> : IExecutionWorkflow<T
 
             var handler = handlers.Single().Instance;
 
-            handler.Handle(handleContext);
+            result = (TMessageResult) handler!.Handle(handleContext);
+
+            handleContext.MessageResult = result;
 
             resolutionContext.RunSyncPostHandlers(handleContext);
         }
@@ -44,6 +49,6 @@ public class SingleSyncHandlerExecutionWorkflow<TMessage> : IExecutionWorkflow<T
             resolutionContext.RunSyncErrorHandlers(handleContext);
         }
 
-        return new NoResult();
+        return result;
     }
 }

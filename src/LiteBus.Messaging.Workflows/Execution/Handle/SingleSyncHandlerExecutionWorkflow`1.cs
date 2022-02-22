@@ -1,13 +1,13 @@
-using System;
+﻿using System;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Metadata;
+using LiteBus.Messaging.Workflows.Execution.Exceptions;
 using LiteBus.Messaging.Workflows.Extensions;
 
-namespace LiteBus.Messaging.Workflows.Execution;
+namespace LiteBus.Messaging.Workflows.Execution.Handle;
 
-public class SyncBroadcastExecutionWorkflow<TMessage> : IExecutionWorkflow<TMessage, NoResult>
-    where TMessage : notnull
+public class SingleSyncHandlerExecutionWorkflow<TMessage> : IExecutionWorkflow<TMessage, NoResult>
 {
     public NoResult Execute(TMessage message, IResolutionContext resolutionContext)
     {
@@ -15,16 +15,20 @@ public class SyncBroadcastExecutionWorkflow<TMessage> : IExecutionWorkflow<TMess
                                      .Where(h => h.Descriptor.ExecutionMode == ExecutionMode.Synchronous)
                                      .ToList();
 
+        if (handlers.Count > 1)
+        {
+            throw new MultipleHandlerFoundException(typeof(TMessage));
+        }
+
         var handleContext = new HandleContext(message);
 
         try
         {
             resolutionContext.RunSyncPreHandlers(handleContext);
 
-            foreach (var handler in handlers)
-            {
-                handler.Instance.Handle(handleContext);
-            }
+            var handler = handlers.Single().Instance;
+
+            handler.Handle(handleContext);
 
             resolutionContext.RunSyncPostHandlers(handleContext);
         }
