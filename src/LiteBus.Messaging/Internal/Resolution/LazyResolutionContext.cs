@@ -4,16 +4,15 @@ using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Metadata;
 using LiteBus.Messaging.Internal.Exceptions;
-using LiteBus.Messaging.Internal.Resolution;
 
-namespace LiteBus.Messaging.Internal.Mediator;
+namespace LiteBus.Messaging.Internal.Resolution;
 
-public class ResolutionContext : IResolutionContext
+public class LazyResolutionContext : IResolutionContext
 {
     private readonly Type _messageType;
     private readonly IServiceProvider _serviceProvider;
 
-    public ResolutionContext(Type messageType, IMessageDescriptor descriptor, IServiceProvider serviceProvider)
+    public LazyResolutionContext(Type messageType, IMessageDescriptor descriptor, IServiceProvider serviceProvider)
     {
         _messageType = messageType;
         _serviceProvider = serviceProvider;

@@ -1,5 +1,6 @@
 using System;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Internal.Resolution;
 
 namespace LiteBus.Messaging.Internal.Mediator;
 
@@ -22,7 +23,7 @@ internal class Mediator : IMediator
 
         var descriptor = discovery.Discover(_messageRegistry, messageType);
 
-        var context = new ResolutionContext(messageType, descriptor, _serviceProvider);
+        var context = new LazyResolutionContext(messageType, descriptor, _serviceProvider);
 
         return execution.Execute(message, context);
     }
