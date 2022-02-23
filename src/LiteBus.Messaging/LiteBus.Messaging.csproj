@@ -8,4 +8,9 @@
         <InternalsVisibleTo Include="$(AssemblyName).Extensions.MicrosoftDependencyInjection" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Internal\Exceptions" />
+      <Folder Include="Internal\Resolution" />
+    </ItemGroup>
+
 </Project>

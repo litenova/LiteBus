@@ -1,7 +1,7 @@
 using System;
 using LiteBus.Messaging.Abstractions;
 
-namespace LiteBus.Messaging.Internal.Resolution;
+namespace LiteBus.Messaging.Workflows.Resolution.Lazy;
 
 public class LazyInstance<TDescriptor> : IInstance<TDescriptor>
 {

@@ -3,8 +3,8 @@ using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Workflows.Discovery;
-using LiteBus.Messaging.Workflows.Execution;
 using LiteBus.Messaging.Workflows.Execution.Handle;
+using LiteBus.Messaging.Workflows.Resolution.Lazy;
 
 namespace LiteBus.Events;
 
@@ -24,7 +24,7 @@ public class EventMediator : IEventPublisher
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        await _mediator.Mediate(@event, findStrategy, executionWorkflow);
+        await _mediator.Mediate(@event, findStrategy, new LazyResolutionWorkflow(), executionWorkflow);
     }
 
     public void Publish(IEvent @event)
@@ -33,6 +33,6 @@ public class EventMediator : IEventPublisher
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        _mediator.Mediate(@event, findStrategy, executionWorkflow);
+        _mediator.Mediate(@event, findStrategy, new LazyResolutionWorkflow(), executionWorkflow);
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Internal.Resolution;
 
 namespace LiteBus.Messaging.Internal.Mediator;
 
@@ -17,14 +16,15 @@ internal class Mediator : IMediator
 
     public TMessageResult Mediate<TMessage, TMessageResult>(TMessage message,
                                                             IDiscoveryWorkflow discovery,
+                                                            IResolutionWorkflow resolution,
                                                             IExecutionWorkflow<TMessage, TMessageResult> execution)
     {
         var messageType = message.GetType();
 
-        var descriptor = discovery.Discover(_messageRegistry, messageType);
+        var messageDescriptor = discovery.Discover(_messageRegistry, messageType);
 
-        var context = new LazyResolutionContext(messageType, descriptor, _serviceProvider);
+        var resolutionContext = resolution.Resolve(messageDescriptor, _serviceProvider);
 
-        return execution.Execute(message, context);
+        return execution.Execute(message, resolutionContext);
     }
 }

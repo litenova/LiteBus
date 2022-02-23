@@ -3,8 +3,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Workflows.Discovery;
-using LiteBus.Messaging.Workflows.Execution;
 using LiteBus.Messaging.Workflows.Execution.Handle;
+using LiteBus.Messaging.Workflows.Resolution.Lazy;
 using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.Queries;
@@ -26,7 +26,7 @@ public class QueryMediator : IQueryMediator
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        return _mediator.Mediate(query, findStrategy, executionWorkflow);
+        return _mediator.Mediate(query, findStrategy, new LazyResolutionWorkflow(), executionWorkflow);
     }
 
     public TQueryResult Query<TQueryResult>(IQuery<TQueryResult> query)
@@ -36,7 +36,7 @@ public class QueryMediator : IQueryMediator
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        return _mediator.Mediate(query, findStrategy, executionWorkflow);
+        return _mediator.Mediate(query, findStrategy, new LazyResolutionWorkflow(), executionWorkflow);
     }
 
     public IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
@@ -47,6 +47,6 @@ public class QueryMediator : IQueryMediator
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        return _mediator.Mediate(query, findStrategy, executionWorkflow);
+        return _mediator.Mediate(query, findStrategy, new LazyResolutionWorkflow(), executionWorkflow);
     }
 }

@@ -3,8 +3,8 @@ using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Workflows.Discovery;
-using LiteBus.Messaging.Workflows.Execution;
 using LiteBus.Messaging.Workflows.Execution.Handle;
+using LiteBus.Messaging.Workflows.Resolution.Lazy;
 
 namespace LiteBus.Commands;
 
@@ -25,7 +25,7 @@ public class CommandMediator : ICommandMediator
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        await _mediator.Mediate(command, findStrategy, executionWorkflow);
+        await _mediator.Mediate(command, findStrategy, new LazyResolutionWorkflow(), executionWorkflow);
     }
 
     public void Send(ICommand command)
@@ -34,7 +34,7 @@ public class CommandMediator : ICommandMediator
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        _mediator.Mediate(command, findStrategy, executionWorkflow);
+        _mediator.Mediate(command, findStrategy, new LazyResolutionWorkflow(), executionWorkflow);
     }
 
     public async Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
@@ -45,7 +45,7 @@ public class CommandMediator : ICommandMediator
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        return await _mediator.Mediate(command, findStrategy, executionWorkflow);
+        return await _mediator.Mediate(command, findStrategy, new LazyResolutionWorkflow(), executionWorkflow);
     }
 
     public TCommandResult Send<TCommandResult>(ICommand<TCommandResult> command)
@@ -54,6 +54,6 @@ public class CommandMediator : ICommandMediator
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeDiscoveryWorkflow();
 
-        return _mediator.Mediate(command, findStrategy, executionWorkflow);
+        return _mediator.Mediate(command, findStrategy, new LazyResolutionWorkflow(), executionWorkflow);
     }
 }

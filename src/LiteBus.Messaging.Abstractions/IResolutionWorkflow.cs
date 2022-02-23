@@ -11,8 +11,8 @@ public interface IResolutionWorkflow
     /// <summary>
     ///     resolves the corresponding handlers of the given <see cref="IMessageDescriptor"/> using <see cref="IServiceProvider"/>
     /// </summary>
-    /// <param name="serviceProvider">The instance of <see cref="IServiceProvider"/></param>
     /// <param name="messageDescriptor">The given <see cref="IMessageDescriptor"/> instance</param>
+    /// <param name="serviceProvider">The instance of <see cref="IServiceProvider"/></param>
     /// <returns></returns>
-    IResolutionContext Resolve(IServiceProvider serviceProvider, IMessageDescriptor messageDescriptor);
+    IResolutionContext Resolve(IMessageDescriptor messageDescriptor, IServiceProvider serviceProvider);
 }

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
 
-namespace LiteBus.Messaging.Internal.Resolution;
+namespace LiteBus.Messaging.Workflows.Resolution.Lazy;
 
 public class LazyInstances<TDescriptor> : IInstances<TDescriptor>
 {

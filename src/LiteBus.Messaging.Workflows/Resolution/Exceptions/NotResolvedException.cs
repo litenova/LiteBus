@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace LiteBus.Messaging.Internal.Exceptions;
+namespace LiteBus.Messaging.Workflows.Resolution.Exceptions;
 
 [Serializable]
 public class NotResolvedException : Exception
