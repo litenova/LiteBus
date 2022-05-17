@@ -34,7 +34,7 @@ jobs:
           path-to-lcov: ./test-results.info
           
       - name: Generate Nuget Packages
-        run: dotnet pack
+        run: dotnet pack --configuration Release
         
       - name: Publish Nuget Packages to Nuget.org
         run: dotnet nuget push src/**/bin/Release/*.nupkg -k ${{secrets.Nuget_API_Key}} -s https://api.nuget.org/v3/index.json --skip-duplicate
