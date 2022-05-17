@@ -8,8 +8,8 @@ namespace LiteBus.Messaging.Abstractions;
 /// </summary>
 /// <typeparam name="TMessage">The message type</typeparam>
 /// <typeparam name="TMessageResult">the message result type</typeparam>
-public interface
-    IStreamMessageHandler<in TMessage, out TMessageResult> : IMessageHandler<TMessage, IAsyncEnumerable<TMessageResult>>
+public interface IStreamMessageHandler<in TMessage, out TMessageResult> :
+    IMessageHandler<TMessage, IAsyncEnumerable<TMessageResult>>
 {
     IAsyncEnumerable<TMessageResult> IMessageHandler<TMessage, IAsyncEnumerable<TMessageResult>>.Handle(
         IHandleContext<TMessage> context)
