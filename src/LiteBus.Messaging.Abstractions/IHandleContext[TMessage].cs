@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-
 namespace LiteBus.Messaging.Abstractions;
 
 public interface IHandleContext<out TMessage> : IHandleContext where TMessage : notnull
