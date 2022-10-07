@@ -6,7 +6,7 @@ namespace LiteBus.Commands.Abstractions;
 /// <summary>
 ///     Sends commands to their corresponding handlers
 /// </summary>
-public interface ICommandMediator : ICommandConstruct
+public interface ICommandMediator
 {
     /// <summary>
     ///     Sends a command without result to its corresponding handler
@@ -22,6 +22,5 @@ public interface ICommandMediator : ICommandConstruct
     /// <param name="command">the command to send</param>
     /// <param name="cancellationToken">cancellation token</param>
     /// <returns>The command result</returns>
-    Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
-                                                   CancellationToken cancellationToken = default);
+    Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command, CancellationToken cancellationToken = default);
 }

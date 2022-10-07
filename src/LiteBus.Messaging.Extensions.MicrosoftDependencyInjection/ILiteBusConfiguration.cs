@@ -2,5 +2,5 @@
 
 public interface ILiteBusConfiguration
 {
-    ILiteBusConfiguration AddModule(ILiteBusModule liteBusModule);
+    ILiteBusConfiguration AddModule(IModule module);
 }

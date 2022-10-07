@@ -6,6 +6,6 @@ namespace LiteBus.Events.Abstractions;
 ///     Represents an asynchronous event handler
 /// </summary>
 /// <typeparam name="TEvent">The type of event</typeparam>
-public interface IEventHandler<in TEvent> : IEventHandlerBase, IAsyncMessageHandler<TEvent> where TEvent : IEvent
+public interface IEventHandler<in TEvent> : IAsyncMessageHandler<TEvent>, IRegistrableEventConstruct where TEvent : IEvent
 {
 }

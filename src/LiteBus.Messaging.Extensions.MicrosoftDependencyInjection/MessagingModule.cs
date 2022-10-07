@@ -2,7 +2,7 @@
 
 namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 
-internal class MessagingModule : ILiteBusModule
+internal class MessagingModule : IModule
 {
     private readonly Action<LiteBusMessageBuilder> _builder;
 

@@ -1,6 +1,6 @@
 namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 
-public interface ILiteBusModule
+public interface IModule
 {
     void Build(ILiteBusModuleConfiguration configuration);
 }
