@@ -9,7 +9,7 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 
 internal class LiteBusConfiguration : ILiteBusConfiguration
 {
-    private readonly HashSet<ILiteBusModule> _modules = new();
+    private readonly HashSet<IModule> _modules = new();
     private readonly IServiceCollection _services;
 
     public LiteBusConfiguration(IServiceCollection services)
@@ -17,9 +17,9 @@ internal class LiteBusConfiguration : ILiteBusConfiguration
         _services = services;
     }
 
-    public ILiteBusConfiguration AddModule(ILiteBusModule liteBusModule)
+    public ILiteBusConfiguration AddModule(IModule module)
     {
-        _modules.Add(liteBusModule);
+        _modules.Add(module);
 
         return this;
     }

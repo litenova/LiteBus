@@ -1,9 +1,9 @@
 ﻿namespace LiteBus.Commands.Abstractions;
 
 /// <summary>
-///     Represents a command with result
+///     Represents a command with explicit result
 /// </summary>
 // ReSharper disable once UnusedTypeParameter
-public interface ICommand<TCommandResult> : ICommandBase
+public interface ICommand<TCommandResult> : ICommand
 {
 }

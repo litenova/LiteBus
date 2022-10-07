@@ -42,11 +42,11 @@ internal class MessageRegistry : IMessageRegistry
 
     public int Count => _messages.Count;
 
-    public IMessageRegistry Register(Type type)
+    public void Register(Type type)
     {
         if (_processedTypes.ContainsKey(type))
         {
-            return this;
+            return;
         }
 
         var newDescriptors = _descriptorBuilders.Where(d => d.CanBuild(type))
@@ -82,8 +82,6 @@ internal class MessageRegistry : IMessageRegistry
         _processedTypes[type] = new byte();
         _messages.AddRange(_newMessages);
         _newMessages.Clear();
-
-        return this;
     }
 
     private void RegisterMessage(Type messageType)

@@ -1,8 +1,9 @@
 namespace LiteBus.Commands.Abstractions;
 
 /// <summary>
-///     Represents a command without result
+///     Represents a command
 /// </summary>
-public interface ICommand : ICommandBase
+public interface ICommand : IRegistrableCommandConstruct
 {
+    
 }

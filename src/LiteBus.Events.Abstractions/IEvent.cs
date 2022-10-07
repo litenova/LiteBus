@@ -3,6 +3,6 @@
 /// <summary>
 ///     Represents an event
 /// </summary>
-public interface IEvent : IEventConstruct
+public interface IEvent : IRegistrableEventConstruct
 {
 }

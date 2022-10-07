@@ -30,13 +30,13 @@ public class CommandTests
                                   configuration.AddCommands(builder =>
                                   {
                                       // Global Handlers
-                                      builder.RegisterPreHandler<FakeGlobalCommandPreHandler>();
-                                      builder.RegisterPostHandler<FakeGlobalCommandPostHandler>();
+                                      builder.Register<FakeGlobalCommandPreHandler>();
+                                      builder.Register<FakeGlobalCommandPostHandler>();
 
                                       // Fake Command Handlers
-                                      builder.RegisterPreHandler<FakeCommandPreHandler>();
-                                      builder.RegisterHandler<FakeCommandHandlerWithoutResult>();
-                                      builder.RegisterPostHandler<FakeCommandPostHandler>();
+                                      builder.Register<FakeCommandPreHandler>();
+                                      builder.Register<FakeCommandHandlerWithoutResult>();
+                                      builder.Register<FakeCommandPostHandler>();
                                   });
                               })
                               .BuildServiceProvider();
@@ -67,13 +67,13 @@ public class CommandTests
                                   configuration.AddCommands(builder =>
                                   {
                                       // Global Handlers
-                                      builder.RegisterPreHandler<FakeGlobalCommandPreHandler>();
-                                      builder.RegisterPostHandler<FakeGlobalCommandPostHandler>();
+                                      builder.Register<FakeGlobalCommandPreHandler>();
+                                      builder.Register<FakeGlobalCommandPostHandler>();
 
                                       // Fake Command Handlers
-                                      builder.RegisterPreHandler(typeof(FakeGenericCommandPreHandler<>));
-                                      builder.RegisterHandler(typeof(FakeGenericCommandHandlerWithoutResult<>));
-                                      builder.RegisterPostHandler(typeof(FakeGenericCommandPostHandler<>));
+                                      builder.Register(typeof(FakeGenericCommandPreHandler<>));
+                                      builder.Register(typeof(FakeGenericCommandHandlerWithoutResult<>));
+                                      builder.Register(typeof(FakeGenericCommandPostHandler<>));
                                   });
                               })
                               .BuildServiceProvider();

@@ -1,3 +1,11 @@
+v.0.13.0
+
+⦁ Replace ICommandBase with ICommand
+⦁ Replace IQueryBase with IQuery
+⦁ Rename ILiteBusModule to IModule
+⦁ Remove RegisterPreHandler, RegisterHandler, RegisterPostHandler methods and replace them with Register
+⦁ Remove redundant base interfaces
+
 v.0.12.0
 
 ⦁ Add support to message registry to register any class type as a message

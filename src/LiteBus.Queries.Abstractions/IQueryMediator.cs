@@ -7,7 +7,7 @@ namespace LiteBus.Queries.Abstractions;
 /// <summary>
 ///     Mediates a query to its corresponding handler
 /// </summary>
-public interface IQueryMediator : IQueryConstruct
+public interface IQueryMediator : IRegistrableQueryConstruct
 {
     Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
                                                 CancellationToken cancellationToken = default);
