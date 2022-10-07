@@ -5,18 +5,18 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LiteBus.Events.Extensions.MicrosoftDependencyInjection;
 
-internal class EventsModule : ILiteBusModule
+internal class EventModule : IModule
 {
-    private readonly Action<LiteBusEventsBuilder> _builder;
+    private readonly Action<EventModuleBuilder> _builder;
 
-    public EventsModule(Action<LiteBusEventsBuilder> builder)
+    public EventModule(Action<EventModuleBuilder> builder)
     {
         _builder = builder;
     }
 
     public void Build(ILiteBusModuleConfiguration configuration)
     {
-        _builder(new LiteBusEventsBuilder(configuration.MessageRegistry));
+        _builder(new EventModuleBuilder(configuration.MessageRegistry));
 
         configuration.Services.TryAddTransient<IEventMediator, EventMediator>();
         configuration.Services.TryAddTransient<IEventPublisher, EventMediator>();

@@ -6,5 +6,5 @@ namespace LiteBus.Messaging.Abstractions;
 
 public interface IMessageRegistry : IReadOnlyCollection<IMessageDescriptor>
 {
-    IMessageRegistry Register(Type type);
+    void Register(Type type);
 }

@@ -5,18 +5,18 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LiteBus.Commands.Extensions.MicrosoftDependencyInjection;
 
-internal class CommandsLiteBusModule : ILiteBusModule
+internal class CommandModule : IModule
 {
-    private readonly Action<LiteBusCommandBuilder> _builder;
+    private readonly Action<CommandModuleBuilder> _builder;
 
-    public CommandsLiteBusModule(Action<LiteBusCommandBuilder> builder)
+    public CommandModule(Action<CommandModuleBuilder> builder)
     {
         _builder = builder;
     }
 
     public void Build(ILiteBusModuleConfiguration configuration)
     {
-        _builder(new LiteBusCommandBuilder(configuration.MessageRegistry));
+        _builder(new CommandModuleBuilder(configuration.MessageRegistry));
 
         configuration.Services.TryAddTransient<ICommandMediator, CommandMediator>();
     }

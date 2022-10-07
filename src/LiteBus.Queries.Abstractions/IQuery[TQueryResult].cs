@@ -5,6 +5,6 @@
 /// </summary>
 /// <typeparam name="TQueryResult">The result type of query</typeparam>
 // ReSharper disable once UnusedTypeParameter
-public interface IQuery<TQueryResult> : IQueryBase
+public interface IQuery<TQueryResult> : IQuery
 {
 }

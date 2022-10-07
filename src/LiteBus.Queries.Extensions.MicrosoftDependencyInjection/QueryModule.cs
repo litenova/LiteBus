@@ -5,18 +5,18 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LiteBus.Queries.Extensions.MicrosoftDependencyInjection;
 
-internal class QueriesModule : ILiteBusModule
+internal class QueryModule : IModule
 {
-    private readonly Action<LiteBusQueryBuilder> _builder;
+    private readonly Action<QueryModuleBuilder> _builder;
 
-    public QueriesModule(Action<LiteBusQueryBuilder> builder)
+    public QueryModule(Action<QueryModuleBuilder> builder)
     {
         _builder = builder;
     }
 
     public void Build(ILiteBusModuleConfiguration configuration)
     {
-        _builder(new LiteBusQueryBuilder(configuration.MessageRegistry));
+        _builder(new QueryModuleBuilder(configuration.MessageRegistry));
 
         configuration.Services.TryAddTransient<IQueryMediator, QueryMediator>();
     }
