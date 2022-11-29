@@ -1,11 +1,11 @@
 <Project>
 
     <PropertyGroup>
-        <TargetFramework>net6.0</TargetFramework>
+        <TargetFramework>net7.0</TargetFramework>
         <LangVersion>10.0</LangVersion>
         <Authors>Mohammad Shafie-Zadeh</Authors>
         <PackageTags>mediator;cqrs</PackageTags>
-        <VersionPrefix>0.13.0</VersionPrefix>
+        <VersionPrefix>0.14.0</VersionPrefix>
         <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(SolutionDir)\Release-Notes.txt"))</PackageReleaseNotes>
         <PackageIcon>icon.png</PackageIcon>
         <Description>LiteBus is an easy-to-use and ambitious in-process mediator to implement CQS. It is implemented with minimum reflection usage and streamable query support.</Description>
