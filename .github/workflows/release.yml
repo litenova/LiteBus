@@ -31,7 +31,7 @@ jobs:
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: ./test-results.info
+          path-to-lcov: ./coverage.info
           
       - name: Generate Nuget Packages
         run: dotnet pack --configuration Release
