@@ -45,6 +45,9 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.UnitTests", "tests\LiteBus.UnitTests\LiteBus.UnitTests.csproj", "{927C34A3-67E0-4CFB-882D-2C3D2604CFF4}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{4F94FB13-B936-4AD4-A609-70ED7A1158E9}"
+	ProjectSection(SolutionItems) = preProject
+		.github\dependabot.yml = .github\dependabot.yml
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{6DDDBFD2-8D06-4620-9BA4-1666FCA0524E}"
 	ProjectSection(SolutionItems) = preProject
