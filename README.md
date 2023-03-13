@@ -572,7 +572,7 @@ To be added
 
 - [ ] Integration with Message Brokers
   - [ ] RabbitMQ
-  - [ ] Kafak
+  - [ ] Kafka
   - [ ] Azure Event Bus
 - [ ] Saga Support
 - [ ] Outbox Support
