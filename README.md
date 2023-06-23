@@ -1,10 +1,37 @@
-# LiteBus
+<h1 align="center">
+  <br>
+  <a href="https://github.com/litenova/LiteBus">
+    <img src="assets/logo/icon.png">
+  </a>
+  <br>
+  LiteBus
+  <br>
+</h1>
 
-[![CI/CD Badge](https://github.com/litenova/LiteBus/actions/workflows/release.yml/badge.svg)](https://github.com/litenova/LiteBus/actions/workflows/release.yml)
-[![Coverage Status](https://coveralls.io/repos/github/litenova/LiteBus/badge.svg?branch=main)](https://coveralls.io/github/litenova/LiteBus?branch=main)
-[![LiteBus Nuget Version](https://img.shields.io/nuget/vpre/LiteBus.svg)](https://www.nuget.org/packages/LiteBus)
+<h4 align="center">An easy-to-use and ambitious and in-process mediator to implement CQS</h4>
 
-An easy-to-use and ambitious and in-process mediator to implement CQS
+<p align="center">
+
+  <a href="https://github.com/litenova/LiteBus/actions/workflows/release.yml">
+    <img src="https://github.com/litenova/LiteBus/actions/workflows/release.yml/badge.svg" alt="CI/CD Badge">
+  </a>
+
+   <a href='https://coveralls.io/github/litenova/LiteBus?branch=main'>
+    <img src='https://coveralls.io/repos/github/litenova/LiteBus/badge.svg?branch=main' alt='Coverage Status' />
+  </a>
+  <a href="https://www.nuget.org/packages/LiteBus">
+    <img src="https://img.shields.io/nuget/vpre/LiteBus.svg" alt="LiteBus Nuget Version">
+  </a>
+</p>
+
+<p align="center">
+  <a href="#overview">Overview</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#configuration">Configuration</a> •
+  <a href="#features-and-usages">Features and Usages</a> •
+  <a href="#extensibility">Extensibility</a>
+  <a href="#roadmap">Roadmap</a>
+</p>
 
 ## Overview
 
