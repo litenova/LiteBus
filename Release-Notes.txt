@@ -1,4 +1,4 @@
-v.0.14.2
+v.0.15.0
 
 - Add overload method to event publisher allowing passing object as a message
 - Remove `LiteBus` prefix from module construct names
