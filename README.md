@@ -88,6 +88,7 @@ services.AddLiteBus(builder =>
                eventBuilder.RegisterFrom(typeof(NumberCreatedEvent).Assembly);
            });
 });
+```
 
 ## Features and Usages
 
