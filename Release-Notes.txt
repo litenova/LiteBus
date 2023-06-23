@@ -1,3 +1,7 @@
+v.0.15.1
+
+- Remove IEvent constraint from event handlers allowing passing object as events without implement IEvent interface
+
 v.0.15.0
 
 - Add overload method to event publisher allowing passing object as a message
