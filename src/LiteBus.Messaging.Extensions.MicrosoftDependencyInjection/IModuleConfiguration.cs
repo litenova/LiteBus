@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 
-public interface ILiteBusModuleConfiguration
+public interface IModuleConfiguration
 {
     IServiceCollection Services { get; }
 

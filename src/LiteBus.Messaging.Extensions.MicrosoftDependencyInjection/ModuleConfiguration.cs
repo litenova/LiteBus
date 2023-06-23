@@ -3,9 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 
-internal class LiteBusModuleConfiguration : ILiteBusModuleConfiguration
+internal class ModuleConfiguration : IModuleConfiguration
 {
-    public LiteBusModuleConfiguration(IServiceCollection services, IMessageRegistry messageRegistry)
+    public ModuleConfiguration(IServiceCollection services, IMessageRegistry messageRegistry)
     {
         Services = services;
         MessageRegistry = messageRegistry;

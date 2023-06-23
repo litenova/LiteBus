@@ -1,3 +1,12 @@
+v.0.14.2
+
+- Add overload method to event publisher allowing passing object as a message
+- Remove `LiteBus` prefix from module construct names
+
+v.0.14.1
+
+- Upgraded packages
+
 v.0.14.0
 
 ⦁ Upgrade to .NET 7

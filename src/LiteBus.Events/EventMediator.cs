@@ -25,4 +25,13 @@ public class EventMediator : IEventPublisher
 
         await _messageMediator.Mediate(@event, findStrategy, mediationStrategy);
     }
+
+    public async Task PublishAsync(object @event, CancellationToken cancellationToken = default)
+    {
+        var mediationStrategy = new AsyncBroadcastMediationStrategy<object>(cancellationToken);
+
+        var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
+
+        await _messageMediator.Mediate(@event, findStrategy, mediationStrategy);
+    }
 }
