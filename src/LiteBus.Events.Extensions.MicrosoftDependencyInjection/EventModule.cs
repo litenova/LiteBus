@@ -14,7 +14,7 @@ internal class EventModule : IModule
         _builder = builder;
     }
 
-    public void Build(ILiteBusModuleConfiguration configuration)
+    public void Build(IModuleConfiguration configuration)
     {
         _builder(new EventModuleBuilder(configuration.MessageRegistry));
 

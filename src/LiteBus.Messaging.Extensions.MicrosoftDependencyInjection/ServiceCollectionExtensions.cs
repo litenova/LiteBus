@@ -6,9 +6,9 @@ namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddLiteBus(this IServiceCollection services,
-                                                Action<ILiteBusConfiguration> liteBusBuilderAction)
+                                                Action<IModuleRegistry> liteBusBuilderAction)
     {
-        var liteBusBuilder = new LiteBusConfiguration(services);
+        var liteBusBuilder = new ModuleRegistry(services);
 
         liteBusBuilderAction(liteBusBuilder);
 

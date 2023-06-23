@@ -7,17 +7,17 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 
-internal class LiteBusConfiguration : ILiteBusConfiguration
+internal class ModuleRegistry : IModuleRegistry
 {
     private readonly HashSet<IModule> _modules = new();
     private readonly IServiceCollection _services;
 
-    public LiteBusConfiguration(IServiceCollection services)
+    public ModuleRegistry(IServiceCollection services)
     {
         _services = services;
     }
 
-    public ILiteBusConfiguration AddModule(IModule module)
+    public IModuleRegistry Register(IModule module)
     {
         _modules.Add(module);
 
@@ -27,7 +27,7 @@ internal class LiteBusConfiguration : ILiteBusConfiguration
     public void Initialize()
     {
         var messageRegistry = new MessageRegistry();
-        var moduleConfiguration = new LiteBusModuleConfiguration(_services, messageRegistry);
+        var moduleConfiguration = new ModuleConfiguration(_services, messageRegistry);
 
         foreach (var module in _modules)
         {

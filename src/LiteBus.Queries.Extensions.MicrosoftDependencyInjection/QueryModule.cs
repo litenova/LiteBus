@@ -14,7 +14,7 @@ internal class QueryModule : IModule
         _builder = builder;
     }
 
-    public void Build(ILiteBusModuleConfiguration configuration)
+    public void Build(IModuleConfiguration configuration)
     {
         _builder(new QueryModuleBuilder(configuration.MessageRegistry));
 
