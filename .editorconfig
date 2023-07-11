@@ -1,0 +1,28 @@
+
+[*]
+
+# Microsoft .NET properties
+csharp_new_line_before_members_in_object_initializers = false
+csharp_preferred_modifier_order = public, internal, protected, private, file, static, async, abstract, virtual, readonly, sealed, override, extern, unsafe, volatile, new, required:suggestion
+csharp_space_after_cast = true
+
+# ReSharper properties
+resharper_align_multiline_parameter = true
+resharper_blank_lines_after_multiline_statements = 1
+resharper_blank_lines_around_single_line_auto_property = 1
+resharper_blank_lines_before_multiline_statements = 1
+resharper_braces_for_for = required
+resharper_braces_for_foreach = required
+resharper_braces_redundant = false
+resharper_csharp_blank_lines_around_single_line_invocable = 1
+resharper_csharp_max_line_length = 188
+resharper_instance_members_qualify_declared_in = 
+resharper_keep_existing_declaration_parens_arrangement = true
+resharper_parentheses_redundancy_style = remove
+resharper_place_expr_property_on_single_line = true
+resharper_wrap_after_declaration_lpar = false
+resharper_wrap_after_invocation_lpar = false
+resharper_wrap_before_extends_colon = false
+resharper_wrap_chained_binary_expressions = chop_if_long
+resharper_wrap_chained_method_calls = wrap_if_long
+resharper_wrap_object_and_collection_initializer_style = chop_always

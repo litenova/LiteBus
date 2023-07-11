@@ -11,24 +11,19 @@ using LiteBus.Messaging.Internal.Registry.Descriptors;
 
 namespace LiteBus.Messaging.Internal.Registry;
 
-internal class MessageRegistry : IMessageRegistry
+internal sealed class MessageRegistry : IMessageRegistry
 {
-    private readonly List<IDescriptorBuilder> _descriptorBuilders;
+    private readonly List<IDescriptorBuilder> _descriptorBuilders = new()
+    {
+        new HandlerDescriptorBuilder(),
+        new ErrorHandlerDescriptorBuilder(),
+        new PostHandlerDescriptorBuilder(),
+        new PreHandlerDescriptorBuilder()
+    };
     private readonly List<MessageDescriptor> _messages = new();
     private readonly List<IDescriptor> _descriptors = new();
     private readonly ConcurrentDictionary<Type, byte> _processedTypes = new();
     private readonly List<MessageDescriptor> _newMessages = new();
-
-    public MessageRegistry()
-    {
-        _descriptorBuilders = new List<IDescriptorBuilder>
-        {
-            new HandlerDescriptorBuilder(),
-            new ErrorHandlerDescriptorBuilder(),
-            new PostHandlerDescriptorBuilder(),
-            new PreHandlerDescriptorBuilder()
-        };
-    }
 
     public IEnumerator<IMessageDescriptor> GetEnumerator()
     {

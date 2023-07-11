@@ -13,7 +13,9 @@ public class MessageContext : IMessageContext
     private readonly Type _messageType;
     private readonly IServiceProvider _serviceProvider;
 
-    public MessageContext(Type messageType, IMessageDescriptor descriptor, IServiceProvider serviceProvider)
+    public MessageContext(Type messageType,
+                          IMessageDescriptor descriptor,
+                          IServiceProvider serviceProvider)
     {
         _messageType = messageType;
         _serviceProvider = serviceProvider;
