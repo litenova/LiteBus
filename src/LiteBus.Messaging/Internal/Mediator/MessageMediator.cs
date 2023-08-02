@@ -17,8 +17,7 @@ internal class MessageMediator : IMessageMediator
 
     public TMessageResult Mediate<TMessage, TMessageResult>(TMessage message,
                                                             IMessageResolveStrategy messageResolveStrategy,
-                                                            IMessageMediationStrategy<TMessage, TMessageResult>
-                                                                messageMediationStrategy)
+                                                            IMessageMediationStrategy<TMessage, TMessageResult> messageMediationStrategy)
     {
         var messageType = message.GetType();
 

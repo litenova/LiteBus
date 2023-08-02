@@ -7,4 +7,6 @@ namespace LiteBus.Events.Abstractions;
 /// </summary>
 public interface IEventErrorHandler : IMessageErrorHandler<IEvent>, IRegistrableEventConstruct
 {
+    
 }
+

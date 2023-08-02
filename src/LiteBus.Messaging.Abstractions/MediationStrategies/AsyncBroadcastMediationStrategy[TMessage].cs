@@ -21,6 +21,10 @@ public class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediationStrate
 
         try
         {
+            // Running Pre-Handlers (Allow Parallel Execution)
+            // Running Handlers (Allow Parallel Execution, Useful for Event Handlers)
+            // Running Post-Handlers (Allow Parallel Execution)
+            
             await messageContext.RunPreHandlers(handleContext);
 
             foreach (var handler in messageContext.Handlers)
