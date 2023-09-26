@@ -1,14 +1,13 @@
 using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Descriptors;
 using LiteBus.Messaging.Internal.Extensions;
 using LiteBus.Messaging.Internal.Registry.Abstractions;
 using LiteBus.Messaging.Internal.Registry.Descriptors;
 
 namespace LiteBus.Messaging.Internal.Registry.Builders;
 
-public class PostHandlerDescriptorBuilder : IDescriptorBuilder<IPostHandlerDescriptor>
+public sealed class PostHandlerDescriptorBuilder : IDescriptorBuilder<IPostHandlerDescriptor>
 {
     public bool CanBuild(Type type)
     {
@@ -31,7 +30,7 @@ public class PostHandlerDescriptorBuilder : IDescriptorBuilder<IPostHandlerDescr
 
     public IEnumerable<IPostHandlerDescriptor> WithResponse(Type handlerType)
     {
-        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessagePostHandler<,>));
+        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IAsyncMessagePostHandler<,>));
         var order = handlerType.GetOrderFromAttribute();
 
         foreach (var @interface in interfaces)
@@ -45,7 +44,7 @@ public class PostHandlerDescriptorBuilder : IDescriptorBuilder<IPostHandlerDescr
 
     public IEnumerable<IPostHandlerDescriptor> WithoutResponse(Type handlerType)
     {
-        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessagePostHandler<>));
+        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IAsyncMessagePostHandler<>));
         var order = handlerType.GetOrderFromAttribute();
 
         foreach (var @interface in interfaces)

@@ -1,15 +1,15 @@
+using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
 using LiteBus.UnitTests.Data.Shared.Queries;
 
 namespace LiteBus.UnitTests.Data.Shared.QueryGlobalPostHandlers;
 
-public class FakeGlobalQueryPostHandler : IQueryPostHandler
+public sealed class FakeGlobalQueryPostHandler : IQueryPostHandler
 {
-    public Task PostHandleAsync(IHandleContext<IQuery> context)
+    public Task PostHandleAsync(IQuery message, CancellationToken cancellationToken = default)
     {
-        (context.Message as FakeParentQuery)!.ExecutedTypes.Add(typeof(FakeGlobalQueryPostHandler));
+        (message as FakeParentQuery)!.ExecutedTypes.Add(typeof(FakeGlobalQueryPostHandler));
         return Task.CompletedTask;
     }
 }

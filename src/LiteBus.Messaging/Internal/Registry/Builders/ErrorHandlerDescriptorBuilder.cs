@@ -1,14 +1,13 @@
 using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Descriptors;
 using LiteBus.Messaging.Internal.Extensions;
 using LiteBus.Messaging.Internal.Registry.Abstractions;
 using LiteBus.Messaging.Internal.Registry.Descriptors;
 
 namespace LiteBus.Messaging.Internal.Registry.Builders;
 
-internal class ErrorHandlerDescriptorBuilder : IDescriptorBuilder<IErrorHandlerDescriptor>
+internal sealed class ErrorHandlerDescriptorBuilder : IDescriptorBuilder<IErrorHandlerDescriptor>
 {
     public bool CanBuild(Type type)
     {
@@ -17,7 +16,7 @@ internal class ErrorHandlerDescriptorBuilder : IDescriptorBuilder<IErrorHandlerD
 
     public IEnumerable<IErrorHandlerDescriptor> Build(Type handlerType)
     {
-        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessageErrorHandler<>));
+        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessageErrorHandler<,>));
         var order = handlerType.GetOrderFromAttribute();
 
         foreach (var @interface in interfaces)

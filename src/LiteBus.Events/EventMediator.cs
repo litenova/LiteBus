@@ -2,8 +2,6 @@
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.FindStrategies;
-using LiteBus.Messaging.Abstractions.MediationStrategies;
 
 namespace LiteBus.Events;
 
@@ -19,19 +17,31 @@ public class EventMediator : IEventPublisher
 
     public Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
     {
-        var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(cancellationToken);
+        var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>();
 
-        var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
+        var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
-        return _messageMediator.Mediate(@event, findStrategy, mediationStrategy);
+        return _messageMediator.Mediate(@event,
+            new MediateOptions<IEvent, Task>
+            {
+                MessageMediationStrategy = mediationStrategy,
+                MessageResolveStrategy = resolveStrategy,
+                CancellationToken = cancellationToken
+            });
     }
 
     public Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
     {
-        var mediationStrategy = new AsyncBroadcastMediationStrategy<TEvent>(cancellationToken);
+        var mediationStrategy = new AsyncBroadcastMediationStrategy<TEvent>();
 
-        var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
+        var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
-        return _messageMediator.Mediate(@event, findStrategy, mediationStrategy);
+        return _messageMediator.Mediate(@event,
+            new MediateOptions<TEvent, Task>
+            {
+                MessageMediationStrategy = mediationStrategy,
+                MessageResolveStrategy = resolveStrategy,
+                CancellationToken = cancellationToken
+            });
     }
 }

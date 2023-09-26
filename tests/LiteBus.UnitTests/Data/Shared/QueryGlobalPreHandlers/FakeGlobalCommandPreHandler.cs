@@ -1,15 +1,15 @@
+using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
 using LiteBus.UnitTests.Data.Shared.Queries;
 
 namespace LiteBus.UnitTests.Data.Shared.QueryGlobalPreHandlers;
 
-public class FakeGlobalQueryPreHandler : IQueryPreHandler
+public sealed class FakeGlobalQueryPreHandler : IQueryPreHandler
 {
-    public Task PreHandleAsync(IHandleContext<IQuery> context)
+    public Task PreHandleAsync(IQuery message, CancellationToken cancellationToken = default)
     {
-        (context.Message as FakeParentQuery)!.ExecutedTypes.Add(typeof(FakeGlobalQueryPreHandler));
+        (message as FakeParentQuery)!.ExecutedTypes.Add(typeof(FakeGlobalQueryPreHandler));
         return Task.CompletedTask;
     }
 }

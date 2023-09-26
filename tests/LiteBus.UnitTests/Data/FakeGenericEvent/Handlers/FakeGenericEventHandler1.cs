@@ -5,7 +5,7 @@ using LiteBus.UnitTests.Data.FakeGenericEvent.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeGenericEvent.Handlers;
 
-public class FakeGenericEventHandler1<TPayload> : IEventHandler<FakeGenericEvent<TPayload>>
+public sealed class FakeGenericEventHandler1<TPayload> : IEventHandler<FakeGenericEvent<TPayload>>
 {
     public Task HandleAsync(FakeGenericEvent<TPayload> message,
                             CancellationToken cancellationToken = default)

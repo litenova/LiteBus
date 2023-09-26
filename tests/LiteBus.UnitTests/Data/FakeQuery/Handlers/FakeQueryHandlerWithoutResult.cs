@@ -5,7 +5,7 @@ using LiteBus.UnitTests.Data.FakeQuery.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeQuery.Handlers;
 
-public class FakeQueryHandlerWithoutResult : IQueryHandler<Messages.FakeQuery, FakeQueryResult>
+public sealed class FakeQueryHandlerWithoutResult : IQueryHandler<Messages.FakeQuery, FakeQueryResult>
 {
     public Task<FakeQueryResult> HandleAsync(Messages.FakeQuery message,
                                                CancellationToken cancellationToken = default)

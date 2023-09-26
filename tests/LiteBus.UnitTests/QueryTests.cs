@@ -18,7 +18,7 @@ using Xunit;
 
 namespace LiteBus.UnitTests;
 
-public class QueryTests
+public sealed class QueryTests
 {
     [Fact]
     public async Task Send_FakeQuery_ShouldGoThroughHandlersCorrectly()

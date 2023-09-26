@@ -1,15 +1,15 @@
+using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Queries.Abstractions;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.UnitTests.Data.FakeQuery.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeQuery.PostHandlers;
 
-public class FakeQueryPostHandler : IQueryPostHandler<FakeQuery.Messages.FakeQuery, FakeQueryResult>
+public sealed class FakeQueryPostHandler : IQueryPostHandler<FakeQuery.Messages.FakeQuery, FakeQueryResult>
 {
-    public Task PostHandleAsync(IHandleContext<FakeQuery.Messages.FakeQuery, FakeQueryResult> context)
+    public Task PostHandleAsync(Messages.FakeQuery message, FakeQueryResult messageResult, CancellationToken cancellationToken = default)
     {
-        context.Message.ExecutedTypes.Add(typeof(FakeQueryPostHandler));
+        message.ExecutedTypes.Add(typeof(FakeQueryPostHandler));
         return Task.CompletedTask;
     }
 }

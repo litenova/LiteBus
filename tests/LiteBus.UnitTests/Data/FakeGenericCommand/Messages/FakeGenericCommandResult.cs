@@ -2,7 +2,7 @@ using System;
 
 namespace LiteBus.UnitTests.Data.FakeGenericCommand.Messages;
 
-public class FakeGenericCommandResult
+public sealed class FakeGenericCommandResult
 {
     public FakeGenericCommandResult(Guid correlationId)
     {

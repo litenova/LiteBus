@@ -1,15 +1,18 @@
-﻿using System;
+﻿#nullable enable
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions.Exceptions;
-using LiteBus.Messaging.Abstractions.Extensions;
 
-namespace LiteBus.Messaging.Abstractions.MediationStrategies;
+namespace LiteBus.Messaging.Abstractions;
 
-public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
-    IMessageMediationStrategy<TMessage, IAsyncEnumerable<TMessageResult>> where TMessage : notnull
+/// <summary>
+/// Mediates the handling of a message by invoking a single asynchronous stream handler.
+/// This strategy ensures that only one handler processes the message and produces a stream of results.
+/// </summary>
+/// <typeparam name="TMessage">Type of the message being handled.</typeparam>
+/// <typeparam name="TMessageResult">Type of the results returned by the message handler.</typeparam>
+public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> : IMessageMediationStrategy<TMessage, IAsyncEnumerable<TMessageResult>> where TMessage : notnull
 {
     private readonly CancellationToken _cancellationToken;
 
@@ -18,58 +21,82 @@ public class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
         _cancellationToken = cancellationToken;
     }
 
-    public async IAsyncEnumerable<TMessageResult> Mediate(TMessage message,
-                                                          IMessageContext messageContext)
+    public async IAsyncEnumerable<TMessageResult> Mediate(TMessage message, IMessageDependencies messageDependencies)
     {
-        if (messageContext.Handlers.Count > 1)
+        if (messageDependencies.Handlers.Count > 1)
         {
-            throw new MultipleHandlerFoundException(typeof(TMessage));
+            throw new MultipleHandlerFoundException(typeof(TMessage), messageDependencies.Handlers.Count);
         }
 
-        var handleContext = new HandleContext(message, _cancellationToken);
-        var result = AsyncEnumerable.Empty<TMessageResult>();
+        IAsyncEnumerator<TMessageResult>? messageResultAsyncEnumerator = null;
+
+        IAsyncEnumerable<TMessageResult>? messageResultAsyncEnumerable = null;
 
         try
         {
-            await messageContext.RunPreHandlers(handleContext);
+            await messageDependencies.RunAsyncPreHandlers(message);
 
-            var handler = messageContext.Handlers.Single().Value;
+            var handler = messageDependencies.Handlers.Single().Value;
 
-            result = (IAsyncEnumerable<TMessageResult>) handler!.Handle(handleContext);
+            messageResultAsyncEnumerable = (IAsyncEnumerable<TMessageResult>) handler!.Handle(message);
+
+            // ReSharper disable once PossibleMultipleEnumeration
+            messageResultAsyncEnumerator = messageResultAsyncEnumerable.GetAsyncEnumerator(_cancellationToken);
         }
-        catch (Exception e)
+        catch (Exception exception)
         {
-            if (messageContext.ErrorHandlers.Count + messageContext.IndirectErrorHandlers.Count == 0)
+            if (messageDependencies.ErrorHandlers.Count + messageDependencies.IndirectErrorHandlers.Count == 0)
             {
                 throw;
             }
 
-            handleContext.Exception = e;
-
-            await messageContext.RunErrorHandlers(handleContext);
+            await messageDependencies.RunErrorHandlers(message, messageResultAsyncEnumerable, exception);
         }
 
-        await foreach (var messageResult in result.WithCancellation(_cancellationToken))
+        messageResultAsyncEnumerable ??= AsyncEnumerable.Empty<TMessageResult>();
+
+        // ReSharper disable once PossibleMultipleEnumeration
+        messageResultAsyncEnumerator ??= messageResultAsyncEnumerable.GetAsyncEnumerator(_cancellationToken);
+
+        TMessageResult? item = default;
+        var hasResult = true;
+
+        while (hasResult)
         {
-            yield return messageResult;
-        }
+            try
+            {
+                hasResult = await messageResultAsyncEnumerator.MoveNextAsync().ConfigureAwait(false);
 
-        handleContext.MessageResult = result;
+                item = hasResult ? messageResultAsyncEnumerator.Current : default;
+            }
+            catch (Exception exception)
+            {
+                if (messageDependencies.ErrorHandlers.Count + messageDependencies.IndirectErrorHandlers.Count == 0)
+                {
+                    throw;
+                }
+
+                await messageDependencies.RunErrorHandlers(message, messageResultAsyncEnumerable, exception);
+            }
+
+            if (item != null)
+            {
+                yield return item;
+            }
+        }
 
         try
         {
-            await messageContext.RunPostHandlers(handleContext);
+            await messageDependencies.RunPostHandlers(message, messageResultAsyncEnumerable);
         }
-        catch (Exception e)
+        catch (Exception exception)
         {
-            if (messageContext.ErrorHandlers.Count + messageContext.IndirectErrorHandlers.Count == 0)
+            if (messageDependencies.ErrorHandlers.Count + messageDependencies.IndirectErrorHandlers.Count == 0)
             {
                 throw;
             }
 
-            handleContext.Exception = e;
-
-            await messageContext.RunErrorHandlers(handleContext);
+            await messageDependencies.RunErrorHandlers(message, messageResultAsyncEnumerable, exception);
         }
     }
 }

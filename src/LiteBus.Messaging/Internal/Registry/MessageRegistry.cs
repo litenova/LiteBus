@@ -4,7 +4,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Descriptors;
 using LiteBus.Messaging.Internal.Registry.Abstractions;
 using LiteBus.Messaging.Internal.Registry.Builders;
 using LiteBus.Messaging.Internal.Registry.Descriptors;
