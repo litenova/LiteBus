@@ -1,49 +1,53 @@
-﻿using System;
-using System.Threading;
+﻿#nullable enable
+
+using System;
+using System.Linq;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions.Extensions;
 
-namespace LiteBus.Messaging.Abstractions.MediationStrategies;
+namespace LiteBus.Messaging.Abstractions;
 
-public class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task>
-    where TMessage : notnull
+/// <summary>
+/// Represents an asynchronous broadcasting mediation strategy that processes a message across multiple handlers concurrently.
+/// </summary>
+/// <typeparam name="TMessage">The type of message being mediated.</typeparam>
+/// <remarks>
+/// This strategy performs the following sequence of operations:
+/// 1. Executes pre-handlers.
+/// 2. Broadcasts the message to all registered handlers concurrently.
+/// 3. Executes post-handlers.
+/// In case of any exception during the process, it delegates the error handling to the registered error handlers.
+/// </remarks>
+public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task> where TMessage : notnull
 {
-    private readonly CancellationToken _cancellationToken;
-
-    public AsyncBroadcastMediationStrategy(CancellationToken cancellationToken)
+    /// <summary>
+    /// Mediates the given message by broadcasting it to all registered handlers concurrently.
+    /// </summary>
+    /// <param name="message">The message to be processed.</param>
+    /// <param name="messageDependencies">The dependencies required for message handling, including registered handlers, pre-handlers, post-handlers, and error handlers.</param>
+    /// <returns>A Task representing the asynchronous operation of the mediation process.</returns>
+    public async Task Mediate(TMessage message, IMessageDependencies messageDependencies)
     {
-        _cancellationToken = cancellationToken;
-    }
-
-    public async Task Mediate(TMessage message, IMessageContext messageContext)
-    {
-        var handleContext = new HandleContext(message, _cancellationToken);
+        var executionTaskOfAllHandlers = Task.CompletedTask;
 
         try
         {
-            // Running Pre-Handlers (Allow Parallel Execution)
-            // Running Handlers (Allow Parallel Execution, Useful for Event Handlers)
-            // Running Post-Handlers (Allow Parallel Execution)
-            
-            await messageContext.RunPreHandlers(handleContext);
+            await messageDependencies.RunAsyncPreHandlers(message);
 
-            foreach (var handler in messageContext.Handlers)
-            {
-                await (Task) handler.Value.Handle(handleContext);
-            }
+            var tasks = messageDependencies.Handlers.Select(h => (Task) h.Value.Handle(message));
 
-            await messageContext.RunPostHandlers(handleContext);
+            executionTaskOfAllHandlers = Task.WhenAll(tasks);
+            await executionTaskOfAllHandlers;
+
+            await messageDependencies.RunPostHandlers(message, executionTaskOfAllHandlers);
         }
         catch (Exception e)
         {
-            if (messageContext.ErrorHandlers.Count + messageContext.IndirectErrorHandlers.Count == 0)
+            if (messageDependencies.ErrorHandlers.Count + messageDependencies.IndirectErrorHandlers.Count == 0)
             {
                 throw;
             }
 
-            handleContext.Exception = e;
-
-            await messageContext.RunErrorHandlers(handleContext);
+            await messageDependencies.RunErrorHandlers(message, executionTaskOfAllHandlers, e);
         }
     }
 }

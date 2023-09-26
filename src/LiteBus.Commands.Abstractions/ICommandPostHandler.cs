@@ -5,6 +5,6 @@ namespace LiteBus.Commands.Abstractions;
 /// <summary>
 ///     Represents an action that is executed on each command post-handle phase
 /// </summary>
-public interface ICommandPostHandler : IRegistrableCommandConstruct, IMessagePostHandler<ICommand>
+public interface ICommandPostHandler : IRegistrableCommandConstruct, IAsyncMessagePostHandler<ICommand>
 {
 }

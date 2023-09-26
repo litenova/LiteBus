@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using LiteBus.Messaging.Abstractions.Descriptors;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Internal.Registry.Descriptors;
 

@@ -33,7 +33,7 @@ public class EventModuleBuilder
         return this;
     }
 
-    public EventModuleBuilder RegisterFrom(Assembly assembly)
+    public EventModuleBuilder RegisterFromAssembly(Assembly assembly)
     {
         foreach (var registrableEventConstruct in assembly.GetTypes().Where(t => t.IsAssignableTo(typeof(IRegistrableEventConstruct))))
         {

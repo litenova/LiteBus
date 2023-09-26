@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace LiteBus.Messaging.Abstractions.Descriptors;
+namespace LiteBus.Messaging.Abstractions;
 
 public interface IMessageDescriptor : IDescriptor
 {

@@ -2,8 +2,6 @@
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.FindStrategies;
-using LiteBus.Messaging.Abstractions.MediationStrategies;
 
 namespace LiteBus.Commands;
 
@@ -17,23 +15,35 @@ public class CommandMediator : ICommandMediator
         _messageMediator = messageMediator;
     }
 
-    public async Task SendAsync(ICommand command, CancellationToken cancellationToken = default)
+    public Task SendAsync(ICommand command, CancellationToken cancellationToken = default)
     {
-        var mediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand>(cancellationToken);
+        var mediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand>();
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
-        await _messageMediator.Mediate(command, findStrategy, mediationStrategy);
+        var options = new MediateOptions<ICommand, Task>
+        {
+            MessageMediationStrategy = mediationStrategy,
+            MessageResolveStrategy = findStrategy,
+            CancellationToken = cancellationToken
+        };
+
+        return _messageMediator.Mediate(command, options);
     }
 
-    public async Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
-                                                                CancellationToken cancellationToken = default)
+    public Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
+                                                          CancellationToken cancellationToken = default)
     {
-        var mediationStrategy =
-            new SingleAsyncHandlerMediationStrategy<ICommand<TCommandResult>, TCommandResult>(cancellationToken);
-
+        var mediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand<TCommandResult>, TCommandResult>();
         var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
-        return await _messageMediator.Mediate(command, findStrategy, mediationStrategy);
+        var options = new MediateOptions<ICommand<TCommandResult>, Task<TCommandResult>>
+        {
+            MessageResolveStrategy = findStrategy,
+            MessageMediationStrategy = mediationStrategy,
+            CancellationToken = cancellationToken
+        };
+
+        return _messageMediator.Mediate(command, options);
     }
 }

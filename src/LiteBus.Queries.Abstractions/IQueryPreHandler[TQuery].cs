@@ -5,6 +5,6 @@ namespace LiteBus.Queries.Abstractions;
 /// <summary>
 ///     Represents an action that is executed on <typeparamref cref="TQuery" /> pre-handle phase
 /// </summary>
-public interface IQueryPreHandler<in TQuery> : IRegistrableQueryConstruct, IMessagePreHandler<TQuery> where TQuery : IQuery
+public interface IQueryPreHandler<in TQuery> : IRegistrableQueryConstruct, IAsyncMessagePreHandler<TQuery> where TQuery : IQuery
 {
 }

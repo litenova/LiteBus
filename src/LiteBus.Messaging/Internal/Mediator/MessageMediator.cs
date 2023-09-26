@@ -1,9 +1,12 @@
 using System;
 using LiteBus.Messaging.Abstractions;
+using ExecutionContext = LiteBus.Messaging.Abstractions.ExecutionContext;
+
+#nullable enable
 
 namespace LiteBus.Messaging.Internal.Mediator;
 
-internal class MessageMediator : IMessageMediator
+internal sealed class MessageMediator : IMessageMediator
 {
     private readonly IMessageRegistry _messageRegistry;
     private readonly IServiceProvider _serviceProvider;
@@ -16,15 +19,29 @@ internal class MessageMediator : IMessageMediator
     }
 
     public TMessageResult Mediate<TMessage, TMessageResult>(TMessage message,
-                                                            IMessageResolveStrategy messageResolveStrategy,
-                                                            IMessageMediationStrategy<TMessage, TMessageResult> messageMediationStrategy)
+                                                            MediateOptions<TMessage, TMessageResult> options) where TMessage : notnull
     {
+        // In case we are in a nested call, we need to save the original execution context
+        var originalExecutionContext = AmbientExecutionContext.Current;
+
+        // Create a new execution context for the current scope
+        AmbientExecutionContext.Current = new ExecutionContext(options.CancellationToken);
+
+        // Get the actual type of the message
         var messageType = message.GetType();
 
-        var descriptor = messageResolveStrategy.Find(messageType, _messageRegistry);
+        // Find the message descriptor
+        var descriptor = options.MessageResolveStrategy.Find(messageType, _messageRegistry);
 
-        var context = new MessageContext(messageType, descriptor, _serviceProvider);
+        // resolve the dependencies in lazy mode
+        var messageDependencies = new MessageDependencies(messageType, descriptor, _serviceProvider);
 
-        return messageMediationStrategy.Mediate(message, context);
+        // Mediate the message via the specified strategy
+        var result = options.MessageMediationStrategy.Mediate(message, messageDependencies);
+
+        // Restore the original execution context when the nested call is finished
+        AmbientExecutionContext.Current = originalExecutionContext;
+
+        return result;
     }
 }
