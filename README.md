@@ -102,17 +102,17 @@ services.AddLiteBus(builder =>
 {
     builder.AddCommands(commandBuilder =>
            {
-               commandBuilder.RegisterFrom(typeof(CreateProductCommand).Assembly) // Register all handlers from the specified Assembly
+               commandBuilder.RegisterFromAssembly(typeof(CreateProductCommand).Assembly) // Register all handlers from the specified Assembly
                              .RegisterPreHandler<ProductValidationHandler>()
                              .RegisterPostHandler<ProductAuditingHandler>();
            })
            .AddQueries(queryBuilder =>
            {
-               queryBuilder.RegisterFrom(typeof(GetAllProducts).Assembly); 
+               queryBuilder.RegisterFromAssembly(typeof(GetAllProducts).Assembly); 
            })
            .AddEvents(eventBuilder =>
            {
-               eventBuilder.RegisterFrom(typeof(NumberCreatedEvent).Assembly);
+               eventBuilder.RegisterFromAssembly(typeof(NumberCreatedEvent).Assembly);
            });
 });
 ```

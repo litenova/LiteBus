@@ -18,7 +18,7 @@ using Xunit;
 
 namespace LiteBus.UnitTests;
 
-public class CommandTests
+public sealed class CommandTests
 {
     [Fact]
     public async Task Send_FakeCommand_ShouldGoThroughHandlersCorrectly()

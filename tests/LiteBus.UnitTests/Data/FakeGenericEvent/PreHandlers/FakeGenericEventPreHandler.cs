@@ -1,14 +1,15 @@
+using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
-using LiteBus.Messaging.Abstractions;
+using LiteBus.UnitTests.Data.FakeGenericEvent.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeGenericEvent.PreHandlers;
 
-public class FakeGenericEventPreHandler<TPayload> : IEventPreHandler<Messages.FakeGenericEvent<TPayload>>
+public sealed class FakeGenericEventPreHandler<TPayload> : IEventPreHandler<FakeGenericEvent<TPayload>>
 {
-    public Task PreHandleAsync(IHandleContext<Messages.FakeGenericEvent<TPayload>> context)
+    public Task PreHandleAsync(FakeGenericEvent<TPayload> message, CancellationToken cancellationToken = default)
     {
-        context.Message.ExecutedTypes.Add(typeof(FakeGenericEventPreHandler<TPayload>));
+        message.ExecutedTypes.Add(typeof(FakeGenericEventPreHandler<TPayload>));
         return Task.CompletedTask;
     }
 }

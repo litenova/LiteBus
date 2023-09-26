@@ -1,12 +1,13 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.UnitTests.Data.PlainMessage;
 
-public class FakePlainMessagePreHandler : IMessagePreHandler<FakePlainMessage>
+public class FakePlainMessagePreHandler : IAsyncMessagePreHandler<FakePlainMessage>
 {
-    public Task PreHandleAsync(IHandleContext<FakePlainMessage> context)
+    public Task PreHandleAsync(FakePlainMessage message, CancellationToken cancellationToken = default)
     {
         throw new NotImplementedException();
     }

@@ -1,45 +1,71 @@
+using System;
 using System.Threading.Tasks;
 
-namespace LiteBus.Messaging.Abstractions.Extensions;
+namespace LiteBus.Messaging.Abstractions;
 
+/// <summary>
+/// Provides extension methods for running pre-handlers, error handlers, and post-handlers in the message handling process.
+/// This class facilitates the execution of handler pipelines for messages, allowing for a structured and organized approach to message handling with pre-processing, error handling, and post-processing steps.
+/// </summary>
 public static class MessageContextExtensions
 {
-    public static async Task RunPreHandlers(this IMessageContext messageContext, HandleContext handleContext)
+    /// <summary>
+    /// Runs asynchronous pre-handlers for a given message, allowing for operations such as validation and logging to be performed before the primary message handling.
+    /// </summary>
+    /// <param name="messageDependencies">The message dependencies encapsulating pre-handlers.</param>
+    /// <param name="message">The message to be pre-handled.</param>
+    /// <returns>A Task representing the asynchronous operation.</returns>
+    public static async Task RunAsyncPreHandlers(this IMessageDependencies messageDependencies, object message)
     {
-        foreach (var preHandler in messageContext.IndirectPreHandlers)
+        foreach (var preHandler in messageDependencies.IndirectPreHandlers)
         {
-            await preHandler.Value.PreHandleAsync(handleContext);
+            await (Task) preHandler.Value.PreHandle(message);
         }
 
-        foreach (var preHandler in messageContext.PreHandlers)
+        foreach (var preHandler in messageDependencies.PreHandlers)
         {
-            await preHandler.Value.PreHandleAsync(handleContext);
-        }
-    }
-    
-    public static async Task RunErrorHandlers(this IMessageContext messageContext, HandleContext handleContext)
-    {
-        foreach (var errorHandler in messageContext.IndirectErrorHandlers)
-        {
-            await errorHandler.Value.HandleErrorAsync(handleContext);
-        }
-
-        foreach (var errorHandler in messageContext.ErrorHandlers)
-        {
-            await errorHandler.Value.HandleErrorAsync(handleContext);
+            await (Task) preHandler.Value.PreHandle(message);
         }
     }
 
-    public static async Task RunPostHandlers(this IMessageContext messageContext, HandleContext handleContext)
+    /// <summary>
+    /// Runs error handlers for a given context, allowing for centralized error handling logic to be applied in the case of failures during the message handling process.
+    /// </summary>
+    /// <param name="messageDependencies">The message dependencies encapsulating error handlers.</param>
+    /// <param name="message">The message that was being handled when the error occurred.</param>
+    /// <param name="messageResult">The result of the message handling process, if any.</param>
+    /// <param name="exception">The exception that triggered the error handler.</param>
+    /// <returns>A Task representing the asynchronous operation.</returns>
+    public static async Task RunErrorHandlers(this IMessageDependencies messageDependencies, object message, object messageResult, Exception exception)
     {
-        foreach (var preHandler in messageContext.PostHandlers)
+        foreach (var errorHandler in messageDependencies.IndirectErrorHandlers)
         {
-            await preHandler.Value.PostHandleAsync(handleContext);
+            await (Task) errorHandler.Value.HandleError(message, exception, messageResult);
         }
 
-        foreach (var preHandler in messageContext.IndirectPostHandlers)
+        foreach (var errorHandler in messageDependencies.ErrorHandlers)
         {
-            await preHandler.Value.PostHandleAsync(handleContext);
+            await (Task) errorHandler.Value.HandleError(message, exception, exception);
+        }
+    }
+
+    /// <summary>
+    /// Runs post-handlers for a given context, allowing for operations such as logging and further processing to be performed after the primary message handling.
+    /// </summary>
+    /// <param name="messageDependencies">The message dependencies encapsulating post-handlers.</param>
+    /// <param name="message">The message that has been handled.</param>
+    /// <param name="messageResult">The result produced by the message handling process.</param>
+    /// <returns>A Task representing the asynchronous operation.</returns>
+    public static async Task RunPostHandlers(this IMessageDependencies messageDependencies, object message, object messageResult)
+    {
+        foreach (var postHandler in messageDependencies.PostHandlers)
+        {
+            await (Task) postHandler.Value.PostHandle(message, messageResult);
+        }
+
+        foreach (var postHandler in messageDependencies.IndirectPostHandlers)
+        {
+            await (Task) postHandler.Value.PostHandle(message, messageResult);
         }
     }
 }

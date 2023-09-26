@@ -33,7 +33,7 @@ public class CommandModuleBuilder
         return this;
     }
 
-    public CommandModuleBuilder RegisterFrom(Assembly assembly)
+    public CommandModuleBuilder RegisterFromAssembly(Assembly assembly)
     {
         foreach (var registrableCommandConstruct in assembly.GetTypes().Where(t => t.IsAssignableTo(typeof(IRegistrableCommandConstruct))))
         {

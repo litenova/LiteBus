@@ -1,14 +1,13 @@
 using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Descriptors;
 using LiteBus.Messaging.Internal.Extensions;
 using LiteBus.Messaging.Internal.Registry.Abstractions;
 using LiteBus.Messaging.Internal.Registry.Descriptors;
 
 namespace LiteBus.Messaging.Internal.Registry.Builders;
 
-public class HandlerDescriptorBuilder : IDescriptorBuilder<IHandlerDescriptor>
+public sealed class HandlerDescriptorBuilder : IDescriptorBuilder<IHandlerDescriptor>
 {
     public bool CanBuild(Type type)
     {

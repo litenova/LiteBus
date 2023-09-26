@@ -5,7 +5,7 @@ using LiteBus.UnitTests.Data.FakeGenericQuery.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeGenericQuery.Handlers;
 
-public class FakeGenericQueryHandlerWithoutResult<TPayload> : IQueryHandler<FakeGenericQuery<TPayload>, FakeGenericQueryResult>
+public sealed class FakeGenericQueryHandlerWithoutResult<TPayload> : IQueryHandler<FakeGenericQuery<TPayload>, FakeGenericQueryResult>
 {
     public Task<FakeGenericQueryResult> HandleAsync(FakeGenericQuery<TPayload> message,
                                                CancellationToken cancellationToken = default)

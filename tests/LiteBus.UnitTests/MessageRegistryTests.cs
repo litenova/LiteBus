@@ -8,7 +8,7 @@ using Xunit;
 
 namespace LiteBus.UnitTests;
 
-public class MessageRegistryTests
+public sealed class MessageRegistryTests
 {
     [Fact]
     public void Register_SimpleType_ShouldRegisterAsAMessage()

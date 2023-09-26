@@ -18,30 +18,30 @@ using Xunit;
 
 namespace LiteBus.UnitTests;
 
-public class EventTests
+public sealed class EventTests
 {
     [Fact]
     public async Task Send_FakeEvent_ShouldGoThroughHandlersCorrectly()
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
-                              .AddLiteBus(configuration =>
-                              {
-                                  configuration.AddEvents(builder =>
-                                  {
-                                      // Global Handlers
-                                      builder.Register<FakeGlobalEventPreHandler>();
-                                      builder.Register<FakeGlobalEventPostHandler>();
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddEvents(builder =>
+                {
+                    // Global Handlers
+                    builder.Register<FakeGlobalEventPreHandler>();
+                    builder.Register<FakeGlobalEventPostHandler>();
 
-                                      // Fake Event Handlers
-                                      builder.Register<FakeEventPreHandler>();
-                                      builder.Register<FakeEventHandler1>();
-                                      builder.Register<FakeEventHandler2>();
-                                      builder.Register<FakeEventHandler3>();
-                                      builder.Register<FakeEventPostHandler>();
-                                  });
-                              })
-                              .BuildServiceProvider();
+                    // Fake Event Handlers
+                    builder.Register<FakeEventPreHandler>();
+                    builder.Register<FakeEventHandler1>();
+                    builder.Register<FakeEventHandler2>();
+                    builder.Register<FakeEventHandler3>();
+                    builder.Register<FakeEventPostHandler>();
+                });
+            })
+            .BuildServiceProvider();
 
         var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
         var @event = new FakeEvent();
@@ -65,23 +65,23 @@ public class EventTests
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
-                              .AddLiteBus(configuration =>
-                              {
-                                  configuration.AddEvents(builder =>
-                                  {
-                                      // Global Handlers
-                                      builder.Register<FakeGlobalEventPreHandler>();
-                                      builder.Register<FakeGlobalEventPostHandler>();
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddEvents(builder =>
+                {
+                    // Global Handlers
+                    builder.Register<FakeGlobalEventPreHandler>();
+                    builder.Register<FakeGlobalEventPostHandler>();
 
-                                      // Fake Event Handlers
-                                      builder.Register(typeof(FakeGenericEventPreHandler<>));
-                                      builder.Register(typeof(FakeGenericEventHandler1<>));
-                                      builder.Register(typeof(FakeGenericEventHandler2<>));
-                                      builder.Register(typeof(FakeGenericEventHandler3<>));
-                                      builder.Register(typeof(FakeGenericEventPostHandler<>));
-                                  });
-                              })
-                              .BuildServiceProvider();
+                    // Fake Event Handlers
+                    builder.Register(typeof(FakeGenericEventPreHandler<>));
+                    builder.Register(typeof(FakeGenericEventHandler1<>));
+                    builder.Register(typeof(FakeGenericEventHandler2<>));
+                    builder.Register(typeof(FakeGenericEventHandler3<>));
+                    builder.Register(typeof(FakeGenericEventPostHandler<>));
+                });
+            })
+            .BuildServiceProvider();
 
         var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
         var @event = new FakeGenericEvent<string>();

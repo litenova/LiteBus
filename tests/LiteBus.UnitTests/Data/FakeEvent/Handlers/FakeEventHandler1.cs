@@ -4,7 +4,7 @@ using LiteBus.Events.Abstractions;
 
 namespace LiteBus.UnitTests.Data.FakeEvent.Handlers;
 
-public class FakeEventHandler1 : IEventHandler<Messages.FakeEvent>
+public sealed class FakeEventHandler1 : IEventHandler<Messages.FakeEvent>
 {
     public Task HandleAsync(Messages.FakeEvent message, CancellationToken cancellationToken = default)
     {

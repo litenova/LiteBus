@@ -1,14 +1,14 @@
+using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
-using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.UnitTests.Data.FakeCommand.PreHandlers;
 
-public class FakeCommandPreHandler : ICommandPreHandler<FakeCommand.Messages.FakeCommand>
+public sealed class FakeCommandPreHandler : ICommandPreHandler<FakeCommand.Messages.FakeCommand>
 {
-    public Task PreHandleAsync(IHandleContext<FakeCommand.Messages.FakeCommand> context)
+    public Task PreHandleAsync(Messages.FakeCommand message, CancellationToken cancellationToken = default)
     {
-        context.Message.ExecutedTypes.Add(typeof(FakeCommandPreHandler));
+        message.ExecutedTypes.Add(typeof(FakeCommandPreHandler));
         return Task.CompletedTask;
     }
 }

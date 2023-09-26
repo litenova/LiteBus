@@ -26,7 +26,7 @@ public class MessageModuleBuilder
         return this;
     }
 
-    public MessageModuleBuilder RegisterFrom(Assembly assembly)
+    public MessageModuleBuilder RegisterFromAssembly(Assembly assembly)
     {
         foreach (var type in assembly.GetTypes())
         {
