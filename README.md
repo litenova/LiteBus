@@ -40,11 +40,11 @@
 * Minimum Reflection Usage
 * Utilizing Covariance, Contravariance, and Polymorphism to Dispatch and Handle Messages
 * Built-in Messaging Types
-  * Command without Result `ICommand`
-  * Command with Result `ICommand<TResult>`
-  * Query `IQuery<TResult>`
-  * Stream Query `IStreamQuery<TResult>`: A type of query that returns `IAsyncEnumerable<TResult>`
-  * Event `IEvent`
+    * Command without Result `ICommand`
+    * Command with Result `ICommand<TResult>`
+    * Query `IQuery<TResult>`
+    * Stream Query `IStreamQuery<TResult>`: A type of query that returns `IAsyncEnumerable<TResult>`
+    * Event `IEvent`
 * Flexible and Extensible
 * Modular Design, Only Add What You Need
 * Utilizing C# 8 Default Interface Implementation Feature Resulting in Easy to Use API
@@ -62,32 +62,38 @@ LiteBus modules and features are released in separate **Nuget Packages**. Follow
 The metapackage contains all the features. You can find the configuration of this package in **Configuration** section.
 
 * [`LiteBus`](https://www.nuget.org/packages/LiteBus.Commands) contains the implementation of all features
-* [`LiteBus.Extensions.MicrosoftDependencyInjection`](https://www.nuget.org/packages/LiteBus.Extensions.MicrosoftDependencyInjection) provides integration with Microsoft Dependency Injection. It's useful for ASP.NET Core applications.
+* [`LiteBus.Extensions.MicrosoftDependencyInjection`](https://www.nuget.org/packages/LiteBus.Extensions.MicrosoftDependencyInjection)
+  provides integration with Microsoft Dependency Injection. It's useful for ASP.NET Core applications.
 
 ### Commands
 
 The commands feature consists of the following packages:
 
-* [`LiteBus.Commands.Abstractions`](https://www.nuget.org/packages/LiteBus.Commands.Abstractions) - contains command abstractions such as `ICommand`, `ICommandHandler`, etc.
+* [`LiteBus.Commands.Abstractions`](https://www.nuget.org/packages/LiteBus.Commands.Abstractions) - contains command
+  abstractions such as `ICommand`, `ICommandHandler`, etc.
 * [`LiteBus.Commands`](https://www.nuget.org/packages/LiteBus.Commands) - contains the implementation of commands
-* [`LiteBus.Commands.Extensions.MicrosoftDependencyInjection`](https://www.nuget.org/packages/LiteBus.Extensions.MicrosoftDependencyInjection) - provides integration with Microsoft Dependency Injection. It's useful for ASP.NET Core applications.
+* [`LiteBus.Commands.Extensions.MicrosoftDependencyInjection`](https://www.nuget.org/packages/LiteBus.Extensions.MicrosoftDependencyInjection) -
+  provides integration with Microsoft Dependency Injection. It's useful for ASP.NET Core applications.
 
 ### Queries
 
 The queries feature consists of the following packages:
 
-* [`LiteBus.Queries.Abstractions`](https://www.nuget.org/packages/LiteBus.Queries.Abstractions) - contains query abstractions such as `IQuery`, `IStreamQuery`, `IQueryHandler`, etc.
+* [`LiteBus.Queries.Abstractions`](https://www.nuget.org/packages/LiteBus.Queries.Abstractions) - contains query
+  abstractions such as `IQuery`, `IStreamQuery`, `IQueryHandler`, etc.
 * [`LiteBus.Queries`](https://www.nuget.org/packages/LiteBus.Queries) - contains the implementation of queries
-* [`LiteBus.Queries.Extensions.MicrosoftDependencyInjection`](https://www.nuget.org/packages/LiteBus.Extensions.MicrosoftDependencyInjection) - provides integration with Microsoft Dependency Injection. It's useful for ASP.NET Core applications.
+* [`LiteBus.Queries.Extensions.MicrosoftDependencyInjection`](https://www.nuget.org/packages/LiteBus.Extensions.MicrosoftDependencyInjection) -
+  provides integration with Microsoft Dependency Injection. It's useful for ASP.NET Core applications.
 
 ### Events
 
 The events feature consists of the following packages:
 
-* [`LiteBus.Events.Abstractions`](https://www.nuget.org/packages/LiteBus.Events.Abstractions) - contains event abstractions such as `IEvent`, `IEventHandler`, etc.
+* [`LiteBus.Events.Abstractions`](https://www.nuget.org/packages/LiteBus.Events.Abstractions) - contains event
+  abstractions such as `IEvent`, `IEventHandler`, etc.
 * [`LiteBus.Events`](https://www.nuget.org/packages/LiteBus.Events) - contains the implementation of events
-* [`LiteBus.Events.Extensions.MicrosoftDependencyInjection`](https://www.nuget.org/packages/LiteBus.Extensions.MicrosoftDependencyInjection) - provides integration with Microsoft Dependency Injection. It's useful for ASP.NET Core applications.
-
+* [`LiteBus.Events.Extensions.MicrosoftDependencyInjection`](https://www.nuget.org/packages/LiteBus.Extensions.MicrosoftDependencyInjection) -
+  provides integration with Microsoft Dependency Injection. It's useful for ASP.NET Core applications.
 
 ## Configuration
 
@@ -123,9 +129,10 @@ The following examples demonstrate the features and usages of LiteBus.
 
 ### Commands
 
-Commands are intended to perform actions that change the state of the system. To use commands, follow the instructions below.
+Commands are intended to perform actions that change the state of the system. To use commands, follow the instructions
+below.
 
-#### Command Contracts 
+#### Command Contracts
 
 Specify your commands by implementing:
 
@@ -141,28 +148,39 @@ Specify your commands by implementing:
 
 #### Command Mediator/Dispatcher
 
-You can use the `ICommandMediator` or `ICommandDispatcher` to execute your commands. Use them by injecting one of the interfaces into your desired class.
+You can use the `ICommandMediator` or `ICommandDispatcher` to execute your commands. Use them by injecting one of the
+interfaces into your desired class.
 
 #### Command Pre Handlers
 
-Pre-handlers allow you to perform actions before a command gets handled. They are handy for performing validation and starting transactions. By implementing the pre handlers, the pre handlers are executed automatically when executing a command. 
+Pre-handlers allow you to perform actions before a command gets handled. They are handy for performing validation and
+starting transactions. By implementing the pre handlers, the pre handlers are executed automatically when executing a
+command.
 
-* `ICommandPreHandler<TCommand>` - this generic pre handler is executed on the pre-handle phase of the specified `TCommand`. This pre handler supports generic variance. 
-* `ICommandPreHandler` - this pre handler acts as a global command pre handler. It's executed on every command pre-handle phase.
+* `ICommandPreHandler<TCommand>` - this generic pre handler is executed on the pre-handle phase of the
+  specified `TCommand`. This pre handler supports generic variance.
+* `ICommandPreHandler` - this pre handler acts as a global command pre handler. It's executed on every command
+  pre-handle phase.
 
 #### Command Post-Handlers
 
-Post-handlers allow you to perform actions after a command gets handled. They are handy for committing transactions and auditing. By implementing the post-handlers, the post-handlers are executed automatically when executing a command.
+Post-handlers allow you to perform actions after a command gets handled. They are handy for committing transactions and
+auditing. By implementing the post-handlers, the post-handlers are executed automatically when executing a command.
 
-* `ICommandPostHandler<TCommand>` - this generic post-handler is executed on the post-handle phase of the specified `TCommand`. This post-handler supports generic variance.
-* `ICommandPostHandler<TCommand, TCommandResult>` - this generic post-handler is executed on the post-handle phase of the specified `TCommand` which has `TCommandResult` type.
-* `ICommandPostHandler` - this post-handler acts as a global command post-handler. It's executed on every command post-handle phase.
+* `ICommandPostHandler<TCommand>` - this generic post-handler is executed on the post-handle phase of the
+  specified `TCommand`. This post-handler supports generic variance.
+* `ICommandPostHandler<TCommand, TCommandResult>` - this generic post-handler is executed on the post-handle phase of
+  the specified `TCommand` which has `TCommandResult` type.
+* `ICommandPostHandler` - this post-handler acts as a global command post-handler. It's executed on every command
+  post-handle phase.
 
 #### Command Error Handlers
 
-Error handlers allow you to catch and handle any errors thrown during the pre-handle, handle, and post-handle phase of a command. You can implement error handlers by deriving from:
+Error handlers allow you to catch and handle any errors thrown during the pre-handle, handle, and post-handle phase of a
+command. You can implement error handlers by deriving from:
 
-* `ICommandErrorHandler<TCommand>` - this generic post-handler is executed on any phase of the specified command that runs into an error. It supports generic variance.
+* `ICommandErrorHandler<TCommand>` - this generic post-handler is executed on any phase of the specified command that
+  runs into an error. It supports generic variance.
 * `ICommandErrorHandler` - acts as the global command error handler.
 
 #### Examples
@@ -265,45 +283,59 @@ public class ProductCommandPostHandler : ICommandPostHandler<CreateProductComman
 
 ### Queries
 
-Queries are intended to query data without changing the state of the system. To use queries, follow the instructions below.
+Queries are intended to query data without changing the state of the system. To use queries, follow the instructions
+below.
 
 #### Query Contracts
 
 Specify your queries by implementing:
 
-* `IStreamQuery<TQueryResult>` - a query that returns a stream of data. The result is represented in the form `IAsyncEnumerable<TQueryResult>`.
+* `IStreamQuery<TQueryResult>` - a query that returns a stream of data. The result is represented in the
+  form `IAsyncEnumerable<TQueryResult>`.
 * `IQuery<TQueryResult>` - a query with a result
 
 #### Query Handler Contracts
 
 * `IQueryHandler<TQuery, TQueryResult>` - an asynchronous query handler that returns a result
-* `IStreamQueryHandler<TQuery, TQueryResult>` - an asynchronous query handler that returns a stream of data in the form `IAsyncEnumerable<TQueryResult>`
+* `IStreamQueryHandler<TQuery, TQueryResult>` - an asynchronous query handler that returns a stream of data in the
+  form `IAsyncEnumerable<TQueryResult>`
 * `ISyncQueryHandler<TQuery, TQueryResult>` - a synchronous query handler that returns a result
 
 #### Query Mediator/Dispatcher
 
-You can use the `IQueryMediator` or `IQueryDispatcher` to execute your queries. Use them by injecting one of the interfaces into your desired class.
+You can use the `IQueryMediator` or `IQueryDispatcher` to execute your queries. Use them by injecting one of the
+interfaces into your desired class.
 
 #### Query Pre Handlers
 
-Pre-handlers allow you to perform actions before a query gets handled. They are handy for performing validation and starting transactions. By implementing the pre handlers, the pre handlers are executed automatically when executing a query.
+Pre-handlers allow you to perform actions before a query gets handled. They are handy for performing validation and
+starting transactions. By implementing the pre handlers, the pre handlers are executed automatically when executing a
+query.
 
-* `IQueryPreHandler<TQuery>` - this generic pre handler is executed on the pre-handle phase of the specified `TQuery`. This pre handler supports generic variance.
-* `IQueryPreHandler` - this pre handler acts as a global query pre handler. It's executed on every query pre-handle phase.
+* `IQueryPreHandler<TQuery>` - this generic pre handler is executed on the pre-handle phase of the specified `TQuery`.
+  This pre handler supports generic variance.
+* `IQueryPreHandler` - this pre handler acts as a global query pre handler. It's executed on every query pre-handle
+  phase.
 
 #### Query Post-Handlers
 
-Post-handlers allow you to perform actions after a query gets handled. They are handy for committing transactions and auditing. By implementing the post-handlers, the post-handlers are executed automatically when executing a query.
+Post-handlers allow you to perform actions after a query gets handled. They are handy for committing transactions and
+auditing. By implementing the post-handlers, the post-handlers are executed automatically when executing a query.
 
-* `IQueryPostHandler<TQuery>` - this generic post-handler is executed on the post-handle phase of the specified `TQuery`. This post-handler supports generic variance.
-* `IQueryPostHandler<TQuery, TQueryResult>` - this generic post-handler is executed on the post-handle phase of the specified `TQuery` which has `TQueryResult` type.
-* `IQueryPostHandler` - this post-handler acts as a global query post-handler. It's executed on every query post-handle phase.
+* `IQueryPostHandler<TQuery>` - this generic post-handler is executed on the post-handle phase of the
+  specified `TQuery`. This post-handler supports generic variance.
+* `IQueryPostHandler<TQuery, TQueryResult>` - this generic post-handler is executed on the post-handle phase of the
+  specified `TQuery` which has `TQueryResult` type.
+* `IQueryPostHandler` - this post-handler acts as a global query post-handler. It's executed on every query post-handle
+  phase.
 
 #### Query Error Handlers
 
-Error handlers allow you to catch and handle any errors thrown during the pre-handle, handle, and post-handle phase of a query. You can implement error handlers by deriving from:
+Error handlers allow you to catch and handle any errors thrown during the pre-handle, handle, and post-handle phase of a
+query. You can implement error handlers by deriving from:
 
-* `IQueryErrorHandler<TQuery>` - this generic post-handler is executed on any phase of the specified query that runs into an error. It supports generic variance.
+* `IQueryErrorHandler<TQuery>` - this generic post-handler is executed on any phase of the specified query that runs
+  into an error. It supports generic variance.
 * `IQueryErrorHandler` - acts as the global query error handler.
 
 #### Examples
@@ -403,27 +435,37 @@ Specify your events by implementing:
 
 #### Event Mediator/Dispatcher
 
-You can use the `IEventMediator`, `IEventDispatcher`, or `IEventPublisher` to execute your events. Use them by injecting one of the interfaces into your desired class.
+You can use the `IEventMediator`, `IEventDispatcher`, or `IEventPublisher` to execute your events. Use them by injecting
+one of the interfaces into your desired class.
 
 #### Event Pre Handlers
 
-Pre-handlers allow you to perform actions before an event gets handled. They are handy for performing validation and starting transactions. By implementing the pre handlers, the pre handlers are executed automatically when executing an event.
+Pre-handlers allow you to perform actions before an event gets handled. They are handy for performing validation and
+starting transactions. By implementing the pre handlers, the pre handlers are executed automatically when executing an
+event.
 
-* `IEventPreHandler<TEvent>` - this generic pre handler is executed on the pre-handle phase of the specified `TEvent`. This pre handler supports generic variance.
-* `IEventPreHandler` - this pre handler acts as a global event pre handler. It's executed on every event pre-handle phase.
+* `IEventPreHandler<TEvent>` - this generic pre handler is executed on the pre-handle phase of the specified `TEvent`.
+  This pre handler supports generic variance.
+* `IEventPreHandler` - this pre handler acts as a global event pre handler. It's executed on every event pre-handle
+  phase.
 
 #### Event Post-Handlers
 
-Post-handlers allow you to perform actions after an event gets handled. They are handy for committing transactions and auditing. By implementing the post-handlers, the post-handlers are executed automatically when executing an event.
+Post-handlers allow you to perform actions after an event gets handled. They are handy for committing transactions and
+auditing. By implementing the post-handlers, the post-handlers are executed automatically when executing an event.
 
-* `IEventPostHandler<TEvent>` - this generic post-handler is executed on the post-handle phase of the specified `TEvent`. This post-handler supports generic variance.
-* `IEventPostHandler` - this post-handler acts as a global event post-handler. It's executed on every event post-handle phase.
+* `IEventPostHandler<TEvent>` - this generic post-handler is executed on the post-handle phase of the
+  specified `TEvent`. This post-handler supports generic variance.
+* `IEventPostHandler` - this post-handler acts as a global event post-handler. It's executed on every event post-handle
+  phase.
 
 #### Event Error Handlers
 
-Error handlers allow you to catch and handle any errors thrown during the pre-handle, handle, and post-handle phase of an event. You can implement error handlers by deriving from:
+Error handlers allow you to catch and handle any errors thrown during the pre-handle, handle, and post-handle phase of
+an event. You can implement error handlers by deriving from:
 
-* `IEventErrorHandler<TEvent>` - this generic post-handler is executed on any phase of the specified event that runs into an error. It supports generic variance.
+* `IEventErrorHandler<TEvent>` - this generic post-handler is executed on any phase of the specified event that runs
+  into an error. It supports generic variance.
 * `IEventErrorHandler` - acts as the global event error handler.
 
 #### Examples
@@ -483,11 +525,12 @@ public class ProductEventPostHandler : IEventPostHandler<ProductCreatedEvent>
         // Process here...
     }
 }
-
+```
 
 ## Inheritance
 
-The LiteBus uses the actual type of a message to determine the corresponding handler(s). Consider the following inheritance:
+The LiteBus uses the actual type of a message to determine the corresponding handler(s). Consider the following
+inheritance:
 
 ```csharp
 // The base command
@@ -541,7 +584,8 @@ _mediator.SendAsync(command);
 
 ### Delivering Message to the Less Derived (Base Type) Handler
 
-If a user tries to send the `CreateDocumentCommand` as `CreateFileCommand` or as it is, the LiteBus will deliver the command to `CreateFileCommandHandler` since the `CreateDocumentCommand` does not have a handler.
+If a user tries to send the `CreateDocumentCommand` as `CreateFileCommand` or as it is, the LiteBus will deliver the
+command to `CreateFileCommandHandler` since the `CreateDocumentCommand` does not have a handler.
 
 ```csharp
 CreateFileCommand command = new CreateDocumentCommand();
@@ -555,7 +599,22 @@ var command = new CreateDocumentCommand();
 _mediator.SendAsync(command);
 ```
 
-**Note:** In such scenarios, the LiteBus will only deliver the message to the direct base class' handler if there is any.
+**Note:** In such scenarios, the LiteBus will only deliver the message to the direct base class' handler if there is
+any.
+
+## ExecutionContext in LiteBus
+
+LiteBus's `ExecutionContext` provides an encapsulated context that represents the current operational scope. It
+primarily contains a `CancellationToken`, useful for operations that may need cooperative cancellation.
+
+### Accessing ExecutionContext in Handlers
+
+Within your handlers, you can access the current `ExecutionContext` via the `AmbientExecutionContext`:
+
+```csharp
+var currentExecutionContext = AmbientExecutionContext.Current;
+var cancellationToken = currentExecutionContext?.CancellationToken;
+```
 
 ## Extensibility
 
@@ -564,9 +623,9 @@ To Be Added
 ## Roadmap
 
 - [ ] Providing Out-of-Process Message Handling
-  - [ ] RabbitMQ
-  - [ ] Kafka
-  - [ ] Azure Event Bus
+    - [ ] RabbitMQ
+    - [ ] Kafka
+    - [ ] Azure Event Bus
 - [ ] Saga Support
 - [ ] Outbox Support
 - [ ] More Parallel Capabilities
