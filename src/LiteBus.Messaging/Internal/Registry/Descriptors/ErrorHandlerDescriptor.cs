@@ -1,9 +1,9 @@
 using System;
-using LiteBus.Messaging.Abstractions.Descriptors;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Internal.Registry.Descriptors;
 
-internal class ErrorHandlerDescriptor : IErrorHandlerDescriptor
+internal sealed class ErrorHandlerDescriptor : IErrorHandlerDescriptor
 {
     public ErrorHandlerDescriptor(Type errorHandlerType, Type messageType, int order)
     {

@@ -2,7 +2,7 @@ using System;
 
 namespace LiteBus.UnitTests.Data.FakeQuery.Messages;
 
-public class FakeQueryResult
+public sealed class FakeQueryResult
 {
     public FakeQueryResult(Guid correlationId)
     {

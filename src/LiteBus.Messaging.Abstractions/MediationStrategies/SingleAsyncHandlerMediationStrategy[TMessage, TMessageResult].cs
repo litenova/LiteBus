@@ -1,100 +1,62 @@
 ﻿using System;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions.Exceptions;
-using LiteBus.Messaging.Abstractions.Extensions;
 
-namespace LiteBus.Messaging.Abstractions.MediationStrategies;
+namespace LiteBus.Messaging.Abstractions;
 
-public class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> :
-    IMessageMediationStrategy<TMessage, Task<TMessageResult>> where TMessage : notnull
+/// <summary>
+/// Represents a mediation strategy that processes a message through a single asynchronous handler.
+/// </summary>
+/// <typeparam name="TMessage">The type of message being mediated.</typeparam>
+/// <typeparam name="TMessageResult">The type of the result produced by the handler.</typeparam>
+/// <remarks>
+/// This strategy ensures that only one handler is registered for the message type and then:
+/// 1. Executes pre-handlers.
+/// 2. Delegates the message processing to the registered handler.
+/// 3. Executes post-handlers.
+/// In case of any exception during the process, it delegates the error handling to the registered error handlers.
+/// </remarks>
+public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> : IMessageMediationStrategy<TMessage, Task<TMessageResult>> where TMessage : notnull
 {
-    private readonly CancellationToken _cancellationToken;
-
-    public SingleAsyncHandlerMediationStrategy(CancellationToken cancellationToken)
+    public async Task<TMessageResult> Mediate(TMessage message, IMessageDependencies messageDependencies)
     {
-        _cancellationToken = cancellationToken;
-    }
-
-    public async Task<TMessageResult> Mediate(TMessage message,
-        IMessageContext messageContext)
-    {
-        if (messageContext.Handlers.Count > 1)
+        if (messageDependencies is null)
         {
-            throw new MultipleHandlerFoundException(typeof(TMessage));
+            throw new ArgumentNullException(nameof(messageDependencies));
         }
 
-        var handleContext = new HandleContext(message, _cancellationToken);
-        TMessageResult result = default;
+        if (messageDependencies.Handlers.Count > 1)
+        {
+            throw new MultipleHandlerFoundException(typeof(TMessage), messageDependencies.Handlers.Count);
+        }
+
+        TMessageResult messageResult = default;
 
         try
         {
-            await messageContext.RunPreHandlers(handleContext);
+            await messageDependencies.RunAsyncPreHandlers(message);
 
-            var handler = messageContext.Handlers.Single().Value;
+            var handler = messageDependencies.Handlers.Single().Value;
 
-            result = await (Task<TMessageResult>) handler!.Handle(handleContext);
+            if (handler is null)
+            {
+                throw new InvalidOperationException($"Handler for {typeof(TMessage).Name} is not of the expected type.");
+            }
 
-            handleContext.MessageResult = result;
+            messageResult = await (Task<TMessageResult>) handler.Handle(message);
 
-            await messageContext.RunPostHandlers(handleContext);
+            await messageDependencies.RunPostHandlers(message, messageResult);
         }
         catch (Exception e)
         {
-            if (messageContext.ErrorHandlers.Count + messageContext.IndirectErrorHandlers.Count == 0)
+            if (messageDependencies.ErrorHandlers.Count + messageDependencies.IndirectErrorHandlers.Count == 0)
             {
                 throw;
             }
 
-            handleContext.Exception = e;
-
-            await messageContext.RunErrorHandlers(handleContext);
+            await messageDependencies.RunErrorHandlers(message, messageResult, e);
         }
 
-        return result;
-    }
-}
-
-public class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task>
-{
-    private readonly CancellationToken _cancellationToken;
-
-    public SingleAsyncHandlerMediationStrategy(CancellationToken cancellationToken)
-    {
-        _cancellationToken = cancellationToken;
-    }
-
-    public async Task Mediate(TMessage message,
-        IMessageContext messageContext)
-    {
-        if (messageContext.Handlers.Count > 1)
-        {
-            throw new MultipleHandlerFoundException(typeof(TMessage));
-        }
-
-        var handleContext = new HandleContext(message, _cancellationToken);
-
-        try
-        {
-            await messageContext.RunPreHandlers(handleContext);
-
-            var handler = messageContext.Handlers.Single().Value;
-
-            await (Task) handler.Handle(handleContext);
-
-            await messageContext.RunPostHandlers(handleContext);
-        }
-        catch (Exception e)
-        {
-            if (messageContext.ErrorHandlers.Count + messageContext.IndirectErrorHandlers.Count == 0)
-            {
-                throw;
-            }
-
-            handleContext.Exception = e;
-
-            await messageContext.RunErrorHandlers(handleContext);
-        }
+        return messageResult;
     }
 }

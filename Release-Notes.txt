@@ -1,47 +1,43 @@
-v.0.15.1
+v.0.16.0
+⦁ Introduced execution context using AsyncLocal functionality, accessible through AmbientExecutionContext.
+⦁ Renamed `RegisterFrom` to `RegisterFromAssembly` in module builders.
+⦁ Standardized namespace for all files in the `LiteBus.Messaging.Abstractions` project to `LiteBus.Messaging.Abstractions`, irrespective of folder path.
+⦁ Removed `HandleContext` as a parameter from post and pre handlers.
 
-- Remove IEvent constraint from event handlers allowing passing object as events without implement IEvent interface
+v.0.15.1
+⦁ Removed `IEvent` constraint from event handlers, allowing objects to be passed as events without implementing the `IEvent` interface.
 
 v.0.15.0
-
-- Add overload method to event publisher allowing passing object as a message
-- Remove `LiteBus` prefix from module construct names
+⦁ Added overload method to event publisher for passing an object as a message.
+⦁ Removed `LiteBus` prefix from module constructor names.
 
 v.0.14.1
-
-- Upgraded packages
+⦁ Upgraded dependency packages.
 
 v.0.14.0
-
-⦁ Upgrade to .NET 7
+⦁ Upgraded to .NET 7.
 
 v.0.13.0
-
-⦁ Replace ICommandBase with ICommand
-⦁ Replace IQueryBase with IQuery
-⦁ Rename ILiteBusModule to IModule
-⦁ Remove RegisterPreHandler, RegisterHandler, RegisterPostHandler methods and replace them with Register
-⦁ Remove redundant base interfaces
+⦁ Replaced `ICommandBase` with `ICommand`.
+⦁ Replaced `IQueryBase` with `IQuery`.
+⦁ Renamed `ILiteBusModule` to `IModule`.
+⦁ Removed methods `RegisterPreHandler`, `RegisterHandler`, and `RegisterPostHandler`, replacing them with `Register`.
+⦁ Removed superfluous base interfaces.
 
 v.0.12.0
-
-⦁ Add support to message registry to register any class type as a message
+⦁ Added support to message registry for registering any class type as a message.
 
 v.0.11.3
-
-⦁ Bug fix: run error handlers instead of pre handlers in error phase
+⦁ Fixed bug: Execute error handlers instead of pre handlers during error phase.
 
 v.0.11.2
-
-⦁ Bug fix: take the number of indirect error handlers into account when rethrowing the exception
+⦁ Fixed bug: Considered the count of indirect error handlers when determining if an exception should be rethrown.
 
 v.0.11.1
-
-⦁ Disable nullable reference types
-⦁ Cover pre handler and post handlers errors with error handlers
+⦁ Disabled nullable reference types.
+⦁ Ensured error handlers cover errors in pre and post handlers.
 
 v.0.11.0
-
-⦁ Add non-generic message registration overloads to events, queries and messaging configuration
-⦁ Remove the sample project
-⦁ Add events and queries unit tests
+⦁ Introduced non-generic message registration overloads for events, queries, and messaging configuration.
+⦁ Removed the sample project.
+⦁ Added unit tests for events and queries.

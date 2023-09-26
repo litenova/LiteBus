@@ -3,7 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace LiteBus.Messaging.Abstractions.MediationStrategies;
+namespace LiteBus.Messaging.Abstractions;
 
 public static class AsyncEnumerable
 {

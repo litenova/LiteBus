@@ -5,7 +5,7 @@ using LiteBus.UnitTests.Data.FakeCommand.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeCommand.Handlers;
 
-public class FakeCommandHandlerWithoutResult : ICommandHandler<Messages.FakeCommand, FakeCommandResult>
+public sealed class FakeCommandHandlerWithoutResult : ICommandHandler<Messages.FakeCommand, FakeCommandResult>
 {
     public Task<FakeCommandResult> HandleAsync(Messages.FakeCommand message,
                                                CancellationToken cancellationToken = default)

@@ -33,7 +33,7 @@ public class QueryModuleBuilder
         return this;
     }
 
-    public QueryModuleBuilder RegisterFrom(Assembly assembly)
+    public QueryModuleBuilder RegisterFromAssembly(Assembly assembly)
     {
         foreach (var registrableQueryConstruct in assembly.GetTypes().Where(t => t.IsAssignableTo(typeof(IRegistrableQueryConstruct))))
         {

@@ -1,5 +1,4 @@
 ﻿using System;
-using LiteBus.Messaging.Abstractions.Descriptors;
 
 namespace LiteBus.Messaging.Abstractions;
 
