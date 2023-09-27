@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <a href="#overview">Overview</a> •
+  <a href="#specifications-and-features">Specifications and Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#configuration">Configuration</a> •
   <a href="#features-and-usages">Features and Usages</a> •
@@ -33,25 +33,25 @@
   <a href="#roadmap">Roadmap</a>
 </p>
 
-## Overview
+## Specifications and Features
 
-* Written in .NET 7
-* No Dependencies
-* Minimum Reflection Usage
-* Utilizing Covariance, Contravariance, and Polymorphism to Dispatch and Handle Messages
-* Built-in Messaging Types
-    * Command without Result `ICommand`
-    * Command with Result `ICommand<TResult>`
-    * Query `IQuery<TResult>`
-    * Stream Query `IStreamQuery<TResult>`: A type of query that returns `IAsyncEnumerable<TResult>`
-    * Event `IEvent`
-* Flexible and Extensible
-* Modular Design, Only Add What You Need
-* Utilizing C# 8 Default Interface Implementation Feature Resulting in Easy to Use API
-* Supports Polymorphism Dispatch
-* Orderable Handlers
-* Supports Plain Messages (Classes with no interface implementation)
-* Supports Generic Messages
+- Developed with .NET 7
+- Independent (No external dependencies)
+- Reduced use of reflection
+- Provides polymorphic dispatch and handling of messages with support for covariance and contravariance
+- Core Messaging Types include:
+  - `ICommand`: Command without result
+  - `ICommand<TResult>`: Command with a result
+  - `IQuery<TResult>`: Query
+  - `IStreamQuery<TResult>`: Query yielding `IAsyncEnumerable<TResult>`
+  - `IEvent`: Event
+- Designed for flexibility and extensibility
+- Modular architecture: Abstractions and implementations are provided in distinct packages
+- Allows ordering of handlers
+- Can handle plain messages (class types without specific interface implementations)
+- Supports generic messages
+- Features both global and individual pre and post handlers. These handlers also support covariance and contravariance
+- Events do not necessarily need to inherit from `IEvent`, accommodating DDD scenarios. This is beneficial for maintaining clean domain events without binding them to any particular library interface.
 
 ## Installation
 
