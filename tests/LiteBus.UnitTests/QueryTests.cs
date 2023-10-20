@@ -27,7 +27,7 @@ public sealed class QueryTests
         var serviceProvider = new ServiceCollection()
                               .AddLiteBus(configuration =>
                               {
-                                  configuration.AddQueries(builder =>
+                                  configuration.AddQueryModule(builder =>
                                   {
                                       // Global Handlers
                                       builder.Register<FakeGlobalQueryPreHandler>();
@@ -64,7 +64,7 @@ public sealed class QueryTests
         var serviceProvider = new ServiceCollection()
                               .AddLiteBus(configuration =>
                               {
-                                  configuration.AddQueries(builder =>
+                                  configuration.AddQueryModule(builder =>
                                   {
                                       // Global Handlers
                                       builder.Register<FakeGlobalQueryPreHandler>();

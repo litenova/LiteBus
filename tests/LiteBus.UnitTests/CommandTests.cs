@@ -27,7 +27,7 @@ public sealed class CommandTests
         var serviceProvider = new ServiceCollection()
                               .AddLiteBus(configuration =>
                               {
-                                  configuration.AddCommands(builder =>
+                                  configuration.AddCommandModule(builder =>
                                   {
                                       // Global Handlers
                                       builder.Register<FakeGlobalCommandPreHandler>();
@@ -64,7 +64,7 @@ public sealed class CommandTests
         var serviceProvider = new ServiceCollection()
                               .AddLiteBus(configuration =>
                               {
-                                  configuration.AddCommands(builder =>
+                                  configuration.AddCommandModule(builder =>
                                   {
                                       // Global Handlers
                                       builder.Register<FakeGlobalCommandPreHandler>();
