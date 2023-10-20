@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Internal.Mediator;
 using LiteBus.Messaging.Internal.Registry;
@@ -7,23 +8,37 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 
-internal class ModuleRegistry : IModuleRegistry
+/// <summary>
+/// Represents a module registry responsible for registering and initializing modules and their components.
+/// </summary>
+internal sealed class ModuleRegistry : IModuleRegistry
 {
     private readonly HashSet<IModule> _modules = new();
     private readonly IServiceCollection _services;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ModuleRegistry"/> class with the provided service collection.
+    /// </summary>
+    /// <param name="services">The service collection used for dependency injection.</param>
     public ModuleRegistry(IServiceCollection services)
     {
         _services = services;
     }
 
+    /// <summary>
+    /// Registers a module with the module registry.
+    /// </summary>
+    /// <param name="module">The module to register.</param>
+    /// <returns>The instance of the module registry for method chaining.</returns>
     public IModuleRegistry Register(IModule module)
     {
         _modules.Add(module);
-
         return this;
     }
 
+    /// <summary>
+    /// Initializes the registered modules and their components.
+    /// </summary>
     public void Initialize()
     {
         var messageRegistry = new MessageRegistry();
@@ -36,45 +51,27 @@ internal class ModuleRegistry : IModuleRegistry
 
         _services.TryAddTransient<IMessageMediator, MessageMediator>();
         _services.TryAddSingleton<IMessageRegistry>(messageRegistry);
+        _services.TryAddTransient<IExecutionContext>(_ => AmbientExecutionContext.Current);
 
         foreach (var descriptor in messageRegistry)
         {
-            foreach (var handlerDescriptor in descriptor.Handlers)
+            // Register handlers, post handlers, pre handlers, and error handlers for message descriptors.
+            foreach (var handlerDescriptor in descriptor.Handlers.Concat(descriptor.IndirectHandlers))
             {
                 _services.TryAddTransient(handlerDescriptor.HandlerType);
             }
 
-            foreach (var handlerDescriptor in descriptor.IndirectHandlers)
-            {
-                _services.TryAddTransient(handlerDescriptor.HandlerType);
-            }
-
-            foreach (var postHandleDescriptor in descriptor.PostHandlers)
+            foreach (var postHandleDescriptor in descriptor.PostHandlers.Concat(descriptor.IndirectPostHandlers))
             {
                 _services.TryAddTransient(postHandleDescriptor.PostHandlerType);
             }
 
-            foreach (var postHandleDescriptor in descriptor.IndirectPostHandlers)
-            {
-                _services.TryAddTransient(postHandleDescriptor.PostHandlerType);
-            }
-
-            foreach (var preHandleDescriptor in descriptor.PreHandlers)
+            foreach (var preHandleDescriptor in descriptor.PreHandlers.Concat(descriptor.IndirectPreHandlers))
             {
                 _services.TryAddTransient(preHandleDescriptor.PreHandlerType);
             }
 
-            foreach (var preHandleDescriptor in descriptor.IndirectPreHandlers)
-            {
-                _services.TryAddTransient(preHandleDescriptor.PreHandlerType);
-            }
-
-            foreach (var errorHandlerDescriptor in descriptor.ErrorHandlers)
-            {
-                _services.TryAddTransient(errorHandlerDescriptor.ErrorHandlerType);
-            }
-
-            foreach (var errorHandlerDescriptor in descriptor.IndirectErrorHandlers)
+            foreach (var errorHandlerDescriptor in descriptor.ErrorHandlers.Concat(descriptor.IndirectErrorHandlers))
             {
                 _services.TryAddTransient(errorHandlerDescriptor.ErrorHandlerType);
             }

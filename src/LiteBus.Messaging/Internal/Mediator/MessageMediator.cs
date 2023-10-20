@@ -1,6 +1,6 @@
 using System;
 using LiteBus.Messaging.Abstractions;
-using ExecutionContext = LiteBus.Messaging.Abstractions.ExecutionContext;
+using LiteBus.Messaging.Internal.Contexts.Execution;
 
 #nullable enable
 
