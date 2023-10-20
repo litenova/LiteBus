@@ -27,7 +27,7 @@ public sealed class EventTests
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(configuration =>
             {
-                configuration.AddEvents(builder =>
+                configuration.AddEventModule(builder =>
                 {
                     // Global Handlers
                     builder.Register<FakeGlobalEventPreHandler>();
@@ -67,7 +67,7 @@ public sealed class EventTests
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(configuration =>
             {
-                configuration.AddEvents(builder =>
+                configuration.AddEventModule(builder =>
                 {
                     // Global Handlers
                     builder.Register<FakeGlobalEventPreHandler>();

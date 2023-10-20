@@ -19,7 +19,7 @@ public sealed class PlainMessageTests
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(configuration =>
             {
-                configuration.AddEvents(_ => { }).AddMessaging(builder =>
+                configuration.AddEventModule(_ => { }).AddMessaging(builder =>
                 {
                     // Global Handlers
                     builder.Register<FakeGlobalCommandPostHandler>();
