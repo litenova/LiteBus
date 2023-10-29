@@ -45,16 +45,11 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
 
             messageResult = await (Task<TMessageResult>) handler.Handle(message);
 
-            await messageDependencies.RunPostHandlers(message, messageResult);
+            await messageDependencies.RunAsyncPostHandlers(message, messageResult);
         }
         catch (Exception e)
         {
-            if (messageDependencies.ErrorHandlers.Count + messageDependencies.IndirectErrorHandlers.Count == 0)
-            {
-                throw;
-            }
-
-            await messageDependencies.RunErrorHandlers(message, messageResult, e);
+            await messageDependencies.RunAsyncErrorHandlers(message, messageResult, e);
         }
 
         return messageResult;
