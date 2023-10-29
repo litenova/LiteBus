@@ -1,39 +1,39 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <TargetFramework>net7.0</TargetFramework>
-        <IsPackable>false</IsPackable>
+	<PropertyGroup>
+		<TargetFramework>net7.0</TargetFramework>
+		<IsPackable>false</IsPackable>
 
-        <!-- The Properties Below Added Due to the Converlet Known Issue with .NET 7 SDK        https://github.com/coverlet-coverage/coverlet/issues/1391 -->
+		<!-- The Properties Below Added Due to the Converlet Known Issue with .NET 7 SDK        https://github.com/coverlet-coverage/coverlet/issues/1391 -->
 
-        <CollectCoverage>true</CollectCoverage>
-        <CoverletOutputFormat>lcov</CoverletOutputFormat>
-        <CoverletOutput>../../coverage.info</CoverletOutput>
-    </PropertyGroup>
+		<CollectCoverage>true</CollectCoverage>
+		<CoverletOutputFormat>lcov</CoverletOutputFormat>
+		<CoverletOutput>../../coverage.info</CoverletOutput>
+	</PropertyGroup>
 
-    <ItemGroup>
-        <PackageReference Include="coverlet.msbuild" Version="6.0.0">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
-        <PackageReference Include="FluentAssertions" Version="6.12.0"/>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0"/>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0"/>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.7.1" />
-        <PackageReference Include="xunit" Version="2.5.0"/>
-        <PackageReference Include="xunit.runner.visualstudio" Version="2.5.0">
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-            <PrivateAssets>all</PrivateAssets>
-        </PackageReference>
-        <PackageReference Include="coverlet.collector" Version="6.0.0">
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-            <PrivateAssets>all</PrivateAssets>
-        </PackageReference>
-    </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="coverlet.msbuild" Version="6.0.0">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="FluentAssertions" Version="6.12.0"/>
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0"/>
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0"/>
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.7.2"/>
+		<PackageReference Include="xunit" Version="2.5.3"/>
+		<PackageReference Include="xunit.runner.visualstudio" Version="2.5.3">
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+			<PrivateAssets>all</PrivateAssets>
+		</PackageReference>
+		<PackageReference Include="coverlet.collector" Version="6.0.0">
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+			<PrivateAssets>all</PrivateAssets>
+		</PackageReference>
+	</ItemGroup>
 
-    <ItemGroup>
-        <ProjectReference Include="..\..\src\LiteBus.Extensions.MicrosoftDependencyInjection\LiteBus.Extensions.MicrosoftDependencyInjection.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus\LiteBus.csproj"/>
-    </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\LiteBus.Extensions.MicrosoftDependencyInjection\LiteBus.Extensions.MicrosoftDependencyInjection.csproj"/>
+		<ProjectReference Include="..\..\src\LiteBus\LiteBus.csproj"/>
+	</ItemGroup>
 
 </Project>
