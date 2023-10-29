@@ -36,8 +36,13 @@ public static class MessageContextExtensions
     /// <param name="messageResult">The result of the message handling process, if any.</param>
     /// <param name="exception">The exception that triggered the error handler.</param>
     /// <returns>A Task representing the asynchronous operation.</returns>
-    public static async Task RunErrorHandlers(this IMessageDependencies messageDependencies, object message, object messageResult, Exception exception)
+    public static async Task RunAsyncErrorHandlers(this IMessageDependencies messageDependencies, object message, object messageResult, Exception exception)
     {
+        if (messageDependencies.ErrorHandlers.Count + messageDependencies.IndirectErrorHandlers.Count == 0)
+        {
+            throw exception;
+        }
+
         foreach (var errorHandler in messageDependencies.IndirectErrorHandlers)
         {
             await (Task) errorHandler.Value.HandleError(message, exception, messageResult);
@@ -56,7 +61,7 @@ public static class MessageContextExtensions
     /// <param name="message">The message that has been handled.</param>
     /// <param name="messageResult">The result produced by the message handling process.</param>
     /// <returns>A Task representing the asynchronous operation.</returns>
-    public static async Task RunPostHandlers(this IMessageDependencies messageDependencies, object message, object messageResult)
+    public static async Task RunAsyncPostHandlers(this IMessageDependencies messageDependencies, object message, object messageResult)
     {
         foreach (var postHandler in messageDependencies.PostHandlers)
         {

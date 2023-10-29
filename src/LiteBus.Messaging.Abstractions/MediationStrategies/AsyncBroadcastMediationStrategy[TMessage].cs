@@ -38,16 +38,11 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
             executionTaskOfAllHandlers = Task.WhenAll(tasks);
             await executionTaskOfAllHandlers;
 
-            await messageDependencies.RunPostHandlers(message, executionTaskOfAllHandlers);
+            await messageDependencies.RunAsyncPostHandlers(message, executionTaskOfAllHandlers);
         }
         catch (Exception e)
         {
-            if (messageDependencies.ErrorHandlers.Count + messageDependencies.IndirectErrorHandlers.Count == 0)
-            {
-                throw;
-            }
-
-            await messageDependencies.RunErrorHandlers(message, executionTaskOfAllHandlers, e);
+            await messageDependencies.RunAsyncErrorHandlers(message, executionTaskOfAllHandlers, e);
         }
     }
 }

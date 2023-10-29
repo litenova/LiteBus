@@ -28,8 +28,6 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
             throw new MultipleHandlerFoundException(typeof(TMessage), messageDependencies.Handlers.Count);
         }
 
-        IAsyncEnumerator<TMessageResult>? messageResultAsyncEnumerator = null;
-
         IAsyncEnumerable<TMessageResult>? messageResultAsyncEnumerable = null;
 
         try
@@ -39,24 +37,15 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
             var handler = messageDependencies.Handlers.Single().Value;
 
             messageResultAsyncEnumerable = (IAsyncEnumerable<TMessageResult>) handler!.Handle(message);
-
-            // ReSharper disable once PossibleMultipleEnumeration
-            messageResultAsyncEnumerator = messageResultAsyncEnumerable.GetAsyncEnumerator(_cancellationToken);
         }
         catch (Exception exception)
         {
-            if (messageDependencies.ErrorHandlers.Count + messageDependencies.IndirectErrorHandlers.Count == 0)
-            {
-                throw;
-            }
-
-            await messageDependencies.RunErrorHandlers(message, messageResultAsyncEnumerable, exception);
+            await messageDependencies.RunAsyncErrorHandlers(message, messageResultAsyncEnumerable, exception);
         }
 
         messageResultAsyncEnumerable ??= Empty<TMessageResult>();
 
-        // ReSharper disable once PossibleMultipleEnumeration
-        messageResultAsyncEnumerator ??= messageResultAsyncEnumerable.GetAsyncEnumerator(_cancellationToken);
+        await using var messageResultAsyncEnumerator = messageResultAsyncEnumerable.GetAsyncEnumerator(_cancellationToken);
 
         TMessageResult? item = default;
         var hasResult = true;
@@ -71,12 +60,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
             }
             catch (Exception exception)
             {
-                if (messageDependencies.ErrorHandlers.Count + messageDependencies.IndirectErrorHandlers.Count == 0)
-                {
-                    throw;
-                }
-
-                await messageDependencies.RunErrorHandlers(message, messageResultAsyncEnumerable, exception);
+                await messageDependencies.RunAsyncErrorHandlers(message, messageResultAsyncEnumerable, exception);
             }
 
             if (item != null)
@@ -87,16 +71,11 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
         try
         {
-            await messageDependencies.RunPostHandlers(message, messageResultAsyncEnumerable);
+            await messageDependencies.RunAsyncPostHandlers(message, messageResultAsyncEnumerable);
         }
         catch (Exception exception)
         {
-            if (messageDependencies.ErrorHandlers.Count + messageDependencies.IndirectErrorHandlers.Count == 0)
-            {
-                throw;
-            }
-
-            await messageDependencies.RunErrorHandlers(message, messageResultAsyncEnumerable, exception);
+            await messageDependencies.RunAsyncErrorHandlers(message, messageResultAsyncEnumerable, exception);
         }
     }
 
