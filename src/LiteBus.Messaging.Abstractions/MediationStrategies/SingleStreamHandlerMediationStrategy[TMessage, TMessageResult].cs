@@ -53,7 +53,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
             await messageDependencies.RunErrorHandlers(message, messageResultAsyncEnumerable, exception);
         }
 
-        messageResultAsyncEnumerable ??= AsyncEnumerable.Empty<TMessageResult>();
+        messageResultAsyncEnumerable ??= Empty<TMessageResult>();
 
         // ReSharper disable once PossibleMultipleEnumeration
         messageResultAsyncEnumerator ??= messageResultAsyncEnumerable.GetAsyncEnumerator(_cancellationToken);
@@ -98,5 +98,13 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
             await messageDependencies.RunErrorHandlers(message, messageResultAsyncEnumerable, exception);
         }
+    }
+
+#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
+    // https://github.com/dotnet/runtime/issues/1128#issuecomment-571624647
+    private static async IAsyncEnumerable<T> Empty<T>()
+#pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
+    {
+        yield break;
     }
 }
