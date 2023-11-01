@@ -1,3 +1,8 @@
+v.0.18.0
+⦁ All post handlers expose message result as the second parameter.
+⦁ Fixed a bug where IEventPreHandler was not asynchronous.
+⦁ Added more unit tests
+
 v.0.17.1
 ⦁ Add `Items` property to `IExecutionContext` to allow passing data between handlers.
 

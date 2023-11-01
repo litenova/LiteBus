@@ -21,7 +21,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         _cancellationToken = cancellationToken;
     }
 
-    public async IAsyncEnumerable<TMessageResult> Mediate(TMessage message, IMessageDependencies messageDependencies)
+    public async IAsyncEnumerable<TMessageResult> Mediate(TMessage message, IMessageDependencies messageDependencies, IExecutionContext executionContext)
     {
         if (messageDependencies.Handlers.Count > 1)
         {
@@ -30,8 +30,11 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
         IAsyncEnumerable<TMessageResult>? messageResultAsyncEnumerable = null;
 
+
         try
         {
+            AmbientExecutionContext.Current = executionContext;
+            
             await messageDependencies.RunAsyncPreHandlers(message);
 
             var handler = messageDependencies.Handlers.Single().Value;
@@ -65,16 +68,19 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
             if (item != null)
             {
+                AmbientExecutionContext.Current = executionContext;
                 yield return item;
             }
         }
 
         try
         {
+            AmbientExecutionContext.Current = executionContext;
             await messageDependencies.RunAsyncPostHandlers(message, messageResultAsyncEnumerable);
         }
         catch (Exception exception)
         {
+            AmbientExecutionContext.Current = executionContext;
             await messageDependencies.RunAsyncErrorHandlers(message, messageResultAsyncEnumerable, exception);
         }
     }
