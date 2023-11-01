@@ -24,8 +24,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     /// </summary>
     /// <param name="message">The message to be processed.</param>
     /// <param name="messageDependencies">The dependencies required for message handling, including registered handlers, pre-handlers, post-handlers, and error handlers.</param>
+    /// <param name="executionContext"></param>
     /// <returns>A Task representing the asynchronous operation of the mediation process.</returns>
-    public async Task Mediate(TMessage message, IMessageDependencies messageDependencies)
+    public async Task Mediate(TMessage message, IMessageDependencies messageDependencies, IExecutionContext executionContext)
     {
         var executionTaskOfAllHandlers = Task.CompletedTask;
 

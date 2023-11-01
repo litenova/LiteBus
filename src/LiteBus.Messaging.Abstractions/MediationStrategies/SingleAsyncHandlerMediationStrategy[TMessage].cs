@@ -8,7 +8,7 @@ namespace LiteBus.Messaging.Abstractions;
 
 public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task> where TMessage : notnull
 {
-    public async Task Mediate(TMessage message, IMessageDependencies messageDependencies)
+    public async Task Mediate(TMessage message, IMessageDependencies messageDependencies, IExecutionContext executionContext)
     {
         if (messageDependencies.Handlers.Count > 1)
         {

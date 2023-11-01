@@ -7,7 +7,7 @@ namespace LiteBus.UnitTests.Data.Shared.EventGlobalPostHandlers;
 
 public sealed class FakeGlobalEventPostHandler : IEventPostHandler
 {
-    public Task PostHandleAsync(IEvent message, CancellationToken cancellationToken = default)
+    public Task PostHandleAsync(IEvent message, object messageResult, CancellationToken cancellationToken = default)
     {
         (message as FakeParentEvent)!.ExecutedTypes.Add(typeof(FakeGlobalEventPostHandler));
         return Task.CompletedTask;

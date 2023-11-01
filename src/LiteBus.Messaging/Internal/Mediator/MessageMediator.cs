@@ -36,8 +36,7 @@ internal sealed class MessageMediator : IMessageMediator
         // resolve the dependencies in lazy mode
         var messageDependencies = new MessageDependencies(messageType, descriptor, _serviceProvider);
 
-        // Mediate the message via the specified strategy
-        var result = options.MessageMediationStrategy.Mediate(message, messageDependencies);
+        var result = options.MessageMediationStrategy.Mediate(message, messageDependencies, AmbientExecutionContext.Current);
 
         // Restore the original execution context when the nested call is finished
         AmbientExecutionContext.Current = originalExecutionContext;

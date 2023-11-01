@@ -6,7 +6,8 @@ using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.Queries;
 
-public class QueryMediator : IQueryMediator
+/// <inheritdoc cref="IQueryMediator" />
+public sealed class QueryMediator : IQueryMediator
 {
     private readonly IMessageMediator _messageMediator;
 
