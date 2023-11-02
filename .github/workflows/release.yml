@@ -25,17 +25,17 @@ jobs:
         run: dotnet build --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --no-restore --verbosity normal
+        run: dotnet test --no-restore --results-directory ../../TestResults /p:CollectCoverage=true /p:CoverletOutput=../../TestResults/ /p:MergeWith=../../TestResults/coverage.info /p:CoverletOutputFormat=lcov
 
       - name: Publish Test Coverage Report to Coveralls.io
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: ./coverage.info
-          
+          path-to-lcov: TestResults/coverage.info
+
       - name: Generate Nuget Packages
         run: dotnet pack --configuration Release
-        
+
       - name: Publish Nuget Packages to Nuget.org
         run: dotnet nuget push src/**/bin/Release/*.nupkg -k ${{secrets.Nuget_API_Key}} -s https://api.nuget.org/v3/index.json --skip-duplicate
 

@@ -2,13 +2,10 @@
 
 	<PropertyGroup>
 		<TargetFramework>net7.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
 		<IsPackable>false</IsPackable>
-
-		<!-- The Properties Below Added Due to the Converlet Known Issue with .NET 7 SDK        https://github.com/coverlet-coverage/coverlet/issues/1391 -->
-
-		<CollectCoverage>true</CollectCoverage>
-		<CoverletOutputFormat>lcov</CoverletOutputFormat>
-		<CoverletOutput>../../coverage.info</CoverletOutput>
+		<IsTestProject>true</IsTestProject>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -20,7 +17,7 @@
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0"/>
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0"/>
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.7.2"/>
-		<PackageReference Include="xunit" Version="2.5.3"/>
+		<PackageReference Include="xunit" Version="2.6.0" />
 		<PackageReference Include="xunit.runner.visualstudio" Version="2.5.3">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			<PrivateAssets>all</PrivateAssets>
@@ -34,6 +31,10 @@
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\LiteBus.Extensions.MicrosoftDependencyInjection\LiteBus.Extensions.MicrosoftDependencyInjection.csproj"/>
 		<ProjectReference Include="..\..\src\LiteBus\LiteBus.csproj"/>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Remove="coverage.info" />
 	</ItemGroup>
 
 </Project>

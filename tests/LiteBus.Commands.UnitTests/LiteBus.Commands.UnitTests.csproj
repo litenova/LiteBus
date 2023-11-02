@@ -11,21 +11,29 @@
 	<ItemGroup>
 		<PackageReference Include="FluentAssertions" Version="6.12.0"/>
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0"/>
-		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.7.1"/>
-		<PackageReference Include="xunit" Version="2.4.2"/>
-		<PackageReference Include="xunit.runner.visualstudio" Version="2.4.5">
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.7.2" />
+		<PackageReference Include="xunit" Version="2.6.0" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="2.5.3">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			<PrivateAssets>all</PrivateAssets>
 		</PackageReference>
-		<PackageReference Include="coverlet.collector" Version="3.2.0">
+		<PackageReference Include="coverlet.collector" Version="6.0.0">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			<PrivateAssets>all</PrivateAssets>
+		</PackageReference>
+		<PackageReference Include="coverlet.msbuild" Version="6.0.0">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
 		<ProjectReference Include="..\..\src\LiteBus.Commands.Extensions.MicrosoftDependencyInjection\LiteBus.Commands.Extensions.MicrosoftDependencyInjection.csproj"/>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Remove="coverage.info" />
 	</ItemGroup>
 
 </Project>
