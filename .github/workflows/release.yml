@@ -25,7 +25,7 @@ jobs:
         run: dotnet build --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --no-restore --results-directory ../../TestResults /p:CollectCoverage=true /p:CoverletOutput=../../TestResults/ /p:MergeWith=../../TestResults/coverage.info /p:CoverletOutputFormat=lcov
+        run: dotnet test --no-restore --results-directory ../../TestResults /p:CollectCoverage=true /p:CoverletOutput=../../TestResults/ /p:CoverletOutputFormat=lcov
 
       - name: Publish Test Coverage Report to Coveralls.io
         uses: coverallsapp/github-action@master
