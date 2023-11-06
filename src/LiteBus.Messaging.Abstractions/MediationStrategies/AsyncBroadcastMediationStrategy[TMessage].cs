@@ -34,9 +34,11 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         {
             await messageDependencies.RunAsyncPreHandlers(message);
 
-            var tasks = messageDependencies.Handlers.Select(h => (Task) h.Value.Handle(message));
+            foreach (var handler in messageDependencies.Handlers)
+            {
+                await (Task) handler.Value.Handle(message);
+            }
 
-            executionTaskOfAllHandlers = Task.WhenAll(tasks);
             await executionTaskOfAllHandlers;
 
             await messageDependencies.RunAsyncPostHandlers(message, executionTaskOfAllHandlers);
