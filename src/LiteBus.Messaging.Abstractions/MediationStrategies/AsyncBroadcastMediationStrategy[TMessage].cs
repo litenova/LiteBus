@@ -1,7 +1,7 @@
 ﻿#nullable enable
 
 using System;
-using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -45,7 +45,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         }
         catch (Exception e)
         {
-            await messageDependencies.RunAsyncErrorHandlers(message, executionTaskOfAllHandlers, e);
+            await messageDependencies.RunAsyncErrorHandlers(message, executionTaskOfAllHandlers, ExceptionDispatchInfo.Capture(e));
         }
     }
 }

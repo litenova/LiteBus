@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -34,23 +35,23 @@ public static class MessageContextExtensions
     /// <param name="messageDependencies">The message dependencies encapsulating error handlers.</param>
     /// <param name="message">The message that was being handled when the error occurred.</param>
     /// <param name="messageResult">The result of the message handling process, if any.</param>
-    /// <param name="exception">The exception that triggered the error handler.</param>
+    /// <param name="exceptionDispatchInfo">The exception that triggered the error handler.</param>
     /// <returns>A Task representing the asynchronous operation.</returns>
-    public static async Task RunAsyncErrorHandlers(this IMessageDependencies messageDependencies, object message, object messageResult, Exception exception)
+    public static async Task RunAsyncErrorHandlers(this IMessageDependencies messageDependencies, object message, object messageResult, ExceptionDispatchInfo exceptionDispatchInfo)
     {
         if (messageDependencies.ErrorHandlers.Count + messageDependencies.IndirectErrorHandlers.Count == 0)
         {
-            throw exception;
+            exceptionDispatchInfo.Throw();
         }
 
         foreach (var errorHandler in messageDependencies.IndirectErrorHandlers)
         {
-            await (Task) errorHandler.Value.HandleError(message, exception, messageResult);
+            await (Task) errorHandler.Value.HandleError(message, exceptionDispatchInfo.SourceException, messageResult);
         }
 
         foreach (var errorHandler in messageDependencies.ErrorHandlers)
         {
-            await (Task) errorHandler.Value.HandleError(message, exception, exception);
+            await (Task) errorHandler.Value.HandleError(message, exceptionDispatchInfo.SourceException, exceptionDispatchInfo);
         }
     }
 

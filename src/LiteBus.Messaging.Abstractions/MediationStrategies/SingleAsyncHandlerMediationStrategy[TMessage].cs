@@ -2,6 +2,7 @@
 
 using System;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -31,7 +32,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         }
         catch (Exception e)
         {
-            await messageDependencies.RunAsyncErrorHandlers(message, messageResult, e);
+            await messageDependencies.RunAsyncErrorHandlers(message, messageResult, ExceptionDispatchInfo.Capture(e));
         }
     }
 }
