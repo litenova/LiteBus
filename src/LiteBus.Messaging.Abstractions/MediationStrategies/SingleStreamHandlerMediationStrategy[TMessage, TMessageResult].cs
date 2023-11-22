@@ -1,7 +1,9 @@
 ﻿#nullable enable
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -30,11 +32,10 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
         IAsyncEnumerable<TMessageResult>? messageResultAsyncEnumerable = null;
 
-
         try
         {
             AmbientExecutionContext.Current = executionContext;
-            
+
             await messageDependencies.RunAsyncPreHandlers(message);
 
             var handler = messageDependencies.Handlers.Single().Value;
@@ -43,7 +44,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         }
         catch (Exception exception)
         {
-            await messageDependencies.RunAsyncErrorHandlers(message, messageResultAsyncEnumerable, exception);
+            await messageDependencies.RunAsyncErrorHandlers(message, messageResultAsyncEnumerable, ExceptionDispatchInfo.Capture(exception));
         }
 
         messageResultAsyncEnumerable ??= Empty<TMessageResult>();
@@ -63,7 +64,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
             }
             catch (Exception exception)
             {
-                await messageDependencies.RunAsyncErrorHandlers(message, messageResultAsyncEnumerable, exception);
+                await messageDependencies.RunAsyncErrorHandlers(message, messageResultAsyncEnumerable, ExceptionDispatchInfo.Capture(exception));
             }
 
             if (item != null)
@@ -81,7 +82,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         catch (Exception exception)
         {
             AmbientExecutionContext.Current = executionContext;
-            await messageDependencies.RunAsyncErrorHandlers(message, messageResultAsyncEnumerable, exception);
+            await messageDependencies.RunAsyncErrorHandlers(message, messageResultAsyncEnumerable, ExceptionDispatchInfo.Capture(exception));
         }
     }
 

@@ -1,3 +1,6 @@
+v.0.18.2
+⦁ preserve the stack trace when rethrowing exception in case there are no error handlers.
+
 v.0.18.1
 ⦁ Make execution of event handlers synchronous by default.
 
