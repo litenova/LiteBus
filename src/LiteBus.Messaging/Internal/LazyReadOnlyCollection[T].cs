@@ -1,20 +1,19 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Internal;
 
-public class LazyReadOnlyCollection<T> : ILazyReadOnlyCollection<T>
+public sealed class LazyHandlerCollection<THandler, TDescriptor> : ILazyHandlerCollection<THandler, TDescriptor>
 {
-    private readonly List<Lazy<T>> _list;
+    private readonly List<LazyHandler<THandler, TDescriptor>> _list;
 
-    public LazyReadOnlyCollection(IEnumerable<Lazy<T>> source)
+    public LazyHandlerCollection(IEnumerable<LazyHandler<THandler, TDescriptor>> source)
     {
-        _list = new List<Lazy<T>>(source);
+        _list = new List<LazyHandler<THandler, TDescriptor>>(source);
     }
 
-    public IEnumerator<Lazy<T>> GetEnumerator()
+    public IEnumerator<LazyHandler<THandler, TDescriptor>> GetEnumerator()
     {
         return _list.GetEnumerator();
     }

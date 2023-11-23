@@ -1,10 +1,13 @@
 ﻿#nullable enable
 
 using System;
+using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
+using LiteBus.Events.Abstractions;
+using LiteBus.Messaging.Abstractions;
 
-namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Events.MediationStrategies;
 
 /// <summary>
 /// Represents an asynchronous broadcasting mediation strategy that processes a message across multiple handlers concurrently.
@@ -19,6 +22,13 @@ namespace LiteBus.Messaging.Abstractions;
 /// </remarks>
 public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task> where TMessage : notnull
 {
+    private readonly EventMediationSettings _settings;
+
+    public AsyncBroadcastMediationStrategy(EventMediationSettings settings)
+    {
+        _settings = settings;
+    }
+
     /// <summary>
     /// Mediates the given message by broadcasting it to all registered handlers concurrently.
     /// </summary>
@@ -34,9 +44,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         {
             await messageDependencies.RunAsyncPreHandlers(message);
 
-            foreach (var handler in messageDependencies.Handlers)
+            foreach (var lazyHandler in messageDependencies.Handlers.Where(x => _settings.FilterHandler(x.Descriptor.HandlerType)))
             {
-                await (Task) handler.Value.Handle(message);
+                await (Task) lazyHandler.Handler.Value.Handle(message);
             }
 
             await executionTaskOfAllHandlers;

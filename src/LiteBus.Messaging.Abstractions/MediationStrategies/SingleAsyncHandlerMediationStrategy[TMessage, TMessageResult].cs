@@ -37,7 +37,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         {
             await messageDependencies.RunAsyncPreHandlers(message);
 
-            var handler = messageDependencies.Handlers.Single().Value;
+            var handler = messageDependencies.Handlers.Single().Handler.Value;
 
             if (handler is null)
             {

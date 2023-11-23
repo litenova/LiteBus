@@ -20,12 +20,12 @@ public static class MessageContextExtensions
     {
         foreach (var preHandler in messageDependencies.IndirectPreHandlers)
         {
-            await (Task) preHandler.Value.PreHandle(message);
+            await (Task) preHandler.Handler.Value.PreHandle(message);
         }
 
         foreach (var preHandler in messageDependencies.PreHandlers)
         {
-            await (Task) preHandler.Value.PreHandle(message);
+            await (Task) preHandler.Handler.Value.PreHandle(message);
         }
     }
 
@@ -46,12 +46,12 @@ public static class MessageContextExtensions
 
         foreach (var errorHandler in messageDependencies.IndirectErrorHandlers)
         {
-            await (Task) errorHandler.Value.HandleError(message, exceptionDispatchInfo.SourceException, messageResult);
+            await (Task) errorHandler.Handler.Value.HandleError(message, exceptionDispatchInfo.SourceException, messageResult);
         }
 
         foreach (var errorHandler in messageDependencies.ErrorHandlers)
         {
-            await (Task) errorHandler.Value.HandleError(message, exceptionDispatchInfo.SourceException, exceptionDispatchInfo);
+            await (Task) errorHandler.Handler.Value.HandleError(message, exceptionDispatchInfo.SourceException, exceptionDispatchInfo);
         }
     }
 
@@ -66,12 +66,12 @@ public static class MessageContextExtensions
     {
         foreach (var postHandler in messageDependencies.PostHandlers)
         {
-            await (Task) postHandler.Value.PostHandle(message, messageResult);
+            await (Task) postHandler.Handler.Value.PostHandle(message, messageResult);
         }
 
         foreach (var postHandler in messageDependencies.IndirectPostHandlers)
         {
-            await (Task) postHandler.Value.PostHandle(message, messageResult);
+            await (Task) postHandler.Handler.Value.PostHandle(message, messageResult);
         }
     }
 }

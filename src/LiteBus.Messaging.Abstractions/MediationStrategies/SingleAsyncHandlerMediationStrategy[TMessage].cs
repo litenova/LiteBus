@@ -22,7 +22,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         {
             await messageDependencies.RunAsyncPreHandlers(message);
 
-            var handler = messageDependencies.Handlers.Single().Value;
+            var handler = messageDependencies.Handlers.Single().Handler.Value;
 
             messageResult = (Task) handler.Handle(message);
 
