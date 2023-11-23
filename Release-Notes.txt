@@ -1,3 +1,7 @@
+v.0.18.3
+⦁ Add `EventMediationSettings` to IEventMediator to allow configuring event mediation.
+⦁ Add `FilterHandler` to `EventMediationSettings` to allow filtering event handlers.
+
 v.0.18.2
 ⦁ preserve the stack trace when rethrowing exception in case there are no error handlers.
 

@@ -38,7 +38,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
             await messageDependencies.RunAsyncPreHandlers(message);
 
-            var handler = messageDependencies.Handlers.Single().Value;
+            var handler = messageDependencies.Handlers.Single().Handler.Value;
 
             messageResultAsyncEnumerable = (IAsyncEnumerable<TMessageResult>) handler!.Handle(message);
         }

@@ -40,6 +40,34 @@ public sealed class EventModuleTests
     }
     
     [Fact]
+    public async Task MediatingWithFiltered_ProductCreatedEvent_ShouldGoThroughHandlersCorrectly()
+    {
+        // Arrange
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration => { configuration.AddEventModule(builder => { builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly); }); })
+            .BuildServiceProvider();
+
+        var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
+        var @event = new ProductCreatedEvent();
+
+        // Act
+        await eventMediator.PublishAsync(@event, new EventMediationSettings
+        {
+            FilterHandler = type => type.IsAssignableTo(typeof(IFilteredEventHandler))
+        });
+
+        // Assert
+        @event.ExecutedTypes.Should().HaveCount(6);
+
+        @event.ExecutedTypes[0].Should().Be<GlobalEventPreHandler>();
+        @event.ExecutedTypes[1].Should().Be<ProductCreatedEventHandlerPreHandler>();
+        @event.ExecutedTypes[2].Should().Be<ProductCreatedEventHandler1>();
+        @event.ExecutedTypes[3].Should().Be<ProductCreatedEventHandlerPostHandler1>();
+        @event.ExecutedTypes[4].Should().Be<ProductCreatedEventHandlerPostHandler2>();
+        @event.ExecutedTypes[5].Should().Be<GlobalEventPostHandler>();
+    }
+    
+    [Fact]
     public async Task Mediating_ProductViewedEvent_ShouldGoThroughHandlersCorrectly()
     {
         // Arrange
