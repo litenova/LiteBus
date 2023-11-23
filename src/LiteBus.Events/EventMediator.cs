@@ -1,12 +1,13 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
+using LiteBus.Events.MediationStrategies;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Events;
 
 /// <inheritdoc cref="IEventMediator" />
-public class EventMediator : IEventPublisher
+public sealed class EventMediator : IEventPublisher
 {
     private readonly IMessageMediator _messageMediator;
 
@@ -15,9 +16,11 @@ public class EventMediator : IEventPublisher
         _messageMediator = messageMediator;
     }
 
-    public Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
+    public Task PublishAsync(IEvent @event, EventMediationSettings settings = null, CancellationToken cancellationToken = default)
     {
-        var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>();
+        settings ??= new EventMediationSettings();
+
+        var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(settings);
 
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
@@ -30,9 +33,11 @@ public class EventMediator : IEventPublisher
             });
     }
 
-    public Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
+    public Task PublishAsync<TEvent>(TEvent @event, EventMediationSettings settings = null, CancellationToken cancellationToken = default)
     {
-        var mediationStrategy = new AsyncBroadcastMediationStrategy<TEvent>();
+        settings ??= new EventMediationSettings();
+        
+        var mediationStrategy = new AsyncBroadcastMediationStrategy<TEvent>(settings);
 
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
