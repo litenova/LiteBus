@@ -31,7 +31,7 @@
 
 ## Features
 
-- Developed with .NET 7
+- Developed with .NET 8.0
 - Independent (No external dependencies)
 - Reduced use of reflection
 - Provides polymorphic dispatch and handling of messages with support for covariance and contravariance
