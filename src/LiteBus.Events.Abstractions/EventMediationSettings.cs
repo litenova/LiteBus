@@ -29,5 +29,5 @@ public sealed class EventMediationSettings
     /// A function that takes a <see cref="Type"/> representing the event handler type
     /// and returns a boolean indicating whether the handler should be invoked.
     /// </value>
-    public Func<Type, bool> FilterHandler { get; init; } = _ => true;
+    public Func<Type, bool> HandlerFilter { get; init; } = _ => true;
 }

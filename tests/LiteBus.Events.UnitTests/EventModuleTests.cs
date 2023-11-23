@@ -53,7 +53,7 @@ public sealed class EventModuleTests
         // Act
         await eventMediator.PublishAsync(@event, new EventMediationSettings
         {
-            FilterHandler = type => type.IsAssignableTo(typeof(IFilteredEventHandler))
+            HandlerFilter = type => type.IsAssignableTo(typeof(IFilteredEventHandler))
         });
 
         // Assert

@@ -44,7 +44,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         {
             await messageDependencies.RunAsyncPreHandlers(message);
 
-            foreach (var lazyHandler in messageDependencies.Handlers.Where(x => _settings.FilterHandler(x.Descriptor.HandlerType)))
+            foreach (var lazyHandler in messageDependencies.Handlers.Where(x => _settings.HandlerFilter(x.Descriptor.HandlerType)))
             {
                 await (Task) lazyHandler.Handler.Value.Handle(message);
             }

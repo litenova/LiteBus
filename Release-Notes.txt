@@ -1,3 +1,6 @@
+v.0.18.4
+⦁ Rename `FilterHandler` to `HandlerFilter` on `EventMediationSettings` as it is more more concise and directly states that it is a filter for handlers.
+
 v.0.18.3
 ⦁ Add `EventMediationSettings` to IEventMediator to allow configuring event mediation.
 ⦁ Add `FilterHandler` to `EventMediationSettings` to allow filtering event handlers.
