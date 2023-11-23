@@ -1,11 +1,11 @@
 <Project>
 
 	<PropertyGroup>
-		<TargetFramework>net7.0</TargetFramework>
+		<TargetFramework>net8.0</TargetFramework>
 		<LangVersion>latest</LangVersion>
 		<Authors>A. Shafie</Authors>
 		<PackageTags>mediator;cqrs</PackageTags>
-		<VersionPrefix>0.18.4</VersionPrefix>
+		<VersionPrefix>0.19.0</VersionPrefix>
 		<PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(SolutionDir)\Release-Notes.txt"))</PackageReleaseNotes>
 		<PackageIcon>icon.png</PackageIcon>
 		<Description>LiteBus is an easy-to-use and ambitious in-process mediator providing the foundation to implement Command Query Separation (CQS). It is implemented with minimal reflection and instead utilizes covariance and contravariance to provide its core functionality.</Description>
