@@ -28,32 +28,36 @@ public class MessageDependencies : IMessageDependencies
         IndirectErrorHandlers = ResolveHandlers(descriptor.IndirectErrorHandlers, (handlerType) => (IMessageErrorHandler) serviceProvider.GetService(handlerType));
     }
 
-    public ILazyReadOnlyCollection<IMessageHandler> Handlers { get; }
+    public ILazyHandlerCollection<IMessageHandler, IHandlerDescriptor> Handlers { get; }
 
-    public ILazyReadOnlyCollection<IMessageHandler> IndirectHandlers { get; }
+    public ILazyHandlerCollection<IMessageHandler, IHandlerDescriptor> IndirectHandlers { get; }
 
-    public ILazyReadOnlyCollection<IMessagePreHandler> PreHandlers { get; }
+    public ILazyHandlerCollection<IMessagePreHandler, IPreHandlerDescriptor> PreHandlers { get; }
 
-    public ILazyReadOnlyCollection<IMessagePreHandler> IndirectPreHandlers { get; }
+    public ILazyHandlerCollection<IMessagePreHandler, IPreHandlerDescriptor> IndirectPreHandlers { get; }
 
-    public ILazyReadOnlyCollection<IMessagePostHandler> PostHandlers { get; }
+    public ILazyHandlerCollection<IMessagePostHandler, IPostHandlerDescriptor> PostHandlers { get; }
 
-    public ILazyReadOnlyCollection<IMessagePostHandler> IndirectPostHandlers { get; }
+    public ILazyHandlerCollection<IMessagePostHandler, IPostHandlerDescriptor> IndirectPostHandlers { get; }
 
-    public ILazyReadOnlyCollection<IMessageErrorHandler> ErrorHandlers { get; }
+    public ILazyHandlerCollection<IMessageErrorHandler, IErrorHandlerDescriptor> ErrorHandlers { get; }
 
-    public ILazyReadOnlyCollection<IMessageErrorHandler> IndirectErrorHandlers { get; }
+    public ILazyHandlerCollection<IMessageErrorHandler, IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
 
     /// <summary>
     /// Resolves handlers from the provided descriptors and a handler resolution function.
     /// </summary>
-    private ILazyReadOnlyCollection<THandler> ResolveHandlers<TDescriptor, THandler>(
-        IReadOnlyCollection<TDescriptor> descriptors,
+    private ILazyHandlerCollection<THandler, TDescriptor> ResolveHandlers<THandler, TDescriptor>(
+        IEnumerable<TDescriptor> descriptors,
         Func<Type, THandler> resolveFunc)
     {
         return descriptors
             .OrderBy(d => GetOrder(d))
-            .Select(d => new Lazy<THandler>(() => resolveFunc(GetHandlerType(d))))
+            .Select(d => new LazyHandler<THandler, TDescriptor>
+            {
+                Handler = new Lazy<THandler>(() => resolveFunc(GetHandlerType(d))),
+                Descriptor = d
+            })
             .ToLazyReadOnlyCollection();
     }
 

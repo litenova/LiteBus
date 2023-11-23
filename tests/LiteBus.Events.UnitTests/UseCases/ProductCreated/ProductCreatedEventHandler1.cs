@@ -2,7 +2,7 @@ using LiteBus.Events.Abstractions;
 
 namespace LiteBus.Events.UnitTests.UseCases.ProductCreated;
 
-public sealed class ProductCreatedEventHandler1 : IEventHandler<ProductCreatedEvent>
+public sealed class ProductCreatedEventHandler1 : IFilteredEventHandler, IEventHandler<ProductCreatedEvent>
 {
     public Task HandleAsync(ProductCreatedEvent message, CancellationToken cancellationToken = default)
     {
