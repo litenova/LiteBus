@@ -1,3 +1,7 @@
+v.0.19.1
+⦁ Add 'ThrowOnNoHandlers' to `EventMediationSettings` to allow throwing an exception when no handlers are found for an event.
+⦁ Fixed a bug where the pre and post handlers were being executed even when the no main handlers were found.
+
 v.0.19.0
 ⦁ Upgraded to .NET 8.
 
