@@ -30,4 +30,17 @@ public sealed class EventMediationSettings
     /// and returns a boolean indicating whether the handler should be invoked.
     /// </value>
     public Func<Type, bool> HandlerFilter { get; init; } = _ => true;
+    
+    /// <summary>
+    /// Gets or sets a value indicating whether to throw an exception when no handler is found for an event.
+    /// </summary>
+    /// <remarks>
+    /// When set to true, the mediator will throw an exception if it cannot find a suitable handler
+    /// for a published event. The default behavior is false, which means the mediator will silently
+    /// ignore such cases.
+    /// </remarks>
+    /// <value>
+    /// True to throw an exception when no handler is found; false to ignore and proceed silently.
+    /// </value>
+    public bool ThrowIfNoHandlerFound { get; init; } = false;
 }

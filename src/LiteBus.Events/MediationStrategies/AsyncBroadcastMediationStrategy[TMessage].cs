@@ -40,6 +40,20 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     {
         var executionTaskOfAllHandlers = Task.CompletedTask;
 
+        var handlers = messageDependencies.Handlers
+            .Where(x => _settings.HandlerFilter(x.Descriptor.HandlerType))
+            .ToList();
+
+        if (handlers.Count == 0)
+        {
+            if (_settings.ThrowIfNoHandlerFound)
+            {
+                throw new InvalidOperationException($"No handler found for message type '{typeof(TMessage)}'.");
+            }
+
+            return;
+        }
+
         try
         {
             await messageDependencies.RunAsyncPreHandlers(message);
