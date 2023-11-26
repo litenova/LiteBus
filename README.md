@@ -16,9 +16,9 @@
     <img src="https://github.com/litenova/LiteBus/actions/workflows/release.yml/badge.svg" alt="CI/CD Badge">
   </a>
 
-   <a href='https://coveralls.io/github/litenova/LiteBus?branch=main'>
-    <img src='https://coveralls.io/repos/github/litenova/LiteBus/badge.svg?branch=main' alt='Coverage Status' />
-  </a>
+<a href="https://codecov.io/gh/litenova/LiteBus" >
+<img src="https://codecov.io/gh/litenova/LiteBus/graph/badge.svg?token=XBNYITSV5A"/>
+</a>
   <a href="https://www.nuget.org/packages/LiteBus">
     <img src="https://img.shields.io/nuget/vpre/LiteBus.svg" alt="LiteBus Nuget Version">
   </a>
