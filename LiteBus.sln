@@ -20,7 +20,7 @@ ProjectSection(SolutionItems) = preProject
 	LICENSE = LICENSE
 	README.md = README.md
 	global.json = global.json
-	Release-Notes.txt = Release-Notes.txt
+	Changelog.md = Changelog.md
 EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Messaging.Abstractions", "src\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj", "{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14}"
