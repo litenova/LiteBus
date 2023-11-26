@@ -13,25 +13,27 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Setup .NET 7
+      - name: Setup .NET 8
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: 7.0.x
+          global-json-file: global.json
 
       - name: Restore
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build --configuration Release --no-restore /p:ContinuousIntegrationBuild=true
 
       - name: Test
-        run: dotnet test --no-restore --results-directory ../../TestResults /p:CollectCoverage=true /p:CoverletOutput=../../TestResults/ /p:CoverletOutputFormat=lcov
+        run: dotnet test --no-restore --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
 
-      - name: Publish Test Coverage Report to Coveralls.io
-        uses: coverallsapp/github-action@master
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v3
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: TestResults/coverage.info
+          files: ./tests/LiteBus.Commands.UnitTests/coverage.cobertura.xml, ./tests/LiteBus.Events.UnitTests/coverage.cobertura.xml, ./tests/LiteBus.Queries.UnitTests/coverage.cobertura.xml, ./tests/LiteBus.UnitTests/coverage.cobertura.xml
+          flags: unittests
+          fail_ci_if_error: true
+          verbose: true
 
       - name: Generate Nuget Packages
         run: dotnet pack --configuration Release
