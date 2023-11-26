@@ -13,7 +13,7 @@ namespace LiteBus.Events.UnitTests;
 public sealed class EventModuleTests
 {
     [Fact]
-    public async Task Mediating_ProductCreatedEvent_ShouldGoThroughHandlersCorrectly()
+    public async Task mediating_simple_event_goes_through_registered_handlers_correctly()
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
@@ -38,9 +38,9 @@ public sealed class EventModuleTests
         @event.ExecutedTypes[6].Should().Be<ProductCreatedEventHandlerPostHandler2>();
         @event.ExecutedTypes[7].Should().Be<GlobalEventPostHandler>();
     }
-    
+
     [Fact]
-    public async Task MediatingWithFiltered_ProductCreatedEvent_ShouldGoThroughHandlersCorrectly()
+    public async Task mediating_ProductCreatedEvent_with_filtered_handlers_goes_through_registered_handlers_correctly()
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
@@ -51,10 +51,11 @@ public sealed class EventModuleTests
         var @event = new ProductCreatedEvent();
 
         // Act
-        await eventMediator.PublishAsync(@event, new EventMediationSettings
-        {
-            HandlerFilter = type => type.IsAssignableTo(typeof(IFilteredEventHandler))
-        });
+        await eventMediator.PublishAsync(@event,
+            new EventMediationSettings
+            {
+                HandlerFilter = type => type.IsAssignableTo(typeof(IFilteredEventHandler))
+            });
 
         // Assert
         @event.ExecutedTypes.Should().HaveCount(6);
@@ -66,9 +67,32 @@ public sealed class EventModuleTests
         @event.ExecutedTypes[4].Should().Be<ProductCreatedEventHandlerPostHandler2>();
         @event.ExecutedTypes[5].Should().Be<GlobalEventPostHandler>();
     }
-    
+
     [Fact]
-    public async Task Mediating_ProductViewedEvent_ShouldGoThroughHandlersCorrectly()
+    public async Task mediating_ProductCreatedEvent_with_no_handler_throw_exception_when_ThrowIfNoHandlerFound_is_set_true()
+    {
+        // Arrange
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration => { configuration.AddEventModule(builder => { builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly); }); })
+            .BuildServiceProvider();
+
+        var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
+        var @event = new ProductCreatedEvent();
+
+        // Act
+        var act = () => eventMediator.PublishAsync(@event,
+            new EventMediationSettings
+            {
+                HandlerFilter = _ => false,
+                ThrowIfNoHandlerFound = true
+            });
+        
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task mediating_generic_event_goes_through_registered_handlers_correctly()
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
@@ -76,6 +100,7 @@ public sealed class EventModuleTests
             .BuildServiceProvider();
 
         var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
+
         var @event = new ProductViewedEvent<Mobile>
         {
             ViewSource = new Mobile()
@@ -96,7 +121,7 @@ public sealed class EventModuleTests
         @event.ExecutedTypes[6].Should().Be<ProductViewedEventHandlerPostHandler2<Mobile>>();
         @event.ExecutedTypes[7].Should().Be<GlobalEventPostHandler>();
     }
-    
+
     [Fact]
     public async Task Mediating_ProductUpdatedEvent_ShouldGoThroughHandlersCorrectly()
     {
