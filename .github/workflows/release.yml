@@ -41,8 +41,5 @@ jobs:
       - name: Publish Nuget Packages to Nuget.org
         run: dotnet nuget push src/**/bin/Release/*.nupkg -k ${{secrets.Nuget_API_Key}} -s https://api.nuget.org/v3/index.json --skip-duplicate
 
-      - name: Publish Nuget Packages to Github
-        run: |
-          dotnet nuget add source --username litenova --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/litenova/index.json"
-          dotnet nuget push src/**/bin/Release/*.nupkg -s "github" --skip-duplicate
-          
+      - name: Publish Nuget Packages to GitHub Packages
+        run: dotnet nuget push src/**/bin/Release/*.nupkg -k ${{ secrets.GITHUB_TOKEN }} -s https://nuget.pkg.github.com/litenova/index.json --skip-duplicate   
