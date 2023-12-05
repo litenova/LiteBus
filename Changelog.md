@@ -1,5 +1,8 @@
 # Changelog
 
+## v.0.20.0
+- Revert TargetFramework to NET 7
+
 ## v.0.19.1
 - Add `ThrowOnNoHandlers` to `EventMediationSettings` to allow throwing an exception when no handlers are found for an event.
 - Fixed a bug where the pre and post handlers were being executed even when no main handlers were found.

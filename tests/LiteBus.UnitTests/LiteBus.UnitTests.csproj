@@ -1,22 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<ItemGroup>
-		<PackageReference Include="coverlet.msbuild" Version="6.0.0">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
-		<PackageReference Include="FluentAssertions" Version="6.12.0"/>
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0"/>
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0"/>
-		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0"/>
-		<PackageReference Include="xunit" Version="2.6.2"/>
-		<PackageReference Include="xunit.runner.visualstudio" Version="2.5.4">
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
+		<PackageReference Include="System.Linq.Async"/>
+		<PackageReference Include="FluentAssertions"/>
+		<PackageReference Include="Microsoft.NET.Test.Sdk"/>
+		<PackageReference Include="xunit"/>
+		<PackageReference Include="xunit.runner.visualstudio">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			<PrivateAssets>all</PrivateAssets>
 		</PackageReference>
-		<PackageReference Include="coverlet.collector" Version="6.0.0">
+		<PackageReference Include="coverlet.collector">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			<PrivateAssets>all</PrivateAssets>
+		</PackageReference>
+		<PackageReference Include="coverlet.msbuild">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 	</ItemGroup>
 
@@ -24,5 +24,5 @@
 		<ProjectReference Include="..\..\src\LiteBus.Extensions.MicrosoftDependencyInjection\LiteBus.Extensions.MicrosoftDependencyInjection.csproj"/>
 		<ProjectReference Include="..\..\src\LiteBus\LiteBus.csproj"/>
 	</ItemGroup>
-	
+
 </Project>
