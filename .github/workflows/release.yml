@@ -13,7 +13,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Setup .NET 8
+      - name: Install .NET
         uses: actions/setup-dotnet@v3
         with:
           global-json-file: global.json
