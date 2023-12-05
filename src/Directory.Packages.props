@@ -1,0 +1,5 @@
+<Project>
+	<ItemGroup>
+		<PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0"/>
+	</ItemGroup>
+</Project>

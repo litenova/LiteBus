@@ -1,12 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Events\LiteBus.Events.csproj" />
-        <ProjectReference Include="..\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.csproj" />
-    </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\LiteBus.Events\LiteBus.Events.csproj"/>
+		<ProjectReference Include="..\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.csproj"/>
+	</ItemGroup>
 
 </Project>
