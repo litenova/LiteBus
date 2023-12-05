@@ -1,5 +1,8 @@
 # Changelog
 
+## v.0.20.1
+- Rename `AddMessaging` method to `AddMessageModule`.
+
 ## v.0.20.0
 - Revert TargetFramework to NET 7
 
