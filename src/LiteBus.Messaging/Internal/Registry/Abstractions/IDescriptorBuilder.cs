@@ -10,13 +10,3 @@ internal interface IDescriptorBuilder
 
     IEnumerable<IDescriptor> Build(Type type);
 }
-
-internal interface IDescriptorBuilder<out TDescriptor> : IDescriptorBuilder where TDescriptor : IDescriptor
-{
-    IEnumerable<IDescriptor> IDescriptorBuilder.Build(Type type)
-    {
-        return (IEnumerable<IDescriptor>) Build(type);
-    }
-
-    new IEnumerable<TDescriptor> Build(Type type);
-}

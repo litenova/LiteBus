@@ -7,7 +7,7 @@ using LiteBus.Messaging.Internal.Extensions;
 namespace LiteBus.Messaging.Internal.Mediator;
 
 /// <inheritdoc cref="IMessageDependencies"/>
-public class MessageDependencies : IMessageDependencies
+internal sealed class MessageDependencies : IMessageDependencies
 {
     private readonly Type _messageType;
 
