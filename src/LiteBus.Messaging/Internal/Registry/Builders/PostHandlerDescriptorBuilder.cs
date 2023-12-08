@@ -7,14 +7,14 @@ using LiteBus.Messaging.Internal.Registry.Descriptors;
 
 namespace LiteBus.Messaging.Internal.Registry.Builders;
 
-public sealed class PostHandlerDescriptorBuilder : IDescriptorBuilder<IPostHandlerDescriptor>
+public sealed class PostHandlerDescriptorBuilder : IHandlerDescriptorBuilder
 {
     public bool CanBuild(Type type)
     {
         return type.IsAssignableTo(typeof(IMessagePostHandler));
     }
 
-    public IEnumerable<IPostHandlerDescriptor> Build(Type handlerType)
+    public IEnumerable<IHandlerDescriptor> Build(Type handlerType)
     {
         var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessagePostHandler<,>));
         var order = handlerType.GetOrderFromAttribute();
@@ -24,7 +24,14 @@ public sealed class PostHandlerDescriptorBuilder : IDescriptorBuilder<IPostHandl
             var messageType = @interface.GetGenericArguments()[0];
             var messageResultType = @interface.GetGenericArguments()[1];
 
-            yield return new PostHandlerDescriptor(handlerType, messageType, messageResultType, order);
+            yield return new PostHandlerDescriptor
+            {
+                MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
+                MessageResultType = messageResultType,
+                Order = order,
+                Tags = ArraySegment<string>.Empty,
+                HandlerType = handlerType
+            };
         }
     }
 }

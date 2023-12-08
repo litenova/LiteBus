@@ -4,9 +4,9 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Internal.Registry.Abstractions;
 
-internal interface IDescriptorBuilder
+internal interface IHandlerDescriptorBuilder
 {
     bool CanBuild(Type type);
 
-    IEnumerable<IDescriptor> Build(Type type);
+    IEnumerable<IHandlerDescriptor> Build(Type type);
 }

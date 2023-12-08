@@ -4,7 +4,7 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Internal;
 
-public sealed class LazyHandlerCollection<THandler, TDescriptor> : ILazyHandlerCollection<THandler, TDescriptor>
+public sealed class LazyHandlerCollection<THandler, TDescriptor> : ILazyHandlerCollection<THandler, TDescriptor> where TDescriptor : IHandlerDescriptor
 {
     private readonly List<LazyHandler<THandler, TDescriptor>> _list;
 

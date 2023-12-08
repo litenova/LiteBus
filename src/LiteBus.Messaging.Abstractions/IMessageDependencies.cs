@@ -11,7 +11,7 @@ public interface IMessageDependencies
     /// <value>
     /// The collection of direct message handlers.
     /// </value>
-    ILazyHandlerCollection<IMessageHandler, IHandlerDescriptor> Handlers { get; }
+    ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> Handlers { get; }
 
     /// <summary>
     /// Gets a lazy initialized read-only collection of indirect message handlers. These handlers can be used to handle messages in a more general manner, potentially handling a variety of different message types or performing logging or other cross-cutting concerns.
@@ -19,7 +19,7 @@ public interface IMessageDependencies
     /// <value>
     /// The collection of indirect message handlers.
     /// </value>
-    ILazyHandlerCollection<IMessageHandler, IHandlerDescriptor> IndirectHandlers { get; }
+    ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> IndirectHandlers { get; }
 
     /// <summary>
     /// Gets a lazy initialized read-only collection of direct pre-message handlers. These handlers are invoked before the primary message handlers and can be used for tasks such as validation or logging.

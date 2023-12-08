@@ -12,7 +12,7 @@ namespace LiteBus.Messaging.Internal.Registry;
 
 internal sealed class MessageRegistry : IMessageRegistry
 {
-    private readonly List<IDescriptorBuilder> _descriptorBuilders = new()
+    private readonly List<IHandlerDescriptorBuilder> _descriptorBuilders = new()
     {
         new HandlerDescriptorBuilder(),
         new ErrorHandlerDescriptorBuilder(),
@@ -20,7 +20,7 @@ internal sealed class MessageRegistry : IMessageRegistry
         new PreHandlerDescriptorBuilder()
     };
     private readonly List<MessageDescriptor> _messages = new();
-    private readonly List<IDescriptor> _descriptors = new();
+    private readonly List<IHandlerDescriptor> _descriptors = new();
     private readonly ConcurrentDictionary<Type, byte> _processedTypes = new();
     private readonly List<MessageDescriptor> _newMessages = new();
 

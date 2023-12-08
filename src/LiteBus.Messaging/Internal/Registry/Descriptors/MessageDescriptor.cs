@@ -4,13 +4,13 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Internal.Registry.Descriptors;
 
-internal class MessageDescriptor : IMessageDescriptor
+internal sealed class MessageDescriptor : IMessageDescriptor
 {
     private readonly List<IErrorHandlerDescriptor> _errorHandlers = new();
-    private readonly List<IHandlerDescriptor> _handlers = new();
+    private readonly List<IMainHandlerDescriptor> _handlers = new();
     private readonly List<IPostHandlerDescriptor> _postHandlers = new();
     private readonly List<IPreHandlerDescriptor> _preHandlers = new();
-    private readonly List<IHandlerDescriptor> _indirectHandlers = new();
+    private readonly List<IMainHandlerDescriptor> _indirectHandlers = new();
     private readonly List<IPostHandlerDescriptor> _indirectPostHandlers = new();
     private readonly List<IPreHandlerDescriptor> _indirectPreHandlers = new();
     private readonly List<IErrorHandlerDescriptor> _indirectErrorHandlers = new();
@@ -25,9 +25,9 @@ internal class MessageDescriptor : IMessageDescriptor
 
     public bool IsGeneric { get; }
 
-    public IReadOnlyCollection<IHandlerDescriptor> Handlers => _handlers;
+    public IReadOnlyCollection<IMainHandlerDescriptor> Handlers => _handlers;
 
-    public IReadOnlyCollection<IHandlerDescriptor> IndirectHandlers => _indirectHandlers;
+    public IReadOnlyCollection<IMainHandlerDescriptor> IndirectHandlers => _indirectHandlers;
 
     public IReadOnlyCollection<IPostHandlerDescriptor> PostHandlers => _postHandlers;
 
@@ -41,7 +41,7 @@ internal class MessageDescriptor : IMessageDescriptor
 
     public IReadOnlyCollection<IErrorHandlerDescriptor> IndirectErrorHandlers => _indirectErrorHandlers;
 
-    public void AddDescriptors(IEnumerable<IDescriptor> descriptors)
+    public void AddDescriptors(IEnumerable<IHandlerDescriptor> descriptors)
     {
         foreach (var descriptor in descriptors)
         {
@@ -49,7 +49,7 @@ internal class MessageDescriptor : IMessageDescriptor
         }
     }
 
-    public void AddDescriptor(IDescriptor descriptor)
+    public void AddDescriptor(IHandlerDescriptor descriptor)
     {
         if (MessageType == descriptor.MessageType)
         {
@@ -58,8 +58,8 @@ internal class MessageDescriptor : IMessageDescriptor
                 case IErrorHandlerDescriptor errorHandlerDescriptor:
                     _errorHandlers.Add(errorHandlerDescriptor);
                     break;
-                case IHandlerDescriptor handlerDescriptor:
-                    _handlers.Add(handlerDescriptor);
+                case IMainHandlerDescriptor mainHandlerDescriptor:
+                    _handlers.Add(mainHandlerDescriptor);
                     break;
                 case IPostHandlerDescriptor postHandlerDescriptor:
                     _postHandlers.Add(postHandlerDescriptor);
@@ -76,8 +76,8 @@ internal class MessageDescriptor : IMessageDescriptor
                 case IErrorHandlerDescriptor errorHandlerDescriptor:
                     _indirectErrorHandlers.Add(errorHandlerDescriptor);
                     break;
-                case IHandlerDescriptor handlerDescriptor:
-                    _indirectHandlers.Add(handlerDescriptor);
+                case IMainHandlerDescriptor mainHandlerDescriptor:
+                    _indirectHandlers.Add(mainHandlerDescriptor);
                     break;
                 case IPostHandlerDescriptor postHandlerDescriptor:
                     _indirectPostHandlers.Add(postHandlerDescriptor);

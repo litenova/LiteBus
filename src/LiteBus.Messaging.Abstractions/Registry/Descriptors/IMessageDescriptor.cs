@@ -1,14 +1,17 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace LiteBus.Messaging.Abstractions;
 
-public interface IMessageDescriptor : IDescriptor
+public interface IMessageDescriptor
 {
+    Type MessageType { get; }
+
     bool IsGeneric { get; }
 
-    IReadOnlyCollection<IHandlerDescriptor> Handlers { get; }
+    IReadOnlyCollection<IMainHandlerDescriptor> Handlers { get; }
 
-    IReadOnlyCollection<IHandlerDescriptor> IndirectHandlers { get; }
+    IReadOnlyCollection<IMainHandlerDescriptor> IndirectHandlers { get; }
 
     IReadOnlyCollection<IPostHandlerDescriptor> PostHandlers { get; }
 

@@ -7,14 +7,14 @@ using LiteBus.Messaging.Internal.Registry.Descriptors;
 
 namespace LiteBus.Messaging.Internal.Registry.Builders;
 
-internal sealed class ErrorHandlerDescriptorBuilder : IDescriptorBuilder<IErrorHandlerDescriptor>
+internal sealed class ErrorHandlerDescriptorBuilder : IHandlerDescriptorBuilder
 {
     public bool CanBuild(Type type)
     {
         return type.IsAssignableTo(typeof(IMessageErrorHandler));
     }
 
-    public IEnumerable<IErrorHandlerDescriptor> Build(Type handlerType)
+    public IEnumerable<IHandlerDescriptor> Build(Type handlerType)
     {
         var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessageErrorHandler<,>));
         var order = handlerType.GetOrderFromAttribute();
@@ -22,7 +22,16 @@ internal sealed class ErrorHandlerDescriptorBuilder : IDescriptorBuilder<IErrorH
         foreach (var @interface in interfaces)
         {
             var messageType = @interface.GetGenericArguments()[0];
-            yield return new ErrorHandlerDescriptor(handlerType, messageType, order);
+            var messageResultType = @interface.GetGenericArguments()[1];
+
+            yield return new ErrorHandlerDescriptor
+            {
+                MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
+                MessageResultType = messageResultType,
+                Order = order,
+                Tags = ArraySegment<string>.Empty,
+                HandlerType = handlerType,
+            };
         }
     }
 }
