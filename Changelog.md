@@ -1,5 +1,10 @@
 # Changelog
 
+## v.0.20.2
+- Refined Handle Descriptors
+- Removed Any Usage of Reflection in `MessageDependencies`
+- Removed Some Redundant Code From Descriptors
+
 ## v.0.20.1
 - Rename `AddMessaging` method to `AddMessageModule`.
 
