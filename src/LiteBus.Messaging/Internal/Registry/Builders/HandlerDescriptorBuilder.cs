@@ -7,7 +7,7 @@ using LiteBus.Messaging.Internal.Registry.Descriptors;
 
 namespace LiteBus.Messaging.Internal.Registry.Builders;
 
-public sealed class HandlerDescriptorBuilder : IDescriptorBuilder<IHandlerDescriptor>
+public sealed class HandlerDescriptorBuilder : IHandlerDescriptorBuilder
 {
     public bool CanBuild(Type type)
     {
@@ -25,7 +25,14 @@ public sealed class HandlerDescriptorBuilder : IDescriptorBuilder<IHandlerDescri
             var messageType = @interface.GetGenericArguments()[0];
             var messageResultType = @interface.GetGenericArguments()[1];
 
-            yield return new HandlerDescriptor(handlerType, messageType, messageResultType, order);
+            yield return new MainHandlerDescriptor
+            {
+                MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
+                MessageResultType = messageResultType,
+                Order = order,
+                Tags = ArraySegment<string>.Empty,
+                HandlerType = handlerType
+            };
         }
     }
 }

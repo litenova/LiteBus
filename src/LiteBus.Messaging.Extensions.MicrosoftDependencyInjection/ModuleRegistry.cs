@@ -63,17 +63,17 @@ internal sealed class ModuleRegistry : IModuleRegistry
 
             foreach (var postHandleDescriptor in descriptor.PostHandlers.Concat(descriptor.IndirectPostHandlers))
             {
-                _services.TryAddTransient(postHandleDescriptor.PostHandlerType);
+                _services.TryAddTransient(postHandleDescriptor.HandlerType);
             }
 
             foreach (var preHandleDescriptor in descriptor.PreHandlers.Concat(descriptor.IndirectPreHandlers))
             {
-                _services.TryAddTransient(preHandleDescriptor.PreHandlerType);
+                _services.TryAddTransient(preHandleDescriptor.HandlerType);
             }
 
             foreach (var errorHandlerDescriptor in descriptor.ErrorHandlers.Concat(descriptor.IndirectErrorHandlers))
             {
-                _services.TryAddTransient(errorHandlerDescriptor.ErrorHandlerType);
+                _services.TryAddTransient(errorHandlerDescriptor.HandlerType);
             }
         }
     }

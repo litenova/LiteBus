@@ -28,9 +28,9 @@ internal sealed class MessageDependencies : IMessageDependencies
         IndirectErrorHandlers = ResolveHandlers(descriptor.IndirectErrorHandlers, (handlerType) => (IMessageErrorHandler) serviceProvider.GetService(handlerType));
     }
 
-    public ILazyHandlerCollection<IMessageHandler, IHandlerDescriptor> Handlers { get; }
+    public ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> Handlers { get; }
 
-    public ILazyHandlerCollection<IMessageHandler, IHandlerDescriptor> IndirectHandlers { get; }
+    public ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> IndirectHandlers { get; }
 
     public ILazyHandlerCollection<IMessagePreHandler, IPreHandlerDescriptor> PreHandlers { get; }
 
@@ -49,10 +49,10 @@ internal sealed class MessageDependencies : IMessageDependencies
     /// </summary>
     private ILazyHandlerCollection<THandler, TDescriptor> ResolveHandlers<THandler, TDescriptor>(
         IEnumerable<TDescriptor> descriptors,
-        Func<Type, THandler> resolveFunc)
+        Func<Type, THandler> resolveFunc) where TDescriptor : IHandlerDescriptor
     {
         return descriptors
-            .OrderBy(d => GetOrder(d))
+            .OrderBy(d => d.Order)
             .Select(d => new LazyHandler<THandler, TDescriptor>
             {
                 Handler = new Lazy<THandler>(() => resolveFunc(GetHandlerType(d))),
@@ -62,26 +62,13 @@ internal sealed class MessageDependencies : IMessageDependencies
     }
 
     /// <summary>
-    /// Retrieves the order value from a descriptor.
-    /// </summary>
-    private static int GetOrder(object descriptor)
-    {
-        return (int) descriptor.GetType().GetProperty("Order").GetValue(descriptor);
-    }
-
-    /// <summary>
     /// Retrieves the handler type from a descriptor, adjusting for generic types as necessary.
     /// </summary>
-    private Type GetHandlerType(object descriptor)
+    private Type GetHandlerType(IHandlerDescriptor descriptor)
     {
-        var handlerTypeProp = descriptor.GetType().GetProperty("HandlerType") ??
-                              descriptor.GetType().GetProperty($"{descriptor.GetType().Name.Replace("Descriptor", string.Empty)}Type");
+        var handlerType = descriptor.HandlerType;
 
-        var isGenericProp = descriptor.GetType().GetProperty("IsGeneric");
-
-        var handlerType = (Type) handlerTypeProp.GetValue(descriptor);
-
-        if ((bool) isGenericProp.GetValue(descriptor))
+        if (descriptor.MessageType.IsGenericType)
         {
             handlerType = handlerType.MakeGenericType(_messageType.GetGenericArguments());
         }

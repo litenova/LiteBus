@@ -2,6 +2,6 @@
 
 namespace LiteBus.Messaging.Abstractions;
 
-public interface ILazyHandlerCollection<THandler, TDescriptor> : IReadOnlyCollection<LazyHandler<THandler, TDescriptor>>
+public interface ILazyHandlerCollection<THandler, TDescriptor> : IReadOnlyCollection<LazyHandler<THandler, TDescriptor>> where TDescriptor : IHandlerDescriptor
 {
 }
