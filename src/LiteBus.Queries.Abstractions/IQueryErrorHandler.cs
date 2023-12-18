@@ -5,6 +5,6 @@ namespace LiteBus.Queries.Abstractions;
 /// <summary>
 ///     Represents an action that is executed on each query error-handle phase
 /// </summary>
-public interface IQueryErrorHandler : IRegistrableQueryConstruct, IMessageErrorHandler<IQuery, object>
+public interface IQueryErrorHandler : IRegistrableQueryConstruct, IAsyncMessageErrorHandler<IQuery, object>
 {
 }

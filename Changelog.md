@@ -1,5 +1,8 @@
 # Changelog
 
+## v.0.21.0
+- Fixed Query, Event, and Command error handlers returning `object` instead of `Task`.
+
 ## v.0.20.2
 - Refined Handle Descriptors
 - Removed Any Usage of Reflection in `MessageDependencies`

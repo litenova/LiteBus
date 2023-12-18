@@ -11,6 +11,11 @@ public sealed class GlobalEventPreHandler : IEventPreHandler
             auditableEvent.ExecutedTypes.Add(GetType());
         }
 
+        if (message is ProblematicEvent.ProblematicEvent problematicEvent && problematicEvent.ThrowExceptionInType == GetType())
+        {
+            throw new Exception();
+        }
+
         return Task.CompletedTask;
     }
 }

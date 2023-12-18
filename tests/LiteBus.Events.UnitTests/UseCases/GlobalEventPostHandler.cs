@@ -10,6 +10,11 @@ public sealed class GlobalEventPostHandler : IEventPostHandler
         {
             auditableEvent.ExecutedTypes.Add(GetType());
         }
+        
+        if (message is ProblematicEvent.ProblematicEvent problematicEvent && problematicEvent.ThrowExceptionInType == GetType())
+        {
+            throw new Exception();
+        }
 
         return Task.CompletedTask;
     }

@@ -11,6 +11,11 @@ public sealed class GlobalCommandPreHandler : ICommandPreHandler
             auditableCommand.ExecutedTypes.Add(GetType());
         }
 
+        if (message is ProblematicCommand.ProblematicCommand problematicCommand && problematicCommand.ThrowExceptionInType == GetType())
+        {
+            throw new CommandException();
+        }
+
         return Task.CompletedTask;
     }
 }

@@ -2,6 +2,7 @@ using FluentAssertions;
 using LiteBus.Events.Abstractions;
 using LiteBus.Events.Extensions.MicrosoftDependencyInjection;
 using LiteBus.Events.UnitTests.UseCases;
+using LiteBus.Events.UnitTests.UseCases.ProblematicEvent;
 using LiteBus.Events.UnitTests.UseCases.ProductCreated;
 using LiteBus.Events.UnitTests.UseCases.ProductUpdated;
 using LiteBus.Events.UnitTests.UseCases.ProductViewed;
@@ -86,7 +87,7 @@ public sealed class EventModuleTests
                 HandlerFilter = _ => false,
                 ThrowIfNoHandlerFound = true
             });
-        
+
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
@@ -145,5 +146,61 @@ public sealed class EventModuleTests
         @event.ExecutedTypes[3].Should().Be<ProductUpdatedEventHandler3>();
         @event.ExecutedTypes[4].Should().Be<ProductUpdatedEventHandlerPostHandler1>();
         @event.ExecutedTypes[5].Should().Be<ProductUpdatedEventHandlerPostHandler2>();
+    }
+
+    [Fact]
+    public async Task mediating_a_event_with_exception_in_pre_handler_goes_through_error_handlers()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration => { configuration.AddEventModule(builder => { builder.RegisterFromAssembly(typeof(ProblematicEventPreHandler).Assembly); }); })
+            .BuildServiceProvider();
+
+        var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
+
+        var @event = new ProblematicEvent
+        {
+            ThrowExceptionInType = typeof(ProblematicEventPreHandler)
+        };
+
+        // Act
+        await eventMediator.PublishAsync(@event);
+
+        // Assert
+        @event.ExecutedTypes.Should().HaveCount(5);
+
+        @event.ExecutedTypes[0].Should().Be<GlobalEventPreHandler>();
+        @event.ExecutedTypes[1].Should().Be<ProblematicEventPreHandler>();
+        @event.ExecutedTypes[2].Should().Be<GlobalEventErrorHandler>();
+        @event.ExecutedTypes[3].Should().Be<ProblematicEventErrorHandler>();
+        @event.ExecutedTypes[4].Should().Be<ProblematicEventErrorHandler2>();
+    }
+
+    [Fact]
+    public async Task mediating_a_event_with_exception_in_post_global_handler_goes_through_error_handlers()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration => { configuration.AddEventModule(builder => { builder.RegisterFromAssembly(typeof(ProblematicEventPreHandler).Assembly); }); })
+            .BuildServiceProvider();
+
+        var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
+
+        var @event = new ProblematicEvent
+        {
+            ThrowExceptionInType = typeof(GlobalEventPostHandler)
+        };
+
+        // Act
+        await eventMediator.PublishAsync(@event);
+
+        // Assert
+        @event.ExecutedTypes.Should().HaveCount(8);
+        @event.ExecutedTypes[0].Should().Be<GlobalEventPreHandler>();
+        @event.ExecutedTypes[1].Should().Be<ProblematicEventPreHandler>();
+        @event.ExecutedTypes[2].Should().Be<ProblematicEventHandler>();
+        @event.ExecutedTypes[3].Should().Be<ProblematicEventPostHandler>();
+        @event.ExecutedTypes[4].Should().Be<GlobalEventPostHandler>();
+        @event.ExecutedTypes[5].Should().Be<GlobalEventErrorHandler>();
+        @event.ExecutedTypes[6].Should().Be<ProblematicEventErrorHandler>();
+        @event.ExecutedTypes[7].Should().Be<ProblematicEventErrorHandler2>();
     }
 }

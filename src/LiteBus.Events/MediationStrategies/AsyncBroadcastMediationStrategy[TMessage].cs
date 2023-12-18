@@ -1,8 +1,10 @@
 ﻿#nullable enable
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.ExceptionServices;
+using System.Security.Principal;
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
@@ -58,18 +60,28 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         {
             await messageDependencies.RunAsyncPreHandlers(message);
 
-            foreach (var lazyHandler in messageDependencies.Handlers.Where(x => _settings.HandlerFilter(x.Descriptor.HandlerType)))
-            {
-                await (Task) lazyHandler.Handler.Value.Handle(message);
-            }
+            var sequentialExecutionTask = PublishSequentially(message, messageDependencies);
 
-            await executionTaskOfAllHandlers;
+            await sequentialExecutionTask;
 
-            await messageDependencies.RunAsyncPostHandlers(message, executionTaskOfAllHandlers);
+            await messageDependencies.RunAsyncPostHandlers(message, sequentialExecutionTask);
         }
         catch (Exception e)
         {
             await messageDependencies.RunAsyncErrorHandlers(message, executionTaskOfAllHandlers, ExceptionDispatchInfo.Capture(e));
+        }
+    }
+
+    private async Task PublishSequentially(TMessage message, IMessageDependencies messageDependencies)
+    {
+        foreach (var lazyHandler in messageDependencies.Handlers)
+        {
+            if (_settings.HandlerFilter(lazyHandler.Descriptor.HandlerType))
+            {
+                var handleTask = (Task) lazyHandler.Handler.Value.Handle(message);
+
+                await handleTask;
+            }
         }
     }
 }
