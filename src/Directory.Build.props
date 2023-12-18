@@ -5,7 +5,7 @@
 		<LangVersion>latest</LangVersion>
 		<Authors>A. Shafie</Authors>
 		<PackageTags>mediator;cqrs</PackageTags>
-		<VersionPrefix>0.20.2</VersionPrefix>
+		<VersionPrefix>0.21.0</VersionPrefix>
 		<PackageIcon>icon.png</PackageIcon>
 		<Description>LiteBus is an easy-to-use and ambitious in-process mediator providing the foundation to implement Command Query Separation (CQS). It is implemented with minimal reflection and instead utilizes covariance and contravariance to provide its core functionality.</Description>
 		<PackageProjectUrl>https://github.com/litenova/LiteBus</PackageProjectUrl>

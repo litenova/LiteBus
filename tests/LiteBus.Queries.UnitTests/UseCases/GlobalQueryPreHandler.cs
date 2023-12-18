@@ -11,6 +11,11 @@ public sealed class GlobalQueryPreHandler : IQueryPreHandler
             auditableQuery.ExecutedTypes.Add(GetType());
         }
 
+        if (message is ProblematicQuery.ProblematicQuery problematicQuery && problematicQuery.ThrowExceptionInType == GetType())
+        {
+            throw new Exception();
+        }
+
         return Task.CompletedTask;
     }
 }
