@@ -10,10 +10,15 @@ namespace LiteBus.Messaging.Internal.Mediator;
 internal sealed class MessageDependencies : IMessageDependencies
 {
     private readonly Type _messageType;
+    private readonly IEnumerable<string> _tags;
 
-    public MessageDependencies(Type messageType, IMessageDescriptor descriptor, IServiceProvider serviceProvider)
+    public MessageDependencies(Type messageType,
+                               IMessageDescriptor descriptor,
+                               IServiceProvider serviceProvider,
+                               IEnumerable<string> tags)
     {
         _messageType = messageType;
+        _tags = tags;
 
         Handlers = ResolveHandlers(descriptor.Handlers, (handlerType) => (IMessageHandler) serviceProvider.GetService(handlerType));
         IndirectHandlers = ResolveHandlers(descriptor.IndirectHandlers, (handlerType) => (IMessageHandler) serviceProvider.GetService(handlerType));
@@ -53,6 +58,7 @@ internal sealed class MessageDependencies : IMessageDependencies
     {
         return descriptors
             .OrderBy(d => d.Order)
+            .Where(d => d.Tags.Count == 0 || d.Tags.Intersect(_tags).Any())
             .Select(d => new LazyHandler<THandler, TDescriptor>
             {
                 Handler = new Lazy<THandler>(() => resolveFunc(GetHandlerType(d))),

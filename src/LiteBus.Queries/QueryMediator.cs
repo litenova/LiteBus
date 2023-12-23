@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿#nullable enable
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
@@ -16,10 +17,12 @@ public sealed class QueryMediator : IQueryMediator
         _messageMediator = messageMediator;
     }
 
-    public Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query, CancellationToken cancellationToken = default)
+    public Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
+                                                       QueryMediationSettings? queryMediationSettings = null,
+                                                       CancellationToken cancellationToken = default)
     {
+        queryMediationSettings ??= new QueryMediationSettings();
         var mediationStrategy = new SingleAsyncHandlerMediationStrategy<IQuery<TQueryResult>, TQueryResult>();
-
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
         return _messageMediator.Mediate(query,
@@ -27,15 +30,17 @@ public sealed class QueryMediator : IQueryMediator
             {
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,
-                CancellationToken = cancellationToken
+                CancellationToken = cancellationToken,
+                Tags = queryMediationSettings.Filters.Tags
             });
     }
 
     public IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
+                                                                    QueryMediationSettings? queryMediationSettings = null,
                                                                     CancellationToken cancellationToken = default)
     {
+        queryMediationSettings ??= new QueryMediationSettings();
         var mediationStrategy = new SingleStreamHandlerMediationStrategy<IStreamQuery<TQueryResult>, TQueryResult>(cancellationToken);
-
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
         return _messageMediator.Mediate(query,
@@ -43,7 +48,8 @@ public sealed class QueryMediator : IQueryMediator
             {
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,
-                CancellationToken = cancellationToken
+                CancellationToken = cancellationToken,
+                Tags = queryMediationSettings.Filters.Tags
             });
     }
 }

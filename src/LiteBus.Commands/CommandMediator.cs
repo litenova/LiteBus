@@ -1,4 +1,6 @@
-﻿using System.Threading;
+﻿#nullable enable
+
+using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
@@ -6,7 +8,7 @@ using LiteBus.Messaging.Abstractions;
 namespace LiteBus.Commands;
 
 /// <inheritdoc cref="ICommandMediator" />
-public class CommandMediator : ICommandMediator
+public sealed class CommandMediator : ICommandMediator
 {
     private readonly IMessageMediator _messageMediator;
 
@@ -15,8 +17,11 @@ public class CommandMediator : ICommandMediator
         _messageMediator = messageMediator;
     }
 
-    public Task SendAsync(ICommand command, CancellationToken cancellationToken = default)
+    public Task SendAsync(ICommand command,
+                          CommandMediationSettings? commandMediationSettings = default,
+                          CancellationToken cancellationToken = default)
     {
+        commandMediationSettings ??= new CommandMediationSettings();
         var mediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand>();
 
         var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
@@ -25,15 +30,18 @@ public class CommandMediator : ICommandMediator
         {
             MessageMediationStrategy = mediationStrategy,
             MessageResolveStrategy = findStrategy,
-            CancellationToken = cancellationToken
+            CancellationToken = cancellationToken,
+            Tags = commandMediationSettings.Filters.Tags
         };
 
         return _messageMediator.Mediate(command, options);
     }
 
     public Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
+                                                          CommandMediationSettings? commandMediationSettings = null,
                                                           CancellationToken cancellationToken = default)
     {
+        commandMediationSettings ??= new CommandMediationSettings();
         var mediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand<TCommandResult>, TCommandResult>();
         var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
@@ -41,7 +49,8 @@ public class CommandMediator : ICommandMediator
         {
             MessageResolveStrategy = findStrategy,
             MessageMediationStrategy = mediationStrategy,
-            CancellationToken = cancellationToken
+            CancellationToken = cancellationToken,
+            Tags = commandMediationSettings.Filters.Tags
         };
 
         return _messageMediator.Mediate(command, options);

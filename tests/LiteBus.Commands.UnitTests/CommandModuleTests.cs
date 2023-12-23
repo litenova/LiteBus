@@ -2,10 +2,12 @@ using FluentAssertions;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Commands.Extensions.MicrosoftDependencyInjection;
 using LiteBus.Commands.UnitTests.UseCases;
+using LiteBus.Commands.UnitTests.UseCases.CommandWithTag;
 using LiteBus.Commands.UnitTests.UseCases.CreateProduct;
 using LiteBus.Commands.UnitTests.UseCases.LogActivity;
 using LiteBus.Commands.UnitTests.UseCases.ProblematicCommand;
 using LiteBus.Commands.UnitTests.UseCases.UpdateProduct;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -118,7 +120,7 @@ public sealed class CommandModuleTests
         command.ExecutedTypes[3].Should().Be<ProblematicCommandErrorHandler>();
         command.ExecutedTypes[4].Should().Be<ProblematicCommandErrorHandler2>();
     }
-    
+
     [Fact]
     public async Task mediating_a_command_with_exception_in_post_global_handler_goes_through_error_handlers()
     {
@@ -147,5 +149,64 @@ public sealed class CommandModuleTests
         command.ExecutedTypes[5].Should().Be<GlobalCommandErrorHandler>();
         command.ExecutedTypes[6].Should().Be<ProblematicCommandErrorHandler>();
         command.ExecutedTypes[7].Should().Be<ProblematicCommandErrorHandler2>();
+    }
+
+    [Fact]
+    public async Task mediating_an_command_with_specified_tag_goes_through_handlers_with_that_tag_and_handlers_without_any_tag_correctly()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration => { configuration.AddCommandModule(builder => { builder.RegisterFromAssembly(typeof(ProblematicCommandPreHandler).Assembly); }); })
+            .BuildServiceProvider();
+
+        var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
+
+        var @command = new CommandWithTag();
+
+        var settings = new CommandMediationSettings
+        {
+            Filters =
+            {
+                Tags = new[] { Tags.Tag1 }
+            }
+        };
+
+        // Act
+        await commandMediator.SendAsync(@command, settings);
+
+        // Assert
+        @command.ExecutedTypes.Should().HaveCount(7);
+        @command.ExecutedTypes[0].Should().Be<GlobalCommandPreHandler>();
+        @command.ExecutedTypes[1].Should().Be<CommandWithTagPreHandler1>();
+        @command.ExecutedTypes[2].Should().Be<CommandWithTagPreHandler3>();
+        @command.ExecutedTypes[3].Should().Be<CommandWithTagPreHandler4>();
+        @command.ExecutedTypes[4].Should().Be<CommandWithTagHandler1>();
+        @command.ExecutedTypes[5].Should().Be<CommandWithTagPostHandler1>();
+        @command.ExecutedTypes[6].Should().Be<GlobalCommandPostHandler>();
+    }
+
+    [Fact]
+    public async Task mediating_the_an_command_with_both_all_available_tags_will_fail_as_there_are_two_main_handlers()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration => { configuration.AddCommandModule(builder => { builder.RegisterFromAssembly(typeof(ProblematicCommandPreHandler).Assembly); }); })
+            .BuildServiceProvider();
+
+        var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
+
+        var @command = new CommandWithTag();
+
+        var settings = new CommandMediationSettings
+        {
+            Filters =
+            {
+                Tags = new[] { Tags.Tag1, Tags.Tag2 }
+            }
+        };
+
+        // Act
+        Func<Task> act = async () => await commandMediator.SendAsync(@command, settings);
+
+        // Assert
+        await act.Should().ThrowAsync<MultipleHandlerFoundException>();
     }
 }

@@ -18,6 +18,7 @@ public sealed class PreHandlerDescriptorBuilder : IHandlerDescriptorBuilder
     {
         var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessagePreHandler<>));
         var order = handlerType.GetOrderFromAttribute();
+        var tags = handlerType.GetTagsFromAttribute();
 
         foreach (var @interface in interfaces)
         {
@@ -27,7 +28,7 @@ public sealed class PreHandlerDescriptorBuilder : IHandlerDescriptorBuilder
             {
                 MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
                 Order = order,
-                Tags = ArraySegment<string>.Empty,
+                Tags = tags,
                 HandlerType = handlerType
             };
         }

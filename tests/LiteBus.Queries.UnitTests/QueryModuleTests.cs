@@ -1,4 +1,5 @@
 using FluentAssertions;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Queries.Extensions.MicrosoftDependencyInjection;
@@ -6,6 +7,7 @@ using LiteBus.Queries.UnitTests.UseCases;
 using LiteBus.Queries.UnitTests.UseCases.GetProduct;
 using LiteBus.Queries.UnitTests.UseCases.GetProductByCriteria;
 using LiteBus.Queries.UnitTests.UseCases.ProblematicQuery;
+using LiteBus.Queries.UnitTests.UseCases.QueryWithTag;
 using LiteBus.Queries.UnitTests.UseCases.StreamProducts;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -149,5 +151,64 @@ public sealed class QueryModuleTests
         query.ExecutedTypes[5].Should().Be<GlobalQueryErrorHandler>();
         query.ExecutedTypes[6].Should().Be<ProblematicQueryErrorHandler>();
         query.ExecutedTypes[7].Should().Be<ProblematicQueryErrorHandler2>();
+    }
+
+    [Fact]
+    public async Task mediating_an_query_with_specified_tag_goes_through_handlers_with_that_tag_and_handlers_without_any_tag_correctly()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration => { configuration.AddQueryModule(builder => { builder.RegisterFromAssembly(typeof(ProblematicQueryPreHandler).Assembly); }); })
+            .BuildServiceProvider();
+
+        var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
+
+        var @query = new QueryWithTag();
+
+        var settings = new QueryMediationSettings
+        {
+            Filters =
+            {
+                Tags = new[] { Tags.Tag1 }
+            }
+        };
+
+        // Act
+        await queryMediator.QueryAsync(@query, settings);
+
+        // Assert
+        @query.ExecutedTypes.Should().HaveCount(7);
+        @query.ExecutedTypes[0].Should().Be<GlobalQueryPreHandler>();
+        @query.ExecutedTypes[1].Should().Be<QueryWithTagPreHandler1>();
+        @query.ExecutedTypes[2].Should().Be<QueryWithTagPreHandler3>();
+        @query.ExecutedTypes[3].Should().Be<QueryWithTagPreHandler4>();
+        @query.ExecutedTypes[4].Should().Be<QueryWithTagHandler1>();
+        @query.ExecutedTypes[5].Should().Be<QueryWithTagPostHandler1>();
+        @query.ExecutedTypes[6].Should().Be<GlobalQueryPostHandler>();
+    }
+
+    [Fact]
+    public async Task mediating_the_an_query_with_both_all_available_tags_will_fail_as_there_are_two_main_handlers()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration => { configuration.AddQueryModule(builder => { builder.RegisterFromAssembly(typeof(ProblematicQueryPreHandler).Assembly); }); })
+            .BuildServiceProvider();
+
+        var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
+
+        var @query = new QueryWithTag();
+
+        var settings = new QueryMediationSettings
+        {
+            Filters =
+            {
+                Tags = new[] { Tags.Tag1, Tags.Tag2 }
+            }
+        };
+
+        // Act
+        Func<Task> act = async () => await queryMediator.QueryAsync(@query, settings);
+
+        // Assert
+        await act.Should().ThrowAsync<MultipleHandlerFoundException>();
     }
 }
