@@ -43,7 +43,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         var executionTaskOfAllHandlers = Task.CompletedTask;
 
         var handlers = messageDependencies.Handlers
-            .Where(x => _settings.HandlerFilter(x.Descriptor.HandlerType))
+            .Where(x => _settings.Filters.HandlerPredicate(x.Descriptor.HandlerType))
             .ToList();
 
         if (handlers.Count == 0)
@@ -60,7 +60,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         {
             await messageDependencies.RunAsyncPreHandlers(message);
 
-            var sequentialExecutionTask = PublishSequentially(message, messageDependencies);
+            var sequentialExecutionTask = PublishSequentially(message, handlers);
 
             await sequentialExecutionTask;
 
@@ -72,16 +72,13 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         }
     }
 
-    private async Task PublishSequentially(TMessage message, IMessageDependencies messageDependencies)
+    private static async Task PublishSequentially(TMessage message, IEnumerable<LazyHandler<IMessageHandler, IMainHandlerDescriptor>> mainHandlers)
     {
-        foreach (var lazyHandler in messageDependencies.Handlers)
+        foreach (var lazyHandler in mainHandlers)
         {
-            if (_settings.HandlerFilter(lazyHandler.Descriptor.HandlerType))
-            {
-                var handleTask = (Task) lazyHandler.Handler.Value.Handle(message);
+            var handleTask = (Task) lazyHandler.Handler.Value.Handle(message);
 
-                await handleTask;
-            }
+            await handleTask;
         }
     }
 }

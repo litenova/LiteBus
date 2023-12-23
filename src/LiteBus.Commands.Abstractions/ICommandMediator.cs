@@ -1,26 +1,35 @@
-﻿using System.Threading;
+﻿#nullable enable
+
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace LiteBus.Commands.Abstractions;
 
 /// <summary>
-///     Sends commands to their corresponding handlers
+/// Represents the mediator interface for sending commands within the application.
 /// </summary>
 public interface ICommandMediator
 {
     /// <summary>
-    ///     Sends a command without result to its corresponding handler
+    /// Asynchronously sends a command for mediation.
     /// </summary>
-    /// <param name="command">the command to send</param>
-    /// <param name="cancellationToken">cancellation token</param>
-    /// <returns></returns>
-    Task SendAsync(ICommand command, CancellationToken cancellationToken = default);
+    /// <param name="command">The command to be sent.</param>
+    /// <param name="commandMediationSettings">Optional settings for command mediation.</param>
+    /// <param name="cancellationToken">Cancellation token for the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    Task SendAsync(ICommand command,
+                   CommandMediationSettings? commandMediationSettings = null,
+                   CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     Sends a command to its corresponding handler and returns the command result
+    /// Asynchronously sends a command for mediation and returns a result.
     /// </summary>
-    /// <param name="command">the command to send</param>
-    /// <param name="cancellationToken">cancellation token</param>
-    /// <returns>The command result</returns>
-    Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command, CancellationToken cancellationToken = default);
+    /// <typeparam name="TCommandResult">The type of the result returned by the command.</typeparam>
+    /// <param name="command">The command to be sent.</param>
+    /// <param name="commandMediationSettings">Optional settings for command mediation.</param>
+    /// <param name="cancellationToken">Cancellation token for the operation.</param>
+    /// <returns>A task representing the asynchronous operation with a result of type <typeparamref name="TCommandResult"/>.</returns>
+    Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
+                                                   CommandMediationSettings? commandMediationSettings = null,
+                                                   CancellationToken cancellationToken = default);
 }

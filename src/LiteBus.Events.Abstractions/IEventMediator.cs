@@ -1,29 +1,31 @@
-﻿using System.Threading;
+﻿#nullable enable
+
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace LiteBus.Events.Abstractions;
 
 /// <summary>
-/// Defines the interface for an event mediator that facilitates the publishing of events.
+/// Represents the mediator interface for publishing events within the application.
 /// </summary>
 public interface IEventMediator
 {
     /// <summary>
-    /// Publishes an event asynchronously.
+    /// Asynchronously publishes an event.
     /// </summary>
-    /// <param name="event">The event to publish.</param>
-    /// <param name="settings">Optional settings for event mediation. If null, default settings are used.</param>
-    /// <param name="cancellationToken">A token for cancelling the publish operation.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    Task PublishAsync(IEvent @event, EventMediationSettings settings = null, CancellationToken cancellationToken = default);
+    /// <param name="event">The event to be published.</param>
+    /// <param name="eventMediationSettings">Optional settings for event mediation.</param>
+    /// <param name="cancellationToken">Cancellation token for the operation.</param>
+    /// <returns>A task representing the asynchronous event publication operation.</returns>
+    Task PublishAsync(IEvent @event, EventMediationSettings? eventMediationSettings = null, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Publishes an event asynchronously.
+    /// Asynchronously publishes an event with a specific type.
     /// </summary>
-    /// <typeparam name="TEvent">The type of the event to publish.</typeparam>
-    /// <param name="event">The event to publish.</param>
-    /// <param name="settings">Optional settings for event mediation. If null, default settings are used.</param>
-    /// <param name="cancellationToken">A token for cancelling the publish operation.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    Task PublishAsync<TEvent>(TEvent @event, EventMediationSettings settings = null, CancellationToken cancellationToken = default);
+    /// <typeparam name="TEvent">The type of the event to be published.</typeparam>
+    /// <param name="event">The event to be published.</param>
+    /// <param name="eventMediationSettings">Optional settings for event mediation.</param>
+    /// <param name="cancellationToken">Cancellation token for the operation.</param>
+    /// <returns>A task representing the asynchronous event publication operation.</returns>
+    Task PublishAsync<TEvent>(TEvent @event, EventMediationSettings? eventMediationSettings = null, CancellationToken cancellationToken = default) where TEvent : notnull;
 }

@@ -18,6 +18,7 @@ public sealed class PostHandlerDescriptorBuilder : IHandlerDescriptorBuilder
     {
         var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessagePostHandler<,>));
         var order = handlerType.GetOrderFromAttribute();
+        var tags = handlerType.GetTagsFromAttribute();
 
         foreach (var @interface in interfaces)
         {
@@ -29,7 +30,7 @@ public sealed class PostHandlerDescriptorBuilder : IHandlerDescriptorBuilder
                 MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
                 MessageResultType = messageResultType,
                 Order = order,
-                Tags = ArraySegment<string>.Empty,
+                Tags = tags,
                 HandlerType = handlerType
             };
         }

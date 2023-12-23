@@ -1,4 +1,6 @@
-﻿using System.Threading;
+﻿#nullable enable
+
+using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 using LiteBus.Events.MediationStrategies;
@@ -16,12 +18,10 @@ public sealed class EventMediator : IEventPublisher
         _messageMediator = messageMediator;
     }
 
-    public Task PublishAsync(IEvent @event, EventMediationSettings settings = null, CancellationToken cancellationToken = default)
+    public Task PublishAsync(IEvent @event, EventMediationSettings? eventMediationSettings = null, CancellationToken cancellationToken = default)
     {
-        settings ??= new EventMediationSettings();
-
-        var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(settings);
-
+        eventMediationSettings ??= new EventMediationSettings();
+        var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(eventMediationSettings);
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
         return _messageMediator.Mediate(@event,
@@ -29,16 +29,15 @@ public sealed class EventMediator : IEventPublisher
             {
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,
-                CancellationToken = cancellationToken
+                CancellationToken = cancellationToken,
+                Tags = eventMediationSettings.Filters.Tags
             });
     }
 
-    public Task PublishAsync<TEvent>(TEvent @event, EventMediationSettings settings = null, CancellationToken cancellationToken = default)
+    public Task PublishAsync<TEvent>(TEvent @event, EventMediationSettings? eventMediationSettings = null, CancellationToken cancellationToken = default) where TEvent : notnull
     {
-        settings ??= new EventMediationSettings();
-        
-        var mediationStrategy = new AsyncBroadcastMediationStrategy<TEvent>(settings);
-
+        eventMediationSettings ??= new EventMediationSettings();
+        var mediationStrategy = new AsyncBroadcastMediationStrategy<TEvent>(eventMediationSettings);
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
         return _messageMediator.Mediate(@event,
@@ -46,7 +45,8 @@ public sealed class EventMediator : IEventPublisher
             {
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,
-                CancellationToken = cancellationToken
+                CancellationToken = cancellationToken,
+                Tags = eventMediationSettings.Filters.Tags
             });
     }
 }

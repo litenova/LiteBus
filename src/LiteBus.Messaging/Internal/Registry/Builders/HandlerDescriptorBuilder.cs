@@ -24,13 +24,14 @@ public sealed class HandlerDescriptorBuilder : IHandlerDescriptorBuilder
         {
             var messageType = @interface.GetGenericArguments()[0];
             var messageResultType = @interface.GetGenericArguments()[1];
+            var tags = handlerType.GetTagsFromAttribute();
 
             yield return new MainHandlerDescriptor
             {
                 MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
                 MessageResultType = messageResultType,
                 Order = order,
-                Tags = ArraySegment<string>.Empty,
+                Tags = tags,
                 HandlerType = handlerType
             };
         }

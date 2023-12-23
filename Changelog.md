@@ -1,5 +1,10 @@
 # Changelog
 
+## v.0.22.0
+- Introduce tag-based handler filtering through `HandlerTag` and `HandlerTags` attributes.
+- Add `CommandMediationSettings` to `ICommandMediator` to allow configuring command mediation.
+- Add `QueryMediationSettings` to `IQueryMediator` to allow configuring query mediation.
+
 ## v.0.21.0
 - Fixed Query, Event, and Command error handlers returning `object` instead of `Task`.
 

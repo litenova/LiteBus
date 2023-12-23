@@ -2,6 +2,7 @@ using FluentAssertions;
 using LiteBus.Events.Abstractions;
 using LiteBus.Events.Extensions.MicrosoftDependencyInjection;
 using LiteBus.Events.UnitTests.UseCases;
+using LiteBus.Events.UnitTests.UseCases.EventWithTag;
 using LiteBus.Events.UnitTests.UseCases.ProblematicEvent;
 using LiteBus.Events.UnitTests.UseCases.ProductCreated;
 using LiteBus.Events.UnitTests.UseCases.ProductUpdated;
@@ -55,7 +56,10 @@ public sealed class EventModuleTests
         await eventMediator.PublishAsync(@event,
             new EventMediationSettings
             {
-                HandlerFilter = type => type.IsAssignableTo(typeof(IFilteredEventHandler))
+                Filters =
+                {
+                    HandlerPredicate = type => type.IsAssignableTo(typeof(IFilteredEventHandler))
+                }
             });
 
         // Assert
@@ -84,8 +88,11 @@ public sealed class EventModuleTests
         var act = () => eventMediator.PublishAsync(@event,
             new EventMediationSettings
             {
-                HandlerFilter = _ => false,
-                ThrowIfNoHandlerFound = true
+                ThrowIfNoHandlerFound = true,
+                Filters =
+                {
+                    HandlerPredicate = _ => false
+                }
             });
 
         // Assert
@@ -202,5 +209,74 @@ public sealed class EventModuleTests
         @event.ExecutedTypes[5].Should().Be<GlobalEventErrorHandler>();
         @event.ExecutedTypes[6].Should().Be<ProblematicEventErrorHandler>();
         @event.ExecutedTypes[7].Should().Be<ProblematicEventErrorHandler2>();
+    }
+
+    [Fact]
+    public async Task mediating_an_event_with_specified_tag_goes_through_handlers_with_that_tag_and_handlers_without_any_tag_correctly()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration => { configuration.AddEventModule(builder => { builder.RegisterFromAssembly(typeof(ProblematicEventPreHandler).Assembly); }); })
+            .BuildServiceProvider();
+
+        var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
+
+        var @event = new EventWithTag();
+
+        var settings = new EventMediationSettings
+        {
+            Filters =
+            {
+                Tags = new[] { Tags.Tag1 }
+            }
+        };
+
+        // Act
+        await eventMediator.PublishAsync(@event, settings);
+
+        // Assert
+        @event.ExecutedTypes.Should().HaveCount(7);
+        @event.ExecutedTypes[0].Should().Be<GlobalEventPreHandler>();
+        @event.ExecutedTypes[1].Should().Be<EventWithTagEventHandlerPreHandler1>();
+        @event.ExecutedTypes[2].Should().Be<EventWithTagEventHandler1>();
+        @event.ExecutedTypes[3].Should().Be<EventWithTagEventHandler3>();
+        @event.ExecutedTypes[4].Should().Be<EventWithTagEventHandler4>();
+        @event.ExecutedTypes[5].Should().Be<EventWithTagEventHandlerPostHandler1>();
+        @event.ExecutedTypes[6].Should().Be<GlobalEventPostHandler>();
+    }
+
+    [Fact]
+    public async Task mediating_the_an_event_with_both_all_available_tags_goes_through_all_handlers_correctly()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration => { configuration.AddEventModule(builder => { builder.RegisterFromAssembly(typeof(ProblematicEventPreHandler).Assembly); }); })
+            .BuildServiceProvider();
+
+        var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
+
+        var @event = new EventWithTag();
+
+        var settings = new EventMediationSettings
+        {
+            Filters =
+            {
+                Tags = new[] { Tags.Tag1, Tags.Tag2 }
+            }
+        };
+
+        // Act
+        await eventMediator.PublishAsync(@event, settings);
+
+        // Assert
+        @event.ExecutedTypes.Should().HaveCount(10);
+        @event.ExecutedTypes[0].Should().Be<GlobalEventPreHandler>();
+        @event.ExecutedTypes[1].Should().Be<EventWithTagEventHandlerPreHandler1>();
+        @event.ExecutedTypes[2].Should().Be<EventWithTagEventHandlerPreHandler2>();
+        @event.ExecutedTypes[3].Should().Be<EventWithTagEventHandler1>();
+        @event.ExecutedTypes[4].Should().Be<EventWithTagEventHandler2>();
+        @event.ExecutedTypes[5].Should().Be<EventWithTagEventHandler3>();
+        @event.ExecutedTypes[6].Should().Be<EventWithTagEventHandler4>();
+        @event.ExecutedTypes[7].Should().Be<EventWithTagEventHandlerPostHandler1>();
+        @event.ExecutedTypes[8].Should().Be<EventWithTagEventHandlerPostHandler2>();
+        @event.ExecutedTypes[9].Should().Be<GlobalEventPostHandler>();
     }
 }
