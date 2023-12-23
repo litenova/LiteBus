@@ -4,7 +4,7 @@ namespace LiteBus.Queries.UnitTests.UseCases;
 
 public class GlobalQueryErrorHandler : IQueryErrorHandler
 {
-    public Task HandleErrorAsync(IQuery message, object messageResult, CancellationToken cancellationToken = default)
+    public Task HandleErrorAsync(IQuery message, object? messageResult, Exception exception, CancellationToken cancellationToken = default)
     {
         if (message is IAuditableQuery auditableQuery)
         {

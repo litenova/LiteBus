@@ -1,5 +1,8 @@
 # Changelog
 
+## v.0.23.0
+- Fix the missing `Exception` parameter in `IAsyncMessageErrorHandler[TMessage, TMessageResult]` and `IAsyncMessageErrorHandler[TMessage]` interfaces.
+
 ## v.0.22.0
 - Introduce tag-based handler filtering through `HandlerTag` and `HandlerTags` attributes.
 - Add `CommandMediationSettings` to `ICommandMediator` to allow configuring command mediation.
