@@ -1,5 +1,3 @@
-using System;
-
 namespace LiteBus.UnitTests.Data.FakeCommand.Messages;
 
 public sealed class FakeCommandResult

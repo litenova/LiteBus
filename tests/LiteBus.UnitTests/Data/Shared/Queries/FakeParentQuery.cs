@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace LiteBus.UnitTests.Data.Shared.Queries;
 
 public abstract class FakeParentQuery

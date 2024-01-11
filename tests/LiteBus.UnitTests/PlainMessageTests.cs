@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using FluentAssertions;
+﻿using FluentAssertions;
 using LiteBus.Events.Abstractions;
 using LiteBus.Events.Extensions.MicrosoftDependencyInjection;
 using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;

@@ -1,5 +1,3 @@
-using System.Threading;
-using System.Threading.Tasks;
 using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.UnitTests.Data.FakeQuery.PreHandlers;

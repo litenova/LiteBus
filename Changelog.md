@@ -1,5 +1,10 @@
 # Changelog
 
+## v.0.23.1
+- Add `QueryMediatorExtensions` for backward compatibility.
+- Add `CommandMediatorExtensions` for backward compatibility.
+- Add `EventMediatorExtensions` for backward compatibility.
+
 ## v.0.23.0
 - Fix the missing `Exception` parameter in `IAsyncMessageErrorHandler[TMessage, TMessageResult]` and `IAsyncMessageErrorHandler[TMessage]` interfaces.
 

@@ -1,5 +1,3 @@
-using System.Threading;
-using System.Threading.Tasks;
 using LiteBus.Queries.Abstractions;
 using LiteBus.UnitTests.Data.Shared.Queries;
 
