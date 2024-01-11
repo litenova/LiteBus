@@ -1,5 +1,3 @@
-using System;
-
 namespace LiteBus.UnitTests.Data.FakeGenericEvent.Messages;
 
 public class FakeGenericEventResult

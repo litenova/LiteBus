@@ -1,5 +1,3 @@
-using System;
-
 namespace LiteBus.UnitTests.Data.FakeGenericQuery.Messages;
 
 public sealed class FakeGenericQueryResult
