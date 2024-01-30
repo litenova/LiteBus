@@ -25,7 +25,7 @@ internal sealed class MessageMediator : IMessageMediator
         var originalExecutionContext = AmbientExecutionContext.Current;
 
         // Create a new execution context for the current scope
-        AmbientExecutionContext.Current = new ExecutionContext(options.CancellationToken);
+        AmbientExecutionContext.Current = new ExecutionContext(options.CancellationToken, options.Tags);
 
         // Get the actual type of the message
         var messageType = message.GetType();
