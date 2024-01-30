@@ -1,5 +1,8 @@
 # Changelog
 
+## v.0.24.0
+- Upgraded to .NET 8.
+
 ## v.0.23.1
 - Add `QueryMediatorExtensions` for backward compatibility.
 - Add `CommandMediatorExtensions` for backward compatibility.
