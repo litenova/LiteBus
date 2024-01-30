@@ -19,4 +19,9 @@ public interface IExecutionContext
     /// Gets a key/value collection that can be used to share data within the scope of this execution.
     /// </summary>
     IDictionary<object, object?> Items { get; }
+
+    /// <summary>
+    /// Gets the collection of specified tags used to filter message handlers (i.e., pre, main and post) during mediation.
+    /// </summary>
+    IReadOnlyCollection<string> Tags { get; }
 }

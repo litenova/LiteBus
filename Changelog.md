@@ -1,5 +1,8 @@
 # Changelog
 
+## v.0.24.1
+- Add `Tags` to `IExecutionContext`.
+
 ## v.0.24.0
 - Upgraded to .NET 8.
 
