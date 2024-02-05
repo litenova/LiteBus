@@ -28,7 +28,7 @@ jobs:
         run: dotnet test --no-restore --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
 
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: ./tests/LiteBus.Commands.UnitTests/coverage.opencover.xml, ./tests/LiteBus.Events.UnitTests/coverage.opencover.xml, ./tests/LiteBus.Queries.UnitTests/coverage.opencover.xml, ./tests/LiteBus.UnitTests/coverage.opencover.xml
           flags: unittests
