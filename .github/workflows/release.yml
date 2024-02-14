@@ -32,7 +32,8 @@ jobs:
         with:
           files: ./tests/LiteBus.Commands.UnitTests/coverage.opencover.xml, ./tests/LiteBus.Events.UnitTests/coverage.opencover.xml, ./tests/LiteBus.Queries.UnitTests/coverage.opencover.xml, ./tests/LiteBus.UnitTests/coverage.opencover.xml
           flags: unittests
-          fail_ci_if_error: true
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
 
       - name: Generate Nuget Packages
