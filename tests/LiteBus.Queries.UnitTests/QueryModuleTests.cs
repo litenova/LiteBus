@@ -211,4 +211,29 @@ public sealed class QueryModuleTests
         // Assert
         await act.Should().ThrowAsync<MultipleHandlerFoundException>();
     }
+
+    [Fact]
+    public async Task mediating_a_stream_query_that_is_aborted_in_pre_handler_goes_through_correct_handlers()
+    {
+        // Arrange
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration => { configuration.AddQueryModule(builder => { builder.RegisterFromAssembly(typeof(GetProductQuery).Assembly); }); })
+            .BuildServiceProvider();
+
+        var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
+        var query = new StreamProductsQuery
+            {
+                AbortInPreHandler = true
+            };
+
+        // Act
+        var queryResult = await queryMediator.StreamAsync(query).ToListAsync();
+
+        // Assert
+        queryResult.Should().BeEmpty();
+        query.ExecutedTypes.Should().HaveCount(2);
+
+        query.ExecutedTypes[0].Should().Be<GlobalQueryPreHandler>();
+        query.ExecutedTypes[1].Should().Be<StreamProductsQueryHandlerPreHandler>();
+    }
 }

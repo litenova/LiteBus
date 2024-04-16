@@ -122,6 +122,32 @@ public sealed class CommandModuleTests
     }
 
     [Fact]
+    public async Task mediating_a_command_that_is_aborted_in_pre_handler_goes_through_correct_handlers()
+    {
+        // Arrange
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration => { configuration.AddCommandModule(builder => { builder.RegisterFromAssembly(typeof(CreateProductCommand).Assembly); }); })
+            .BuildServiceProvider();
+
+        var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
+
+        var command = new CreateProductCommand
+        {
+            AbortInPreHandler = true
+        };
+
+        // Act
+        var commandResult = await commandMediator.SendAsync(command);
+
+        // Assert
+        commandResult.CorrelationId.Should().Be(Guid.Empty);
+        command.ExecutedTypes.Should().HaveCount(2);
+
+        command.ExecutedTypes[0].Should().Be<GlobalCommandPreHandler>();
+        command.ExecutedTypes[1].Should().Be<CreateProductCommandHandlerPreHandler>();
+    }
+
+    [Fact]
     public async Task mediating_a_command_with_exception_in_post_global_handler_goes_through_error_handlers()
     {
         var serviceProvider = new ServiceCollection()

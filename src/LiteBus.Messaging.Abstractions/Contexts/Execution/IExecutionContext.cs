@@ -24,4 +24,15 @@ public interface IExecutionContext
     /// Gets the collection of specified tags used to filter message handlers (i.e., pre, main and post) during mediation.
     /// </summary>
     IReadOnlyCollection<string> Tags { get; }
+
+    /// <summary>
+    /// The result of the message mediation.
+    /// </summary>
+    object? MessageResult { get; set; }
+
+    /// <summary>
+    /// Aborts the execution of the current mediation execution.
+    /// </summary>
+    /// <remarks>The messsage result is required if message has specific result and the execution is aborted in pre-handler phase.</remarks>
+    void Abort(object? messageResult = null);
 }
