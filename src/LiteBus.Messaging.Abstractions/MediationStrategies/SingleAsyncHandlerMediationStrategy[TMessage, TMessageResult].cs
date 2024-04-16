@@ -48,7 +48,17 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
 
             await messageDependencies.RunAsyncPostHandlers(message, messageResult);
         }
-        catch (Exception e)
+        catch (LiteBusExecutionAbortedException)
+        {
+            if (executionContext.MessageResult is null)
+            {
+                throw new InvalidOperationException(
+                    $"A Message result of type '{typeof(TMessageResult).Name}' is required when the execution is aborted as this message has a specific result.");
+            }
+
+            return await Task.FromResult((TMessageResult) executionContext.MessageResult);
+        }
+        catch (Exception e) when (e is not LiteBusExecutionAbortedException)
         {
             await messageDependencies.RunAsyncErrorHandlers(message, messageResult, ExceptionDispatchInfo.Capture(e));
         }

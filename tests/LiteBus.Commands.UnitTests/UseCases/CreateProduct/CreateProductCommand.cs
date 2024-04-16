@@ -7,4 +7,6 @@ public sealed class CreateProductCommand : IAuditableCommand, ICommand<CreatePro
     public List<Type> ExecutedTypes { get; } = new();
 
     public Guid CorrelationId { get; } = Guid.NewGuid();
+
+    public bool AbortInPreHandler { get; set; }
 }

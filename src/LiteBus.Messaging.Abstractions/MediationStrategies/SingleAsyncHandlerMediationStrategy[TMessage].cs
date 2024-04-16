@@ -30,7 +30,11 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
 
             await messageDependencies.RunAsyncPostHandlers(message, messageResult);
         }
-        catch (Exception e)
+        catch (LiteBusExecutionAbortedException)
+        {
+            return;
+        }
+        catch (Exception e) when (e is not LiteBusExecutionAbortedException)
         {
             await messageDependencies.RunAsyncErrorHandlers(message, messageResult, ExceptionDispatchInfo.Capture(e));
         }

@@ -1,5 +1,8 @@
 # Changelog
 
+## v.0.24.2
+- Allow aborting the execution of handlers by calling `Abort` on the execution context.
+
 ## v.0.24.1
 - Add `Tags` to `IExecutionContext`.
 

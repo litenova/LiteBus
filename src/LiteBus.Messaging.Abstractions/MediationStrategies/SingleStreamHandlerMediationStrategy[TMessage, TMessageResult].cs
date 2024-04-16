@@ -42,7 +42,11 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
             messageResultAsyncEnumerable = (IAsyncEnumerable<TMessageResult>) handler!.Handle(message);
         }
-        catch (Exception exception)
+        catch (LiteBusExecutionAbortedException)
+        {
+            yield break;
+        }
+        catch (Exception exception) when (exception is not LiteBusExecutionAbortedException)
         {
             await messageDependencies.RunAsyncErrorHandlers(message, messageResultAsyncEnumerable, ExceptionDispatchInfo.Capture(exception));
         }
@@ -62,7 +66,11 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
                 item = hasResult ? messageResultAsyncEnumerator.Current : default;
             }
-            catch (Exception exception)
+            catch (LiteBusExecutionAbortedException)
+            {
+                yield break;
+            }
+            catch (Exception exception) when (exception is not LiteBusExecutionAbortedException)
             {
                 await messageDependencies.RunAsyncErrorHandlers(message, messageResultAsyncEnumerable, ExceptionDispatchInfo.Capture(exception));
             }
@@ -79,7 +87,11 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
             AmbientExecutionContext.Current = executionContext;
             await messageDependencies.RunAsyncPostHandlers(message, messageResultAsyncEnumerable);
         }
-        catch (Exception exception)
+        catch (LiteBusExecutionAbortedException)
+        {
+            yield break;
+        }
+        catch (Exception exception) when (exception is not LiteBusExecutionAbortedException)
         {
             AmbientExecutionContext.Current = executionContext;
             await messageDependencies.RunAsyncErrorHandlers(message, messageResultAsyncEnumerable, ExceptionDispatchInfo.Capture(exception));

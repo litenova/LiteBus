@@ -25,4 +25,12 @@ internal sealed class ExecutionContext : IExecutionContext
     public IDictionary<object, object?> Items { get; } = new Dictionary<object, object?>();
 
     public IReadOnlyCollection<string> Tags { get; }
+
+    public object? MessageResult { get; set; }
+
+    public void Abort(object? messageResult = null)
+    {
+        MessageResult = messageResult;
+        throw new LiteBusExecutionAbortedException();
+    }
 }
