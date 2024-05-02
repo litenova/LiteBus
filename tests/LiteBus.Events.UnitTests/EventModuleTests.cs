@@ -2,11 +2,13 @@ using FluentAssertions;
 using LiteBus.Events.Abstractions;
 using LiteBus.Events.Extensions.MicrosoftDependencyInjection;
 using LiteBus.Events.UnitTests.UseCases;
+using LiteBus.Events.UnitTests.UseCases.EventWithNoHandlers;
 using LiteBus.Events.UnitTests.UseCases.EventWithTag;
 using LiteBus.Events.UnitTests.UseCases.ProblematicEvent;
 using LiteBus.Events.UnitTests.UseCases.ProductCreated;
 using LiteBus.Events.UnitTests.UseCases.ProductUpdated;
 using LiteBus.Events.UnitTests.UseCases.ProductViewed;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -278,5 +280,51 @@ public sealed class EventModuleTests
         @event.ExecutedTypes[7].Should().Be<EventWithTagEventHandlerPostHandler1>();
         @event.ExecutedTypes[8].Should().Be<EventWithTagEventHandlerPostHandler2>();
         @event.ExecutedTypes[9].Should().Be<GlobalEventPostHandler>();
+    }
+
+    [Fact]
+    public async Task mediating_the_an_event_with_no_handlers_should_not_throw_exception_when_ThrowIfNoHandlerFound_is_set_false()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration => { configuration.AddEventModule(builder => { builder.RegisterFromAssembly(typeof(ProblematicEventPreHandler).Assembly); }); })
+            .BuildServiceProvider();
+
+        var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
+
+        var @event = new EventWithNoHandlers();
+
+        var settings = new EventMediationSettings
+        {
+            ThrowIfNoHandlerFound = false,
+        };
+
+        // Act
+        await eventMediator.PublishAsync(@event, settings);
+
+        // Assert
+        @event.ExecutedTypes.Should().HaveCount(0);
+    }
+    
+    [Fact]
+    public async Task mediating_the_an_event_with_no_handlers_should_throw_exception_when_ThrowIfNoHandlerFound_is_set_true()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration => { configuration.AddEventModule(builder => { builder.RegisterFromAssembly(typeof(ProblematicEventPreHandler).Assembly); }); })
+            .BuildServiceProvider();
+
+        var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
+
+        var @event = new EventWithNoHandlers();
+
+        var settings = new EventMediationSettings
+        {
+            ThrowIfNoHandlerFound = true,
+        };
+
+        // Act
+        var act = () => eventMediator.PublishAsync(@event, settings);
+
+        // Assert
+        await act.Should().ThrowAsync<NoHandlerFoundException>();
     }
 }

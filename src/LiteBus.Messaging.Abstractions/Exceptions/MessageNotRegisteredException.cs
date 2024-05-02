@@ -3,10 +3,9 @@
 namespace LiteBus.Messaging.Abstractions;
 
 [Serializable]
-internal class MessageNotRegisteredException : Exception
+public class NoHandlerFoundException : Exception
 {
-    public MessageNotRegisteredException(Type messageType) :
-        base($"The message type '{messageType.Name}' is not registered")
+    public NoHandlerFoundException(Type messageType) : base($"No handler found for message type '{messageType.Name}'")
     {
     }
 }

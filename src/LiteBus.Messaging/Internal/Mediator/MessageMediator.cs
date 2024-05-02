@@ -33,6 +33,19 @@ internal sealed class MessageMediator : IMessageMediator
         // Find the message descriptor
         var descriptor = options.MessageResolveStrategy.Find(messageType, _messageRegistry);
 
+        if (descriptor is null)
+        {
+            if (!options.RegisterPlainMessagesOnSpot)
+            {
+                throw new NoHandlerFoundException(messageType);
+            }
+            else
+            {
+                _messageRegistry.Register(messageType);
+                descriptor = options.MessageResolveStrategy.Find(messageType, _messageRegistry);
+            }
+        }
+
         // resolve the dependencies in lazy mode
         var messageDependencies = new MessageDependencies(messageType, descriptor, _serviceProvider, options.Tags);
 
