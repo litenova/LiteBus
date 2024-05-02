@@ -1,5 +1,8 @@
 # Changelog
 
+## v.0.24.3
+- Don't throw error by default if no handlers were found for plain event message types
+
 ## v.0.24.2
 - Allow aborting the execution of handlers by calling `Abort` on the execution context.
 
