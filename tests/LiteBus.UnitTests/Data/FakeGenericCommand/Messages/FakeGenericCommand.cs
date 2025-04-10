@@ -4,6 +4,4 @@ using LiteBus.UnitTests.Data.Shared.Commands;
 namespace LiteBus.UnitTests.Data.FakeGenericCommand.Messages;
 
 // ReSharper disable once UnusedTypeParameter
-public sealed class FakeGenericCommand<TPayload> : FakeParentCommand, ICommand<FakeGenericCommandResult>
-{
-}
+public sealed class FakeGenericCommand<TPayload> : FakeParentCommand, ICommand<FakeGenericCommandResult>;

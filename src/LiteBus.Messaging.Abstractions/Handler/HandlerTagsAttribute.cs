@@ -9,11 +9,13 @@ namespace LiteBus.Messaging.Abstractions;
 /// <example>
 /// This example shows how to use the HandlerTagsAttribute:
 /// <code>
+/// <![CDATA[
 /// [HandlerTags("FrontEnd", "ServiceBus")]
 /// public class CreateProductCommandValidator : ICommandPreHandler<CreateProductCommand>
 /// {
 ///     // validator implementation for frontend-specific validations
 /// }
+/// ]]>
 /// </code>
 /// </example>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]

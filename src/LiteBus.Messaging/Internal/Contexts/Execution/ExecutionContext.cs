@@ -14,6 +14,7 @@ internal sealed class ExecutionContext : IExecutionContext
     /// Initializes a new instance of the <see cref="ExecutionContext"/> class with the specified cancellation token.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token associated with the execution context.</param>
+    /// <param name="tags">The tags associated with the execution context.</param>
     public ExecutionContext(CancellationToken cancellationToken, IEnumerable<string> tags)
     {
         CancellationToken = cancellationToken;

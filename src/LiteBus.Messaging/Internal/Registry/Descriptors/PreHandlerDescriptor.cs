@@ -2,6 +2,4 @@
 
 namespace LiteBus.Messaging.Internal.Registry.Descriptors;
 
-internal sealed class PreHandlerDescriptor : HandlerDescriptorBase, IPreHandlerDescriptor
-{
-}
+internal sealed class PreHandlerDescriptor : HandlerDescriptorBase, IPreHandlerDescriptor;
