@@ -1,9 +1,12 @@
 namespace LiteBus.Commands.Abstractions;
 
 /// <summary>
-///     A marker interface to mark registrable types of command module (e.g., <see cref="ICommand"/>, <see cref="ICommandHandler{TCommand,TCommandResult}"/>)
+///     Marker interface that identifies types that can be registered within the command module.
 /// </summary>
-public interface IRegistrableCommandConstruct 
-{
-    
-}
+/// <remarks>
+///     This interface is implemented by all key constructs in the command module that need to be
+///     registered in the dependency injection container, such as commands, command handlers,
+///     pre-handlers, post-handlers, and error handlers. It provides a common type for registration
+///     and discovery mechanisms in the LiteBus infrastructure.
+/// </remarks>
+public interface IRegistrableCommandConstruct;

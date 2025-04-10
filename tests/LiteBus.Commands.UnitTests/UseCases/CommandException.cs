@@ -1,5 +1,3 @@
 namespace LiteBus.Commands.UnitTests.UseCases;
 
-public class CommandException : Exception
-{
-}
+public class CommandException : Exception;

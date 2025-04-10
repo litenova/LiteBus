@@ -3,7 +3,7 @@ using LiteBus.UnitTests.Data.FakeGenericQuery.Messages;
 
 namespace LiteBus.UnitTests.Data.FakeGenericQuery.PreHandlers;
 
-public sealed class FakeGenericQueryPreHandler<TPayload> : IQueryPreHandler<Messages.FakeGenericQuery<TPayload>>
+public sealed class FakeGenericQueryPreHandler<TPayload> : IQueryPreHandler<FakeGenericQuery<TPayload>>
 {
     public Task PreHandleAsync(FakeGenericQuery<TPayload> message, CancellationToken cancellationToken = default)
     {

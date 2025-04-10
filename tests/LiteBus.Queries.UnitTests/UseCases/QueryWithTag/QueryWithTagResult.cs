@@ -1,6 +1,3 @@
 namespace LiteBus.Queries.UnitTests.UseCases.QueryWithTag;
 
-public class QueryWithTagResult
-{
-    
-}
+public class QueryWithTagResult;

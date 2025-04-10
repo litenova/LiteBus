@@ -51,7 +51,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
 
         _services.TryAddTransient<IMessageMediator, MessageMediator>();
         _services.TryAddSingleton<IMessageRegistry>(messageRegistry);
-        _services.TryAddTransient<IExecutionContext>(_ => AmbientExecutionContext.Current);
+        _services.TryAddTransient(_ => AmbientExecutionContext.Current);
 
         foreach (var descriptor in messageRegistry)
         {
