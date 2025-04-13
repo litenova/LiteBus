@@ -10,7 +10,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// <remarks>
 /// Implementers of this interface should provide logic to dictate the actions to be performed asynchronously before the primary message handling process begins. This could include operations such as validation, logging, or transformation of the message to meet certain criteria or standards.
 /// </remarks>
-public interface IAsyncMessagePreHandler<in TMessage> : IMessagePreHandler<TMessage>
+public interface IAsyncMessagePreHandler<in TMessage> : IMessagePreHandler<TMessage> where TMessage : notnull
 {
     /// <summary>
     /// Defines the synchronous pre-handle method which internally calls the asynchronous pre-handle method, facilitating asynchronous pre-handle operations within a synchronous method signature. 
@@ -19,7 +19,7 @@ public interface IAsyncMessagePreHandler<in TMessage> : IMessagePreHandler<TMess
     /// <returns>The outcome of the asynchronous pre-handling operation, potentially encapsulating modified versions of the message or other relevant data derived through the pre-handling process.</returns>
     object IMessagePreHandler<TMessage>.PreHandle(TMessage message)
     {
-        return PreHandleAsync(message, AmbientExecutionContext.Current?.CancellationToken ?? throw new NoExecutionContextException());
+        return PreHandleAsync(message, AmbientExecutionContext.Current.CancellationToken);
     }
 
     /// <summary>

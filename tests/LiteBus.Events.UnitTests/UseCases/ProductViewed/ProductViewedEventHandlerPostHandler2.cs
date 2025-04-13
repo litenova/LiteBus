@@ -6,7 +6,7 @@ namespace LiteBus.Events.UnitTests.UseCases.ProductViewed;
 [HandlerOrder(2)]
 public sealed class ProductViewedEventHandlerPostHandler2<TViewSource> : IEventPostHandler<ProductViewedEvent<TViewSource>>
 {
-    public Task PostHandleAsync(ProductViewedEvent<TViewSource> message, object messageResult, CancellationToken cancellationToken = default)
+    public Task PostHandleAsync(ProductViewedEvent<TViewSource> message, object? messageResult, CancellationToken cancellationToken = default)
     {
         message.ExecutedTypes.Add(GetType());
         return Task.CompletedTask;

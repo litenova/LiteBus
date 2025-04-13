@@ -11,7 +11,7 @@ public sealed class StreamProductsQueryHandlerPreHandler : IQueryPreHandler<Stre
 
         if (message.AbortInPreHandler)
         {
-            AmbientExecutionContext.Current!.Abort();
+            AmbientExecutionContext.Current.Abort();
         }
 
         return Task.CompletedTask;

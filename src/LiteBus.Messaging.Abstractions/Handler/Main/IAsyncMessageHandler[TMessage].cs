@@ -10,7 +10,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// <remarks>
 /// Implementations of this interface should aim to process messages in an asynchronous manner, performing necessary operations and actions on the received messages without a requirement to return a specific result aside from signaling the completion of the handling process.
 /// </remarks>
-public interface IAsyncMessageHandler<in TMessage> : IMessageHandler<TMessage, Task>
+public interface IAsyncMessageHandler<in TMessage> : IMessageHandler<TMessage, Task> where TMessage : notnull
 {
     /// <summary>
     /// Implements the synchronous handling method defined in the <see cref="IMessageHandler{TMessage, Task}"/> interface by invoking the asynchronous handling method with the current ambient execution context's cancellation token.
@@ -22,7 +22,7 @@ public interface IAsyncMessageHandler<in TMessage> : IMessageHandler<TMessage, T
     /// </remarks>
     Task IMessageHandler<TMessage, Task>.Handle(TMessage message)
     {
-        return HandleAsync(message, AmbientExecutionContext.Current?.CancellationToken ?? throw new NoExecutionContextException());
+        return HandleAsync(message, AmbientExecutionContext.Current.CancellationToken);
     }
 
     /// <summary>

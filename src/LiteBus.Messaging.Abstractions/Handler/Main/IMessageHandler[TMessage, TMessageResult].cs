@@ -6,6 +6,8 @@ namespace LiteBus.Messaging.Abstractions;
 /// <typeparam name="TMessage">The type parameter representing the type of message to be handled.</typeparam>
 /// <typeparam name="TMessageResult">The type parameter representing the type of results produced by the handler after successfully processing a message.</typeparam>
 public interface IMessageHandler<in TMessage, out TMessageResult> : IMessageHandler
+    where TMessage : notnull
+    where TMessageResult : notnull
 {
     /// <summary>
     /// Provides a non-generic entry point for handling messages, effectively enabling handling of messages of any type, which then get cast to the specified type <typeparamref name="TMessage"/> before being processed by the generic Handle method.

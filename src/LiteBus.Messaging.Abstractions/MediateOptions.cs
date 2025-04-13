@@ -13,7 +13,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// how message types are resolved, which mediation strategy is used, and what tags are applied
 /// for filtering handlers.
 /// </remarks>
-public sealed class MediateOptions<TMessage, TMessageResult>
+public sealed class MediateOptions<TMessage, TMessageResult> where TMessage : notnull
 {
     /// <summary>
     /// Gets or initializes the strategy used to resolve message descriptors from the message registry.

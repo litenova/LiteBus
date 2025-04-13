@@ -13,4 +13,4 @@ namespace LiteBus.Events.Abstractions;
 ///     This allows for implementing specialized error handling strategies for different event types,
 ///     such as custom recovery logic, retry policies, or specific error reporting for critical events.
 /// </remarks>
-public interface IEventErrorHandler<in TEvent> : IAsyncMessageErrorHandler<TEvent, object>, IRegistrableEventConstruct;
+public interface IEventErrorHandler<in TEvent> : IAsyncMessageErrorHandler<TEvent, object>, IRegistrableEventConstruct where TEvent : notnull;

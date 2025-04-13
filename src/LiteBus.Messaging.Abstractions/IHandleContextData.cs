@@ -30,7 +30,7 @@ public interface IHandleContextData
     /// <remarks>
     /// If a value of the same type already exists in the context, it will be replaced.
     /// </remarks>
-    void Set<T>(T value);
+    void Set<T>(T value) where T : notnull;
 
     /// <summary>
     /// Determines whether the context contains a value of the specified type.
@@ -62,11 +62,11 @@ public class HandleContextData : IHandleContextData
     /// <inheritdoc />
     public T Get<T>()
     {
-        return (T)_data[typeof(T)];
+        return (T) _data[typeof(T)];
     }
 
     /// <inheritdoc />
-    public void Set<T>(T value)
+    public void Set<T>(T value) where T : notnull
     {
         _data[typeof(T)] = value;
     }

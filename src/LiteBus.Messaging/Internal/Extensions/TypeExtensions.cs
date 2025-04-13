@@ -1,5 +1,3 @@
-#nullable enable
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,7 +17,7 @@ internal static class TypeExtensions
     {
         var handlerOrderAttribute = Attribute.GetCustomAttribute(type, typeof(HandlerOrderAttribute));
 
-        int order = default;
+        int order = 0;
 
         if (handlerOrderAttribute is not null)
         {

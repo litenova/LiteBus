@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
@@ -18,7 +16,7 @@ public sealed class CommandMediator : ICommandMediator
     }
 
     public Task SendAsync(ICommand command,
-                          CommandMediationSettings? commandMediationSettings = default,
+                          CommandMediationSettings? commandMediationSettings = null,
                           CancellationToken cancellationToken = default)
     {
         commandMediationSettings ??= new CommandMediationSettings();
@@ -37,15 +35,15 @@ public sealed class CommandMediator : ICommandMediator
         return _messageMediator.Mediate(command, options);
     }
 
-    public Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
-                                                          CommandMediationSettings? commandMediationSettings = null,
-                                                          CancellationToken cancellationToken = default)
+    public Task<TCommandResult?> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
+                                                           CommandMediationSettings? commandMediationSettings = null,
+                                                           CancellationToken cancellationToken = default)
     {
         commandMediationSettings ??= new CommandMediationSettings();
-        var mediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand<TCommandResult>, TCommandResult>();
+        var mediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand<TCommandResult>, TCommandResult?>();
         var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
-        var options = new MediateOptions<ICommand<TCommandResult>, Task<TCommandResult>>
+        var options = new MediateOptions<ICommand<TCommandResult>, Task<TCommandResult?>>
         {
             MessageResolveStrategy = findStrategy,
             MessageMediationStrategy = mediationStrategy,

@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -8,7 +7,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// </summary>
 /// <typeparam name="TMessage">The type of the message that this handler can process.</typeparam>
 /// <typeparam name="TMessageResult">The type of the message result that this handler deals with.</typeparam>
-public interface IMessageErrorHandler<in TMessage, in TMessageResult> : IMessageErrorHandler
+public interface IMessageErrorHandler<in TMessage, in TMessageResult> : IMessageErrorHandler where TMessage : notnull
 {
     /// <summary>
     /// Provides a default implementation for handling errors that occur during message processing. It casts the input parameters to the expected types and calls the typed <see cref="HandleError"/> method.
@@ -17,9 +16,9 @@ public interface IMessageErrorHandler<in TMessage, in TMessageResult> : IMessage
     /// <param name="exception">The exception that triggered the error.</param>
     /// <param name="messageResult">The result of the message processing that led to the error, to be cast to type <typeparamref name="TMessageResult"/>.</param>
     /// <returns>The result of handling the error, which might be modified or enriched with additional details.</returns>
-    object IMessageErrorHandler.HandleError(object message, Exception exception, object messageResult)
+    object IMessageErrorHandler.HandleError(object message, Exception exception, object? messageResult)
     {
-        return HandleError((TMessage) message, exception, (TMessageResult) messageResult);
+        return HandleError((TMessage) message, exception, (TMessageResult?) messageResult);
     }
 
     /// <summary>

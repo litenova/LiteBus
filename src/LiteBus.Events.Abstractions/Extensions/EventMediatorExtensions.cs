@@ -47,7 +47,7 @@ public static class EventMediatorExtensions
             {
                 Filters =
                 {
-                    Tags = new[] { tag }
+                    Tags = [tag]
                 }
             },
             cancellationToken);

@@ -10,7 +10,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// <remarks>
 /// Implementers of this interface should provide logic to dictate the actions to be executed asynchronously following the primary handling of the message, potentially utilizing and modifying the results of the initial handling process.
 /// </remarks>
-public interface IAsyncMessagePostHandler<in TMessage> : IMessagePostHandler<TMessage, object>
+public interface IAsyncMessagePostHandler<in TMessage> : IMessagePostHandler<TMessage, object> where TMessage : notnull
 {
     /// <summary>
     /// Provides a synchronous wrapper over the asynchronous <see cref="PostHandleAsync"/> method, facilitating the post-handling process within a synchronous context by invoking the asynchronous method with the current ambient execution context.
@@ -18,9 +18,9 @@ public interface IAsyncMessagePostHandler<in TMessage> : IMessagePostHandler<TMe
     /// <param name="message">The message that has been handled, representing the input for the post-handling process.</param>
     /// <param name="messageResult">The result generated from the initial handling of the message, offering a basis for the post-handling process.</param>
     /// <returns>An object that potentially embodies further processing results or a modified version of the initial message result, encapsulating the outcome of the asynchronous post-handling operation.</returns>
-    object IMessagePostHandler<TMessage, object>.PostHandle(TMessage message, object messageResult)
+    object IMessagePostHandler<TMessage, object>.PostHandle(TMessage message, object? messageResult)
     {
-        return PostHandleAsync(message, messageResult, AmbientExecutionContext.Current?.CancellationToken ?? throw new NoExecutionContextException());
+        return PostHandleAsync(message, messageResult, AmbientExecutionContext.Current.CancellationToken);
     }
 
     /// <summary>
@@ -30,5 +30,5 @@ public interface IAsyncMessagePostHandler<in TMessage> : IMessagePostHandler<TMe
     /// <param name="messageResult"></param>
     /// <param name="cancellationToken">A token that can be used to request cancellation of the asynchronous operation, facilitating the graceful termination of the post-handling process upon cancellation requests.</param>
     /// <returns>A task representing the ongoing asynchronous post-handling operation, potentially culminating in further processing results or a modified message outcome.</returns>
-    Task PostHandleAsync(TMessage message, object messageResult, CancellationToken cancellationToken = default);
+    Task PostHandleAsync(TMessage message, object? messageResult, CancellationToken cancellationToken = default);
 }

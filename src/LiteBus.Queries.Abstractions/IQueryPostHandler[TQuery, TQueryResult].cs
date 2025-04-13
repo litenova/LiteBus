@@ -14,4 +14,6 @@ namespace LiteBus.Queries.Abstractions;
 ///     result transformation, caching, logging, or other processing that depends on the query outcome.
 ///     Multiple type-specific post-handlers can be registered for each query type.
 /// </remarks>
-public interface IQueryPostHandler<in TQuery, in TQueryResult> : IRegistrableQueryConstruct, IAsyncMessagePostHandler<TQuery, TQueryResult> where TQuery : IQuery<TQueryResult>;
+public interface IQueryPostHandler<in TQuery, in TQueryResult> : IRegistrableQueryConstruct, IAsyncMessagePostHandler<TQuery, TQueryResult>
+    where TQuery : IQuery<TQueryResult>
+    where TQueryResult : notnull;

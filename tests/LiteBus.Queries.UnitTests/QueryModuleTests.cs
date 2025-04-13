@@ -30,7 +30,8 @@ public sealed class QueryModuleTests
         var queryResult = await queryMediator.QueryAsync(query);
 
         // Assert
-        queryResult.CorrelationId.Should().Be(query.CorrelationId);
+        queryResult.Should().NotBeNull();
+        queryResult!.CorrelationId.Should().Be(query.CorrelationId);
         query.ExecutedTypes.Should().HaveCount(6);
 
         query.ExecutedTypes[0].Should().Be<GlobalQueryPreHandler>();
@@ -61,7 +62,8 @@ public sealed class QueryModuleTests
         var queryResult = await queryMediator.QueryAsync(query);
 
         // Assert
-        queryResult.CorrelationId.Should().Be(query.CorrelationId);
+        queryResult.Should().NotBeNull();
+        queryResult!.CorrelationId.Should().Be(query.CorrelationId);
         query.ExecutedTypes.Should().HaveCount(5);
 
         query.ExecutedTypes[0].Should().Be<GlobalQueryPreHandler>();
@@ -168,7 +170,7 @@ public sealed class QueryModuleTests
         {
             Filters =
             {
-                Tags = new[] { Tags.Tag1 }
+                Tags = [Tags.Tag1]
             }
         };
 
@@ -201,7 +203,7 @@ public sealed class QueryModuleTests
         {
             Filters =
             {
-                Tags = new[] { Tags.Tag1, Tags.Tag2 }
+                Tags = [Tags.Tag1, Tags.Tag2]
             }
         };
 
