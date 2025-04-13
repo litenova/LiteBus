@@ -14,5 +14,5 @@ public interface IMessageErrorHandler
     /// <param name="exception">The exception that triggered the error. This object represents the exception that caused the error.</param>
     /// <param name="messageResult">The result of the message processing that triggered the error. This object represents any output or state at the time of the error.</param>
     /// <returns>An object representing the outcome of the error handling. This can be used to convey information about the handled error, possibly altering or enriching the initial error message with additional details.</returns>
-    object HandleError(object message, Exception exception, object messageResult);
+    object HandleError(object message, Exception exception, object? messageResult);
 }

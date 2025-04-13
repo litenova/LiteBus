@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.ExceptionServices;
@@ -74,7 +72,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
             var handler = messageDependencies.Handlers.Single().Handler.Value;
 
-            messageResultAsyncEnumerable = (IAsyncEnumerable<TMessageResult>) handler!.Handle(message);
+            messageResultAsyncEnumerable = (IAsyncEnumerable<TMessageResult>) handler.Handle(message);
         }
         catch (LiteBusExecutionAbortedException)
         {

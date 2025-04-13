@@ -1,5 +1,3 @@
-#nullable enable
-
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +9,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// This interface should be implemented to handle exceptions that occur during message processing.
 /// </summary>
 /// <typeparam name="TMessage">The type of the message that this error handler is applicable to.</typeparam>
-public interface IAsyncMessageErrorHandler<in TMessage> : IMessageErrorHandler<TMessage, object>
+public interface IAsyncMessageErrorHandler<in TMessage> : IMessageErrorHandler<TMessage, object> where TMessage : notnull
 {
     /// <summary>
     /// Synchronously handles an error encountered in message processing by delegating to an asynchronous method.
@@ -22,7 +20,7 @@ public interface IAsyncMessageErrorHandler<in TMessage> : IMessageErrorHandler<T
     /// <returns>A placeholder object returned after handling the error.</returns>
     object IMessageErrorHandler<TMessage, object>.HandleError(TMessage message, Exception exception, object? messageResult)
     {
-        return HandleErrorAsync(message, messageResult, exception, AmbientExecutionContext.Current?.CancellationToken ?? throw new NoExecutionContextException());
+        return HandleErrorAsync(message, messageResult, exception, AmbientExecutionContext.Current.CancellationToken);
     }
 
     /// <summary>

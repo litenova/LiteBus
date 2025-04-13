@@ -11,7 +11,7 @@ public sealed class CreateProductCommandHandlerPreHandler : ICommandPreHandler<C
 
         if (message.AbortInPreHandler)
         {
-            AmbientExecutionContext.Current!.Abort(new CreateProductCommandResult { CorrelationId = Guid.Empty });
+            AmbientExecutionContext.Current.Abort(new CreateProductCommandResult { CorrelationId = Guid.Empty });
         }
 
         return Task.CompletedTask;

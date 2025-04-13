@@ -7,7 +7,7 @@ namespace LiteBus.Events.UnitTests.UseCases.EventWithTag;
 [HandlerTag(Tags.Tag1)]
 public sealed class EventWithTagEventHandlerPostHandler1 : IEventPostHandler<EventWithTag>
 {
-    public Task PostHandleAsync(EventWithTag message, object messageResult, CancellationToken cancellationToken = default)
+    public Task PostHandleAsync(EventWithTag message, object? messageResult, CancellationToken cancellationToken = default)
     {
         message.ExecutedTypes.Add(GetType());
         return Task.CompletedTask;

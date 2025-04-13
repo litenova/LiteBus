@@ -4,7 +4,7 @@ namespace LiteBus.Queries.UnitTests.UseCases;
 
 public sealed class GlobalQueryPostHandler : IQueryPostHandler
 {
-    public Task PostHandleAsync(IQuery message, object messageResult, CancellationToken cancellationToken = default)
+    public Task PostHandleAsync(IQuery message, object? messageResult, CancellationToken cancellationToken = default)
     {
         if (message is IAuditableQuery auditableQuery)
         {

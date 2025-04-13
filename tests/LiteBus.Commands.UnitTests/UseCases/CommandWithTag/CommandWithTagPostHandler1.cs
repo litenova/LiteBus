@@ -7,7 +7,7 @@ namespace LiteBus.Commands.UnitTests.UseCases.CommandWithTag;
 [HandlerTag(Tags.Tag1)]
 public sealed class CommandWithTagPostHandler1 : ICommandPostHandler<CommandWithTag>
 {
-    public Task PostHandleAsync(CommandWithTag message, object messageResult, CancellationToken cancellationToken = default)
+    public Task PostHandleAsync(CommandWithTag message, object? messageResult, CancellationToken cancellationToken = default)
     {
         message.ExecutedTypes.Add(GetType());
         return Task.CompletedTask;

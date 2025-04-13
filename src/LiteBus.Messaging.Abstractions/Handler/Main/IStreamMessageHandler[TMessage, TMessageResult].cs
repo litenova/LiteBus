@@ -11,7 +11,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// <remarks>
 /// Handlers implementing this interface cater to scenarios where the processing of a single message results in a series of outcomes, which can be streamed asynchronously to the caller. This can be beneficial in cases such as processing large data sets, real-time data streaming, or any scenario where immediate processing and feedback of each item in a data set is essential.
 /// </remarks>
-public interface IStreamMessageHandler<in TMessage, out TMessageResult> : IMessageHandler<TMessage, IAsyncEnumerable<TMessageResult>>
+public interface IStreamMessageHandler<in TMessage, out TMessageResult> : IMessageHandler<TMessage, IAsyncEnumerable<TMessageResult>> where TMessage : notnull
 {
     /// <summary>
     /// Provides a non-generic entry point for the handler, wrapping the generic asynchronous handling method. This allows callers to interact with the handler in a non-generic manner while still benefiting from asynchronous streamed results.
@@ -20,7 +20,7 @@ public interface IStreamMessageHandler<in TMessage, out TMessageResult> : IMessa
     /// <returns>An asynchronous stream of results, each represented by <see cref="TMessageResult" />, produced from handling the provided message.</returns>
     IAsyncEnumerable<TMessageResult> IMessageHandler<TMessage, IAsyncEnumerable<TMessageResult>>.Handle(TMessage message)
     {
-        return StreamAsync(message, AmbientExecutionContext.Current?.CancellationToken ?? throw new NoExecutionContextException());
+        return StreamAsync(message, AmbientExecutionContext.Current.CancellationToken);
     }
 
     /// <summary>

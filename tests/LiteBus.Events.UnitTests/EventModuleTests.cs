@@ -228,7 +228,7 @@ public sealed class EventModuleTests
         {
             Filters =
             {
-                Tags = new[] { Tags.Tag1 }
+                Tags = [Tags.Tag1]
             }
         };
 
@@ -261,7 +261,7 @@ public sealed class EventModuleTests
         {
             Filters =
             {
-                Tags = new[] { Tags.Tag1, Tags.Tag2 }
+                Tags = [Tags.Tag1, Tags.Tag2]
             }
         };
 

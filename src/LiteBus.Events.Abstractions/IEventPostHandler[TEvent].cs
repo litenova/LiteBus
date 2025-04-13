@@ -12,4 +12,4 @@ namespace LiteBus.Events.Abstractions;
 ///     only to the specified event type. Multiple type-specific post-handlers can be registered for each event type
 ///     and will execute in sequence after the event handlers have processed the event.
 /// </remarks>
-public interface IEventPostHandler<in TEvent> : IAsyncMessagePostHandler<TEvent>, IRegistrableEventConstruct;
+public interface IEventPostHandler<in TEvent> : IAsyncMessagePostHandler<TEvent>, IRegistrableEventConstruct where TEvent : notnull;

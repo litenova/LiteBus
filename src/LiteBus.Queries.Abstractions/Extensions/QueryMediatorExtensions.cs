@@ -23,9 +23,9 @@ public static class QueryMediatorExtensions
     /// var result = await queryMediator.QueryAsync(myQuery, cancellationToken);
     /// </code>
     /// </example>
-    public static Task<TQueryResult> QueryAsync<TQueryResult>(this IQueryMediator queryMediator,
-                                                              IQuery<TQueryResult> query,
-                                                              CancellationToken cancellationToken = default)
+    public static Task<TQueryResult?> QueryAsync<TQueryResult>(this IQueryMediator queryMediator,
+                                                               IQuery<TQueryResult> query,
+                                                               CancellationToken cancellationToken = default)
     {
         return queryMediator.QueryAsync(@query, null, cancellationToken);
     }
@@ -69,17 +69,17 @@ public static class QueryMediatorExtensions
     /// var result = await queryMediator.QueryAsync(myQuery, "UserQuery", cancellationToken);
     /// </code>
     /// </example>
-    public static Task<TQueryResult> QueryAsync<TQueryResult>(this IQueryMediator queryMediator,
-                                                              IQuery<TQueryResult> query,
-                                                              string tag,
-                                                              CancellationToken cancellationToken = default)
+    public static Task<TQueryResult?> QueryAsync<TQueryResult>(this IQueryMediator queryMediator,
+                                                               IQuery<TQueryResult> query,
+                                                               string tag,
+                                                               CancellationToken cancellationToken = default)
     {
         return queryMediator.QueryAsync(@query,
             new QueryMediationSettings
             {
                 Filters =
                 {
-                    Tags = new[] { tag }
+                    Tags = [tag]
                 }
             },
             cancellationToken);
@@ -113,7 +113,7 @@ public static class QueryMediatorExtensions
             {
                 Filters =
                 {
-                    Tags = new[] { tag }
+                    Tags = [tag]
                 }
             },
             cancellationToken);

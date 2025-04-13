@@ -1,5 +1,4 @@
-﻿#nullable enable
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
@@ -17,16 +16,16 @@ public sealed class QueryMediator : IQueryMediator
         _messageMediator = messageMediator;
     }
 
-    public Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
-                                                       QueryMediationSettings? queryMediationSettings = null,
-                                                       CancellationToken cancellationToken = default)
+    public Task<TQueryResult?> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
+                                                        QueryMediationSettings? queryMediationSettings = null,
+                                                        CancellationToken cancellationToken = default)
     {
         queryMediationSettings ??= new QueryMediationSettings();
-        var mediationStrategy = new SingleAsyncHandlerMediationStrategy<IQuery<TQueryResult>, TQueryResult>();
+        var mediationStrategy = new SingleAsyncHandlerMediationStrategy<IQuery<TQueryResult>, TQueryResult?>();
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
         return _messageMediator.Mediate(query,
-            new MediateOptions<IQuery<TQueryResult>, Task<TQueryResult>>
+            new MediateOptions<IQuery<TQueryResult>, Task<TQueryResult?>>
             {
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,

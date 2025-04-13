@@ -12,17 +12,17 @@ namespace LiteBus.Messaging.Internal.Registry;
 
 internal sealed class MessageRegistry : IMessageRegistry
 {
-    private readonly List<IHandlerDescriptorBuilder> _descriptorBuilders = new()
-    {
+    private readonly List<IHandlerDescriptorBuilder> _descriptorBuilders =
+    [
         new HandlerDescriptorBuilder(),
         new ErrorHandlerDescriptorBuilder(),
         new PostHandlerDescriptorBuilder(),
         new PreHandlerDescriptorBuilder()
-    };
-    private readonly List<MessageDescriptor> _messages = new();
-    private readonly List<IHandlerDescriptor> _descriptors = new();
+    ];
+    private readonly List<MessageDescriptor> _messages = [];
+    private readonly List<IHandlerDescriptor> _descriptors = [];
     private readonly ConcurrentDictionary<Type, byte> _processedTypes = new();
-    private readonly List<MessageDescriptor> _newMessages = new();
+    private readonly List<MessageDescriptor> _newMessages = [];
 
     public IEnumerator<IMessageDescriptor> GetEnumerator()
     {
@@ -73,7 +73,7 @@ internal sealed class MessageRegistry : IMessageRegistry
             messageDescriptor.AddDescriptors(_descriptors);
         }
 
-        _processedTypes[type] = new byte();
+        _processedTypes[type] = 0;
         _messages.AddRange(_newMessages);
         _newMessages.Clear();
     }

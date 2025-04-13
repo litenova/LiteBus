@@ -20,17 +20,17 @@ internal sealed class MessageDependencies : IMessageDependencies
         _messageType = messageType;
         _tags = tags;
 
-        Handlers = ResolveHandlers(descriptor.Handlers, (handlerType) => (IMessageHandler) serviceProvider.GetService(handlerType));
-        IndirectHandlers = ResolveHandlers(descriptor.IndirectHandlers, (handlerType) => (IMessageHandler) serviceProvider.GetService(handlerType));
+        Handlers = ResolveHandlers(descriptor.Handlers, handlerType => (IMessageHandler) serviceProvider.GetRequiredService(handlerType));
+        IndirectHandlers = ResolveHandlers(descriptor.IndirectHandlers, handlerType => (IMessageHandler) serviceProvider.GetRequiredService(handlerType));
 
-        PreHandlers = ResolveHandlers(descriptor.PreHandlers, (handlerType) => (IMessagePreHandler) serviceProvider.GetService(handlerType));
-        IndirectPreHandlers = ResolveHandlers(descriptor.IndirectPreHandlers, (handlerType) => (IMessagePreHandler) serviceProvider.GetService(handlerType));
+        PreHandlers = ResolveHandlers(descriptor.PreHandlers, handlerType => (IMessagePreHandler) serviceProvider.GetRequiredService(handlerType));
+        IndirectPreHandlers = ResolveHandlers(descriptor.IndirectPreHandlers, handlerType => (IMessagePreHandler) serviceProvider.GetRequiredService(handlerType));
 
-        PostHandlers = ResolveHandlers(descriptor.PostHandlers, (handlerType) => (IMessagePostHandler) serviceProvider.GetService(handlerType));
-        IndirectPostHandlers = ResolveHandlers(descriptor.IndirectPostHandlers, (handlerType) => (IMessagePostHandler) serviceProvider.GetService(handlerType));
+        PostHandlers = ResolveHandlers(descriptor.PostHandlers, handlerType => (IMessagePostHandler) serviceProvider.GetRequiredService(handlerType));
+        IndirectPostHandlers = ResolveHandlers(descriptor.IndirectPostHandlers, handlerType => (IMessagePostHandler) serviceProvider.GetRequiredService(handlerType));
 
-        ErrorHandlers = ResolveHandlers(descriptor.ErrorHandlers, (handlerType) => (IMessageErrorHandler) serviceProvider.GetService(handlerType));
-        IndirectErrorHandlers = ResolveHandlers(descriptor.IndirectErrorHandlers, (handlerType) => (IMessageErrorHandler) serviceProvider.GetService(handlerType));
+        ErrorHandlers = ResolveHandlers(descriptor.ErrorHandlers, handlerType => (IMessageErrorHandler) serviceProvider.GetRequiredService(handlerType));
+        IndirectErrorHandlers = ResolveHandlers(descriptor.IndirectErrorHandlers, handlerType => (IMessageErrorHandler) serviceProvider.GetRequiredService(handlerType));
     }
 
     public ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> Handlers { get; }

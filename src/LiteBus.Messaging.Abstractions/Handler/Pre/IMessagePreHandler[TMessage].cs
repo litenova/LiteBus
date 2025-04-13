@@ -4,7 +4,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// Represents a generic interface defining a pre-handler for messages of a specified type, intended to preprocess messages before they are handled by the primary message handler.
 /// </summary>
 /// <typeparam name="TMessage">The type of the message that is to be pre-handled, allowing for type-specific pre-handling logic to be implemented.</typeparam>
-public interface IMessagePreHandler<in TMessage> : IMessagePreHandler
+public interface IMessagePreHandler<in TMessage> : IMessagePreHandler where TMessage : notnull
 {
     /// <summary>
     /// Implements the pre-processing logic for a message using a specific type, before it is handled by the primary handler. This method is invoked internally to cast the message to the correct type and delegate the pre-handling to the type-specific <see cref="PreHandle(TMessage)"/> method.

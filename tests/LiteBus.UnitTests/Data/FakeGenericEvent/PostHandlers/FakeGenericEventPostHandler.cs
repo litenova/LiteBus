@@ -5,7 +5,7 @@ namespace LiteBus.UnitTests.Data.FakeGenericEvent.PostHandlers;
 
 public sealed class FakeGenericEventPostHandler<TPayload> : IEventPostHandler<FakeGenericEvent<TPayload>>
 {
-    public Task PostHandleAsync(FakeGenericEvent<TPayload> message, object messageResult, CancellationToken cancellationToken = default)
+    public Task PostHandleAsync(FakeGenericEvent<TPayload> message, object? messageResult, CancellationToken cancellationToken = default)
     {
         message.ExecutedTypes.Add(typeof(FakeGenericEventPostHandler<TPayload>));
         return Task.CompletedTask;
