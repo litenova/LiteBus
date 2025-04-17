@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-	<ItemGroup>
-		<ProjectReference Include="..\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.csproj"/>
-		<ProjectReference Include="..\LiteBus.Queries\LiteBus.Queries.csproj"/>
-	</ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.csproj"/>
+        <ProjectReference Include="..\LiteBus.Queries\LiteBus.Queries.csproj"/>
+    </ItemGroup>
 
 </Project>

@@ -5,11 +5,11 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Internal.Contexts.Execution;
 
-/// <inheritdoc cref="IExecutionContext"/> 
+/// <inheritdoc cref="IExecutionContext" />
 internal sealed class ExecutionContext : IExecutionContext
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="ExecutionContext"/> class with the specified cancellation token.
+    ///     Initializes a new instance of the <see cref="ExecutionContext" /> class with the specified cancellation token.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token associated with the execution context.</param>
     /// <param name="tags">The tags associated with the execution context.</param>

@@ -19,10 +19,11 @@ internal sealed class MessageRegistry : IMessageRegistry
         new PostHandlerDescriptorBuilder(),
         new PreHandlerDescriptorBuilder()
     ];
-    private readonly List<MessageDescriptor> _messages = [];
+
     private readonly List<IHandlerDescriptor> _descriptors = [];
-    private readonly ConcurrentDictionary<Type, byte> _processedTypes = new();
+    private readonly List<MessageDescriptor> _messages = [];
     private readonly List<MessageDescriptor> _newMessages = [];
+    private readonly ConcurrentDictionary<Type, byte> _processedTypes = new();
 
     public IEnumerator<IMessageDescriptor> GetEnumerator()
     {
@@ -44,8 +45,8 @@ internal sealed class MessageRegistry : IMessageRegistry
         }
 
         var newDescriptors = _descriptorBuilders.Where(d => d.CanBuild(type))
-                                                .SelectMany(d => d.Build(type))
-                                                .ToList();
+            .SelectMany(d => d.Build(type))
+            .ToList();
 
         // If no descriptor found, treat the type as a message
         if (newDescriptors.Count == 0)

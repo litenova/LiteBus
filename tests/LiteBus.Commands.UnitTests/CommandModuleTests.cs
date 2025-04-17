@@ -188,7 +188,7 @@ public sealed class CommandModuleTests
 
         var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
 
-        var @command = new CommandWithTag();
+        var command = new CommandWithTag();
 
         var settings = new CommandMediationSettings
         {
@@ -199,17 +199,17 @@ public sealed class CommandModuleTests
         };
 
         // Act
-        await commandMediator.SendAsync(@command, settings);
+        await commandMediator.SendAsync(command, settings);
 
         // Assert
-        @command.ExecutedTypes.Should().HaveCount(7);
-        @command.ExecutedTypes[0].Should().Be<GlobalCommandPreHandler>();
-        @command.ExecutedTypes[1].Should().Be<CommandWithTagPreHandler1>();
-        @command.ExecutedTypes[2].Should().Be<CommandWithTagPreHandler3>();
-        @command.ExecutedTypes[3].Should().Be<CommandWithTagPreHandler4>();
-        @command.ExecutedTypes[4].Should().Be<CommandWithTagHandler1>();
-        @command.ExecutedTypes[5].Should().Be<CommandWithTagPostHandler1>();
-        @command.ExecutedTypes[6].Should().Be<GlobalCommandPostHandler>();
+        command.ExecutedTypes.Should().HaveCount(7);
+        command.ExecutedTypes[0].Should().Be<GlobalCommandPreHandler>();
+        command.ExecutedTypes[1].Should().Be<CommandWithTagPreHandler1>();
+        command.ExecutedTypes[2].Should().Be<CommandWithTagPreHandler3>();
+        command.ExecutedTypes[3].Should().Be<CommandWithTagPreHandler4>();
+        command.ExecutedTypes[4].Should().Be<CommandWithTagHandler1>();
+        command.ExecutedTypes[5].Should().Be<CommandWithTagPostHandler1>();
+        command.ExecutedTypes[6].Should().Be<GlobalCommandPostHandler>();
     }
 
     [Fact]
@@ -221,7 +221,7 @@ public sealed class CommandModuleTests
 
         var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
 
-        var @command = new CommandWithTag();
+        var command = new CommandWithTag();
 
         var settings = new CommandMediationSettings
         {
@@ -232,7 +232,7 @@ public sealed class CommandModuleTests
         };
 
         // Act
-        Func<Task> act = async () => await commandMediator.SendAsync(@command, settings);
+        var act = async () => await commandMediator.SendAsync(command, settings);
 
         // Assert
         await act.Should().ThrowAsync<MultipleHandlerFoundException>();

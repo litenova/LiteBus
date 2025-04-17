@@ -8,6 +8,7 @@ namespace LiteBus.Commands.Abstractions;
 /// <remarks>
 ///     Command pre-handlers run before the main command handler is executed. They can be used for
 ///     cross-cutting concerns such as logging, validation, or security checks that should be applied to all commands.
-///     Multiple pre-handlers can be registered in the application and they will all execute before each command is handled.
+///     Multiple pre-handlers can be registered in the application and they will all execute before each command is
+///     handled.
 /// </remarks>
 public interface ICommandPreHandler : IRegistrableCommandConstruct, IAsyncMessagePreHandler<ICommand>;

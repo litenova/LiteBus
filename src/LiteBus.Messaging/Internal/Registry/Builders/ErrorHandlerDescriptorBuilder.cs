@@ -31,7 +31,7 @@ internal sealed class ErrorHandlerDescriptorBuilder : IHandlerDescriptorBuilder
                 MessageResultType = messageResultType,
                 Order = order,
                 Tags = tags,
-                HandlerType = handlerType,
+                HandlerType = handlerType
             };
         }
     }

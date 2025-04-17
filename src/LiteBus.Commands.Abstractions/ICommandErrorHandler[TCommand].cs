@@ -4,7 +4,7 @@ namespace LiteBus.Commands.Abstractions;
 
 /// <summary>
 ///     Represents a handler that executes when an exception occurs during the processing of a specific
-///     command type <typeparamref name="TCommand"/>.
+///     command type <typeparamref name="TCommand" />.
 /// </summary>
 /// <typeparam name="TCommand">The specific command type this error handler targets.</typeparam>
 /// <remarks>

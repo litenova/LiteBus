@@ -3,7 +3,8 @@ using LiteBus.Messaging.Abstractions;
 namespace LiteBus.Commands.Abstractions;
 
 /// <summary>
-///     Represents a post-handler that executes after a specific command type <typeparamref name="TCommand"/> is processed.
+///     Represents a post-handler that executes after a specific command type <typeparamref name="TCommand" /> is
+///     processed.
 /// </summary>
 /// <typeparam name="TCommand">The specific command type this post-handler targets.</typeparam>
 /// <remarks>

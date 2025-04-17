@@ -7,14 +7,14 @@ using LiteBus.Messaging.Abstractions;
 namespace LiteBus.Events.Extensions.MicrosoftDependencyInjection;
 
 /// <summary>
-/// Builder class for registering event types in the message registry.
+///     Builder class for registering event types in the message registry.
 /// </summary>
 public sealed class EventModuleBuilder
 {
     private readonly IMessageRegistry _messageRegistry;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="EventModuleBuilder"/> class.
+    ///     Initializes a new instance of the <see cref="EventModuleBuilder" /> class.
     /// </summary>
     /// <param name="messageRegistry">The message registry to which events will be registered.</param>
     public EventModuleBuilder(IMessageRegistry messageRegistry)
@@ -23,10 +23,10 @@ public sealed class EventModuleBuilder
     }
 
     /// <summary>
-    /// Registers an event type for the message registry.
+    ///     Registers an event type for the message registry.
     /// </summary>
-    /// <typeparam name="T">The type of event to register, which must implement <see cref="IRegistrableEventConstruct"/>.</typeparam>
-    /// <returns>The current <see cref="EventModuleBuilder"/> instance for method chaining.</returns>
+    /// <typeparam name="T">The type of event to register, which must implement <see cref="IRegistrableEventConstruct" />.</typeparam>
+    /// <returns>The current <see cref="EventModuleBuilder" /> instance for method chaining.</returns>
     public EventModuleBuilder Register<T>() where T : IRegistrableEventConstruct
     {
         _messageRegistry.Register(typeof(T));
@@ -34,10 +34,10 @@ public sealed class EventModuleBuilder
     }
 
     /// <summary>
-    /// Registers an event type for the message registry.
+    ///     Registers an event type for the message registry.
     /// </summary>
-    /// <param name="type">The type of event to register, which must implement <see cref="IRegistrableEventConstruct"/>.</param>
-    /// <returns>The current <see cref="EventModuleBuilder"/> instance for method chaining.</returns>
+    /// <param name="type">The type of event to register, which must implement <see cref="IRegistrableEventConstruct" />.</param>
+    /// <returns>The current <see cref="EventModuleBuilder" /> instance for method chaining.</returns>
     public EventModuleBuilder Register(Type type)
     {
         if (!type.IsAssignableTo(typeof(IRegistrableEventConstruct)))
@@ -50,10 +50,10 @@ public sealed class EventModuleBuilder
     }
 
     /// <summary>
-    /// Registers all event types from the specified assembly that implement <see cref="IRegistrableEventConstruct"/>.
+    ///     Registers all event types from the specified assembly that implement <see cref="IRegistrableEventConstruct" />.
     /// </summary>
     /// <param name="assembly">The assembly from which to register event types.</param>
-    /// <returns>The current <see cref="EventModuleBuilder"/> instance for method chaining.</returns>
+    /// <returns>The current <see cref="EventModuleBuilder" /> instance for method chaining.</returns>
     public EventModuleBuilder RegisterFromAssembly(Assembly assembly)
     {
         foreach (var registrableEventConstruct in assembly.GetTypes().Where(t => t.IsAssignableTo(typeof(IRegistrableEventConstruct))))

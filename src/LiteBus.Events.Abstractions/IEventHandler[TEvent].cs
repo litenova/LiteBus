@@ -3,7 +3,7 @@
 namespace LiteBus.Events.Abstractions;
 
 /// <summary>
-///     Represents a handler that processes events of type <typeparamref name="TEvent"/>.
+///     Represents a handler that processes events of type <typeparamref name="TEvent" />.
 /// </summary>
 /// <typeparam name="TEvent">The type of event to handle.</typeparam>
 /// <remarks>

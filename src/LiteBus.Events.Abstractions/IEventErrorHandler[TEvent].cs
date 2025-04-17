@@ -4,7 +4,7 @@ namespace LiteBus.Events.Abstractions;
 
 /// <summary>
 ///     Represents a handler that executes when an exception occurs during the processing of a specific
-///     event type <typeparamref name="TEvent"/>.
+///     event type <typeparamref name="TEvent" />.
 /// </summary>
 /// <typeparam name="TEvent">The specific event type this error handler targets.</typeparam>
 /// <remarks>

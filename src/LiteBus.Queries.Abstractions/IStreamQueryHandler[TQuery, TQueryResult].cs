@@ -3,8 +3,8 @@ using LiteBus.Messaging.Abstractions;
 namespace LiteBus.Queries.Abstractions;
 
 /// <summary>
-///     Represents a handler that processes a stream query of type <typeparamref name="TQuery"/> and produces
-///     a stream of results of type <typeparamref name="TQueryResult"/>.
+///     Represents a handler that processes a stream query of type <typeparamref name="TQuery" /> and produces
+///     a stream of results of type <typeparamref name="TQueryResult" />.
 /// </summary>
 /// <typeparam name="TQuery">The type of stream query to handle.</typeparam>
 /// <typeparam name="TQueryResult">The type of elements in the result stream.</typeparam>

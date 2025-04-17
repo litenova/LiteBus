@@ -3,7 +3,7 @@ using LiteBus.Messaging.Abstractions;
 namespace LiteBus.Queries.Abstractions;
 
 /// <summary>
-///     Represents a post-handler that executes after a specific query type <typeparamref name="TQuery"/> is processed.
+///     Represents a post-handler that executes after a specific query type <typeparamref name="TQuery" /> is processed.
 /// </summary>
 /// <typeparam name="TQuery">The specific query type this post-handler targets.</typeparam>
 /// <remarks>

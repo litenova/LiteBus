@@ -164,7 +164,7 @@ public sealed class QueryModuleTests
 
         var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
 
-        var @query = new QueryWithTag();
+        var query = new QueryWithTag();
 
         var settings = new QueryMediationSettings
         {
@@ -175,17 +175,17 @@ public sealed class QueryModuleTests
         };
 
         // Act
-        await queryMediator.QueryAsync(@query, settings);
+        await queryMediator.QueryAsync(query, settings);
 
         // Assert
-        @query.ExecutedTypes.Should().HaveCount(7);
-        @query.ExecutedTypes[0].Should().Be<GlobalQueryPreHandler>();
-        @query.ExecutedTypes[1].Should().Be<QueryWithTagPreHandler1>();
-        @query.ExecutedTypes[2].Should().Be<QueryWithTagPreHandler3>();
-        @query.ExecutedTypes[3].Should().Be<QueryWithTagPreHandler4>();
-        @query.ExecutedTypes[4].Should().Be<QueryWithTagHandler1>();
-        @query.ExecutedTypes[5].Should().Be<QueryWithTagPostHandler1>();
-        @query.ExecutedTypes[6].Should().Be<GlobalQueryPostHandler>();
+        query.ExecutedTypes.Should().HaveCount(7);
+        query.ExecutedTypes[0].Should().Be<GlobalQueryPreHandler>();
+        query.ExecutedTypes[1].Should().Be<QueryWithTagPreHandler1>();
+        query.ExecutedTypes[2].Should().Be<QueryWithTagPreHandler3>();
+        query.ExecutedTypes[3].Should().Be<QueryWithTagPreHandler4>();
+        query.ExecutedTypes[4].Should().Be<QueryWithTagHandler1>();
+        query.ExecutedTypes[5].Should().Be<QueryWithTagPostHandler1>();
+        query.ExecutedTypes[6].Should().Be<GlobalQueryPostHandler>();
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public sealed class QueryModuleTests
 
         var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
 
-        var @query = new QueryWithTag();
+        var query = new QueryWithTag();
 
         var settings = new QueryMediationSettings
         {
@@ -208,7 +208,7 @@ public sealed class QueryModuleTests
         };
 
         // Act
-        Func<Task> act = async () => await queryMediator.QueryAsync(@query, settings);
+        Func<Task> act = async () => await queryMediator.QueryAsync(query, settings);
 
         // Assert
         await act.Should().ThrowAsync<MultipleHandlerFoundException>();
@@ -223,10 +223,11 @@ public sealed class QueryModuleTests
             .BuildServiceProvider();
 
         var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
+
         var query = new StreamProductsQuery
-            {
-                AbortInPreHandler = true
-            };
+        {
+            AbortInPreHandler = true
+        };
 
         // Act
         var queryResult = await queryMediator.StreamAsync(query).ToListAsync();

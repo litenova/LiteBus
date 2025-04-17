@@ -9,12 +9,12 @@ public sealed class ProblematicQueryPostHandler : IQueryPostHandler<ProblematicQ
     public Task PostHandleAsync(ProblematicQuery message, ProblematicQueryResult? messageResult, CancellationToken cancellationToken = default)
     {
         message.ExecutedTypes.Add(GetType());
-        
+
         if (message.ThrowExceptionInType == GetType())
         {
             throw new Exception();
         }
-        
+
         return Task.CompletedTask;
     }
 }

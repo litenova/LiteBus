@@ -4,20 +4,20 @@ using System.Threading.Tasks;
 namespace LiteBus.Events.Abstractions;
 
 /// <summary>
-/// Provides extension methods for <see cref="IEventMediator"/> for simplified event publishing.
+///     Provides extension methods for <see cref="IEventMediator" /> for simplified event publishing.
 /// </summary>
 public static class EventMediatorExtensions
 {
     /// <summary>
-    /// Publishes an event asynchronously using the specified event mediator.
+    ///     Publishes an event asynchronously using the specified event mediator.
     /// </summary>
     /// <param name="eventMediator">The event mediator to use for publishing the event.</param>
     /// <param name="event">The event to publish.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the publish operation.</param>
     /// <returns>A task that represents the asynchronous publish operation.</returns>
     /// <example>
-    /// Usage example:
-    /// <code>
+    ///     Usage example:
+    ///     <code>
     /// await eventMediator.PublishAsync(myEvent, cancellationToken);
     /// </code>
     /// </example>
@@ -27,7 +27,7 @@ public static class EventMediatorExtensions
     }
 
     /// <summary>
-    /// Publishes an event asynchronously using the specified event mediator with a specific tag.
+    ///     Publishes an event asynchronously using the specified event mediator with a specific tag.
     /// </summary>
     /// <param name="eventMediator">The event mediator to use for publishing the event.</param>
     /// <param name="event">The event to publish.</param>
@@ -35,8 +35,8 @@ public static class EventMediatorExtensions
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the publish operation.</param>
     /// <returns>A task that represents the asynchronous publish operation.</returns>
     /// <example>
-    /// Usage example:
-    /// <code>
+    ///     Usage example:
+    ///     <code>
     /// await eventMediator.PublishAsync(myEvent, "UserAction", cancellationToken);
     /// </code>
     /// </example>
