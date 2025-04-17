@@ -8,12 +8,12 @@ internal sealed class MessageDescriptor : IMessageDescriptor
 {
     private readonly List<IErrorHandlerDescriptor> _errorHandlers = new();
     private readonly List<IMainHandlerDescriptor> _handlers = new();
-    private readonly List<IPostHandlerDescriptor> _postHandlers = new();
-    private readonly List<IPreHandlerDescriptor> _preHandlers = new();
+    private readonly List<IErrorHandlerDescriptor> _indirectErrorHandlers = new();
     private readonly List<IMainHandlerDescriptor> _indirectHandlers = new();
     private readonly List<IPostHandlerDescriptor> _indirectPostHandlers = new();
     private readonly List<IPreHandlerDescriptor> _indirectPreHandlers = new();
-    private readonly List<IErrorHandlerDescriptor> _indirectErrorHandlers = new();
+    private readonly List<IPostHandlerDescriptor> _postHandlers = new();
+    private readonly List<IPreHandlerDescriptor> _preHandlers = new();
 
     public MessageDescriptor(Type messageType)
     {

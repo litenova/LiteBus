@@ -15,7 +15,7 @@ public sealed class GlobalQueryPostHandler : IQueryPostHandler
         {
             throw new Exception();
         }
-        
+
         return Task.CompletedTask;
     }
 }

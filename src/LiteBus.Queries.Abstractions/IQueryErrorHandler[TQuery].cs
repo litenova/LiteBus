@@ -4,7 +4,7 @@ namespace LiteBus.Queries.Abstractions;
 
 /// <summary>
 ///     Represents a handler that executes when an exception occurs during the processing of a specific
-///     query type <typeparamref name="TQuery"/>.
+///     query type <typeparamref name="TQuery" />.
 /// </summary>
 /// <typeparam name="TQuery">The specific query type this error handler targets.</typeparam>
 /// <remarks>

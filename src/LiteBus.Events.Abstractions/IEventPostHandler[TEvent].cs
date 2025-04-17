@@ -3,7 +3,7 @@
 namespace LiteBus.Events.Abstractions;
 
 /// <summary>
-///     Represents a post-handler that executes after a specific event type <typeparamref name="TEvent"/> is processed.
+///     Represents a post-handler that executes after a specific event type <typeparamref name="TEvent" /> is processed.
 /// </summary>
 /// <typeparam name="TEvent">The specific event type this post-handler targets.</typeparam>
 /// <remarks>

@@ -4,20 +4,20 @@ using System.Threading.Tasks;
 namespace LiteBus.Commands.Abstractions;
 
 /// <summary>
-/// Provides extension methods for <see cref="ICommandMediator"/> to simplify command sending operations.
+///     Provides extension methods for <see cref="ICommandMediator" /> to simplify command sending operations.
 /// </summary>
 public static class CommandMediatorExtensions
 {
     /// <summary>
-    /// Sends a command asynchronously using the specified command mediator.
+    ///     Sends a command asynchronously using the specified command mediator.
     /// </summary>
     /// <param name="commandMediator">The command mediator to use for sending the command.</param>
     /// <param name="command">The command to send.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the send operation.</param>
     /// <returns>A task representing the asynchronous send operation.</returns>
     /// <example>
-    /// Usage example:
-    /// <code>
+    ///     Usage example:
+    ///     <code>
     /// await commandMediator.SendAsync(myCommand, cancellationToken);
     /// </code>
     /// </example>
@@ -29,7 +29,7 @@ public static class CommandMediatorExtensions
     }
 
     /// <summary>
-    /// Sends a command asynchronously using the specified command mediator and returns a result.
+    ///     Sends a command asynchronously using the specified command mediator and returns a result.
     /// </summary>
     /// <typeparam name="TCommandResult">The type of the result returned by the command.</typeparam>
     /// <param name="commandMediator">The command mediator to use for sending the command.</param>
@@ -37,8 +37,8 @@ public static class CommandMediatorExtensions
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the send operation.</param>
     /// <returns>A task representing the asynchronous operation, containing the result of the command.</returns>
     /// <example>
-    /// Usage example:
-    /// <code>
+    ///     Usage example:
+    ///     <code>
     /// var result = await commandMediator.SendAsync(myCommand, cancellationToken);
     /// </code>
     /// </example>
@@ -50,7 +50,7 @@ public static class CommandMediatorExtensions
     }
 
     /// <summary>
-    /// Sends a tagged command asynchronously using the specified command mediator.
+    ///     Sends a tagged command asynchronously using the specified command mediator.
     /// </summary>
     /// <param name="commandMediator">The command mediator to use for sending the command.</param>
     /// <param name="command">The command to send.</param>
@@ -58,8 +58,8 @@ public static class CommandMediatorExtensions
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the send operation.</param>
     /// <returns>A task representing the asynchronous send operation.</returns>
     /// <example>
-    /// Usage example:
-    /// <code>
+    ///     Usage example:
+    ///     <code>
     /// await commandMediator.SendAsync(myCommand, "UserAction", cancellationToken);
     /// </code>
     /// </example>
@@ -80,7 +80,7 @@ public static class CommandMediatorExtensions
     }
 
     /// <summary>
-    /// Sends a tagged command asynchronously using the specified command mediator and returns a result.
+    ///     Sends a tagged command asynchronously using the specified command mediator and returns a result.
     /// </summary>
     /// <typeparam name="TCommandResult">The type of the result returned by the command.</typeparam>
     /// <param name="commandMediator">The command mediator to use for sending the command.</param>
@@ -89,8 +89,8 @@ public static class CommandMediatorExtensions
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the send operation.</param>
     /// <returns>A task representing the asynchronous operation, containing the result of the command.</returns>
     /// <example>
-    /// Usage example:
-    /// <code>
+    ///     Usage example:
+    ///     <code>
     /// var result = await commandMediator.SendAsync(myCommand, "UserAction", cancellationToken);
     /// </code>
     /// </example>

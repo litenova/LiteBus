@@ -3,7 +3,7 @@
 namespace LiteBus.Events.Abstractions;
 
 /// <summary>
-///     Represents a pre-handler that executes before a specific event type <typeparamref name="TEvent"/> is processed.
+///     Represents a pre-handler that executes before a specific event type <typeparamref name="TEvent" /> is processed.
 /// </summary>
 /// <typeparam name="TEvent">The specific event type this pre-handler targets.</typeparam>
 /// <remarks>

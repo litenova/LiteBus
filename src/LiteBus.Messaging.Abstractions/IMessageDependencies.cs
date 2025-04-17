@@ -1,71 +1,84 @@
 ﻿namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-/// Defines a contract for an object that holds the dependencies needed to handle messages within a given context, offering various collections of handlers to be used at different stages of message processing.
+///     Defines a contract for an object that holds the dependencies needed to handle messages within a given context,
+///     offering various collections of handlers to be used at different stages of message processing.
 /// </summary>
 public interface IMessageDependencies
 {
     /// <summary>
-    /// Gets a lazy initialized read-only collection of direct message handlers. These handlers are primarily responsible for handling messages they are registered to handle.
+    ///     Gets a lazy initialized read-only collection of direct message handlers. These handlers are primarily responsible
+    ///     for handling messages they are registered to handle.
     /// </summary>
     /// <value>
-    /// The collection of direct message handlers.
+    ///     The collection of direct message handlers.
     /// </value>
     ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> Handlers { get; }
 
     /// <summary>
-    /// Gets a lazy initialized read-only collection of indirect message handlers. These handlers can be used to handle messages in a more general manner, potentially handling a variety of different message types or performing logging or other cross-cutting concerns.
+    ///     Gets a lazy initialized read-only collection of indirect message handlers. These handlers can be used to handle
+    ///     messages in a more general manner, potentially handling a variety of different message types or performing logging
+    ///     or other cross-cutting concerns.
     /// </summary>
     /// <value>
-    /// The collection of indirect message handlers.
+    ///     The collection of indirect message handlers.
     /// </value>
     ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> IndirectHandlers { get; }
 
     /// <summary>
-    /// Gets a lazy initialized read-only collection of direct pre-message handlers. These handlers are invoked before the primary message handlers and can be used for tasks such as validation or logging.
+    ///     Gets a lazy initialized read-only collection of direct pre-message handlers. These handlers are invoked before the
+    ///     primary message handlers and can be used for tasks such as validation or logging.
     /// </summary>
     /// <value>
-    /// The collection of direct pre-message handlers.
+    ///     The collection of direct pre-message handlers.
     /// </value>
     ILazyHandlerCollection<IMessagePreHandler, IPreHandlerDescriptor> PreHandlers { get; }
 
     /// <summary>
-    /// Gets a lazy initialized read-only collection of indirect pre-message handlers. These handlers are invoked before the primary message handlers, potentially handling a variety of different message types or performing logging or other cross-cutting concerns.
+    ///     Gets a lazy initialized read-only collection of indirect pre-message handlers. These handlers are invoked before
+    ///     the primary message handlers, potentially handling a variety of different message types or performing logging or
+    ///     other cross-cutting concerns.
     /// </summary>
     /// <value>
-    /// The collection of indirect pre-message handlers.
+    ///     The collection of indirect pre-message handlers.
     /// </value>
     ILazyHandlerCollection<IMessagePreHandler, IPreHandlerDescriptor> IndirectPreHandlers { get; }
 
     /// <summary>
-    /// Gets a lazy initialized read-only collection of direct post-message handlers. These handlers are invoked after the primary message handlers have completed their work, allowing for tasks such as cleanup or logging to be performed.
+    ///     Gets a lazy initialized read-only collection of direct post-message handlers. These handlers are invoked after the
+    ///     primary message handlers have completed their work, allowing for tasks such as cleanup or logging to be performed.
     /// </summary>
     /// <value>
-    /// The collection of direct post-message handlers.
+    ///     The collection of direct post-message handlers.
     /// </value>
     ILazyHandlerCollection<IMessagePostHandler, IPostHandlerDescriptor> PostHandlers { get; }
 
     /// <summary>
-    /// Gets a lazy initialized read-only collection of indirect post-message handlers. These handlers are invoked after the primary message handlers, potentially handling a variety of different message types or performing logging or other cross-cutting concerns.
+    ///     Gets a lazy initialized read-only collection of indirect post-message handlers. These handlers are invoked after
+    ///     the primary message handlers, potentially handling a variety of different message types or performing logging or
+    ///     other cross-cutting concerns.
     /// </summary>
     /// <value>
-    /// The collection of indirect post-message handlers.
+    ///     The collection of indirect post-message handlers.
     /// </value>
     ILazyHandlerCollection<IMessagePostHandler, IPostHandlerDescriptor> IndirectPostHandlers { get; }
 
     /// <summary>
-    /// Gets a lazy initialized read-only collection of direct message error handlers. These handlers are invoked when an error occurs during message processing, allowing for centralized error handling logic to be implemented.
+    ///     Gets a lazy initialized read-only collection of direct message error handlers. These handlers are invoked when an
+    ///     error occurs during message processing, allowing for centralized error handling logic to be implemented.
     /// </summary>
     /// <value>
-    /// The collection of direct message error handlers.
+    ///     The collection of direct message error handlers.
     /// </value>
     ILazyHandlerCollection<IMessageErrorHandler, IErrorHandlerDescriptor> ErrorHandlers { get; }
 
     /// <summary>
-    /// Gets a lazy initialized read-only collection of indirect message error handlers. These handlers are invoked when an error occurs during message processing, potentially handling a variety of different message types or performing logging or other cross-cutting concerns.
+    ///     Gets a lazy initialized read-only collection of indirect message error handlers. These handlers are invoked when an
+    ///     error occurs during message processing, potentially handling a variety of different message types or performing
+    ///     logging or other cross-cutting concerns.
     /// </summary>
     /// <value>
-    /// The collection of indirect message error handlers.
+    ///     The collection of indirect message error handlers.
     /// </value>
     ILazyHandlerCollection<IMessageErrorHandler, IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
 }

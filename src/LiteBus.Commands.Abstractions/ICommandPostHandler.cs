@@ -8,6 +8,7 @@ namespace LiteBus.Commands.Abstractions;
 /// <remarks>
 ///     Command post-handlers run after the main command handler has completed execution. They can be used for
 ///     cross-cutting concerns such as logging, notification, or cleanup operations that should run after all commands.
-///     Multiple post-handlers can be registered in the application and they will all execute after each command is handled.
+///     Multiple post-handlers can be registered in the application and they will all execute after each command is
+///     handled.
 /// </remarks>
 public interface ICommandPostHandler : IRegistrableCommandConstruct, IAsyncMessagePostHandler<ICommand>;

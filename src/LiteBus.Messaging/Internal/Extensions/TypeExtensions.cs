@@ -17,7 +17,7 @@ internal static class TypeExtensions
     {
         var handlerOrderAttribute = Attribute.GetCustomAttribute(type, typeof(HandlerOrderAttribute));
 
-        int order = 0;
+        var order = 0;
 
         if (handlerOrderAttribute is not null)
         {

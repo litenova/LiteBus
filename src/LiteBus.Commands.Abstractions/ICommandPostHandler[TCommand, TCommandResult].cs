@@ -3,8 +3,9 @@
 namespace LiteBus.Commands.Abstractions;
 
 /// <summary>
-///     Represents a post-handler that executes after a specific command type <typeparamref name="TCommand"/> is processed,
-///     with access to the command result of type <typeparamref name="TCommandResult"/>.
+///     Represents a post-handler that executes after a specific command type <typeparamref name="TCommand" /> is
+///     processed,
+///     with access to the command result of type <typeparamref name="TCommandResult" />.
 /// </summary>
 /// <typeparam name="TCommand">The specific command type this post-handler targets.</typeparam>
 /// <typeparam name="TCommandResult">The type of result produced by the command.</typeparam>

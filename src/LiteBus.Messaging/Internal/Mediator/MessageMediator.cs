@@ -5,16 +5,16 @@ using LiteBus.Messaging.Internal.Contexts.Execution;
 namespace LiteBus.Messaging.Internal.Mediator;
 
 /// <summary>
-/// Implements the <see cref="IMessageMediator"/> interface to provide message mediation capabilities.
+///     Implements the <see cref="IMessageMediator" /> interface to provide message mediation capabilities.
 /// </summary>
 /// <remarks>
-/// The <see cref="MessageMediator"/> is responsible for handling the mediation of messages by:
-/// <list type="bullet">
-///   <li>Creating and managing execution contexts for each mediation operation</li>
-///   <li>Resolving message handlers through the message registry</li>
-///   <li>Applying the appropriate mediation strategy to process messages</li>
-///   <li>Managing nested mediation calls by preserving execution context state</li>
-/// </list>
+///     The <see cref="MessageMediator" /> is responsible for handling the mediation of messages by:
+///     <list type="bullet">
+///         <li>Creating and managing execution contexts for each mediation operation</li>
+///         <li>Resolving message handlers through the message registry</li>
+///         <li>Applying the appropriate mediation strategy to process messages</li>
+///         <li>Managing nested mediation calls by preserving execution context state</li>
+///     </list>
 /// </remarks>
 internal sealed class MessageMediator : IMessageMediator
 {
@@ -22,7 +22,7 @@ internal sealed class MessageMediator : IMessageMediator
     private readonly IServiceProvider _serviceProvider;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="MessageMediator"/> class.
+    ///     Initializes a new instance of the <see cref="MessageMediator" /> class.
     /// </summary>
     /// <param name="messageRegistry">The registry containing message handler information.</param>
     /// <param name="serviceProvider">The service provider used to resolve dependencies.</param>
@@ -34,15 +34,21 @@ internal sealed class MessageMediator : IMessageMediator
     }
 
     /// <summary>
-    /// Mediates a message to its appropriate handler and returns the result.
+    ///     Mediates a message to its appropriate handler and returns the result.
     /// </summary>
     /// <typeparam name="TMessage">The type of the message.</typeparam>
     /// <typeparam name="TMessageResult">The type of the result.</typeparam>
     /// <param name="message">The message to mediate.</param>
     /// <param name="options">The options that control the mediation process.</param>
     /// <returns>The result of the message handling.</returns>
-    /// <exception cref="NoHandlerFoundException">Thrown when no handler is found for the message type and registration on spot is disabled.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when no descriptor can be found for the message type with the specified resolve strategy.</exception>
+    /// <exception cref="NoHandlerFoundException">
+    ///     Thrown when no handler is found for the message type and registration on spot
+    ///     is disabled.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when no descriptor can be found for the message type with the
+    ///     specified resolve strategy.
+    /// </exception>
     public TMessageResult Mediate<TMessage, TMessageResult>(TMessage message,
                                                             MediateOptions<TMessage, TMessageResult> options) where TMessage : notnull
     {

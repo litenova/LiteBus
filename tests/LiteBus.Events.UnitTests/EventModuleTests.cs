@@ -295,7 +295,7 @@ public sealed class EventModuleTests
 
         var settings = new EventMediationSettings
         {
-            ThrowIfNoHandlerFound = false,
+            ThrowIfNoHandlerFound = false
         };
 
         // Act
@@ -304,7 +304,7 @@ public sealed class EventModuleTests
         // Assert
         @event.ExecutedTypes.Should().HaveCount(0);
     }
-    
+
     [Fact]
     public async Task mediating_the_an_event_with_no_handlers_should_throw_exception_when_ThrowIfNoHandlerFound_is_set_true()
     {
@@ -318,7 +318,7 @@ public sealed class EventModuleTests
 
         var settings = new EventMediationSettings
         {
-            ThrowIfNoHandlerFound = true,
+            ThrowIfNoHandlerFound = true
         };
 
         // Act

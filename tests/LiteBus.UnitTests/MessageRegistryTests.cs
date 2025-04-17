@@ -12,18 +12,18 @@ public sealed class MessageRegistryTests
     public void Register_SimpleType_ShouldRegisterAsAMessage()
     {
         // Arrange
-        MessageRegistry messageRegistry = new MessageRegistry();
+        var messageRegistry = new MessageRegistry();
 
         // Act
         messageRegistry.Register(typeof(FakeCommand));
         messageRegistry.Register(typeof(FakeCommand));
         messageRegistry.Register(typeof(int));
-        
+
         // Assert
         messageRegistry.Should().HaveCount(1);
         messageRegistry.Single().MessageType.Should().Be(typeof(FakeCommand));
     }
-    
+
     [Theory]
     [InlineData(typeof(string))]
     [InlineData(typeof(IEnumerable))]
@@ -31,11 +31,11 @@ public sealed class MessageRegistryTests
     public void Register_ShouldNotRegister(Type type)
     {
         // Arrange
-        MessageRegistry messageRegistry = new MessageRegistry();
+        var messageRegistry = new MessageRegistry();
 
         // Act
         messageRegistry.Register(type);
-        
+
         // Assert
         messageRegistry.Should().BeEmpty();
     }

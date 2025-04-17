@@ -3,8 +3,8 @@
 namespace LiteBus.Queries.Abstractions;
 
 /// <summary>
-///     Represents a post-handler that executes after a specific query type <typeparamref name="TQuery"/> is processed,
-///     with access to the query result of type <typeparamref name="TQueryResult"/>.
+///     Represents a post-handler that executes after a specific query type <typeparamref name="TQuery" /> is processed,
+///     with access to the query result of type <typeparamref name="TQueryResult" />.
 /// </summary>
 /// <typeparam name="TQuery">The specific query type this post-handler targets.</typeparam>
 /// <typeparam name="TQueryResult">The type of result produced by the query.</typeparam>

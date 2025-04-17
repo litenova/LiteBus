@@ -1,9 +1,11 @@
 # Changelog
 
 ## v.0.25.1
+
 - Add `ICommandValidator`
 
 ## v.0.25.0
+
 - Enable `Nullable` for all projects.
 
 ## v.0.24.4

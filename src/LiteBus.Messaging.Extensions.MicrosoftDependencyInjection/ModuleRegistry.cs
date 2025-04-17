@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 
 /// <summary>
-/// Represents a module registry responsible for registering and initializing modules and their components.
+///     Represents a module registry responsible for registering and initializing modules and their components.
 /// </summary>
 internal sealed class ModuleRegistry : IModuleRegistry
 {
@@ -17,7 +17,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
     private readonly IServiceCollection _services;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ModuleRegistry"/> class with the provided service collection.
+    ///     Initializes a new instance of the <see cref="ModuleRegistry" /> class with the provided service collection.
     /// </summary>
     /// <param name="services">The service collection used for dependency injection.</param>
     public ModuleRegistry(IServiceCollection services)
@@ -26,7 +26,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
     }
 
     /// <summary>
-    /// Registers a module with the module registry.
+    ///     Registers a module with the module registry.
     /// </summary>
     /// <param name="module">The module to register.</param>
     /// <returns>The instance of the module registry for method chaining.</returns>
@@ -37,7 +37,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
     }
 
     /// <summary>
-    /// Initializes the registered modules and their components.
+    ///     Initializes the registered modules and their components.
     /// </summary>
     public void Initialize()
     {

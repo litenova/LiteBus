@@ -6,7 +6,8 @@ namespace LiteBus.UnitTests.Data.PlainMessage;
 
 public class FakePlainMessageStreamHandler : IStreamMessageHandler<FakePlainMessage, string>
 {
-    public async IAsyncEnumerable<string> StreamAsync(FakePlainMessage message, [EnumeratorCancellation] CancellationToken cancellationToken =
+    public async IAsyncEnumerable<string> StreamAsync(FakePlainMessage message,
+                                                      [EnumeratorCancellation] CancellationToken cancellationToken =
                                                           default)
     {
         Debug.WriteLine($"{nameof(FakePlainMessageStreamHandler)} executed!");

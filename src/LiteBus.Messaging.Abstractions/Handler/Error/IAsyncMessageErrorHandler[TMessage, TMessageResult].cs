@@ -5,16 +5,16 @@ using System.Threading.Tasks;
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-/// Represents an asynchronous error handler for messages of type <typeparamref name="TMessage"/>
-/// and results of type <typeparamref name="TMessageResult"/>.
-/// This interface should be implemented to handle exceptions that occur during the processing of messages.
+///     Represents an asynchronous error handler for messages of type <typeparamref name="TMessage" />
+///     and results of type <typeparamref name="TMessageResult" />.
+///     This interface should be implemented to handle exceptions that occur during the processing of messages.
 /// </summary>
 /// <typeparam name="TMessage">The type of the message that this error handler is applicable to.</typeparam>
 /// <typeparam name="TMessageResult">The type of the result produced by the message processing.</typeparam>
 public interface IAsyncMessageErrorHandler<in TMessage, in TMessageResult> : IMessageErrorHandler<TMessage, TMessageResult> where TMessage : notnull
 {
     /// <summary>
-    /// Synchronously handles an error encountered in message processing by delegating to an asynchronous method.
+    ///     Synchronously handles an error encountered in message processing by delegating to an asynchronous method.
     /// </summary>
     /// <param name="message">The message that encountered the error.</param>
     /// <param name="exception">The exception that was thrown during message processing.</param>
@@ -26,7 +26,7 @@ public interface IAsyncMessageErrorHandler<in TMessage, in TMessageResult> : IMe
     }
 
     /// <summary>
-    /// Asynchronously handles an error encountered in message processing.
+    ///     Asynchronously handles an error encountered in message processing.
     /// </summary>
     /// <param name="message">The message that encountered the error.</param>
     /// <param name="messageResult">The result of the message processing prior to the error, which may be null.</param>

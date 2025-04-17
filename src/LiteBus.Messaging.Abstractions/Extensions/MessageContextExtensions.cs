@@ -4,13 +4,16 @@ using System.Threading.Tasks;
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-/// Provides extension methods for running pre-handlers, error handlers, and post-handlers in the message handling process.
-/// This class facilitates the execution of handler pipelines for messages, allowing for a structured and organized approach to message handling with pre-processing, error handling, and post-processing steps.
+///     Provides extension methods for running pre-handlers, error handlers, and post-handlers in the message handling
+///     process.
+///     This class facilitates the execution of handler pipelines for messages, allowing for a structured and organized
+///     approach to message handling with pre-processing, error handling, and post-processing steps.
 /// </summary>
 public static class MessageContextExtensions
 {
     /// <summary>
-    /// Runs asynchronous pre-handlers for a given message, allowing for operations such as validation and logging to be performed before the primary message handling.
+    ///     Runs asynchronous pre-handlers for a given message, allowing for operations such as validation and logging to be
+    ///     performed before the primary message handling.
     /// </summary>
     /// <param name="messageDependencies">The message dependencies encapsulating pre-handlers.</param>
     /// <param name="message">The message to be pre-handled.</param>
@@ -29,7 +32,8 @@ public static class MessageContextExtensions
     }
 
     /// <summary>
-    /// Runs error handlers for a given context, allowing for centralized error handling logic to be applied in the case of failures during the message handling process.
+    ///     Runs error handlers for a given context, allowing for centralized error handling logic to be applied in the case of
+    ///     failures during the message handling process.
     /// </summary>
     /// <param name="messageDependencies">The message dependencies encapsulating error handlers.</param>
     /// <param name="message">The message that was being handled when the error occurred.</param>
@@ -55,7 +59,8 @@ public static class MessageContextExtensions
     }
 
     /// <summary>
-    /// Runs post-handlers for a given context, allowing for operations such as logging and further processing to be performed after the primary message handling.
+    ///     Runs post-handlers for a given context, allowing for operations such as logging and further processing to be
+    ///     performed after the primary message handling.
     /// </summary>
     /// <param name="messageDependencies">The message dependencies encapsulating post-handlers.</param>
     /// <param name="message">The message that has been handled.</param>

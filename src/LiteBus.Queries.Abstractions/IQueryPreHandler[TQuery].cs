@@ -3,7 +3,7 @@
 namespace LiteBus.Queries.Abstractions;
 
 /// <summary>
-///     Represents a pre-handler that executes before a specific query type <typeparamref name="TQuery"/> is processed.
+///     Represents a pre-handler that executes before a specific query type <typeparamref name="TQuery" /> is processed.
 /// </summary>
 /// <typeparam name="TQuery">The specific query type this pre-handler targets.</typeparam>
 /// <remarks>

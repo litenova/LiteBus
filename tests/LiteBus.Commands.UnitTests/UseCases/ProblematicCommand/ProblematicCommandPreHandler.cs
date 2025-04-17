@@ -7,12 +7,12 @@ public sealed class ProblematicCommandPreHandler : ICommandPreHandler<Problemati
     public Task PreHandleAsync(ProblematicCommand message, CancellationToken cancellationToken = default)
     {
         message.ExecutedTypes.Add(GetType());
-        
+
         if (message.ThrowExceptionInType == GetType())
         {
             throw new CommandException();
         }
-        
+
         return Task.CompletedTask;
     }
 }

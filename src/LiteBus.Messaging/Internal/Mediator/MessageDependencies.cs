@@ -6,7 +6,7 @@ using LiteBus.Messaging.Internal.Extensions;
 
 namespace LiteBus.Messaging.Internal.Mediator;
 
-/// <inheritdoc cref="IMessageDependencies"/>
+/// <inheritdoc cref="IMessageDependencies" />
 internal sealed class MessageDependencies : IMessageDependencies
 {
     private readonly Type _messageType;
@@ -50,7 +50,7 @@ internal sealed class MessageDependencies : IMessageDependencies
     public ILazyHandlerCollection<IMessageErrorHandler, IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
 
     /// <summary>
-    /// Resolves handlers from the provided descriptors and a handler resolution function.
+    ///     Resolves handlers from the provided descriptors and a handler resolution function.
     /// </summary>
     private ILazyHandlerCollection<THandler, TDescriptor> ResolveHandlers<THandler, TDescriptor>(
         IEnumerable<TDescriptor> descriptors,
@@ -68,7 +68,7 @@ internal sealed class MessageDependencies : IMessageDependencies
     }
 
     /// <summary>
-    /// Retrieves the handler type from a descriptor, adjusting for generic types as necessary.
+    ///     Retrieves the handler type from a descriptor, adjusting for generic types as necessary.
     /// </summary>
     private Type GetHandlerType(IHandlerDescriptor descriptor)
     {

@@ -1,7 +1,7 @@
 namespace LiteBus.Queries.Abstractions;
 
 /// <summary>
-///     Represents a query that returns a stream of results of type <typeparamref name="TQueryResult"/>.
+///     Represents a query that returns a stream of results of type <typeparamref name="TQueryResult" />.
 /// </summary>
 /// <typeparam name="TQueryResult">The type of elements in the result stream.</typeparam>
 /// <remarks>

@@ -10,7 +10,7 @@ public sealed class GlobalCommandPostHandler : ICommandPostHandler
         {
             auditableCommand.ExecutedTypes.Add(GetType());
         }
-        
+
         if (message is ProblematicCommand.ProblematicCommand problematicCommand && problematicCommand.ThrowExceptionInType == GetType())
         {
             throw new CommandException();
