@@ -1,15 +1,13 @@
 version: 2
 updates:
-
-  # Maintain dependencies for Nuget Packages
-  - package-ecosystem: nuget
+  - package-ecosystem: "nuget"
     directory: "/"
     schedule:
-      interval: daily
-    open-pull-requests-limit: 25
-  
-  # Maintain dependencies for GitHub Actions
+      interval: "weekly"
+    open-pull-requests-limit: 10
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"    
+      interval: "monthly"
+    open-pull-requests-limit: 5

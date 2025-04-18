@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.0
+
+- Added: Comprehensive wiki documentation
+- Added: Source Link support for improved debugging
+- Added: Automated release workflow with GitVersion integration
+- Added: Handler tags for contextual scenario handling
+- Changed: Updated repository structure for modern .NET practices
+- Improved: Code documentation and examples
+- Fixed: Various minor issues from previous versions
+
 ## v.0.25.1
 
 - Add `ICommandValidator`
