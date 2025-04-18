@@ -1,19 +1,24 @@
 <Project>
-
     <PropertyGroup>
         <TargetFramework>net8.0</TargetFramework>
         <LangVersion>latest</LangVersion>
         <Authors>A. Shafie</Authors>
-        <PackageTags>mediator;cqrs</PackageTags>
-        <VersionPrefix>0.25.1</VersionPrefix>
+        <PackageTags>mediator;cqrs;ddd;commands;queries;events</PackageTags>
         <PackageIcon>icon.png</PackageIcon>
-        <Description>LiteBus is an easy-to-use and ambitious in-process mediator providing the foundation to implement Command Query Separation (CQS). It is implemented with minimal reflection and instead utilizes covariance and contravariance to provide its core functionality.</Description>
+        <Description>LiteBus is a lightweight, flexible in-process mediator for implementing Command Query Separation (CQS) patterns in .NET applications.</Description>
         <PackageProjectUrl>https://github.com/litenova/LiteBus</PackageProjectUrl>
         <RepositoryUrl>https://github.com/litenova/LiteBus</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <Nullable>enable</Nullable>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+
+        <!-- Source Link -->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
     </PropertyGroup>
 
     <ItemGroup>
@@ -22,10 +27,7 @@
         <InternalsVisibleTo Include="LiteBus.UnitTests"/>
     </ItemGroup>
 
-    <Target Name="SetPackageReleaseNotes" BeforeTargets="GenerateNuspec">
-        <PropertyGroup>
-            <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(SolutionDir)\Changelog.md"))</PackageReleaseNotes>
-        </PropertyGroup>
-    </Target>
-
+    <ItemGroup>
+        <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All"/>
+    </ItemGroup>
 </Project>
