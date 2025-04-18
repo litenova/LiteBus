@@ -1,0 +1,19 @@
+mode: Mainline
+branches:
+  main:
+    tag: ''
+    increment: Patch
+    is-release-branch: true
+  preview:
+    tag: 'preview'
+    increment: Patch
+    is-release-branch: true
+  feature:
+    regex: ^feature?[/-]
+    tag: 'alpha-{BranchName}'
+    increment: Minor
+    prevent-increment-of-merged-branch-version: false
+    is-release-branch: false
+ignore:
+  sha: []
+merge-message-formats: {}

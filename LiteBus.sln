@@ -23,6 +23,7 @@ ProjectSection(SolutionItems) = preProject
 	README.md = README.md
 	global.json = global.json
 	Changelog.md = Changelog.md
+	GitVersion.yml = GitVersion.yml
 EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Messaging.Abstractions", "src\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj", "{6FB3AC81-0C18-4CCC-8C05-06AC881C5F14}"
@@ -82,6 +83,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wiki", "wiki", "{26BFF3ED-C
 		wiki\Scenarios.md = wiki\Scenarios.md
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{7321969D-2560-40BD-A045-3BA2E0B09554}"
+	ProjectSection(SolutionItems) = preProject
+		.github\scripts\generate-release-notes.sh = .github\scripts\generate-release-notes.sh
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -107,6 +113,7 @@ Global
 		{4F447057-EA7C-4D4C-8073-97E48FF5688D} = {0EFE2493-E2D3-499C-BB05-B9794298273D}
 		{BA5E7006-A4B6-4E68-A30E-FC70D716E68D} = {0EFE2493-E2D3-499C-BB05-B9794298273D}
 		{24CBFD5D-C719-4103-BD9A-1AC62249C22B} = {0EFE2493-E2D3-499C-BB05-B9794298273D}
+		{7321969D-2560-40BD-A045-3BA2E0B09554} = {4F94FB13-B936-4AD4-A609-70ED7A1158E9}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{B1FDAB62-C743-4D41-A8F6-727FEFCA882D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU

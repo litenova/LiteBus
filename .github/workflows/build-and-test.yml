@@ -2,29 +2,41 @@ name: Build & Test
 
 on:
   push:
-    branches:
-      - '!main'
-      - '!preview'
+    branches: [ '**', '!main', '!preview' ]
+  pull_request:
+    branches: [ main, preview ]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Important for GitVersion
 
-      - name: Install .NET
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
 
-      - name: Restore
+      - name: Restore Dependencies
         run: dotnet restore
 
       - name: Build
         run: dotnet build --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --no-restore --verbosity normal
+        run: dotnet test --no-restore --verbosity normal --collect:"XPlat Code Coverage"
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: '**/TestResults/**/*.xml'
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          fail_ci_if_error: false
