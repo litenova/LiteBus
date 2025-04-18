@@ -1,7 +1,7 @@
 <Project>
     <ItemGroup>
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0"/>
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="9.0.4"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.4"/>
         <PackageVersion Include="FluentAssertions" Version="6.12.0"/>
         <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.8.0"/>
         <PackageVersion Include="xunit" Version="2.6.6"/>
