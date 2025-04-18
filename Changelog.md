@@ -1,113 +1,123 @@
 # Changelog
 
-## v.0.25.1
+## v1.0.0
+
+- Added: Comprehensive wiki documentation
+- Added: Source Link support for improved debugging
+- Added: Automated release workflow with GitVersion integration
+- Added: Handler tags for contextual scenario handling
+- Changed: Updated repository structure for modern .NET practices
+- Improved: Code documentation and examples
+- Fixed: Various minor issues from previous versions
+
+## v0.25.1
 
 - Add `ICommandValidator`
 
-## v.0.25.0
+## v0.25.0
 
 - Enable `Nullable` for all projects.
 
-## v.0.24.4
+## v0.24.4
 
 - Improve XML comments in the codebase.
 
-## v.0.24.3
+## v0.24.3
 
 - Don't throw error by default if no handlers were found for plain event message types
 
-## v.0.24.2
+## v0.24.2
 
 - Allow aborting the execution of handlers by calling `Abort` on the execution context.
 
-## v.0.24.1
+## v0.24.1
 
 - Add `Tags` to `IExecutionContext`.
 
-## v.0.24.0
+## v0.24.0
 
 - Upgraded to .NET 8.
 
-## v.0.23.1
+## v0.23.1
 
 - Add `QueryMediatorExtensions` for backward compatibility.
 - Add `CommandMediatorExtensions` for backward compatibility.
 - Add `EventMediatorExtensions` for backward compatibility.
 
-## v.0.23.0
+## v0.23.0
 
 - Fix the missing `Exception` parameter in `IAsyncMessageErrorHandler[TMessage, TMessageResult]` and
   `IAsyncMessageErrorHandler[TMessage]` interfaces.
 
-## v.0.22.0
+## v0.22.0
 
 - Introduce tag-based handler filtering through `HandlerTag` and `HandlerTags` attributes.
 - Add `CommandMediationSettings` to `ICommandMediator` to allow configuring command mediation.
 - Add `QueryMediationSettings` to `IQueryMediator` to allow configuring query mediation.
 
-## v.0.21.0
+## v0.21.0
 
 - Fixed Query, Event, and Command error handlers returning `object` instead of `Task`.
 
-## v.0.20.2
+## v0.20.2
 
 - Refined Handle Descriptors
 - Removed Any Usage of Reflection in `MessageDependencies`
 - Removed Some Redundant Code From Descriptors
 
-## v.0.20.1
+## v0.20.1
 
 - Rename `AddMessaging` method to `AddMessageModule`.
 
-## v.0.20.0
+## v0.20.0
 
 - Revert TargetFramework to NET 7
 
-## v.0.19.1
+## v0.19.1
 
 - Add `ThrowOnNoHandlers` to `EventMediationSettings` to allow throwing an exception when no handlers are found for an
   event.
 - Fixed a bug where the pre and post handlers were being executed even when no main handlers were found.
 
-## v.0.19.0
+## v0.19.0
 
 - Upgraded to .NET 8.
 
-## v.0.18.4
+## v0.18.4
 
 - Rename `FilterHandler` to `HandlerFilter` on `EventMediationSettings` as it is more concise and directly states that
   it is a filter for handlers.
 
-## v.0.18.3
+## v0.18.3
 
 - Add `EventMediationSettings` to IEventMediator to allow configuring event mediation.
 - Add `FilterHandler` to `EventMediationSettings` to allow filtering event handlers.
 
-## v.0.18.2
+## v0.18.2
 
 - Preserve the stack trace when rethrowing an exception in case there are no error handlers.
 
-## v.0.18.1
+## v0.18.1
 
 - Make execution of event handlers synchronous by default.
 
-## v.0.18.0
+## v0.18.0
 
 - All post handlers expose message result as the second parameter.
 - Fixed a bug where IEventPreHandler was not asynchronous.
 - Added more unit tests.
 
-## v.0.17.1
+## v0.17.1
 
 - Add `Items` property to `IExecutionContext` to allow passing data between handlers.
 
-## v.0.17.0
+## v0.17.0
 
 - Rename `AddCommands` method to `AddCommandModule`.
 - Rename `AddEvents` method to `AddEventModule`.
 - Rename `AddQueries` method to `AddQueryModule`.
 
-## v.0.16.0
+## v0.16.0
 
 - Introduced execution context using AsyncLocal functionality, accessible through AmbientExecutionContext.
 - Renamed `RegisterFrom` to `RegisterFromAssembly` in module builders.
@@ -115,50 +125,50 @@
   `LiteBus.Messaging.Abstractions`, irrespective of folder path.
 - Removed `HandleContext` as a parameter from post and pre handlers.
 
-## v.0.15.1
+## v0.15.1
 
 - Removed `IEvent` constraint from event handlers, allowing objects to be passed as events without implementing the
   `IEvent` interface.
 
-## v.0.15.0
+## v0.15.0
 
 - Added overload method to event publisher for passing an object as a message.
 - Removed `LiteBus` prefix from module constructor names.
 
-## v.0.14.1
+## v0.14.1
 
 - Upgraded dependency packages.
 
-## v.0.14.0
+## v0.14.0
 
 - Upgraded to .NET 7.
 
-## v.0.13.0
+## v0.13.0
 
 - Replaced `ICommandBase` with `ICommand`.
 - Replaced `IQueryBase` with `IQuery`.
 - Renamed `ILiteBusModule` to `IModule`.
 - Removed methods `RegisterPreHandler`, `RegisterHandler`, and `RegisterPostHandler`, replacing them with `Register`.
 - Removed superfluous base interfaces.
-
-## v.0.12.0
+~~~~
+## v0.12.0
 
 - Added support to message registry for registering any class type as a message.
 
-## v.0.11.3
+## v0.11.3
 
 - Fixed bug: Execute error handlers instead of pre handlers during error phase.
 
-## v.0.11.2
+## v0.11.2
 
 - Fixed bug: Considered the count of indirect error handlers when determining if an exception should be rethrown.
 
-## v.0.11.1
+## v0.11.1
 
 - Disabled nullable reference types.
 - Ensured error handlers cover errors in pre and post handlers.
 
-## v.0.11.0
+## v0.11.0
 
 - Introduced non-generic message registration overloads for events, queries, and messaging configuration.
 - Removed the sample project.
