@@ -68,6 +68,20 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Queries.UnitTests",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Events.UnitTests", "tests\LiteBus.Events.UnitTests\LiteBus.Events.UnitTests.csproj", "{24CBFD5D-C719-4103-BD9A-1AC62249C22B}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "wiki", "wiki", "{26BFF3ED-C536-48DE-A3AE-B82EDF3161B3}"
+	ProjectSection(SolutionItems) = preProject
+		wiki\_Sidebar.md = wiki\_Sidebar.md
+		wiki\Command-Module.md = wiki\Command-Module.md
+		wiki\Event-Module.md = wiki\Event-Module.md
+		wiki\Extensibility.md = wiki\Extensibility.md
+		wiki\Home.md = wiki\Home.md
+		wiki\Query-Module.md = wiki\Query-Module.md
+		wiki\Roadmap.md = wiki\Roadmap.md
+		wiki\Getting-Started.md = wiki\Getting-Started.md
+		wiki\Cross-Cutting-Concerns.md = wiki\Cross-Cutting-Concerns.md
+		wiki\Scenarios.md = wiki\Scenarios.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
