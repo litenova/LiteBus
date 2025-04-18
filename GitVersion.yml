@@ -5,6 +5,7 @@ branches:
     increment: Patch
     is-release-branch: true
   preview:
+    regex: ^preview$
     tag: 'preview'
     increment: Patch
     is-release-branch: true
