@@ -1,6 +1,9 @@
 mode: Mainline
+tag-prefix: 'v'
+commit-date-format: 'yyyy-MM-dd'
 branches:
   main:
+    regex: ^main$
     tag: ''
     increment: Patch
     is-release-branch: true
@@ -8,13 +11,13 @@ branches:
     regex: ^preview$
     tag: 'preview'
     increment: Patch
-    is-release-branch: true
+  release:
+    regex: ^release[/-]
+    tag: 'rc'
+    increment: None
   feature:
-    regex: ^feature?[/-]
-    tag: 'alpha-{BranchName}'
+    regex: ^feature[/-]
+    tag: 'alpha'
     increment: Minor
-    prevent-increment-of-merged-branch-version: false
-    is-release-branch: false
 ignore:
   sha: []
-merge-message-formats: {}
