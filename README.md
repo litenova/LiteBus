@@ -33,7 +33,7 @@ For detailed documentation and examples, please visit the <a href="https://githu
   - `IQuery<TResult>` - For data retrieval operations
   - `IStreamQuery<TResult>` - For streaming large datasets via `IAsyncEnumerable<T>`
   - `IEvent` - For notifications and event-driven architecture
-  - Support for POCO objects as messages without framework interfaces
+  - Support for POCO objects as messages without library interfaces
 
 - **Rich handler ecosystem**:
   - Pre-handlers for validation and pre-processing
