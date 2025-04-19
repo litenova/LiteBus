@@ -2,9 +2,9 @@ name: Build & Test
 
 on:
   push:
-    branches: [ '**', '!main', '!preview' ]
+    branches: [ '**', '!main' ]
   pull_request:
-    branches: [ main, preview ]
+    branches: [ main ]
 
 jobs:
   build:

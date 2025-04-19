@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    branches: [ main, preview ]
+    branches: [ main ]
     tags: [ 'v*' ]
 
 jobs:
@@ -75,7 +75,7 @@ jobs:
         run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Publish to GitHub Packages
-        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/preview'
+        if: startsWith(github.ref, 'refs/tags/')
         run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --skip-duplicate
 
       - name: Create GitHub Release
@@ -85,6 +85,6 @@ jobs:
           files: ./artifacts/*.nupkg
           body_path: release-notes.md
           draft: false
-          prerelease: ${{ contains(github.ref, '-preview') }}
+          prerelease: ${{ contains(github.ref, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
