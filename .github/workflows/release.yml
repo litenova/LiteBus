@@ -4,6 +4,8 @@ on:
   push:
     branches: [ main ]
     tags: [ 'v*' ]
+    paths:
+      - 'src/**'
 
 jobs:
   release:
@@ -31,23 +33,30 @@ jobs:
         with:
           useConfigFile: true
 
-      - name: Display Version
+      - name: Display GitVersion Output
         run: |
           echo "SemVer: ${{ steps.gitversion.outputs.semVer }}"
           echo "NuGetVersion: ${{ steps.gitversion.outputs.nuGetVersion }}"
           echo "MajorMinorPatch: ${{ steps.gitversion.outputs.majorMinorPatch }}"
 
-      - name: Generate Release Notes
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Set Version Variables
+        id: version
         run: |
-          chmod +x ./.github/scripts/generate-release-notes.sh
-          ./.github/scripts/generate-release-notes.sh
-
-      - name: Restore
-        run: dotnet restore
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            # For version tags, use the tag directly
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "Using tag version: $VERSION"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "nuget_version=$VERSION" >> $GITHUB_OUTPUT
+          else
+            # For non-tag builds, use GitVersion
+            echo "Using GitVersion: ${{ steps.gitversion.outputs.semVer }}"
+            echo "version=${{ steps.gitversion.outputs.semVer }}" >> $GITHUB_OUTPUT
+            echo "nuget_version=${{ steps.gitversion.outputs.nuGetVersion }}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore /p:Version=${{ steps.gitversion.outputs.semVer }} /p:ContinuousIntegrationBuild=true
+        run: dotnet build --configuration Release --no-restore /p:Version=${{ steps.version.outputs.version }} /p:ContinuousIntegrationBuild=true
 
       - name: Test
         run: dotnet test --no-restore --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
@@ -62,7 +71,7 @@ jobs:
           verbose: true
 
       - name: Pack
-        run: dotnet pack --configuration Release /p:Version=${{ steps.gitversion.outputs.nuGetVersion }} --no-build --output ./artifacts
+        run: dotnet pack --configuration Release /p:Version=${{ steps.version.outputs.nuget_version }} --no-build --output ./artifacts
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
