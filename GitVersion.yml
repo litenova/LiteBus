@@ -17,3 +17,11 @@ branches:
     tag: 'rc'
     increment: None
     source-branches: [ 'main' ]
+  tag:
+    regex: ^tags?[/-]
+    tag: ''
+    source-branches: [ 'main' ]
+    increment: None
+    is-mainline: true
+ignore:
+  sha: [ ]
