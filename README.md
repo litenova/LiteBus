@@ -24,10 +24,10 @@ For detailed documentation and examples, please visit the <a href="https://githu
 
 ## Key Features
 
-- **Built for .NET 8** - Designed to leverage modern C# and .NET capabilities
+- **Built in .NET 8**
 - **Zero external dependencies** - Completely standalone with no third-party dependencies
 - **Reduced reflection usage** - Optimized for performance with minimal reflection
-- **DDD-friendly design** - Support for plain domain events without framework dependencies, keeping your domain model clean
+- **DDD-friendly design** - Support for plain domain events without library dependencies, keeping your domain model clean
 - **Comprehensive messaging types**:
   - `ICommand` / `ICommand<TResult>` - For state-changing operations
   - `IQuery<TResult>` - For data retrieval operations
