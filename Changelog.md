@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.1.0
+
+- Add `IQueryValidator`
+
 ## v1.0.0
 
 - Added: Comprehensive wiki documentation
@@ -150,6 +154,7 @@
 - Renamed `ILiteBusModule` to `IModule`.
 - Removed methods `RegisterPreHandler`, `RegisterHandler`, and `RegisterPostHandler`, replacing them with `Register`.
 - Removed superfluous base interfaces.
+
 ~~~~
 ## v0.12.0
 
