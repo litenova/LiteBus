@@ -52,16 +52,26 @@ For detailed documentation and examples, please visit the <a href="https://githu
 ## Quick Example
 
 ```csharp
+// Define the command result
+public record CreateProductCommandResult(Guid Id);
+
 // Define a command with a result
-public class CreateProductCommand : ICommand<ProductDto>
+public record CreateProductCommand(string Title) : ICommand<CreateProductCommandResult>;
+
+// Implement a command validator
+public class CreateProductCommandValidator : ICommandValidator<CreateProductCommand>
 {
-    public required string Name { get; init; }
-    public required decimal Price { get; init; }
-    public string? Description { get; init; }
+    public Task ValidateAsync(CreateProductCommand command, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(command.Title))
+            throw new ValidationException("Product title cannot be empty");
+            
+        return Task.CompletedTask;
+    }
 }
 
 // Implement a command handler
-public class CreateProductCommandHandler : ICommandHandler<CreateProductCommand, ProductDto>
+public class CreateProductCommandHandler : ICommandHandler<CreateProductCommand, CreateProductCommandResult>
 {
     private readonly IProductRepository _repository;
     
@@ -70,25 +80,13 @@ public class CreateProductCommandHandler : ICommandHandler<CreateProductCommand,
         _repository = repository;
     }
     
-    public async Task<ProductDto> HandleAsync(CreateProductCommand command, CancellationToken cancellationToken = default)
+    public async Task<CreateProductCommandResult> HandleAsync(CreateProductCommand command, CancellationToken cancellationToken = default)
     {
-        var product = new Product
-        {
-            Id = Guid.NewGuid(),
-            Name = command.Name,
-            Price = command.Price,
-            Description = command.Description
-        };
+        var product = new Product(Guid.NewGuid(), command.Title);
         
         await _repository.SaveAsync(product, cancellationToken);
         
-        return new ProductDto
-        {
-            Id = product.Id,
-            Name = product.Name,
-            Price = product.Price,
-            Description = product.Description
-        };
+        return new CreateProductCommandResult(product.Id);
     }
 }
 
@@ -97,17 +95,7 @@ services.AddLiteBus(liteBus =>
 {
     liteBus.AddCommandModule(module =>
     {
-        module.RegisterFromAssembly(typeof(Program).Assembly);
-    });
-    
-    liteBus.AddQueryModule(module =>
-    {
-        module.RegisterFromAssembly(typeof(Program).Assembly);
-    });
-    
-    liteBus.AddEventModule(module =>
-    {
-        module.RegisterFromAssembly(typeof(Program).Assembly);
+        module.RegisterFromAssembly(typeof(CreateProductCommand).Assembly);
     });
 });
 
@@ -122,10 +110,10 @@ public class ProductsController : ControllerBase
     }
     
     [HttpPost]
-    public async Task<ActionResult<ProductDto>> CreateProduct(CreateProductCommand command)
+    public async Task<ActionResult<CreateProductCommandResult>> CreateProduct(CreateProductCommand command)
     {
-        var product = await _commandMediator.SendAsync(command);
-        return Ok(product);
+        var result = await _commandMediator.SendAsync(command);
+        return Ok(result);
     }
 }
 ```
