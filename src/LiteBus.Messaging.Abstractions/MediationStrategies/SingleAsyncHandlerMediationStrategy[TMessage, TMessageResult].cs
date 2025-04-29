@@ -17,9 +17,9 @@ namespace LiteBus.Messaging.Abstractions;
 ///     3. Executes post-handlers.
 ///     In case of any exception during the process, it delegates the error handling to the registered error handlers.
 /// </remarks>
-public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> : IMessageMediationStrategy<TMessage, Task<TMessageResult?>> where TMessage : notnull
+public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> : IMessageMediationStrategy<TMessage, Task<TMessageResult>> where TMessage : notnull
 {
-    public async Task<TMessageResult?> Mediate(TMessage message, IMessageDependencies messageDependencies, IExecutionContext executionContext)
+    public async Task<TMessageResult> Mediate(TMessage message, IMessageDependencies messageDependencies, IExecutionContext executionContext)
     {
         if (messageDependencies is null)
         {
@@ -31,7 +31,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
             throw new MultipleHandlerFoundException(typeof(TMessage), messageDependencies.Handlers.Count);
         }
 
-        TMessageResult? messageResult = default;
+        TMessageResult? messageResult = default; // Nullable within the method
 
         try
         {
@@ -44,7 +44,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                 throw new InvalidOperationException($"Handler for {typeof(TMessage).Name} is not of the expected type.");
             }
 
-            messageResult = await (Task<TMessageResult?>) handler.Handle(message);
+            messageResult = await (Task<TMessageResult>) handler.Handle(message);
 
             await messageDependencies.RunAsyncPostHandlers(message, messageResult);
         }
@@ -63,6 +63,9 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
             await messageDependencies.RunAsyncErrorHandlers(message, messageResult, ExceptionDispatchInfo.Capture(e));
         }
 
-        return messageResult;
+        // If we get here, messageResult should be non-null because:
+        // 1. The handler assigned a value, or
+        // 2. An exception was thrown and we didn't reach this point
+        return messageResult!;
     }
 }

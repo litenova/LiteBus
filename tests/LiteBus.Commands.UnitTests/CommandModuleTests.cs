@@ -31,7 +31,7 @@ public sealed class CommandModuleTests
 
         // Assert
         commandResult.Should().NotBeNull();
-        commandResult!.CorrelationId.Should().Be(command.CorrelationId);
+        commandResult.CorrelationId.Should().Be(command.CorrelationId);
         command.ExecutedTypes.Should().HaveCount(6);
 
         command.ExecutedTypes[0].Should().Be<GlobalCommandPreHandler>();
@@ -142,7 +142,7 @@ public sealed class CommandModuleTests
 
         // Assert
         commandResult.Should().NotBeNull();
-        commandResult!.CorrelationId.Should().Be(Guid.Empty);
+        commandResult.CorrelationId.Should().Be(Guid.Empty);
         command.ExecutedTypes.Should().HaveCount(2);
 
         command.ExecutedTypes[0].Should().Be<GlobalCommandPreHandler>();

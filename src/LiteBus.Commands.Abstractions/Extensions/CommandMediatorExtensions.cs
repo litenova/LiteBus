@@ -42,9 +42,9 @@ public static class CommandMediatorExtensions
     /// var result = await commandMediator.SendAsync(myCommand, cancellationToken);
     /// </code>
     /// </example>
-    public static Task<TCommandResult?> SendAsync<TCommandResult>(this ICommandMediator commandMediator,
-                                                                  ICommand<TCommandResult> command,
-                                                                  CancellationToken cancellationToken = default)
+    public static Task<TCommandResult> SendAsync<TCommandResult>(this ICommandMediator commandMediator,
+                                                                 ICommand<TCommandResult> command,
+                                                                 CancellationToken cancellationToken = default)
     {
         return commandMediator.SendAsync(command, null, cancellationToken);
     }
@@ -94,10 +94,10 @@ public static class CommandMediatorExtensions
     /// var result = await commandMediator.SendAsync(myCommand, "UserAction", cancellationToken);
     /// </code>
     /// </example>
-    public static Task<TCommandResult?> SendAsync<TCommandResult>(this ICommandMediator commandMediator,
-                                                                  ICommand<TCommandResult> command,
-                                                                  string tag,
-                                                                  CancellationToken cancellationToken = default)
+    public static Task<TCommandResult> SendAsync<TCommandResult>(this ICommandMediator commandMediator,
+                                                                 ICommand<TCommandResult> command,
+                                                                 string tag,
+                                                                 CancellationToken cancellationToken = default)
     {
         return commandMediator.SendAsync(command,
             new CommandMediationSettings
