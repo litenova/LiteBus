@@ -50,7 +50,7 @@ public interface ICommandMediator
     ///     is executed, including pre-handlers, the main handler, post-handlers, and error handlers if exceptions occur.
     ///     The result produced by the handler is returned to the caller.
     /// </remarks>
-    Task<TCommandResult?> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
-                                                    CommandMediationSettings? commandMediationSettings = null,
-                                                    CancellationToken cancellationToken = default);
+    Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
+                                                   CommandMediationSettings? commandMediationSettings = null,
+                                                   CancellationToken cancellationToken = default);
 }

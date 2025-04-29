@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.0.0
+
+- **Breaking Change**: Removed nullable annotations from mediator interfaces. Nullability should now be expressed in
+  message contracts instead. See [Migration Guide](https://github.com/litenova/LiteBus/wiki/Migration-Guide) for
+  details.
+
 ## v1.1.0
 
 - Add `IQueryValidator`

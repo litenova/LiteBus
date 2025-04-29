@@ -31,7 +31,7 @@ public sealed class QueryModuleTests
 
         // Assert
         queryResult.Should().NotBeNull();
-        queryResult!.CorrelationId.Should().Be(query.CorrelationId);
+        queryResult.CorrelationId.Should().Be(query.CorrelationId);
         query.ExecutedTypes.Should().HaveCount(6);
 
         query.ExecutedTypes[0].Should().Be<GlobalQueryPreHandler>();
@@ -63,7 +63,7 @@ public sealed class QueryModuleTests
 
         // Assert
         queryResult.Should().NotBeNull();
-        queryResult!.CorrelationId.Should().Be(query.CorrelationId);
+        queryResult.CorrelationId.Should().Be(query.CorrelationId);
         query.ExecutedTypes.Should().HaveCount(5);
 
         query.ExecutedTypes[0].Should().Be<GlobalQueryPreHandler>();
