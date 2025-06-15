@@ -1,8 +1,6 @@
 using System.Collections;
-using FluentAssertions;
 using LiteBus.Messaging.Internal.Registry;
 using LiteBus.UnitTests.Data.FakeCommand.Messages;
-using Xunit;
 
 namespace LiteBus.UnitTests;
 

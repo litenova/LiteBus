@@ -1,4 +1,3 @@
-using FluentAssertions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 using LiteBus.Queries.Abstractions;
