@@ -1,4 +1,3 @@
-using FluentAssertions;
 using LiteBus.Events.Abstractions;
 using LiteBus.Events.Extensions.MicrosoftDependencyInjection;
 using LiteBus.Events.UnitTests.UseCases;

@@ -1,11 +1,9 @@
-﻿using FluentAssertions;
-using LiteBus.Events.Abstractions;
+﻿using LiteBus.Events.Abstractions;
 using LiteBus.Events.Extensions.MicrosoftDependencyInjection;
 using LiteBus.Messaging.Extensions.MicrosoftDependencyInjection;
 using LiteBus.UnitTests.Data.PlainMessage;
 using LiteBus.UnitTests.Data.Shared.CommandGlobalPostHandlers;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 
 namespace LiteBus.UnitTests;
 
