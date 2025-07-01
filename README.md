@@ -24,7 +24,7 @@ For detailed documentation and examples, please visit the <a href="https://githu
 
 ## Key Features
 
-- **Built in .NET 8**
+- **Built for .NET 8 and .NET 9** - Multi-targeting support for maximum compatibility
 - **Zero external dependencies** - Completely standalone with no third-party dependencies
 - **Reduced reflection usage** - Optimized for performance with minimal reflection
 - **DDD-friendly design** - Support for plain domain events without library dependencies, keeping your domain model clean

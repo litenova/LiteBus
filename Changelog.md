@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.1.0
+
+- **Added**: .NET 9 support while maintaining backward compatibility with .NET 8
+- **Updated**: All dependencies to their latest .NET 9 compatible versions
+- **Improved**: Multi-targeting build process for both .NET 8 and .NET 9
+
 ## v2.0.0
 
 - **Breaking Change**: Removed nullable annotations from mediator interfaces. Nullability should now be expressed in
