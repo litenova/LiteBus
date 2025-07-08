@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.2.0
+
+- **Added**: Support for incremental registration allowing for breaking down LiteBus configuration in different parts of the application.
+
 ## v2.1.0
 
 - **Added**: .NET 9 support while maintaining backward compatibility with .NET 8
