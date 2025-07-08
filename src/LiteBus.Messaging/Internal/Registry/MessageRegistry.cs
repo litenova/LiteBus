@@ -25,18 +25,13 @@ internal sealed class MessageRegistry : IMessageRegistry
     private readonly List<MessageDescriptor> _newMessages = [];
     private readonly ConcurrentDictionary<Type, byte> _processedTypes = new();
 
-    public IEnumerator<IMessageDescriptor> GetEnumerator()
-    {
-        return _messages.GetEnumerator();
-    }
+    public IEnumerator<IMessageDescriptor> GetEnumerator() => _messages.GetEnumerator();
 
-    IEnumerator IEnumerable.GetEnumerator()
-    {
-        return GetEnumerator();
-    }
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     public int Count => _messages.Count;
 
+    /// <inheritdoc />
     public void Register(Type type)
     {
         if (_processedTypes.ContainsKey(type))
@@ -44,7 +39,8 @@ internal sealed class MessageRegistry : IMessageRegistry
             return;
         }
 
-        var newDescriptors = _descriptorBuilders.Where(d => d.CanBuild(type))
+        var newDescriptors = _descriptorBuilders
+            .Where(d => d.CanBuild(type))
             .SelectMany(d => d.Build(type))
             .ToList();
 
@@ -61,39 +57,58 @@ internal sealed class MessageRegistry : IMessageRegistry
                 _descriptors.Add(descriptor);
             }
 
-            // Sync existing messages with new descriptors
-            foreach (var messageDescriptor in _messages)
+            // Sync existing messages with new descriptors (if any)
+            if (newDescriptors.Count > 0 && _messages.Count > 0)
             {
-                messageDescriptor.AddDescriptors(newDescriptors);
+                foreach (var messageDescriptor in _messages)
+                {
+                    messageDescriptor.AddDescriptors(newDescriptors);
+                }
             }
         }
 
-        // Sync new messages with all the descriptors
-        foreach (var messageDescriptor in _newMessages)
+        // Sync new messages with all descriptors (if any)
+        if (_newMessages.Count > 0 && _descriptors.Count > 0)
         {
-            messageDescriptor.AddDescriptors(_descriptors);
+            foreach (var messageDescriptor in _newMessages)
+            {
+                messageDescriptor.AddDescriptors(_descriptors);
+            }
         }
 
         _processedTypes[type] = 0;
-        _messages.AddRange(_newMessages);
-        _newMessages.Clear();
+
+        if (_newMessages.Count > 0)
+        {
+            _messages.AddRange(_newMessages);
+            _newMessages.Clear();
+        }
     }
 
     private void RegisterMessage(Type messageType)
     {
-        if (!messageType.IsClass || messageType.Namespace is not null && messageType.Namespace.StartsWith("System"))
+        if (messageType.Namespace is not null && messageType.Namespace.StartsWith("System"))
         {
             return;
         }
 
         messageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType;
 
-        var existingMessage = _messages.SingleOrDefault(d => d.MessageType == messageType);
-        var isNewMessage = _newMessages.SingleOrDefault(d => d.MessageType == messageType);
+        // Check if this message type is already registered
+        var existingMessage = _messages.FirstOrDefault(d => d.MessageType == messageType);
 
-        if (existingMessage is null && isNewMessage is null)
+        if (existingMessage != null)
         {
-            _newMessages.Add(new MessageDescriptor(messageType));
+            return;
         }
+
+        var isNewMessage = _newMessages.FirstOrDefault(d => d.MessageType == messageType);
+
+        if (isNewMessage != null)
+        {
+            return;
+        }
+
+        _newMessages.Add(new MessageDescriptor(messageType));
     }
 }

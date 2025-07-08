@@ -1,8 +1,16 @@
 # Changelog
 
+## v2.2.1
+
+- **Fixed**: Support for record structs as message types (commands, queries, events). Previously record structs couldn't
+  be registered due to a type filtering condition that only allowed class types.
+- **Improved**: Message registration to handle all non-System types, allowing for greater flexibility in message
+  definitions.
+
 ## v2.2.0
 
-- **Added**: Support for incremental registration allowing for breaking down LiteBus configuration in different parts of the application.
+- **Added**: Support for incremental registration allowing for breaking down LiteBus configuration in different parts of
+  the application.
 
 ## v2.1.0
 
@@ -171,7 +179,6 @@
 - Removed methods `RegisterPreHandler`, `RegisterHandler`, and `RegisterPostHandler`, replacing them with `Register`.
 - Removed superfluous base interfaces.
 
-~~~~
 ## v0.12.0
 
 - Added support to message registry for registering any class type as a message.

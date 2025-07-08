@@ -1,6 +1,6 @@
 namespace LiteBus.Events.UnitTests.UseCases.ProductUpdated;
 
-public sealed class ProductUpdatedEvent : IAuditableEvent
+public record class ProductUpdatedEvent : IAuditableEvent
 {
     public Guid CorrelationId { get; } = Guid.NewGuid();
 
