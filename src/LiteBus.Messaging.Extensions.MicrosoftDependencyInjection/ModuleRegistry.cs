@@ -86,8 +86,6 @@ internal sealed class ModuleRegistry : IModuleRegistry
             {
                 _services.TryAddTransient(handlerType);
             }
-
-            _services.TryAddTransient(handlerType);
         }
     }
 
