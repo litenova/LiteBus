@@ -79,6 +79,14 @@ internal sealed class ModuleRegistry : IModuleRegistry
         // Register each type once
         foreach (var handlerType in descriptorHandlerTypes)
         {
+            // Only register concrete classes with DI container - interfaces and abstract classes are kept in 
+            // LiteBus registry for polymorphic dispatch but cannot be instantiated by the DI container.
+            // Without this filter, DI would throw "Cannot instantiate implementation type" errors.
+            if (handlerType is { IsClass: true, IsAbstract: false })
+            {
+                _services.TryAddTransient(handlerType);
+            }
+
             _services.TryAddTransient(handlerType);
         }
     }
