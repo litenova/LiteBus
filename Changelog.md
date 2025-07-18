@@ -1,8 +1,15 @@
 # Changelog
 
-## v2.2.1
+## v2.2.2
 
 - **Fixed**: DI container registration now properly filters out interfaces and abstract classes during service registration. Previously, `RegisterFromAssembly()` would cause DI container errors when trying to register non-instantiable types. LiteBus message registry continues to accept all types to support polymorphic dispatch, but only concrete classes are registered with the DI container.
+
+## v2.2.1
+
+- **Fixed**: Support for record structs as message types (commands, queries, events). Previously record structs couldn't
+  be registered due to a type filtering condition that only allowed class types.
+- **Improved**: Message registration to handle all non-System types, allowing for greater flexibility in message
+  definitions.
 
 ## v2.2.0
 
