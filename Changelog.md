@@ -1,5 +1,8 @@
 # Changelog
 
+## v3.0.0
+- **Breaking Change**: All LiteBus assemblies are now strong-named to support usage in enterprise applications and projects that require signed dependencies. This is a breaking change that requires a major version update.
+
 ## v2.2.3
 
 - **Fixed**: Remove extra DI container registration
