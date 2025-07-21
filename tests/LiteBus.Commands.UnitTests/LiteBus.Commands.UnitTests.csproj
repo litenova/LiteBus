@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <ItemGroup>
-        <PackageReference Include="AwesomeAssertions"/>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
-        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
-        <PackageReference Include="xunit"/>
+        <PackageReference Include="AwesomeAssertions" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="xunit" />
         <PackageReference Include="xunit.runner.visualstudio">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
@@ -20,8 +20,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Commands.Extensions.MicrosoftDependencyInjection\LiteBus.Commands.Extensions.MicrosoftDependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj" />
+        <ProjectReference Include="..\..\src\LiteBus.Commands.Extensions.MicrosoftDependencyInjection\LiteBus.Commands.Extensions.MicrosoftDependencyInjection.csproj" />
     </ItemGroup>
 
 </Project>
