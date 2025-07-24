@@ -3,6 +3,8 @@
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Events.Abstractions\LiteBus.Events.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging\LiteBus.Messaging.csproj" />
+        <ProjectReference Include="..\LiteBus.Runtime\LiteBus.Runtime.csproj" />
     </ItemGroup>
 
 </Project>
