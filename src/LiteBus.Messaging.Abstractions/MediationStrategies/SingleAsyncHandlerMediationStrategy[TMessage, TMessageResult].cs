@@ -21,10 +21,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
 {
     public async Task<TMessageResult> Mediate(TMessage message, IMessageDependencies messageDependencies, IExecutionContext executionContext)
     {
-        if (messageDependencies is null)
-        {
-            throw new ArgumentNullException(nameof(messageDependencies));
-        }
+        ArgumentNullException.ThrowIfNull(messageDependencies);
 
         if (messageDependencies.Handlers.Count > 1)
         {

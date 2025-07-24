@@ -33,7 +33,12 @@ public sealed class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMes
             messageType = messageType.GetGenericTypeDefinition();
         }
 
-        var descriptor = messageRegistry.SingleOrDefault(d => d.MessageType == messageType) ?? messageRegistry.FirstOrDefault(d => d.MessageType.IsAssignableFrom(messageType));
+        var descriptor = messageRegistry.SingleOrDefault(d => d.MessageType == messageType);
+
+        if (descriptor == null)
+        {
+            descriptor = messageRegistry.FirstOrDefault(d => d.MessageType.IsAssignableFrom(messageType));
+        }
 
         return descriptor;
     }

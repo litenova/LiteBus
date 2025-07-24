@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+      <RootNamespace>LiteBus.Extensions.MicrosoftDependencyInjection</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Commands.Extensions.Microsoft.DependencyInjection\LiteBus.Commands.Extensions.Microsoft.DependencyInjection.csproj" />
+        <ProjectReference Include="..\LiteBus.Events.Extensions.Microsoft.DependencyInjection\LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj" />
+        <ProjectReference Include="..\LiteBus.Messaging.Extensions.Microsoft.DependencyInjection\LiteBus.Messaging.Extensions.Microsoft.DependencyInjection.csproj" />
+        <ProjectReference Include="..\LiteBus.Queries.Extensions.Microsoft.DependencyInjection\LiteBus.Queries.Extensions.Microsoft.DependencyInjection.csproj" />
+    </ItemGroup>
+
+</Project>
