@@ -3,7 +3,7 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.EventModule.UnitTests.UseCases.ProductCreated;
 
-[HandlerOrder(1)]
+[HandlerPriority(1)]
 public sealed class ProductCreatedEventHandlerPostHandler1 : IEventPostHandler<ProductCreatedEvent>
 {
     public Task PostHandleAsync(ProductCreatedEvent message, object? messageResult, CancellationToken cancellationToken = default)

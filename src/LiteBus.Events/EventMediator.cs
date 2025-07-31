@@ -28,7 +28,7 @@ public sealed class EventMediator : IEventPublisher
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,
                 CancellationToken = cancellationToken,
-                Tags = eventMediationSettings.Filters.Tags,
+                Tags = eventMediationSettings.Routing.Tags,
                 RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound
             });
     }
@@ -45,8 +45,9 @@ public sealed class EventMediator : IEventPublisher
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,
                 CancellationToken = cancellationToken,
-                Tags = eventMediationSettings.Filters.Tags,
-                RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound
+                Tags = eventMediationSettings.Routing.Tags,
+                RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound,
+                HandlerPredicate = handlerDescriptor => eventMediationSettings.Routing.HandlerPredicate(handlerDescriptor)
             });
     }
 }

@@ -17,7 +17,7 @@ internal sealed class ErrorHandlerDescriptorBuilder : IHandlerDescriptorBuilder
     public IEnumerable<IHandlerDescriptor> Build(Type handlerType)
     {
         var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessageErrorHandler<,>));
-        var order = handlerType.GetOrderFromAttribute();
+        var priority = handlerType.GetPriorityFromAttribute();
 
         foreach (var @interface in interfaces)
         {
@@ -29,7 +29,7 @@ internal sealed class ErrorHandlerDescriptorBuilder : IHandlerDescriptorBuilder
             {
                 MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
                 MessageResultType = messageResultType,
-                Order = order,
+                Priority = priority,
                 Tags = tags,
                 HandlerType = handlerType
             };

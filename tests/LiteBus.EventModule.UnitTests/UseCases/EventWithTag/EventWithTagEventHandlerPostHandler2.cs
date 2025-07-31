@@ -3,7 +3,7 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.EventModule.UnitTests.UseCases.EventWithTag;
 
-[HandlerOrder(2)]
+[HandlerPriority(2)]
 [HandlerTag(Tags.Tag2)]
 public sealed class EventWithTagEventHandlerPostHandler2 : IEventPostHandler<EventWithTag>
 {

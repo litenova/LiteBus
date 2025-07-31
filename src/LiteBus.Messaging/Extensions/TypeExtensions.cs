@@ -13,18 +13,18 @@ internal static class TypeExtensions
             .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == genericTypeDefinition);
     }
 
-    public static int GetOrderFromAttribute(this Type type)
+    public static int GetPriorityFromAttribute(this Type type)
     {
-        var handlerOrderAttribute = Attribute.GetCustomAttribute(type, typeof(HandlerOrderAttribute));
+        var handlerPriorityAttribute = Attribute.GetCustomAttribute(type, typeof(HandlerPriorityAttribute));
 
-        var order = 0;
+        var priority = 0;
 
-        if (handlerOrderAttribute is not null)
+        if (handlerPriorityAttribute is not null)
         {
-            order = ((HandlerOrderAttribute) handlerOrderAttribute).Order;
+            priority = ((HandlerPriorityAttribute) handlerPriorityAttribute).Priority;
         }
 
-        return order;
+        return priority;
     }
 
     public static IReadOnlyCollection<string> GetTagsFromAttribute(this Type type)
