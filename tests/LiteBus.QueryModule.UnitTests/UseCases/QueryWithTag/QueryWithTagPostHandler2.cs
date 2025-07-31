@@ -3,7 +3,7 @@ using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.QueryModule.UnitTests.UseCases.QueryWithTag;
 
-[HandlerOrder(2)]
+[HandlerPriority(2)]
 [HandlerTag(Tags.Tag2)]
 public sealed class QueryWithTagPostHandler2 : IQueryPostHandler<QueryWithTag>
 {

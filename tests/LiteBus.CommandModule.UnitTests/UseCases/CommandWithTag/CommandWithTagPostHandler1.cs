@@ -3,7 +3,7 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.CommandModule.UnitTests.UseCases.CommandWithTag;
 
-[HandlerOrder(1)]
+[HandlerPriority(1)]
 [HandlerTag(Tags.Tag1)]
 public sealed class CommandWithTagPostHandler1 : ICommandPostHandler<CommandWithTag>
 {

@@ -3,7 +3,7 @@ using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.QueryModule.UnitTests.UseCases.StreamProducts;
 
-[HandlerOrder(1)]
+[HandlerPriority(1)]
 public sealed class StreamProductsQueryHandlerPostHandler1 : IQueryPostHandler<StreamProductsQuery>
 {
     public Task PostHandleAsync(StreamProductsQuery message, object? messageResult, CancellationToken cancellationToken = default)

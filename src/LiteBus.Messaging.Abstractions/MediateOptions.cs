@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 
@@ -54,4 +55,14 @@ public sealed class MediateOptions<TMessage, TMessageResult> where TMessage : no
     ///     when they are first encountered during mediation.
     /// </remarks>
     public bool RegisterPlainMessagesOnSpot { get; init; } = false;
+
+    /// <summary>
+    /// Gets or initializes a predicate function used to filter event handlers by their descriptor.
+    /// </summary>
+    /// <remarks>
+    /// This predicate is evaluated for each potential handler descriptor before execution.
+    /// Use this for advanced filtering scenarios beyond tag-based filtering.
+    /// The predicate is applied after tag filtering.
+    /// </remarks>
+    public Func<IHandlerDescriptor, bool> HandlerPredicate { get; init; } = _ => true;
 }

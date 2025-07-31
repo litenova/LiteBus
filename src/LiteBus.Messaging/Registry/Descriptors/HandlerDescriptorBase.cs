@@ -8,7 +8,7 @@ internal abstract class HandlerDescriptorBase : IHandlerDescriptor
 {
     public required Type MessageType { get; init; }
 
-    public required int Order { get; init; }
+    public required int Priority { get; init; }
 
     public required IReadOnlyCollection<string> Tags { get; init; }
 

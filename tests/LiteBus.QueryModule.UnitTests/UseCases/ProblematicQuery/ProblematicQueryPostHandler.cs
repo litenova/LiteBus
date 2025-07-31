@@ -3,7 +3,7 @@ using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.QueryModule.UnitTests.UseCases.ProblematicQuery;
 
-[HandlerOrder(1)]
+[HandlerPriority(1)]
 public sealed class ProblematicQueryPostHandler : IQueryPostHandler<ProblematicQuery, ProblematicQueryResult>
 {
     public Task PostHandleAsync(ProblematicQuery message, ProblematicQueryResult? messageResult, CancellationToken cancellationToken = default)

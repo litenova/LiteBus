@@ -3,7 +3,7 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.EventModule.UnitTests.UseCases.ProductViewed;
 
-[HandlerOrder(1)]
+[HandlerPriority(1)]
 public sealed class ProductViewedEventHandlerPostHandler1<TViewSource> : IEventPostHandler<ProductViewedEvent<TViewSource>>
 {
     public Task PostHandleAsync(ProductViewedEvent<TViewSource> message, object? messageResult, CancellationToken cancellationToken = default)

@@ -18,7 +18,7 @@ public sealed class HandlerDescriptorBuilder : IHandlerDescriptorBuilder
     {
         var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessageHandler<,>));
 
-        var order = handlerType.GetOrderFromAttribute();
+        var priority = handlerType.GetPriorityFromAttribute();
 
         foreach (var @interface in interfaces)
         {
@@ -30,7 +30,7 @@ public sealed class HandlerDescriptorBuilder : IHandlerDescriptorBuilder
             {
                 MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
                 MessageResultType = messageResultType,
-                Order = order,
+                Priority = priority,
                 Tags = tags,
                 HandlerType = handlerType
             };

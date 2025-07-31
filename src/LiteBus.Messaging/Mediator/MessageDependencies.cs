@@ -11,17 +11,20 @@ internal sealed class MessageDependencies : IMessageDependencies
 {
     private readonly Type _messageType;
     private readonly IEnumerable<string> _tags;
+    private readonly Func<IHandlerDescriptor, bool> _handlerPredicate;
 
     public MessageDependencies(Type messageType,
                                IMessageDescriptor descriptor,
                                IServiceProvider serviceProvider,
-                               IEnumerable<string> tags)
+                               IEnumerable<string> tags,
+                               Func<IHandlerDescriptor, bool> handlerPredicate)
     {
         _messageType = messageType;
         _tags = tags;
+        _handlerPredicate = handlerPredicate;
 
-        Handlers = ResolveHandlers(descriptor.Handlers, handlerType => (IMessageHandler) serviceProvider.GetRequiredService(handlerType));
-        IndirectHandlers = ResolveHandlers(descriptor.IndirectHandlers, handlerType => (IMessageHandler) serviceProvider.GetRequiredService(handlerType));
+        MainHandlers = ResolveHandlers(descriptor.Handlers, handlerType => (IMessageHandler) serviceProvider.GetRequiredService(handlerType));
+        IndirectMainHandlers = ResolveHandlers(descriptor.IndirectHandlers, handlerType => (IMessageHandler) serviceProvider.GetRequiredService(handlerType));
 
         PreHandlers = ResolveHandlers(descriptor.PreHandlers, handlerType => (IMessagePreHandler) serviceProvider.GetRequiredService(handlerType));
         IndirectPreHandlers = ResolveHandlers(descriptor.IndirectPreHandlers, handlerType => (IMessagePreHandler) serviceProvider.GetRequiredService(handlerType));
@@ -33,9 +36,9 @@ internal sealed class MessageDependencies : IMessageDependencies
         IndirectErrorHandlers = ResolveHandlers(descriptor.IndirectErrorHandlers, handlerType => (IMessageErrorHandler) serviceProvider.GetRequiredService(handlerType));
     }
 
-    public ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> Handlers { get; }
+    public ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> MainHandlers { get; }
 
-    public ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> IndirectHandlers { get; }
+    public ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> IndirectMainHandlers { get; }
 
     public ILazyHandlerCollection<IMessagePreHandler, IPreHandlerDescriptor> PreHandlers { get; }
 
@@ -57,8 +60,9 @@ internal sealed class MessageDependencies : IMessageDependencies
         Func<Type, THandler> resolveFunc) where TDescriptor : IHandlerDescriptor
     {
         return descriptors
-            .OrderBy(d => d.Order)
+            .Where(d => _handlerPredicate(d))
             .Where(d => d.Tags.Count == 0 || d.Tags.Intersect(_tags).Any())
+            .OrderBy(d => d.Priority)
             .Select(d => new LazyHandler<THandler, TDescriptor>
             {
                 Handler = new Lazy<THandler>(() => resolveFunc(GetHandlerType(d))),
