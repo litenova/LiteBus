@@ -29,7 +29,8 @@ public sealed class CommandMediator : ICommandMediator
             MessageMediationStrategy = mediationStrategy,
             MessageResolveStrategy = findStrategy,
             CancellationToken = cancellationToken,
-            Tags = commandMediationSettings.Filters.Tags
+            Tags = commandMediationSettings.Filters.Tags,
+            Items = commandMediationSettings.Items
         };
 
         return _messageMediator.Mediate(command, options);
@@ -48,7 +49,8 @@ public sealed class CommandMediator : ICommandMediator
             MessageResolveStrategy = findStrategy,
             MessageMediationStrategy = mediationStrategy,
             CancellationToken = cancellationToken,
-            Tags = commandMediationSettings.Filters.Tags
+            Tags = commandMediationSettings.Filters.Tags,
+            Items = commandMediationSettings.Items,
         };
 
         return _messageMediator.Mediate(command, options);

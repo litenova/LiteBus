@@ -16,7 +16,9 @@ public sealed class EventMediator : IEventPublisher
         _messageMediator = messageMediator;
     }
 
-    public Task PublishAsync(IEvent @event, EventMediationSettings? eventMediationSettings = null, CancellationToken cancellationToken = default)
+    public Task PublishAsync(IEvent @event,
+                             EventMediationSettings? eventMediationSettings = null,
+                             CancellationToken cancellationToken = default)
     {
         eventMediationSettings ??= new EventMediationSettings();
         var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(eventMediationSettings);
@@ -29,11 +31,14 @@ public sealed class EventMediator : IEventPublisher
                 MessageResolveStrategy = resolveStrategy,
                 CancellationToken = cancellationToken,
                 Tags = eventMediationSettings.Filters.Tags,
-                RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound
+                RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound,
+                Items = eventMediationSettings.Items
             });
     }
 
-    public Task PublishAsync<TEvent>(TEvent @event, EventMediationSettings? eventMediationSettings = null, CancellationToken cancellationToken = default) where TEvent : notnull
+    public Task PublishAsync<TEvent>(TEvent @event,
+                                     EventMediationSettings? eventMediationSettings = null,
+                                     CancellationToken cancellationToken = default) where TEvent : notnull
     {
         eventMediationSettings ??= new EventMediationSettings();
         var mediationStrategy = new AsyncBroadcastMediationStrategy<TEvent>(eventMediationSettings);
@@ -46,7 +51,8 @@ public sealed class EventMediator : IEventPublisher
                 MessageResolveStrategy = resolveStrategy,
                 CancellationToken = cancellationToken,
                 Tags = eventMediationSettings.Filters.Tags,
-                RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound
+                RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound,
+                Items = eventMediationSettings.Items
             });
     }
 }

@@ -25,6 +25,15 @@ public sealed class EventMediationSettings
     ///     Gets the filters to be applied during event mediation.
     /// </summary>
     public EventMediationFilters Filters { get; } = new();
+    
+    /// <summary>
+    ///     Gets a key/value collection that can be used to share data within the scope of this execution.
+    /// </summary>
+    /// <remarks>
+    ///     This collection allows handlers to share data with each other during the execution of a single
+    ///     mediation operation.
+    /// </remarks>
+    public IDictionary<object, object?> Items { get; init; } = new Dictionary<object, object?>();
 
     /// <summary>
     ///     Represents the filters to be applied during event mediation.
