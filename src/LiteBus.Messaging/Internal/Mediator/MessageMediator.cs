@@ -53,7 +53,7 @@ internal sealed class MessageMediator : IMessageMediator
                                                             MediateOptions<TMessage, TMessageResult> options) where TMessage : notnull
     {
         // Create a new execution context for the current scope
-        var executionContext = new ExecutionContext(options.CancellationToken, options.Tags);
+        var executionContext = new ExecutionContext(options.CancellationToken, options.Tags, options.Items);
 
         // Use a scope to manage the execution context
         using var _ = AmbientExecutionContext.CreateScope(executionContext);

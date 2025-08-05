@@ -24,6 +24,15 @@ public sealed class MediateOptions<TMessage, TMessageResult> where TMessage : no
     public required IMessageResolveStrategy MessageResolveStrategy { get; init; }
 
     /// <summary>
+    ///     Gets a key/value collection that can be used to share data within the scope of this execution.
+    /// </summary>
+    /// <remarks>
+    ///     This collection allows handlers to share data with each other during the execution of a single
+    ///     mediation operation.
+    /// </remarks>
+    public IDictionary<object, object?> Items { get; init; } = new Dictionary<object, object?>();
+
+    /// <summary>
     ///     Gets or initializes the strategy used to mediate the message.
     /// </summary>
     /// <remarks>
