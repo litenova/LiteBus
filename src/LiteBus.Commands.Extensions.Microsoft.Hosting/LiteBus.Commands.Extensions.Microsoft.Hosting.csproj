@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj" />
+  </ItemGroup>
+</Project>
