@@ -13,15 +13,18 @@ internal sealed class ExecutionContext : IExecutionContext
     /// </summary>
     /// <param name="cancellationToken">The cancellation token associated with the execution context.</param>
     /// <param name="tags">The tags associated with the execution context.</param>
-    public ExecutionContext(CancellationToken cancellationToken, IEnumerable<string> tags)
+    /// <param name="items">The key/value collection for sharing data within the execution context.</param>
+    public ExecutionContext(CancellationToken cancellationToken, IEnumerable<string> tags, IDictionary<string, object> items)
     {
         CancellationToken = cancellationToken;
         Tags = tags.ToList();
+        Items = items;
     }
 
     public CancellationToken CancellationToken { get; }
 
-    public IDictionary<object, object?> Items { get; } = new Dictionary<object, object?>();
+    /// <inheritdoc />
+    public IDictionary<string, object> Items { get; }
 
     public IReadOnlyCollection<string> Tags { get; }
 

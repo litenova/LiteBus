@@ -26,14 +26,15 @@ public interface IExecutionContext
     CancellationToken CancellationToken { get; }
 
     /// <summary>
-    ///     Gets a key/value collection that can be used to share data within the scope of this execution.
+    /// Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.
     /// </summary>
     /// <remarks>
-    ///     This collection allows handlers to share data with each other during the execution of a single
-    ///     mediation operation. The data is scoped to the current execution and is not shared across
-    ///     different mediation operations.
+    /// This collection provides a mechanism for different components in the pipeline (such as pre-handlers,
+    /// post-handlers, or custom middleware) to share state or influence behavior without modifying the
+    /// command contract itself. For instance, a flag could be set to bypass a certain validation
+    /// step under specific, controlled conditions.
     /// </remarks>
-    IDictionary<object, object?> Items { get; }
+    public IDictionary<string, object> Items { get; }
 
     /// <summary>
     ///     Gets the collection of specified tags used to filter message handlers (i.e., pre, main and post) during mediation.
