@@ -30,7 +30,8 @@ public sealed class QueryMediator : IQueryMediator
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,
                 CancellationToken = cancellationToken,
-                Tags = queryMediationSettings.Filters.Tags
+                Tags = queryMediationSettings.Filters.Tags,
+                Items = queryMediationSettings.Items
             });
     }
 
@@ -48,7 +49,8 @@ public sealed class QueryMediator : IQueryMediator
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,
                 CancellationToken = cancellationToken,
-                Tags = queryMediationSettings.Filters.Tags
+                Tags = queryMediationSettings.Filters.Tags,
+                Items = queryMediationSettings.Items
             });
     }
 }
