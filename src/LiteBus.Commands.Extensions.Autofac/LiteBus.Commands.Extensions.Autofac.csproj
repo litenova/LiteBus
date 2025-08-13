@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Commands\LiteBus.Commands.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Extensions.Autofac\LiteBus.Runtime.Extensions.Autofac.csproj"/>
+    </ItemGroup>
+
+</Project>
