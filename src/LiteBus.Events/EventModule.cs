@@ -3,8 +3,7 @@ using System.Linq;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Registry;
-using LiteBus.Runtime.Dependencies;
-using LiteBus.Runtime.Modules;
+using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Events;
 

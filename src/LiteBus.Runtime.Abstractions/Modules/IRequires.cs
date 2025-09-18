@@ -1,4 +1,4 @@
-namespace LiteBus.Runtime.Modules;
+namespace LiteBus.Runtime.Abstractions;
 
 /// <summary>
 /// Marker interface that indicates a module has a dependency on another module.

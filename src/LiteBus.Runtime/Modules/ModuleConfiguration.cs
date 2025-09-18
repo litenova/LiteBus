@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using LiteBus.Runtime.Dependencies;
+using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Runtime.Modules;
 

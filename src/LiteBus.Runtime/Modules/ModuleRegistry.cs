@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Runtime.Modules;
 

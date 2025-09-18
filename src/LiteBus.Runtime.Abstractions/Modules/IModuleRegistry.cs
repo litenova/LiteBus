@@ -1,6 +1,6 @@
 using System.Linq;
 
-namespace LiteBus.Runtime.Modules;
+namespace LiteBus.Runtime.Abstractions;
 
 /// <summary>
 /// Registry for managing module registration and providing dependency-ordered enumeration of modules.

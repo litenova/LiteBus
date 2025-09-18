@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Autofac;
 using Autofac.Builder;
-using LiteBus.Runtime.Dependencies;
+using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Runtime.Extensions.Autofac;
 

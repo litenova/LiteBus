@@ -6,5 +6,5 @@
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Runtime\LiteBus.Runtime.csproj"/>
     </ItemGroup>
-    
+
 </Project>

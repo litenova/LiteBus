@@ -1,3 +1,5 @@
+using LiteBus.Messaging.Abstractions;
+
 namespace LiteBus.Events.Abstractions;
 
 /// <summary>

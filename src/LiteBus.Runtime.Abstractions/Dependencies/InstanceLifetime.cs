@@ -1,4 +1,4 @@
-namespace LiteBus.Runtime.Dependencies;
+namespace LiteBus.Runtime.Abstractions;
 
 /// <summary>
 /// Specifies the lifetime of a dependency registration in the dependency injection container.

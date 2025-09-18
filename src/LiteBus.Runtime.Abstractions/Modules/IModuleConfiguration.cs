@@ -1,7 +1,6 @@
 using System;
-using LiteBus.Runtime.Dependencies;
 
-namespace LiteBus.Runtime.Modules;
+namespace LiteBus.Runtime.Abstractions;
 
 /// <summary>
 /// Configuration interface for modules providing access to dependency registry and shared context.

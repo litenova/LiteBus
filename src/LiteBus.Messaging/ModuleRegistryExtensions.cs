@@ -1,5 +1,5 @@
 ﻿using System;
-using LiteBus.Runtime.Modules;
+using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Messaging;
 
