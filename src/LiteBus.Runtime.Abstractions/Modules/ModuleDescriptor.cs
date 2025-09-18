@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace LiteBus.Runtime.Modules;
+namespace LiteBus.Runtime.Abstractions;
 
 /// <summary>
 /// Describes a module and its dependencies for initialization ordering.

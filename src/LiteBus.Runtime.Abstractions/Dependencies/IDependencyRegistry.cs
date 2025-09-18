@@ -1,7 +1,6 @@
-using System;
 using System.Collections.Generic;
 
-namespace LiteBus.Runtime.Dependencies;
+namespace LiteBus.Runtime.Abstractions;
 
 /// <summary>
 /// Defines a registry for managing service dependencies used throughout LiteBus.
@@ -14,6 +13,6 @@ public interface IDependencyRegistry : IReadOnlyCollection<DependencyDescriptor>
     /// Registers a service dependency in the registry.
     /// </summary>
     /// <param name="descriptor">The dependency descriptor that defines how the service should be registered.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor"/> is null.</exception>
+    /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="descriptor"/> is null.</exception>
     void Register(DependencyDescriptor descriptor);
 }

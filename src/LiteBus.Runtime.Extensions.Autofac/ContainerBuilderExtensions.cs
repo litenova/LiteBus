@@ -1,5 +1,6 @@
 using System;
 using Autofac;
+using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Extensions.Autofac;
 using LiteBus.Runtime.Modules;
 

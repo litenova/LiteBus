@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using LiteBus.Runtime.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
@@ -9,10 +10,10 @@ namespace LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 /// Adapter that bridges LiteBus dependency registration with Microsoft DI container,
 /// handling duplicate registrations gracefully using descriptor equality.
 /// </summary>
-internal sealed class MicrosoftDependencyRegistryAdapter : Dependencies.IDependencyRegistry
+internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
 {
     private readonly IServiceCollection _services;
-    private readonly HashSet<Dependencies.DependencyDescriptor> _registeredDescriptors = [];
+    private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MicrosoftDependencyRegistryAdapter"/> class.
@@ -38,7 +39,7 @@ internal sealed class MicrosoftDependencyRegistryAdapter : Dependencies.IDepende
     /// Duplicate descriptors are silently ignored based on the descriptor's equality implementation.
     /// This prevents duplicate service registrations when multiple modules attempt to register the same services.
     /// </remarks>
-    public void Register(Dependencies.DependencyDescriptor descriptor)
+    public void Register(DependencyDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
@@ -58,7 +59,7 @@ internal sealed class MicrosoftDependencyRegistryAdapter : Dependencies.IDepende
     /// Returns an enumerator that iterates through the registered dependency descriptors.
     /// </summary>
     /// <returns>An enumerator for the registered dependency descriptors.</returns>
-    public IEnumerator<Dependencies.DependencyDescriptor> GetEnumerator()
+    public IEnumerator<DependencyDescriptor> GetEnumerator()
     {
         return _registeredDescriptors.GetEnumerator();
     }
@@ -80,7 +81,7 @@ internal sealed class MicrosoftDependencyRegistryAdapter : Dependencies.IDepende
     /// <exception cref="ArgumentException">
     /// Thrown when the descriptor is invalid (missing Instance, Factory, or ImplementationType).
     /// </exception>
-    private static ServiceDescriptor ConvertToServiceDescriptor(Dependencies.DependencyDescriptor descriptor)
+    private static ServiceDescriptor ConvertToServiceDescriptor(DependencyDescriptor descriptor)
     {
         var serviceLifetime = ConvertLifetime(descriptor.Lifetime);
 
@@ -112,13 +113,13 @@ internal sealed class MicrosoftDependencyRegistryAdapter : Dependencies.IDepende
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when an unknown instance lifetime is provided.
     /// </exception>
-    private static ServiceLifetime ConvertLifetime(Dependencies.InstanceLifetime lifetime)
+    private static ServiceLifetime ConvertLifetime(InstanceLifetime lifetime)
     {
         return lifetime switch
         {
-            Dependencies.InstanceLifetime.Transient => ServiceLifetime.Transient,
-            Dependencies.InstanceLifetime.Singleton => ServiceLifetime.Singleton,
-            _ => throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, "Unknown instance lifetime.")
+            InstanceLifetime.Transient => ServiceLifetime.Transient,
+            InstanceLifetime.Singleton => ServiceLifetime.Singleton,
+            _                          => throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, "Unknown instance lifetime.")
         };
     }
 }

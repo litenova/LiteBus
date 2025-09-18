@@ -1,4 +1,5 @@
 ﻿using System;
+using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Runtime.Modules;
 using Microsoft.Extensions.DependencyInjection;

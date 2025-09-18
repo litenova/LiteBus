@@ -1,6 +1,6 @@
 using System;
 
-namespace LiteBus.Runtime.Dependencies;
+namespace LiteBus.Runtime.Abstractions;
 
 /// <summary>
 /// Describes how a dependency should be registered in the dependency injection container.
@@ -14,7 +14,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// </summary>
     /// <param name="dependencyType">The dependency type to register.</param>
     /// <param name="implementationType">The implementation type for the dependency.</param>
-    /// <exception cref="ArgumentNullException">
+    /// <exception cref="System.ArgumentNullException">
     /// Thrown when <paramref name="dependencyType"/> or <paramref name="implementationType"/> is null.
     /// </exception>
     public DependencyDescriptor(Type dependencyType, Type implementationType)
@@ -29,7 +29,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// </summary>
     /// <param name="dependencyType">The dependency type to register.</param>
     /// <param name="instance">The singleton instance to register.</param>
-    /// <exception cref="ArgumentNullException">
+    /// <exception cref="System.ArgumentNullException">
     /// Thrown when <paramref name="dependencyType"/> or <paramref name="instance"/> is null.
     /// </exception>
     public DependencyDescriptor(Type dependencyType, object instance)
@@ -44,7 +44,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// </summary>
     /// <param name="dependencyType">The dependency type to register.</param>
     /// <param name="factory">The factory function that creates instances of the dependency.</param>
-    /// <exception cref="ArgumentNullException">
+    /// <exception cref="System.ArgumentNullException">
     /// Thrown when <paramref name="dependencyType"/> or <paramref name="factory"/> is null.
     /// </exception>
     public DependencyDescriptor(Type dependencyType, Func<IServiceProvider, object> factory)

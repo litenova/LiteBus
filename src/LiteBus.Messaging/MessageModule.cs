@@ -3,7 +3,7 @@ using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Mediator;
 using LiteBus.Messaging.Registry;
-using LiteBus.Runtime.Modules;
+using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Messaging;
 
@@ -53,19 +53,19 @@ public sealed class MessageModule : IModule
         IMessageRegistry messageRegistry)
     {
         // Register message registry as singleton
-        configuration.DependencyRegistry.Register(new Runtime.Dependencies.DependencyDescriptor(
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageRegistry),
             messageRegistry));
 
         // Register message mediator as transient
-        configuration.DependencyRegistry.Register(new Runtime.Dependencies.DependencyDescriptor(
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageMediator),
             typeof(MessageMediator)));
 
         // Register execution context accessor as transient factory
-        configuration.DependencyRegistry.Register(new Runtime.Dependencies.DependencyDescriptor(
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IExecutionContext),
-            serviceProvider => AmbientExecutionContext.Current));
+            _ => AmbientExecutionContext.Current));
     }
 
     /// <summary>
@@ -84,7 +84,7 @@ public sealed class MessageModule : IModule
 
             if (handlerType is { IsClass: true, IsAbstract: false })
             {
-                configuration.DependencyRegistry.Register(new Runtime.Dependencies.DependencyDescriptor(handlerType, handlerType));
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(handlerType, handlerType));
             }
         }
     }

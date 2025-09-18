@@ -1,4 +1,4 @@
-namespace LiteBus.Runtime.Modules;
+namespace LiteBus.Runtime.Abstractions;
 
 /// <summary>
 /// Defines a module that can be registered with LiteBus to configure dependencies and message handling.
