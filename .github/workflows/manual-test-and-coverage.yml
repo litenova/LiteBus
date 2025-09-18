@@ -1,0 +1,36 @@
+name: Manual Test and Coverage
+
+on:
+  # This allows the workflow to be triggered manually from the GitHub Actions UI.
+  workflow_dispatch:
+
+jobs:
+  test-and-upload:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore Dependencies
+        run: dotnet restore
+
+      - name: Decode Strong Name Key
+        run: echo "${{ secrets.STRONG_NAME_KEY }}" | base64 --decode > LiteBus.snk
+
+      - name: Run Tests and Generate Coverage
+        run: dotnet test --no-restore --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./tests/**/coverage.opencover.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: unittests
+          fail_ci_if_error: true
+          verbose: true

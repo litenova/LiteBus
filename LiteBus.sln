@@ -61,6 +61,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{
 	ProjectSection(SolutionItems) = preProject
 		.github\workflows\build-and-test.yml = .github\workflows\build-and-test.yml
 		.github\workflows\release.yml = .github\workflows\release.yml
+		.github\workflows\manual-test-and-coverage.yml = .github\workflows\manual-test-and-coverage.yml
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.CommandModule.UnitTests", "tests\LiteBus.CommandModule.UnitTests\LiteBus.CommandModule.UnitTests.csproj", "{4F447057-EA7C-4D4C-8073-97E48FF5688D}"

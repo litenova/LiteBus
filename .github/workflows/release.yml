@@ -10,53 +10,26 @@ jobs:
     
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Important for GitVersion to work properly
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
 
-      - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v3.2.1
-        with:
-          versionSpec: '5.x'
-
-      - name: Determine Version
-        id: gitversion
-        uses: gittools/actions/gitversion/execute@v3.2.1
-        with:
-          useConfigFile: true
-
-      - name: Display GitVersion Output
-        run: |
-          echo "SemVer: ${{ steps.gitversion.outputs.semVer }}"
-          echo "NuGetVersion: ${{ steps.gitversion.outputs.nuGetVersion }}"
-          echo "MajorMinorPatch: ${{ steps.gitversion.outputs.majorMinorPatch }}"
-
-      - name: Set Version Variables
+      - name: Set Version Variable
         id: version
         run: |
-          if [[ $GITHUB_REF == refs/tags/v* ]]; then
-            # For version tags, use the tag directly
-            VERSION=${GITHUB_REF#refs/tags/v}
-            echo "Using tag version: $VERSION"
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "nuget_version=$VERSION" >> $GITHUB_OUTPUT
-          else
-            # For non-tag builds, use GitVersion
-            echo "Using GitVersion: ${{ steps.gitversion.outputs.semVer }}"
-            echo "version=${{ steps.gitversion.outputs.semVer }}" >> $GITHUB_OUTPUT
-            echo "nuget_version=${{ steps.gitversion.outputs.nuGetVersion }}" >> $GITHUB_OUTPUT
-          fi
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "Using tag version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Restore
         run: dotnet restore
 
       - name: Decode Strong Name Key
-        if: startsWith(github.ref, 'refs/tags/')
         run: echo "${{ secrets.STRONG_NAME_KEY }}" | base64 --decode > LiteBus.snk
 
       - name: Build
@@ -68,14 +41,14 @@ jobs:
       - name: Upload to Codecov
         uses: codecov/codecov-action@v5
         with:
-          files: ./tests/LiteBus.Commands.UnitTests/coverage.opencover.xml,./tests/LiteBus.Events.UnitTests/coverage.opencover.xml,./tests/LiteBus.Queries.UnitTests/coverage.opencover.xml,./tests/LiteBus.UnitTests/coverage.opencover.xml
+          files: ./tests/**/coverage.opencover.xml
           flags: unittests
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
 
       - name: Pack
-        run: dotnet pack --configuration Release /p:Version=${{ steps.version.outputs.nuget_version }} --no-build --output ./artifacts
+        run: dotnet pack --configuration Release /p:Version=${{ steps.version.outputs.version }} --no-build --output ./artifacts
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -84,15 +57,12 @@ jobs:
           path: ./artifacts/*.nupkg
 
       - name: Publish to NuGet
-        if: startsWith(github.ref, 'refs/tags/')
         run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Publish to GitHub Packages
-        if: startsWith(github.ref, 'refs/tags/')
         run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --skip-duplicate
 
       - name: Generate Release Notes
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "# Release v$VERSION" > release-notes.md
@@ -103,7 +73,6 @@ jobs:
           cat release-notes.md
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: ./artifacts/*.nupkg
