@@ -21,14 +21,11 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
 {
     public async Task<TMessageResult> Mediate(TMessage message, IMessageDependencies messageDependencies, IExecutionContext executionContext)
     {
-        if (messageDependencies is null)
-        {
-            throw new ArgumentNullException(nameof(messageDependencies));
-        }
+        ArgumentNullException.ThrowIfNull(messageDependencies);
 
-        if (messageDependencies.Handlers.Count > 1)
+        if (messageDependencies.MainHandlers.Count > 1)
         {
-            throw new MultipleHandlerFoundException(typeof(TMessage), messageDependencies.Handlers.Count);
+            throw new MultipleHandlerFoundException(typeof(TMessage), messageDependencies.MainHandlers.Count);
         }
 
         TMessageResult? messageResult = default; // Nullable within the method
@@ -37,7 +34,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         {
             await messageDependencies.RunAsyncPreHandlers(message);
 
-            var handler = messageDependencies.Handlers.Single().Handler.Value;
+            var handler = messageDependencies.MainHandlers.Single().Handler.Value;
 
             if (handler is null)
             {

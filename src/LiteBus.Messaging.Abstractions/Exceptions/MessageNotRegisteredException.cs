@@ -12,7 +12,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///     registered for the message type or any of its base types or interfaces.
 /// </remarks>
 [Serializable]
-public class NoHandlerFoundException : Exception
+public sealed class NoHandlerFoundException : Exception
 {
     /// <summary>
     ///     Initializes a new instance of the <see cref="NoHandlerFoundException" /> class with a message

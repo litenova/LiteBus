@@ -61,9 +61,9 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
     /// </remarks>
     public async IAsyncEnumerable<TMessageResult> Mediate(TMessage message, IMessageDependencies messageDependencies, IExecutionContext executionContext)
     {
-        if (messageDependencies.Handlers.Count > 1)
+        if (messageDependencies.MainHandlers.Count > 1)
         {
-            throw new MultipleHandlerFoundException(typeof(TMessage), messageDependencies.Handlers.Count);
+            throw new MultipleHandlerFoundException(typeof(TMessage), messageDependencies.MainHandlers.Count);
         }
 
         IAsyncEnumerable<TMessageResult>? messageResultAsyncEnumerable = null;
@@ -75,7 +75,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
             await messageDependencies.RunAsyncPreHandlers(message);
 
-            var handler = messageDependencies.Handlers.Single().Handler.Value;
+            var handler = messageDependencies.MainHandlers.Single().Handler.Value;
 
             messageResultAsyncEnumerable = (IAsyncEnumerable<TMessageResult>) handler.Handle(message);
         }

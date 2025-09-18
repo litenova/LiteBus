@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 
@@ -22,15 +23,6 @@ public sealed class MediateOptions<TMessage, TMessageResult> where TMessage : no
     ///     The message resolve strategy determines how a message type is matched to a descriptor in the registry.
     /// </remarks>
     public required IMessageResolveStrategy MessageResolveStrategy { get; init; }
-
-    /// <summary>
-    ///     Gets a key/value collection that can be used to share data within the scope of this execution.
-    /// </summary>
-    /// <remarks>
-    ///     This collection allows handlers to share data with each other during the execution of a single
-    ///     mediation operation.
-    /// </remarks>
-    public IDictionary<object, object?> Items { get; init; } = new Dictionary<object, object?>();
 
     /// <summary>
     ///     Gets or initializes the strategy used to mediate the message.
@@ -63,4 +55,25 @@ public sealed class MediateOptions<TMessage, TMessageResult> where TMessage : no
     ///     when they are first encountered during mediation.
     /// </remarks>
     public bool RegisterPlainMessagesOnSpot { get; init; } = false;
+
+    /// <summary>
+    /// Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.
+    /// </summary>
+    /// <remarks>
+    /// This collection provides a mechanism for different components in the pipeline (such as pre-handlers,
+    /// post-handlers, or custom middleware) to share state or influence behavior without modifying the
+    /// command contract itself. For instance, a flag could be set to bypass a certain validation
+    /// step under specific, controlled conditions.
+    /// </remarks>
+    public IDictionary<string, object> Items { get; init; } = new Dictionary<string, object>();
+
+    /// <summary>
+    /// Gets or initializes a predicate function used to filter event handlers by their descriptor.
+    /// </summary>
+    /// <remarks>
+    /// This predicate is evaluated for each potential handler descriptor before execution.
+    /// Use this for advanced filtering scenarios beyond tag-based filtering.
+    /// The predicate is applied after tag filtering.
+    /// </remarks>
+    public Func<IHandlerDescriptor, bool> HandlerPredicate { get; init; } = _ => true;
 }
