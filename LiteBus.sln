@@ -14,7 +14,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0EFE2493
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus", "src\LiteBus\LiteBus.csproj", "{B1FDAB62-C743-4D41-A8F6-727FEFCA882D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Extensions.MicrosoftDependencyInjection", "src\LiteBus.Extensions.MicrosoftDependencyInjection\LiteBus.Extensions.MicrosoftDependencyInjection.csproj", "{BC8DA8CC-56FE-47EC-B8EB-693A3C218382}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Extensions.Microsoft.DependencyInjection", "src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj", "{BC8DA8CC-56FE-47EC-B8EB-693A3C218382}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "solution-items", "solution-items", "{52BF0EB2-FFF5-4976-8404-546EE35E5EAB}"
 ProjectSection(SolutionItems) = preProject
@@ -40,17 +40,17 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Queries.Abstraction
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Queries", "src\LiteBus.Queries\LiteBus.Queries.csproj", "{5A37FD18-2EE2-4170-9000-28E66485555E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Commands.Extensions.MicrosoftDependencyInjection", "src\LiteBus.Commands.Extensions.MicrosoftDependencyInjection\LiteBus.Commands.Extensions.MicrosoftDependencyInjection.csproj", "{83E199BD-34B6-4769-B59B-21844EF0AC11}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Commands.Extensions.Microsoft.DependencyInjection", "src\LiteBus.Commands.Extensions.Microsoft.DependencyInjection\LiteBus.Commands.Extensions.Microsoft.DependencyInjection.csproj", "{83E199BD-34B6-4769-B59B-21844EF0AC11}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Events.Extensions.MicrosoftDependencyInjection", "src\LiteBus.Events.Extensions.MicrosoftDependencyInjection\LiteBus.Events.Extensions.MicrosoftDependencyInjection.csproj", "{FFE8D329-02A1-478F-8579-E5DC4884F301}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Events.Extensions.Microsoft.DependencyInjection", "src\LiteBus.Events.Extensions.Microsoft.DependencyInjection\LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj", "{FFE8D329-02A1-478F-8579-E5DC4884F301}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Queries.Extensions.MicrosoftDependencyInjection", "src\LiteBus.Queries.Extensions.MicrosoftDependencyInjection\LiteBus.Queries.Extensions.MicrosoftDependencyInjection.csproj", "{4F82020C-7E22-4CEB-9273-FDD309FBBAE4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Queries.Extensions.Microsoft.DependencyInjection", "src\LiteBus.Queries.Extensions.Microsoft.DependencyInjection\LiteBus.Queries.Extensions.Microsoft.DependencyInjection.csproj", "{4F82020C-7E22-4CEB-9273-FDD309FBBAE4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Messaging.Extensions.MicrosoftDependencyInjection", "src\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection\LiteBus.Messaging.Extensions.MicrosoftDependencyInjection.csproj", "{901335C8-4F10-489E-9046-1C36DF04BC4B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Messaging.Extensions.Microsoft.DependencyInjection", "src\LiteBus.Messaging.Extensions.Microsoft.DependencyInjection\LiteBus.Messaging.Extensions.Microsoft.DependencyInjection.csproj", "{901335C8-4F10-489E-9046-1C36DF04BC4B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Messaging", "src\LiteBus.Messaging\LiteBus.Messaging.csproj", "{5304A13D-7C9E-4B79-8CCA-885266EAD744}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.UnitTests", "tests\LiteBus.UnitTests\LiteBus.UnitTests.csproj", "{927C34A3-67E0-4CFB-882D-2C3D2604CFF4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.MessageModule.UnitTests", "tests\LiteBus.MessageModule.UnitTests\LiteBus.MessageModule.UnitTests.csproj", "{927C34A3-67E0-4CFB-882D-2C3D2604CFF4}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{4F94FB13-B936-4AD4-A609-70ED7A1158E9}"
 	ProjectSection(SolutionItems) = preProject
@@ -63,16 +63,42 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{
 		.github\workflows\release.yml = .github\workflows\release.yml
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Commands.UnitTests", "tests\LiteBus.Commands.UnitTests\LiteBus.Commands.UnitTests.csproj", "{4F447057-EA7C-4D4C-8073-97E48FF5688D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.CommandModule.UnitTests", "tests\LiteBus.CommandModule.UnitTests\LiteBus.CommandModule.UnitTests.csproj", "{4F447057-EA7C-4D4C-8073-97E48FF5688D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Queries.UnitTests", "tests\LiteBus.Queries.UnitTests\LiteBus.Queries.UnitTests.csproj", "{BA5E7006-A4B6-4E68-A30E-FC70D716E68D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.QueryModule.UnitTests", "tests\LiteBus.QueryModule.UnitTests\LiteBus.QueryModule.UnitTests.csproj", "{BA5E7006-A4B6-4E68-A30E-FC70D716E68D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Events.UnitTests", "tests\LiteBus.Events.UnitTests\LiteBus.Events.UnitTests.csproj", "{24CBFD5D-C719-4103-BD9A-1AC62249C22B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.EventModule.UnitTests", "tests\LiteBus.EventModule.UnitTests\LiteBus.EventModule.UnitTests.csproj", "{24CBFD5D-C719-4103-BD9A-1AC62249C22B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{7321969D-2560-40BD-A045-3BA2E0B09554}"
 	ProjectSection(SolutionItems) = preProject
 		.github\scripts\generate-release-notes.sh = .github\scripts\generate-release-notes.sh
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Runtime", "src\LiteBus.Runtime\LiteBus.Runtime.csproj", "{C74A00A1-2713-4584-8F9B-78D5E7DA52B4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection", "src\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.csproj", "{2817978D-C3F2-4FD7-A7A8-29AC2933AE60}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Testing", "tests\LiteBus.Testing\LiteBus.Testing.csproj", "{E2B541DF-680F-44BF-B72F-00F90BA8B59F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Commands.Extensions.Microsoft.Hosting", "src\LiteBus.Commands.Extensions.Microsoft.Hosting\LiteBus.Commands.Extensions.Microsoft.Hosting.csproj", "{4F463B2F-636E-4F83-9A16-EBA2FA2B436A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{CD9293D6-A01C-42A1-9E08-29D2E59B837A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Samples.Inbox", "samples\LiteBus.Samples.Inbox\LiteBus.Samples.Inbox.csproj", "{4838A90D-F7EE-4CEB-A023-94B923BDECBA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Runtime.Extensions.Autofac", "src\LiteBus.Runtime.Extensions.Autofac\LiteBus.Runtime.Extensions.Autofac.csproj", "{DD74E8C3-B7D5-44DD-8546-17C4C130CB48}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Messaging.Extensions.Autofac", "src\LiteBus.Messaging.Extensions.Autofac\LiteBus.Messaging.Extensions.Autofac.csproj", "{6DD090DE-6786-429E-965D-27950A42CCCF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Queries.Extensions.Autofac", "src\LiteBus.Queries.Extensions.Autofac\LiteBus.Queries.Extensions.Autofac.csproj", "{FBDDDA6E-CD97-4B9C-9A3C-97C85666F3D7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Events.Extensions.Autofac", "src\LiteBus.Events.Extensions.Autofac\LiteBus.Events.Extensions.Autofac.csproj", "{94B29310-5558-436A-A706-092090230A87}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Commands.Extensions.Autofac", "src\LiteBus.Commands.Extensions.Autofac\LiteBus.Commands.Extensions.Autofac.csproj", "{D7980BEC-7B81-4F54-B6B3-B683349E4D6A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Extensions.Autofac.UnitTests", "tests\LiteBus.Extensions.Autofac.UnitTests\LiteBus.Extensions.Autofac.UnitTests.csproj", "{0F024130-597C-46FB-8EA3-92E73C2E90E7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteBus.Runtime.Abstractions", "src\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj", "{F4B10812-2D5E-4017-B5B7-C51A6E9D2C23}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -100,6 +126,18 @@ Global
 		{BA5E7006-A4B6-4E68-A30E-FC70D716E68D} = {0EFE2493-E2D3-499C-BB05-B9794298273D}
 		{24CBFD5D-C719-4103-BD9A-1AC62249C22B} = {0EFE2493-E2D3-499C-BB05-B9794298273D}
 		{7321969D-2560-40BD-A045-3BA2E0B09554} = {4F94FB13-B936-4AD4-A609-70ED7A1158E9}
+		{C74A00A1-2713-4584-8F9B-78D5E7DA52B4} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
+		{2817978D-C3F2-4FD7-A7A8-29AC2933AE60} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
+		{E2B541DF-680F-44BF-B72F-00F90BA8B59F} = {0EFE2493-E2D3-499C-BB05-B9794298273D}
+		{4F463B2F-636E-4F83-9A16-EBA2FA2B436A} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
+		{4838A90D-F7EE-4CEB-A023-94B923BDECBA} = {CD9293D6-A01C-42A1-9E08-29D2E59B837A}
+		{DD74E8C3-B7D5-44DD-8546-17C4C130CB48} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
+		{6DD090DE-6786-429E-965D-27950A42CCCF} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
+		{FBDDDA6E-CD97-4B9C-9A3C-97C85666F3D7} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
+		{94B29310-5558-436A-A706-092090230A87} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
+		{D7980BEC-7B81-4F54-B6B3-B683349E4D6A} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
+		{0F024130-597C-46FB-8EA3-92E73C2E90E7} = {0EFE2493-E2D3-499C-BB05-B9794298273D}
+		{F4B10812-2D5E-4017-B5B7-C51A6E9D2C23} = {0C972F3F-001F-41B5-9DE5-6F70DBDC342D}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{B1FDAB62-C743-4D41-A8F6-727FEFCA882D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -174,5 +212,53 @@ Global
 		{24CBFD5D-C719-4103-BD9A-1AC62249C22B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{24CBFD5D-C719-4103-BD9A-1AC62249C22B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{24CBFD5D-C719-4103-BD9A-1AC62249C22B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C74A00A1-2713-4584-8F9B-78D5E7DA52B4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C74A00A1-2713-4584-8F9B-78D5E7DA52B4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C74A00A1-2713-4584-8F9B-78D5E7DA52B4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C74A00A1-2713-4584-8F9B-78D5E7DA52B4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2817978D-C3F2-4FD7-A7A8-29AC2933AE60}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2817978D-C3F2-4FD7-A7A8-29AC2933AE60}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2817978D-C3F2-4FD7-A7A8-29AC2933AE60}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2817978D-C3F2-4FD7-A7A8-29AC2933AE60}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E2B541DF-680F-44BF-B72F-00F90BA8B59F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E2B541DF-680F-44BF-B72F-00F90BA8B59F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E2B541DF-680F-44BF-B72F-00F90BA8B59F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E2B541DF-680F-44BF-B72F-00F90BA8B59F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4F463B2F-636E-4F83-9A16-EBA2FA2B436A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4F463B2F-636E-4F83-9A16-EBA2FA2B436A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4F463B2F-636E-4F83-9A16-EBA2FA2B436A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4F463B2F-636E-4F83-9A16-EBA2FA2B436A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4838A90D-F7EE-4CEB-A023-94B923BDECBA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4838A90D-F7EE-4CEB-A023-94B923BDECBA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4838A90D-F7EE-4CEB-A023-94B923BDECBA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4838A90D-F7EE-4CEB-A023-94B923BDECBA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DD74E8C3-B7D5-44DD-8546-17C4C130CB48}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DD74E8C3-B7D5-44DD-8546-17C4C130CB48}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DD74E8C3-B7D5-44DD-8546-17C4C130CB48}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DD74E8C3-B7D5-44DD-8546-17C4C130CB48}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6DD090DE-6786-429E-965D-27950A42CCCF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6DD090DE-6786-429E-965D-27950A42CCCF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6DD090DE-6786-429E-965D-27950A42CCCF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6DD090DE-6786-429E-965D-27950A42CCCF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FBDDDA6E-CD97-4B9C-9A3C-97C85666F3D7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FBDDDA6E-CD97-4B9C-9A3C-97C85666F3D7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FBDDDA6E-CD97-4B9C-9A3C-97C85666F3D7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FBDDDA6E-CD97-4B9C-9A3C-97C85666F3D7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{94B29310-5558-436A-A706-092090230A87}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{94B29310-5558-436A-A706-092090230A87}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{94B29310-5558-436A-A706-092090230A87}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{94B29310-5558-436A-A706-092090230A87}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D7980BEC-7B81-4F54-B6B3-B683349E4D6A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D7980BEC-7B81-4F54-B6B3-B683349E4D6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D7980BEC-7B81-4F54-B6B3-B683349E4D6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D7980BEC-7B81-4F54-B6B3-B683349E4D6A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0F024130-597C-46FB-8EA3-92E73C2E90E7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0F024130-597C-46FB-8EA3-92E73C2E90E7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0F024130-597C-46FB-8EA3-92E73C2E90E7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0F024130-597C-46FB-8EA3-92E73C2E90E7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F4B10812-2D5E-4017-B5B7-C51A6E9D2C23}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F4B10812-2D5E-4017-B5B7-C51A6E9D2C23}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F4B10812-2D5E-4017-B5B7-C51A6E9D2C23}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F4B10812-2D5E-4017-B5B7-C51A6E9D2C23}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
