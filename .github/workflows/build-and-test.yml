@@ -31,9 +31,7 @@ jobs:
         run: dotnet restore
 
       - name: Decode Strong Name Key
-        if: secrets.STRONG_NAME_KEY != ''
         run: echo "${{ secrets.STRONG_NAME_KEY }}" | base64 --decode > LiteBus.snk
-        shell: bash
 
       - name: Build
         run: dotnet build --configuration Release --no-restore
