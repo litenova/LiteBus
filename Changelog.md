@@ -1,5 +1,38 @@
 # Changelog
 
+## v4.0.0
+
+This is a major release with a fundamental architectural redesign to decouple the library from specific Dependency Injection (DI) containers, introduce a durable Command Inbox, and provide advanced control over event mediation.
+
+### 🚀 Features
+
+-   **Dependency Injection Abstraction (`LiteBus.Runtime`):** The entire library has been refactored to be DI-agnostic, introducing a new runtime layer. This decouples the core logic from any specific DI container and allows for integrations via a lightweight adapter pattern.
+-   **Autofac Support:** Added first-class integration with Autofac via the new `LiteBus.Extensions.Autofac` package and its companions.
+-   **Durable Command Inbox:** Introduced a new Command Inbox feature for guaranteed, durable, and deferred command execution. Commands can be marked with `[StoreInInbox]` to be persisted and processed by a background service (`CommandInboxProcessorHostedService`).
+-   **Advanced Event Mediation:** Overhauled event mediation with powerful new controls:
+  -   The new `[HandlerPriority]` attribute replaces `[HandlerOrder]` for defining execution priority.
+  -   Added configurable concurrency for both priority groups (`PriorityGroupsConcurrencyMode`) and handlers within the same group (`HandlersWithinSamePriorityConcurrencyMode`).
+  -   Enhanced `HandlerPredicate` that receives a full `IHandlerDescriptor` for advanced filtering logic based on handler type, priority, tags, and message type.
+
+### ✨ Improvements
+
+-   **Simplified Module Registration:** The `AddCommandModule`, `AddEventModule`, and `AddQueryModule` extensions now automatically register the core `MessageModule`, reducing boilerplate configuration.
+-   **Robust Message Registry:** The internal `MessageRegistry` has been re-engineered for improved performance and correctness, ensuring handlers are correctly associated with messages regardless of registration order.
+-   **API Clarity:** Renamed several properties for better intent, such as `Order` to `Priority` on descriptors and `Handlers` to `MainHandlers` on `IMessageDependencies`.
+-   **Testability:** Added `IMessageRegistry.Clear()` to allow resetting the registry state, which is useful in test environments.
+
+### 💥 Breaking Changes
+
+-   **Project Structure & NuGet Packages:** The project structure and package names have been completely refactored. You must update your `.csproj` files to reference the new packages (e.g., `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Commands.Extensions.Microsoft.DependencyInjection`).
+-   **DI Registration API:** The `AddLiteBus` registration process is now part of the new DI-specific extension packages. Module registration extensions (`AddCommandModule`, etc.) have moved to their respective core namespaces (e.g., `LiteBus.Commands`).
+-   **Attribute Renaming:** `[HandlerOrder]` has been replaced by `[HandlerPriority]`. The `Order` property on `IHandlerDescriptor` is now `Priority`.
+-   **Mediation Settings `Items` Key:** The key type for the `Items` dictionary on `CommandMediationSettings`, `QueryMediationSettings`, and `ExecutionContext` has been changed from `object` to `string`.
+-   **`EventMediationSettings` Redesign:** The structure of `EventMediationSettings` has been completely changed to support the new priority and concurrency features. The `Filters` property is now `Routing`, and a new `Execution` property has been added.
+-   **`IMessageDependencies` Renaming:** The `Handlers` and `IndirectHandlers` properties have been renamed to `MainHandlers` and `IndirectMainHandlers`, respectively. This affects custom mediation strategies.
+
+> **Note:** Due to the significant architectural changes, please refer to the **v4 Migration Guide** in the release notes for detailed instructions on upgrading your project.
+
+
 ## v3.1.0
 
 - **Added**: Support for passing contextual metadata through the mediation pipeline. The `CommandMediationSettings`,

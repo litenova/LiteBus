@@ -97,23 +97,7 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "# Release v$VERSION" > release-notes.md
           echo "" >> release-notes.md
-          
-          # Try to extract section from Changelog.md if it exists
-          if [ -f Changelog.md ]; then
-            awk -v ver="$VERSION" '
-            BEGIN { inSection = 0; }
-            $0 ~ "^##v." ver { inSection = 1; next; }
-            inSection && $0 ~ "^##" { inSection = 0; }
-            inSection { print; }
-            ' Changelog.md >> release-notes.md
-          fi
-          
-          # If no content was extracted, add a default message
-          if [ ! -s release-notes.md ] || [ $(wc -l < release-notes.md) -le 2 ]; then
-            echo "# Release v$VERSION" > release-notes.md
-            echo "" >> release-notes.md
-            echo "See [Changelog.md](https://github.com/${{ github.repository }}/blob/main/Changelog.md) for details." >> release-notes.md
-          fi
+          echo "See [Changelog.md](https://github.com/${{ github.repository }}/blob/main/Changelog.md) for details." >> release-notes.md
           
           echo "Generated release notes:"
           cat release-notes.md
