@@ -29,41 +29,15 @@ LiteBus is an in-process mediator designed from the ground up for modern .NET. I
 
 ## Why Choose LiteBus?
 
-LiteBus combines a strong design philosophy with a rich, modern feature set to help you write better code, faster.
+*   **CQS & DDD First-Class Citizens:** Enforces clean architecture with distinct, semantic contracts like `ICommand<TResult>`, `IQuery<TResult>`, and `IEvent`. You can even publish pure POCO domain events without coupling your model to the framework.
 
-### Benefit: Write Cleaner, More Expressive Code
-LiteBus's API is designed to make your code's intent clear, aligning with established architectural patterns.
+*   **Optimized for High Performance:** Minimizes runtime overhead by discovering and caching handler metadata at startup. Handlers are resolved lazily from your DI container, and large datasets are handled efficiently with `IAsyncEnumerable<T>` streaming via `IStreamQuery<T>`.
 
-*   **Key Features:**
-    *   **Semantic Contracts**: Clear, CQS-aligned interfaces like `ICommand<TResult>`, `IQuery<TResult>`, `IEvent`, `ICommandHandler<T>`, `IQueryHandler<T>`, and `IEventHandler<T>`.
-    *   **DDD-Friendly**: Publish pure POCO domain events without coupling your domain model to framework interfaces.
-    *   **Decoupled Handlers**: Keep your business logic isolated, focused, and easy to test.
+*   **Granular Pipeline Customization:** Go beyond simple behaviors with a full pipeline of pre-handlers, post-handlers, and error handlers. Filter handlers by context using `[HandlerTag]` attributes and dynamic predicates.
 
-### Benefit: Achieve High Performance by Default
-The architecture is optimized to minimize overhead, ensuring your application remains fast and responsive.
+*   **Advanced Event Concurrency:** Take full control over your event processing. Configure `Sequential` or `Parallel` execution for both priority groups and for handlers within the same group, allowing you to fine-tune your application's throughput and determinism.
 
-*   **Key Features:**
-    *   **Minimal Runtime Reflection**: Handler relationships are discovered and cached at startup.
-    *   **Lazy Instantiation**: Handlers are resolved from your DI container only when they are needed.
-    *   **Efficient Streaming**: First-class support for `IAsyncEnumerable<T>` via `IStreamQuery<T>` handles large datasets without high memory pressure.
-
-### Benefit: Gain Powerful Pipeline Control
-Customize every stage of message processing with a rich set of pipeline components.
-
-*   **Key Features:**
-    *   **Full Pipeline Customization**: Use pre-handlers, post-handlers, and error handlers for cross-cutting concerns like validation, auditing, and logging.
-    *   **Advanced Event Mediation**: Fine-grained control over event handler execution with priority groups and configurable concurrency (`Sequential` vs. `Parallel`).
-    *   **Contextual Filtering**: Selectively execute handlers based on runtime context using `[HandlerTag]` attributes and dynamic `HandlerPredicate` functions.
-    *   **Flow Control**: Abort the pipeline at any stage using the `AmbientExecutionContext`.
-
-### Benefit: Leverage Modern .NET Features
-LiteBus is built for the modern .NET ecosystem, providing advanced capabilities out of the box.
-
-*   **Key Features:**
-    *   **DI-Agnostic Runtime**: Decoupled core with adapters for **Microsoft DI** and **Autofac**.
-    *   **Durable Command Inbox**: Built-in support for guaranteed, at-least-once command execution for critical operations.
-    *   **Advanced Type System Support**: Full support for generics and polymorphic dispatch for handlers.
-    *   **Built for .NET 8+**: Takes advantage of the latest C# and .NET features.
+*   **DI-Agnostic & Resilient:** Decoupled from any specific DI container, with first-class support for Microsoft DI and Autofac. It also includes a built-in **Durable Command Inbox** for guaranteed, at-least-once execution of critical commands.
 
 ## Quick Example
 
