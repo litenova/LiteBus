@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.1.0
+
+### Added
+
+-   **Type-Safe Stream Query Post-Handler:** Introduced the new `IStreamQueryPostHandler<TQuery, TQueryResult>` interface. This provides a strongly-typed post-handler for stream queries, giving access to the original query and the `IAsyncEnumerable<TQueryResult>` result stream, aligning its design with regular command and query post-handlers.
+
+### Fixed
+
+-   **Stream Query Context Preservation:** Fixed a critical bug in the stream query mediation strategy where the `AmbientExecutionContext` was lost during stream enumeration. This prevented stream handlers from accessing the context (e.g., `Items` collection) in logic that executed after yielding all results, and also prevented stream post-handlers from accessing the context. The context is now correctly preserved throughout the entire streaming lifecycle.
+
 ## v4.0.0
 
 This is a major release with a fundamental architectural redesign to decouple the library from specific Dependency Injection (DI) containers, introduce a durable Command Inbox, and provide advanced control over event mediation.
