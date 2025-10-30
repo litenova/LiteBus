@@ -1,19 +1,30 @@
+using System.Runtime.CompilerServices;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.QueryModule.UnitTests.UseCases.StreamProducts;
 
 public sealed class StreamProductsQueryHandler : IStreamQueryHandler<StreamProductsQuery, StreamProductsQueryResult>
 {
-    public IAsyncEnumerable<StreamProductsQueryResult> StreamAsync(StreamProductsQuery message, CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<StreamProductsQueryResult> StreamAsync(StreamProductsQuery message,
+                                                                         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         message.ExecutedTypes.Add(GetType());
 
-        return new List<StreamProductsQueryResult>
+        var results = new List<StreamProductsQueryResult> { new() { CorrelationId = message.CorrelationId } };
+        var count = 0;
+
+        foreach (var result in results)
         {
-            new()
-            {
-                CorrelationId = message.CorrelationId
-            }
-        }.ToAsyncEnumerable();
+            yield return await Task.FromResult(result);
+            count++;
+        }
+        
+        // After the stream is fully yielded, place the calculated metadata into the execution context.
+        // This is the recommended pattern for passing data to stream post-handlers.
+        if (AmbientExecutionContext.HasCurrent)
+        {
+            AmbientExecutionContext.Current.Items["StreamCount"] = count;
+        }
     }
 }

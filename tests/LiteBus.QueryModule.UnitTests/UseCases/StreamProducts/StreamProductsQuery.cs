@@ -6,7 +6,9 @@ public sealed class StreamProductsQuery : IAuditableQuery, IStreamQuery<StreamPr
 {
     public Guid CorrelationId { get; } = Guid.NewGuid();
 
-    public bool AbortInPreHandler { get; set; }
+    public bool AbortInPreHandler { get; init; }
 
     public List<Type> ExecutedTypes { get; } = new();
+
+    public int? RetrievedStreamCount { get; set; }
 }
