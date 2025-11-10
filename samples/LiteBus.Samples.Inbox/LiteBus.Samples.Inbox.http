@@ -1,6 +1,0 @@
-@LiteBus.Samples.Inbox_HostAddress = http://localhost:5241
-
-GET {{LiteBus.Samples.Inbox_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
