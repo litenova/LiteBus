@@ -8,19 +8,22 @@ using LiteBus.Runtime.Modules;
 namespace LiteBus.Extensions.Autofac;
 
 /// <summary>
-/// Extension methods for integrating LiteBus runtime with Autofac.
+///     Extension methods for integrating LiteBus runtime with Autofac.
 /// </summary>
 public static class ContainerBuilderExtensions
 {
     /// <summary>
-    /// Adds LiteBus to the Autofac container builder with the specified module configuration.
+    ///     Adds LiteBus to the Autofac container builder with the specified module configuration.
     /// </summary>
     /// <param name="builder">The Autofac container builder to add LiteBus to.</param>
     /// <param name="liteBusBuilderAction">Action to configure LiteBus modules.</param>
     /// <returns>The container builder for method chaining.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder"/> or <paramref name="liteBusBuilderAction"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="builder" /> or
+    ///     <paramref name="liteBusBuilderAction" /> is null.
+    /// </exception>
     /// <example>
-    /// <code>
+    ///     <code>
     /// var builder = new ContainerBuilder();
     /// 
     /// builder.AddLiteBus(modules =>

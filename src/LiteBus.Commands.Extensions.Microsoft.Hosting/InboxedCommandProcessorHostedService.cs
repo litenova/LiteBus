@@ -9,21 +9,21 @@ using Microsoft.Extensions.Logging;
 namespace LiteBus.Commands.Extensions.Microsoft.Hosting;
 
 /// <summary>
-/// A background service that manages the lifecycle of the registered <see cref="ICommandInboxProcessor"/>.
-/// This service is responsible for starting the processor when the application starts and ensuring
-/// a graceful shutdown when the application stops.
+///     A background service that manages the lifecycle of the registered <see cref="ICommandInboxProcessor" />.
+///     This service is responsible for starting the processor when the application starts and ensuring
+///     a graceful shutdown when the application stops.
 /// </summary>
 public sealed class CommandInboxProcessorHostedService : IHostedService
 {
-    private readonly IServiceProvider _serviceProvider;
+    private readonly CommandBatchHandler _handler;
     private readonly ILogger<CommandInboxProcessorHostedService> _logger;
     private readonly ICommandInboxProcessor _processor;
-    private readonly CommandBatchHandler _handler;
+    private readonly IServiceProvider _serviceProvider;
     private Task? _executingTask;
     private CancellationTokenSource? _stoppingCts;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="CommandInboxProcessorHostedService"/>.
+    ///     Initializes a new instance of the <see cref="CommandInboxProcessorHostedService" />.
     /// </summary>
     /// <param name="serviceProvider">The service provider for creating dependency scopes.</param>
     /// <param name="logger">The logger for recording service activity.</param>
@@ -46,7 +46,7 @@ public sealed class CommandInboxProcessorHostedService : IHostedService
     }
 
     /// <summary>
-    /// Starts the inbox processor as a background task.
+    ///     Starts the inbox processor as a background task.
     /// </summary>
     /// <param name="cancellationToken">A token that signals the application host is starting.</param>
     public Task StartAsync(CancellationToken cancellationToken)
@@ -63,7 +63,7 @@ public sealed class CommandInboxProcessorHostedService : IHostedService
     }
 
     /// <summary>
-    /// Triggers a graceful shutdown of the inbox processor.
+    ///     Triggers a graceful shutdown of the inbox processor.
     /// </summary>
     /// <param name="cancellationToken">A token that signals a timeout for the shutdown process.</param>
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -92,7 +92,7 @@ public sealed class CommandInboxProcessorHostedService : IHostedService
     }
 
     /// <summary>
-    /// The delegate responsible for executing a batch of commands via the mediator.
+    ///     The delegate responsible for executing a batch of commands via the mediator.
     /// </summary>
     private async Task HandleCommandsAsync(ICommandInboxBatch commandBatch, CancellationToken cancellationToken)
     {

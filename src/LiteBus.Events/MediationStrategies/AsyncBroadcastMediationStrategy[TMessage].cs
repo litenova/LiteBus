@@ -9,9 +9,9 @@ using LiteBus.Messaging.Abstractions;
 namespace LiteBus.Events.MediationStrategies;
 
 /// <summary>
-/// Implements a publish-subscribe message mediation strategy that broadcasts a message to multiple handlers.
-/// This strategy orchestrates the full execution pipeline, including pre-handlers, main handlers, post-handlers,
-/// and error handlers, while respecting configured concurrency settings.
+///     Implements a publish-subscribe message mediation strategy that broadcasts a message to multiple handlers.
+///     This strategy orchestrates the full execution pipeline, including pre-handlers, main handlers, post-handlers,
+///     and error handlers, while respecting configured concurrency settings.
 /// </summary>
 /// <typeparam name="TMessage">The type of the message to be broadcast. Must be a non-nullable type.</typeparam>
 public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task>
@@ -20,25 +20,35 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     private readonly EventMediationSettings _settings;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="AsyncBroadcastMediationStrategy{TMessage}"/> class.
+    ///     Initializes a new instance of the <see cref="AsyncBroadcastMediationStrategy{TMessage}" /> class.
     /// </summary>
-    /// <param name="settings">The event mediation settings that configure the broadcasting behavior, such as concurrency and error handling.</param>
-    /// <exception cref="ArgumentNullException">Thrown if <paramref name="settings"/> is <c>null</c>.</exception>
+    /// <param name="settings">
+    ///     The event mediation settings that configure the broadcasting behavior, such as concurrency and
+    ///     error handling.
+    /// </param>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="settings" /> is <c>null</c>.</exception>
     public AsyncBroadcastMediationStrategy(EventMediationSettings settings)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
     }
 
     /// <summary>
-    /// Mediates the given message by broadcasting it to all relevant handlers according to the configured settings.
-    /// This method orchestrates the execution of pre-handlers, main handlers, and post-handlers, and delegates to error handlers upon exception.
+    ///     Mediates the given message by broadcasting it to all relevant handlers according to the configured settings.
+    ///     This method orchestrates the execution of pre-handlers, main handlers, and post-handlers, and delegates to error
+    ///     handlers upon exception.
     /// </summary>
     /// <param name="message">The message to broadcast.</param>
     /// <param name="messageDependencies">A pre-filtered collection of handlers and their descriptors for the message pipeline.</param>
     /// <param name="executionContext">The execution context for the mediation.</param>
-    /// <returns>A <see cref="Task"/> that represents the asynchronous completion of the entire broadcast operation.</returns>
-    /// <exception cref="ArgumentNullException">Thrown if <paramref name="message"/>, <paramref name="messageDependencies"/>, or <paramref name="executionContext"/> is <c>null</c>.</exception>
-    /// <exception cref="InvalidOperationException">Thrown if <see cref="EventMediationSettings.ThrowIfNoHandlerFound"/> is <c>true</c> and no main handlers are found for the message.</exception>
+    /// <returns>A <see cref="Task" /> that represents the asynchronous completion of the entire broadcast operation.</returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown if <paramref name="message" />, <paramref name="messageDependencies" />,
+    ///     or <paramref name="executionContext" /> is <c>null</c>.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown if <see cref="EventMediationSettings.ThrowIfNoHandlerFound" /> is
+    ///     <c>true</c> and no main handlers are found for the message.
+    /// </exception>
     public async Task Mediate(TMessage message, IMessageDependencies messageDependencies, IExecutionContext executionContext)
     {
         ArgumentNullException.ThrowIfNull(message);
@@ -59,7 +69,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
             return;
         }
 
-        Task executionTaskOfAllHandlers = Task.CompletedTask;
+        var executionTaskOfAllHandlers = Task.CompletedTask;
 
         try
         {
@@ -87,8 +97,8 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     }
 
     /// <summary>
-    /// Executes handlers by grouping them by priority and then processing each group
-    /// according to the <see cref="EventMediationExecutionSettings.PriorityGroupsConcurrencyMode"/> setting.
+    ///     Executes handlers by grouping them by priority and then processing each group
+    ///     according to the <see cref="EventMediationExecutionSettings.PriorityGroupsConcurrencyMode" /> setting.
     /// </summary>
     private async Task ExecuteHandlersByPriority(TMessage message,
                                                  IReadOnlyList<LazyHandler<IMessageHandler, IMainHandlerDescriptor>> handlers)
@@ -113,8 +123,8 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     }
 
     /// <summary>
-    /// Executes a group of handlers that share the same priority level, respecting the
-    /// <see cref="EventMediationExecutionSettings.HandlersWithinSamePriorityConcurrencyMode"/> setting.
+    ///     Executes a group of handlers that share the same priority level, respecting the
+    ///     <see cref="EventMediationExecutionSettings.HandlersWithinSamePriorityConcurrencyMode" /> setting.
     /// </summary>
     private async Task ExecuteHandlersInGroup(TMessage message,
                                               IReadOnlyList<LazyHandler<IMessageHandler, IMainHandlerDescriptor>> handlersInGroup)
@@ -134,7 +144,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     }
 
     /// <summary>
-    /// Resolves and executes a single message handler.
+    ///     Resolves and executes a single message handler.
     /// </summary>
     private static async Task ExecuteSingleHandler(TMessage message,
                                                    LazyHandler<IMessageHandler, IMainHandlerDescriptor> lazyHandler)

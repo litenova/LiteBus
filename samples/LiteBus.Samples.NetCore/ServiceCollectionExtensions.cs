@@ -9,8 +9,8 @@ namespace LiteBus.Samples.NetCore;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers the Order Processing example with Microsoft Dependency Injection.
-    /// This includes all commands, queries, event handlers, and infrastructure services.
+    ///     Registers the Order Processing example with Microsoft Dependency Injection.
+    ///     This includes all commands, queries, event handlers, and infrastructure services.
     /// </summary>
     public static IServiceCollection AddLiteBusExample(this IServiceCollection services)
     {

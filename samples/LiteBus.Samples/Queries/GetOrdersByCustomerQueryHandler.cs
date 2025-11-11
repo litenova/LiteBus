@@ -11,6 +11,7 @@ public sealed class GetOrdersByCustomerQueryHandler : IQueryHandler<GetOrdersByC
             new OrderLineItemDto(Guid.NewGuid(), 2, 19.99m),
             new OrderLineItemDto(Guid.NewGuid(), 1, 9.99m)
         ]);
+
         var order2 = new OrderDto(Guid.NewGuid(), query.CustomerId, 79.99m, OrderStatus.Shipped, DateTime.UtcNow.AddDays(-5),
         [
             new OrderLineItemDto(Guid.NewGuid(), 3, 19.99m),

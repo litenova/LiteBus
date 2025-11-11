@@ -16,7 +16,8 @@ public interface IHandlerDescriptor
     Type MessageType { get; }
 
     /// <summary>
-    ///     Gets the order/priority in which the handler should be executed. Handlers with lower order values are executed first.
+    ///     Gets the order/priority in which the handler should be executed. Handlers with lower order values are executed
+    ///     first.
     /// </summary>
     int Priority { get; }
 

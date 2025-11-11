@@ -8,17 +8,17 @@ using LiteBus.Messaging.Abstractions;
 namespace LiteBus.Commands;
 
 /// <summary>
-/// The primary implementation of <see cref="ICommandMediator"/>. It orchestrates the command execution
-/// pipeline, including diverting commands to be stored in the inbox if they are marked for durable processing.
+///     The primary implementation of <see cref="ICommandMediator" />. It orchestrates the command execution
+///     pipeline, including diverting commands to be stored in the inbox if they are marked for durable processing.
 /// </summary>
 public sealed class CommandMediator : ICommandMediator
 {
-    private readonly IMessageMediator _messageMediator;
     private readonly ICommandInbox? _commandInbox;
     private readonly ConcurrentDictionary<Type, bool> _inboxAttributeCache = new();
+    private readonly IMessageMediator _messageMediator;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="CommandMediator"/>.
+    ///     Initializes a new instance of the <see cref="CommandMediator" />.
     /// </summary>
     /// <param name="messageMediator">The core message mediator for immediate command execution.</param>
     /// <param name="commandInbox">The registered command inbox implementation. If null, the inbox feature is disabled.</param>
@@ -96,7 +96,7 @@ public sealed class CommandMediator : ICommandMediator
     }
 
     /// <summary>
-    /// Determines if a command should be stored in the inbox for deferred processing.
+    ///     Determines if a command should be stored in the inbox for deferred processing.
     /// </summary>
     private bool ShouldBeStoredInInbox(Type commandType, CommandMediationSettings? settings)
     {

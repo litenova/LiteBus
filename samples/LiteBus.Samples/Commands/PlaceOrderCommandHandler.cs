@@ -1,6 +1,5 @@
 using LiteBus.Commands.Abstractions;
 using LiteBus.Events.Abstractions;
-using LiteBus.Samples.Events;
 
 namespace LiteBus.Samples.Commands;
 
@@ -20,7 +19,7 @@ public sealed class PlaceOrderCommandHandler : ICommandHandler<PlaceOrderCommand
             .ToList();
 
         var order = new Order(command.CustomerId, lineItems);
-        
+
         Console.WriteLine(
             $"[PlaceOrderCommandHandler] Order {{{order.Id}}} placed at {{{order.CreatedAt}}}.");
 

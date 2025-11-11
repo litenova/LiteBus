@@ -8,6 +8,14 @@ namespace LiteBus.MessageModule.UnitTests;
 [Collection("Sequential")]
 public sealed class MessageRegistryTests : LiteBusTestBase
 {
+    // Test data types
+    public enum CustomEnum
+    {
+        One,
+        Two,
+        Three
+    }
+
     [Fact]
     public void Register_RecordClass_ShouldRegisterAsMessage()
     {
@@ -153,14 +161,6 @@ public sealed class MessageRegistryTests : LiteBusTestBase
         var messageDescriptor = registry.First();
         messageDescriptor.Handlers.Should().HaveCount(1);
         messageDescriptor.Handlers.First().HandlerType.Should().Be(typeof(TestHandler));
-    }
-
-    // Test data types
-    public enum CustomEnum
-    {
-        One,
-        Two,
-        Three
     }
 
     public record TestRecordClass(string Name) : IEvent;

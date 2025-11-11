@@ -57,23 +57,23 @@ public sealed class MediateOptions<TMessage, TMessageResult> where TMessage : no
     public bool RegisterPlainMessagesOnSpot { get; init; } = false;
 
     /// <summary>
-    /// Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.
+    ///     Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.
     /// </summary>
     /// <remarks>
-    /// This collection provides a mechanism for different components in the pipeline (such as pre-handlers,
-    /// post-handlers, or custom middleware) to share state or influence behavior without modifying the
-    /// command contract itself. For instance, a flag could be set to bypass a certain validation
-    /// step under specific, controlled conditions.
+    ///     This collection provides a mechanism for different components in the pipeline (such as pre-handlers,
+    ///     post-handlers, or custom middleware) to share state or influence behavior without modifying the
+    ///     command contract itself. For instance, a flag could be set to bypass a certain validation
+    ///     step under specific, controlled conditions.
     /// </remarks>
     public IDictionary<string, object> Items { get; init; } = new Dictionary<string, object>();
 
     /// <summary>
-    /// Gets or initializes a predicate function used to filter event handlers by their descriptor.
+    ///     Gets or initializes a predicate function used to filter event handlers by their descriptor.
     /// </summary>
     /// <remarks>
-    /// This predicate is evaluated for each potential handler descriptor before execution.
-    /// Use this for advanced filtering scenarios beyond tag-based filtering.
-    /// The predicate is applied after tag filtering.
+    ///     This predicate is evaluated for each potential handler descriptor before execution.
+    ///     Use this for advanced filtering scenarios beyond tag-based filtering.
+    ///     The predicate is applied after tag filtering.
     /// </remarks>
     public Func<IHandlerDescriptor, bool> HandlerPredicate { get; init; } = _ => true;
 }

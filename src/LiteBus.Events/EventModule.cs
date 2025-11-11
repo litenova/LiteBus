@@ -8,28 +8,28 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Events;
 
 /// <summary>
-/// Module for configuring event handling infrastructure.
-/// Depends on the messaging module for core messaging functionality.
+///     Module for configuring event handling infrastructure.
+///     Depends on the messaging module for core messaging functionality.
 /// </summary>
 public sealed class EventModule : IModule
 {
     private readonly Action<EventModuleBuilder> _builder;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="EventModule"/> class.
+    ///     Initializes a new instance of the <see cref="EventModule" /> class.
     /// </summary>
     /// <param name="builder">The configuration action for the event module.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder" /> is null.</exception>
     public EventModule(Action<EventModuleBuilder> builder)
     {
         _builder = builder ?? throw new ArgumentNullException(nameof(builder));
     }
 
     /// <summary>
-    /// Builds the event module by configuring event handlers and registering event-specific services.
+    ///     Builds the event module by configuring event handlers and registering event-specific services.
     /// </summary>
     /// <param name="configuration">The module configuration containing dependency registry and shared context.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configuration"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configuration" /> is null.</exception>
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
@@ -46,7 +46,7 @@ public sealed class EventModule : IModule
     }
 
     /// <summary>
-    /// Registers event-specific services with the dependency registry.
+    ///     Registers event-specific services with the dependency registry.
     /// </summary>
     /// <param name="configuration">The module configuration.</param>
     private static void RegisterEventServices(IModuleConfiguration configuration)
@@ -61,7 +61,7 @@ public sealed class EventModule : IModule
     }
 
     /// <summary>
-    /// Registers handler types that were discovered during this module's configuration.
+    ///     Registers handler types that were discovered during this module's configuration.
     /// </summary>
     /// <param name="configuration">The module configuration.</param>
     /// <param name="messageRegistry">The message registry containing handler information.</param>
