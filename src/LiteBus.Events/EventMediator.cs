@@ -19,35 +19,37 @@ public sealed class EventMediator : IEventPublisher
     public Task PublishAsync(IEvent @event, EventMediationSettings? eventMediationSettings = null, CancellationToken cancellationToken = default)
     {
         eventMediationSettings ??= new EventMediationSettings();
+
         var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(eventMediationSettings);
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
-        return _messageMediator.Mediate(@event,
-            new MediateOptions<IEvent, Task>
-            {
-                MessageMediationStrategy = mediationStrategy,
-                MessageResolveStrategy = resolveStrategy,
-                CancellationToken = cancellationToken,
-                Tags = eventMediationSettings.Routing.Tags,
-                RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound
-            });
+        return _messageMediator.Mediate(@event, new MediateOptions<IEvent, Task>
+        {
+            MessageMediationStrategy = mediationStrategy,
+            MessageResolveStrategy = resolveStrategy,
+            CancellationToken = cancellationToken,
+            Tags = eventMediationSettings.Routing.Tags,
+            Items = eventMediationSettings.Items,
+            RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound
+        });
     }
 
     public Task PublishAsync<TEvent>(TEvent @event, EventMediationSettings? eventMediationSettings = null, CancellationToken cancellationToken = default) where TEvent : notnull
     {
         eventMediationSettings ??= new EventMediationSettings();
+
         var mediationStrategy = new AsyncBroadcastMediationStrategy<TEvent>(eventMediationSettings);
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
-        return _messageMediator.Mediate(@event,
-            new MediateOptions<TEvent, Task>
-            {
-                MessageMediationStrategy = mediationStrategy,
-                MessageResolveStrategy = resolveStrategy,
-                CancellationToken = cancellationToken,
-                Tags = eventMediationSettings.Routing.Tags,
-                RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound,
-                HandlerPredicate = handlerDescriptor => eventMediationSettings.Routing.HandlerPredicate(handlerDescriptor)
-            });
+        return _messageMediator.Mediate(@event, new MediateOptions<TEvent, Task>
+        {
+            MessageMediationStrategy = mediationStrategy,
+            MessageResolveStrategy = resolveStrategy,
+            CancellationToken = cancellationToken,
+            Tags = eventMediationSettings.Routing.Tags,
+            Items = eventMediationSettings.Items,
+            RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound,
+            HandlerPredicate = handlerDescriptor => eventMediationSettings.Routing.HandlerPredicate(handlerDescriptor)
+        });
     }
 }

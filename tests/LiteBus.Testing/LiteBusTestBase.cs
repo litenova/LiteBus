@@ -3,12 +3,12 @@
 namespace LiteBus.Testing;
 
 /// <summary>
-/// Base class for LiteBus tests that ensures proper test isolation by clearing the message registry.
+///     Base class for LiteBus tests that ensures proper test isolation by clearing the message registry.
 /// </summary>
 public abstract class LiteBusTestBase : IDisposable
 {
     /// <summary>
-    /// Initializes a new instance of the test base class and ensures a clean registry state.
+    ///     Initializes a new instance of the test base class and ensures a clean registry state.
     /// </summary>
     protected LiteBusTestBase()
     {
@@ -17,7 +17,7 @@ public abstract class LiteBusTestBase : IDisposable
     }
 
     /// <summary>
-    /// Performs cleanup after test execution to prevent state pollution.
+    ///     Performs cleanup after test execution to prevent state pollution.
     /// </summary>
     public virtual void Dispose()
     {

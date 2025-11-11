@@ -9,6 +9,7 @@ public sealed class OrderConfirmedEventHandler : IEventHandler<OrderConfirmedEve
     {
         // Simulate triggering fulfillment process
         await Task.Delay(50, cancellationToken);
+
         Console.WriteLine(
             $"[OrderConfirmedEventHandler] Order {{{@event.OrderId}}} confirmed at {{{@event.ConfirmedAt}}}. Starting fulfillment...");
     }

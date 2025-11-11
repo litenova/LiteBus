@@ -7,37 +7,37 @@ using Microsoft.Extensions.DependencyInjection;
 namespace LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 
 /// <summary>
-/// Adapter that bridges LiteBus dependency registration with Microsoft DI container,
-/// handling duplicate registrations gracefully using descriptor equality.
+///     Adapter that bridges LiteBus dependency registration with Microsoft DI container,
+///     handling duplicate registrations gracefully using descriptor equality.
 /// </summary>
 internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
 {
-    private readonly IServiceCollection _services;
     private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
+    private readonly IServiceCollection _services;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="MicrosoftDependencyRegistryAdapter"/> class.
+    ///     Initializes a new instance of the <see cref="MicrosoftDependencyRegistryAdapter" /> class.
     /// </summary>
     /// <param name="services">The service collection to register services with.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services" /> is <see langword="null" />.</exception>
     public MicrosoftDependencyRegistryAdapter(IServiceCollection services)
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
     }
 
     /// <summary>
-    /// Gets the number of unique dependency descriptors that have been registered.
+    ///     Gets the number of unique dependency descriptors that have been registered.
     /// </summary>
     public int Count => _registeredDescriptors.Count;
 
     /// <summary>
-    /// Registers a dependency descriptor with the underlying service collection if not already registered.
+    ///     Registers a dependency descriptor with the underlying service collection if not already registered.
     /// </summary>
     /// <param name="descriptor">The dependency descriptor to register.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
     /// <remarks>
-    /// Duplicate descriptors are silently ignored based on the descriptor's equality implementation.
-    /// This prevents duplicate service registrations when multiple modules attempt to register the same services.
+    ///     Duplicate descriptors are silently ignored based on the descriptor's equality implementation.
+    ///     This prevents duplicate service registrations when multiple modules attempt to register the same services.
     /// </remarks>
     public void Register(DependencyDescriptor descriptor)
     {
@@ -56,7 +56,7 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     }
 
     /// <summary>
-    /// Returns an enumerator that iterates through the registered dependency descriptors.
+    ///     Returns an enumerator that iterates through the registered dependency descriptors.
     /// </summary>
     /// <returns>An enumerator for the registered dependency descriptors.</returns>
     public IEnumerator<DependencyDescriptor> GetEnumerator()
@@ -65,7 +65,7 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     }
 
     /// <summary>
-    /// Returns a non-generic enumerator that iterates through the registered dependency descriptors.
+    ///     Returns a non-generic enumerator that iterates through the registered dependency descriptors.
     /// </summary>
     /// <returns>A non-generic enumerator for the registered dependency descriptors.</returns>
     IEnumerator IEnumerable.GetEnumerator()
@@ -74,12 +74,12 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     }
 
     /// <summary>
-    /// Converts a LiteBus dependency descriptor to a Microsoft DI service descriptor.
+    ///     Converts a LiteBus dependency descriptor to a Microsoft DI service descriptor.
     /// </summary>
     /// <param name="descriptor">The dependency descriptor to convert.</param>
     /// <returns>A Microsoft DI service descriptor.</returns>
     /// <exception cref="ArgumentException">
-    /// Thrown when the descriptor is invalid (missing Instance, Factory, or ImplementationType).
+    ///     Thrown when the descriptor is invalid (missing Instance, Factory, or ImplementationType).
     /// </exception>
     private static ServiceDescriptor ConvertToServiceDescriptor(DependencyDescriptor descriptor)
     {
@@ -106,12 +106,12 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     }
 
     /// <summary>
-    /// Converts a LiteBus instance lifetime to a Microsoft DI service lifetime.
+    ///     Converts a LiteBus instance lifetime to a Microsoft DI service lifetime.
     /// </summary>
     /// <param name="lifetime">The LiteBus instance lifetime.</param>
     /// <returns>The corresponding Microsoft DI service lifetime.</returns>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown when an unknown instance lifetime is provided.
+    ///     Thrown when an unknown instance lifetime is provided.
     /// </exception>
     private static ServiceLifetime ConvertLifetime(InstanceLifetime lifetime)
     {

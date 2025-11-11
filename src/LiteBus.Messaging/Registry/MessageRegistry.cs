@@ -11,24 +11,19 @@ using LiteBus.Messaging.Registry.Descriptors;
 namespace LiteBus.Messaging.Registry;
 
 /// <summary>
-/// Default implementation of IMessageRegistry that provides both message-centric 
-/// and handler-centric views of registered components.
+///     Default implementation of IMessageRegistry that provides both message-centric
+///     and handler-centric views of registered components.
 /// </summary>
 /// <remarks>
-/// This implementation maintains two complementary views of the data:
-/// 1. Message-centric: Message descriptors grouped by message type (main interface)
-/// 2. Handler-centric: Ordered list of handler descriptors for indexed access (Handlers property)
-/// 
-/// The handler-centric view enables efficient change tracking by modules using Count as index.
+///     This implementation maintains two complementary views of the data:
+///     1. Message-centric: Message descriptors grouped by message type (main interface)
+///     2. Handler-centric: Ordered list of handler descriptors for indexed access (Handlers property)
+///     The handler-centric view enables efficient change tracking by modules using Count as index.
 /// </remarks>
 internal sealed class MessageRegistry : IMessageRegistry
 {
-    // Handler descriptors in registration order for indexed access
-    private readonly List<IHandlerDescriptor> _handlerDescriptorsInOrder = [];
-
     // Message descriptors grouped by message type
     private readonly List<MessageDescriptor> _committedMessages = [];
-    private readonly List<MessageDescriptor> _pendingMessages = [];
 
     // Handler descriptor builders for analyzing types
     private readonly List<IHandlerDescriptorBuilder> _descriptorBuilders =
@@ -39,11 +34,15 @@ internal sealed class MessageRegistry : IMessageRegistry
         new PreHandlerDescriptorBuilder()
     ];
 
-    // Cache for processed types to avoid duplicate analysis
-    private readonly ConcurrentDictionary<Type, byte> _processedTypes = new();
+    // Handler descriptors in registration order for indexed access
+    private readonly List<IHandlerDescriptor> _handlerDescriptorsInOrder = [];
 
     // Lock for thread safety during collection modifications
-    private readonly object _lock = new object();
+    private readonly object _lock = new();
+    private readonly List<MessageDescriptor> _pendingMessages = [];
+
+    // Cache for processed types to avoid duplicate analysis
+    private readonly ConcurrentDictionary<Type, byte> _processedTypes = new();
 
     /// <inheritdoc />
     public IReadOnlyList<IHandlerDescriptor> Handlers => _handlerDescriptorsInOrder.AsReadOnly();
@@ -128,8 +127,8 @@ internal sealed class MessageRegistry : IMessageRegistry
     }
 
     /// <summary>
-    /// Processes newly discovered handler descriptors by adding them to the handler collection
-    /// and linking them to existing message descriptors.
+    ///     Processes newly discovered handler descriptors by adding them to the handler collection
+    ///     and linking them to existing message descriptors.
     /// </summary>
     /// <param name="newDescriptors">The handler descriptors to process.</param>
     private void ProcessHandlerDescriptors(IList<IHandlerDescriptor> newDescriptors)
@@ -148,7 +147,7 @@ internal sealed class MessageRegistry : IMessageRegistry
     }
 
     /// <summary>
-    /// Registers a message type if it hasn't been registered yet.
+    ///     Registers a message type if it hasn't been registered yet.
     /// </summary>
     /// <param name="messageType">The message type to register.</param>
     private void RegisterMessageType(Type messageType)
@@ -179,8 +178,8 @@ internal sealed class MessageRegistry : IMessageRegistry
     }
 
     /// <summary>
-    /// Links newly discovered handler descriptors to existing committed message descriptors
-    /// that can be processed by those handlers.
+    ///     Links newly discovered handler descriptors to existing committed message descriptors
+    ///     that can be processed by those handlers.
     /// </summary>
     /// <param name="newDescriptors">The new handler descriptors to link.</param>
     private void LinkHandlersToCommittedMessages(IList<IHandlerDescriptor> newDescriptors)
@@ -198,7 +197,7 @@ internal sealed class MessageRegistry : IMessageRegistry
     }
 
     /// <summary>
-    /// Links all existing handler descriptors to pending message descriptors.
+    ///     Links all existing handler descriptors to pending message descriptors.
     /// </summary>
     private void LinkHandlersToPendingMessages()
     {
@@ -215,7 +214,7 @@ internal sealed class MessageRegistry : IMessageRegistry
     }
 
     /// <summary>
-    /// Commits pending message descriptors to the main collection.
+    ///     Commits pending message descriptors to the main collection.
     /// </summary>
     private void CommitPendingMessages()
     {

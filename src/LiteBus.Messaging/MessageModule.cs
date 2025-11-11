@@ -8,15 +8,15 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Messaging;
 
 /// <summary>
-/// Module for configuring messaging infrastructure components.
-/// This is a foundational module that other modules depend on.
+///     Module for configuring messaging infrastructure components.
+///     This is a foundational module that other modules depend on.
 /// </summary>
 public sealed class MessageModule : IModule
 {
     private readonly Action<MessageModuleBuilder> _builder;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="MessageModule"/> class.
+    ///     Initializes a new instance of the <see cref="MessageModule" /> class.
     /// </summary>
     /// <param name="builder">The configuration action for the message module.</param>
     /// <exception cref="System.ArgumentNullException">Thrown when builder is null.</exception>
@@ -29,7 +29,7 @@ public sealed class MessageModule : IModule
     public void Build(IModuleConfiguration configuration)
     {
         // Create or get the message registry - this will be shared across all messaging-related modules
-        var messageRegistry = (MessageRegistryAccessor.Instance);
+        var messageRegistry = MessageRegistryAccessor.Instance;
         var startIndex = messageRegistry.Handlers.Count;
 
         configuration.SetContext(messageRegistry);
@@ -44,7 +44,7 @@ public sealed class MessageModule : IModule
     }
 
     /// <summary>
-    /// Registers core messaging services with the dependency registry.
+    ///     Registers core messaging services with the dependency registry.
     /// </summary>
     /// <param name="configuration">The module configuration.</param>
     /// <param name="messageRegistry">The message registry instance.</param>
@@ -69,7 +69,7 @@ public sealed class MessageModule : IModule
     }
 
     /// <summary>
-    /// Registers handler types that were added to the message registry during module building.
+    ///     Registers handler types that were added to the message registry during module building.
     /// </summary>
     /// <param name="configuration">The module configuration to register handlers with.</param>
     /// <param name="messageRegistry">The message registry containing the handlers.</param>

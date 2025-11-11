@@ -6,7 +6,8 @@
   LiteBus
 </h1>
 
-<h4 align="center">A lightweight, high-performance mediator for building clean, scalable, and testable .NET applications with CQS and DDD.</h4>
+<h4 align="center">A lightweight, high-performance mediator for building clean, scalable, and testable .NET applications
+with CQS and DDD.</h4>
 
 <p align="center">
   <a href="https://github.com/litenova/LiteBus/actions/workflows/release.yml">
@@ -24,20 +25,30 @@
   For detailed documentation and examples, please visit the <strong><a href="https://github.com/litenova/LiteBus/wiki">Wiki</a></strong>.
 </p>
 
-LiteBus is an in-process mediator designed from the ground up for modern .NET. It helps you implement **Command Query Separation (CQS)** and **Domain-Driven Design (DDD)** patterns by providing a clean, decoupled architecture for your application's business logic.
-
+LiteBus is an in-process mediator designed from the ground up for modern .NET. It helps you implement **Command Query
+Separation (CQS)** and **Domain-Driven Design (DDD)** patterns by providing a clean, decoupled architecture for your
+application's business logic.
 
 ## Why Choose LiteBus?
 
-*   **CQS & DDD First-Class Citizens:** Enforces clean architecture with distinct, semantic contracts like `ICommand<TResult>`, `IQuery<TResult>`, and `IEvent`. You can even publish pure POCO domain events without coupling your model to the framework.
+* **CQS & DDD First-Class Citizens:** Enforces clean architecture with distinct, semantic contracts like
+  `ICommand<TResult>`, `IQuery<TResult>`, and `IEvent`. You can even publish pure POCO domain events without coupling
+  your model to the framework.
 
-*   **Optimized for High Performance:** Minimizes runtime overhead by discovering and caching handler metadata at startup. Handlers are resolved lazily from your DI container, and large datasets are handled efficiently with `IAsyncEnumerable<T>` streaming via `IStreamQuery<T>`.
+* **Optimized for High Performance:** Minimizes runtime overhead by discovering and caching handler metadata at startup.
+  Handlers are resolved lazily from your DI container, and large datasets are handled efficiently with
+  `IAsyncEnumerable<T>` streaming via `IStreamQuery<T>`.
 
-*   **Granular Pipeline Customization:** Go beyond simple behaviors with a full pipeline of pre-handlers, post-handlers, and error handlers. Filter handlers by context using `[HandlerTag]` attributes and dynamic predicates.
+* **Granular Pipeline Customization:** Go beyond simple behaviors with a full pipeline of pre-handlers, post-handlers,
+  and error handlers. Filter handlers by context using `[HandlerTag]` attributes and dynamic predicates.
 
-*   **Advanced Event Concurrency:** Take full control over your event processing. Configure `Sequential` or `Parallel` execution for both priority groups and for handlers within the same group, allowing you to fine-tune your application's throughput and determinism.
+* **Advanced Event Concurrency:** Take full control over your event processing. Configure `Sequential` or `Parallel`
+  execution for both priority groups and for handlers within the same group, allowing you to fine-tune your
+  application's throughput and determinism.
 
-*   **DI-Agnostic & Resilient:** Decoupled from any specific DI container, with first-class support for Microsoft DI and Autofac. It also includes a built-in **Durable Command Inbox** for guaranteed, at-least-once execution of critical commands.
+* **DI-Agnostic & Resilient:** Decoupled from any specific DI container, with first-class support for Microsoft DI and
+  Autofac. It also includes a built-in **Durable Command Inbox** for guaranteed, at-least-once execution of critical
+  commands.
 
 ## Quick Example
 
@@ -106,7 +117,8 @@ public class ProductsController : ControllerBase
 
 ## Installation
 
-The recommended way to get started is by installing the extension package for your DI container and the modules you need.
+The recommended way to get started is by installing the extension package for your DI container and the modules you
+need.
 
 #### For Microsoft Dependency Injection
 
@@ -118,39 +130,46 @@ dotnet add package LiteBus.Events.Extensions.Microsoft.DependencyInjection
 
 ## Documentation
 
-For comprehensive guides, advanced features, and best practices, please visit the **[LiteBus Wiki](https://github.com/litenova/LiteBus/wiki)**.
+For comprehensive guides, advanced features, and best practices, please visit the *
+*[LiteBus Wiki](https://github.com/litenova/LiteBus/wiki)**.
 
 Key pages include:
+
 - **[Getting Started](https://github.com/litenova/LiteBus/wiki/Getting-Started)**: A detailed walkthrough for new users.
-- **[v4.0 Migration Guide](https://github.com/litenova/LiteBus/wiki/Migration-Guide-v4)**: A critical guide for upgrading from v3.
-- **[Advanced Concepts](https://github.com/litenova/LiteBus/wiki/Advanced-Concepts)**: Learn about the Execution Context, Handler Filtering, and more.
-- **[Durable Command Inbox](https://github.com/litenova/LiteBus/wiki/Durable-Command-Inbox)**: A guide to guaranteed command processing.
+- **[v4.0 Migration Guide](https://github.com/litenova/LiteBus/wiki/Migration-Guide-v4)**: A critical guide for
+  upgrading from v3.
+- **[Advanced Concepts](https://github.com/litenova/LiteBus/wiki/Advanced-Concepts)**: Learn about the Execution
+  Context, Handler Filtering, and more.
+- **[Durable Command Inbox](https://github.com/litenova/LiteBus/wiki/Durable-Command-Inbox)**: A guide to guaranteed
+  command processing.
 
 ## Available Packages
 
 The LiteBus ecosystem is split into several packages so you can install only what you need.
 
 #### Core Modules & Abstractions
-| Package | Version |
-| :--- | :--- |
-| `LiteBus.Commands` | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Commands.svg)](https://www.nuget.org/packages/LiteBus.Commands/) |
-| `LiteBus.Commands.Abstractions` | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Commands.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Commands.Abstractions/) |
-| `LiteBus.Queries` | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Queries.svg)](https://www.nuget.org/packages/LiteBus.Queries/) |
-| `LiteBus.Queries.Abstractions` | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Queries.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Queries.Abstractions/) |
-| `LiteBus.Events` | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Events.svg)](https://www.nuget.org/packages/LiteBus.Events/) |
-| `LiteBus.Events.Abstractions` | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Events.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Events.Abstractions/) |
-| `LiteBus.Messaging` | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Messaging.svg)](https://www.nuget.org/packages/LiteBus.Messaging/) |
+
+| Package                          | Version                                                                                                                                                  |
+|:---------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `LiteBus.Commands`               | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Commands.svg)](https://www.nuget.org/packages/LiteBus.Commands/)                             |
+| `LiteBus.Commands.Abstractions`  | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Commands.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Commands.Abstractions/)   |
+| `LiteBus.Queries`                | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Queries.svg)](https://www.nuget.org/packages/LiteBus.Queries/)                               |
+| `LiteBus.Queries.Abstractions`   | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Queries.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Queries.Abstractions/)     |
+| `LiteBus.Events`                 | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Events.svg)](https://www.nuget.org/packages/LiteBus.Events/)                                 |
+| `LiteBus.Events.Abstractions`    | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Events.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Events.Abstractions/)       |
+| `LiteBus.Messaging`              | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Messaging.svg)](https://www.nuget.org/packages/LiteBus.Messaging/)                           |
 | `LiteBus.Messaging.Abstractions` | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Messaging.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Messaging.Abstractions/) |
 
 #### Runtime & DI Extensions
-| Package | Version |
-| :--- | :--- |
-| `LiteBus.Runtime` | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Runtime.svg)](https://www.nuget.org/packages/LiteBus.Runtime/) |
-| `LiteBus.Runtime.Abstractions` | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Runtime.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Runtime.Abstractions/) |
+
+| Package                                                     | Version                                                                                                                                                                                                        |
+|:------------------------------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `LiteBus.Runtime`                                           | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Runtime.svg)](https://www.nuget.org/packages/LiteBus.Runtime/)                                                                                     |
+| `LiteBus.Runtime.Abstractions`                              | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Runtime.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Runtime.Abstractions/)                                                           |
 | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection` | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.DependencyInjection/) |
-| `LiteBus.Commands.Extensions.Autofac` | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Commands.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Commands.Extensions.Autofac/) |
-| `LiteBus.Commands.Extensions.Microsoft.Hosting` | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Commands.Extensions.Microsoft.Hosting.svg)](https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.Hosting/) |
-| *(Query and Event extensions follow the same pattern)* | |
+| `LiteBus.Commands.Extensions.Autofac`                       | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Commands.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Commands.Extensions.Autofac/)                                             |
+| `LiteBus.Commands.Extensions.Microsoft.Hosting`             | [![NuGet version](https://img.shields.io/nuget/vpre/LiteBus.Commands.Extensions.Microsoft.Hosting.svg)](https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.Hosting/)                         |
+| *(Query and Event extensions follow the same pattern)*      |                                                                                                                                                                                                                |
 
 ## Contributing
 

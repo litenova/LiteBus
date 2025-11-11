@@ -8,7 +8,7 @@ public sealed class StreamProductsQuery : IAuditableQuery, IStreamQuery<StreamPr
 
     public bool AbortInPreHandler { get; init; }
 
-    public List<Type> ExecutedTypes { get; } = new();
-
     public int? RetrievedStreamCount { get; set; }
+
+    public List<Type> ExecutedTypes { get; } = new();
 }

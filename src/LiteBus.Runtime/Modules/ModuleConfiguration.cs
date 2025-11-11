@@ -5,15 +5,15 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Runtime.Modules;
 
 /// <summary>
-/// Default implementation of <see cref="IModuleConfiguration"/> that provides dependency registry access
-/// and context management for sharing objects between modules.
+///     Default implementation of <see cref="IModuleConfiguration" /> that provides dependency registry access
+///     and context management for sharing objects between modules.
 /// </summary>
 internal sealed class ModuleConfiguration : IModuleConfiguration
 {
     private readonly Dictionary<Type, object> _contexts = [];
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ModuleConfiguration"/> class.
+    ///     Initializes a new instance of the <see cref="ModuleConfiguration" /> class.
     /// </summary>
     /// <param name="dependencyRegistry">The dependency registry for service registration.</param>
     /// <exception cref="System.ArgumentNullException">Thrown when dependencyRegistry is null.</exception>

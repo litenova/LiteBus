@@ -1,15 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
     <PropertyGroup>
-        <TargetFramework>net9.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
-
     <ItemGroup>
         <ProjectReference Include="..\..\src\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Events.Abstractions\LiteBus.Events.Abstractions.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Queries.Abstractions\LiteBus.Queries.Abstractions.csproj"/>
     </ItemGroup>
-
 </Project>

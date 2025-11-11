@@ -9,9 +9,9 @@ namespace LiteBus.Messaging.Mediator;
 /// <inheritdoc cref="IMessageDependencies" />
 internal sealed class MessageDependencies : IMessageDependencies
 {
+    private readonly Func<IHandlerDescriptor, bool> _handlerPredicate;
     private readonly Type _messageType;
     private readonly IEnumerable<string> _tags;
-    private readonly Func<IHandlerDescriptor, bool> _handlerPredicate;
 
     public MessageDependencies(Type messageType,
                                IMessageDescriptor descriptor,

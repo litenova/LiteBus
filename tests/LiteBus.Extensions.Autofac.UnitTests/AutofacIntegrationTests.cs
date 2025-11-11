@@ -7,8 +7,8 @@ using LiteBus.Testing;
 namespace LiteBus.Extensions.Autofac.UnitTests;
 
 /// <summary>
-/// Contains tests to verify the LiteBus integration with an Autofac container.
-/// These tests must run sequentially because they rely on the static MessageRegistry.
+///     Contains tests to verify the LiteBus integration with an Autofac container.
+///     These tests must run sequentially because they rely on the static MessageRegistry.
 /// </summary>
 [Collection("Sequential")]
 public sealed class AutofacIntegrationTests : LiteBusTestBase

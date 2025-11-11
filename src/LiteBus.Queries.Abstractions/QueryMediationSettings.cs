@@ -21,13 +21,13 @@ public sealed class QueryMediationSettings
     public QueryMediationFilters Filters { get; } = new();
 
     /// <summary>
-    /// Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.
+    ///     Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.
     /// </summary>
     /// <remarks>
-    /// This collection provides a mechanism for different components in the pipeline (such as pre-handlers,
-    /// post-handlers, or custom middleware) to share state or influence behavior without modifying the
-    /// command contract itself. For instance, a flag could be set to bypass a certain validation
-    /// step under specific, controlled conditions.
+    ///     This collection provides a mechanism for different components in the pipeline (such as pre-handlers,
+    ///     post-handlers, or custom middleware) to share state or influence behavior without modifying the
+    ///     command contract itself. For instance, a flag could be set to bypass a certain validation
+    ///     step under specific, controlled conditions.
     /// </remarks>
     public IDictionary<string, object> Items { get; init; } = new Dictionary<string, object>();
 

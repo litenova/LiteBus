@@ -8,28 +8,28 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Commands;
 
 /// <summary>
-/// Module for configuring command handling infrastructure.
-/// Depends on the messaging module for core messaging functionality.
+///     Module for configuring command handling infrastructure.
+///     Depends on the messaging module for core messaging functionality.
 /// </summary>
 public sealed class CommandModule : IModule
 {
     private readonly Action<CommandModuleBuilder> _builder;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="CommandModule"/> class.
+    ///     Initializes a new instance of the <see cref="CommandModule" /> class.
     /// </summary>
     /// <param name="builder">The configuration action for the command module.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder" /> is null.</exception>
     public CommandModule(Action<CommandModuleBuilder> builder)
     {
         _builder = builder ?? throw new ArgumentNullException(nameof(builder));
     }
 
     /// <summary>
-    /// Builds the command module by configuring command handlers and registering command-specific services.
+    ///     Builds the command module by configuring command handlers and registering command-specific services.
     /// </summary>
     /// <param name="configuration">The module configuration containing dependency registry and shared context.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configuration"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configuration" /> is null.</exception>
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
@@ -46,7 +46,7 @@ public sealed class CommandModule : IModule
     }
 
     /// <summary>
-    /// Registers command-specific services with the dependency registry.
+    ///     Registers command-specific services with the dependency registry.
     /// </summary>
     /// <param name="configuration">The module configuration.</param>
     private static void RegisterCommandServices(IModuleConfiguration configuration)
@@ -57,7 +57,7 @@ public sealed class CommandModule : IModule
     }
 
     /// <summary>
-    /// Registers handler types that were discovered during this module's configuration.
+    ///     Registers handler types that were discovered during this module's configuration.
     /// </summary>
     /// <param name="configuration">The module configuration.</param>
     /// <param name="messageRegistry">The message registry containing handler information.</param>

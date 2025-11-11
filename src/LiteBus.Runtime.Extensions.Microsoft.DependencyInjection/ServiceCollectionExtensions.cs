@@ -8,19 +8,22 @@ using Microsoft.Extensions.DependencyInjection;
 namespace LiteBus.Extensions.Microsoft.DependencyInjection;
 
 /// <summary>
-/// Extension methods for integrating LiteBus runtime with Microsoft Dependency Injection.
+///     Extension methods for integrating LiteBus runtime with Microsoft Dependency Injection.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds LiteBus to the service collection with the specified module configuration.
+    ///     Adds LiteBus to the service collection with the specified module configuration.
     /// </summary>
     /// <param name="services">The service collection to add LiteBus to.</param>
     /// <param name="liteBusBuilderAction">Action to configure LiteBus modules.</param>
     /// <returns>The service collection for method chaining.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> or <paramref name="liteBusBuilderAction"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="services" /> or
+    ///     <paramref name="liteBusBuilderAction" /> is null.
+    /// </exception>
     /// <example>
-    /// <code>
+    ///     <code>
     /// services.AddLiteBus(modules =>
     /// {
     ///     modules.AddMessageModule(messaging => messaging.RegisterFromAssembly(assembly));

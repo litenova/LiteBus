@@ -4,25 +4,25 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Messaging;
 
 /// <summary>
-/// Provides extension methods for <see cref="IModuleRegistry"/> to register messaging-related modules.
+///     Provides extension methods for <see cref="IModuleRegistry" /> to register messaging-related modules.
 /// </summary>
 public static class ModuleRegistryExtensions
 {
     /// <summary>
-    /// Registers a message module with the specified configuration.
+    ///     Registers a message module with the specified configuration.
     /// </summary>
     /// <param name="moduleRegistry">The module registry to register the message module with.</param>
     /// <param name="builderAction">An action to configure the message module builder.</param>
-    /// <returns>The current <see cref="IModuleRegistry"/> instance for method chaining.</returns>
+    /// <returns>The current <see cref="IModuleRegistry" /> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="moduleRegistry"/> or <paramref name="builderAction"/> is <see langword="null"/>.
+    ///     Thrown when <paramref name="moduleRegistry" /> or <paramref name="builderAction" /> is <see langword="null" />.
     /// </exception>
     /// <remarks>
-    /// The message module provides core messaging infrastructure and should typically be registered
-    /// before other LiteBus modules (commands, events, queries) that depend on its services.
+    ///     The message module provides core messaging infrastructure and should typically be registered
+    ///     before other LiteBus modules (commands, events, queries) that depend on its services.
     /// </remarks>
     /// <example>
-    /// <code>
+    ///     <code>
     /// services.AddLiteBus(modules =>
     /// {
     ///     modules.AddMessageModule(msg => 

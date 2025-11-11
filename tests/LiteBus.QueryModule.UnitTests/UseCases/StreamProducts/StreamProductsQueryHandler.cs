@@ -19,7 +19,7 @@ public sealed class StreamProductsQueryHandler : IStreamQueryHandler<StreamProdu
             yield return await Task.FromResult(result);
             count++;
         }
-        
+
         // After the stream is fully yielded, place the calculated metadata into the execution context.
         // This is the recommended pattern for passing data to stream post-handlers.
         if (AmbientExecutionContext.HasCurrent)

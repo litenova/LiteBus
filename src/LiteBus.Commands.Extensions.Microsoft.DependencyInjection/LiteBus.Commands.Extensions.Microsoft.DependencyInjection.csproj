@@ -2,7 +2,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Commands\LiteBus.Commands.csproj"/>
-        <ProjectReference Include="..\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.csproj" />
+        <ProjectReference Include="..\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.csproj"/>
     </ItemGroup>
 
 </Project>

@@ -3,7 +3,7 @@ using LiteBus.Commands.Abstractions;
 namespace LiteBus.Extensions.Autofac.UnitTests.UseCases;
 
 /// <summary>
-/// The main handler for <see cref="RegisterComponentCommand"/>.
+///     The main handler for <see cref="RegisterComponentCommand" />.
 /// </summary>
 public sealed class RegisterComponentCommandHandler : ICommandHandler<RegisterComponentCommand>
 {

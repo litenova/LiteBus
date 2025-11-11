@@ -5,7 +5,7 @@ using System.Linq;
 namespace LiteBus.Runtime.Abstractions;
 
 /// <summary>
-/// Describes a module and its dependencies for initialization ordering.
+///     Describes a module and its dependencies for initialization ordering.
 /// </summary>
 /// <param name="Module">The module instance to be initialized.</param>
 /// <param name="Dependencies">Collection of module types that this module depends on.</param>
@@ -14,12 +14,17 @@ public readonly record struct ModuleDescriptor(
     IReadOnlySet<Type> Dependencies)
 {
     /// <summary>
-    /// Gets the type of the module.
+    ///     Gets the type of the module.
     /// </summary>
     public Type ModuleType => Module.GetType();
 
     /// <summary>
-    /// Creates a module descriptor by analyzing the module's IRequires interfaces.
+    ///     Determines whether this module has any dependencies.
+    /// </summary>
+    public bool HasDependencies => Dependencies.Count > 0;
+
+    /// <summary>
+    ///     Creates a module descriptor by analyzing the module's IRequires interfaces.
     /// </summary>
     /// <param name="module">The module to create a descriptor for.</param>
     /// <returns>A new ModuleDescriptor with analyzed dependencies.</returns>
@@ -29,7 +34,7 @@ public readonly record struct ModuleDescriptor(
         ArgumentNullException.ThrowIfNull(module);
 
         var moduleType = module.GetType();
-        
+
         // Find all IRequires<T> interfaces implemented by this module
         var dependencies = moduleType.GetInterfaces()
             .Where(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequires<>))
@@ -40,14 +45,12 @@ public readonly record struct ModuleDescriptor(
     }
 
     /// <summary>
-    /// Determines whether this module has any dependencies.
-    /// </summary>
-    public bool HasDependencies => Dependencies.Count > 0;
-
-    /// <summary>
-    /// Determines whether this module depends on the specified module type.
+    ///     Determines whether this module depends on the specified module type.
     /// </summary>
     /// <param name="moduleType">The module type to check for dependency.</param>
     /// <returns>True if this module depends on the specified type; otherwise, false.</returns>
-    public bool DependsOn(Type moduleType) => Dependencies.Contains(moduleType);
+    public bool DependsOn(Type moduleType)
+    {
+        return Dependencies.Contains(moduleType);
+    }
 }
