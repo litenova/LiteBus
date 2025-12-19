@@ -1,4 +1,6 @@
-﻿namespace LiteBus.Messaging.Abstractions;
+﻿using System.Collections.Generic;
+
+namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
 ///     Defines a contract for an object that holds the dependencies needed to handle messages within a given context,
@@ -81,4 +83,9 @@ public interface IMessageDependencies
     ///     The collection of indirect message error handlers.
     /// </value>
     ILazyHandlerCollection<IMessageErrorHandler, IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
+    
+    /// <summary>
+    /// Gets the diagnostic handlers registered in the system.
+    /// </summary>
+    IEnumerable<IDiagnosticHandler> DiagnosticHandlers { get; }
 }

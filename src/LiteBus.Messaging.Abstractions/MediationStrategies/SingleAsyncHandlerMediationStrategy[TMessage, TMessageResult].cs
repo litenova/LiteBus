@@ -27,6 +27,8 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         {
             throw new MultipleHandlerFoundException(typeof(TMessage), messageDependencies.MainHandlers.Count);
         }
+        
+        messageDependencies.DiagnosticHandlers.OnMediationStarting(message, executionContext);
 
         TMessageResult? messageResult = default; // Nullable within the method
 
@@ -44,6 +46,8 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
             messageResult = await (Task<TMessageResult>) handler.Handle(message);
 
             await messageDependencies.RunAsyncPostHandlers(message, messageResult);
+            
+            messageDependencies.DiagnosticHandlers.OnMediationCompleted(message, messageResult ,executionContext);
         }
         catch (LiteBusExecutionAbortedException)
         {
@@ -57,6 +61,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         }
         catch (Exception e) when (e is not LiteBusExecutionAbortedException)
         {
+            messageDependencies.DiagnosticHandlers.OnMediationFaulted(message, e, executionContext);
             await messageDependencies.RunAsyncErrorHandlers(message, messageResult, ExceptionDispatchInfo.Capture(e));
         }
 

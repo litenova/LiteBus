@@ -1,6 +1,7 @@
 using LiteBus.Commands;
 using LiteBus.Events;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries;
 using LiteBus.Samples.Commands;
 
@@ -15,6 +16,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddLiteBusExample(this IServiceCollection services)
     {
         // Register LiteBus with all modules
+        services.AddTransient<IDiagnosticHandler, ConsoleLoggingDiagnosticHandler>();
+        services.AddTransient<IDiagnosticHandler, OtelDiagnosticHandler>();
         services.AddLiteBus(liteBus =>
         {
             var exampleAssembly = typeof(PlaceOrderCommandHandler).Assembly;

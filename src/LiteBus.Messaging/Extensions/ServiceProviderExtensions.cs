@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace LiteBus.Messaging.Extensions;
 
@@ -36,5 +37,13 @@ public static class ServiceProviderExtensions
         }
 
         return service;
+    }
+    
+    /// <summary>
+    ///     Retrieves all registered services of type <typeparamref name="T" />.
+    /// </summary>
+    public static IEnumerable<T> GetServices<T>(this IServiceProvider serviceProvider)
+    {
+        return serviceProvider.GetRequiredService<IEnumerable<T>>();
     }
 }
