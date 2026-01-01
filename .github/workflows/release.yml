@@ -51,7 +51,7 @@ jobs:
         run: dotnet pack --configuration Release /p:Version=${{ steps.version.outputs.version }} --no-build --output ./artifacts
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: nuget-packages
           path: ./artifacts/*.nupkg
