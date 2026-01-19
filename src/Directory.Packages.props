@@ -3,6 +3,6 @@
         <PackageVersion Include="Autofac" Version="8.4.0"/>
         <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0"/>
         <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0"/>
-        <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>
+        <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.102" PrivateAssets="All"/>
     </ItemGroup>
 </Project>
