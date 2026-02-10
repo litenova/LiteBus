@@ -52,7 +52,7 @@ public sealed class OrdersController : ControllerBase
     {
         var query = new GetOrderByIdQuery(id);
         var result = await _queryMediator.QueryAsync(query, cancellationToken);
-        return result == null ? NotFound() : Ok(result);
+        return Ok(result);
     }
 
     [HttpGet("customer/{customerId}")]

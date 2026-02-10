@@ -508,7 +508,7 @@ public sealed class EventModuleTests : LiteBusTestBase
 
             if (AmbientExecutionContext.Current.Items.TryGetValue("Initial", out var value))
             {
-                message.FoundContextItems.Add((string) value!);
+                message.FoundContextItems.Add((string) value);
             }
 
             return Task.CompletedTask;
@@ -521,12 +521,12 @@ public sealed class EventModuleTests : LiteBusTestBase
         {
             if (AmbientExecutionContext.Current.Items.TryGetValue("Initial", out var initialValue))
             {
-                message.FoundContextItems.Add((string) initialValue!);
+                message.FoundContextItems.Add((string) initialValue);
             }
 
             if (AmbientExecutionContext.Current.Items.TryGetValue("FromPreHandler", out var preHandlerValue))
             {
-                message.FoundContextItems.Add((string) preHandlerValue!);
+                message.FoundContextItems.Add((string) preHandlerValue);
             }
 
             return Task.CompletedTask;
@@ -539,12 +539,12 @@ public sealed class EventModuleTests : LiteBusTestBase
         {
             if (AmbientExecutionContext.Current.Items.TryGetValue("Initial", out var initialValue))
             {
-                message.FoundContextItems.Add((string) initialValue!);
+                message.FoundContextItems.Add((string) initialValue);
             }
 
             if (AmbientExecutionContext.Current.Items.TryGetValue("FromPreHandler", out var preHandlerValue))
             {
-                message.FoundContextItems.Add((string) preHandlerValue!);
+                message.FoundContextItems.Add((string) preHandlerValue);
             }
 
             return Task.CompletedTask;

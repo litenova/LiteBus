@@ -11,7 +11,7 @@ namespace LiteBus.Messaging.Registry;
 /// <remarks>
 ///     The <see cref="MessageRegistryAccessor" /> maintains a single instance of <see cref="IMessageRegistry" />
 ///     throughout the application lifecycle, allowing incremental registration of handlers
-///     when <see cref="AddLiteBus" /> is called multiple times.
+///     when AddLiteBus() is called multiple times.
 /// </remarks>
 public static class MessageRegistryAccessor
 {

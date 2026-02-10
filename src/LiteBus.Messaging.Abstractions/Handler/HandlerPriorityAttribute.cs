@@ -9,7 +9,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///     <para>
 ///         Handlers are organized into priority groups based on their priority value. All handlers
 ///         with the same priority number form a priority group and execute together according to
-///         the concurrency settings defined in <see cref="EventMediationSettings" />.
+///         the concurrency settings in the mediator configuration.
 ///     </para>
 ///     <para>
 ///         Lower priority numbers execute before higher priority numbers. For example, all handlers

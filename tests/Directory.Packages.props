@@ -1,13 +1,13 @@
 <Project>
     <ItemGroup>
-        <PackageVersion Include="Autofac" Version="8.4.0"/>
+        <PackageVersion Include="Autofac" Version="9.0.0"/>
         <PackageVersion Include="AwesomeAssertions" Version="9.3.0"/>
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2"/>
         <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.7"/>
         <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.1"/>
         <PackageVersion Include="Newtonsoft.Json" Version="13.0.4"/>
         <PackageVersion Include="System.Linq.Async" Version="6.0.3"/>
-        <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.0"/>
+        <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.2"/>
         <PackageVersion Include="xunit" Version="2.9.3"/>
         <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
