@@ -214,18 +214,27 @@ public sealed class CommandLogger<T> : ICommandPreHandler<T> where T : ICommand
     }
 }
 
-// Register the open generic type
+// RegisterFromAssembly automatically discovers open generic handlers in the assembly
 builder.Services.AddLiteBus(liteBus =>
 {
     liteBus.AddCommandModule(module =>
     {
-        module.Register(typeof(CommandLogger<>));  // applies to ALL commands
+        module.RegisterFromAssembly(typeof(Program).Assembly); // picks up CommandLogger<> too
+    });
+});
+
+// Or register explicitly if the handler is in a different assembly
+builder.Services.AddLiteBus(liteBus =>
+{
+    liteBus.AddCommandModule(module =>
+    {
+        module.Register(typeof(CommandLogger<>));  // from an external library
         module.RegisterFromAssembly(typeof(Program).Assembly);
     });
 });
 ```
 
-LiteBus closes the generic at startup for each concrete message type. Generic constraints (`where T : ICommand`, `class`, `struct`, `new()`) are fully respected. Registration order does not matter.
+`RegisterFromAssembly` automatically discovers open generic handlers in the scanned assembly — no separate `Register(typeof(...))` call is needed. Use explicit registration only when the handler lives in a different assembly. LiteBus closes the generic at startup for each concrete message type. Generic constraints (`where T : ICommand`, `class`, `struct`, `new()`) are fully respected. Registration order does not matter.
 
 ### Advanced Eventing with Concurrency Control
 
