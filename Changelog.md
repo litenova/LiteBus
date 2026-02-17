@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## v4.3.0
+
+### Added
+
+- **Open Generic Handler Support:** LiteBus now supports open generic pre-handlers, post-handlers, and error handlers
+  (e.g., `MyPreHandler<T> : ICommandPreHandler<T> where T : ICommand`). When registered, LiteBus automatically closes
+  the generic for every concrete message type that satisfies its constraints at startup. This enables cross-cutting
+  concerns like logging, validation, metrics, and authorization to be implemented once and applied universally — without
+  modifying existing messages or handlers. Registration order does not matter. All standard C# generic constraints
+  (interface, class, struct, new()) are fully respected.
+
 ## v4.2.0
 
 ### Added
