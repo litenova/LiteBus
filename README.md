@@ -35,6 +35,7 @@ It is, and always will be, governed by the MIT license. LiteBus helps you implem
 -   **Truly Semantic:** Go beyond generic requests. With first-class contracts like `ICommand<TResult>`, `IQuery<TResult>`, and `IEvent`, your code becomes self-documenting. You can even publish clean POCOs as domain events.
 -   **High Performance:** Designed for minimal overhead. Handler metadata is cached on startup, and dependencies are resolved lazily. Large datasets are handled efficiently with `IAsyncEnumerable<T>` streaming.
 -   **Granular Pipeline Control:** Go beyond simple "behaviors". LiteBus provides a full pipeline with distinct, type-safe `Pre-Handlers`, `Post-Handlers`, and `Error-Handlers` for each message.
+-   **Open Generic Handlers:** Write a single pre/post/error handler once and have it automatically apply to every message type matching its constraints — perfect for cross-cutting concerns like logging, validation, and metrics.
 -   **Advanced Event Concurrency:** Take full control of event processing. Configure `Sequential` or `Parallel` execution for both priority groups and for handlers within the same group to fine-tune throughput.
 -   **Resilient & Durable:** Guarantee at-least-once execution for critical commands with a built-in durable Command Inbox.
 -   **DI-Agnostic by Design:** Decoupled from any specific DI container. First-class integration for Microsoft DI and Autofac is provided, with a simple adapter pattern to support others.
@@ -198,6 +199,34 @@ public sealed class PlaceOrderNotifier : ICommandPostHandler<PlaceOrderCommand, 
 
 The mediator also supports **polymorphic dispatch**, allowing handlers for a base message type to process any derived messages.
 
+### Open Generic Handlers for Cross-Cutting Concerns
+
+Write a single handler that automatically applies to **every** command, query, or event. No changes to existing messages required.
+
+```csharp
+// This pre-handler runs before EVERY command — registered once, applied everywhere
+public sealed class CommandLogger<T> : ICommandPreHandler<T> where T : ICommand
+{
+    public Task PreHandleAsync(T message, CancellationToken cancellationToken)
+    {
+        Console.WriteLine($"Executing: {typeof(T).Name}");
+        return Task.CompletedTask;
+    }
+}
+
+// Register the open generic type
+builder.Services.AddLiteBus(liteBus =>
+{
+    liteBus.AddCommandModule(module =>
+    {
+        module.Register(typeof(CommandLogger<>));  // applies to ALL commands
+        module.RegisterFromAssembly(typeof(Program).Assembly);
+    });
+});
+```
+
+LiteBus closes the generic at startup for each concrete message type. Generic constraints (`where T : ICommand`, `class`, `struct`, `new()`) are fully respected. Registration order does not matter.
+
 ### Advanced Eventing with Concurrency Control
 
 Define execution priority and concurrency for event handlers to manage complex workflows.
@@ -304,6 +333,7 @@ LiteBus offers a more semantic and feature-rich alternative to MediatR. If you'r
     -   `ICommandPreHandler<TCommand>` / `IQueryPreHandler<TQuery>`: Run before the main handler. Ideal for validation (`ICommandValidator` is a semantic shortcut for this).
     -   `ICommandPostHandler<TCommand, TResult>` / `IQueryPostHandler<TQuery, TResult>`: Run after the main handler, with access to the result.
     -   `ICommandErrorHandler<TCommand>` / `IQueryErrorHandler<TQuery>`: Centralized error handling for specific message types.
+    -   **Open generic handlers** (e.g., `MyHandler<T> : ICommandPreHandler<T> where T : ICommand`) work similarly to MediatR's open generic `IPipelineBehavior<,>` — register once and they apply to all matching message types automatically.
 
 This granular approach eliminates the need for generic pipeline behaviors and provides a more expressive and maintainable way to build your processing pipeline.
 
