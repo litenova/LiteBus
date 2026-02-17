@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.CommandModule.UnitTests;
 
+[Collection("Sequential")]
 public sealed class CommandModuleTests : LiteBusTestBase
 {
     [Fact]
