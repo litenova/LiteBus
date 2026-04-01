@@ -16,7 +16,7 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
     ///     Initializes a new instance of the <see cref="ModuleConfiguration" /> class.
     /// </summary>
     /// <param name="dependencyRegistry">The dependency registry for service registration.</param>
-    /// <exception cref="System.ArgumentNullException">Thrown when dependencyRegistry is null.</exception>
+    /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="dependencyRegistry" /> is <see langword="null" />.</exception>
     public ModuleConfiguration(IDependencyRegistry dependencyRegistry)
     {
         DependencyRegistry = dependencyRegistry ?? throw new ArgumentNullException(nameof(dependencyRegistry));
@@ -69,13 +69,13 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
 
         var contextType = typeof(T);
 
-        // Return existing context if found
+        // Return existing context if found.
         if (_contexts.TryGetValue(contextType, out var existingContext))
         {
             return (T) existingContext;
         }
 
-        // Create new context using factory
+        // Create new context using factory.
         var newContext = factory();
         _contexts[contextType] = newContext;
         return newContext;

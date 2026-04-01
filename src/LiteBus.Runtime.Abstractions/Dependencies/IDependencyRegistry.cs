@@ -13,6 +13,6 @@ public interface IDependencyRegistry : IReadOnlyCollection<DependencyDescriptor>
     ///     Registers a service dependency in the registry.
     /// </summary>
     /// <param name="descriptor">The dependency descriptor that defines how the service should be registered.</param>
-    /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="descriptor" /> is null.</exception>
+    /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
     void Register(DependencyDescriptor descriptor);
 }

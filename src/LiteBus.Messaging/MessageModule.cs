@@ -19,7 +19,7 @@ public sealed class MessageModule : IModule
     ///     Initializes a new instance of the <see cref="MessageModule" /> class.
     /// </summary>
     /// <param name="builder">The configuration action for the message module.</param>
-    /// <exception cref="System.ArgumentNullException">Thrown when builder is null.</exception>
+    /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="builder" /> is <see langword="null" />.</exception>
     public MessageModule(Action<MessageModuleBuilder> builder)
     {
         _builder = builder ?? throw new ArgumentNullException(nameof(builder));
@@ -28,17 +28,17 @@ public sealed class MessageModule : IModule
     /// <inheritdoc />
     public void Build(IModuleConfiguration configuration)
     {
-        // Create or get the message registry - this will be shared across all messaging-related modules
+        // Create or get the message registry - this will be shared across all messaging-related modules.
         var messageRegistry = MessageRegistryAccessor.Instance;
         var startIndex = messageRegistry.Handlers.Count;
 
         configuration.SetContext(messageRegistry);
 
-        // Configure the message module using the builder
+        // Configure the message module using the builder.
         var moduleBuilder = new MessageModuleBuilder(messageRegistry);
         _builder(moduleBuilder);
 
-        // Register core messaging services
+        // Register core messaging services.
         RegisterMessagingServices(configuration, messageRegistry);
         RegisterNewHandlers(configuration, messageRegistry, startIndex);
     }
@@ -52,17 +52,17 @@ public sealed class MessageModule : IModule
         IModuleConfiguration configuration,
         IMessageRegistry messageRegistry)
     {
-        // Register message registry as singleton
+        // Register message registry as singleton.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageRegistry),
             messageRegistry));
 
-        // Register message mediator as transient
+        // Register message mediator as transient.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageMediator),
             typeof(MessageMediator)));
 
-        // Register execution context accessor as transient factory
+        // Register execution context accessor as transient factory.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IExecutionContext),
             _ => AmbientExecutionContext.Current));

@@ -20,7 +20,7 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for method chaining.</returns>
     /// <exception cref="ArgumentNullException">
     ///     Thrown when <paramref name="services" /> or
-    ///     <paramref name="liteBusBuilderAction" /> is null.
+    ///     <paramref name="liteBusBuilderAction" /> is <see langword="null" />.
     /// </exception>
     /// <example>
     ///     <code>

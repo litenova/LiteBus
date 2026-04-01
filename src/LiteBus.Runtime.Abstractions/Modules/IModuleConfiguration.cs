@@ -25,7 +25,7 @@ public interface IModuleConfiguration
     /// </summary>
     /// <typeparam name="T">The type of context to store.</typeparam>
     /// <param name="context">The context object to store.</param>
-    /// <exception cref="System.ArgumentNullException">Thrown when context is null.</exception>
+    /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="context" /> is <see langword="null" />.</exception>
     void SetContext<T>(T context) where T : class;
 
     /// <summary>
@@ -33,7 +33,7 @@ public interface IModuleConfiguration
     /// </summary>
     /// <typeparam name="T">The type of context to retrieve.</typeparam>
     /// <param name="context">When this method returns, contains the context object if found; otherwise, null.</param>
-    /// <returns>True if the context was found; otherwise, false.</returns>
+    /// <returns><see langword="true" /> if the context was found; otherwise, <see langword="false" />.</returns>
     bool TryGetContext<T>(out T? context) where T : class;
 
     /// <summary>
@@ -42,6 +42,6 @@ public interface IModuleConfiguration
     /// <typeparam name="T">The type of context to retrieve or create.</typeparam>
     /// <param name="factory">The factory function to create the context if it doesn't exist.</param>
     /// <returns>The existing or newly created context object.</returns>
-    /// <exception cref="System.ArgumentNullException">Thrown when factory is null.</exception>
+    /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="factory" /> is <see langword="null" />.</exception>
     T GetOrCreateContext<T>(Func<T> factory) where T : class;
 }

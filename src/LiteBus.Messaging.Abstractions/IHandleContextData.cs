@@ -36,7 +36,7 @@ public interface IHandleContextData
     ///     Determines whether the context contains a value of the specified type.
     /// </summary>
     /// <typeparam name="T">The type to check for.</typeparam>
-    /// <returns><c>true</c> if the context contains a value of type <typeparamref name="T" />; otherwise, <c>false</c>.</returns>
+    /// <returns><see langword="true" /> if the context contains a value of type <typeparamref name="T" />; otherwise, <see langword="false" />.</returns>
     bool Contains<T>();
 
     /// <summary>

@@ -30,7 +30,7 @@ public sealed class EventMediationRoutingSettings
     /// </summary>
     /// <value>
     ///     An <see cref="EventHandlerFilterPredicate" /> that determines which handlers should execute.
-    ///     The default predicate returns <c>true</c> for all handler descriptors.
+    ///     The default predicate returns <see langword="true" /> for all handler descriptors.
     /// </value>
     /// <remarks>
     ///     This predicate is evaluated for each potential handler descriptor before execution.

@@ -20,7 +20,7 @@ public static class ContainerBuilderExtensions
     /// <returns>The container builder for method chaining.</returns>
     /// <exception cref="ArgumentNullException">
     ///     Thrown when <paramref name="builder" /> or
-    ///     <paramref name="liteBusBuilderAction" /> is null.
+    ///     <paramref name="liteBusBuilderAction" /> is <see langword="null" />.
     /// </exception>
     /// <example>
     ///     <code>
@@ -53,7 +53,7 @@ public static class ContainerBuilderExtensions
             moduleDescriptor.Module.Build(moduleConfiguration);
         }
 
-        // Register IServiceProvider for factory compatibility
+        // Register IServiceProvider for factory compatibility.
         builder.Register(c => new AutofacServiceProvider(c.Resolve<IComponentContext>()))
             .As<IServiceProvider>()
             .InstancePerLifetimeScope();
@@ -61,7 +61,7 @@ public static class ContainerBuilderExtensions
         return builder;
     }
 
-    // Helper class to adapt Autofac's IComponentContext to IServiceProvider
+    // Helper class to adapt Autofac's IComponentContext to IServiceProvider.
     private sealed class AutofacServiceProvider(IComponentContext context) : IServiceProvider
     {
         public object? GetService(Type serviceType)

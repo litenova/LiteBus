@@ -18,7 +18,7 @@ public interface IMessageResolveStrategy
     /// <param name="messageType">The type of the message to find a descriptor for.</param>
     /// <param name="messageRegistry">The message registry to search in.</param>
     /// <returns>
-    ///     The message descriptor if found; otherwise, <c>null</c>.
+    ///     The message descriptor if found; otherwise, <see langword="null" />.
     /// </returns>
     /// <remarks>
     ///     The implementation determines the specific rules for matching a message type to a descriptor.

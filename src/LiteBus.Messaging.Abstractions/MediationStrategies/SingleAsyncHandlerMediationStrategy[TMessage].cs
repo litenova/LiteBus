@@ -60,7 +60,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         }
         catch (LiteBusExecutionAbortedException)
         {
-            // Execution was aborted, no action needed
+            // Execution was aborted, no action needed.
         }
         catch (Exception e) when (e is not LiteBusExecutionAbortedException)
         {

@@ -10,10 +10,10 @@ namespace LiteBus.Messaging.Mediator;
 /// <remarks>
 ///     The <see cref="MessageMediator" /> is responsible for handling the mediation of messages by:
 ///     <list type="bullet">
-///         <li>Creating and managing execution contexts for each mediation operation</li>
-///         <li>Resolving message handlers through the message registry</li>
-///         <li>Applying the appropriate mediation strategy to process messages</li>
-///         <li>Managing nested mediation calls by preserving execution context state</li>
+///         <item><description>Creating and managing execution contexts for each mediation operation</description></item>
+///         <item><description>Resolving message handlers through the message registry</description></item>
+///         <item><description>Applying the appropriate mediation strategy to process messages</description></item>
+///         <item><description>Managing nested mediation calls by preserving execution context state</description></item>
 ///     </list>
 /// </remarks>
 internal sealed class MessageMediator : IMessageMediator
@@ -52,16 +52,16 @@ internal sealed class MessageMediator : IMessageMediator
     public TMessageResult Mediate<TMessage, TMessageResult>(TMessage message,
                                                             MediateOptions<TMessage, TMessageResult> options) where TMessage : notnull
     {
-        // Create a new execution context for the current scope
+        // Create a new execution context for the current scope.
         var executionContext = new ExecutionContext(options.CancellationToken, options.Tags, options.Items);
 
-        // Use a scope to manage the execution context
+        // Use a scope to manage the execution context.
         using var _ = AmbientExecutionContext.CreateScope(executionContext);
 
-        // Get the actual type of the message
+        // Get the actual type of the message.
         var messageType = message.GetType();
 
-        // Find the message descriptor
+        // Find the message descriptor.
         var descriptor = options.MessageResolveStrategy.Find(messageType, _messageRegistry);
 
         if (descriptor is null)
@@ -81,14 +81,14 @@ internal sealed class MessageMediator : IMessageMediator
             throw new InvalidOperationException($"No descriptor found for message type {messageType} with specified resolve strategy.");
         }
 
-        // Resolve the dependencies in lazy mode
+        // Resolve the dependencies in lazy mode.
         var messageDependencies = new MessageDependencies(messageType,
             descriptor,
             _serviceProvider,
             options.Tags,
             options.HandlerPredicate);
 
-        // Mediate the message using the specified strategy
+        // Mediate the message using the specified strategy.
         return options.MessageMediationStrategy.Mediate(message, messageDependencies, AmbientExecutionContext.Current);
     }
 }

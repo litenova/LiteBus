@@ -18,8 +18,8 @@ public sealed class EventMediationSettings
     ///     Gets or sets whether to throw an exception when no handlers are found for an event.
     /// </summary>
     /// <value>
-    ///     <c>true</c> to throw an exception when no handlers are found; otherwise, <c>false</c>.
-    ///     The default is <c>false</c>.
+    ///     <see langword="true" /> to throw an exception when no handlers are found; otherwise, <see langword="false" />.
+    ///     The default is <see langword="false" />.
     /// </value>
     public bool ThrowIfNoHandlerFound { get; init; } = false;
 

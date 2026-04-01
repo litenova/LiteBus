@@ -39,7 +39,7 @@ public static class ModuleRegistryExtensions
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
 
-        // Check if MessageModule is already registered
+        // Check if MessageModule is already registered.
         if (moduleRegistry.IsModuleRegistered<MessageModule>())
         {
             throw new InvalidOperationException(

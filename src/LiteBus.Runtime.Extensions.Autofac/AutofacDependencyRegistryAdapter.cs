@@ -45,10 +45,10 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
         ArgumentNullException.ThrowIfNull(descriptor);
 
         // Use HashSet.Add which leverages IEquatable<DependencyDescriptor>
-        // Returns false if the descriptor is already present
+        // Returns false if the descriptor is already present.
         if (!_registeredDescriptors.Add(descriptor))
         {
-            // Descriptor already registered, skip silently
+            // Descriptor already registered, skip silently.
             return;
         }
 
@@ -106,7 +106,7 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
             throw new ArgumentException("Invalid dependency descriptor: must have either Instance, Factory, or ImplementationType.", nameof(descriptor));
         }
 
-        // Apply lifetime
+        // Apply lifetime.
         switch (descriptor.Lifetime)
         {
             case InstanceLifetime.Singleton:

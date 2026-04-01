@@ -21,7 +21,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
         ArgumentNullException.ThrowIfNull(module);
         _modules.Add(module);
 
-        // Invalidate cache when new modules are added
+        // Invalidate cache when new modules are added.
         _cachedOrderedModules = null;
 
         return this;
@@ -51,10 +51,10 @@ internal sealed class ModuleRegistry : IModuleRegistry
             return _cachedOrderedModules;
         }
 
-        // Create descriptors for all registered modules
+        // Create descriptors for all registered modules.
         var descriptors = _modules.Select(ModuleDescriptor.Create).ToList();
 
-        // Perform topological sort to determine dependency order
+        // Perform topological sort to determine dependency order.
         _cachedOrderedModules = TopologicalSort(descriptors);
         return _cachedOrderedModules;
     }
@@ -75,7 +75,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
         var visited = new HashSet<Type>();
         var visiting = new HashSet<Type>(); // For cycle detection
 
-        // Visit each module in the dependency graph
+        // Visit each module in the dependency graph.
         foreach (var descriptor in descriptors)
         {
             Visit(descriptor.ModuleType, descriptorsByType, visited, visiting, result);
@@ -102,10 +102,10 @@ internal sealed class ModuleRegistry : IModuleRegistry
         ISet<Type> visiting,
         IList<ModuleDescriptor> result)
     {
-        // Skip if already processed
+        // Skip if already processed.
         if (visited.Contains(moduleType)) return;
 
-        // Detect circular dependencies
+        // Detect circular dependencies.
         if (!visiting.Add(moduleType))
         {
             throw new InvalidOperationException(
@@ -118,7 +118,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
         // Process all dependencies first (depth-first)
         foreach (var dependencyType in descriptor.Dependencies)
         {
-            // Ensure the dependency is registered
+            // Ensure the dependency is registered.
             if (!descriptorsByType.ContainsKey(dependencyType))
             {
                 throw new InvalidOperationException(
@@ -126,11 +126,11 @@ internal sealed class ModuleRegistry : IModuleRegistry
                     "but it is not registered. Ensure all required modules are added to the module registry.");
             }
 
-            // Recursively visit the dependency
+            // Recursively visit the dependency.
             Visit(dependencyType, descriptorsByType, visited, visiting, result);
         }
 
-        // Mark as fully processed and add to result
+        // Mark as fully processed and add to result.
         visiting.Remove(moduleType);
         visited.Add(moduleType);
         result.Add(descriptor);

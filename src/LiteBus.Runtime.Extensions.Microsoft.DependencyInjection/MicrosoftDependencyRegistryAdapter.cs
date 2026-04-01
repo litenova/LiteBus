@@ -44,10 +44,10 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
         ArgumentNullException.ThrowIfNull(descriptor);
 
         // Use HashSet.Add which leverages IEquatable<DependencyDescriptor>
-        // Returns false if the descriptor is already present
+        // Returns false if the descriptor is already present.
         if (!_registeredDescriptors.Add(descriptor))
         {
-            // Descriptor already registered, skip silently
+            // Descriptor already registered, skip silently.
             return;
         }
 

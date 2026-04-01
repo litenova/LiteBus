@@ -23,5 +23,5 @@ namespace LiteBus.Runtime.Abstractions;
 /// </example>
 public interface IRequires<TModule> where TModule : IModule
 {
-    // Marker interface - no implementation required
+    // Marker interface - no implementation required.
 }

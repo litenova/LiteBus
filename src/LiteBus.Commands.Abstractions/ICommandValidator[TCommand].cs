@@ -25,10 +25,10 @@ public interface ICommandValidator<in TCommand> : ICommandPreHandler<TCommand> w
     }
 
     /// <summary>
-    ///     Validates the command
+    ///     Validates the command.
     /// </summary>
-    /// <param name="command">The command to validate</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Task representing the asynchronous operation</returns>
+    /// <param name="command">The command to validate.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     Task ValidateAsync(TCommand command, CancellationToken cancellationToken = default);
 }

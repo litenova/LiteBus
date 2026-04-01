@@ -55,7 +55,7 @@ public static class ModuleRegistryExtensions
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
 
-        // Ensure MessageModule is registered first with default configuration
+        // Ensure MessageModule is registered first with default configuration.
         if (!moduleRegistry.IsModuleRegistered<MessageModule>())
         {
             moduleRegistry.Register(new MessageModule(_ =>

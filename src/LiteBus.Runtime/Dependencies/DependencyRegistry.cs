@@ -25,7 +25,7 @@ public sealed class DependencyRegistry : IDependencyRegistry
     ///     Duplicate registrations (same dependency type and implementation type) are ignored.
     /// </summary>
     /// <param name="descriptor">The dependency descriptor that defines how the dependency should be registered.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor" /> is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
     public void Register(DependencyDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);

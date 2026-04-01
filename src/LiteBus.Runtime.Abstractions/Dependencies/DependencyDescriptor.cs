@@ -15,7 +15,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// <param name="dependencyType">The dependency type to register.</param>
     /// <param name="implementationType">The implementation type for the dependency.</param>
     /// <exception cref="System.ArgumentNullException">
-    ///     Thrown when <paramref name="dependencyType" /> or <paramref name="implementationType" /> is null.
+    ///     Thrown when <paramref name="dependencyType" /> or <paramref name="implementationType" /> is <see langword="null" />.
     /// </exception>
     public DependencyDescriptor(Type dependencyType, Type implementationType)
     {
@@ -30,7 +30,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// <param name="dependencyType">The dependency type to register.</param>
     /// <param name="instance">The singleton instance to register.</param>
     /// <exception cref="System.ArgumentNullException">
-    ///     Thrown when <paramref name="dependencyType" /> or <paramref name="instance" /> is null.
+    ///     Thrown when <paramref name="dependencyType" /> or <paramref name="instance" /> is <see langword="null" />.
     /// </exception>
     public DependencyDescriptor(Type dependencyType, object instance)
     {
@@ -45,7 +45,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// <param name="dependencyType">The dependency type to register.</param>
     /// <param name="factory">The factory function that creates instances of the dependency.</param>
     /// <exception cref="System.ArgumentNullException">
-    ///     Thrown when <paramref name="dependencyType" /> or <paramref name="factory" /> is null.
+    ///     Thrown when <paramref name="dependencyType" /> or <paramref name="factory" /> is <see langword="null" />.
     /// </exception>
     public DependencyDescriptor(Type dependencyType, Func<IServiceProvider, object> factory)
     {
@@ -89,7 +89,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     ///     Two descriptors are considered equal if they have the same dependency type and implementation type.
     /// </summary>
     /// <param name="other">The descriptor to compare with the current instance.</param>
-    /// <returns><c>true</c> if the specified descriptor is equal to the current instance; otherwise, <c>false</c>.</returns>
+    /// <returns><see langword="true" /> if the specified descriptor is equal to the current instance; otherwise, <see langword="false" />.</returns>
     public bool Equals(DependencyDescriptor? other)
     {
         if (other is null) return false;
@@ -103,7 +103,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     ///     Determines whether the specified object is equal to the current instance.
     /// </summary>
     /// <param name="obj">The object to compare with the current instance.</param>
-    /// <returns><c>true</c> if the specified object is equal to the current instance; otherwise, <c>false</c>.</returns>
+    /// <returns><see langword="true" /> if the specified object is equal to the current instance; otherwise, <see langword="false" />.</returns>
     public override bool Equals(object? obj)
     {
         return Equals(obj as DependencyDescriptor);
@@ -123,7 +123,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// </summary>
     /// <param name="left">The first descriptor to compare.</param>
     /// <param name="right">The second descriptor to compare.</param>
-    /// <returns><c>true</c> if the descriptors are equal; otherwise, <c>false</c>.</returns>
+    /// <returns><see langword="true" /> if the descriptors are equal; otherwise, <see langword="false" />.</returns>
     public static bool operator ==(DependencyDescriptor? left, DependencyDescriptor? right)
     {
         return Equals(left, right);
@@ -134,7 +134,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// </summary>
     /// <param name="left">The first descriptor to compare.</param>
     /// <param name="right">The second descriptor to compare.</param>
-    /// <returns><c>true</c> if the descriptors are not equal; otherwise, <c>false</c>.</returns>
+    /// <returns><see langword="true" /> if the descriptors are not equal; otherwise, <see langword="false" />.</returns>
     public static bool operator !=(DependencyDescriptor? left, DependencyDescriptor? right)
     {
         return !Equals(left, right);

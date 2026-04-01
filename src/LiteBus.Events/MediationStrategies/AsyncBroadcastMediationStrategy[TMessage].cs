@@ -26,7 +26,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     ///     The event mediation settings that configure the broadcasting behavior, such as concurrency and
     ///     error handling.
     /// </param>
-    /// <exception cref="ArgumentNullException">Thrown if <paramref name="settings" /> is <c>null</c>.</exception>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="settings" /> is <see langword="null" />.</exception>
     public AsyncBroadcastMediationStrategy(EventMediationSettings settings)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -43,11 +43,11 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     /// <returns>A <see cref="Task" /> that represents the asynchronous completion of the entire broadcast operation.</returns>
     /// <exception cref="ArgumentNullException">
     ///     Thrown if <paramref name="message" />, <paramref name="messageDependencies" />,
-    ///     or <paramref name="executionContext" /> is <c>null</c>.
+    ///     or <paramref name="executionContext" /> is <see langword="null" />.
     /// </exception>
     /// <exception cref="InvalidOperationException">
     ///     Thrown if <see cref="EventMediationSettings.ThrowIfNoHandlerFound" /> is
-    ///     <c>true</c> and no main handlers are found for the message.
+    ///     <see langword="true" /> and no main handlers are found for the message.
     /// </exception>
     public async Task Mediate(TMessage message, IMessageDependencies messageDependencies, IExecutionContext executionContext)
     {

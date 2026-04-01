@@ -19,7 +19,7 @@ public sealed class EventModule : IModule
     ///     Initializes a new instance of the <see cref="EventModule" /> class.
     /// </summary>
     /// <param name="builder">The configuration action for the event module.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder" /> is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder" /> is <see langword="null" />.</exception>
     public EventModule(Action<EventModuleBuilder> builder)
     {
         _builder = builder ?? throw new ArgumentNullException(nameof(builder));
@@ -29,7 +29,7 @@ public sealed class EventModule : IModule
     ///     Builds the event module by configuring event handlers and registering event-specific services.
     /// </summary>
     /// <param name="configuration">The module configuration containing dependency registry and shared context.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configuration" /> is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configuration" /> is <see langword="null" />.</exception>
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);

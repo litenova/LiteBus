@@ -18,7 +18,7 @@ jobs:
     
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0 # Important for GitVersion
 
@@ -40,12 +40,13 @@ jobs:
         run: dotnet test --no-restore --verbosity normal --collect:"XPlat Code Coverage"
 
       - name: Upload Test Results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: '**/TestResults/**/*.xml'
 
       - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}

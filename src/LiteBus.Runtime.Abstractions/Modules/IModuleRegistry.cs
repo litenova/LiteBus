@@ -12,7 +12,7 @@ public interface IModuleRegistry : IOrderedEnumerable<ModuleDescriptor>
     /// </summary>
     /// <param name="module">The module to register.</param>
     /// <returns>The current registry instance for method chaining.</returns>
-    /// <exception cref="System.ArgumentNullException">Thrown when module is null.</exception>
+    /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="module" /> is <see langword="null" />.</exception>
     IModuleRegistry Register(IModule module);
 
     /// <summary>

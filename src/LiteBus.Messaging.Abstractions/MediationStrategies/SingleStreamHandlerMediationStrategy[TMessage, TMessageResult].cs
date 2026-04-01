@@ -78,7 +78,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         }
         catch (LiteBusExecutionAbortedException)
         {
-            // Execution was aborted during pre-handling, terminate the stream
+            // Execution was aborted during pre-handling, terminate the stream.
             shouldContinue = false;
         }
         catch (Exception exception) when (exception is not LiteBusExecutionAbortedException)
@@ -89,7 +89,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
         if (!shouldContinue)
         {
-            // Early termination, no items to yield
+            // Early termination, no items to yield.
             yield break;
         }
 
@@ -115,7 +115,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
             }
             catch (LiteBusExecutionAbortedException)
             {
-                // Execution was aborted during stream enumeration, terminate the stream
+                // Execution was aborted during stream enumeration, terminate the stream.
                 shouldContinue = false;
                 continue;
             }
@@ -133,7 +133,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
         if (!shouldContinue)
         {
-            // Stream was terminated early, skip post-handlers
+            // Stream was terminated early, skip post-handlers.
             yield break;
         }
 
@@ -144,8 +144,8 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         }
         catch (LiteBusExecutionAbortedException)
         {
-            // Execution was aborted during post-handling, but we've already yielded all items
-            // No action needed
+            // Execution was aborted during post-handling, but we've already yielded all items.
+            // No action needed.
         }
         catch (Exception exception) when (exception is not LiteBusExecutionAbortedException)
         {

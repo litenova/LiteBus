@@ -21,7 +21,7 @@ public sealed class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMes
     /// <param name="messageRegistry">The message registry to search in.</param>
     /// <returns>
     ///     The message descriptor for the exact message type if found; otherwise, the first descriptor
-    ///     for a type that is assignable from the message type; or <c>null</c> if no suitable descriptor is found.
+    ///     for a type that is assignable from the message type; or <see langword="null" /> if no suitable descriptor is found.
     /// </returns>
     /// <remarks>
     ///     For generic types, this method uses the generic type definition for matching.

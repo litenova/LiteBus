@@ -39,7 +39,7 @@ public static class AmbientExecutionContext
     ///     Determines whether a current execution context exists.
     /// </summary>
     /// <value>
-    ///     <c>true</c> if a current execution context exists; otherwise, <c>false</c>.
+    ///     <see langword="true" /> if a current execution context exists; otherwise, <see langword="false" />.
     /// </value>
     public static bool HasCurrent => ExecutionContextLocal.Value != null;
 
@@ -118,7 +118,7 @@ public static class AmbientExecutionContext
         {
             if (_disposed) return;
 
-            // This assignment is safe because ExecutionContextLocal.Value accepts nullable values
+            // This assignment is safe because ExecutionContextLocal.Value accepts nullable values.
             ExecutionContextLocal.Value = _previousContext;
             _disposed = true;
         }

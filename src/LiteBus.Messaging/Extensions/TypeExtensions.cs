@@ -29,10 +29,10 @@ internal static class TypeExtensions
 
     public static IReadOnlyCollection<string> GetTagsFromAttribute(this Type type)
     {
-        // The one and only [HandlerTags] attribute
+        // The one and only [HandlerTags] attribute.
         var pluralHandlerTagsAttribute = Attribute.GetCustomAttribute(type, typeof(HandlerTagsAttribute)) as HandlerTagsAttribute;
 
-        // The multiple [HandlerTag] attributes
+        // The multiple [HandlerTag] attributes.
         var singleTagAttributes = Attribute.GetCustomAttributes(type, typeof(HandlerTagAttribute)) as HandlerTagAttribute[];
 
         var tags = new List<string>();

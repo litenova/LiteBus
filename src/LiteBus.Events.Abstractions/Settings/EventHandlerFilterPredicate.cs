@@ -6,7 +6,7 @@ namespace LiteBus.Events.Abstractions;
 ///     Represents a predicate function used to filter event handlers based on their descriptor metadata.
 /// </summary>
 /// <param name="descriptor">The handler descriptor containing metadata about the handler.</param>
-/// <returns><c>true</c> if the handler should execute; otherwise, <c>false</c>.</returns>
+/// <returns><see langword="true" /> if the handler should execute; otherwise, <see langword="false" />.</returns>
 /// <remarks>
 ///     <para>
 ///         This predicate provides advanced filtering capabilities beyond tag-based filtering, allowing you to filter
