@@ -1,5 +1,7 @@
 using System;
 using Autofac;
+using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Extensions.Autofac;
 using LiteBus.Runtime.Modules;
@@ -12,6 +14,8 @@ namespace LiteBus.Extensions.Autofac;
 /// </summary>
 public static class ContainerBuilderExtensions
 {
+    private const string MessageRegistryPropertyKey = "LiteBus.MessageRegistry";
+
     /// <summary>
     ///     Adds LiteBus to the Autofac container builder with the specified module configuration.
     /// </summary>
@@ -47,6 +51,12 @@ public static class ContainerBuilderExtensions
         liteBusBuilderAction(moduleRegistry);
 
         var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
+        var messageRegistry = builder.Properties.TryGetValue(MessageRegistryPropertyKey, out var value) && value is IMessageRegistry existingRegistry
+            ? existingRegistry
+            : MessageRegistryAccessor.CreateNew();
+
+        builder.Properties[MessageRegistryPropertyKey] = messageRegistry;
+        moduleConfiguration.SetContext(messageRegistry);
 
         foreach (var moduleDescriptor in moduleRegistry)
         {

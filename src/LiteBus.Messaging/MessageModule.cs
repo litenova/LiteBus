@@ -28,8 +28,8 @@ public sealed class MessageModule : IModule
     /// <inheritdoc />
     public void Build(IModuleConfiguration configuration)
     {
-        // Create or get the message registry - this will be shared across all messaging-related modules.
-        var messageRegistry = MessageRegistryAccessor.Instance;
+        // Create or get the message registry - this will be shared across all messaging-related modules in the current container.
+        var messageRegistry = configuration.GetOrCreateContext<IMessageRegistry>(MessageRegistryAccessor.CreateNew);
         var startIndex = messageRegistry.Handlers.Count;
 
         configuration.SetContext(messageRegistry);

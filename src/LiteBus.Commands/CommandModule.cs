@@ -34,7 +34,7 @@ public sealed class CommandModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var messageRegistry = MessageRegistryAccessor.Instance;
+        var messageRegistry = configuration.GetOrCreateContext<IMessageRegistry>(MessageRegistryAccessor.CreateNew);
 
         var startIndex = messageRegistry.Handlers.Count;
 

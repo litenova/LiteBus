@@ -4,5 +4,6 @@
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Runtime\LiteBus.Runtime.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
     </ItemGroup>
 </Project>

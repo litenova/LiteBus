@@ -28,4 +28,13 @@ public static class MessageRegistryAccessor
     ///     The global singleton instance of <see cref="IMessageRegistry" /> used for handler registration.
     /// </value>
     public static IMessageRegistry Instance => LazyInstance.Value;
+
+    /// <summary>
+    ///     Creates a new message registry instance.
+    /// </summary>
+    /// <returns>A new <see cref="IMessageRegistry" />.</returns>
+    public static IMessageRegistry CreateNew()
+    {
+        return new MessageRegistry();
+    }
 }

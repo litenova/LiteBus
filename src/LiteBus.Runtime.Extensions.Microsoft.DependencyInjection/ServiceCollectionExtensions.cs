@@ -1,4 +1,7 @@
-﻿using System;
+using System;
+using System.Linq;
+using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Runtime.Modules;
@@ -44,6 +47,10 @@ public static class ServiceCollectionExtensions
         liteBusBuilderAction(moduleRegistry);
 
         var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
+        var messageRegistry = services.LastOrDefault(x => x.ServiceType == typeof(IMessageRegistry))?.ImplementationInstance as IMessageRegistry
+                              ?? MessageRegistryAccessor.CreateNew();
+
+        moduleConfiguration.SetContext(messageRegistry);
 
         foreach (var moduleDescriptor in moduleRegistry)
         {

@@ -17,6 +17,39 @@ namespace LiteBus.CommandModule.UnitTests;
 public sealed class CommandModuleTests : LiteBusTestBase
 {
     [Fact]
+    public async Task building_two_service_providers_with_same_registration_keeps_handlers_resolvable_in_the_second_provider()
+    {
+        _ = new ServiceCollection()
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddCommandModule(builder =>
+                {
+                    builder.Register<CreateProductCommand>();
+                    builder.Register<CreateProductCommandHandler>();
+                });
+            })
+            .BuildServiceProvider();
+
+        var secondServiceProvider = new ServiceCollection()
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddCommandModule(builder =>
+                {
+                    builder.Register<CreateProductCommand>();
+                    builder.Register<CreateProductCommandHandler>();
+                });
+            })
+            .BuildServiceProvider();
+
+        var commandMediator = secondServiceProvider.GetRequiredService<ICommandMediator>();
+        var command = new CreateProductCommand();
+
+        await commandMediator.SendAsync(command);
+
+        command.ExecutedTypes.Should().Contain(typeof(CreateProductCommandHandler));
+    }
+
+    [Fact]
     public async Task Send_CreateProductCommand_ShouldGoThroughHandlersCorrectly()
     {
         // Arrange
