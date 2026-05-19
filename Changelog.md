@@ -2,15 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v4.4.0
 
 ### Added
 
-- Post-handlers can now override the result returned to the caller by writing a replacement
-  value to `AmbientExecutionContext.Current.MessageResult`. The mediator reads this property
-  after the post-handler chain completes and returns it in place of the main handler result
-  when non-null. Last write wins when multiple post-handlers write to this property.
+- **Post-Handler Result Override:** Post-handlers can now override the result returned to the caller
+  by writing a replacement value to `AmbientExecutionContext.Current.MessageResult`. The mediator
+  reads this property after the post-handler chain completes and returns it in place of the main
+  handler result when non-null. Last write wins when multiple post-handlers write to this property.
   Applies to commands with results and queries. Void commands and events are unaffected.
+
+### Improved
+
+- **Testing Docs — `WebApplicationFactory` Isolation:** Added a dedicated wiki section documenting
+  the `MessageRegistryAccessor.Instance.Clear()` workaround required when using `WebApplicationFactory`
+  in integration tests. Without this call the static `MessageRegistry` retains stale handler
+  registrations across tests in the same process, causing intermittent `InvalidOperationException`
+  failures on CI.
+
+### Updated
+
+- **Dependencies:** Bumped `Microsoft.Extensions.*` packages to 10.0.8, `Microsoft.SourceLink.GitHub`
+  to 10.0.300, `Microsoft.NET.Test.Sdk` to 18.5.1, and `coverlet.*` to 10.0.1.
+- **CI:** Updated `softprops/action-gh-release` from v2 to v3 (Node 24 runtime).
 
 ## v4.3.0
 
