@@ -137,10 +137,20 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
             yield break;
         }
 
+        // Capture override stream outside the try/catch: C# does not allow yield in try blocks with catch clauses.
+        IAsyncEnumerable<TMessageResult>? overrideStream = null;
+
         try
         {
             AmbientExecutionContext.Current = executionContext;
             await messageDependencies.RunAsyncPostHandlers(message, messageResultAsyncEnumerable);
+
+            // Post-handlers may replace the stream result via the execution context.
+            // This is uncommon but supported for consistency with the non-streaming pipeline.
+            if (executionContext.MessageResult is IAsyncEnumerable<TMessageResult> stream)
+            {
+                overrideStream = stream;
+            }
         }
         catch (LiteBusExecutionAbortedException)
         {
@@ -153,6 +163,14 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
             await messageDependencies.RunAsyncErrorHandlers(message, messageResultAsyncEnumerable,
                 ExceptionDispatchInfo.Capture(exception));
+        }
+
+        if (overrideStream is not null)
+        {
+            await foreach (var overrideItem in overrideStream)
+            {
+                yield return overrideItem;
+            }
         }
     }
 

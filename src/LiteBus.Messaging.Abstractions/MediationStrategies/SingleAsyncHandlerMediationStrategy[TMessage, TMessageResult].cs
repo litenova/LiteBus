@@ -44,6 +44,13 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
             messageResult = await (Task<TMessageResult>) handler.Handle(message);
 
             await messageDependencies.RunAsyncPostHandlers(message, messageResult);
+
+            // A post-handler may have written an override result to the execution context.
+            // When present, it takes precedence over the value returned by the main handler.
+            if (executionContext.MessageResult is not null)
+            {
+                return (TMessageResult)executionContext.MessageResult;
+            }
         }
         catch (LiteBusExecutionAbortedException)
         {

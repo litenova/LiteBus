@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Post-handlers can now override the result returned to the caller by writing a replacement
+  value to `AmbientExecutionContext.Current.MessageResult`. The mediator reads this property
+  after the post-handler chain completes and returns it in place of the main handler result
+  when non-null. Last write wins when multiple post-handlers write to this property.
+  Applies to commands with results and queries. Void commands and events are unaffected.
+
 ## v4.3.0
 
 ### Added
