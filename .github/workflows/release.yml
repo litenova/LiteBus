@@ -7,7 +7,7 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -27,16 +27,19 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore LiteBus.slnx
 
       - name: Decode Strong Name Key
         run: echo "${{ secrets.STRONG_NAME_KEY }}" | base64 --decode > LiteBus.snk
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore /p:Version=${{ steps.version.outputs.version }} /p:ContinuousIntegrationBuild=true
+        run: dotnet build LiteBus.slnx --configuration Release --no-restore /p:Version=${{ steps.version.outputs.version }} /p:ContinuousIntegrationBuild=true
+
+      - name: Docker Info
+        run: docker info
 
       - name: Test
-        run: dotnet test --no-restore --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
+        run: dotnet test LiteBus.slnx --no-restore --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
 
       - name: Benchmark Smoke
         run: dotnet run --configuration Release --no-build --project benchmarks/LiteBus.Benchmarks/LiteBus.Benchmarks.csproj -- --filter '*' --job Dry
@@ -71,7 +74,7 @@ jobs:
           echo "# Release v$VERSION" > release-notes.md
           echo "" >> release-notes.md
           echo "See [Changelog.md](https://github.com/${{ github.repository }}/blob/main/Changelog.md) for details." >> release-notes.md
-          
+
           echo "Generated release notes:"
           cat release-notes.md
 

@@ -72,13 +72,14 @@ internal sealed class MessageDependencies : IMessageDependencies
     }
 
     /// <summary>
-    ///     Retrieves the handler type from a descriptor, adjusting for generic types as necessary.
+    ///     Retrieves the handler type from a descriptor and closes only open generic handler definitions for the current
+    ///     runtime message type. Closed concrete handlers for closed generic messages must be resolved as registered.
     /// </summary>
     private Type GetHandlerType(IHandlerDescriptor descriptor)
     {
         var handlerType = descriptor.HandlerType;
 
-        if (descriptor.MessageType.IsGenericType)
+        if (descriptor.MessageType.IsGenericType && handlerType.IsGenericTypeDefinition)
         {
             handlerType = handlerType.MakeGenericType(_messageType.GetGenericArguments());
         }

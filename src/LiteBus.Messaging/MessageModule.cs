@@ -30,16 +30,17 @@ public sealed class MessageModule : IModule
     {
         // Create or get the message registry - this will be shared across all messaging-related modules.
         var messageRegistry = MessageRegistryAccessor.Instance;
+        var messageContractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
         var startIndex = messageRegistry.Handlers.Count;
 
         configuration.SetContext(messageRegistry);
 
         // Configure the message module using the builder.
-        var moduleBuilder = new MessageModuleBuilder(messageRegistry);
+        var moduleBuilder = new MessageModuleBuilder(messageRegistry, messageContractRegistry);
         _builder(moduleBuilder);
 
         // Register core messaging services.
-        RegisterMessagingServices(configuration, messageRegistry);
+        RegisterMessagingServices(configuration, messageRegistry, messageContractRegistry);
         RegisterNewHandlers(configuration, messageRegistry, startIndex);
     }
 
@@ -50,12 +51,29 @@ public sealed class MessageModule : IModule
     /// <param name="messageRegistry">The message registry instance.</param>
     private static void RegisterMessagingServices(
         IModuleConfiguration configuration,
-        IMessageRegistry messageRegistry)
+        IMessageRegistry messageRegistry,
+        MessageContractRegistry messageContractRegistry)
     {
         // Register message registry as singleton.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageRegistry),
             messageRegistry));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IMessageContractRegistry),
+            messageContractRegistry));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IMessageContractRegistrar),
+            messageContractRegistry));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IMessageSerializer),
+            typeof(SystemTextJsonMessageSerializer)));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(TimeProvider),
+            TimeProvider.System));
 
         // Register message mediator as transient.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

@@ -1,0 +1,80 @@
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
+using LiteBus.Events.Abstractions;
+using LiteBus.Messaging.Abstractions;
+using LiteBus.Outbox.Abstractions;
+
+namespace LiteBus.Outbox;
+
+/// <summary>
+///     Dispatches outbox messages through the LiteBus in-process event publisher.
+/// </summary>
+/// <remarks>
+///     <para>
+///         This dispatcher is useful when the outbox should replay events into the local LiteBus event pipeline instead
+///         of an external broker. It resolves the stored contract, deserializes the payload, then publishes the event
+///         with the same event mediator semantics as an immediate `PublishAsync` call.
+///     </para>
+///     <para>
+///         Events that implement <see cref="IEvent" /> are sent through the non-generic publisher overload. POCO events
+///         are published through the generic overload by reflection because the event type is known only after contract
+///         resolution.
+///     </para>
+/// </remarks>
+public sealed class LiteBusEventOutboxDispatcher : IOutboxDispatcher
+{
+    /// <summary>
+    ///     Caches the open generic `PublishAsync&lt;TEvent&gt;` method used for POCO event publication.
+    /// </summary>
+    private static readonly MethodInfo GenericPublishMethod = typeof(IEventMediator)
+        .GetMethods()
+        .Single(method => method.Name == nameof(IEventMediator.PublishAsync) && method.IsGenericMethodDefinition);
+
+    private readonly IMessageContractRegistry _contractRegistry;
+    private readonly IEventPublisher _eventPublisher;
+    private readonly IMessageSerializer _messageSerializer;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="LiteBusEventOutboxDispatcher" /> class.
+    /// </summary>
+    /// <param name="eventPublisher">The LiteBus event publisher used as the dispatch target.</param>
+    /// <param name="contractRegistry">The registry used to resolve persisted contracts back to event types.</param>
+    /// <param name="messageSerializer">The serializer used to hydrate the persisted payload.</param>
+    public LiteBusEventOutboxDispatcher(
+        IEventPublisher eventPublisher,
+        IMessageContractRegistry contractRegistry,
+        IMessageSerializer messageSerializer)
+    {
+        _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
+        _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
+        _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
+    }
+
+    /// <inheritdoc />
+    public async Task DispatchAsync(OutboxMessageEnvelope message, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        var eventType = _contractRegistry.GetMessageType(message.ContractName, message.ContractVersion);
+        var @event = await _messageSerializer.DeserializeAsync(eventType, message.Payload, cancellationToken).ConfigureAwait(false);
+
+        if (@event is IEvent liteBusEvent)
+        {
+            await _eventPublisher.PublishAsync(liteBusEvent, cancellationToken: cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var publishMethod = GenericPublishMethod.MakeGenericMethod(eventType);
+        var publishTask = publishMethod.Invoke(_eventPublisher, [@event, null, cancellationToken]) as Task;
+
+        if (publishTask is null)
+        {
+            throw new InvalidOperationException($"The event publisher did not return a Task for '{eventType.FullName ?? eventType.Name}'.");
+        }
+
+        await publishTask.ConfigureAwait(false);
+    }
+}

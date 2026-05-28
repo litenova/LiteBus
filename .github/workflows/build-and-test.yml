@@ -4,12 +4,14 @@ on:
   push:
     branches: [ '**', '!main' ]
     paths:
+      - 'LiteBus.slnx'
       - 'src/**'
       - 'tests/**'
       - 'benchmarks/**'
   pull_request:
     branches: [ main ]
     paths:
+      - 'LiteBus.slnx'
       - 'src/**'
       - 'tests/**'
       - 'benchmarks/**'
@@ -17,7 +19,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -30,16 +32,19 @@ jobs:
           global-json-file: global.json
 
       - name: Restore Dependencies
-        run: dotnet restore
+        run: dotnet restore LiteBus.slnx
 
       - name: Decode Strong Name Key
         run: echo "${{ secrets.STRONG_NAME_KEY }}" | base64 --decode > LiteBus.snk
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build LiteBus.slnx --configuration Release --no-restore
+
+      - name: Docker Info
+        run: docker info
 
       - name: Test
-        run: dotnet test --no-restore --verbosity normal --collect:"XPlat Code Coverage"
+        run: dotnet test LiteBus.slnx --no-restore --verbosity normal --collect:"XPlat Code Coverage"
 
       - name: Benchmark Smoke
         run: dotnet run --configuration Release --no-build --project benchmarks/LiteBus.Benchmarks/LiteBus.Benchmarks.csproj -- --filter '*' --job Dry

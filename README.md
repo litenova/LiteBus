@@ -13,7 +13,7 @@
   <a href="https://github.com/litenova/LiteBus/actions/workflows/release.yml">
     <img src="https://github.com/litenova/LiteBus/actions/workflows/release.yml/badge.svg" alt="Build Status" />
   </a>
-  <a href="https://codecov.io/gh/litenova/LiteBus" > 
+  <a href="https://codecov.io/gh/litenova/LiteBus" >
     <img src="https://codecov.io/gh/litenova/LiteBus/graph/badge.svg?token=XBNYITSV5A" alt="Code Coverage" />
   </a>
   <a href="https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.DependencyInjection">
@@ -37,7 +37,7 @@ It is, and always will be, governed by the MIT license. LiteBus helps you implem
 -   **Granular Pipeline Control:** Go beyond simple "behaviors". LiteBus provides a full pipeline with distinct, type-safe `Pre-Handlers`, `Post-Handlers`, and `Error-Handlers` for each message.
 -   **Open Generic Handlers:** Write a single pre/post/error handler once and have it automatically apply to every message type matching its constraints, useful for cross-cutting concerns like logging, validation, and metrics.
 -   **Advanced Event Concurrency:** Take full control of event processing. Configure `Sequential` or `Parallel` execution for both priority groups and for handlers within the same group to fine-tune throughput.
--   **Resilient & Durable:** Guarantee at-least-once execution for critical commands with a built-in durable Command Inbox.
+-   **Durable Boundaries:** Schedule commands with an explicit inbox and store integration events with an outbox when work must survive process failure.
 -   **DI-Agnostic by Design:** Decoupled from any specific DI container. First-class integration for Microsoft DI and Autofac is provided, with a simple adapter pattern to support others.
 
 ## Quick Start
@@ -281,17 +281,41 @@ await _commandMediator.SendAsync(command, new CommandMediationSettings
 });
 ```
 
-### Durable Command Inbox for Deferred Execution
+### Durable Inbox and Outbox
 
-Mark state-changing commands for durable storage and deferred processing.
+Use the mediator APIs for in-process work. Use durable APIs when the caller is accepting later execution or later publication.
 
 ```csharp
-// This command will be stored in a durable inbox and processed by a background service
-[StoreInInbox]
 public sealed record ProcessPaymentCommand(Guid OrderId, decimal Amount) : ICommand;
+
+var receipt = await commandScheduler.ScheduleAsync(
+    new ProcessPaymentCommand(orderId, amount),
+    new CommandScheduleOptions
+    {
+        IdempotencyKey = $"payment:{orderId}"
+    },
+    cancellationToken);
 ```
 
-Inbox commands must implement `ICommand`, not `ICommand<TResult>`. Return `HTTP 202 Accepted` tracking data from the API layer when a request is accepted for later processing.
+```csharp
+public sealed record OrderSubmittedIntegrationEvent : IIntegrationEvent
+{
+    public required Guid OrderId { get; init; }
+}
+
+await integrationOutbox.AddAsync(
+    new OrderSubmittedIntegrationEvent
+    {
+        OrderId = orderId
+    },
+    new OutboxOptions
+    {
+        Topic = "orders"
+    },
+    cancellationToken);
+```
+
+`ICommandMediator.SendAsync` executes a command now. `ICommandScheduler.ScheduleAsync` stores it for an inbox processor. `IEventPublisher.PublishAsync` notifies handlers now. `IIntegrationOutbox.AddAsync` stores an event for later publication.
 
 ## Modular by Design
 
@@ -303,13 +327,19 @@ LiteBus is built on a modular, DI-agnostic runtime. You only install what you ne
 | **Core Modules** | `LiteBus.Commands` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Commands.svg)](https://www.nuget.org/packages/LiteBus.Commands/) |
 | | `LiteBus.Queries` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Queries.svg)](https://www.nuget.org/packages/LiteBus.Queries/) |
 | | `LiteBus.Events` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Events.svg)](https://www.nuget.org/packages/LiteBus.Events/) |
+| | `LiteBus.Inbox` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Inbox.svg)](https://www.nuget.org/packages/LiteBus.Inbox/) |
 | | `LiteBus.Messaging` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Messaging.svg)](https://www.nuget.org/packages/LiteBus.Messaging/) |
+| | `LiteBus.Outbox` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Outbox.svg)](https://www.nuget.org/packages/LiteBus.Outbox/) |
 | | `LiteBus.Runtime` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Runtime.svg)](https://www.nuget.org/packages/LiteBus.Runtime/) |
 | **Abstractions** | `LiteBus.Commands.Abstractions` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Commands.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Commands.Abstractions/) |
 | | `LiteBus.Queries.Abstractions` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Queries.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Queries.Abstractions/) |
 | | `LiteBus.Events.Abstractions` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Events.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Events.Abstractions/) |
+| | `LiteBus.Inbox.Abstractions` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Inbox.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Inbox.Abstractions/) |
 | | `LiteBus.Messaging.Abstractions` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Messaging.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Messaging.Abstractions/) |
+| | `LiteBus.Outbox.Abstractions` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Outbox.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Outbox.Abstractions/) |
 | | `LiteBus.Runtime.Abstractions` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Runtime.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Runtime.Abstractions/) |
+| **PostgreSQL** | `LiteBus.Inbox.PostgreSql` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Inbox.PostgreSql.svg)](https://www.nuget.org/packages/LiteBus.Inbox.PostgreSql/) |
+| | `LiteBus.Outbox.PostgreSql` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Outbox.PostgreSql.svg)](https://www.nuget.org/packages/LiteBus.Outbox.PostgreSql/) |
 | **MS.DI Extensions** | `LiteBus.Extensions.Microsoft.DependencyInjection` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Extensions.Microsoft.DependencyInjection/) |
 | | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.DependencyInjection/) |
 | | `LiteBus.Queries.Extensions.Microsoft.DependencyInjection` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Queries.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Queries.Extensions.Microsoft.DependencyInjection/) |
@@ -321,25 +351,24 @@ LiteBus is built on a modular, DI-agnostic runtime. You only install what you ne
 | | `LiteBus.Events.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Events.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Events.Extensions.Autofac/) |
 | | `LiteBus.Messaging.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Messaging.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Messaging.Extensions.Autofac/) |
 | | `LiteBus.Runtime.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Runtime.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Runtime.Extensions.Autofac/) |
-| **Hosting** | `LiteBus.Commands.Extensions.Microsoft.Hosting` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Commands.Extensions.Microsoft.Hosting.svg)](https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.Hosting/) |
 
 ## Migrating from MediatR
 
 LiteBus offers a more semantic and feature-rich alternative to MediatR. If you're migrating, here’s how the core concepts map.
 
--   **Requests (`IRequest<TResponse>` and `IRequest`)**  
+-   **Requests (`IRequest<TResponse>` and `IRequest`)**
     In MediatR, `IRequest` is used for both commands and queries. LiteBus separates these for CQS clarity:
     -   Use `ICommand<TResult>` for operations that change state and return a value.
     -   Use `IQuery<TResult>` for read-only operations.
     -   Use `ICommand` for fire-and-forget operations that don't return a value.
 
--   **Notifications (`INotification`)**  
+-   **Notifications (`INotification`)**
     MediatR's `INotification` is equivalent to LiteBus's `IEvent`. A key advantage of LiteBus is that you **don't need to implement any interface**. You can publish any Plain Old C# Object (POCO) as an event, keeping your domain model completely clean.
 
--   **Stream Requests (`IStreamRequest<TResponse>`)**  
+-   **Stream Requests (`IStreamRequest<TResponse>`)**
     This maps directly to `IStreamQuery<TResult>` in LiteBus, which returns an `IAsyncEnumerable<TResult>`. LiteBus semantically treats streams as a query concern.
 
--   **Pipeline Behaviors (`IPipelineBehavior<,>`)**  
+-   **Pipeline Behaviors (`IPipelineBehavior<,>`)**
     MediatR uses a generic `IPipelineBehavior` for cross-cutting concerns. LiteBus provides a more granular and type-safe pipeline with distinct stages for each message type:
     -   `ICommandPreHandler<TCommand>` / `IQueryPreHandler<TQuery>`: Run before the main handler. Ideal for validation (`ICommandValidator` is a semantic shortcut for this).
     -   `ICommandPostHandler<TCommand, TResult>` / `IQueryPostHandler<TQuery, TResult>`: Run after the main handler, with access to the result.

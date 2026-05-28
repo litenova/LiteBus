@@ -8,10 +8,13 @@ public sealed class MessageModuleBuilder
 {
     private readonly IMessageRegistry _messageRegistry;
 
-    public MessageModuleBuilder(IMessageRegistry messageRegistry)
+    public MessageModuleBuilder(IMessageRegistry messageRegistry, IMessageContractRegistrar contracts)
     {
         _messageRegistry = messageRegistry;
+        Contracts = contracts;
     }
+
+    public IMessageContractRegistrar Contracts { get; }
 
     public MessageModuleBuilder Register<T>()
     {
