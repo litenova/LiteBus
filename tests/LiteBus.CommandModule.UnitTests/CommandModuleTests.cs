@@ -287,4 +287,126 @@ public sealed class CommandModuleTests : LiteBusTestBase
         // Assert
         await act.Should().ThrowAsync<MultipleHandlerFoundException>();
     }
+
+    [Fact]
+    public async Task sending_inboxed_command_without_registered_inbox_should_throw_command_inbox_not_configured_exception()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddCommandModule(_ =>
+                {
+                });
+            })
+            .BuildServiceProvider();
+
+        var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
+        var command = new InboxOnlyCommand();
+
+        var act = () => commandMediator.SendAsync(command);
+
+        var exception = await act.Should().ThrowAsync<CommandInboxNotConfiguredException>();
+        exception.Which.CommandType.Should().Be(typeof(InboxOnlyCommand));
+    }
+
+    [Fact]
+    public async Task sending_inboxed_command_should_surface_storage_failure()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton<ICommandInbox>(new ThrowingCommandInbox())
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddCommandModule(_ =>
+                {
+                });
+            })
+            .BuildServiceProvider();
+
+        var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
+        var command = new InboxOnlyCommand();
+
+        var act = () => commandMediator.SendAsync(command);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("store failed");
+    }
+
+    [Fact]
+    public async Task sending_inboxed_result_command_should_throw_result_command_not_supported_exception()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddCommandModule(_ =>
+                {
+                });
+            })
+            .BuildServiceProvider();
+
+        var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
+        var command = new InboxResultCommand();
+
+        var act = () => commandMediator.SendAsync(command);
+
+        var exception = await act.Should().ThrowAsync<ResultCommandInboxNotSupportedException>();
+        exception.Which.CommandType.Should().Be(typeof(InboxResultCommand));
+    }
+
+    [Fact]
+    public async Task sending_inbox_execution_command_should_not_store_command_again()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton<ICommandInbox>(new ThrowingCommandInbox())
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddCommandModule(builder =>
+                {
+                    builder.Register<InboxExecutionCommand>();
+                    builder.Register<InboxExecutionCommandHandler>();
+                });
+            })
+            .BuildServiceProvider();
+
+        var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
+        var command = new InboxExecutionCommand();
+        var settings = new CommandMediationSettings();
+        settings.Items[CommandInboxExecutionContextKeys.IsInboxExecution] = true;
+
+        await commandMediator.SendAsync(command, settings);
+
+        command.Executed.Should().BeTrue();
+    }
+
+    [StoreInInbox]
+    private sealed class InboxOnlyCommand : ICommand;
+
+    [StoreInInbox]
+    private sealed class InboxResultCommand : ICommand<Guid>;
+
+    [StoreInInbox]
+    public sealed class InboxExecutionCommand : ICommand
+    {
+        public bool Executed { get; private set; }
+
+        public void MarkExecuted()
+        {
+            Executed = true;
+        }
+    }
+
+    public sealed class InboxExecutionCommandHandler : ICommandHandler<InboxExecutionCommand>
+    {
+        public Task HandleAsync(InboxExecutionCommand message, CancellationToken cancellationToken = default)
+        {
+            message.MarkExecuted();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingCommandInbox : ICommandInbox
+    {
+        public Task StoreAsync(ICommand command, CancellationToken cancellationToken = default)
+        {
+            return Task.FromException(new InvalidOperationException("store failed"));
+        }
+    }
 }

@@ -49,6 +49,42 @@ public sealed class PredicateFilteringTests : LiteBusTestBase
         @event.ExecutedTypes.Should().NotContain(typeof(NonFilterableEventHandler));
     }
 
+    [Fact]
+    public async Task Publish_IEvent_WithPredicate_ShouldExecuteOnlyMatchingHandlers()
+    {
+        // ARRANGE
+        var serviceProvider = new ServiceCollection().AddLiteBus(configuration =>
+        {
+            configuration.AddEventModule(builder =>
+            {
+                builder.Register<FilterableEventHandler>();
+                builder.Register<AnotherFilterableEventHandler>();
+                builder.Register<NonFilterableEventHandler>();
+            });
+        }).BuildServiceProvider();
+
+        var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
+        IEvent @event = new FilteredEvent();
+
+        var settings = new EventMediationSettings
+        {
+            Routing = new EventMediationRoutingSettings
+            {
+                HandlerPredicate = descriptor => descriptor.HandlerType.IsAssignableTo(typeof(IFilterableHandler))
+            }
+        };
+
+        // ACT
+        await eventMediator.PublishAsync(@event, settings);
+
+        // ASSERT
+        var filteredEvent = (FilteredEvent) @event;
+        filteredEvent.ExecutedTypes.Should().HaveCount(2);
+        filteredEvent.ExecutedTypes.Should().Contain(typeof(FilterableEventHandler));
+        filteredEvent.ExecutedTypes.Should().Contain(typeof(AnotherFilterableEventHandler));
+        filteredEvent.ExecutedTypes.Should().NotContain(typeof(NonFilterableEventHandler));
+    }
+
     // Test Components
     private interface IFilterableHandler;
 

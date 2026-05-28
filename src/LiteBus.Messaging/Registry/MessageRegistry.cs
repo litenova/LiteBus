@@ -165,7 +165,7 @@ internal sealed class MessageRegistry : IMessageRegistry
     private void RegisterMessageType(Type messageType)
     {
         // Skip system types to avoid unnecessary processing.
-        if (messageType.Namespace is not null && messageType.Namespace.StartsWith("System"))
+        if (IsSystemNamespace(messageType))
             return;
 
         // Normalize generic types to their generic type definition.
@@ -242,6 +242,8 @@ internal sealed class MessageRegistry : IMessageRegistry
     /// <param name="openGenericHandlerType">The open generic handler type (e.g., GenericValidator&lt;&gt;).</param>
     private void StoreOpenGenericHandler(Type openGenericHandlerType)
     {
+        ThrowIfOpenGenericHandlerShapeIsUnsupported(openGenericHandlerType);
+
         _openGenericHandlers.Add(openGenericHandlerType);
 
         // Close for committed messages - must add directly since LinkHandlersToPendingMessages won't touch them.
@@ -278,10 +280,8 @@ internal sealed class MessageRegistry : IMessageRegistry
         if (messageType.IsGenericTypeDefinition || messageType.IsGenericParameter)
             return;
 
-        // Currently only support single type parameter open generics.
         var typeParams = openGenericHandlerType.GetGenericArguments();
-        if (typeParams.Length != 1)
-            return;
+        ThrowIfOpenGenericHandlerShapeIsUnsupported(openGenericHandlerType);
 
         // Check if the message type satisfies the generic constraints.
         if (!SatisfiesGenericConstraints(typeParams[0], messageType))
@@ -348,6 +348,22 @@ internal sealed class MessageRegistry : IMessageRegistry
             return false;
 
         return true;
+    }
+
+    private static bool IsSystemNamespace(Type messageType)
+    {
+        return messageType.Namespace is "System" ||
+               messageType.Namespace?.StartsWith("System.", StringComparison.Ordinal) == true;
+    }
+
+    private static void ThrowIfOpenGenericHandlerShapeIsUnsupported(Type openGenericHandlerType)
+    {
+        var typeParams = openGenericHandlerType.GetGenericArguments();
+
+        if (typeParams.Length != 1)
+        {
+            throw new UnsupportedOpenGenericHandlerException(openGenericHandlerType, typeParams.Length);
+        }
     }
 
     /// <summary>

@@ -6,11 +6,13 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'benchmarks/**'
   pull_request:
     branches: [ main ]
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'benchmarks/**'
 
 jobs:
   build:
@@ -38,6 +40,9 @@ jobs:
 
       - name: Test
         run: dotnet test --no-restore --verbosity normal --collect:"XPlat Code Coverage"
+
+      - name: Benchmark Smoke
+        run: dotnet run --configuration Release --no-build --project benchmarks/LiteBus.Benchmarks/LiteBus.Benchmarks.csproj -- --filter '*' --job Dry
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v7

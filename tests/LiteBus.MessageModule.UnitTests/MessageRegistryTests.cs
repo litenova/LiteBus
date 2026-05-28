@@ -212,6 +212,14 @@ public sealed class MessageRegistryTests : LiteBusTestBase
         }
     }
 
+    public class UnsupportedOpenGenericTestPreHandler<TCommand, TContext> : ICommandPreHandler<TCommand> where TCommand : ICommand
+    {
+        public Task PreHandleAsync(TCommand message, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
     // --- Open Generic Handler Tests ---
 
     [Fact]
@@ -325,5 +333,20 @@ public sealed class MessageRegistryTests : LiteBusTestBase
         // Assert - open generic should not be applied after Clear
         var descriptor = registry.Single(d => d.MessageType == typeof(TestCommand));
         descriptor.PreHandlers.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Register_OpenGenericHandlerWithMultipleGenericParameters_ShouldThrowUnsupportedOpenGenericHandlerException()
+    {
+        // Arrange
+        var registry = new MessageRegistry();
+
+        // Act
+        var act = () => registry.Register(typeof(UnsupportedOpenGenericTestPreHandler<,>));
+
+        // Assert
+        var exception = act.Should().Throw<UnsupportedOpenGenericHandlerException>();
+        exception.Which.HandlerType.Should().Be(typeof(UnsupportedOpenGenericTestPreHandler<,>));
+        exception.Which.GenericParameterCount.Should().Be(2);
     }
 }

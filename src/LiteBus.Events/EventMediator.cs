@@ -30,7 +30,8 @@ public sealed class EventMediator : IEventPublisher
             CancellationToken = cancellationToken,
             Tags = eventMediationSettings.Routing.Tags,
             Items = eventMediationSettings.Items,
-            RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound
+            RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound,
+            HandlerPredicate = handlerDescriptor => eventMediationSettings.Routing.HandlerPredicate(handlerDescriptor)
         });
     }
 

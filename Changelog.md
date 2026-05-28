@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## v5.0.0-unreleased
+
+### Changed
+
+- Durable command inbox now rejects `[StoreInInbox]` on `ICommand<TResult>` with `ResultCommandInboxNotSupportedException`.
+- Inbox commands now throw `CommandInboxNotConfiguredException` when no `ICommandInbox` service is registered.
+- Inbox re-entry now uses `CommandInboxExecutionContextKeys.IsInboxExecution` with the namespaced key `__LiteBus.CommandInbox.IsInboxExecution`.
+- Event handler predicates now apply to both `PublishAsync(IEvent, settings)` and `PublishAsync<TEvent>(TEvent, settings)`.
+- Message descriptor resolution failures now throw `MessageDescriptorNotFoundException` with lookup details.
+- Message registry namespace filtering now skips only `System` and `System.*` namespaces.
+- Unsupported open generic handler shapes now throw `UnsupportedOpenGenericHandlerException`.
+
+### Docs
+
+- Added v5 reliability roadmap, domain event and unit-of-work guidance, and architecture decision records.
+- Updated command inbox docs to describe command-only inbox semantics, storage metadata, retry, dead-letter, and idempotency guidance.
+
 ## v4.4.0
 
 ### Added

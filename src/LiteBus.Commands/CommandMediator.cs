@@ -35,11 +35,12 @@ public sealed class CommandMediator : ICommandMediator
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // Check if the command should be diverted to the inbox for durable processing.
-        if (ShouldBeStoredInInbox(command.GetType(), commandMediationSettings))
+        var commandType = command.GetType();
+        ThrowIfResultCommandIsInboxed(commandType);
+
+        if (ShouldBeStoredInInbox(commandType, commandMediationSettings))
         {
-            // The command is stored for deferred execution by the background processor.
-            return _commandInbox!.StoreAsync(command, cancellationToken);
+            return GetRequiredCommandInbox(commandType).StoreAsync(command, cancellationToken);
         }
 
         // Proceed with immediate, in-process execution.
@@ -66,16 +67,12 @@ public sealed class CommandMediator : ICommandMediator
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // Check if the command should be diverted to the inbox for durable processing.
-        if (ShouldBeStoredInInbox(command.GetType(), commandMediationSettings))
-        {
-            // The command is stored for deferred execution.
-            _commandInbox!.StoreAsync(command, cancellationToken);
+        var commandType = command.GetType();
+        ThrowIfResultCommandIsInboxed(commandType);
 
-            // Return a completed task with a default result. The caller should not expect
-            // the actual result, as execution is now asynchronous. This is typically
-            // paired with an API response like HTTP 202 (Accepted).
-            return Task.FromResult(default(TCommandResult))!;
+        if (ShouldBeStoredInInbox(commandType, commandMediationSettings))
+        {
+            throw new ResultCommandInboxNotSupportedException(commandType);
         }
 
         // Proceed with immediate, in-process execution.
@@ -102,14 +99,55 @@ public sealed class CommandMediator : ICommandMediator
     {
         ArgumentNullException.ThrowIfNull(commandType);
 
-        // A command should not be stored again if it's already being processed from the inbox.
-        if (settings?.Items.ContainsKey("IsInboxExecution") == true)
+        if (IsInboxExecution(settings))
         {
             return false;
         }
 
+        return HasStoreInInboxAttribute(commandType);
+    }
+
+    private bool HasStoreInInboxAttribute(Type commandType)
+    {
         return _inboxAttributeCache.GetOrAdd(
             commandType,
             type => Attribute.GetCustomAttribute(type, typeof(StoreInInboxAttribute)) is not null);
+    }
+
+    private ICommandInbox GetRequiredCommandInbox(Type commandType)
+    {
+        if (_commandInbox is null)
+        {
+            throw new CommandInboxNotConfiguredException(commandType);
+        }
+
+        return _commandInbox;
+    }
+
+    private void ThrowIfResultCommandIsInboxed(Type commandType)
+    {
+        if (HasStoreInInboxAttribute(commandType) && IsResultCommandType(commandType))
+        {
+            throw new ResultCommandInboxNotSupportedException(commandType);
+        }
+    }
+
+    private static bool IsInboxExecution(CommandMediationSettings? settings)
+    {
+        return settings?.Items.TryGetValue(CommandInboxExecutionContextKeys.IsInboxExecution, out var value) == true &&
+               value is true;
+    }
+
+    private static bool IsResultCommandType(Type commandType)
+    {
+        foreach (var interfaceType in commandType.GetInterfaces())
+        {
+            if (interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == typeof(ICommand<>))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

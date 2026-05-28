@@ -112,9 +112,7 @@ public sealed class CommandInboxProcessorHostedService : IHostedService
 
             var mediationSettings = new CommandMediationSettings();
 
-            // This flag is crucial to prevent the CommandMediator from re-inboxing
-            // a command that is already being processed from the inbox.
-            mediationSettings.Items["IsInboxExecution"] = true;
+            mediationSettings.Items[CommandInboxExecutionContextKeys.IsInboxExecution] = true;
 
             await mediator.SendAsync(command, mediationSettings, cancellationToken);
         }
