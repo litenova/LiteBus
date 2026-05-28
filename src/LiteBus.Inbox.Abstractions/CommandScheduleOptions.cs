@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Defines metadata used when a command is accepted into the durable inbox.
+///     Defines metadata used when a command is accepted into the inbox.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -13,14 +13,14 @@ namespace LiteBus.Inbox.Abstractions;
 ///     <para>
 ///         Use <see cref="CommandId" /> or <see cref="IdempotencyKey" /> when a caller can retry the same request.
 ///         Use <see cref="VisibleAfter" /> for delayed execution. Use correlation, causation, and tenant fields for
-///         tracing and isolation across durable processing.
+///         tracing and isolation across inbox processing.
 ///     </para>
 /// </remarks>
 public sealed record CommandScheduleOptions
 {
     /// <summary>
     ///     Gets the optional command identifier. When omitted, the scheduler creates a new identifier.
-    ///     Supply this value when an upstream request already has a durable operation id.
+    ///     Supply this value when an upstream request already has a operation id.
     /// </summary>
     public Guid? CommandId { get; init; }
 

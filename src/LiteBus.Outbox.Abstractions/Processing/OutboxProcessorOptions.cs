@@ -29,7 +29,7 @@ public sealed record OutboxProcessorOptions
     /// <summary>
     ///     Gets the retry settings used after publication failures.
     /// </summary>
-    public DurableRetryOptions Retry { get; init; } = new();
+    public RetryOptions Retry { get; init; } = new();
 
     /// <summary>
     ///     Gets the optional lease owner name. When omitted, the processor creates a value from machine name, process id,

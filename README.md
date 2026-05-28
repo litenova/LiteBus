@@ -37,7 +37,7 @@ It is, and always will be, governed by the MIT license. LiteBus helps you implem
 -   **Granular Pipeline Control:** Go beyond simple "behaviors". LiteBus provides a full pipeline with distinct, type-safe `Pre-Handlers`, `Post-Handlers`, and `Error-Handlers` for each message.
 -   **Open Generic Handlers:** Write a single pre/post/error handler once and have it automatically apply to every message type matching its constraints, useful for cross-cutting concerns like logging, validation, and metrics.
 -   **Advanced Event Concurrency:** Take full control of event processing. Configure `Sequential` or `Parallel` execution for both priority groups and for handlers within the same group to fine-tune throughput.
--   **Durable Boundaries:** Schedule commands with an explicit inbox and store integration events with an outbox when work must survive process failure.
+-   **Storage Boundaries:** Schedule commands with an explicit inbox and store integration events with an outbox when work must survive process failure.
 -   **DI-Agnostic by Design:** Decoupled from any specific DI container. First-class integration for Microsoft DI and Autofac is provided, with a simple adapter pattern to support others.
 
 ## Quick Start
@@ -281,9 +281,9 @@ await _commandMediator.SendAsync(command, new CommandMediationSettings
 });
 ```
 
-### Durable Inbox and Outbox
+### Inbox and Outbox
 
-Use the mediator APIs for in-process work. Use durable APIs when the caller is accepting later execution or later publication.
+Use the mediator APIs for in-process work. Use inbox and outbox APIs when the caller is accepting later execution or later publication.
 
 ```csharp
 public sealed record ProcessPaymentCommand(Guid OrderId, decimal Amount) : ICommand;

@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Thrown when a durable message contract cannot be resolved.
+///     Thrown when a message contract cannot be resolved.
 /// </summary>
 [Serializable]
 public sealed class MessageContractNotRegisteredException : Exception
@@ -13,7 +13,7 @@ public sealed class MessageContractNotRegisteredException : Exception
     /// </summary>
     /// <param name="messageType">The CLR message type.</param>
     public MessageContractNotRegisteredException(Type messageType)
-        : base($"Message type '{messageType.FullName ?? messageType.Name}' has no durable contract registration.")
+        : base($"Message type '{messageType.FullName ?? messageType.Name}' has no contract registration.")
     {
         MessageType = messageType;
     }

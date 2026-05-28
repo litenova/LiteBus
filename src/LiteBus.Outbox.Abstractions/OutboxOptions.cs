@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
-///     Defines metadata used when an event is accepted into the durable outbox.
+///     Defines metadata used when an event is accepted into the outbox.
 /// </summary>
 /// <remarks>
 ///     <para>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -81,6 +81,8 @@ public sealed class PostgreSqlCommandInboxStore : ICommandInboxWriter, ICommandI
                       @correlation_id,
                       @causation_id,
                       @tenant_id)
+                  -- No conflict target: catches both the command_id primary key violation and the
+                  -- unique partial index on idempotency_key. Both represent the same idempotent intent.
                   ON CONFLICT DO NOTHING
                   RETURNING
                       command_id,
@@ -233,7 +235,7 @@ public sealed class PostgreSqlCommandInboxStore : ICommandInboxWriter, ICommandI
     /// <param name="commandId">The command id from the attempted insert.</param>
     /// <param name="idempotencyKey">The idempotency key from the attempted insert, when one was supplied.</param>
     /// <param name="cancellationToken">A token used to cancel the lookup.</param>
-    /// <returns>The existing durable envelope that should be returned to the scheduler.</returns>
+    /// <returns>The existing stored envelope that should be returned to the scheduler.</returns>
     private async Task<InboxCommandEnvelope> FindExistingAsync(Guid commandId, string? idempotencyKey, CancellationToken cancellationToken)
     {
         var sql = $"""

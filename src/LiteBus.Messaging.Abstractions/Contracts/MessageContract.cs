@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Describes the stable durable contract for one concrete CLR message type.
+///     Describes the stable contract for one concrete CLR message type.
 /// </summary>
 /// <remarks>
 ///     <para>

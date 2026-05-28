@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -80,7 +80,7 @@ public sealed class PostgreSqlOutboxStore : IOutboxMessageWriter, IOutboxMessage
                       @correlation_id,
                       @causation_id,
                       @tenant_id)
-                  ON CONFLICT DO NOTHING
+                  ON CONFLICT (message_id) DO NOTHING
                   RETURNING
                       message_id,
                       contract_name,
@@ -231,7 +231,7 @@ public sealed class PostgreSqlOutboxStore : IOutboxMessageWriter, IOutboxMessage
     /// </summary>
     /// <param name="messageId">The message id from the attempted insert.</param>
     /// <param name="cancellationToken">A token used to cancel the lookup.</param>
-    /// <returns>The existing durable envelope that should be returned to the writer.</returns>
+    /// <returns>The existing stored envelope that should be returned to the writer.</returns>
     private async Task<OutboxMessageEnvelope> FindExistingAsync(Guid messageId, CancellationToken cancellationToken)
     {
         var sql = $"""

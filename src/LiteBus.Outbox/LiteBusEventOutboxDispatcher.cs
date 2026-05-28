@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -31,7 +32,15 @@ public sealed class LiteBusEventOutboxDispatcher : IOutboxDispatcher
     /// </summary>
     private static readonly MethodInfo GenericPublishMethod = typeof(IEventMediator)
         .GetMethods()
-        .Single(method => method.Name == nameof(IEventMediator.PublishAsync) && method.IsGenericMethodDefinition);
+        .Single(method =>
+            method.Name == nameof(IEventMediator.PublishAsync) &&
+            method.IsGenericMethodDefinition &&
+            method.GetGenericArguments().Length == 1);
+
+    /// <summary>
+    ///     Caches closed generic <c>PublishAsync&lt;TEvent&gt;</c> methods keyed by event type to avoid repeated reflection overhead.
+    /// </summary>
+    private static readonly ConcurrentDictionary<Type, MethodInfo> ClosedPublishMethodCache = new();
 
     private readonly IMessageContractRegistry _contractRegistry;
     private readonly IEventPublisher _eventPublisher;
@@ -67,7 +76,7 @@ public sealed class LiteBusEventOutboxDispatcher : IOutboxDispatcher
             return;
         }
 
-        var publishMethod = GenericPublishMethod.MakeGenericMethod(eventType);
+        var publishMethod = ClosedPublishMethodCache.GetOrAdd(eventType, t => GenericPublishMethod.MakeGenericMethod(t));
         var publishTask = publishMethod.Invoke(_eventPublisher, [@event, null, cancellationToken]) as Task;
 
         if (publishTask is null)

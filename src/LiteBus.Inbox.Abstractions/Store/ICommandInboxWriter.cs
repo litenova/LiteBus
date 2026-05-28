@@ -1,4 +1,4 @@
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 
 namespace LiteBus.Inbox.Abstractions;
@@ -23,7 +23,7 @@ public interface ICommandInboxWriter
     ///     Adds a pending command envelope to the inbox.
     /// </summary>
     /// <param name="envelope">
-    ///     The serialized command envelope with its durable identifier, stable contract, payload, visibility timestamp,
+    ///     The serialized command envelope with its identifier, stable contract, payload, visibility timestamp,
     ///     idempotency key, and tracing metadata already assigned.
     /// </param>
     /// <param name="cancellationToken">A token that cancels the database write before it is committed.</param>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
 
@@ -8,7 +8,7 @@ namespace LiteBus.Inbox;
 ///     Configures services owned by the command inbox module.
 /// </summary>
 /// <remarks>
-///     Use this builder from `AddCommandInboxModule`. Register every durable command contract through
+///     Use this builder from `AddCommandInboxModule`. Register every inbox command contract through
 ///     <see cref="Contracts" /> and optionally replace processor defaults through <see cref="UseProcessorOptions" />.
 ///     Store registration is supplied by a storage module such as PostgreSQL or by application DI registration.
 /// </remarks>
@@ -17,14 +17,14 @@ public sealed class CommandInboxModuleBuilder
     /// <summary>
     ///     Initializes a new instance of the <see cref="CommandInboxModuleBuilder" /> class.
     /// </summary>
-    /// <param name="contracts">The durable message contract registrar.</param>
+    /// <param name="contracts">The message contract registrar.</param>
     public CommandInboxModuleBuilder(IMessageContractRegistrar contracts)
     {
         Contracts = contracts ?? throw new ArgumentNullException(nameof(contracts));
     }
 
     /// <summary>
-    ///     Gets the durable message contract registrar shared with the messaging module.
+    ///     Gets the message contract registrar shared with the messaging module.
     /// </summary>
     public IMessageContractRegistrar Contracts { get; }
 

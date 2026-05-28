@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -23,7 +23,7 @@ public interface ICommandInboxStateStore
     /// <summary>
     ///     Marks a leased command as completed after the command mediator has executed it without throwing.
     /// </summary>
-    /// <param name="commandId">The durable command identifier.</param>
+    /// <param name="commandId">The command identifier.</param>
     /// <param name="cancellationToken">A token that cancels the status update.</param>
     Task MarkCompletedAsync(Guid commandId, CancellationToken cancellationToken = default);
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
@@ -7,7 +7,7 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Inbox;
 
 /// <summary>
-///     Module for configuring explicit durable command scheduling.
+///     Module for configuring explicit command scheduling.
 /// </summary>
 public sealed class CommandInboxModule : IModule
 {

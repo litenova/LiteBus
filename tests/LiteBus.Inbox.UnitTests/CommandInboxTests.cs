@@ -84,7 +84,7 @@ public sealed class CommandInboxTests
                     {
                         BatchSize = 10,
                         LeaseOwner = "test-worker",
-                        Retry = new DurableRetryOptions
+                        Retry = new RetryOptions
                         {
                             UseJitter = false
                         }
@@ -138,7 +138,7 @@ public sealed class CommandInboxTests
                     {
                         BatchSize = 10,
                         LeaseOwner = "generic-test-worker",
-                        Retry = new DurableRetryOptions
+                        Retry = new RetryOptions
                         {
                             UseJitter = false
                         }
@@ -159,6 +159,193 @@ public sealed class CommandInboxTests
 
         recorder.Values.Should().ContainSingle(value => value == "closed-generic");
         store.Get(receipt.CommandId).Status.Should().Be(InboxCommandStatus.Completed);
+    }
+
+    [Fact]
+    public async Task ScheduleAsync_WhenCommandImplementsICommandTResult_ShouldThrowArgumentException()
+    {
+        var store = new InMemoryCommandInboxStore();
+        var contractRegistry = new MessageContractRegistry();
+        contractRegistry.Register<GetOrderStatusCommand>("orders.commands.get-status", 1);
+
+        var scheduler = new CommandScheduler(
+            store,
+            contractRegistry,
+            new SystemTextJsonMessageSerializer(),
+            TimeProvider.System);
+
+        var act = async () => await scheduler.ScheduleAsync(new GetOrderStatusCommand { OrderId = Guid.NewGuid() });
+
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*ICommand<TResult>*");
+    }
+
+    [Fact]
+    public async Task ScheduleAsync_WhenIdempotencyKeyMatchesExisting_ShouldReturnExistingReceipt()
+    {
+        var store = new InMemoryCommandInboxStore();
+        var contractRegistry = new MessageContractRegistry();
+        contractRegistry.Register<ShipOrderCommand>("orders.commands.ship", 1);
+
+        var scheduler = new CommandScheduler(
+            store,
+            contractRegistry,
+            new SystemTextJsonMessageSerializer(),
+            TimeProvider.System);
+
+        var orderId = Guid.NewGuid();
+        var idempotencyKey = $"ship:{orderId}";
+
+        var first = await scheduler.ScheduleAsync(new ShipOrderCommand
+        {
+            OrderId = orderId,
+            IdempotencyKey = idempotencyKey
+        });
+
+        var second = await scheduler.ScheduleAsync(new ShipOrderCommand
+        {
+            OrderId = Guid.NewGuid(),
+            IdempotencyKey = idempotencyKey
+        });
+
+        second.CommandId.Should().Be(first.CommandId);
+    }
+
+    [Fact]
+    public async Task ProcessPendingAsync_WhenHandlerThrows_ShouldMarkFailedAndSetVisibleAfter()
+    {
+        var store = new InMemoryCommandInboxStore();
+
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton<ICommandInboxWriter>(store)
+            .AddSingleton<ICommandInboxLeaseStore>(store)
+            .AddSingleton<ICommandInboxStateStore>(store)
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddCommandModule(builder =>
+                {
+                    builder.Register<FaultyCommand>();
+                    builder.Register<FaultyCommandHandler>();
+                });
+
+                configuration.AddCommandInboxModule(builder =>
+                {
+                    builder.Contracts.Register<FaultyCommand>("orders.commands.faulty", 1);
+                    builder.UseProcessorOptions(new CommandInboxProcessorOptions
+                    {
+                        BatchSize = 10,
+                        LeaseOwner = "test-worker",
+                        Retry = new RetryOptions
+                        {
+                            MaxAttempts = 3,
+                            InitialDelay = TimeSpan.Zero,
+                            UseJitter = false
+                        }
+                    });
+                });
+            })
+            .BuildServiceProvider();
+
+        var scheduler = serviceProvider.GetRequiredService<ICommandScheduler>();
+        var processor = serviceProvider.GetRequiredService<CommandInboxProcessorContract>();
+
+        var receipt = await scheduler.ScheduleAsync(new FaultyCommand());
+
+        await processor.ProcessPendingAsync();
+
+        var envelope = store.Get(receipt.CommandId);
+        envelope.Status.Should().Be(InboxCommandStatus.Failed);
+        envelope.LastError.Should().NotBeNullOrWhiteSpace();
+        envelope.AttemptCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ProcessPendingAsync_WhenHandlerExceedsMaxAttempts_ShouldMoveToDeadLetter()
+    {
+        var store = new InMemoryCommandInboxStore();
+
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton<ICommandInboxWriter>(store)
+            .AddSingleton<ICommandInboxLeaseStore>(store)
+            .AddSingleton<ICommandInboxStateStore>(store)
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddCommandModule(builder =>
+                {
+                    builder.Register<FaultyCommand>();
+                    builder.Register<FaultyCommandHandler>();
+                });
+
+                configuration.AddCommandInboxModule(builder =>
+                {
+                    builder.Contracts.Register<FaultyCommand>("orders.commands.faulty", 1);
+                    builder.UseProcessorOptions(new CommandInboxProcessorOptions
+                    {
+                        BatchSize = 10,
+                        LeaseOwner = "test-worker",
+                        Retry = new RetryOptions
+                        {
+                            MaxAttempts = 2,
+                            InitialDelay = TimeSpan.Zero,
+                            UseJitter = false
+                        }
+                    });
+                });
+            })
+            .BuildServiceProvider();
+
+        var scheduler = serviceProvider.GetRequiredService<ICommandScheduler>();
+        var processor = serviceProvider.GetRequiredService<CommandInboxProcessorContract>();
+
+        var receipt = await scheduler.ScheduleAsync(new FaultyCommand());
+
+        // Attempt 1 of 2: AttemptCount reaches 1 which is < MaxAttempts (2), so envelope is retried.
+        await processor.ProcessPendingAsync();
+        // Attempt 2 of 2: AttemptCount reaches 2 which is >= MaxAttempts (2), so envelope is dead-lettered.
+        await processor.ProcessPendingAsync();
+
+        store.Get(receipt.CommandId).Status.Should().Be(InboxCommandStatus.DeadLettered);
+    }
+
+    [Fact]
+    public async Task ProcessPendingAsync_ShouldSetIsInboxExecutionContextKey()
+    {
+        var store = new InMemoryCommandInboxStore();
+        var capture = new IsInboxCapture();
+
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton<ICommandInboxWriter>(store)
+            .AddSingleton<ICommandInboxLeaseStore>(store)
+            .AddSingleton<ICommandInboxStateStore>(store)
+            .AddSingleton(capture)
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddCommandModule(builder =>
+                {
+                    builder.Register<InboxCheckCommand>();
+                    builder.Register<InboxCheckCommandHandler>();
+                });
+
+                configuration.AddCommandInboxModule(builder =>
+                {
+                    builder.Contracts.Register<InboxCheckCommand>("test.commands.inbox-check", 1);
+                    builder.UseProcessorOptions(new CommandInboxProcessorOptions
+                    {
+                        BatchSize = 10,
+                        LeaseOwner = "test-worker",
+                        Retry = new RetryOptions { UseJitter = false }
+                    });
+                });
+            })
+            .BuildServiceProvider();
+
+        var scheduler = serviceProvider.GetRequiredService<ICommandScheduler>();
+        var processor = serviceProvider.GetRequiredService<CommandInboxProcessorContract>();
+
+        await scheduler.ScheduleAsync(new InboxCheckCommand());
+        await processor.ProcessPendingAsync();
+
+        capture.IsInboxExecution.Should().BeTrue();
     }
 
     private sealed class FixedTimeProvider : TimeProvider
@@ -241,6 +428,48 @@ public sealed class CommandInboxTests
         public void Record(string value)
         {
             _values.Add(value);
+        }
+    }
+
+    public sealed record GetOrderStatusCommand : ICommand<string>
+    {
+        public Guid OrderId { get; init; }
+    }
+
+    public sealed record FaultyCommand : ICommand;
+
+    public sealed class FaultyCommandHandler : ICommandHandler<FaultyCommand>
+    {
+        public Task HandleAsync(FaultyCommand message, CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Simulated handler failure.");
+        }
+    }
+
+    public sealed class IsInboxCapture
+    {
+        public bool IsInboxExecution { get; set; }
+    }
+
+    public sealed record InboxCheckCommand : ICommand;
+
+    public sealed class InboxCheckCommandHandler : ICommandHandler<InboxCheckCommand>
+    {
+        private readonly IsInboxCapture _capture;
+
+        public InboxCheckCommandHandler(IsInboxCapture capture)
+        {
+            _capture = capture;
+        }
+
+        public Task HandleAsync(InboxCheckCommand message, CancellationToken cancellationToken = default)
+        {
+            _capture.IsInboxExecution =
+                AmbientExecutionContext.Current.Items.TryGetValue(
+                    CommandInboxExecutionContextKeys.IsInboxExecution, out var value) &&
+                value is true;
+
+            return Task.CompletedTask;
         }
     }
 

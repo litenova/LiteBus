@@ -76,7 +76,7 @@ public sealed class OutboxTests
                     {
                         BatchSize = 10,
                         LeaseOwner = "test-publisher",
-                        Retry = new DurableRetryOptions
+                        Retry = new RetryOptions
                         {
                             UseJitter = false
                         }
@@ -134,7 +134,7 @@ public sealed class OutboxTests
                     {
                         BatchSize = 10,
                         LeaseOwner = "generic-test-publisher",
-                        Retry = new DurableRetryOptions
+                        Retry = new RetryOptions
                         {
                             UseJitter = false
                         }
@@ -170,6 +170,102 @@ public sealed class OutboxTests
 
         act.Should().Throw<ArgumentException>()
             .WithMessage("*closed message type*");
+    }
+
+    [Fact]
+    public async Task ProcessPendingAsync_WhenDispatcherThrows_ShouldMarkFailedAndSetVisibleAfter()
+    {
+        var store = new InMemoryOutboxStore();
+
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton<IOutboxMessageWriter>(store)
+            .AddSingleton<IOutboxMessageLeaseStore>(store)
+            .AddSingleton<IOutboxMessageStateStore>(store)
+            .AddSingleton<IOutboxDispatcher>(new AlwaysFailingOutboxDispatcher())
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddOutboxModule(builder =>
+                {
+                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                    builder.UseProcessorOptions(new OutboxProcessorOptions
+                    {
+                        BatchSize = 10,
+                        LeaseOwner = "test-publisher",
+                        Retry = new RetryOptions
+                        {
+                            MaxAttempts = 3,
+                            InitialDelay = TimeSpan.Zero,
+                            UseJitter = false
+                        }
+                    });
+                });
+            })
+            .BuildServiceProvider();
+
+        var outbox = serviceProvider.GetRequiredService<IIntegrationOutbox>();
+        var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
+
+        var messageId = Guid.NewGuid();
+
+        await outbox.AddAsync(new OrderSubmittedIntegrationEvent
+        {
+            OrderId = Guid.NewGuid()
+        }, new OutboxOptions { MessageId = messageId });
+
+        await processor.ProcessPendingAsync();
+
+        var envelope = store.Get(messageId);
+        envelope.Status.Should().Be(OutboxMessageStatus.Failed);
+        envelope.LastError.Should().NotBeNullOrWhiteSpace();
+        envelope.AttemptCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ProcessPendingAsync_WhenDispatcherExceedsMaxAttempts_ShouldMoveToDeadLetter()
+    {
+        var store = new InMemoryOutboxStore();
+
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton<IOutboxMessageWriter>(store)
+            .AddSingleton<IOutboxMessageLeaseStore>(store)
+            .AddSingleton<IOutboxMessageStateStore>(store)
+            .AddSingleton<IOutboxDispatcher>(new AlwaysFailingOutboxDispatcher())
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddOutboxModule(builder =>
+                {
+                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                    builder.UseProcessorOptions(new OutboxProcessorOptions
+                    {
+                        BatchSize = 10,
+                        LeaseOwner = "test-publisher",
+                        Retry = new RetryOptions
+                        {
+                            MaxAttempts = 2,
+                            InitialDelay = TimeSpan.Zero,
+                            UseJitter = false
+                        }
+                    });
+                });
+            })
+            .BuildServiceProvider();
+
+        var outbox = serviceProvider.GetRequiredService<IIntegrationOutbox>();
+        var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
+
+        var messageId = Guid.NewGuid();
+
+        await outbox.AddAsync(new OrderSubmittedIntegrationEvent
+        {
+            OrderId = Guid.NewGuid()
+        }, new OutboxOptions { MessageId = messageId });
+
+        // Attempt 1 of 2: AttemptCount reaches 1 which is < MaxAttempts (2), so envelope is retried.
+        await processor.ProcessPendingAsync();
+        // Attempt 2 of 2: AttemptCount reaches 2 which is >= MaxAttempts (2), so envelope is dead-lettered.
+        await processor.ProcessPendingAsync();
+
+        store.Get(messageId).Status.Should().Be(OutboxMessageStatus.DeadLettered);
     }
 
     private sealed class FixedTimeProvider : TimeProvider
@@ -250,6 +346,14 @@ public sealed class OutboxTests
         public void Record(int value)
         {
             _values.Add(value);
+        }
+    }
+
+    private sealed class AlwaysFailingOutboxDispatcher : IOutboxDispatcher
+    {
+        public Task DispatchAsync(OutboxMessageEnvelope message, CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Simulated dispatcher failure.");
         }
     }
 

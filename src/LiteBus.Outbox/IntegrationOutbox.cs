@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Outbox.Abstractions;
@@ -6,7 +6,7 @@ using LiteBus.Outbox.Abstractions;
 namespace LiteBus.Outbox;
 
 /// <summary>
-///     Narrows durable outbox writes to integration events.
+///     Narrows outbox writes to integration events.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -22,7 +22,7 @@ public sealed class IntegrationOutbox : IIntegrationOutbox
     /// <summary>
     ///     Initializes a new instance of the <see cref="IntegrationOutbox" /> class.
     /// </summary>
-    /// <param name="outboxWriter">The durable outbox writer that performs serialization and storage.</param>
+    /// <param name="outboxWriter">The outbox writer that performs serialization and storage.</param>
     public IntegrationOutbox(IOutboxWriter outboxWriter)
     {
         _outboxWriter = outboxWriter ?? throw new ArgumentNullException(nameof(outboxWriter));

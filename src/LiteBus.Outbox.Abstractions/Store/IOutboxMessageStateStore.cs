@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -24,7 +24,7 @@ public interface IOutboxMessageStateStore
     /// <summary>
     ///     Marks a leased message as published after the dispatcher has completed without throwing.
     /// </summary>
-    /// <param name="messageId">The durable message identifier.</param>
+    /// <param name="messageId">The message identifier.</param>
     /// <param name="cancellationToken">A token that cancels the status update.</param>
     Task MarkPublishedAsync(Guid messageId, CancellationToken cancellationToken = default);
 

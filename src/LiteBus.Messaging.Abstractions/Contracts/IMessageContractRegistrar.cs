@@ -1,13 +1,13 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Registers stable names and versions for messages that can be persisted by durable features.
+///     Registers stable names and versions for messages that can be persisted by inbox and outbox features.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Durable inbox and outbox stores write contract names and integer versions instead of assembly-qualified CLR
+///         inbox and outbox stores write contract names and integer versions instead of assembly-qualified CLR
 ///         type names. Register every persisted command or event at startup before scheduling commands or adding outbox
 ///         messages.
 ///     </para>

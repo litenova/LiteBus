@@ -1,4 +1,4 @@
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 
 namespace LiteBus.Outbox.Abstractions;
@@ -10,7 +10,7 @@ namespace LiteBus.Outbox.Abstractions;
 ///     <para>
 ///         Implement this role in the same transaction boundary as the application state change that produced the
 ///         event. The writer is append-oriented: it accepts an immutable <see cref="OutboxMessageEnvelope" /> and
-///         returns the row that became the durable source of truth. Stores should treat duplicate message identifiers
+///         returns the row that became the source of truth. Stores should treat duplicate message identifiers
 ///         as idempotent inserts and return the existing row when the backing database can prove that the message was
 ///         already accepted.
 ///     </para>

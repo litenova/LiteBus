@@ -1,10 +1,10 @@
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 
 namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
-///     Accepts integration events into durable storage for later publication.
+///     Accepts integration events into storage for later publication.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -24,7 +24,7 @@ public interface IIntegrationOutbox
     /// </summary>
     /// <typeparam name="TEvent">The integration event type. The runtime type is used for contract lookup.</typeparam>
     /// <param name="event">The integration event instance to serialize and store.</param>
-    /// <param name="options">Optional durable metadata such as message id, topic, and trace fields.</param>
+    /// <param name="options">Optional outbox metadata such as message id, topic, and trace fields.</param>
     /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
     /// <returns>A receipt containing the durable message id, contract name, version, storage time, and trace metadata.</returns>
     Task<OutboxReceipt<TEvent>> AddAsync<TEvent>(

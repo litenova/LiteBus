@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Defines retry behavior shared by durable inbox and outbox processors.
+///     Defines retry behavior shared by inbox and outbox processors.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -15,7 +15,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///         external transports and payment systems often need longer caps and idempotent consumers.
 ///     </para>
 /// </remarks>
-public sealed record DurableRetryOptions
+public sealed record RetryOptions
 {
     /// <summary>
     ///     Gets the maximum number of attempts before dead-lettering. The leasing operation increments attempt count

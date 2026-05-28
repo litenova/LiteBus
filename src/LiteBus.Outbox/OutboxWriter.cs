@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
@@ -7,7 +7,7 @@ using LiteBus.Outbox.Abstractions;
 namespace LiteBus.Outbox;
 
 /// <summary>
-///     Default writer that turns an event instance into a durable outbox envelope.
+///     Default writer that turns an event instance into a outbox envelope.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -32,7 +32,7 @@ public sealed class OutboxWriter : IOutboxWriter
     /// </summary>
     /// <param name="store">The outbox writer store used to persist newly accepted envelopes.</param>
     /// <param name="contractRegistry">The registry used to map the runtime event type to a stable contract.</param>
-    /// <param name="messageSerializer">The serializer used to create the durable payload.</param>
+    /// <param name="messageSerializer">The serializer used to create the serialized payload.</param>
     /// <param name="clock">The time provider used to stamp storage time.</param>
     public OutboxWriter(
         IOutboxMessageWriter store,

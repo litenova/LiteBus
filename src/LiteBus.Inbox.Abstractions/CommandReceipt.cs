@@ -1,10 +1,10 @@
-using System;
+﻿using System;
 using LiteBus.Commands.Abstractions;
 
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Represents the result of accepting a command into the durable inbox.
+///     Represents the result of accepting a command into the inbox.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -18,7 +18,7 @@ public sealed record CommandReceipt<TCommand>
     where TCommand : ICommand
 {
     /// <summary>
-    ///     Gets the unique durable command identifier that processors and tracking endpoints can use.
+    ///     Gets the unique command identifier that processors and tracking endpoints can use.
     /// </summary>
     public required Guid CommandId { get; init; }
 

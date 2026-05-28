@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Resolves durable message contracts in both directions.
+///     Resolves message contracts in both directions.
 /// </summary>
 /// <remarks>
 ///     <para>

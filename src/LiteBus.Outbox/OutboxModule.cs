@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
@@ -7,7 +7,7 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Outbox;
 
 /// <summary>
-///     Module for configuring durable event publication.
+///     Module for configuring event publication.
 /// </summary>
 public sealed class OutboxModule : IModule
 {

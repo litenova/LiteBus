@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Thrown when a durable message payload cannot be serialized or deserialized.
+///     Thrown when a message payload cannot be serialized or deserialized.
 /// </summary>
 [Serializable]
 public sealed class MessageSerializationException : Exception

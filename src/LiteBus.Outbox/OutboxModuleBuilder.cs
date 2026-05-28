@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
 
@@ -8,7 +8,7 @@ namespace LiteBus.Outbox;
 ///     Configures services owned by the outbox module.
 /// </summary>
 /// <remarks>
-///     Use this builder from `AddOutboxModule`. Register every durable event contract through <see cref="Contracts" />,
+///     Use this builder from `AddOutboxModule`. Register every outbox event contract through <see cref="Contracts" />,
 ///     choose processor defaults through <see cref="UseProcessorOptions" />, and opt in to local LiteBus event dispatch
 ///     through <see cref="UseLiteBusEventDispatcher" /> when the outbox should replay events into in-process handlers.
 ///     Broker dispatchers can register their own <see cref="IOutboxDispatcher" /> instead.
@@ -18,14 +18,14 @@ public sealed class OutboxModuleBuilder
     /// <summary>
     ///     Initializes a new instance of the <see cref="OutboxModuleBuilder" /> class.
     /// </summary>
-    /// <param name="contracts">The durable message contract registrar.</param>
+    /// <param name="contracts">The message contract registrar.</param>
     public OutboxModuleBuilder(IMessageContractRegistrar contracts)
     {
         Contracts = contracts ?? throw new ArgumentNullException(nameof(contracts));
     }
 
     /// <summary>
-    ///     Gets the durable message contract registrar shared with the messaging module.
+    ///     Gets the message contract registrar shared with the messaging module.
     /// </summary>
     public IMessageContractRegistrar Contracts { get; }
 

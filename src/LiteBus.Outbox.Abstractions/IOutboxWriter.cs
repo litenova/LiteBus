@@ -1,10 +1,10 @@
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 
 namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
-///     Accepts events into durable storage for later publication.
+///     Accepts events into storage for later publication.
 /// </summary>
 /// <remarks>
 ///     <para>

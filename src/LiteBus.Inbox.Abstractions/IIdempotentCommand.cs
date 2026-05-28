@@ -1,9 +1,9 @@
-using LiteBus.Commands.Abstractions;
+﻿using LiteBus.Commands.Abstractions;
 
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Exposes an idempotency key that the scheduler can copy into the durable inbox envelope.
+///     Exposes an idempotency key that the scheduler can copy into the inbox envelope.
 /// </summary>
 /// <remarks>
 ///     <para>

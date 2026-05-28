@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
-///     Represents the result of accepting an event into the durable outbox.
+///     Represents the result of accepting an event into the outbox.
 /// </summary>
 /// <remarks>
 ///     <para>

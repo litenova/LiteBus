@@ -1,11 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging;
 
 /// <summary>
-///     Default in-memory registry for durable message contracts.
+///     Default in-memory registry for message contracts.
 /// </summary>
 public sealed class MessageContractRegistry : IMessageContractRegistry, IMessageContractRegistrar
 {
@@ -29,7 +29,7 @@ public sealed class MessageContractRegistry : IMessageContractRegistry, IMessage
         if (messageType.ContainsGenericParameters)
         {
             throw new ArgumentException(
-                "Durable message contracts must use a closed message type. Register each closed generic message shape with its own stable contract name and version.",
+                "message contracts must use a closed message type. Register each closed generic message shape with its own stable contract name and version.",
                 nameof(messageType));
         }
 

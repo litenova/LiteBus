@@ -59,9 +59,31 @@ internal static class PostgreSqlIdentifier
 
         if (name.Length > 60)
         {
-            name = name[..48] + "_" + Math.Abs(name.GetHashCode(StringComparison.Ordinal)).ToString("x");
+            // GetHashCode is process-randomized (Marvin32 seed), so it cannot be used to produce
+            // a stable suffix that survives application restarts. FNV-1a produces the same value
+            // for the same input on every run, preventing orphan indexes.
+            name = name[..48] + "_" + StableHash(name).ToString("x8");
         }
 
         return Quote(name);
+    }
+
+    /// <summary>
+    ///     Computes a stable, process-invariant FNV-1a 32-bit hash of the given string.
+    /// </summary>
+    private static uint StableHash(string value)
+    {
+        const uint fnvPrime = 16777619;
+        const uint offsetBasis = 2166136261;
+
+        var hash = offsetBasis;
+
+        foreach (var c in value)
+        {
+            hash ^= c;
+            hash *= fnvPrime;
+        }
+
+        return hash;
     }
 }

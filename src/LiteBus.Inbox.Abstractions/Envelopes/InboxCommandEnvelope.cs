@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Represents one persisted command row in a durable inbox store.
+///     Represents one persisted command row in a inbox store.
 /// </summary>
 /// <remarks>
 ///     Store implementations use this non-generic envelope so one table can hold many command types. The payload is the

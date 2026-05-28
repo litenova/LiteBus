@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
@@ -8,7 +9,7 @@ using LiteBus.Messaging.Abstractions;
 namespace LiteBus.Inbox;
 
 /// <summary>
-///     Default scheduler that turns a command instance into a durable inbox envelope.
+///     Default scheduler that turns a command instance into a inbox envelope.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -33,7 +34,7 @@ public sealed class CommandScheduler : ICommandScheduler
     /// </summary>
     /// <param name="store">The inbox writer store used to persist newly scheduled commands.</param>
     /// <param name="contractRegistry">The registry used to map the runtime command type to a stable contract.</param>
-    /// <param name="messageSerializer">The serializer used to create the durable payload.</param>
+    /// <param name="messageSerializer">The serializer used to create the serialized payload.</param>
     /// <param name="clock">The time provider used to stamp acceptance time.</param>
     public CommandScheduler(
         ICommandInboxWriter store,
@@ -59,6 +60,14 @@ public sealed class CommandScheduler : ICommandScheduler
         options ??= new CommandScheduleOptions();
 
         var commandType = command.GetType();
+
+        if (commandType.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICommand<>)))
+        {
+            throw new ArgumentException(
+                $"Commands that implement ICommand<TResult> cannot be scheduled for deferred execution because the handler result would be discarded. Type: '{commandType.Name}'.",
+                nameof(command));
+        }
+
         var contract = _contractRegistry.GetContract(commandType);
         var acceptedAt = _clock.GetUtcNow();
         var commandId = options.CommandId ?? Guid.NewGuid();

@@ -280,8 +280,8 @@ internal sealed class MessageRegistry : IMessageRegistry
         if (messageType.IsGenericTypeDefinition || messageType.IsGenericParameter)
             return;
 
+        // Shape was already validated in StoreOpenGenericHandler; no need to re-validate here.
         var typeParams = openGenericHandlerType.GetGenericArguments();
-        ThrowIfOpenGenericHandlerShapeIsUnsupported(openGenericHandlerType);
 
         // Check if the message type satisfies the generic constraints.
         if (!SatisfiesGenericConstraints(typeParams[0], messageType))

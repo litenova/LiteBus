@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,7 +7,7 @@ using LiteBus.Messaging.Abstractions;
 namespace LiteBus.Messaging;
 
 /// <summary>
-///     Serializes durable messages with System.Text.Json.
+///     Serializes messages with System.Text.Json.
 /// </summary>
 public sealed class SystemTextJsonMessageSerializer : IMessageSerializer
 {

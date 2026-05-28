@@ -1,11 +1,11 @@
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Accepts commands into durable storage for later execution by an inbox processor.
+///     Accepts commands into storage for later execution by an inbox processor.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -37,9 +37,14 @@ public interface ICommandScheduler
     /// </param>
     /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
     /// <returns>
-    ///     A receipt containing the durable command id, contract name, version, acceptance time, and trace metadata.
+    ///     A receipt containing the command id, contract name, version, acceptance time, and trace metadata.
     ///     The receipt is not the command handler result.
     /// </returns>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when the runtime type of <paramref name="command" /> implements <c>ICommand&lt;TResult&gt;</c>. The
+    ///     inbox processor cannot return a handler result to the original caller, so result-bearing commands must not
+    ///     be scheduled for deferred execution.
+    /// </exception>
     Task<CommandReceipt<TCommand>> ScheduleAsync<TCommand>(
         TCommand command,
         CommandScheduleOptions? options = null,

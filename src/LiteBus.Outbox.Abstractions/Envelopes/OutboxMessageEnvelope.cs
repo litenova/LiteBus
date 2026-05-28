@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
-///     Represents one persisted event row in a durable outbox store.
+///     Represents one persisted event row in a outbox store.
 /// </summary>
 /// <remarks>
 ///     Store implementations use this non-generic envelope so one table can hold many event types. The payload is the

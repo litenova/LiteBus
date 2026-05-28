@@ -1,11 +1,11 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Serializes and deserializes durable LiteBus messages.
+///     Serializes and deserializes LiteBus messages.
 /// </summary>
 public interface IMessageSerializer
 {
