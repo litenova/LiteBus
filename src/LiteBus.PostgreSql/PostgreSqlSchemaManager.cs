@@ -10,9 +10,24 @@ namespace LiteBus.PostgreSql;
 /// </summary>
 internal static class PostgreSqlSchemaManager
 {
+    /// <summary>
+    ///     The maximum time to wait for another session to finish schema bootstrap.
+    /// </summary>
     private static readonly TimeSpan DefaultLockTimeout = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    ///     The delay between checks while waiting for another session to finish schema bootstrap.
+    /// </summary>
     private static readonly TimeSpan DefaultLockPollInterval = TimeSpan.FromMilliseconds(200);
 
+    /// <summary>
+    ///     Creates or upgrades one LiteBus PostgreSQL store schema to the current package version.
+    /// </summary>
+    /// <param name="dataSource">The PostgreSQL data source.</param>
+    /// <param name="options">The store table and metadata options.</param>
+    /// <param name="definition">The component schema definition that supplies SQL builders.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>A task that completes when the schema reaches the expected version.</returns>
     internal static async Task EnsureAsync(
         NpgsqlDataSource dataSource,
         IPostgreSqlStoreTableOptions options,
@@ -37,6 +52,14 @@ internal static class PostgreSqlSchemaManager
             $"Schema creation complete for {definition.Component} table '{options.SchemaName}.{options.TableName}'.");
     }
 
+    /// <summary>
+    ///     Validates that one LiteBus PostgreSQL store schema matches the current package version.
+    /// </summary>
+    /// <param name="dataSource">The PostgreSQL data source.</param>
+    /// <param name="options">The store table and metadata options.</param>
+    /// <param name="definition">The component schema definition that supplies validation metadata.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>A task that completes when validation succeeds.</returns>
     internal static async Task ValidateAsync(
         NpgsqlDataSource dataSource,
         IPostgreSqlStoreTableOptions options,
@@ -61,6 +84,15 @@ internal static class PostgreSqlSchemaManager
             $"Schema validation succeeded for {definition.Component} table '{options.SchemaName}.{options.TableName}'.");
     }
 
+    /// <summary>
+    ///     Applies schema bootstrap under an advisory lock or waits for another session to finish.
+    /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="options">The store table and metadata options.</param>
+    /// <param name="definition">The component schema definition that supplies SQL builders.</param>
+    /// <param name="logger">The schema logger that receives operational output.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>A task that completes when the schema reaches the expected version.</returns>
     private static async Task EnsureWithLockAsync(
         NpgsqlConnection connection,
         IPostgreSqlStoreTableOptions options,
@@ -109,6 +141,15 @@ internal static class PostgreSqlSchemaManager
             $"'{options.SchemaName}.{options.TableName}' to reach version {definition.CurrentSchemaVersion}.");
     }
 
+    /// <summary>
+    ///     Creates, upgrades, indexes, and records the schema version while holding the advisory lock.
+    /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="options">The store table and metadata options.</param>
+    /// <param name="definition">The component schema definition that supplies SQL builders.</param>
+    /// <param name="logger">The schema logger that receives operational output.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>A task that completes when bootstrap finishes.</returns>
     private static async Task ApplyEnsureAsync(
         NpgsqlConnection connection,
         IPostgreSqlStoreTableOptions options,
@@ -213,6 +254,15 @@ internal static class PostgreSqlSchemaManager
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    ///     Validates table shape and recorded schema version against the current package release.
+    /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="options">The store table and metadata options.</param>
+    /// <param name="definition">The component schema definition that supplies validation metadata.</param>
+    /// <param name="logger">The schema logger that receives operational output.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>A task that completes when validation succeeds.</returns>
     private static async Task ValidateCoreAsync(
         NpgsqlConnection connection,
         IPostgreSqlStoreTableOptions options,
@@ -314,6 +364,17 @@ internal static class PostgreSqlSchemaManager
         }
     }
 
+    /// <summary>
+    ///     Returns <see langword="true" /> when the store table already matches the expected schema version.
+    /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="options">The store table and metadata options.</param>
+    /// <param name="definition">The component schema definition that supplies validation metadata.</param>
+    /// <param name="cancellationToken">A token used to cancel the lookup.</param>
+    /// <returns>
+    ///     <see langword="true" /> when metadata or inferred columns indicate the expected version; otherwise,
+    ///     <see langword="false" />.
+    /// </returns>
     private static async Task<bool> IsAtExpectedVersionAsync(
         NpgsqlConnection connection,
         IPostgreSqlStoreTableOptions options,

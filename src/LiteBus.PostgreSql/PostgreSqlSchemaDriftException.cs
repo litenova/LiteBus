@@ -63,6 +63,16 @@ public sealed class PostgreSqlSchemaDriftException : Exception
     /// </summary>
     public string Details { get; }
 
+    /// <summary>
+    ///     Builds the exception message describing the detected schema drift.
+    /// </summary>
+    /// <param name="component">The LiteBus store component that failed validation.</param>
+    /// <param name="schemaName">The PostgreSQL schema name of the validated table.</param>
+    /// <param name="tableName">The PostgreSQL table name of the validated table.</param>
+    /// <param name="expectedVersion">The schema version expected by the library.</param>
+    /// <param name="actualVersion">The schema version recorded in metadata, if any.</param>
+    /// <param name="details">Additional validation details.</param>
+    /// <returns>The formatted exception message.</returns>
     private static string BuildMessage(
         string component,
         string schemaName,

@@ -11,6 +11,9 @@ namespace LiteBus.Outbox;
 /// </summary>
 public sealed class OutboxModule : IModule
 {
+    /// <summary>
+    ///     Gets the module builder callback invoked during <see cref="Build" />.
+    /// </summary>
     private readonly Action<OutboxModuleBuilder> _builder;
 
     /// <summary>
@@ -34,10 +37,6 @@ public sealed class OutboxModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageContractRegistry),
-            contractRegistry));
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IMessageContractRegistrar),
             contractRegistry));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

@@ -102,6 +102,7 @@ public static class PostgreSqlOutboxSchema
     /// <param name="dataSource">The PostgreSQL data source.</param>
     /// <param name="options">The schema and table options.</param>
     /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>A task that completes when the schema reaches the expected version.</returns>
     public static Task EnsureAsync(
         NpgsqlDataSource dataSource,
         PostgreSqlOutboxStoreOptions? options = null,
@@ -124,6 +125,7 @@ public static class PostgreSqlOutboxSchema
     /// <param name="dataSource">The PostgreSQL data source.</param>
     /// <param name="options">The schema and table options.</param>
     /// <param name="cancellationToken">A token used to cancel the database command.</param>
+    /// <returns>A task that completes when the schema reaches the expected version.</returns>
     public static Task CreateIfNotExistsAsync(
         NpgsqlDataSource dataSource,
         PostgreSqlOutboxStoreOptions? options = null,
@@ -138,6 +140,7 @@ public static class PostgreSqlOutboxSchema
     /// <param name="dataSource">The PostgreSQL data source.</param>
     /// <param name="options">The schema and table options.</param>
     /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>A task that completes when validation succeeds.</returns>
     /// <exception cref="PostgreSqlSchemaDriftException">
     ///     Thrown when the table is missing, incomplete, or recorded at an unexpected schema version.
     /// </exception>

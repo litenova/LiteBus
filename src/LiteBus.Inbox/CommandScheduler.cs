@@ -24,9 +24,24 @@ namespace LiteBus.Inbox;
 /// </remarks>
 public sealed class CommandScheduler : ICommandScheduler
 {
+    /// <summary>
+    ///     Gets the time provider used to stamp acceptance time.
+    /// </summary>
     private readonly TimeProvider _clock;
+
+    /// <summary>
+    ///     Gets the registry used to map the runtime command type to a stable contract.
+    /// </summary>
     private readonly IMessageContractRegistry _contractRegistry;
+
+    /// <summary>
+    ///     Gets the serializer used to create the serialized payload.
+    /// </summary>
     private readonly IMessageSerializer _messageSerializer;
+
+    /// <summary>
+    ///     Gets the inbox writer store used to persist newly scheduled commands.
+    /// </summary>
     private readonly ICommandInboxWriter _store;
 
     /// <summary>

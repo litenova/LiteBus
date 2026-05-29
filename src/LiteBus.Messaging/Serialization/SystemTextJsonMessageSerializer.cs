@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +11,14 @@ namespace LiteBus.Messaging;
 /// </summary>
 public sealed class SystemTextJsonMessageSerializer : IMessageSerializer
 {
+    /// <summary>
+    ///     The default serializer options used when no custom options are supplied.
+    /// </summary>
     private static readonly JsonSerializerOptions DefaultOptions = new(JsonSerializerDefaults.Web);
+
+    /// <summary>
+    ///     The serializer options used for message serialization and deserialization.
+    /// </summary>
     private readonly JsonSerializerOptions _jsonSerializerOptions;
 
     /// <summary>

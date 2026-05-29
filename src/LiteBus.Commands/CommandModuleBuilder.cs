@@ -11,6 +11,9 @@ namespace LiteBus.Commands;
 /// </summary>
 public sealed class CommandModuleBuilder
 {
+    /// <summary>
+    ///     Gets the message registry to which command types are registered.
+    /// </summary>
     private readonly IMessageRegistry _messageRegistry;
 
     /// <summary>

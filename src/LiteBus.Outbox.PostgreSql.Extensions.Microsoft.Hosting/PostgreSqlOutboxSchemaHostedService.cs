@@ -15,6 +15,9 @@ namespace LiteBus.Outbox.PostgreSql.Extensions.Microsoft.Hosting;
 /// </remarks>
 public sealed class PostgreSqlOutboxSchemaHostedService : IHostedService
 {
+    /// <summary>
+    ///     The registered outbox store configuration consumed during host startup.
+    /// </summary>
     private readonly PostgreSqlOutboxStoreRegistration _registration;
 
     /// <summary>

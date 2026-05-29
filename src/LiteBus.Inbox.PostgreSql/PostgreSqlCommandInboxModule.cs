@@ -10,6 +10,9 @@ namespace LiteBus.Inbox.PostgreSql;
 /// </summary>
 public sealed class PostgreSqlCommandInboxModule : IModule
 {
+    /// <summary>
+    ///     The module builder action supplied at registration time.
+    /// </summary>
     private readonly Action<PostgreSqlCommandInboxModuleBuilder> _builder;
 
     /// <summary>

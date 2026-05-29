@@ -13,6 +13,9 @@ namespace LiteBus.PostgreSql;
 /// </remarks>
 public static class PostgreSqlSchemaSqlPaths
 {
+    /// <summary>
+    ///     The repository-relative root folder for canonical SQL files in this package.
+    /// </summary>
     private const string Root = "src/LiteBus.PostgreSql/Sql/";
 
     /// <summary>
@@ -66,10 +69,33 @@ public static class PostgreSqlSchemaSqlPaths
 /// </summary>
 internal static class PostgreSqlSchemaEmbeddedSql
 {
+    /// <summary>
+    ///     Embedded resource path for metadata table creation SQL.
+    /// </summary>
     internal const string MetadataCreate = "metadata/create.sql";
+
+    /// <summary>
+    ///     Embedded resource path for metadata version lookup SQL.
+    /// </summary>
     internal const string MetadataSelectVersion = "metadata/select_version.sql";
+
+    /// <summary>
+    ///     Embedded resource path for metadata version upsert SQL.
+    /// </summary>
     internal const string MetadataUpsertVersion = "metadata/upsert_version.sql";
+
+    /// <summary>
+    ///     Embedded resource path for table existence inspection SQL.
+    /// </summary>
     internal const string InspectorTableExists = "inspector/table_exists.sql";
+
+    /// <summary>
+    ///     Embedded resource path for column listing inspection SQL.
+    /// </summary>
     internal const string InspectorListColumns = "inspector/list_columns.sql";
+
+    /// <summary>
+    ///     Embedded resource path for the shared trace context column upgrade SQL.
+    /// </summary>
     internal const string SharedAddTraceContextColumn = "shared/add_trace_context_column.sql";
 }

@@ -9,6 +9,9 @@ namespace LiteBus.Inbox.Extensions.Microsoft.Hosting;
 /// </summary>
 public sealed class CommandInboxProcessorHostingModule : IModule, IRequires<CommandInboxModule>
 {
+    /// <summary>
+    ///     Gets the optional callback that configures poll interval, startup delay, and adaptive polling.
+    /// </summary>
     private readonly Action<CommandInboxProcessorHostOptions>? _configure;
 
     /// <summary>

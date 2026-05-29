@@ -12,6 +12,9 @@ namespace LiteBus.Runtime.Dependencies;
 /// </summary>
 public sealed class DependencyRegistry : IDependencyRegistry
 {
+    /// <summary>
+    ///     Stores unique dependency descriptors registered through this registry.
+    /// </summary>
     private readonly HashSet<DependencyDescriptor> _descriptors = [];
 
     /// <summary>

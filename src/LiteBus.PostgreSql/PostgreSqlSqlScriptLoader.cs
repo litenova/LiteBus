@@ -10,7 +10,7 @@ namespace LiteBus.PostgreSql;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         SQL files under each package's <c>Sql/</c> folder are included as <see cref="EmbeddedResource" /> items at
+///         SQL files under each package's <c>Sql/</c> folder are included as embedded resources at
 ///         build time. The manifest name follows
 ///         <c>{AssemblyName}.Sql.{relative.path.with.dots}.sql</c>, for example
 ///         <c>LiteBus.Inbox.PostgreSql.Sql.inbox.v1.create.sql</c>.

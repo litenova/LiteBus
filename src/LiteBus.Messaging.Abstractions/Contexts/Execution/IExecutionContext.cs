@@ -46,7 +46,7 @@ public interface IExecutionContext
     IReadOnlyCollection<string> Tags { get; }
 
     /// <summary>
-    ///     The result of the message mediation.
+    ///     Gets or sets the result of the message mediation.
     /// </summary>
     /// <remarks>
     ///     This property can be set by handlers to provide a result for the mediation operation.

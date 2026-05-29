@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -23,10 +23,14 @@ namespace LiteBus.Messaging.Registry;
 /// </remarks>
 internal sealed class MessageRegistry : IMessageRegistry
 {
-    // Message descriptors grouped by message type.
+    /// <summary>
+    ///     Message descriptors that have completed registration and handler linking.
+    /// </summary>
     private readonly List<MessageDescriptor> _committedMessages = [];
 
-    // Handler descriptor builders for analyzing types.
+    /// <summary>
+    ///     Builders that discover handler descriptors from registered CLR types.
+    /// </summary>
     private readonly List<IHandlerDescriptorBuilder> _descriptorBuilders =
     [
         new HandlerDescriptorBuilder(),
@@ -35,17 +39,29 @@ internal sealed class MessageRegistry : IMessageRegistry
         new PreHandlerDescriptorBuilder()
     ];
 
-    // Handler descriptors in registration order for indexed access.
+    /// <summary>
+    ///     Handler descriptors in registration order for module incremental DI registration.
+    /// </summary>
     private readonly List<IHandlerDescriptor> _handlerDescriptorsInOrder = [];
 
-    // Lock for thread safety during collection modifications.
+    /// <summary>
+    ///     Synchronizes mutations to registry collections and processed-type tracking.
+    /// </summary>
     private readonly object _lock = new();
+
+    /// <summary>
+    ///     Message descriptors discovered during the current registration pass before commit.
+    /// </summary>
     private readonly List<MessageDescriptor> _pendingMessages = [];
 
-    // Open generic handler types for JIT resolution (e.g., GenericValidator<T> : ICommandPreHandler<T>).
+    /// <summary>
+    ///     Open generic handler definitions waiting to be closed over concrete message types.
+    /// </summary>
     private readonly List<Type> _openGenericHandlers = [];
 
-    // Cache for processed types to avoid duplicate analysis.
+    /// <summary>
+    ///     Tracks CLR types already analyzed to prevent duplicate registration work.
+    /// </summary>
     private readonly ConcurrentDictionary<Type, byte> _processedTypes = new();
 
     /// <inheritdoc />
@@ -350,12 +366,21 @@ internal sealed class MessageRegistry : IMessageRegistry
         return true;
     }
 
+    /// <summary>
+    ///     Determines whether a message type belongs to the BCL <c>System</c> namespace and should be ignored.
+    /// </summary>
+    /// <param name="messageType">The candidate message type.</param>
+    /// <returns><see langword="true" /> when the type is in <c>System</c> or <c>System.*</c>; otherwise, <see langword="false" />.</returns>
     private static bool IsSystemNamespace(Type messageType)
     {
         return messageType.Namespace is "System" ||
                messageType.Namespace?.StartsWith("System.", StringComparison.Ordinal) == true;
     }
 
+    /// <summary>
+    ///     Validates that an open generic handler exposes exactly one type parameter for message closing.
+    /// </summary>
+    /// <param name="openGenericHandlerType">The open generic handler type definition.</param>
     private static void ThrowIfOpenGenericHandlerShapeIsUnsupported(Type openGenericHandlerType)
     {
         var typeParams = openGenericHandlerType.GetGenericArguments();

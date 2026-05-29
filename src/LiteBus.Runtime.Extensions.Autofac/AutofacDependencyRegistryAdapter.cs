@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using Autofac;
@@ -14,7 +14,14 @@ namespace LiteBus.Runtime.Extensions.Autofac;
 /// </summary>
 internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
 {
+    /// <summary>
+    ///     The Autofac container builder receiving LiteBus dependency registrations.
+    /// </summary>
     private readonly ContainerBuilder _builder;
+
+    /// <summary>
+    ///     Tracks descriptors already translated into Autofac registrations.
+    /// </summary>
     private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
 
     /// <summary>

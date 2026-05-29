@@ -19,7 +19,7 @@ public readonly record struct ModuleDescriptor(
     public Type ModuleType => Module.GetType();
 
     /// <summary>
-    ///     Determines whether this module has any dependencies.
+    ///     Gets a value indicating whether this module has any dependencies.
     /// </summary>
     public bool HasDependencies => Dependencies.Count > 0;
 

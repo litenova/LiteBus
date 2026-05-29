@@ -12,6 +12,9 @@ namespace LiteBus.Outbox.Extensions.Microsoft.Hosting;
 /// </summary>
 public sealed class OutboxProcessorHealthCheck : IHealthCheck
 {
+    /// <summary>
+    ///     Gets the host state used to evaluate health.
+    /// </summary>
     private readonly OutboxProcessorHostState _state;
 
     /// <summary>

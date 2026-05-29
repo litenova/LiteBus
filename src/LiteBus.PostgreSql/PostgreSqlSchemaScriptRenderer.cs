@@ -8,6 +8,12 @@ namespace LiteBus.PostgreSql;
 /// </summary>
 internal static class PostgreSqlSchemaScriptRenderer
 {
+    /// <summary>
+    ///     Replaces every <c>{{TokenName}}</c> placeholder in a SQL template.
+    /// </summary>
+    /// <param name="template">The SQL template text.</param>
+    /// <param name="tokens">The placeholder values keyed by token name without braces.</param>
+    /// <returns>The rendered SQL batch with trailing whitespace removed.</returns>
     internal static string Render(string template, IReadOnlyDictionary<string, string> tokens)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(template);

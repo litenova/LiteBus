@@ -57,6 +57,9 @@ public interface IHandleContextData
 /// </remarks>
 public class HandleContextData : IHandleContextData
 {
+    /// <summary>
+    ///     Stores context values keyed by their CLR type.
+    /// </summary>
     private readonly Dictionary<Type, object> _data = new();
 
     /// <inheritdoc />

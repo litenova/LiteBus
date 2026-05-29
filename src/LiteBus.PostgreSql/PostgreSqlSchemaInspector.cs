@@ -13,11 +13,19 @@ namespace LiteBus.PostgreSql;
 /// </summary>
 internal static class PostgreSqlSchemaInspector
 {
+    /// <summary>
+    ///     The assembly that embeds shared PostgreSQL schema inspection SQL resources.
+    /// </summary>
     private static readonly Assembly Assembly = typeof(PostgreSqlSchemaInspector).Assembly;
 
     /// <summary>
     ///     Returns <see langword="true" /> when the table exists in the supplied schema.
     /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="schemaName">The unquoted schema name.</param>
+    /// <param name="tableName">The unquoted table name.</param>
+    /// <param name="cancellationToken">A token used to cancel the lookup.</param>
+    /// <returns><see langword="true" /> when the table exists; otherwise, <see langword="false" />.</returns>
     public static async Task<bool> TableExistsAsync(
         NpgsqlConnection connection,
         string schemaName,
@@ -41,6 +49,11 @@ internal static class PostgreSqlSchemaInspector
     /// <summary>
     ///     Returns the set of column names defined on the table.
     /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="schemaName">The unquoted schema name.</param>
+    /// <param name="tableName">The unquoted table name.</param>
+    /// <param name="cancellationToken">A token used to cancel the lookup.</param>
+    /// <returns>The column names present on the table.</returns>
     public static async Task<HashSet<string>> GetColumnNamesAsync(
         NpgsqlConnection connection,
         string schemaName,
@@ -72,6 +85,9 @@ internal static class PostgreSqlSchemaInspector
     /// <summary>
     ///     Returns the highest schema version inferred from the columns present on the table.
     /// </summary>
+    /// <param name="columns">The column names present on the table.</param>
+    /// <param name="versionColumns">The ordered column groups introduced by each schema version.</param>
+    /// <returns>The highest schema version whose required columns are all present.</returns>
     public static int InferVersionFromColumns(IReadOnlyCollection<string> columns, IReadOnlyList<IReadOnlyList<string>> versionColumns)
     {
         ArgumentNullException.ThrowIfNull(columns);
@@ -100,6 +116,9 @@ internal static class PostgreSqlSchemaInspector
     /// <summary>
     ///     Validates that all required columns for the supplied schema version exist.
     /// </summary>
+    /// <param name="columns">The column names present on the table.</param>
+    /// <param name="requiredColumns">The columns required for the target schema version.</param>
+    /// <param name="missingColumns">The required columns that are absent from the table.</param>
     public static void ValidateRequiredColumns(
         IReadOnlyCollection<string> columns,
         IReadOnlyList<string> requiredColumns,
@@ -121,6 +140,12 @@ internal static class PostgreSqlSchemaInspector
         missingColumns = missing;
     }
 
+    /// <summary>
+    ///     Returns the cumulative column set required through the requested schema version.
+    /// </summary>
+    /// <param name="versionColumnSets">The ordered column groups introduced by each schema version.</param>
+    /// <param name="version">The target schema version.</param>
+    /// <returns>The required column names for versions 1 through <paramref name="version" />.</returns>
     internal static IReadOnlyList<string> GetRequiredColumns(
         IReadOnlyList<IReadOnlyList<string>> versionColumnSets,
         int version)

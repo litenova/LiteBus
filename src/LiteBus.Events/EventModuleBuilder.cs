@@ -11,6 +11,9 @@ namespace LiteBus.Events;
 /// </summary>
 public sealed class EventModuleBuilder
 {
+    /// <summary>
+    ///     Gets the message registry to which event types are registered.
+    /// </summary>
     private readonly IMessageRegistry _messageRegistry;
 
     /// <summary>

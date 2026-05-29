@@ -10,11 +10,33 @@ namespace LiteBus.PostgreSql;
 /// </summary>
 internal sealed class PostgreSqlAdvisoryLockScope : IAsyncDisposable
 {
+    /// <summary>
+    ///     The open connection that holds the advisory lock for the lifetime of this scope.
+    /// </summary>
     private readonly NpgsqlConnection _connection;
+
+    /// <summary>
+    ///     The first PostgreSQL advisory lock key passed to <c>pg_try_advisory_lock</c>.
+    /// </summary>
     private readonly int _key1;
+
+    /// <summary>
+    ///     The second PostgreSQL advisory lock key passed to <c>pg_try_advisory_lock</c>.
+    /// </summary>
     private readonly int _key2;
+
+    /// <summary>
+    ///     Indicates whether this scope successfully acquired the lock and must release it on disposal.
+    /// </summary>
     private bool _acquired;
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="PostgreSqlAdvisoryLockScope" /> class.
+    /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="key1">The first advisory lock key.</param>
+    /// <param name="key2">The second advisory lock key.</param>
+    /// <param name="acquired">Whether the lock was acquired.</param>
     private PostgreSqlAdvisoryLockScope(NpgsqlConnection connection, int key1, int key2, bool acquired)
     {
         _connection = connection;
@@ -109,6 +131,11 @@ internal sealed class PostgreSqlAdvisoryLockScope : IAsyncDisposable
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
 
+    /// <summary>
+    ///     Derives a stable two-part advisory lock key from a logical lock name.
+    /// </summary>
+    /// <param name="lockKey">The logical lock name supplied by schema bootstrap code.</param>
+    /// <returns>The key pair passed to PostgreSQL advisory lock functions.</returns>
     internal static (int Key1, int Key2) CreateLockKeys(string lockKey)
     {
         var hash = PostgreSqlIdentifier.StableHash(lockKey);

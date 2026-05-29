@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - Message registry namespace filtering now skips only `System` and `System.*` namespaces.
 - Unsupported open generic handler shapes now throw `UnsupportedOpenGenericHandlerException`.
 - Durable contract registration now supports closed generic message types and rejects open generic message types.
+- Persisted contract registration and resolution now use `IMessageContractRegistry` only (`Register`, `GetContract`, `GetMessageType`).
 - Closed generic messages with concrete handlers now resolve the registered handler type without closing it again.
 - The repository now uses `LiteBus.slnx` instead of `LiteBus.sln`.
 - CI workflows now restore, build, and test `LiteBus.slnx`, and report Docker availability before PostgreSQL Testcontainers tests.
@@ -32,6 +33,9 @@ All notable changes to this project will be documented in this file.
 - Added `PostgreSqlInboxSchema` / `PostgreSqlOutboxSchema` APIs: `GetCreateScript`, `GetUpgradeScript`, `EnsureAsync`, and `ValidateAsync`.
 - Added `LiteBus.Inbox.PostgreSql.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.PostgreSql.Extensions.Microsoft.Hosting` for opt-in schema bootstrap on generic host startup.
 - Added `LiteBus.Inbox.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.Extensions.Microsoft.Hosting` for optional generic-host processor loops and health checks.
+- Added `LiteBus.PostgreSql.IntegrationTests` with Testcontainers coverage for inbox/outbox stores, schema bootstrap and upgrades, drift validation, module registration, and end-to-end processor flows.
+- Added `AGENTS.md`, `src/.editorconfig`, and StyleCop documentation analyzers (`GenerateDocumentationFile`) for all `src/` projects.
+- Added XML documentation on all library types, members, and private/internal fields under `src/`.
 
 ### Removed
 
@@ -40,6 +44,7 @@ All notable changes to this project will be documented in this file.
 - Removed `LiteBus.Inbox.Extensions.Autofac` and `LiteBus.Outbox.Extensions.Autofac` because hosting registration lives in the Microsoft hosting extension packages (Autofac apps use the same hosting modules through the runtime adapter).
 - Removed `IIdentifiedIntegrationEvent`; event identity now belongs to outbox envelope options.
 - Removed inbox/outbox processor host interfaces and `UseProcessorHost`; hosting is configured through `AddCommandInboxProcessorHosting` / `AddOutboxProcessorHosting` on the hosting extension packages.
+- Removed `IMessageContractRegistrar`; contract registration is part of `IMessageContractRegistry`.
 
 ### Changed (hosting)
 
@@ -53,6 +58,11 @@ All notable changes to this project will be documented in this file.
 - Added durable outbox docs for writer, processor, dispatcher, PostgreSQL storage, and transaction boundaries.
 - Added [PostgreSQL Schema Management](docs/PostgreSQL-Schema-Management.md) covering migration-owned DDL, explicit bootstrap, opt-in host bootstrap, multi-instance safety, and future upgrade paths.
 - Added architecture, dependency graph, and v5 migration docs.
+- Added `AGENTS.md` and Cursor rules for XML documentation standards on `src/**/*.cs`.
+
+### Improved
+
+- Expanded PostgreSQL integration tests and fixed cross-test isolation for parallel CI runs.
 
 ## v4.4.0
 

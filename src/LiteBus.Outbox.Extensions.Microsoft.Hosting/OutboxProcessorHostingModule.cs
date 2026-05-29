@@ -9,6 +9,9 @@ namespace LiteBus.Outbox.Extensions.Microsoft.Hosting;
 /// </summary>
 public sealed class OutboxProcessorHostingModule : IModule, IRequires<OutboxModule>
 {
+    /// <summary>
+    ///     Gets the optional callback that configures poll interval, startup delay, and adaptive polling.
+    /// </summary>
     private readonly Action<OutboxProcessorHostOptions>? _configure;
 
     /// <summary>

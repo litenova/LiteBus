@@ -22,11 +22,34 @@ namespace LiteBus.Outbox;
 /// </remarks>
 public sealed class OutboxProcessor : IOutboxProcessor
 {
+    /// <summary>
+    ///     Gets the time provider used for leasing and retry timestamps.
+    /// </summary>
     private readonly TimeProvider _clock;
+
+    /// <summary>
+    ///     Gets the dispatcher used to publish leased messages.
+    /// </summary>
     private readonly IOutboxDispatcher _dispatcher;
+
+    /// <summary>
+    ///     Gets the lease owner name assigned to messages claimed by this processor instance.
+    /// </summary>
     private readonly string _leaseOwner;
+
+    /// <summary>
+    ///     Gets the batch, lease, owner, and retry settings for this processor instance.
+    /// </summary>
     private readonly OutboxProcessorOptions _options;
+
+    /// <summary>
+    ///     Gets the store role used to lease due messages.
+    /// </summary>
     private readonly IOutboxMessageLeaseStore _leaseStore;
+
+    /// <summary>
+    ///     Gets the store role used to record publication results.
+    /// </summary>
     private readonly IOutboxMessageStateStore _stateStore;
 
     /// <summary>
@@ -95,6 +118,7 @@ public sealed class OutboxProcessor : IOutboxProcessor
     /// </summary>
     /// <param name="message">The leased outbox message returned by the store.</param>
     /// <param name="cancellationToken">A token used to cancel dispatch or the state update.</param>
+    /// <returns>A task that represents the asynchronous dispatch and state update.</returns>
     private async Task ProcessMessageAsync(OutboxMessageEnvelope message, CancellationToken cancellationToken)
     {
         try
@@ -114,6 +138,7 @@ public sealed class OutboxProcessor : IOutboxProcessor
     /// <param name="message">The outbox message that failed during this attempt.</param>
     /// <param name="exception">The exception captured from dispatch.</param>
     /// <param name="cancellationToken">A token used to cancel the state update.</param>
+    /// <returns>A task that represents the asynchronous retry or dead-letter state update.</returns>
     private Task MarkFailedAsync(OutboxMessageEnvelope message, Exception exception, CancellationToken cancellationToken)
     {
         var error = MessageProcessorDiagnostics.FormatError(exception);

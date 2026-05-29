@@ -15,6 +15,9 @@ namespace LiteBus.Inbox.PostgreSql.Extensions.Microsoft.Hosting;
 /// </remarks>
 public sealed class PostgreSqlInboxSchemaHostedService : IHostedService
 {
+    /// <summary>
+    ///     The registered inbox store configuration consumed during host startup.
+    /// </summary>
     private readonly PostgreSqlInboxStoreRegistration _registration;
 
     /// <summary>

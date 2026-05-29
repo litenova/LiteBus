@@ -97,7 +97,8 @@ public sealed class PostgreSqlOutboxModuleBuilder
     /// </summary>
     /// <returns>The current builder.</returns>
     /// <remarks>
-    ///     Requires <see cref="Extensions.Microsoft.Hosting.ModuleRegistryHostingExtensions.AddPostgreSqlOutboxSchemaHosting" />.
+    ///     Requires <c>AddPostgreSqlOutboxSchemaHosting</c> from
+    ///     <c>LiteBus.Outbox.PostgreSql.Extensions.Microsoft.Hosting</c>.
     ///     Register schema hosting before outbox processor hosting.
     /// </remarks>
     public PostgreSqlOutboxModuleBuilder EnsureSchemaCreationOnStartup()

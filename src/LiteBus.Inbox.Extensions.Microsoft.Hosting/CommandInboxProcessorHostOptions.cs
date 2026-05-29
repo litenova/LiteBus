@@ -14,7 +14,7 @@ namespace LiteBus.Inbox.Extensions.Microsoft.Hosting;
 public sealed class CommandInboxProcessorHostOptions
 {
     /// <summary>
-    ///     Gets or sets a value that indicates whether the hosted processor loop is enabled.
+    ///     Gets or sets a value indicating whether the hosted processor loop is enabled.
     /// </summary>
     public bool Enabled { get; set; } = true;
 
@@ -29,7 +29,7 @@ public sealed class CommandInboxProcessorHostOptions
     public TimeSpan StartupDelay { get; set; } = TimeSpan.Zero;
 
     /// <summary>
-    ///     Gets or sets a value that indicates whether the host should poll again immediately when the previous pass
+    ///     Gets or sets a value indicating whether the host should poll again immediately when the previous pass
     ///     leased a full batch, which usually means more due commands may still be waiting.
     /// </summary>
     public bool UseAdaptivePolling { get; set; } = true;

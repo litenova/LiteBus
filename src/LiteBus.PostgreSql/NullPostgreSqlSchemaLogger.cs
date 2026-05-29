@@ -12,6 +12,9 @@ public sealed class NullPostgreSqlSchemaLogger : IPostgreSqlSchemaLogger
     /// </summary>
     public static NullPostgreSqlSchemaLogger Instance { get; } = new();
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="NullPostgreSqlSchemaLogger" /> class.
+    /// </summary>
     private NullPostgreSqlSchemaLogger()
     {
     }

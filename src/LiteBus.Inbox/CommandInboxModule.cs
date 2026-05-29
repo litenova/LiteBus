@@ -11,6 +11,9 @@ namespace LiteBus.Inbox;
 /// </summary>
 public sealed class CommandInboxModule : IModule
 {
+    /// <summary>
+    ///     Gets the module builder callback invoked during <see cref="Build" />.
+    /// </summary>
     private readonly Action<CommandInboxModuleBuilder> _builder;
 
     /// <summary>
@@ -34,10 +37,6 @@ public sealed class CommandInboxModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageContractRegistry),
-            contractRegistry));
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IMessageContractRegistrar),
             contractRegistry));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

@@ -6,6 +6,7 @@
         <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.0"/>
         <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0"/>
         <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.300" PrivateAssets="All"/>
+        <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556"/>
         <PackageVersion Include="Npgsql" Version="9.0.4"/>
     </ItemGroup>
 </Project>

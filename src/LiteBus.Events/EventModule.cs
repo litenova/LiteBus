@@ -13,6 +13,9 @@ namespace LiteBus.Events;
 /// </summary>
 public sealed class EventModule : IModule
 {
+    /// <summary>
+    ///     Gets the configuration action invoked when the module is built.
+    /// </summary>
     private readonly Action<EventModuleBuilder> _builder;
 
     /// <summary>

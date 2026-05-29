@@ -13,6 +13,9 @@ namespace LiteBus.Commands;
 /// </summary>
 public sealed class CommandModule : IModule
 {
+    /// <summary>
+    ///     Gets the configuration action invoked when the module is built.
+    /// </summary>
     private readonly Action<CommandModuleBuilder> _builder;
 
     /// <summary>

@@ -10,6 +10,13 @@ namespace LiteBus.Inbox.PostgreSql;
 /// </remarks>
 internal static class PostgreSqlInboxSchemaEmbeddedSql
 {
+    /// <summary>
+    ///     Embedded resource path for version 1 inbox table creation SQL.
+    /// </summary>
     internal const string V1Create = "inbox/v1/create.sql";
+
+    /// <summary>
+    ///     Embedded resource path for inbox index ensure SQL.
+    /// </summary>
     internal const string V1EnsureIndexes = "inbox/v1/ensure_indexes.sql";
 }

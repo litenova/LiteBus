@@ -12,24 +12,23 @@ namespace LiteBus.Outbox;
 ///     choose processor defaults through <see cref="UseProcessorOptions" />, and opt in to local LiteBus event dispatch
 ///     through <see cref="UseLiteBusEventDispatcher" /> when the outbox should replay events into in-process handlers.
 ///     Broker dispatchers can register their own <see cref="IOutboxDispatcher" /> instead.
-///     Background processing is configured separately through
-///     <see cref="Extensions.Microsoft.Hosting.ModuleRegistryHostingExtensions.AddOutboxProcessorHosting" />.
+///     Background processing is configured separately through `AddOutboxProcessorHosting`.
 /// </remarks>
 public sealed class OutboxModuleBuilder
 {
     /// <summary>
     ///     Initializes a new instance of the <see cref="OutboxModuleBuilder" /> class.
     /// </summary>
-    /// <param name="contracts">The message contract registrar.</param>
-    public OutboxModuleBuilder(IMessageContractRegistrar contracts)
+    /// <param name="contracts">The message contract registry.</param>
+    public OutboxModuleBuilder(IMessageContractRegistry contracts)
     {
         Contracts = contracts ?? throw new ArgumentNullException(nameof(contracts));
     }
 
     /// <summary>
-    ///     Gets the message contract registrar shared with the messaging module.
+    ///     Gets the message contract registry shared with the messaging module.
     /// </summary>
-    public IMessageContractRegistrar Contracts { get; }
+    public IMessageContractRegistry Contracts { get; }
 
     /// <summary>
     ///     Gets the outbox processor options that will be registered for <see cref="IOutboxProcessor" />.
@@ -37,7 +36,7 @@ public sealed class OutboxModuleBuilder
     public OutboxProcessorOptions ProcessorOptions { get; private set; } = new();
 
     /// <summary>
-    ///     Gets a value that indicates whether the in-process LiteBus event dispatcher should be registered.
+    ///     Gets a value indicating whether the in-process LiteBus event dispatcher should be registered.
     /// </summary>
     public bool RegisterLiteBusEventDispatcher { get; private set; }
 

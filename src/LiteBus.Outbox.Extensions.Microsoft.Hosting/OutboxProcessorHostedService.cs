@@ -13,11 +13,34 @@ namespace LiteBus.Outbox.Extensions.Microsoft.Hosting;
 /// </summary>
 public sealed class OutboxProcessorHostedService : BackgroundService
 {
+    /// <summary>
+    ///     Gets the time provider used to record pass timestamps.
+    /// </summary>
     private readonly TimeProvider _clock;
+
+    /// <summary>
+    ///     Gets the loop timing and adaptive polling options for the hosted processor.
+    /// </summary>
     private readonly OutboxProcessorHostOptions _hostOptions;
+
+    /// <summary>
+    ///     Gets the outbox processor that performs each pass.
+    /// </summary>
     private readonly IOutboxProcessor _processor;
+
+    /// <summary>
+    ///     Gets the batch and lease options used to interpret adaptive polling.
+    /// </summary>
     private readonly OutboxProcessorOptions _processorOptions;
+
+    /// <summary>
+    ///     Gets the application service provider used for startup validation.
+    /// </summary>
     private readonly IServiceProvider _serviceProvider;
+
+    /// <summary>
+    ///     Gets the mutable host state published to health checks.
+    /// </summary>
     private readonly OutboxProcessorHostState _state;
 
     /// <summary>
@@ -84,6 +107,14 @@ public sealed class OutboxProcessorHostedService : BackgroundService
         }
     }
 
+    /// <summary>
+    ///     Determines whether the host should wait for <see cref="OutboxProcessorHostOptions.PollInterval" />
+    ///     before the next processing pass.
+    /// </summary>
+    /// <param name="passResult">The result from the pass that just completed.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the host should delay before leasing again; otherwise <see langword="false" />.
+    /// </returns>
     private bool ShouldDelayAfterPass(ProcessorPassResult passResult)
     {
         if (_hostOptions.PollInterval <= TimeSpan.Zero)

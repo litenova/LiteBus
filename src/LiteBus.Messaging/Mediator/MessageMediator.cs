@@ -18,7 +18,14 @@ namespace LiteBus.Messaging.Mediator;
 /// </remarks>
 internal sealed class MessageMediator : IMessageMediator
 {
+    /// <summary>
+    ///     The message registry used to resolve message descriptors during mediation.
+    /// </summary>
     private readonly IMessageRegistry _messageRegistry;
+
+    /// <summary>
+    ///     The service provider used to resolve handler instances and dependencies.
+    /// </summary>
     private readonly IServiceProvider _serviceProvider;
 
     /// <summary>

@@ -12,6 +12,9 @@ namespace LiteBus.Inbox.Extensions.Microsoft.Hosting;
 /// </summary>
 public sealed class CommandInboxProcessorHealthCheck : IHealthCheck
 {
+    /// <summary>
+    ///     Gets the host state used to evaluate health.
+    /// </summary>
     private readonly CommandInboxProcessorHostState _state;
 
     /// <summary>

@@ -47,7 +47,7 @@ public sealed class MediateOptions<TMessage, TMessageResult> where TMessage : no
     public required IEnumerable<string> Tags { get; init; }
 
     /// <summary>
-    ///     Gets or initializes a value indicating whether to register plain messages on the spot.
+    ///     Gets a value indicating whether plain messages are registered on the spot.
     /// </summary>
     /// <remarks>
     ///     Plain messages are messages that do not implement any specific message interfaces.

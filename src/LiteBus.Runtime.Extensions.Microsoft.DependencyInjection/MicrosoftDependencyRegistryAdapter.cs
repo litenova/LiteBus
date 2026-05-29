@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using LiteBus.Runtime.Abstractions;
@@ -13,7 +13,14 @@ namespace LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 /// </summary>
 internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
 {
+    /// <summary>
+    ///     Tracks descriptors already translated into Microsoft DI service registrations.
+    /// </summary>
     private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
+
+    /// <summary>
+    ///     The service collection receiving LiteBus dependency registrations.
+    /// </summary>
     private readonly IServiceCollection _services;
 
     /// <summary>

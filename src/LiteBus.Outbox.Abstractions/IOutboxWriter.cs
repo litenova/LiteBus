@@ -17,7 +17,7 @@ namespace LiteBus.Outbox.Abstractions;
 ///         integration events because its generic constraint makes the external publication boundary explicit.
 ///     </para>
 ///     <para>
-///         Register each stored event type in `IMessageContractRegistrar` with a stable name and version. Closed generic
+///         Register each stored event type in `IMessageContractRegistry` with a stable name and version. Closed generic
 ///         event types are supported when each closed shape is registered. Open generic contract definitions are rejected.
 ///     </para>
 /// </remarks>

@@ -13,6 +13,9 @@ namespace LiteBus.Queries;
 /// </summary>
 public sealed class QueryModule : IModule
 {
+    /// <summary>
+    ///     Gets the configuration action invoked when the module is built.
+    /// </summary>
     private readonly Action<QueryModuleBuilder> _builder;
 
     /// <summary>

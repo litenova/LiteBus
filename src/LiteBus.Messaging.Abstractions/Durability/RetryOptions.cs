@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -39,7 +39,7 @@ public sealed record RetryOptions
     public RetryBackoff Backoff { get; init; } = RetryBackoff.Exponential;
 
     /// <summary>
-    ///     Gets a value that indicates whether retry delays include jitter. Jitter reduces repeated collisions when many
+    ///     Gets a value indicating whether retry delays include jitter. Jitter reduces repeated collisions when many
     ///     messages fail at the same time.
     /// </summary>
     public bool UseJitter { get; init; } = true;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Mediator;
@@ -13,6 +13,9 @@ namespace LiteBus.Messaging;
 /// </summary>
 public sealed class MessageModule : IModule
 {
+    /// <summary>
+    ///     The configuration callback invoked while the messaging module is built.
+    /// </summary>
     private readonly Action<MessageModuleBuilder> _builder;
 
     /// <summary>
@@ -49,6 +52,7 @@ public sealed class MessageModule : IModule
     /// </summary>
     /// <param name="configuration">The module configuration.</param>
     /// <param name="messageRegistry">The message registry instance.</param>
+    /// <param name="messageContractRegistry">The message contract registry instance.</param>
     private static void RegisterMessagingServices(
         IModuleConfiguration configuration,
         IMessageRegistry messageRegistry,
@@ -61,10 +65,6 @@ public sealed class MessageModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageContractRegistry),
-            messageContractRegistry));
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IMessageContractRegistrar),
             messageContractRegistry));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

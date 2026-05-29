@@ -10,6 +10,9 @@ namespace LiteBus.Inbox.PostgreSql;
 /// </remarks>
 public static class PostgreSqlInboxSchemaSqlPaths
 {
+    /// <summary>
+    ///     The repository-relative root folder for canonical SQL files in this package.
+    /// </summary>
     private const string Root = "src/LiteBus.Inbox.PostgreSql/Sql/";
 
     /// <summary>

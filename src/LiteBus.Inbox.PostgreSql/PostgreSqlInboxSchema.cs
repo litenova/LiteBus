@@ -119,6 +119,7 @@ public static class PostgreSqlInboxSchema
     /// <param name="dataSource">The PostgreSQL data source.</param>
     /// <param name="options">The schema and table options.</param>
     /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>A task that completes when the schema reaches the expected version.</returns>
     /// <remarks>
     ///     The operation is idempotent and safe to run from multiple application instances. One instance acquires a
     ///     PostgreSQL advisory lock while applying upgrades; the others wait until the schema reaches the expected version.
@@ -154,6 +155,7 @@ public static class PostgreSqlInboxSchema
     /// <param name="dataSource">The PostgreSQL data source.</param>
     /// <param name="options">The schema and table options. Defaults create <c>public.litebus_inbox_commands</c>.</param>
     /// <param name="cancellationToken">A token used to cancel the database command before it completes.</param>
+    /// <returns>A task that completes when the schema reaches the expected version.</returns>
     /// <remarks>
     ///     Prefer <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlInboxStoreOptions?, CancellationToken)" /> for new
     ///     code. This method delegates to <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlInboxStoreOptions?, CancellationToken)" />.
@@ -172,6 +174,7 @@ public static class PostgreSqlInboxSchema
     /// <param name="dataSource">The PostgreSQL data source.</param>
     /// <param name="options">The schema and table options.</param>
     /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>A task that completes when validation succeeds.</returns>
     /// <exception cref="PostgreSqlSchemaDriftException">
     ///     Thrown when the table is missing, incomplete, or recorded at an unexpected schema version.
     /// </exception>

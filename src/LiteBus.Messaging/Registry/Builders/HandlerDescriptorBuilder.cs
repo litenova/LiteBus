@@ -7,13 +7,18 @@ using LiteBus.Messaging.Registry.Descriptors;
 
 namespace LiteBus.Messaging.Registry.Builders;
 
+/// <summary>
+///     Discovers <see cref="IMainHandlerDescriptor" /> instances from main handler types.
+/// </summary>
 public sealed class HandlerDescriptorBuilder : IHandlerDescriptorBuilder
 {
+    /// <inheritdoc />
     public bool CanBuild(Type type)
     {
         return type.IsAssignableTo(typeof(IMessageHandler));
     }
 
+    /// <inheritdoc />
     public IEnumerable<IHandlerDescriptor> Build(Type handlerType)
     {
         var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessageHandler<,>));

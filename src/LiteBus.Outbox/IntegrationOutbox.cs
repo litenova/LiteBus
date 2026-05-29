@@ -17,6 +17,9 @@ namespace LiteBus.Outbox;
 /// </remarks>
 public sealed class IntegrationOutbox : IIntegrationOutbox
 {
+    /// <summary>
+    ///     Gets the outbox writer that performs serialization and storage.
+    /// </summary>
     private readonly IOutboxWriter _outboxWriter;
 
     /// <summary>

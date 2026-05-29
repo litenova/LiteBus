@@ -26,6 +26,7 @@ public interface IOutboxMessageStateStore
     /// </summary>
     /// <param name="messageId">The message identifier.</param>
     /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous status update.</returns>
     Task MarkPublishedAsync(Guid messageId, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -33,6 +34,7 @@ public interface IOutboxMessageStateStore
     /// </summary>
     /// <param name="failure">The failure details, including the message id, error text, and next visibility time.</param>
     /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous status update.</returns>
     Task MarkFailedAsync(OutboxMessageFailure failure, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -40,5 +42,6 @@ public interface IOutboxMessageStateStore
     /// </summary>
     /// <param name="deadLetter">The dead-letter details, including the message id and diagnostic reason.</param>
     /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous status update.</returns>
     Task MoveToDeadLetterAsync(OutboxMessageDeadLetter deadLetter, CancellationToken cancellationToken = default);
 }

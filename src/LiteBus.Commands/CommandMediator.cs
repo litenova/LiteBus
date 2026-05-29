@@ -12,10 +12,13 @@ namespace LiteBus.Commands;
 /// </summary>
 public sealed class CommandMediator : ICommandMediator
 {
+    /// <summary>
+    ///     Gets the core message mediator used to execute the command pipeline.
+    /// </summary>
     private readonly IMessageMediator _messageMediator;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="CommandMediator" />.
+    ///     Initializes a new instance of the <see cref="CommandMediator" /> class.
     /// </summary>
     /// <param name="messageMediator">The core message mediator for immediate command execution.</param>
     public CommandMediator(IMessageMediator messageMediator)

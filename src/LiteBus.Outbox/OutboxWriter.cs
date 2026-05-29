@@ -22,9 +22,24 @@ namespace LiteBus.Outbox;
 /// </remarks>
 public sealed class OutboxWriter : IOutboxWriter
 {
+    /// <summary>
+    ///     Gets the time provider used to stamp storage time.
+    /// </summary>
     private readonly TimeProvider _clock;
+
+    /// <summary>
+    ///     Gets the registry used to map the runtime event type to a stable contract.
+    /// </summary>
     private readonly IMessageContractRegistry _contractRegistry;
+
+    /// <summary>
+    ///     Gets the serializer used to create the serialized payload.
+    /// </summary>
     private readonly IMessageSerializer _messageSerializer;
+
+    /// <summary>
+    ///     Gets the outbox writer store used to persist newly accepted envelopes.
+    /// </summary>
     private readonly IOutboxMessageWriter _store;
 
     /// <summary>

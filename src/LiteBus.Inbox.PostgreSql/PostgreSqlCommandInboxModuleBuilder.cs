@@ -97,7 +97,8 @@ public sealed class PostgreSqlCommandInboxModuleBuilder
     /// </summary>
     /// <returns>The current builder.</returns>
     /// <remarks>
-    ///     Requires <see cref="Extensions.Microsoft.Hosting.ModuleRegistryHostingExtensions.AddPostgreSqlCommandInboxSchemaHosting" />.
+    ///     Requires <c>AddPostgreSqlCommandInboxSchemaHosting</c> from
+    ///     <c>LiteBus.Inbox.PostgreSql.Extensions.Microsoft.Hosting</c>.
     ///     Register schema hosting before inbox processor hosting.
     /// </remarks>
     public PostgreSqlCommandInboxModuleBuilder EnsureSchemaCreationOnStartup()

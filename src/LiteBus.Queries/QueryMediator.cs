@@ -6,16 +6,27 @@ using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.Queries;
 
-/// <inheritdoc cref="IQueryMediator" />
+/// <summary>
+///     The primary implementation of <see cref="IQueryMediator" />. It orchestrates the query execution
+///     pipeline for immediate, in-process query handling.
+/// </summary>
 public sealed class QueryMediator : IQueryMediator
 {
+    /// <summary>
+    ///     Gets the core message mediator used to execute the query pipeline.
+    /// </summary>
     private readonly IMessageMediator _messageMediator;
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="QueryMediator" /> class.
+    /// </summary>
+    /// <param name="messageMediator">The core message mediator for immediate query execution.</param>
     public QueryMediator(IMessageMediator messageMediator)
     {
         _messageMediator = messageMediator;
     }
 
+    /// <inheritdoc />
     public Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query,
                                                        QueryMediationSettings? queryMediationSettings = null,
                                                        CancellationToken cancellationToken = default)
@@ -35,6 +46,7 @@ public sealed class QueryMediator : IQueryMediator
             });
     }
 
+    /// <inheritdoc />
     public IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
                                                                     QueryMediationSettings? queryMediationSettings = null,
                                                                     CancellationToken cancellationToken = default)

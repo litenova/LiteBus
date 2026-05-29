@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,7 +26,14 @@ namespace LiteBus.Outbox.PostgreSql;
 /// </remarks>
 public sealed class PostgreSqlOutboxStore : IOutboxMessageWriter, IOutboxMessageLeaseStore, IOutboxMessageStateStore
 {
+    /// <summary>
+    ///     The PostgreSQL data source used to open commands against the outbox table.
+    /// </summary>
     private readonly NpgsqlDataSource _dataSource;
+
+    /// <summary>
+    ///     The quoted qualified outbox table name built from store options at construction time.
+    /// </summary>
     private readonly string _tableName;
 
     /// <summary>

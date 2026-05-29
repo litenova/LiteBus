@@ -42,7 +42,7 @@ public interface IAsyncMessagePostHandler<in TMessage> : IMessagePostHandler<TMe
     ///     asynchronous post-processing logic that can operate over the handled message.
     /// </summary>
     /// <param name="message">The handled message, serving as the input for any asynchronous post-processing actions.</param>
-    /// <param name="messageResult"></param>
+    /// <param name="messageResult">The result produced by the main handler before post-processing runs.</param>
     /// <param name="cancellationToken">
     ///     A token that can be used to request cancellation of the asynchronous operation,
     ///     facilitating the graceful termination of the post-handling process upon cancellation requests.

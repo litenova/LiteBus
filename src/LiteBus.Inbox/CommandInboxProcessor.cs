@@ -23,13 +23,44 @@ namespace LiteBus.Inbox;
 /// </remarks>
 public sealed class CommandInboxProcessor : Abstractions.ICommandInboxProcessor
 {
+    /// <summary>
+    ///     Gets the time provider used for leasing and retry timestamps.
+    /// </summary>
     private readonly TimeProvider _clock;
+
+    /// <summary>
+    ///     Gets the command mediator used to execute leased commands.
+    /// </summary>
     private readonly ICommandMediator _commandMediator;
+
+    /// <summary>
+    ///     Gets the registry used to resolve persisted contracts back to command types.
+    /// </summary>
     private readonly IMessageContractRegistry _contractRegistry;
+
+    /// <summary>
+    ///     Gets the lease owner name assigned to commands claimed by this processor instance.
+    /// </summary>
     private readonly string _leaseOwner;
+
+    /// <summary>
+    ///     Gets the serializer used to hydrate leased command payloads.
+    /// </summary>
     private readonly IMessageSerializer _messageSerializer;
+
+    /// <summary>
+    ///     Gets the batch, lease, owner, and retry settings for this processor instance.
+    /// </summary>
     private readonly CommandInboxProcessorOptions _options;
+
+    /// <summary>
+    ///     Gets the store role used to lease due commands.
+    /// </summary>
     private readonly ICommandInboxLeaseStore _leaseStore;
+
+    /// <summary>
+    ///     Gets the store role used to record command execution results.
+    /// </summary>
     private readonly ICommandInboxStateStore _stateStore;
 
     /// <summary>
@@ -104,6 +135,7 @@ public sealed class CommandInboxProcessor : Abstractions.ICommandInboxProcessor
     /// </summary>
     /// <param name="envelope">The leased command envelope returned by the store.</param>
     /// <param name="cancellationToken">A token used to cancel deserialization or command mediation.</param>
+    /// <returns>A task that represents the asynchronous command execution and state update.</returns>
     private async Task ProcessCommandAsync(InboxCommandEnvelope envelope, CancellationToken cancellationToken)
     {
         try
@@ -139,6 +171,7 @@ public sealed class CommandInboxProcessor : Abstractions.ICommandInboxProcessor
     /// <param name="envelope">The command envelope that failed during this attempt.</param>
     /// <param name="exception">The exception captured from command execution.</param>
     /// <param name="cancellationToken">A token used to cancel the state update.</param>
+    /// <returns>A task that represents the asynchronous retry or dead-letter state update.</returns>
     private Task MarkFailedAsync(InboxCommandEnvelope envelope, Exception exception, CancellationToken cancellationToken)
     {
         var error = MessageProcessorDiagnostics.FormatError(exception);

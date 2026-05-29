@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Messaging;

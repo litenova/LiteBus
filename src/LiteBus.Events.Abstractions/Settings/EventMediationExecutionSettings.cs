@@ -47,7 +47,7 @@ namespace LiteBus.Events.Abstractions;
 public sealed class EventMediationExecutionSettings
 {
     /// <summary>
-    ///     Gets or sets how different priority groups execute relative to each other.
+    ///     Gets or initializes how different priority groups execute relative to each other.
     /// </summary>
     /// <value>
     ///     A <see cref="ConcurrencyMode" /> value that determines whether priority groups
@@ -66,7 +66,7 @@ public sealed class EventMediationExecutionSettings
     public ConcurrencyMode PriorityGroupsConcurrencyMode { get; init; } = ConcurrencyMode.Sequential;
 
     /// <summary>
-    ///     Gets or sets how handlers within the same priority group execute.
+    ///     Gets or initializes how handlers within the same priority group execute.
     /// </summary>
     /// <value>
     ///     A <see cref="ConcurrencyMode" /> value that determines whether handlers

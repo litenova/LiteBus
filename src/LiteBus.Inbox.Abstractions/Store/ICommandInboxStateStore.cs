@@ -25,6 +25,7 @@ public interface ICommandInboxStateStore
     /// </summary>
     /// <param name="commandId">The command identifier.</param>
     /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous status update.</returns>
     Task MarkCompletedAsync(Guid commandId, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -32,6 +33,7 @@ public interface ICommandInboxStateStore
     /// </summary>
     /// <param name="failure">The failure details, including the command id, error text, and next visibility time.</param>
     /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous status update.</returns>
     Task MarkFailedAsync(InboxCommandFailure failure, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -39,5 +41,6 @@ public interface ICommandInboxStateStore
     /// </summary>
     /// <param name="deadLetter">The dead-letter details, including the command id and diagnostic reason.</param>
     /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous status update.</returns>
     Task MoveToDeadLetterAsync(InboxCommandDeadLetter deadLetter, CancellationToken cancellationToken = default);
 }

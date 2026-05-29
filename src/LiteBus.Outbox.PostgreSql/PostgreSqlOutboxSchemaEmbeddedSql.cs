@@ -10,6 +10,13 @@ namespace LiteBus.Outbox.PostgreSql;
 /// </remarks>
 internal static class PostgreSqlOutboxSchemaEmbeddedSql
 {
+    /// <summary>
+    ///     Embedded resource path for version 1 outbox table creation SQL.
+    /// </summary>
     internal const string V1Create = "outbox/v1/create.sql";
+
+    /// <summary>
+    ///     Embedded resource path for outbox index ensure SQL.
+    /// </summary>
     internal const string V1EnsureIndexes = "outbox/v1/ensure_indexes.sql";
 }

@@ -19,16 +19,17 @@ namespace LiteBus.Queries.Abstractions;
 /// </remarks>
 public interface IQueryValidator<in TQuery> : IQueryPreHandler<TQuery> where TQuery : IQuery
 {
+    /// <inheritdoc />
     Task IAsyncMessagePreHandler<TQuery>.PreHandleAsync(TQuery message, CancellationToken cancellationToken)
     {
         return ValidateAsync(message, cancellationToken);
     }
 
     /// <summary>
-    ///     Validates the query
+    ///     Validates the query.
     /// </summary>
-    /// <param name="query">The query to validate</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Task representing the asynchronous operation</returns>
+    /// <param name="query">The query to validate.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     Task ValidateAsync(TQuery query, CancellationToken cancellationToken = default);
 }

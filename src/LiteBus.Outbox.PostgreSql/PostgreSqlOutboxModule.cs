@@ -10,6 +10,9 @@ namespace LiteBus.Outbox.PostgreSql;
 /// </summary>
 public sealed class PostgreSqlOutboxModule : IModule
 {
+    /// <summary>
+    ///     The module builder action supplied at registration time.
+    /// </summary>
     private readonly Action<PostgreSqlOutboxModuleBuilder> _builder;
 
     /// <summary>

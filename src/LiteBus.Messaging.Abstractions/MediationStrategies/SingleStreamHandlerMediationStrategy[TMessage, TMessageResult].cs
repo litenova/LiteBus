@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.ExceptionServices;
@@ -24,6 +24,9 @@ namespace LiteBus.Messaging.Abstractions;
 public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
     IMessageMediationStrategy<TMessage, IAsyncEnumerable<TMessageResult>> where TMessage : notnull
 {
+    /// <summary>
+    ///     The cancellation token passed to stream enumeration during mediation.
+    /// </summary>
     private readonly CancellationToken _cancellationToken;
 
     /// <summary>

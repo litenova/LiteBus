@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
 
@@ -7,21 +7,32 @@ namespace LiteBus.Messaging;
 /// <summary>
 ///     Default in-memory registry for message contracts.
 /// </summary>
-public sealed class MessageContractRegistry : IMessageContractRegistry, IMessageContractRegistrar
+public sealed class MessageContractRegistry : IMessageContractRegistry
 {
+    /// <summary>
+    ///     Maps registered CLR message types to their stable contract metadata.
+    /// </summary>
     private readonly Dictionary<Type, MessageContract> _contractsByType = [];
+
+    /// <summary>
+    ///     Maps contract name and version pairs back to registered CLR message types.
+    /// </summary>
     private readonly Dictionary<(string Name, int Version), Type> _typesByContract = [];
+
+    /// <summary>
+    ///     Serializes concurrent reads and writes to both contract lookup tables.
+    /// </summary>
     private readonly object _syncRoot = new();
 
     /// <inheritdoc />
-    public IMessageContractRegistrar Register<TMessage>(string name, int version = 1)
+    public IMessageContractRegistry Register<TMessage>(string name, int version = 1)
         where TMessage : notnull
     {
         return Register(typeof(TMessage), name, version);
     }
 
     /// <inheritdoc />
-    public IMessageContractRegistrar Register(Type messageType, string name, int version = 1)
+    public IMessageContractRegistry Register(Type messageType, string name, int version = 1)
     {
         ArgumentNullException.ThrowIfNull(messageType);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);

@@ -42,8 +42,19 @@ public sealed class LiteBusEventOutboxDispatcher : IOutboxDispatcher
     /// </summary>
     private static readonly ConcurrentDictionary<Type, MethodInfo> ClosedPublishMethodCache = new();
 
+    /// <summary>
+    ///     Gets the registry used to resolve persisted contracts back to event types.
+    /// </summary>
     private readonly IMessageContractRegistry _contractRegistry;
+
+    /// <summary>
+    ///     Gets the LiteBus event publisher used as the dispatch target.
+    /// </summary>
     private readonly IEventPublisher _eventPublisher;
+
+    /// <summary>
+    ///     Gets the serializer used to hydrate the persisted payload.
+    /// </summary>
     private readonly IMessageSerializer _messageSerializer;
 
     /// <summary>
@@ -88,6 +99,11 @@ public sealed class LiteBusEventOutboxDispatcher : IOutboxDispatcher
         await publishTask.ConfigureAwait(false);
     }
 
+    /// <summary>
+    ///     Creates event mediation settings with trace metadata copied from the outbox envelope.
+    /// </summary>
+    /// <param name="message">The outbox message whose correlation, causation, and tenant values should be applied.</param>
+    /// <returns>Event mediation settings configured for outbox replay.</returns>
     private static EventMediationSettings CreateMediationSettings(OutboxMessageEnvelope message)
     {
         var settings = new EventMediationSettings();
