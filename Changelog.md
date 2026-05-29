@@ -58,11 +58,17 @@ All notable changes to this project will be documented in this file.
 - Added durable outbox docs for writer, processor, dispatcher, PostgreSQL storage, and transaction boundaries.
 - Added [PostgreSQL Schema Management](docs/PostgreSQL-Schema-Management.md) covering migration-owned DDL, explicit bootstrap, opt-in host bootstrap, multi-instance safety, and future upgrade paths.
 - Added architecture, dependency graph, and v5 migration docs.
+- Added a cookbook recipe for PostgreSQL inbox and outbox registration with processor hosting.
 - Added `AGENTS.md` and Cursor rules for XML documentation standards on `src/**/*.cs`.
 
 ### Improved
 
 - Expanded PostgreSQL integration tests and fixed cross-test isolation for parallel CI runs.
+
+### Notes
+
+- Inbox and outbox processors deliver **at-least-once** semantics. Handlers and dispatch targets must be idempotent, or you must enforce idempotency with application keys such as `CommandScheduleOptions.IdempotencyKey` and `OutboxOptions.MessageId`.
+- v5 ships durable storage for **PostgreSQL only** (`LiteBus.Inbox.PostgreSql`, `LiteBus.Outbox.PostgreSql`). Entity Framework Core and SQL Server store packages remain on the roadmap; bring your own store by implementing the writer, lease, and state role interfaces until those packages ship.
 
 ## v4.4.0
 

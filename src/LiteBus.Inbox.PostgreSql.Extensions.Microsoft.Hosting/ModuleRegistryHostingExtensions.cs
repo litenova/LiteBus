@@ -20,9 +20,9 @@ public static class ModuleRegistryHostingExtensions
     ///         <see cref="PostgreSqlCommandInboxModuleBuilder.EnsureSchemaCreationOnStartup" /> on the store builder.
     ///     </para>
     ///     <para>
-    ///         Register this module before
-    ///         <see cref="Inbox.Extensions.Microsoft.Hosting.ModuleRegistryHostingExtensions.AddCommandInboxProcessorHosting" />
-    ///         so schema bootstrap completes before the processor loop starts.
+    ///         Register this module before `AddCommandInboxProcessorHosting` (from
+    ///         `LiteBus.Inbox.Extensions.Microsoft.Hosting`) so schema bootstrap completes before the processor loop
+    ///         starts.
     ///     </para>
     /// </remarks>
     public static IModuleRegistry AddPostgreSqlCommandInboxSchemaHosting(this IModuleRegistry moduleRegistry)

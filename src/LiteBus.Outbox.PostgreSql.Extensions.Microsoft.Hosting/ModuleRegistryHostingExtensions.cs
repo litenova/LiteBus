@@ -20,9 +20,9 @@ public static class ModuleRegistryHostingExtensions
     ///         <see cref="PostgreSqlOutboxModuleBuilder.EnsureSchemaCreationOnStartup" /> on the store builder.
     ///     </para>
     ///     <para>
-    ///         Register this module before
-    ///         <see cref="Outbox.Extensions.Microsoft.Hosting.ModuleRegistryHostingExtensions.AddOutboxProcessorHosting" />
-    ///         so schema bootstrap completes before the processor loop starts.
+    ///         Register this module before `AddOutboxProcessorHosting` (from
+    ///         `LiteBus.Outbox.Extensions.Microsoft.Hosting`) so schema bootstrap completes before the processor loop
+    ///         starts.
     ///     </para>
     /// </remarks>
     public static IModuleRegistry AddPostgreSqlOutboxSchemaHosting(this IModuleRegistry moduleRegistry)
