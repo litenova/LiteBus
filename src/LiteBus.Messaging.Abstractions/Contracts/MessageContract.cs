@@ -7,7 +7,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Durable stores persist <see cref="Name" /> and <see cref="Version" /> with the serialized payload. They do
+///         Inbox and outbox stores persist <see cref="Name" /> and <see cref="Version" /> with the serialized payload. They do
 ///         not persist assembly-qualified type names. This lets applications rename or move CLR types while keeping the
 ///         storage contract explicit through startup registration.
 ///     </para>
@@ -15,12 +15,12 @@ namespace LiteBus.Messaging.Abstractions;
 public sealed record MessageContract
 {
     /// <summary>
-    ///     Gets the stable contract name written to durable envelopes.
+    ///     Gets the stable contract name written to stored envelopes.
     /// </summary>
     public required string Name { get; init; }
 
     /// <summary>
-    ///     Gets the positive contract version written to durable envelopes.
+    ///     Gets the positive contract version written to stored envelopes.
     /// </summary>
     public required int Version { get; init; }
 

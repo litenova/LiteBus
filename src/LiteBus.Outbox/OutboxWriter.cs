@@ -71,6 +71,7 @@ public sealed class OutboxWriter : IOutboxWriter
             Payload = payload,
             Topic = options.Topic,
             CreatedAt = storedAt,
+            VisibleAfter = options.VisibleAfter,
             Status = OutboxMessageStatus.Pending,
             AttemptCount = 0,
             CorrelationId = options.CorrelationId,

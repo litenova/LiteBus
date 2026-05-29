@@ -15,10 +15,12 @@ public sealed class PostgreSqlOutboxStoreTests : IClassFixture<PostgreSqlFixture
     [Fact]
     public async Task LeasePendingAsync_ShouldRespectRetryVisibility()
     {
-        var options = CreateOptions();
-        await PostgreSqlOutboxSchema.CreateIfNotExistsAsync(_fixture.DataSource, options);
+        _fixture.RequireDocker();
 
-        var store = new PostgreSqlOutboxStore(_fixture.DataSource, options);
+        var options = CreateOptions();
+        await PostgreSqlOutboxSchema.CreateIfNotExistsAsync(_fixture.DataSource!, options);
+
+        var store = new PostgreSqlOutboxStore(_fixture.DataSource!, options);
         var messageId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
 
@@ -81,10 +83,12 @@ public sealed class PostgreSqlOutboxStoreTests : IClassFixture<PostgreSqlFixture
     [Fact]
     public async Task AddAsync_ShouldReturnExistingMessageWhenMessageIdAlreadyExists()
     {
-        var options = CreateOptions();
-        await PostgreSqlOutboxSchema.CreateIfNotExistsAsync(_fixture.DataSource, options);
+        _fixture.RequireDocker();
 
-        var store = new PostgreSqlOutboxStore(_fixture.DataSource, options);
+        var options = CreateOptions();
+        await PostgreSqlOutboxSchema.CreateIfNotExistsAsync(_fixture.DataSource!, options);
+
+        var store = new PostgreSqlOutboxStore(_fixture.DataSource!, options);
         var messageId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
 

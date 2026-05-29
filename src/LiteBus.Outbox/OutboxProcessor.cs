@@ -62,6 +62,8 @@ public sealed class OutboxProcessor : IOutboxProcessor
         {
             throw new ArgumentOutOfRangeException(nameof(options), _options.LeaseDuration, "Lease duration must be greater than zero.");
         }
+
+        MessageProcessorDiagnostics.ValidateRetryOptions(_options.Retry, nameof(options));
     }
 
     /// <inheritdoc />
@@ -109,7 +111,7 @@ public sealed class OutboxProcessor : IOutboxProcessor
     /// <param name="cancellationToken">A token used to cancel the state update.</param>
     private Task MarkFailedAsync(OutboxMessageEnvelope message, Exception exception, CancellationToken cancellationToken)
     {
-        var error = exception.ToString();
+        var error = MessageProcessorDiagnostics.FormatError(exception);
 
         if (message.AttemptCount >= _options.Retry.MaxAttempts)
         {

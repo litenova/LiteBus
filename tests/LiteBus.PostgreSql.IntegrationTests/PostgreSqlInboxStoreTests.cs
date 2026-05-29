@@ -15,10 +15,12 @@ public sealed class PostgreSqlInboxStoreTests : IClassFixture<PostgreSqlFixture>
     [Fact]
     public async Task AddAsync_ShouldReturnExistingCommandForDuplicateIdempotencyKey()
     {
-        var options = CreateOptions();
-        await PostgreSqlInboxSchema.CreateIfNotExistsAsync(_fixture.DataSource, options);
+        _fixture.RequireDocker();
 
-        var store = new PostgreSqlCommandInboxStore(_fixture.DataSource, options);
+        var options = CreateOptions();
+        await PostgreSqlInboxSchema.CreateIfNotExistsAsync(_fixture.DataSource!, options);
+
+        var store = new PostgreSqlCommandInboxStore(_fixture.DataSource!, options);
         var firstCommandId = Guid.NewGuid();
         var secondCommandId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
@@ -48,10 +50,12 @@ public sealed class PostgreSqlInboxStoreTests : IClassFixture<PostgreSqlFixture>
     [Fact]
     public async Task LeasePendingAsync_ShouldLeaseAndCompleteCommand()
     {
-        var options = CreateOptions();
-        await PostgreSqlInboxSchema.CreateIfNotExistsAsync(_fixture.DataSource, options);
+        _fixture.RequireDocker();
 
-        var store = new PostgreSqlCommandInboxStore(_fixture.DataSource, options);
+        var options = CreateOptions();
+        await PostgreSqlInboxSchema.CreateIfNotExistsAsync(_fixture.DataSource!, options);
+
+        var store = new PostgreSqlCommandInboxStore(_fixture.DataSource!, options);
         var commandId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
 

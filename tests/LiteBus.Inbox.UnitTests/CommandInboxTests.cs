@@ -5,6 +5,7 @@ using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 using CommandInboxProcessorContract = LiteBus.Inbox.Abstractions.ICommandInboxProcessor;
@@ -12,7 +13,7 @@ using CommandInboxProcessorContract = LiteBus.Inbox.Abstractions.ICommandInboxPr
 namespace LiteBus.Inbox.UnitTests;
 
 [Collection("Sequential")]
-public sealed class CommandInboxTests
+public sealed class CommandInboxTests : LiteBusTestBase
 {
     [Fact]
     public async Task ScheduleAsync_ShouldStoreTypedEnvelopeAndReturnReceipt()
@@ -348,6 +349,132 @@ public sealed class CommandInboxTests
         capture.IsInboxExecution.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task ProcessPendingAsync_ShouldPropagateTraceMetadataToExecutionContext()
+    {
+        var store = new InMemoryCommandInboxStore();
+        var capture = new TraceMetadataCapture();
+
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton<ICommandInboxWriter>(store)
+            .AddSingleton<ICommandInboxLeaseStore>(store)
+            .AddSingleton<ICommandInboxStateStore>(store)
+            .AddSingleton(capture)
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddCommandModule(builder =>
+                {
+                    builder.Register<InboxCheckCommand>();
+                    builder.Register<TraceMetadataCommandHandler>();
+                });
+
+                configuration.AddCommandInboxModule(builder =>
+                {
+                    builder.Contracts.Register<InboxCheckCommand>("test.commands.inbox-check", 1);
+                    builder.UseProcessorOptions(new CommandInboxProcessorOptions
+                    {
+                        BatchSize = 10,
+                        LeaseOwner = "test-worker",
+                        Retry = new RetryOptions { UseJitter = false }
+                    });
+                });
+            })
+            .BuildServiceProvider();
+
+        var scheduler = serviceProvider.GetRequiredService<ICommandScheduler>();
+        var processor = serviceProvider.GetRequiredService<CommandInboxProcessorContract>();
+
+        await scheduler.ScheduleAsync(new InboxCheckCommand(), new CommandScheduleOptions
+        {
+            CorrelationId = "correlation-42",
+            CausationId = "causation-42",
+            TenantId = "tenant-42"
+        });
+
+        await processor.ProcessPendingAsync();
+
+        capture.CorrelationId.Should().Be("correlation-42");
+        capture.CausationId.Should().Be("causation-42");
+        capture.TenantId.Should().Be("tenant-42");
+    }
+
+    [Fact]
+    public async Task ProcessPendingAsync_WhenHandlerThrows_ShouldStoreTypeAndMessageOnlyInLastError()
+    {
+        var store = new InMemoryCommandInboxStore();
+
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton<ICommandInboxWriter>(store)
+            .AddSingleton<ICommandInboxLeaseStore>(store)
+            .AddSingleton<ICommandInboxStateStore>(store)
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddCommandModule(builder =>
+                {
+                    builder.Register<FaultyCommand>();
+                    builder.Register<FaultyCommandHandler>();
+                });
+
+                configuration.AddCommandInboxModule(builder =>
+                {
+                    builder.Contracts.Register<FaultyCommand>("orders.commands.faulty", 1);
+                    builder.UseProcessorOptions(new CommandInboxProcessorOptions
+                    {
+                        BatchSize = 10,
+                        LeaseOwner = "test-worker",
+                        Retry = new RetryOptions
+                        {
+                            MaxAttempts = 3,
+                            InitialDelay = TimeSpan.Zero,
+                            UseJitter = false
+                        }
+                    });
+                });
+            })
+            .BuildServiceProvider();
+
+        var scheduler = serviceProvider.GetRequiredService<ICommandScheduler>();
+        var processor = serviceProvider.GetRequiredService<CommandInboxProcessorContract>();
+
+        var receipt = await scheduler.ScheduleAsync(new FaultyCommand());
+        await processor.ProcessPendingAsync();
+
+        var lastError = store.Get(receipt.CommandId).LastError;
+        lastError.Should().Be($"{typeof(InvalidOperationException).FullName}: Simulated handler failure.");
+        lastError.Should().NotContain(" at ");
+    }
+
+    [Fact]
+    public void CommandInboxProcessor_WithInvalidMaxAttempts_ShouldThrow()
+    {
+        var act = () => new CommandInboxProcessor(
+            new InMemoryCommandInboxStore(),
+            new InMemoryCommandInboxStore(),
+            new StubCommandMediator(),
+            new MessageContractRegistry(),
+            new SystemTextJsonMessageSerializer(),
+            new CommandInboxProcessorOptions
+            {
+                Retry = new RetryOptions { MaxAttempts = 0 }
+            },
+            TimeProvider.System);
+
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    private sealed class StubCommandMediator : ICommandMediator
+    {
+        public Task SendAsync(ICommand command, CommandMediationSettings? commandMediationSettings = null, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command, CommandMediationSettings? commandMediationSettings = null, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(default(TCommandResult)!);
+        }
+    }
+
     private sealed class FixedTimeProvider : TimeProvider
     {
         private readonly DateTimeOffset _now;
@@ -451,6 +578,15 @@ public sealed class CommandInboxTests
         public bool IsInboxExecution { get; set; }
     }
 
+    public sealed class TraceMetadataCapture
+    {
+        public string? CorrelationId { get; set; }
+
+        public string? CausationId { get; set; }
+
+        public string? TenantId { get; set; }
+    }
+
     public sealed record InboxCheckCommand : ICommand;
 
     public sealed class InboxCheckCommandHandler : ICommandHandler<InboxCheckCommand>
@@ -468,6 +604,32 @@ public sealed class CommandInboxTests
                 AmbientExecutionContext.Current.Items.TryGetValue(
                     CommandInboxExecutionContextKeys.IsInboxExecution, out var value) &&
                 value is true;
+
+            return Task.CompletedTask;
+        }
+    }
+
+    public sealed class TraceMetadataCommandHandler : ICommandHandler<InboxCheckCommand>
+    {
+        private readonly TraceMetadataCapture _capture;
+
+        public TraceMetadataCommandHandler(TraceMetadataCapture capture)
+        {
+            _capture = capture;
+        }
+
+        public Task HandleAsync(InboxCheckCommand message, CancellationToken cancellationToken = default)
+        {
+            var items = AmbientExecutionContext.Current.Items;
+            _capture.CorrelationId = items.TryGetValue(MessageTraceContextKeys.CorrelationId, out var correlation)
+                ? correlation as string
+                : null;
+            _capture.CausationId = items.TryGetValue(MessageTraceContextKeys.CausationId, out var causation)
+                ? causation as string
+                : null;
+            _capture.TenantId = items.TryGetValue(MessageTraceContextKeys.TenantId, out var tenant)
+                ? tenant as string
+                : null;
 
             return Task.CompletedTask;
         }

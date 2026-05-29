@@ -33,7 +33,7 @@ public interface IOutboxWriter
     ///     id. Use <see cref="OutboxOptions.MessageId" /> when the caller already owns a stable event identifier.
     /// </param>
     /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
-    /// <returns>A receipt containing the durable message id, contract name, version, storage time, and trace metadata.</returns>
+    /// <returns>A receipt containing the outbox message id, contract name, version, storage time, and trace metadata.</returns>
     Task<OutboxReceipt<TEvent>> AddAsync<TEvent>(
         TEvent @event,
         OutboxOptions? options = null,

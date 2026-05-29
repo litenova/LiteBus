@@ -71,6 +71,8 @@ public sealed class CommandInboxProcessor : Abstractions.ICommandInboxProcessor
         {
             throw new ArgumentOutOfRangeException(nameof(options), _options.LeaseDuration, "Lease duration must be greater than zero.");
         }
+
+        MessageProcessorDiagnostics.ValidateRetryOptions(_options.Retry, nameof(options));
     }
 
     /// <inheritdoc />
@@ -111,6 +113,11 @@ public sealed class CommandInboxProcessor : Abstractions.ICommandInboxProcessor
 
             var mediationSettings = new CommandMediationSettings();
             mediationSettings.Items[CommandInboxExecutionContextKeys.IsInboxExecution] = true;
+            MessageProcessorDiagnostics.ApplyTraceMetadata(
+                mediationSettings.Items,
+                envelope.CorrelationId,
+                envelope.CausationId,
+                envelope.TenantId);
 
             await _commandMediator.SendAsync(command, mediationSettings, cancellationToken).ConfigureAwait(false);
             await _stateStore.MarkCompletedAsync(envelope.CommandId, cancellationToken).ConfigureAwait(false);
@@ -129,7 +136,7 @@ public sealed class CommandInboxProcessor : Abstractions.ICommandInboxProcessor
     /// <param name="cancellationToken">A token used to cancel the state update.</param>
     private Task MarkFailedAsync(InboxCommandEnvelope envelope, Exception exception, CancellationToken cancellationToken)
     {
-        var error = exception.ToString();
+        var error = MessageProcessorDiagnostics.FormatError(exception);
 
         if (envelope.AttemptCount >= _options.Retry.MaxAttempts)
         {

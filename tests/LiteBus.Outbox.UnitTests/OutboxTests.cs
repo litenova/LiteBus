@@ -5,12 +5,13 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Outbox.UnitTests;
 
 [Collection("Sequential")]
-public sealed class OutboxTests
+public sealed class OutboxTests : LiteBusTestBase
 {
     [Fact]
     public async Task IntegrationOutbox_ShouldStoreEventWithExplicitMessageId()
@@ -268,6 +269,83 @@ public sealed class OutboxTests
         store.Get(messageId).Status.Should().Be(OutboxMessageStatus.DeadLettered);
     }
 
+    [Fact]
+    public async Task AddAsync_ShouldPersistVisibleAfterFromOptions()
+    {
+        var now = new DateTimeOffset(2026, 5, 29, 12, 0, 0, TimeSpan.Zero);
+        var visibleAfter = now.AddHours(2);
+        var store = new InMemoryOutboxStore();
+        var contractRegistry = new MessageContractRegistry();
+        contractRegistry.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+
+        var writer = new OutboxWriter(
+            store,
+            contractRegistry,
+            new SystemTextJsonMessageSerializer(),
+            new FixedTimeProvider(now));
+
+        var messageId = Guid.NewGuid();
+
+        await writer.AddAsync(new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
+        {
+            MessageId = messageId,
+            VisibleAfter = visibleAfter
+        });
+
+        store.Get(messageId).VisibleAfter.Should().Be(visibleAfter);
+    }
+
+    [Fact]
+    public async Task ProcessPendingAsync_ShouldPropagateTraceMetadataToEventHandlers()
+    {
+        var store = new InMemoryOutboxStore();
+        var capture = new TraceMetadataCapture();
+
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton<IOutboxMessageWriter>(store)
+            .AddSingleton<IOutboxMessageLeaseStore>(store)
+            .AddSingleton<IOutboxMessageStateStore>(store)
+            .AddSingleton(capture)
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddEventModule(builder =>
+                {
+                    builder.Register<TraceMetadataEventHandler>();
+                });
+
+                configuration.AddOutboxModule(builder =>
+                {
+                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                    builder.UseLiteBusEventDispatcher();
+                    builder.UseProcessorOptions(new OutboxProcessorOptions
+                    {
+                        BatchSize = 10,
+                        LeaseOwner = "test-publisher",
+                        Retry = new RetryOptions { UseJitter = false }
+                    });
+                });
+            })
+            .BuildServiceProvider();
+
+        var outbox = serviceProvider.GetRequiredService<IIntegrationOutbox>();
+        var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
+        var messageId = Guid.NewGuid();
+
+        await outbox.AddAsync(new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
+        {
+            MessageId = messageId,
+            CorrelationId = "correlation-99",
+            CausationId = "causation-99",
+            TenantId = "tenant-99"
+        });
+
+        await processor.ProcessPendingAsync();
+
+        capture.CorrelationId.Should().Be("correlation-99");
+        capture.CausationId.Should().Be("causation-99");
+        capture.TenantId.Should().Be("tenant-99");
+    }
+
     private sealed class FixedTimeProvider : TimeProvider
     {
         private readonly DateTimeOffset _now;
@@ -300,6 +378,41 @@ public sealed class OutboxTests
         public Task HandleAsync(OrderSubmittedIntegrationEvent message, CancellationToken cancellationToken = default)
         {
             _recorder.Record(message);
+            return Task.CompletedTask;
+        }
+    }
+
+    public sealed class TraceMetadataCapture
+    {
+        public string? CorrelationId { get; set; }
+
+        public string? CausationId { get; set; }
+
+        public string? TenantId { get; set; }
+    }
+
+    public sealed class TraceMetadataEventHandler : IEventHandler<OrderSubmittedIntegrationEvent>
+    {
+        private readonly TraceMetadataCapture _capture;
+
+        public TraceMetadataEventHandler(TraceMetadataCapture capture)
+        {
+            _capture = capture;
+        }
+
+        public Task HandleAsync(OrderSubmittedIntegrationEvent message, CancellationToken cancellationToken = default)
+        {
+            var items = AmbientExecutionContext.Current.Items;
+            _capture.CorrelationId = items.TryGetValue(MessageTraceContextKeys.CorrelationId, out var correlation)
+                ? correlation as string
+                : null;
+            _capture.CausationId = items.TryGetValue(MessageTraceContextKeys.CausationId, out var causation)
+                ? causation as string
+                : null;
+            _capture.TenantId = items.TryGetValue(MessageTraceContextKeys.TenantId, out var tenant)
+                ? tenant as string
+                : null;
+
             return Task.CompletedTask;
         }
     }

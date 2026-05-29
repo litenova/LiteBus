@@ -12,7 +12,7 @@ namespace LiteBus.Outbox.Abstractions;
 ///     </para>
 ///     <para>
 ///         Use <see cref="MessageId" /> for idempotent writes when the application already has a stable event id. The
-///         former identified-event marker was removed; the durable message id now belongs to options rather than the
+///         former identified-event marker was removed; the outbox message id now belongs to options rather than the
 ///         event contract.
 ///     </para>
 /// </remarks>
@@ -42,4 +42,10 @@ public sealed record OutboxOptions
     ///     Gets the optional publication topic or channel. Dispatchers decide how this value maps to a transport target.
     /// </summary>
     public string? Topic { get; init; }
+
+    /// <summary>
+    ///     Gets the earliest UTC timestamp at which the message may be published. A null value means the message is due
+    ///     as soon as a processor leases it.
+    /// </summary>
+    public DateTimeOffset? VisibleAfter { get; init; }
 }

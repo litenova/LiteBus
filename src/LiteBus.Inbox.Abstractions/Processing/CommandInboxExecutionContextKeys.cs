@@ -6,9 +6,10 @@
 /// <remarks>
 ///     <para>
 ///         The inbox processor sets <see cref="IsInboxExecution" /> to <see langword="true" /> before it calls
-///         `ICommandMediator.SendAsync`. Command pre-handlers, post-handlers, and error handlers can read this key from
-///         `CommandMediationSettings.Items` or the ambient execution context when they need different behavior for a
-///         command replayed from storage.
+///         `ICommandMediator.SendAsync`. It also copies stored correlation, causation, and tenant values into
+///         <see cref="LiteBus.Messaging.Abstractions.MessageTraceContextKeys" />. Command pre-handlers, post-handlers,
+///         and error handlers can read these keys from `CommandMediationSettings.Items` or the ambient execution
+///         context when they need different behavior for a command replayed from storage.
 ///     </para>
 ///     <para>
 ///         Use this key only for pipeline policy, logging, metrics, or idempotency checks. Business handlers should stay

@@ -1,7 +1,7 @@
 ﻿namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Represents the retry backoff strategy used by durable processors.
+///     Represents the retry backoff strategy used by inbox and outbox processors.
 /// </summary>
 public enum RetryBackoff
 {

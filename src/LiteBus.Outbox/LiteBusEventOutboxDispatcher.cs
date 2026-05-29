@@ -69,15 +69,16 @@ public sealed class LiteBusEventOutboxDispatcher : IOutboxDispatcher
 
         var eventType = _contractRegistry.GetMessageType(message.ContractName, message.ContractVersion);
         var @event = await _messageSerializer.DeserializeAsync(eventType, message.Payload, cancellationToken).ConfigureAwait(false);
+        var mediationSettings = CreateMediationSettings(message);
 
         if (@event is IEvent liteBusEvent)
         {
-            await _eventPublisher.PublishAsync(liteBusEvent, cancellationToken: cancellationToken).ConfigureAwait(false);
+            await _eventPublisher.PublishAsync(liteBusEvent, mediationSettings, cancellationToken).ConfigureAwait(false);
             return;
         }
 
         var publishMethod = ClosedPublishMethodCache.GetOrAdd(eventType, t => GenericPublishMethod.MakeGenericMethod(t));
-        var publishTask = publishMethod.Invoke(_eventPublisher, [@event, null, cancellationToken]) as Task;
+        var publishTask = publishMethod.Invoke(_eventPublisher, [@event, mediationSettings, cancellationToken]) as Task;
 
         if (publishTask is null)
         {
@@ -85,5 +86,17 @@ public sealed class LiteBusEventOutboxDispatcher : IOutboxDispatcher
         }
 
         await publishTask.ConfigureAwait(false);
+    }
+
+    private static EventMediationSettings CreateMediationSettings(OutboxMessageEnvelope message)
+    {
+        var settings = new EventMediationSettings();
+        MessageProcessorDiagnostics.ApplyTraceMetadata(
+            settings.Items,
+            message.CorrelationId,
+            message.CausationId,
+            message.TenantId);
+
+        return settings;
     }
 }
