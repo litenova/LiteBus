@@ -2,6 +2,9 @@ using System;
 
 namespace LiteBus.Messaging.Extensions;
 
+/// <summary>
+///     <see cref="IServiceProvider" /> helpers used by the messaging pipeline.
+/// </summary>
 public static class ServiceProviderExtensions
 {
     /// <summary>

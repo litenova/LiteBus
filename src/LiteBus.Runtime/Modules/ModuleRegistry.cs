@@ -12,7 +12,14 @@ namespace LiteBus.Runtime.Modules;
 /// </summary>
 internal sealed class ModuleRegistry : IModuleRegistry
 {
+    /// <summary>
+    ///     The modules registered before dependency ordering is computed.
+    /// </summary>
     private readonly HashSet<IModule> _modules = [];
+
+    /// <summary>
+    ///     Cached module descriptors sorted in dependency order.
+    /// </summary>
     private IReadOnlyList<ModuleDescriptor>? _cachedOrderedModules;
 
     /// <inheritdoc />

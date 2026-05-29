@@ -17,6 +17,9 @@ namespace LiteBus.Events.MediationStrategies;
 public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task>
     where TMessage : notnull
 {
+    /// <summary>
+    ///     Gets the event mediation settings that control broadcast behavior for this strategy instance.
+    /// </summary>
     private readonly EventMediationSettings _settings;
 
     /// <summary>
@@ -100,6 +103,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     ///     Executes handlers by grouping them by priority and then processing each group
     ///     according to the <see cref="EventMediationExecutionSettings.PriorityGroupsConcurrencyMode" /> setting.
     /// </summary>
+    /// <param name="message">The message being broadcast to handlers.</param>
+    /// <param name="handlers">The main handlers to execute, grouped by priority before invocation.</param>
+    /// <returns>A task that completes when all priority groups have finished executing.</returns>
     private async Task ExecuteHandlersByPriority(TMessage message,
                                                  IReadOnlyList<LazyHandler<IMessageHandler, IMainHandlerDescriptor>> handlers)
     {
@@ -126,6 +132,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     ///     Executes a group of handlers that share the same priority level, respecting the
     ///     <see cref="EventMediationExecutionSettings.HandlersWithinSamePriorityConcurrencyMode" /> setting.
     /// </summary>
+    /// <param name="message">The message being broadcast to handlers.</param>
+    /// <param name="handlersInGroup">The handlers that share the same priority value.</param>
+    /// <returns>A task that completes when every handler in the group has finished executing.</returns>
     private async Task ExecuteHandlersInGroup(TMessage message,
                                               IReadOnlyList<LazyHandler<IMessageHandler, IMainHandlerDescriptor>> handlersInGroup)
     {
@@ -146,6 +155,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     /// <summary>
     ///     Resolves and executes a single message handler.
     /// </summary>
+    /// <param name="message">The message passed to the handler.</param>
+    /// <param name="lazyHandler">The lazily resolved handler and its descriptor.</param>
+    /// <returns>A task that completes when the handler has finished processing the message.</returns>
     private static async Task ExecuteSingleHandler(TMessage message,
                                                    LazyHandler<IMessageHandler, IMainHandlerDescriptor> lazyHandler)
     {

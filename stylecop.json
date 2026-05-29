@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/DotNetAnalyzers/StyleCopAnalyzers/master/StyleCop.Analyzers/StyleCop.Analyzers.Settings.json",
+  "settings": {
+    "documentationRules": {
+      "companyName": "LiteBus",
+      "documentExposedElements": true,
+      "documentInternalElements": true,
+      "documentPrivateElements": true,
+      "documentPrivateFields": true,
+      "documentInterfaces": true,
+      "documentationCulture": "en-US"
+    }
+  }
+}

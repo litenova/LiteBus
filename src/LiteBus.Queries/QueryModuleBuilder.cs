@@ -11,6 +11,9 @@ namespace LiteBus.Queries;
 /// </summary>
 public sealed class QueryModuleBuilder
 {
+    /// <summary>
+    ///     Gets the message registry to which query types are registered.
+    /// </summary>
     private readonly IMessageRegistry _messageRegistry;
 
     /// <summary>

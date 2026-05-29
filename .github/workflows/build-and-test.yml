@@ -4,18 +4,20 @@ on:
   push:
     branches: [ '**', '!main' ]
     paths:
+      - 'LiteBus.slnx'
       - 'src/**'
       - 'tests/**'
   pull_request:
     branches: [ main ]
     paths:
+      - 'LiteBus.slnx'
       - 'src/**'
       - 'tests/**'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -28,16 +30,19 @@ jobs:
           global-json-file: global.json
 
       - name: Restore Dependencies
-        run: dotnet restore
+        run: dotnet restore LiteBus.slnx
 
       - name: Decode Strong Name Key
         run: echo "${{ secrets.STRONG_NAME_KEY }}" | base64 --decode > LiteBus.snk
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build LiteBus.slnx --configuration Release --no-restore
+
+      - name: Docker Info
+        run: docker info
 
       - name: Test
-        run: dotnet test --no-restore --verbosity normal --collect:"XPlat Code Coverage"
+        run: dotnet test LiteBus.slnx --no-restore --verbosity normal --collect:"XPlat Code Coverage"
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v7

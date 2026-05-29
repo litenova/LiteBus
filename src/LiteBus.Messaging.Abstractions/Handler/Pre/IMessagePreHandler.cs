@@ -21,7 +21,7 @@ public interface IMessagePreHandler
     /// </param>
     /// <returns>
     ///     An object representing the outcome of the pre-processing steps, which might be a transformed version of the
-    ///     original message or other results of the pre-processing actions. This output will be utilized in subsequent
+    ///     original message or other results of the pre-processing actions. This output is passed to subsequent
     ///     processing steps.
     /// </returns>
     object PreHandle(object message);

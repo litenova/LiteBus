@@ -18,7 +18,7 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
     [Fact]
     public async Task RegisterFromAssembly_DiscoversOpenGenericPreHandler_AndExecutesIt()
     {
-        // Arrange — only RegisterFromAssembly, no explicit Register(typeof(...))
+        // Arrange: only RegisterFromAssembly, no explicit Register(typeof(...))
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(configuration =>
             {
@@ -35,7 +35,7 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         // Act
         await commandMediator.SendAsync(command);
 
-        // Assert — open generic pre-handler should have been discovered and executed
+        // Assert: open generic pre-handler should have been discovered and executed
         command.ExecutedTypes.Should().Contain(typeof(ScanTestOpenGenericPreHandler<ScanTestCommand>));
     }
 
@@ -59,7 +59,7 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         // Act
         await commandMediator.SendAsync(command);
 
-        // Assert — open generic post-handler should have been discovered and executed
+        // Assert: open generic post-handler should have been discovered and executed
         command.ExecutedTypes.Should().Contain(typeof(ScanTestOpenGenericPostHandler<ScanTestCommand>));
     }
 
@@ -83,7 +83,7 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         // Act
         await commandMediator.SendAsync(command);
 
-        // Assert — pre-handler runs before main handler, post-handler runs after
+        // Assert: pre-handler runs before main handler, post-handler runs after
         var preIndex = command.ExecutedTypes.IndexOf(typeof(ScanTestOpenGenericPreHandler<ScanTestCommand>));
         var mainIndex = command.ExecutedTypes.IndexOf(typeof(ScanTestCommandHandler));
         var postIndex = command.ExecutedTypes.IndexOf(typeof(ScanTestOpenGenericPostHandler<ScanTestCommand>));
@@ -119,7 +119,7 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         await commandMediator.SendAsync(command1);
         await commandMediator.SendAsync(command2);
 
-        // Assert — open generic handlers should be closed for both command types
+        // Assert: open generic handlers should be closed for both command types
         command1.ExecutedTypes.Should().Contain(typeof(ScanTestOpenGenericPreHandler<ScanTestCommand>));
         command1.ExecutedTypes.Should().Contain(typeof(ScanTestOpenGenericPostHandler<ScanTestCommand>));
 
@@ -130,7 +130,7 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
     [Fact]
     public async Task RegisterFromAssembly_OpenGenericHandlers_RespectConstraints_DoNotApplyToUnrelatedCommands()
     {
-        // Arrange — CreateProductCommand does NOT implement IOpenGenericScanTestCommand
+        // Arrange: CreateProductCommand does NOT implement IOpenGenericScanTestCommand
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(configuration =>
             {
@@ -148,7 +148,7 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         // Act
         var result = await commandMediator.SendAsync(command);
 
-        // Assert — CreateProductCommand should NOT have the constrained open generic handlers.
+        // Assert: CreateProductCommand should NOT have the constrained open generic handlers.
         // We verify by checking that none of the executed types are closed forms of the scan-test open generics.
         result.Should().NotBeNull();
         command.ExecutedTypes
@@ -164,7 +164,7 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
     [Fact]
     public async Task RegisterFromAssembly_DiscoversOpenGenericHandlers_WithoutExplicitRegistration()
     {
-        // Arrange — ONLY RegisterFromAssembly, no Register(typeof(...)) at all.
+        // Arrange: ONLY RegisterFromAssembly, no Register(typeof(...)) at all.
         // This proves that assembly scanning is sufficient to discover open generic handlers.
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(configuration =>
@@ -185,8 +185,8 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         await commandMediator.SendAsync(command1);
         await commandMediator.SendAsync(command2);
 
-        // Assert — both commands should have the full pipeline:
-        // open generic pre-handler → main handler → open generic post-handler
+        // Assert: both commands should have the full pipeline:
+        // open generic pre-handler, then main handler, then open generic post-handler
         var command1Relevant = command1.ExecutedTypes
             .Where(t => t == typeof(ScanTestCommandHandler)
                      || (t.IsGenericType && (t.GetGenericTypeDefinition() == typeof(ScanTestOpenGenericPreHandler<>)

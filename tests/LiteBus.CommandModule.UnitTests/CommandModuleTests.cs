@@ -287,4 +287,5 @@ public sealed class CommandModuleTests : LiteBusTestBase
         // Assert
         await act.Should().ThrowAsync<MultipleHandlerFoundException>();
     }
+
 }

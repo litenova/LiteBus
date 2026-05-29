@@ -1,0 +1,80 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/.github/">
+    <File Path=".github/dependabot.yml" />
+  </Folder>
+  <Folder Name="/.github/scripts/">
+    <File Path=".github/scripts/generate-release-notes.sh" />
+  </Folder>
+  <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/build-and-test.yml" />
+    <File Path=".github/workflows/manual-test-and-coverage.yml" />
+    <File Path=".github/workflows/release.yml" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/LiteBus.Samples.NetCore/LiteBus.Samples.NetCore.csproj" />
+    <Project Path="samples/LiteBus.Samples/LiteBus.Samples.csproj" />
+  </Folder>
+  <Folder Name="/solution-items/">
+    <File Path=".gitignore" />
+    <File Path="Changelog.md" />
+    <File Path="GitVersion.yml" />
+    <File Path="global.json" />
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <File Path="src/Directory.Build.props" />
+    <File Path="src/Directory.Packages.props" />
+    <Project Path="src/LiteBus.Commands.Abstractions/LiteBus.Commands.Abstractions.csproj" />
+    <Project Path="src/LiteBus.Commands.Extensions.Autofac/LiteBus.Commands.Extensions.Autofac.csproj" />
+    <Project Path="src/LiteBus.Commands.Extensions.Microsoft.DependencyInjection/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.csproj" />
+    <Project Path="src/LiteBus.Commands/LiteBus.Commands.csproj" />
+    <Project Path="src/LiteBus.Events.Abstractions/LiteBus.Events.Abstractions.csproj" />
+    <Project Path="src/LiteBus.Events.Extensions.Autofac/LiteBus.Events.Extensions.Autofac.csproj" />
+    <Project Path="src/LiteBus.Events.Extensions.Microsoft.DependencyInjection/LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj" />
+    <Project Path="src/LiteBus.Events/LiteBus.Events.csproj" />
+    <Project Path="src/LiteBus.Extensions.Microsoft.DependencyInjection/LiteBus.Extensions.Microsoft.DependencyInjection.csproj" />
+    <Project Path="src/LiteBus.Inbox.Abstractions/LiteBus.Inbox.Abstractions.csproj" />
+    <Project Path="src/LiteBus.Inbox.Extensions.Microsoft.Hosting/LiteBus.Inbox.Extensions.Microsoft.Hosting.csproj" />
+    <Project Path="src/LiteBus.Inbox.PostgreSql.Extensions.Microsoft.Hosting/LiteBus.Inbox.PostgreSql.Extensions.Microsoft.Hosting.csproj" />
+    <Project Path="src/LiteBus.Inbox.PostgreSql/LiteBus.Inbox.PostgreSql.csproj" />
+    <Project Path="src/LiteBus.Inbox/LiteBus.Inbox.csproj" />
+    <Project Path="src/LiteBus.Messaging.Abstractions/LiteBus.Messaging.Abstractions.csproj" />
+    <Project Path="src/LiteBus.Messaging.Extensions.Autofac/LiteBus.Messaging.Extensions.Autofac.csproj" />
+    <Project Path="src/LiteBus.Messaging.Extensions.Microsoft.DependencyInjection/LiteBus.Messaging.Extensions.Microsoft.DependencyInjection.csproj" />
+    <Project Path="src/LiteBus.Messaging/LiteBus.Messaging.csproj" />
+    <Project Path="src/LiteBus.Outbox.Abstractions/LiteBus.Outbox.Abstractions.csproj" />
+    <Project Path="src/LiteBus.Outbox.Extensions.Microsoft.Hosting/LiteBus.Outbox.Extensions.Microsoft.Hosting.csproj" />
+    <Project Path="src/LiteBus.Outbox.PostgreSql.Extensions.Microsoft.Hosting/LiteBus.Outbox.PostgreSql.Extensions.Microsoft.Hosting.csproj" />
+    <Project Path="src/LiteBus.Outbox.PostgreSql/LiteBus.Outbox.PostgreSql.csproj" />
+    <Project Path="src/LiteBus.PostgreSql/LiteBus.PostgreSql.csproj" />
+    <Project Path="src/LiteBus.Outbox/LiteBus.Outbox.csproj" />
+    <Project Path="src/LiteBus.Queries.Abstractions/LiteBus.Queries.Abstractions.csproj" />
+    <Project Path="src/LiteBus.Queries.Extensions.Autofac/LiteBus.Queries.Extensions.Autofac.csproj" />
+    <Project Path="src/LiteBus.Queries.Extensions.Microsoft.DependencyInjection/LiteBus.Queries.Extensions.Microsoft.DependencyInjection.csproj" />
+    <Project Path="src/LiteBus.Queries/LiteBus.Queries.csproj" />
+    <Project Path="src/LiteBus.Runtime.Abstractions/LiteBus.Runtime.Abstractions.csproj" />
+    <Project Path="src/LiteBus.Runtime.Extensions.Autofac/LiteBus.Runtime.Extensions.Autofac.csproj" />
+    <Project Path="src/LiteBus.Runtime.Extensions.Microsoft.DependencyInjection/LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.csproj" />
+    <Project Path="src/LiteBus.Runtime/LiteBus.Runtime.csproj" />
+    <Project Path="src/LiteBus/LiteBus.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <File Path="tests/Directory.Build.props" />
+    <File Path="tests/Directory.Packages.props" />
+    <Project Path="tests/LiteBus.CommandModule.UnitTests/LiteBus.CommandModule.UnitTests.csproj" />
+    <Project Path="tests/LiteBus.EventModule.UnitTests/LiteBus.EventModule.UnitTests.csproj" />
+    <Project Path="tests/LiteBus.Extensions.Autofac.UnitTests/LiteBus.Extensions.Autofac.UnitTests.csproj" />
+    <Project Path="tests/LiteBus.Inbox.UnitTests/LiteBus.Inbox.UnitTests.csproj" />
+    <Project Path="tests/LiteBus.MessageModule.UnitTests/LiteBus.MessageModule.UnitTests.csproj" />
+    <Project Path="tests/LiteBus.Outbox.UnitTests/LiteBus.Outbox.UnitTests.csproj" />
+    <Project Path="tests/LiteBus.PostgreSql.IntegrationTests/LiteBus.PostgreSql.IntegrationTests.csproj" />
+    <Project Path="tests/LiteBus.QueryModule.UnitTests/LiteBus.QueryModule.UnitTests.csproj" />
+    <Project Path="tests/LiteBus.Testing/LiteBus.Testing.csproj" />
+  </Folder>
+</Solution>

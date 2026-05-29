@@ -10,6 +10,9 @@ namespace LiteBus.Runtime.Modules;
 /// </summary>
 internal sealed class ModuleConfiguration : IModuleConfiguration
 {
+    /// <summary>
+    ///     Shared contexts published by modules during initialization.
+    /// </summary>
     private readonly Dictionary<Type, object> _contexts = [];
 
     /// <summary>

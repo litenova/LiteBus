@@ -21,15 +21,19 @@ internal sealed class ExecutionContext : IExecutionContext
         Items = items;
     }
 
+    /// <inheritdoc />
     public CancellationToken CancellationToken { get; }
 
     /// <inheritdoc />
     public IDictionary<string, object> Items { get; }
 
+    /// <inheritdoc />
     public IReadOnlyCollection<string> Tags { get; }
 
+    /// <inheritdoc />
     public object? MessageResult { get; set; }
 
+    /// <inheritdoc />
     public void Abort(object? messageResult = null)
     {
         MessageResult = messageResult;

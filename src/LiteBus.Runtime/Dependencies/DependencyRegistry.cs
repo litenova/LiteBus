@@ -12,6 +12,9 @@ namespace LiteBus.Runtime.Dependencies;
 /// </summary>
 public sealed class DependencyRegistry : IDependencyRegistry
 {
+    /// <summary>
+    ///     Stores unique dependency descriptors registered through this registry.
+    /// </summary>
     private readonly HashSet<DependencyDescriptor> _descriptors = [];
 
     /// <summary>
@@ -31,6 +34,16 @@ public sealed class DependencyRegistry : IDependencyRegistry
         ArgumentNullException.ThrowIfNull(descriptor);
 
         _descriptors.Add(descriptor);
+    }
+
+    /// <inheritdoc />
+    public void RegisterHostedService(Type implementationType)
+    {
+        ArgumentNullException.ThrowIfNull(implementationType);
+
+        throw new InvalidOperationException(
+            "Hosted services require LiteBus to be configured through Microsoft.Extensions.DependencyInjection or Autofac. " +
+            "Use services.AddLiteBus(...) or containerBuilder.AddLiteBus(...), then call AddCommandInboxProcessorHosting or AddOutboxProcessorHosting.");
     }
 
     /// <summary>

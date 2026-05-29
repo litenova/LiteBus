@@ -7,13 +7,18 @@ using LiteBus.Messaging.Registry.Descriptors;
 
 namespace LiteBus.Messaging.Registry.Builders;
 
+/// <summary>
+///     Discovers <see cref="IPostHandlerDescriptor" /> instances from post-handler types.
+/// </summary>
 public sealed class PostHandlerDescriptorBuilder : IHandlerDescriptorBuilder
 {
+    /// <inheritdoc />
     public bool CanBuild(Type type)
     {
         return type.IsAssignableTo(typeof(IMessagePostHandler));
     }
 
+    /// <inheritdoc />
     public IEnumerable<IHandlerDescriptor> Build(Type handlerType)
     {
         var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessagePostHandler<,>));

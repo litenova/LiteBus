@@ -26,7 +26,7 @@ public sealed class EventMediationRoutingSettings
     public IEnumerable<string> Tags { get; set; } = new List<string>();
 
     /// <summary>
-    ///     Gets or sets a predicate function used to filter event handlers by their descriptor.
+    ///     Gets or initializes a predicate function used to filter event handlers by their descriptor.
     /// </summary>
     /// <value>
     ///     An <see cref="EventHandlerFilterPredicate" /> that determines which handlers should execute.

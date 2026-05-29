@@ -24,7 +24,7 @@ public interface IStreamMessageHandler<in TMessage, out TMessageResult> : IMessa
     /// </summary>
     /// <param name="message">The message that requires processing.</param>
     /// <returns>
-    ///     An asynchronous stream of results, each represented by <see cref="TMessageResult" />, produced from handling
+    ///     An asynchronous stream of results, each represented by <typeparamref name="TMessageResult" />, produced from handling
     ///     the provided message.
     /// </returns>
     IAsyncEnumerable<TMessageResult> IMessageHandler<TMessage, IAsyncEnumerable<TMessageResult>>.Handle(TMessage message)

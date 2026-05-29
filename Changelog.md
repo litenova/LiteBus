@@ -2,6 +2,74 @@
 
 All notable changes to this project will be documented in this file.
 
+## v5.0.0
+
+### Changed
+
+- `ICommandMediator.SendAsync` now always executes commands immediately in process.
+- Durable command scheduling moved to `ICommandScheduler.ScheduleAsync`, which stores `ICommand` envelopes and returns `CommandReceipt<TCommand>`.
+- Durable event publication now uses `IOutboxWriter.AddAsync` or `IIntegrationOutbox.AddAsync`, which store event envelopes and return `OutboxReceipt<TEvent>`.
+- Durable inbox and outbox payloads now use stable message contracts with names and versions.
+- Durable inbox stores now expose `ICommandInboxWriter`, `ICommandInboxLeaseStore`, and `ICommandInboxStateStore` instead of one broad store contract.
+- Durable outbox stores now expose `IOutboxMessageWriter`, `IOutboxMessageLeaseStore`, and `IOutboxMessageStateStore` instead of one broad store contract.
+- Stable outbox message ids now come from `OutboxOptions.MessageId`.
+- Event handler predicates now apply to both `PublishAsync(IEvent, settings)` and `PublishAsync<TEvent>(TEvent, settings)`.
+- Message descriptor resolution failures now throw `MessageDescriptorNotFoundException` with lookup details.
+- Message registry namespace filtering now skips only `System` and `System.*` namespaces.
+- Unsupported open generic handler shapes now throw `UnsupportedOpenGenericHandlerException`.
+- Durable contract registration now supports closed generic message types and rejects open generic message types.
+- Persisted contract registration and resolution now use `IMessageContractRegistry` only (`Register`, `GetContract`, `GetMessageType`).
+- Closed generic messages with concrete handlers now resolve the registered handler type without closing it again.
+- The repository now uses `LiteBus.slnx` instead of `LiteBus.sln`.
+- CI workflows now restore, build, and test `LiteBus.slnx`, and report Docker availability before PostgreSQL Testcontainers tests.
+
+### Added
+
+- Added `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox`, and `LiteBus.Inbox.PostgreSql`.
+- Added `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox`, and `LiteBus.Outbox.PostgreSql`.
+- Added raw Npgsql inbox and outbox stores with leasing, retry visibility, dead-letter state, and Testcontainers coverage.
+- Added canonical `.sql` schema files in `LiteBus.PostgreSql`, `LiteBus.Inbox.PostgreSql`, and `LiteBus.Outbox.PostgreSql` for copy-paste migration ownership.
+- Added `IPostgreSqlSchemaLogger` to `LiteBus.PostgreSql` (Npgsql-only dependency) for optional schema operation logging.
+- Added `PostgreSqlInboxSchema` / `PostgreSqlOutboxSchema` APIs: `GetCreateScript`, `GetUpgradeScript`, `EnsureAsync`, and `ValidateAsync`.
+- Added `LiteBus.Inbox.PostgreSql.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.PostgreSql.Extensions.Microsoft.Hosting` for opt-in schema bootstrap on generic host startup.
+- Added `LiteBus.Inbox.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.Extensions.Microsoft.Hosting` for optional generic-host processor loops and health checks.
+- Added `LiteBus.PostgreSql.IntegrationTests` with Testcontainers coverage for inbox/outbox stores, schema bootstrap and upgrades, drift validation, module registration, and end-to-end processor flows.
+- Added `AGENTS.md`, `src/.editorconfig`, and StyleCop documentation analyzers (`GenerateDocumentationFile`) for all `src/` projects.
+- Added XML documentation on all library types, members, and private/internal fields under `src/`.
+
+### Removed
+
+- Removed the v4 attribute-based command inbox API and related command inbox abstractions.
+- Removed `LiteBus.Commands.Extensions.Microsoft.Hosting` because it was tied to the old inbox host.
+- Removed `LiteBus.Inbox.Extensions.Autofac` and `LiteBus.Outbox.Extensions.Autofac` because hosting registration lives in the Microsoft hosting extension packages (Autofac apps use the same hosting modules through the runtime adapter).
+- Removed `IIdentifiedIntegrationEvent`; event identity now belongs to outbox envelope options.
+- Removed inbox/outbox processor host interfaces and `UseProcessorHost`; hosting is configured through `AddCommandInboxProcessorHosting` / `AddOutboxProcessorHosting` on the hosting extension packages.
+- Removed `IMessageContractRegistrar`; contract registration is part of `IMessageContractRegistry`.
+
+### Changed (hosting)
+
+- Moved inbox and outbox processor hosting out of core modules into separate extension packages with self-contained `BackgroundService` loops.
+- Core inbox/outbox modules now register processors only; they no longer reference Microsoft hosting or health-check packages.
+
+### Docs
+
+- Added v5 reliability roadmap, domain event and unit-of-work guidance, and architecture decision records.
+- Updated command inbox docs for explicit scheduling semantics, storage metadata, retry, dead-letter, and idempotency guidance.
+- Added durable outbox docs for writer, processor, dispatcher, PostgreSQL storage, and transaction boundaries.
+- Added [PostgreSQL Schema Management](docs/PostgreSQL-Schema-Management.md) covering migration-owned DDL, explicit bootstrap, opt-in host bootstrap, multi-instance safety, and future upgrade paths.
+- Added architecture, dependency graph, and v5 migration docs.
+- Added a cookbook recipe for PostgreSQL inbox and outbox registration with processor hosting.
+- Added `AGENTS.md` and Cursor rules for XML documentation standards on `src/**/*.cs`.
+
+### Improved
+
+- Expanded PostgreSQL integration tests and fixed cross-test isolation for parallel CI runs.
+
+### Notes
+
+- Inbox and outbox processors deliver **at-least-once** semantics. Handlers and dispatch targets must be idempotent, or you must enforce idempotency with application keys such as `CommandScheduleOptions.IdempotencyKey` and `OutboxOptions.MessageId`.
+- v5 ships durable storage for **PostgreSQL only** (`LiteBus.Inbox.PostgreSql`, `LiteBus.Outbox.PostgreSql`). Entity Framework Core and SQL Server store packages remain on the roadmap; bring your own store by implementing the writer, lease, and state role interfaces until those packages ship.
+
 ## v4.4.0
 
 ### Added
@@ -14,7 +82,7 @@ All notable changes to this project will be documented in this file.
 
 ### Improved
 
-- **Testing Docs — `WebApplicationFactory` Isolation:** Added a dedicated wiki section documenting
+- **Testing Docs (`WebApplicationFactory` isolation):** Added a dedicated wiki section documenting
   the `MessageRegistryAccessor.Instance.Clear()` workaround required when using `WebApplicationFactory`
   in integration tests. Without this call the static `MessageRegistry` retains stale handler
   registrations across tests in the same process, causing intermittent `InvalidOperationException`
@@ -33,7 +101,7 @@ All notable changes to this project will be documented in this file.
 - **Open Generic Handler Support:** LiteBus now supports open generic pre-handlers, post-handlers, and error handlers
   (e.g., `MyPreHandler<T> : ICommandPreHandler<T> where T : ICommand`). When registered, LiteBus automatically closes
   the generic for every concrete message type that satisfies its constraints at startup. This enables cross-cutting
-  concerns like logging, validation, metrics, and authorization to be implemented once and applied universally — without
+  concerns like logging, validation, metrics, and authorization to be implemented once and applied universally, without
   modifying existing messages or handlers. Registration order does not matter. All standard C# generic constraints
   (interface, class, struct, new()) are fully respected.
 
@@ -79,9 +147,8 @@ Injection (DI) containers, introduce a durable Command Inbox, and provide advanc
   integrations via a lightweight adapter pattern.
 - **Autofac Support:** Added first-class integration with Autofac via the new `LiteBus.Extensions.Autofac` package and
   its companions.
-- **Durable Command Inbox:** Introduced a new Command Inbox feature for guaranteed, durable, and deferred command
-  execution. Commands can be marked with `[StoreInInbox]` to be persisted and processed by a background service (
-  `CommandInboxProcessorHostedService`).
+- **Durable Command Inbox:** Introduced the v4 command inbox feature for deferred command execution. This API was
+  replaced in v5 by the explicit `ICommandScheduler` and inbox processor contracts.
 - **Advanced Event Mediation:** Overhauled event mediation with powerful new controls:
 - The new `[HandlerPriority]` attribute replaces `[HandlerOrder]` for defining execution priority.
 - Added configurable concurrency for both priority groups (`PriorityGroupsConcurrencyMode`) and handlers within the same
@@ -118,7 +185,7 @@ Injection (DI) containers, introduce a durable Command Inbox, and provide advanc
 - **`IMessageDependencies` Renaming:** The `Handlers` and `IndirectHandlers` properties have been renamed to
   `MainHandlers` and `IndirectMainHandlers`, respectively. This affects custom mediation strategies.
 
-> **Note:** Due to the significant architectural changes, please refer to the **v4 Migration Guide** in the release
+> **Note:** Due to the large architectural changes, please refer to the **v4 Migration Guide** in the release
 > notes for detailed instructions on upgrading your project.
 
 ## v3.1.0

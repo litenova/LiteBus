@@ -20,7 +20,7 @@ namespace LiteBus.Messaging.Abstractions;
 public sealed class HandlerTagAttribute : Attribute
 {
     /// <summary>
-    ///     Initializes a new instance of the HandlerTagAttribute class with a specified tag.
+    ///     Initializes a new instance of the <see cref="HandlerTagAttribute" /> class.
     /// </summary>
     /// <param name="tag">The tag representing the operational context or scenario.</param>
     public HandlerTagAttribute(string tag)

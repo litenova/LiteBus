@@ -16,6 +16,9 @@ namespace LiteBus.Messaging.Abstractions;
 /// </remarks>
 public static class AmbientExecutionContext
 {
+    /// <summary>
+    ///     Holds the ambient execution context for the current async flow.
+    /// </summary>
     private static readonly AsyncLocal<IExecutionContext?> ExecutionContextLocal = new();
 
     /// <summary>
@@ -36,7 +39,7 @@ public static class AmbientExecutionContext
     }
 
     /// <summary>
-    ///     Determines whether a current execution context exists.
+    ///     Gets a value indicating whether a current execution context exists.
     /// </summary>
     /// <value>
     ///     <see langword="true" /> if a current execution context exists; otherwise, <see langword="false" />.
@@ -88,7 +91,14 @@ public static class AmbientExecutionContext
     /// </remarks>
     public sealed class ExecutionContextScope : IDisposable, IAsyncDisposable
     {
+        /// <summary>
+        ///     The execution context that was current before this scope was created.
+        /// </summary>
         private readonly IExecutionContext? _previousContext;
+
+        /// <summary>
+        ///     Indicates whether this scope has already been disposed.
+        /// </summary>
         private bool _disposed;
 
         /// <summary>

@@ -62,8 +62,16 @@ public static class ContainerBuilderExtensions
     }
 
     // Helper class to adapt Autofac's IComponentContext to IServiceProvider.
+    /// <summary>
+    ///     Adapts an Autofac component context to the <see cref="IServiceProvider" /> contract.
+    /// </summary>
     private sealed class AutofacServiceProvider(IComponentContext context) : IServiceProvider
     {
+        /// <summary>
+        ///     Resolves an optional service from the underlying Autofac component context.
+        /// </summary>
+        /// <param name="serviceType">The service type to resolve.</param>
+        /// <returns>The resolved service instance, or <see langword="null" /> when it is not registered.</returns>
         public object? GetService(Type serviceType)
         {
             return context.ResolveOptional(serviceType);

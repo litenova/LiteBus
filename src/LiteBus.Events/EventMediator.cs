@@ -6,16 +6,27 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Events;
 
-/// <inheritdoc cref="IEventMediator" />
+/// <summary>
+///     The primary implementation of <see cref="IEventPublisher" />. It orchestrates the event publication
+///     pipeline for immediate, in-process event broadcasting.
+/// </summary>
 public sealed class EventMediator : IEventPublisher
 {
+    /// <summary>
+    ///     Gets the core message mediator used to execute the event pipeline.
+    /// </summary>
     private readonly IMessageMediator _messageMediator;
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="EventMediator" /> class.
+    /// </summary>
+    /// <param name="messageMediator">The core message mediator for immediate event publication.</param>
     public EventMediator(IMessageMediator messageMediator)
     {
         _messageMediator = messageMediator;
     }
 
+    /// <inheritdoc />
     public Task PublishAsync(IEvent @event, EventMediationSettings? eventMediationSettings = null, CancellationToken cancellationToken = default)
     {
         eventMediationSettings ??= new EventMediationSettings();
@@ -30,10 +41,12 @@ public sealed class EventMediator : IEventPublisher
             CancellationToken = cancellationToken,
             Tags = eventMediationSettings.Routing.Tags,
             Items = eventMediationSettings.Items,
-            RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound
+            RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound,
+            HandlerPredicate = handlerDescriptor => eventMediationSettings.Routing.HandlerPredicate(handlerDescriptor)
         });
     }
 
+    /// <inheritdoc />
     public Task PublishAsync<TEvent>(TEvent @event, EventMediationSettings? eventMediationSettings = null, CancellationToken cancellationToken = default) where TEvent : notnull
     {
         eventMediationSettings ??= new EventMediationSettings();

@@ -46,25 +46,13 @@ public interface IAsyncMessagePostHandler<in TMessage, in TMessageResult> : IMes
     }
 
     /// <summary>
-    ///     Orchestrates the asynchronous execution of actions after the message has been handled, allowing for the
-    ///     implementation of post-processing logic that operates over both the handled message and its initial result with the
-    ///     flexibility of asynchronous programming.
+    ///     Runs post-handling logic asynchronously after the message has been handled.
     /// </summary>
-    /// <param name="message">
-    ///     The handled message, which is the focal point for the post-handling actions, offering a
-    ///     structured data set for asynchronous operations.
-    /// </param>
+    /// <param name="message">The handled message.</param>
     /// <param name="messageResult">
-    ///     The initial result produced after handling the message, presenting a defined structure that
-    ///     can be utilized in the asynchronous post-processing steps.
+    ///     The initial result produced after handling the message, available for asynchronous post-processing steps.
     /// </param>
-    /// <param name="cancellationToken">
-    ///     A token facilitating the cancellation of the asynchronous operation, enabling the
-    ///     prevention of potential resource wastage through the halting of the operation upon cancellation requests.
-    /// </param>
-    /// <returns>
-    ///     A task symbolizing the ongoing asynchronous post-handling operation, potentially yielding further processing
-    ///     results or alterations to the initial message result.
-    /// </returns>
+    /// <param name="cancellationToken">A token that can cancel the asynchronous operation.</param>
+    /// <returns>A task representing the asynchronous post-handling operation.</returns>
     Task PostHandleAsync(TMessage message, TMessageResult? messageResult, CancellationToken cancellationToken = default);
 }

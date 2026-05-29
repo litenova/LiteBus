@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
@@ -19,6 +19,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// </remarks>
 public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult> : IMessageMediationStrategy<TMessage, Task<TMessageResult>> where TMessage : notnull
 {
+    /// <inheritdoc />
     public async Task<TMessageResult> Mediate(TMessage message, IMessageDependencies messageDependencies, IExecutionContext executionContext)
     {
         ArgumentNullException.ThrowIfNull(messageDependencies);

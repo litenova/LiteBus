@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using Autofac;
 using Autofac.Builder;
 using LiteBus.Runtime.Abstractions;
+using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Runtime.Extensions.Autofac;
 
@@ -13,7 +14,14 @@ namespace LiteBus.Runtime.Extensions.Autofac;
 /// </summary>
 internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
 {
+    /// <summary>
+    ///     The Autofac container builder receiving LiteBus dependency registrations.
+    /// </summary>
     private readonly ContainerBuilder _builder;
+
+    /// <summary>
+    ///     Tracks descriptors already translated into Autofac registrations.
+    /// </summary>
     private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
 
     /// <summary>
@@ -44,7 +52,7 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        // Use HashSet.Add which leverages IEquatable<DependencyDescriptor>
+        // Use HashSet.Add, which uses IEquatable<DependencyDescriptor>
         // Returns false if the descriptor is already present.
         if (!_registeredDescriptors.Add(descriptor))
         {
@@ -71,6 +79,23 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();
+    }
+
+    /// <inheritdoc />
+    public void RegisterHostedService(Type implementationType)
+    {
+        ArgumentNullException.ThrowIfNull(implementationType);
+
+        if (!typeof(IHostedService).IsAssignableFrom(implementationType))
+        {
+            throw new ArgumentException(
+                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(IHostedService)}.",
+                nameof(implementationType));
+        }
+
+        _builder.RegisterType(implementationType)
+            .As<IHostedService>()
+            .SingleInstance();
     }
 
     /// <summary>

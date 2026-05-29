@@ -16,7 +16,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///     Implementations of this interface should provide the logic for handling messages of type
 ///     <typeparamref name="TMessage" /> in an asynchronous manner and producing a result of type
 ///     <typeparamref name="TMessageResult" />. This facilitates asynchronous message processing workflows where the
-///     results of the handling process are significant and utilized further.
+///     results of the handling process can be used by later steps in the workflow.
 /// </remarks>
 public interface IAsyncMessageHandler<in TMessage, TMessageResult> : IMessageHandler<TMessage, Task<TMessageResult>> where TMessage : notnull
 {

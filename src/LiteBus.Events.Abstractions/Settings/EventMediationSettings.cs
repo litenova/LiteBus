@@ -15,7 +15,7 @@ namespace LiteBus.Events.Abstractions;
 public sealed class EventMediationSettings
 {
     /// <summary>
-    ///     Gets or sets whether to throw an exception when no handlers are found for an event.
+    ///     Gets a value indicating whether to throw an exception when no handlers are found for an event.
     /// </summary>
     /// <value>
     ///     <see langword="true" /> to throw an exception when no handlers are found; otherwise, <see langword="false" />.
@@ -24,7 +24,7 @@ public sealed class EventMediationSettings
     public bool ThrowIfNoHandlerFound { get; init; } = false;
 
     /// <summary>
-    ///     Gets the event mediation routing configuration that determines which handlers should execute.
+    ///     Gets or initializes the event mediation routing configuration that determines which handlers should execute.
     /// </summary>
     /// <value>
     ///     An <see cref="EventMediationRoutingSettings" /> instance containing routing configuration.
@@ -32,7 +32,7 @@ public sealed class EventMediationSettings
     public EventMediationRoutingSettings Routing { get; init; } = new();
 
     /// <summary>
-    ///     Gets the event mediation execution configuration that controls how handlers are executed.
+    ///     Gets or initializes the event mediation execution configuration that controls how handlers are executed.
     /// </summary>
     /// <value>
     ///     An <see cref="EventMediationExecutionSettings" /> instance containing execution configuration.

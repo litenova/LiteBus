@@ -18,7 +18,14 @@ namespace LiteBus.Messaging.Mediator;
 /// </remarks>
 internal sealed class MessageMediator : IMessageMediator
 {
+    /// <summary>
+    ///     The message registry used to resolve message descriptors during mediation.
+    /// </summary>
     private readonly IMessageRegistry _messageRegistry;
+
+    /// <summary>
+    ///     The service provider used to resolve handler instances and dependencies.
+    /// </summary>
     private readonly IServiceProvider _serviceProvider;
 
     /// <summary>
@@ -45,7 +52,7 @@ internal sealed class MessageMediator : IMessageMediator
     ///     Thrown when no handler is found for the message type and registration on spot
     ///     is disabled.
     /// </exception>
-    /// <exception cref="InvalidOperationException">
+    /// <exception cref="MessageDescriptorNotFoundException">
     ///     Thrown when no descriptor can be found for the message type with the
     ///     specified resolve strategy.
     /// </exception>
@@ -78,7 +85,11 @@ internal sealed class MessageMediator : IMessageMediator
 
         if (descriptor is null)
         {
-            throw new InvalidOperationException($"No descriptor found for message type {messageType} with specified resolve strategy.");
+            throw new MessageDescriptorNotFoundException(
+                messageType,
+                options.MessageResolveStrategy.GetType(),
+                options.RegisterPlainMessagesOnSpot,
+                _messageRegistry.Count);
         }
 
         // Resolve the dependencies in lazy mode.

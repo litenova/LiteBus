@@ -2,13 +2,18 @@
     <ItemGroup>
         <PackageVersion Include="Autofac" Version="9.1.0"/>
         <PackageVersion Include="AwesomeAssertions" Version="9.4.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0"/>
         <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8"/>
         <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8"/>
         <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.5.1"/>
         <PackageVersion Include="Newtonsoft.Json" Version="13.0.4"/>
+        <PackageVersion Include="Npgsql" Version="9.0.4"/>
         <PackageVersion Include="System.Linq.Async" Version="6.0.3"/>
         <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.8"/>
+        <PackageVersion Include="Testcontainers.PostgreSql" Version="4.8.0"/>
         <PackageVersion Include="xunit" Version="2.9.3"/>
+        <PackageVersion Include="Xunit.SkippableFact" Version="1.5.23"/>
         <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>

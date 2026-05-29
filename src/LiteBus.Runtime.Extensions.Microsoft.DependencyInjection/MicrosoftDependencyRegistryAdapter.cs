@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using LiteBus.Runtime.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 
@@ -12,7 +13,14 @@ namespace LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 /// </summary>
 internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
 {
+    /// <summary>
+    ///     Tracks descriptors already translated into Microsoft DI service registrations.
+    /// </summary>
     private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
+
+    /// <summary>
+    ///     The service collection receiving LiteBus dependency registrations.
+    /// </summary>
     private readonly IServiceCollection _services;
 
     /// <summary>
@@ -43,7 +51,7 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        // Use HashSet.Add which leverages IEquatable<DependencyDescriptor>
+        // Use HashSet.Add, which uses IEquatable<DependencyDescriptor>
         // Returns false if the descriptor is already present.
         if (!_registeredDescriptors.Add(descriptor))
         {
@@ -71,6 +79,21 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();
+    }
+
+    /// <inheritdoc />
+    public void RegisterHostedService(Type implementationType)
+    {
+        ArgumentNullException.ThrowIfNull(implementationType);
+
+        if (!typeof(IHostedService).IsAssignableFrom(implementationType))
+        {
+            throw new ArgumentException(
+                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(IHostedService)}.",
+                nameof(implementationType));
+        }
+
+        _services.Add(ServiceDescriptor.Singleton(typeof(IHostedService), implementationType));
     }
 
     /// <summary>

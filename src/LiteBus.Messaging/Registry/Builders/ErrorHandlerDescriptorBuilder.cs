@@ -7,13 +7,18 @@ using LiteBus.Messaging.Registry.Descriptors;
 
 namespace LiteBus.Messaging.Registry.Builders;
 
+/// <summary>
+///     Discovers <see cref="IErrorHandlerDescriptor" /> instances from error handler types.
+/// </summary>
 internal sealed class ErrorHandlerDescriptorBuilder : IHandlerDescriptorBuilder
 {
+    /// <inheritdoc />
     public bool CanBuild(Type type)
     {
         return type.IsAssignableTo(typeof(IMessageErrorHandler));
     }
 
+    /// <inheritdoc />
     public IEnumerable<IHandlerDescriptor> Build(Type handlerType)
     {
         var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessageErrorHandler<,>));

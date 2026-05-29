@@ -18,13 +18,16 @@ jobs:
           global-json-file: global.json
 
       - name: Restore Dependencies
-        run: dotnet restore
+        run: dotnet restore LiteBus.slnx
 
       - name: Decode Strong Name Key
         run: echo "${{ secrets.STRONG_NAME_KEY }}" | base64 --decode > LiteBus.snk
 
+      - name: Docker Info
+        run: docker info
+
       - name: Run Tests and Generate Coverage
-        run: dotnet test --no-restore --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
+        run: dotnet test LiteBus.slnx --no-restore --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
 
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v6

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions"/>
+        <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks"/>
+        <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.csproj"/>
+    </ItemGroup>
+
+</Project>
