@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
         <PackageReference Include="Autofac"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"/>
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Runtime\LiteBus.Runtime.csproj"/>

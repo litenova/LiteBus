@@ -317,6 +317,8 @@ await integrationOutbox.AddAsync(
 
 `ICommandMediator.SendAsync` executes a command now. `ICommandScheduler.ScheduleAsync` stores it for an inbox processor. `IEventPublisher.PublishAsync` notifies handlers now. `IIntegrationOutbox.AddAsync` stores an event for later publication.
 
+Enable optional background loops with `UseProcessorHost` plus `AddCommandInboxProcessorHosting` / `AddOutboxProcessorHosting` (separate hosts; no combined worker). See the [Processor Hosting](https://github.com/litenova/LiteBus/wiki/Processor-Hosting) wiki page.
+
 ## Modular by Design
 
 LiteBus is built on a modular, DI-agnostic runtime. You only install what you need.
@@ -347,6 +349,8 @@ LiteBus is built on a modular, DI-agnostic runtime. You only install what you ne
 | | `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Messaging.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Messaging.Extensions.Microsoft.DependencyInjection/) |
 | | `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Runtime.Extensions.Microsoft.DependencyInjection/) |
 | **Autofac Extensions**| `LiteBus.Commands.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Commands.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Commands.Extensions.Autofac/) |
+| | `LiteBus.Inbox.Extensions.Autofac` | (inbox processor `IHostedService` registration) |
+| | `LiteBus.Outbox.Extensions.Autofac` | (outbox processor `IHostedService` registration) |
 | | `LiteBus.Queries.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Queries.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Queries.Extensions.Autofac/) |
 | | `LiteBus.Events.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Events.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Events.Extensions.Autofac/) |
 | | `LiteBus.Messaging.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Messaging.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Messaging.Extensions.Autofac/) |

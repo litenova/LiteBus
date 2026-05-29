@@ -67,7 +67,7 @@ public sealed class OutboxProcessor : IOutboxProcessor
     }
 
     /// <inheritdoc />
-    public async Task ProcessPendingAsync(CancellationToken cancellationToken = default)
+    public async Task<ProcessorPassResult> ProcessPendingAsync(CancellationToken cancellationToken = default)
     {
         var now = _clock.GetUtcNow();
         var leasedMessages = await _leaseStore.LeasePendingAsync(new OutboxLeaseRequest
@@ -83,6 +83,11 @@ public sealed class OutboxProcessor : IOutboxProcessor
             cancellationToken.ThrowIfCancellationRequested();
             await ProcessMessageAsync(message, cancellationToken).ConfigureAwait(false);
         }
+
+        return new ProcessorPassResult
+        {
+            LeasedCount = leasedMessages.Count
+        };
     }
 
     /// <summary>

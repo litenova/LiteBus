@@ -635,7 +635,7 @@ public sealed class CommandInboxTests : LiteBusTestBase
         }
     }
 
-    private sealed class InMemoryCommandInboxStore : ICommandInboxWriter, ICommandInboxLeaseStore, ICommandInboxStateStore
+    internal sealed class InMemoryCommandInboxStore : ICommandInboxWriter, ICommandInboxLeaseStore, ICommandInboxStateStore
     {
         private readonly Dictionary<Guid, InboxCommandEnvelope> _envelopes = [];
 

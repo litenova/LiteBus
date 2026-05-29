@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using LiteBus.Runtime.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 
@@ -71,6 +72,21 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();
+    }
+
+    /// <inheritdoc />
+    public void RegisterHostedService(Type implementationType)
+    {
+        ArgumentNullException.ThrowIfNull(implementationType);
+
+        if (!typeof(IHostedService).IsAssignableFrom(implementationType))
+        {
+            throw new ArgumentException(
+                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(IHostedService)}.",
+                nameof(implementationType));
+        }
+
+        _services.Add(ServiceDescriptor.Singleton(typeof(IHostedService), implementationType));
     }
 
     /// <summary>

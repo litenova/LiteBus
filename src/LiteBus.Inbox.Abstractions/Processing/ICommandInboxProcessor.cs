@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Inbox.Abstractions;
 
@@ -22,5 +23,6 @@ public interface ICommandInboxProcessor
     ///     Processes one batch of due inbox commands.
     /// </summary>
     /// <param name="cancellationToken">A token used to stop leasing or to stop before the next command is executed.</param>
-    Task ProcessPendingAsync(CancellationToken cancellationToken = default);
+    /// <returns>A pass result that reports how many commands were leased and processed in this pass.</returns>
+    Task<ProcessorPassResult> ProcessPendingAsync(CancellationToken cancellationToken = default);
 }

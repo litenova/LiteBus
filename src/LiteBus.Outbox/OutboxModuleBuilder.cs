@@ -35,6 +35,16 @@ public sealed class OutboxModuleBuilder
     public OutboxProcessorOptions ProcessorOptions { get; private set; } = new();
 
     /// <summary>
+    ///     Gets the outbox processor host options that will be registered when hosting is enabled.
+    /// </summary>
+    public OutboxProcessorHostOptions HostOptions { get; private set; } = new();
+
+    /// <summary>
+    ///     Gets a value that indicates whether processor hosting was requested for this module registration.
+    /// </summary>
+    public bool IsProcessorHostEnabled { get; private set; }
+
+    /// <summary>
     ///     Gets a value that indicates whether the in-process LiteBus event dispatcher should be registered.
     /// </summary>
     public bool RegisterLiteBusEventDispatcher { get; private set; }
@@ -58,6 +68,22 @@ public sealed class OutboxModuleBuilder
     public OutboxModuleBuilder UseLiteBusEventDispatcher()
     {
         RegisterLiteBusEventDispatcher = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     Enables the outbox processor host and optionally configures its loop behavior.
+    /// </summary>
+    /// <param name="configure">An optional callback that configures poll interval, startup delay, and adaptive polling.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     Register <see cref="ModuleRegistryHostingExtensions.AddOutboxProcessorHosting" /> to add a
+    ///     <see cref="Microsoft.Extensions.Hosting.IHostedService" /> wrapper.
+    /// </remarks>
+    public OutboxModuleBuilder UseProcessorHost(Action<OutboxProcessorHostOptions>? configure = null)
+    {
+        IsProcessorHostEnabled = true;
+        configure?.Invoke(HostOptions);
         return this;
     }
 }

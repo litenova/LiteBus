@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Autofac;
 using Autofac.Builder;
 using LiteBus.Runtime.Abstractions;
+using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Runtime.Extensions.Autofac;
 
@@ -71,6 +72,23 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();
+    }
+
+    /// <inheritdoc />
+    public void RegisterHostedService(Type implementationType)
+    {
+        ArgumentNullException.ThrowIfNull(implementationType);
+
+        if (!typeof(IHostedService).IsAssignableFrom(implementationType))
+        {
+            throw new ArgumentException(
+                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(IHostedService)}.",
+                nameof(implementationType));
+        }
+
+        _builder.RegisterType(implementationType)
+            .As<IHostedService>()
+            .SingleInstance();
     }
 
     /// <summary>

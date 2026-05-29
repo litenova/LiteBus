@@ -34,6 +34,16 @@ public sealed class CommandInboxModuleBuilder
     public CommandInboxProcessorOptions ProcessorOptions { get; private set; } = new();
 
     /// <summary>
+    ///     Gets the command inbox processor host options that will be registered when hosting is enabled.
+    /// </summary>
+    public CommandInboxProcessorHostOptions HostOptions { get; private set; } = new();
+
+    /// <summary>
+    ///     Gets a value that indicates whether processor hosting was requested for this module registration.
+    /// </summary>
+    public bool IsProcessorHostEnabled { get; private set; }
+
+    /// <summary>
     ///     Replaces the command inbox processor options.
     /// </summary>
     /// <param name="options">The batch, lease, owner, and retry options used by the processor.</param>
@@ -41,6 +51,22 @@ public sealed class CommandInboxModuleBuilder
     public CommandInboxModuleBuilder UseProcessorOptions(CommandInboxProcessorOptions options)
     {
         ProcessorOptions = options ?? throw new ArgumentNullException(nameof(options));
+        return this;
+    }
+
+    /// <summary>
+    ///     Enables the command inbox processor host and optionally configures its loop behavior.
+    /// </summary>
+    /// <param name="configure">An optional callback that configures poll interval, startup delay, and adaptive polling.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     Register <see cref="ModuleRegistryHostingExtensions.AddCommandInboxProcessorHosting" /> to add an
+    ///     <see cref="Microsoft.Extensions.Hosting.IHostedService" /> wrapper.
+    /// </remarks>
+    public CommandInboxModuleBuilder UseProcessorHost(Action<CommandInboxProcessorHostOptions>? configure = null)
+    {
+        IsProcessorHostEnabled = true;
+        configure?.Invoke(HostOptions);
         return this;
     }
 }

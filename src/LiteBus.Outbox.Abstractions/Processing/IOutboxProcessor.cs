@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Outbox.Abstractions;
 
@@ -22,5 +23,6 @@ public interface IOutboxProcessor
     ///     Processes one batch of due outbox messages.
     /// </summary>
     /// <param name="cancellationToken">A token used to stop leasing or to stop before the next message is dispatched.</param>
-    Task ProcessPendingAsync(CancellationToken cancellationToken = default);
+    /// <returns>A pass result that reports how many messages were leased and processed in this pass.</returns>
+    Task<ProcessorPassResult> ProcessPendingAsync(CancellationToken cancellationToken = default);
 }

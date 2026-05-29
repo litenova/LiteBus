@@ -76,7 +76,7 @@ public sealed class CommandInboxProcessor : Abstractions.ICommandInboxProcessor
     }
 
     /// <inheritdoc />
-    public async Task ProcessPendingAsync(CancellationToken cancellationToken = default)
+    public async Task<ProcessorPassResult> ProcessPendingAsync(CancellationToken cancellationToken = default)
     {
         var now = _clock.GetUtcNow();
         var leasedCommands = await _leaseStore.LeasePendingAsync(new InboxLeaseRequest
@@ -92,6 +92,11 @@ public sealed class CommandInboxProcessor : Abstractions.ICommandInboxProcessor
             cancellationToken.ThrowIfCancellationRequested();
             await ProcessCommandAsync(envelope, cancellationToken).ConfigureAwait(false);
         }
+
+        return new ProcessorPassResult
+        {
+            LeasedCount = leasedCommands.Count
+        };
     }
 
     /// <summary>

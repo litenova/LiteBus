@@ -37,6 +37,20 @@ public sealed class DependencyRegistry : IDependencyRegistry
     ///     Returns an enumerator that iterates through the dependency descriptors.
     /// </summary>
     /// <returns>An enumerator that can be used to iterate through the dependency descriptors.</returns>
+    /// <inheritdoc />
+    public void RegisterHostedService(Type implementationType)
+    {
+        ArgumentNullException.ThrowIfNull(implementationType);
+
+        throw new InvalidOperationException(
+            "Hosted services require LiteBus to be configured through Microsoft.Extensions.DependencyInjection or Autofac. " +
+            "Use services.AddLiteBus(...) or containerBuilder.AddLiteBus(...), then call AddCommandInboxProcessorHosting or AddOutboxProcessorHosting.");
+    }
+
+    /// <summary>
+    ///     Returns an enumerator that iterates through the dependency descriptors.
+    /// </summary>
+    /// <returns>An enumerator that can be used to iterate through the dependency descriptors.</returns>
     public IEnumerator<DependencyDescriptor> GetEnumerator()
     {
         return _descriptors.GetEnumerator();

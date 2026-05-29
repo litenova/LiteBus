@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace LiteBus.Runtime.Abstractions;
@@ -15,4 +16,14 @@ public interface IDependencyRegistry : IReadOnlyCollection<DependencyDescriptor>
     /// <param name="descriptor">The dependency descriptor that defines how the service should be registered.</param>
     /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
     void Register(DependencyDescriptor descriptor);
+
+    /// <summary>
+    ///     Registers a hosted background service implementation with the underlying container when the adapter supports
+    ///     hosted-service registration.
+    /// </summary>
+    /// <param name="implementationType">The concrete hosted-service type to register.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="implementationType" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="implementationType" /> is not assignable to a hosted service contract.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the adapter does not support hosted-service registration.</exception>
+    void RegisterHostedService(Type implementationType);
 }

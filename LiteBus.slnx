@@ -43,6 +43,7 @@
     <Project Path="src/LiteBus.Events/LiteBus.Events.csproj" />
     <Project Path="src/LiteBus.Extensions.Microsoft.DependencyInjection/LiteBus.Extensions.Microsoft.DependencyInjection.csproj" />
     <Project Path="src/LiteBus.Inbox.Abstractions/LiteBus.Inbox.Abstractions.csproj" />
+    <Project Path="src/LiteBus.Inbox.Extensions.Autofac/LiteBus.Inbox.Extensions.Autofac.csproj" />
     <Project Path="src/LiteBus.Inbox.PostgreSql/LiteBus.Inbox.PostgreSql.csproj" />
     <Project Path="src/LiteBus.Inbox/LiteBus.Inbox.csproj" />
     <Project Path="src/LiteBus.Messaging.Abstractions/LiteBus.Messaging.Abstractions.csproj" />
@@ -50,6 +51,7 @@
     <Project Path="src/LiteBus.Messaging.Extensions.Microsoft.DependencyInjection/LiteBus.Messaging.Extensions.Microsoft.DependencyInjection.csproj" />
     <Project Path="src/LiteBus.Messaging/LiteBus.Messaging.csproj" />
     <Project Path="src/LiteBus.Outbox.Abstractions/LiteBus.Outbox.Abstractions.csproj" />
+    <Project Path="src/LiteBus.Outbox.Extensions.Autofac/LiteBus.Outbox.Extensions.Autofac.csproj" />
     <Project Path="src/LiteBus.Outbox.PostgreSql/LiteBus.Outbox.PostgreSql.csproj" />
     <Project Path="src/LiteBus.Outbox/LiteBus.Outbox.csproj" />
     <Project Path="src/LiteBus.Queries.Abstractions/LiteBus.Queries.Abstractions.csproj" />
