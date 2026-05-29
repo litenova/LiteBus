@@ -462,7 +462,7 @@ public sealed class OutboxTests : LiteBusTestBase
         }
     }
 
-    private sealed class AlwaysFailingOutboxDispatcher : IOutboxDispatcher
+    public sealed class AlwaysFailingOutboxDispatcher : IOutboxDispatcher
     {
         public Task DispatchAsync(OutboxMessageEnvelope message, CancellationToken cancellationToken = default)
         {
@@ -470,7 +470,7 @@ public sealed class OutboxTests : LiteBusTestBase
         }
     }
 
-    private sealed class InMemoryOutboxStore : IOutboxMessageWriter, IOutboxMessageLeaseStore, IOutboxMessageStateStore
+    public sealed class InMemoryOutboxStore : IOutboxMessageWriter, IOutboxMessageLeaseStore, IOutboxMessageStateStore
     {
         private readonly Dictionary<Guid, OutboxMessageEnvelope> _envelopes = [];
 
@@ -554,6 +554,11 @@ public sealed class OutboxTests : LiteBusTestBase
         public OutboxMessageEnvelope Get(Guid messageId)
         {
             return _envelopes[messageId];
+        }
+
+        public IReadOnlyList<OutboxMessageEnvelope> GetAll()
+        {
+            return _envelopes.Values.ToList();
         }
 
         private static bool IsAvailable(OutboxMessageEnvelope envelope, DateTimeOffset now)

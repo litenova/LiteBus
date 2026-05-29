@@ -462,7 +462,7 @@ public sealed class CommandInboxTests : LiteBusTestBase
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
 
-    private sealed class StubCommandMediator : ICommandMediator
+    public sealed class StubCommandMediator : ICommandMediator
     {
         public Task SendAsync(ICommand command, CommandMediationSettings? commandMediationSettings = null, CancellationToken cancellationToken = default)
         {
@@ -635,7 +635,7 @@ public sealed class CommandInboxTests : LiteBusTestBase
         }
     }
 
-    internal sealed class InMemoryCommandInboxStore : ICommandInboxWriter, ICommandInboxLeaseStore, ICommandInboxStateStore
+    public sealed class InMemoryCommandInboxStore : ICommandInboxWriter, ICommandInboxLeaseStore, ICommandInboxStateStore
     {
         private readonly Dictionary<Guid, InboxCommandEnvelope> _envelopes = [];
 
@@ -724,6 +724,11 @@ public sealed class CommandInboxTests : LiteBusTestBase
         public InboxCommandEnvelope Get(Guid commandId)
         {
             return _envelopes[commandId];
+        }
+
+        public IReadOnlyList<InboxCommandEnvelope> GetAll()
+        {
+            return _envelopes.Values.ToList();
         }
 
         private static bool IsAvailable(InboxCommandEnvelope envelope, DateTimeOffset now)
