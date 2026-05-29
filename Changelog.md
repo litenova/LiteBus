@@ -27,6 +27,10 @@ All notable changes to this project will be documented in this file.
 - Added `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox`, and `LiteBus.Inbox.PostgreSql`.
 - Added `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox`, and `LiteBus.Outbox.PostgreSql`.
 - Added raw Npgsql inbox and outbox stores with leasing, retry visibility, dead-letter state, and Testcontainers coverage.
+- Added canonical `.sql` schema files in `LiteBus.PostgreSql`, `LiteBus.Inbox.PostgreSql`, and `LiteBus.Outbox.PostgreSql` for copy-paste migration ownership.
+- Added `IPostgreSqlSchemaLogger` to `LiteBus.PostgreSql` (Npgsql-only dependency) for optional schema operation logging.
+- Added `PostgreSqlInboxSchema` / `PostgreSqlOutboxSchema` APIs: `GetCreateScript`, `GetUpgradeScript`, `EnsureAsync`, and `ValidateAsync`.
+- Added `LiteBus.Inbox.PostgreSql.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.PostgreSql.Extensions.Microsoft.Hosting` for opt-in schema bootstrap on generic host startup.
 - Added benchmark smoke coverage through `LiteBus.Benchmarks` and CI dry-run execution.
 - Added `LiteBus.Inbox.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.Extensions.Microsoft.Hosting` for optional generic-host processor loops and health checks.
 
@@ -48,6 +52,7 @@ All notable changes to this project will be documented in this file.
 - Added v5 reliability roadmap, domain event and unit-of-work guidance, and architecture decision records.
 - Updated command inbox docs for explicit scheduling semantics, storage metadata, retry, dead-letter, and idempotency guidance.
 - Added durable outbox docs for writer, processor, dispatcher, PostgreSQL storage, and transaction boundaries.
+- Added [PostgreSQL Schema Management](docs/PostgreSQL-Schema-Management.md) covering migration-owned DDL, explicit bootstrap, opt-in host bootstrap, multi-instance safety, and future upgrade paths.
 - Added architecture, dependency graph, and v5 migration docs.
 
 ## v4.4.0

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.PostgreSql;
 using Npgsql;
 using NpgsqlTypes;
 

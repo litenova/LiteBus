@@ -18,7 +18,7 @@ public sealed class PostgreSqlOutboxStoreTests : IClassFixture<PostgreSqlFixture
         _fixture.RequireDocker();
 
         var options = CreateOptions();
-        await PostgreSqlOutboxSchema.CreateIfNotExistsAsync(_fixture.DataSource!, options);
+        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource!, options);
 
         var store = new PostgreSqlOutboxStore(_fixture.DataSource!, options);
         var messageId = Guid.NewGuid();
@@ -86,7 +86,7 @@ public sealed class PostgreSqlOutboxStoreTests : IClassFixture<PostgreSqlFixture
         _fixture.RequireDocker();
 
         var options = CreateOptions();
-        await PostgreSqlOutboxSchema.CreateIfNotExistsAsync(_fixture.DataSource!, options);
+        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource!, options);
 
         var store = new PostgreSqlOutboxStore(_fixture.DataSource!, options);
         var messageId = Guid.NewGuid();

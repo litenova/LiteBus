@@ -1,6 +1,7 @@
 using System;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using Npgsql;
 
 namespace LiteBus.Outbox.PostgreSql;
 
@@ -30,10 +31,24 @@ public sealed class PostgreSqlOutboxModule : IModule
 
         if (moduleBuilder.DataSource is null)
         {
-            throw new InvalidOperationException("A PostgreSQL outbox data source must be configured.");
+            throw new InvalidOperationException(
+                "A PostgreSQL outbox data source must be configured. " +
+                "Call UseDataSource(NpgsqlDataSource) or UseConnectionString(string).");
+        }
+
+        if (moduleBuilder.OwnsDataSource)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(NpgsqlDataSource),
+                moduleBuilder.DataSource));
         }
 
         var store = new PostgreSqlOutboxStore(moduleBuilder.DataSource, moduleBuilder.Options);
+        var registration = new PostgreSqlOutboxStoreRegistration(moduleBuilder.DataSource, moduleBuilder.Options);
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(PostgreSqlOutboxStoreRegistration),
+            registration));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxMessageWriter),

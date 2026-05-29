@@ -18,7 +18,7 @@ public sealed class PostgreSqlInboxStoreTests : IClassFixture<PostgreSqlFixture>
         _fixture.RequireDocker();
 
         var options = CreateOptions();
-        await PostgreSqlInboxSchema.CreateIfNotExistsAsync(_fixture.DataSource!, options);
+        await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource!, options);
 
         var store = new PostgreSqlCommandInboxStore(_fixture.DataSource!, options);
         var firstCommandId = Guid.NewGuid();
@@ -53,7 +53,7 @@ public sealed class PostgreSqlInboxStoreTests : IClassFixture<PostgreSqlFixture>
         _fixture.RequireDocker();
 
         var options = CreateOptions();
-        await PostgreSqlInboxSchema.CreateIfNotExistsAsync(_fixture.DataSource!, options);
+        await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource!, options);
 
         var store = new PostgreSqlCommandInboxStore(_fixture.DataSource!, options);
         var commandId = Guid.NewGuid();

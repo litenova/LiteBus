@@ -1,16 +1,16 @@
 using System;
 using System.Text;
 
-namespace LiteBus.Outbox.PostgreSql;
+namespace LiteBus.PostgreSql;
 
 /// <summary>
-///     Builds quoted PostgreSQL identifiers used by the outbox store and schema creator.
+///     Builds quoted PostgreSQL identifiers used by LiteBus PostgreSQL stores and schema helpers.
 /// </summary>
 /// <remarks>
 ///     PostgreSQL does not allow parameterized schema, table, or index names. This helper centralizes quoting and index
 ///     name trimming so SQL text can be built without spreading identifier rules through store code.
 /// </remarks>
-internal static class PostgreSqlIdentifier
+public static class PostgreSqlIdentifier
 {
     /// <summary>
     ///     Combines a schema and table name into a quoted qualified table identifier.
@@ -18,7 +18,7 @@ internal static class PostgreSqlIdentifier
     /// <param name="schemaName">The unquoted schema name supplied by store options.</param>
     /// <param name="tableName">The unquoted table name supplied by store options.</param>
     /// <returns>A qualified identifier in the form <c>"schema"."table"</c>.</returns>
-    internal static string Qualify(string schemaName, string tableName)
+    public static string Qualify(string schemaName, string tableName)
     {
         return $"{Quote(schemaName)}.{Quote(tableName)}";
     }
@@ -28,7 +28,7 @@ internal static class PostgreSqlIdentifier
     /// </summary>
     /// <param name="identifier">The unquoted identifier.</param>
     /// <returns>The quoted identifier.</returns>
-    internal static string Quote(string identifier)
+    public static string Quote(string identifier)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
@@ -46,7 +46,7 @@ internal static class PostgreSqlIdentifier
     /// <param name="tableName">The table name used as the index name prefix.</param>
     /// <param name="suffix">The logical suffix that describes the index role.</param>
     /// <returns>A quoted index identifier.</returns>
-    internal static string IndexName(string tableName, string suffix)
+    public static string IndexName(string tableName, string suffix)
     {
         var builder = new StringBuilder(tableName.Length + suffix.Length + 1);
 
@@ -71,8 +71,12 @@ internal static class PostgreSqlIdentifier
     /// <summary>
     ///     Computes a stable, process-invariant FNV-1a 32-bit hash of the given string.
     /// </summary>
-    private static uint StableHash(string value)
+    /// <param name="value">The string to hash.</param>
+    /// <returns>A 32-bit hash value.</returns>
+    public static uint StableHash(string value)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+
         const uint fnvPrime = 16777619;
         const uint offsetBasis = 2166136261;
 

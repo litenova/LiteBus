@@ -1,27 +1,108 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.PostgreSql;
 using Npgsql;
 
 namespace LiteBus.Outbox.PostgreSql;
 
 /// <summary>
-///     Creates the PostgreSQL outbox schema objects used by <see cref="PostgreSqlOutboxStore" />.
+///     Creates, upgrades, and validates the PostgreSQL outbox schema used by <see cref="PostgreSqlOutboxStore" />.
 /// </summary>
 /// <remarks>
-///     Applications can call this helper during startup, migrations, or tests. Larger systems may copy the generated
-///     table and index shape into their own migration tool instead. The schema uses `jsonb` payloads, a leasing index
-///     for pending, failed, and expired publishing rows, and a partial topic index for dispatcher queries.
+///     <para>
+///         LiteBus supports three schema ownership models:
+///     </para>
+///     <list type="number">
+///         <item>
+///             <description>
+///                 <strong>Migration-owned (recommended for production).</strong> Copy the SQL files listed in
+///                 <see cref="SqlFiles" /> or call <see cref="GetCreateScript(PostgreSqlOutboxStoreOptions?)" /> /
+///                 <see cref="GetUpgradeScript(int, int, PostgreSqlOutboxStoreOptions?)" /> in your migration pipeline.
+///             </description>
+///         </item>
+///         <item>
+///             <description>
+///                 <strong>Explicit bootstrap.</strong> Call <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlOutboxStoreOptions?, CancellationToken)" />
+///                 during application startup or a deploy job.
+///             </description>
+///         </item>
+///         <item>
+///             <description>
+///                 <strong>Opt-in host bootstrap.</strong> Set
+///                 <see cref="PostgreSqlOutboxStoreOptions.EnsureSchemaCreationOnStartup" /> to <see langword="true" /> and
+///                 register the PostgreSQL outbox schema hosting module.
+///             </description>
+///         </item>
+///     </list>
+///     <para>
+///         Physical table schema version is tracked separately from message contract version stored on each row. Contract
+///         version describes payload shape; table schema version describes columns and indexes managed by LiteBus.
+///     </para>
 /// </remarks>
 public static class PostgreSqlOutboxSchema
 {
     /// <summary>
-    ///     Creates the outbox table and indexes when they do not exist.
+    ///     Gets the outbox table schema version implemented by this package release.
+    /// </summary>
+    public const int CurrentSchemaVersion = 2;
+
+    /// <summary>
+    ///     Gets the canonical SQL files shipped with the outbox PostgreSQL package.
+    /// </summary>
+    public static IReadOnlyList<PostgreSqlSchemaSqlFile> SqlFiles => PostgreSqlOutboxSchemaScripts.SqlFiles;
+
+    /// <summary>
+    ///     Returns the SQL script that creates the current outbox schema, indexes, and metadata table.
+    /// </summary>
+    /// <param name="options">The schema and table options. Defaults create <c>public.litebus_outbox_messages</c>.</param>
+    /// <returns>The canonical create script for <see cref="CurrentSchemaVersion" />.</returns>
+    public static string GetCreateScript(PostgreSqlOutboxStoreOptions? options = null)
+    {
+        options ??= new PostgreSqlOutboxStoreOptions();
+        return PostgreSqlOutboxSchemaScripts.BuildCreateScript(options, CurrentSchemaVersion);
+    }
+
+    /// <summary>
+    ///     Returns the SQL script that upgrades the outbox schema from one version to the next.
+    /// </summary>
+    /// <param name="fromVersion">The source schema version.</param>
+    /// <param name="toVersion">The target schema version.</param>
+    /// <param name="options">The schema and table options.</param>
+    /// <returns>The upgrade script.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when the requested version range is unsupported.
+    /// </exception>
+    public static string GetUpgradeScript(int fromVersion, int toVersion, PostgreSqlOutboxStoreOptions? options = null)
+    {
+        options ??= new PostgreSqlOutboxStoreOptions();
+
+        if (fromVersion <= 0 || toVersion <= 0 || fromVersion >= toVersion || toVersion > CurrentSchemaVersion)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(toVersion),
+                toVersion,
+                $"Outbox schema upgrades must advance from a positive version to at most {CurrentSchemaVersion}.");
+        }
+
+        var builder = new System.Text.StringBuilder();
+
+        for (var version = fromVersion + 1; version <= toVersion; version++)
+        {
+            builder.AppendLine(PostgreSqlOutboxSchemaScripts.BuildUpgradeScript(options, version - 1, version));
+        }
+
+        return builder.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    ///     Creates or upgrades the outbox schema to <see cref="CurrentSchemaVersion" /> when required.
     /// </summary>
     /// <param name="dataSource">The PostgreSQL data source.</param>
-    /// <param name="options">The schema and table options. Defaults create `public.litebus_outbox_messages`.</param>
-    /// <param name="cancellationToken">A token used to cancel the database command before it completes.</param>
-    public static async Task CreateIfNotExistsAsync(
+    /// <param name="options">The schema and table options.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    public static Task EnsureAsync(
         NpgsqlDataSource dataSource,
         PostgreSqlOutboxStoreOptions? options = null,
         CancellationToken cancellationToken = default)
@@ -30,41 +111,49 @@ public static class PostgreSqlOutboxSchema
 
         options ??= new PostgreSqlOutboxStoreOptions();
 
-        var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
-        var schemaName = PostgreSqlIdentifier.Quote(options.SchemaName);
-        var leasingIndexName = PostgreSqlIdentifier.IndexName(options.TableName, "lease_idx");
-        var topicIndexName = PostgreSqlIdentifier.IndexName(options.TableName, "topic_idx");
+        return PostgreSqlSchemaManager.EnsureAsync(
+            dataSource,
+            options,
+            PostgreSqlOutboxSchemaScripts.Definition,
+            cancellationToken);
+    }
 
-        var sql = $"""
-                  CREATE SCHEMA IF NOT EXISTS {schemaName};
+    /// <summary>
+    ///     Creates the outbox table and indexes when they do not exist.
+    /// </summary>
+    /// <param name="dataSource">The PostgreSQL data source.</param>
+    /// <param name="options">The schema and table options.</param>
+    /// <param name="cancellationToken">A token used to cancel the database command.</param>
+    public static Task CreateIfNotExistsAsync(
+        NpgsqlDataSource dataSource,
+        PostgreSqlOutboxStoreOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        return EnsureAsync(dataSource, options, cancellationToken);
+    }
 
-                  CREATE TABLE IF NOT EXISTS {tableName} (
-                      message_id uuid PRIMARY KEY,
-                      contract_name text NOT NULL,
-                      contract_version integer NOT NULL,
-                      payload jsonb NOT NULL,
-                      topic text NULL,
-                      created_at timestamptz NOT NULL,
-                      visible_after timestamptz NULL,
-                      status integer NOT NULL,
-                      attempt_count integer NOT NULL,
-                      lease_owner text NULL,
-                      lease_expires_at timestamptz NULL,
-                      last_error text NULL,
-                      correlation_id text NULL,
-                      causation_id text NULL,
-                      tenant_id text NULL
-                  );
+    /// <summary>
+    ///     Validates that the outbox table matches <see cref="CurrentSchemaVersion" />.
+    /// </summary>
+    /// <param name="dataSource">The PostgreSQL data source.</param>
+    /// <param name="options">The schema and table options.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <exception cref="PostgreSqlSchemaDriftException">
+    ///     Thrown when the table is missing, incomplete, or recorded at an unexpected schema version.
+    /// </exception>
+    public static Task ValidateAsync(
+        NpgsqlDataSource dataSource,
+        PostgreSqlOutboxStoreOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dataSource);
 
-                  CREATE INDEX IF NOT EXISTS {leasingIndexName}
-                      ON {tableName} (status, visible_after, lease_expires_at, created_at);
+        options ??= new PostgreSqlOutboxStoreOptions();
 
-                  CREATE INDEX IF NOT EXISTS {topicIndexName}
-                      ON {tableName} (topic)
-                      WHERE topic IS NOT NULL;
-                  """;
-
-        await using var command = dataSource.CreateCommand(sql);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return PostgreSqlSchemaManager.ValidateAsync(
+            dataSource,
+            options,
+            PostgreSqlOutboxSchemaScripts.Definition,
+            cancellationToken);
     }
 }

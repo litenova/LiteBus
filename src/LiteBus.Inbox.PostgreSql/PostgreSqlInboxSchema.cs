@@ -1,27 +1,138 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.PostgreSql;
 using Npgsql;
 
 namespace LiteBus.Inbox.PostgreSql;
 
 /// <summary>
-///     Creates the PostgreSQL command inbox schema objects used by <see cref="PostgreSqlCommandInboxStore" />.
+///     Creates, upgrades, and validates the PostgreSQL command inbox schema used by
+///     <see cref="PostgreSqlCommandInboxStore" />.
 /// </summary>
 /// <remarks>
-///     Applications can call this helper during startup, migrations, or tests. Larger systems may copy the generated
-///     table and index shape into their own migration tool instead. The schema uses `jsonb` payloads, a unique partial
-///     idempotency index, and a leasing index tuned for pending, failed, and expired processing rows.
+///     <para>
+///         LiteBus supports three schema ownership models:
+///     </para>
+///     <list type="number">
+///         <item>
+///             <description>
+///                 <strong>Migration-owned (recommended for production).</strong> Copy the SQL files listed in
+///                 <see cref="SqlFiles" /> or call <see cref="GetCreateScript(PostgreSqlInboxStoreOptions?)" /> /
+///                 <see cref="GetUpgradeScript(int, int, PostgreSqlInboxStoreOptions?)" /> in your migration pipeline.
+///             </description>
+///         </item>
+///         <item>
+///             <description>
+///                 <strong>Explicit bootstrap.</strong> Call <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlInboxStoreOptions?, CancellationToken)" />
+///                 during application startup or a deploy job.
+///             </description>
+///         </item>
+///         <item>
+///             <description>
+///                 <strong>Opt-in host bootstrap.</strong> Set
+///                 <see cref="PostgreSqlInboxStoreOptions.EnsureSchemaCreationOnStartup" /> to <see langword="true" /> and
+///                 register the PostgreSQL inbox schema hosting module.
+///             </description>
+///         </item>
+///     </list>
+///     <para>
+///         Physical table schema version is tracked separately from message contract version stored on each row. Contract
+///         version describes payload shape; table schema version describes columns and indexes managed by LiteBus.
+///     </para>
 /// </remarks>
 public static class PostgreSqlInboxSchema
 {
     /// <summary>
-    ///     Creates the command inbox table and indexes when they do not exist.
+    ///     Gets the inbox table schema version implemented by this package release.
+    /// </summary>
+    public const int CurrentSchemaVersion = 2;
+
+    /// <summary>
+    ///     Gets the canonical SQL files shipped with the inbox PostgreSQL package.
+    /// </summary>
+    /// <remarks>
+    ///     Paths are relative to the repository root, for example
+    ///     <c>src/LiteBus.Inbox.PostgreSql/Sql/inbox/v1/create.sql</c>. Replace
+    ///     <c>{{TokenName}}</c> placeholders with quoted identifiers for your schema and table names before running the
+    ///     scripts manually, or call <see cref="GetCreateScript(PostgreSqlInboxStoreOptions?)" /> to render them.
+    /// </remarks>
+    public static IReadOnlyList<PostgreSqlSchemaSqlFile> SqlFiles => PostgreSqlInboxSchemaScripts.SqlFiles;
+
+    /// <summary>
+    ///     Returns the SQL script that creates the current inbox schema, indexes, and metadata table.
+    /// </summary>
+    /// <param name="options">The schema and table options. Defaults create <c>public.litebus_inbox_commands</c>.</param>
+    /// <returns>The canonical create script for <see cref="CurrentSchemaVersion" />.</returns>
+    /// <example>
+    ///     <code>
+    /// var ddl = PostgreSqlInboxSchema.GetCreateScript(new PostgreSqlInboxStoreOptions
+    /// {
+    ///     SchemaName = "app",
+    ///     TableName = "command_inbox"
+    /// });
+    /// File.WriteAllText("V001__litebus_inbox.sql", ddl);
+    ///     </code>
+    /// </example>
+    public static string GetCreateScript(PostgreSqlInboxStoreOptions? options = null)
+    {
+        options ??= new PostgreSqlInboxStoreOptions();
+        return PostgreSqlInboxSchemaScripts.BuildCreateScript(options, CurrentSchemaVersion);
+    }
+
+    /// <summary>
+    ///     Returns the SQL script that upgrades the inbox schema from one version to the next.
+    /// </summary>
+    /// <param name="fromVersion">The source schema version.</param>
+    /// <param name="toVersion">The target schema version.</param>
+    /// <param name="options">The schema and table options.</param>
+    /// <returns>The upgrade script.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when the requested version range is unsupported.
+    /// </exception>
+    public static string GetUpgradeScript(int fromVersion, int toVersion, PostgreSqlInboxStoreOptions? options = null)
+    {
+        options ??= new PostgreSqlInboxStoreOptions();
+
+        if (fromVersion <= 0 || toVersion <= 0 || fromVersion >= toVersion || toVersion > CurrentSchemaVersion)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(toVersion),
+                toVersion,
+                $"Inbox schema upgrades must advance from a positive version to at most {CurrentSchemaVersion}.");
+        }
+
+        var builder = new System.Text.StringBuilder();
+
+        for (var version = fromVersion + 1; version <= toVersion; version++)
+        {
+            builder.AppendLine(PostgreSqlInboxSchemaScripts.BuildUpgradeScript(options, version - 1, version));
+        }
+
+        return builder.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    ///     Creates or upgrades the inbox schema to <see cref="CurrentSchemaVersion" /> when required.
     /// </summary>
     /// <param name="dataSource">The PostgreSQL data source.</param>
-    /// <param name="options">The schema and table options. Defaults create `public.litebus_inbox_commands`.</param>
-    /// <param name="cancellationToken">A token used to cancel the database command before it completes.</param>
-    public static async Task CreateIfNotExistsAsync(
+    /// <param name="options">The schema and table options.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <remarks>
+    ///     The operation is idempotent and safe to run from multiple application instances. One instance acquires a
+    ///     PostgreSQL advisory lock while applying upgrades; the others wait until the schema reaches the expected version.
+    /// </remarks>
+    /// <example>
+    ///     <code>
+    /// await PostgreSqlInboxSchema.EnsureAsync(dataSource, new PostgreSqlInboxStoreOptions
+    /// {
+    ///     SchemaName = "app",
+    ///     Logger = mySchemaLogger
+    /// }, cancellationToken);
+    ///     </code>
+    /// </example>
+    public static Task EnsureAsync(
         NpgsqlDataSource dataSource,
         PostgreSqlInboxStoreOptions? options = null,
         CancellationToken cancellationToken = default)
@@ -30,41 +141,53 @@ public static class PostgreSqlInboxSchema
 
         options ??= new PostgreSqlInboxStoreOptions();
 
-        var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
-        var schemaName = PostgreSqlIdentifier.Quote(options.SchemaName);
-        var idempotencyIndexName = PostgreSqlIdentifier.IndexName(options.TableName, "idempotency_key_uidx");
-        var leasingIndexName = PostgreSqlIdentifier.IndexName(options.TableName, "lease_idx");
+        return PostgreSqlSchemaManager.EnsureAsync(
+            dataSource,
+            options,
+            PostgreSqlInboxSchemaScripts.Definition,
+            cancellationToken);
+    }
 
-        var sql = $"""
-                  CREATE SCHEMA IF NOT EXISTS {schemaName};
+    /// <summary>
+    ///     Creates the inbox table and indexes when they do not exist.
+    /// </summary>
+    /// <param name="dataSource">The PostgreSQL data source.</param>
+    /// <param name="options">The schema and table options. Defaults create <c>public.litebus_inbox_commands</c>.</param>
+    /// <param name="cancellationToken">A token used to cancel the database command before it completes.</param>
+    /// <remarks>
+    ///     Prefer <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlInboxStoreOptions?, CancellationToken)" /> for new
+    ///     code. This method delegates to <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlInboxStoreOptions?, CancellationToken)" />.
+    /// </remarks>
+    public static Task CreateIfNotExistsAsync(
+        NpgsqlDataSource dataSource,
+        PostgreSqlInboxStoreOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        return EnsureAsync(dataSource, options, cancellationToken);
+    }
 
-                  CREATE TABLE IF NOT EXISTS {tableName} (
-                      command_id uuid PRIMARY KEY,
-                      contract_name text NOT NULL,
-                      contract_version integer NOT NULL,
-                      payload jsonb NOT NULL,
-                      created_at timestamptz NOT NULL,
-                      visible_after timestamptz NULL,
-                      attempt_count integer NOT NULL,
-                      status integer NOT NULL,
-                      idempotency_key text NULL,
-                      lease_owner text NULL,
-                      lease_expires_at timestamptz NULL,
-                      last_error text NULL,
-                      correlation_id text NULL,
-                      causation_id text NULL,
-                      tenant_id text NULL
-                  );
+    /// <summary>
+    ///     Validates that the inbox table matches <see cref="CurrentSchemaVersion" />.
+    /// </summary>
+    /// <param name="dataSource">The PostgreSQL data source.</param>
+    /// <param name="options">The schema and table options.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <exception cref="PostgreSqlSchemaDriftException">
+    ///     Thrown when the table is missing, incomplete, or recorded at an unexpected schema version.
+    /// </exception>
+    public static Task ValidateAsync(
+        NpgsqlDataSource dataSource,
+        PostgreSqlInboxStoreOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dataSource);
 
-                  CREATE UNIQUE INDEX IF NOT EXISTS {idempotencyIndexName}
-                      ON {tableName} (idempotency_key)
-                      WHERE idempotency_key IS NOT NULL;
+        options ??= new PostgreSqlInboxStoreOptions();
 
-                  CREATE INDEX IF NOT EXISTS {leasingIndexName}
-                      ON {tableName} (status, visible_after, lease_expires_at, created_at);
-                  """;
-
-        await using var command = dataSource.CreateCommand(sql);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return PostgreSqlSchemaManager.ValidateAsync(
+            dataSource,
+            options,
+            PostgreSqlInboxSchemaScripts.Definition,
+            cancellationToken);
     }
 }

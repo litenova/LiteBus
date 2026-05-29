@@ -1,6 +1,7 @@
 using System;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using Npgsql;
 
 namespace LiteBus.Inbox.PostgreSql;
 
@@ -30,10 +31,24 @@ public sealed class PostgreSqlCommandInboxModule : IModule
 
         if (moduleBuilder.DataSource is null)
         {
-            throw new InvalidOperationException("A PostgreSQL command inbox data source must be configured.");
+            throw new InvalidOperationException(
+                "A PostgreSQL command inbox data source must be configured. " +
+                "Call UseDataSource(NpgsqlDataSource) or UseConnectionString(string).");
+        }
+
+        if (moduleBuilder.OwnsDataSource)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(NpgsqlDataSource),
+                moduleBuilder.DataSource));
         }
 
         var store = new PostgreSqlCommandInboxStore(moduleBuilder.DataSource, moduleBuilder.Options);
+        var registration = new PostgreSqlInboxStoreRegistration(moduleBuilder.DataSource, moduleBuilder.Options);
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(PostgreSqlInboxStoreRegistration),
+            registration));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ICommandInboxWriter),
