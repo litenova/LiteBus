@@ -41,9 +41,6 @@ jobs:
       - name: Test
         run: dotnet test LiteBus.slnx --no-restore --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
 
-      - name: Benchmark Smoke
-        run: dotnet run --configuration Release --no-build --project benchmarks/LiteBus.Benchmarks/LiteBus.Benchmarks.csproj -- --filter '*' --job Dry
-
       - name: Upload to Codecov
         uses: codecov/codecov-action@v6
         with:

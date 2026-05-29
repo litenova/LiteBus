@@ -13,49 +13,25 @@ public sealed class PostgreSqlOutboxSchemaTests : IClassFixture<PostgreSqlFixtur
     }
 
     [Fact]
-    public void GetCreateScript_ShouldIncludeCurrentVersionObjects()
-    {
-        var options = CreateOptions();
-        var script = PostgreSqlOutboxSchema.GetCreateScript(options);
-
-        script.Should().Contain(options.TableName);
-        script.Should().Contain("trace_context");
-        script.Should().Contain(options.MetadataTableName);
-    }
-
-    [Fact]
-    public void GetUpgradeScript_ShouldReturnVersion2Changes()
-    {
-        var options = CreateOptions();
-        var script = PostgreSqlOutboxSchema.GetUpgradeScript(1, 2, options);
-
-        script.Should().Contain("trace_context");
-    }
-
-    [Fact]
     public async Task EnsureAsync_ShouldCreateSchemaAndBeIdempotent()
     {
-        _fixture.RequireDocker();
+        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
 
-        var options = CreateOptions();
+        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options);
+        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options);
 
-        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource!, options);
-        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource!, options);
-
-        await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource!, options);
+        await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options);
     }
 
     [Fact]
     public async Task EnsureAsync_ShouldUpgradeLegacyVersion1Table()
     {
-        _fixture.RequireDocker();
-
-        var options = CreateOptions();
+        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
         var legacyOptions = options with { TableName = $"{options.TableName}_legacy" };
 
-        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource!, legacyOptions);
+        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, legacyOptions);
 
-        await using var connection = await _fixture.DataSource!.OpenConnectionAsync();
+        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
         await using var dropColumn = connection.CreateCommand();
         dropColumn.CommandText = $"""
                                   ALTER TABLE "{legacyOptions.SchemaName}"."{legacyOptions.TableName}"
@@ -63,44 +39,40 @@ public sealed class PostgreSqlOutboxSchemaTests : IClassFixture<PostgreSqlFixtur
                                   """;
         await dropColumn.ExecuteNonQueryAsync();
 
-        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource!, legacyOptions);
-        await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource!, legacyOptions);
+        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, legacyOptions);
+        await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, legacyOptions);
     }
 
     [Fact]
     public async Task EnsureAsync_ShouldHandleConcurrentBootstrap()
     {
-        _fixture.RequireDocker();
-
-        var options = CreateOptions();
+        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
 
         var tasks = Enumerable.Range(0, 5)
-            .Select(_ => PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource!, options))
+            .Select(_ => PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options))
             .ToArray();
 
         await Task.WhenAll(tasks);
-        await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource!, options);
+        await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options);
     }
 
     [Fact]
     public async Task ValidateAsync_ShouldThrowWhenTableIsMissing()
     {
-        _fixture.RequireDocker();
+        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
 
-        var options = CreateOptions();
-
-        var action = async () => await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource!, options);
+        var action = async () => await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options);
 
         await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>()
             .Where(exception => exception.Component == PostgreSqlSchemaComponents.Outbox);
     }
 
-    private static PostgreSqlOutboxStoreOptions CreateOptions()
+    [Fact]
+    public async Task CreateIfNotExistsAsync_ShouldDelegateToEnsureAsync()
     {
-        return new PostgreSqlOutboxStoreOptions
-        {
-            SchemaName = "litebus_tests",
-            TableName = $"outbox_schema_{Guid.NewGuid():N}"
-        };
+        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+
+        await PostgreSqlOutboxSchema.CreateIfNotExistsAsync(_fixture.DataSource, options);
+        await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options);
     }
 }

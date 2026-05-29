@@ -31,7 +31,6 @@ All notable changes to this project will be documented in this file.
 - Added `IPostgreSqlSchemaLogger` to `LiteBus.PostgreSql` (Npgsql-only dependency) for optional schema operation logging.
 - Added `PostgreSqlInboxSchema` / `PostgreSqlOutboxSchema` APIs: `GetCreateScript`, `GetUpgradeScript`, `EnsureAsync`, and `ValidateAsync`.
 - Added `LiteBus.Inbox.PostgreSql.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.PostgreSql.Extensions.Microsoft.Hosting` for opt-in schema bootstrap on generic host startup.
-- Added benchmark smoke coverage through `LiteBus.Benchmarks` and CI dry-run execution.
 - Added `LiteBus.Inbox.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.Extensions.Microsoft.Hosting` for optional generic-host processor loops and health checks.
 
 ### Removed

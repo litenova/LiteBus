@@ -239,33 +239,64 @@ public sealed class PostgreSqlCommandInboxStore : ICommandInboxWriter, ICommandI
     /// <returns>The existing stored envelope that should be returned to the scheduler.</returns>
     private async Task<InboxCommandEnvelope> FindExistingAsync(Guid commandId, string? idempotencyKey, CancellationToken cancellationToken)
     {
-        var sql = $"""
-                  SELECT
-                      command_id,
-                      contract_name,
-                      contract_version,
-                      payload::text,
-                      created_at,
-                      visible_after,
-                      attempt_count,
-                      status,
-                      idempotency_key,
-                      lease_owner,
-                      lease_expires_at,
-                      last_error,
-                      correlation_id,
-                      causation_id,
-                      tenant_id
-                  FROM {_tableName}
-                  WHERE command_id = @command_id
-                     OR (@idempotency_key IS NOT NULL AND idempotency_key = @idempotency_key)
-                  ORDER BY CASE WHEN command_id = @command_id THEN 0 ELSE 1 END
-                  LIMIT 1;
-                  """;
-
-        await using var command = _dataSource.CreateCommand(sql);
+        string sql;
+        await using var command = _dataSource.CreateCommand();
         command.Parameters.AddWithValue("command_id", commandId);
-        command.Parameters.AddWithValue("idempotency_key", (object?)idempotencyKey ?? DBNull.Value);
+
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            sql = $"""
+                   SELECT
+                       command_id,
+                       contract_name,
+                       contract_version,
+                       payload::text,
+                       created_at,
+                       visible_after,
+                       attempt_count,
+                       status,
+                       idempotency_key,
+                       lease_owner,
+                       lease_expires_at,
+                       last_error,
+                       correlation_id,
+                       causation_id,
+                       tenant_id
+                   FROM {_tableName}
+                   WHERE command_id = @command_id
+                   LIMIT 1;
+                   """;
+        }
+        else
+        {
+            sql = $"""
+                   SELECT
+                       command_id,
+                       contract_name,
+                       contract_version,
+                       payload::text,
+                       created_at,
+                       visible_after,
+                       attempt_count,
+                       status,
+                       idempotency_key,
+                       lease_owner,
+                       lease_expires_at,
+                       last_error,
+                       correlation_id,
+                       causation_id,
+                       tenant_id
+                   FROM {_tableName}
+                   WHERE command_id = @command_id
+                      OR idempotency_key = @idempotency_key
+                   ORDER BY CASE WHEN command_id = @command_id THEN 0 ELSE 1 END
+                   LIMIT 1;
+                   """;
+
+            command.Parameters.AddWithValue("idempotency_key", idempotencyKey);
+        }
+
+        command.CommandText = sql;
 
         return await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false)
                ?? throw new InvalidOperationException("The command inbox insert was skipped but the existing command could not be found.");

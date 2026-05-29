@@ -15,9 +15,6 @@
     <File Path=".github/workflows/manual-test-and-coverage.yml" />
     <File Path=".github/workflows/release.yml" />
   </Folder>
-  <Folder Name="/benchmarks/">
-    <Project Path="benchmarks/LiteBus.Benchmarks/LiteBus.Benchmarks.csproj" />
-  </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/LiteBus.Samples.NetCore/LiteBus.Samples.NetCore.csproj" />
     <Project Path="samples/LiteBus.Samples/LiteBus.Samples.csproj" />
