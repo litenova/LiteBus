@@ -1,4 +1,3 @@
-
 <h1 align="center">
   <a href="https://github.com/litenova/LiteBus">
     <img src="assets/logo/icon.png" alt="LiteBus Logo" width="128">
@@ -7,13 +6,13 @@
   LiteBus
 </h1>
 
-<h4 align="center">A lightweight, high-performance mediator for building clean, scalable, and testable .NET applications with CQS and DDD.</h4>
+<h4 align="center">A semantic, high-performance mediator for CQS and DDD in .NET. Free under MIT, forever.</h4>
 
 <p align="center">
   <a href="https://github.com/litenova/LiteBus/actions/workflows/release.yml">
     <img src="https://github.com/litenova/LiteBus/actions/workflows/release.yml/badge.svg" alt="Build Status" />
   </a>
-  <a href="https://codecov.io/gh/litenova/LiteBus" >
+  <a href="https://codecov.io/gh/litenova/LiteBus">
     <img src="https://codecov.io/gh/litenova/LiteBus/graph/badge.svg?token=XBNYITSV5A" alt="Code Coverage" />
   </a>
   <a href="https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.DependencyInjection">
@@ -24,371 +23,107 @@
   </a>
 </p>
 
-<h4 align="center">LiteBus is a semantic, high-performance, and perpetually free alternative to MediatR.</h4>
+LiteBus is an in-process mediator that keeps commands, queries, and events as separate, first-class concepts so your application code stays self-documenting. It runs handlers through a typed pipeline, caches handler metadata at startup, and depends on no DI container.
 
-It is, and always will be, governed by the MIT license. LiteBus helps you implement **Command Query Separation (CQS)** and **Domain-Driven Design (DDD)** patterns by providing a clean, decoupled architecture for your application's business logic.
+- **Semantic by design.** `ICommand<TResult>`, `IQuery<TResult>`, and `IEvent` instead of one generic request. Events can be plain POCOs.
+- **Typed pipeline per message.** Distinct pre-handlers, post-handlers, and error-handlers for each message type, plus open generic handlers for cross-cutting concerns.
+- **Event concurrency you control.** Order handlers into priority groups and run each group, and the handlers within it, sequentially or in parallel.
+- **Durable when needed.** An inbox schedules commands and an outbox stores integration events, with at-least-once delivery on PostgreSQL.
 
----
-
-## Why LiteBus?
-
--   **Truly Semantic:** Go beyond generic requests. With first-class contracts like `ICommand<TResult>`, `IQuery<TResult>`, and `IEvent`, your code becomes self-documenting. You can even publish clean POCOs as domain events.
--   **High Performance:** Designed for minimal overhead. Handler metadata is cached on startup, and dependencies are resolved lazily. Large datasets are handled efficiently with `IAsyncEnumerable<T>` streaming.
--   **Granular Pipeline Control:** Go beyond simple "behaviors". LiteBus provides a full pipeline with distinct, type-safe `Pre-Handlers`, `Post-Handlers`, and `Error-Handlers` for each message.
--   **Open Generic Handlers:** Write a single pre/post/error handler once and have it automatically apply to every message type matching its constraints, useful for cross-cutting concerns like logging, validation, and metrics.
--   **Advanced Event Concurrency:** Take full control of event processing. Configure `Sequential` or `Parallel` execution for both priority groups and for handlers within the same group to fine-tune throughput.
--   **Storage Boundaries:** Schedule commands with an explicit inbox and store integration events with an outbox when work must survive process failure.
--   **DI-Agnostic by Design:** Decoupled from any specific DI container. First-class integration for Microsoft DI and Autofac is provided, with a simple adapter pattern to support others.
-
-## Quick Start
-
-### 1. Install Packages
-
-Install the modules you need. The core messaging infrastructure is included automatically.
+## Install
 
 ```bash
-# For Commands
 dotnet add package LiteBus.Commands.Extensions.Microsoft.DependencyInjection
-
-# For Queries
 dotnet add package LiteBus.Queries.Extensions.Microsoft.DependencyInjection
-
-# For Events
 dotnet add package LiteBus.Events.Extensions.Microsoft.DependencyInjection
 ```
 
-### 2. Define Your Messages and Handlers
+The core messaging runtime is pulled in automatically. Install only the modules you use.
 
-#### Command: Create a Product
+## Quick start
+
+Define a command and its handler:
 
 ```csharp
-// The Command
 public sealed record CreateProductCommand(string Name, decimal Price) : ICommand<Guid>;
 
-// The Handler
 public sealed class CreateProductCommandHandler : ICommandHandler<CreateProductCommand, Guid>
 {
     public Task<Guid> HandleAsync(CreateProductCommand command, CancellationToken cancellationToken)
     {
-        var productId = Guid.NewGuid(); // Your business logic here...
-        Console.WriteLine($"Product '{command.Name}' created with ID: {productId}");
+        var productId = Guid.NewGuid();
         return Task.FromResult(productId);
     }
 }
 ```
 
-#### Query: Get a Product by ID
+Register the modules and send the command:
 
 ```csharp
-// The Query
-public sealed record GetProductByIdQuery(Guid Id) : IQuery<ProductDto>;
-
-// The DTO
-public sealed record ProductDto(Guid Id, string Name, decimal Price);
-
-// The Handler
-public sealed class GetProductByIdQueryHandler : IQueryHandler<GetProductByIdQuery, ProductDto>
-{
-    public Task<ProductDto> HandleAsync(GetProductByIdQuery query, CancellationToken cancellationToken)
-    {
-        // Your data retrieval logic here...
-        var product = new ProductDto(query.Id, "Sample Product", 99.99m);
-        return Task.FromResult(product);
-    }
-}
-```
-
-#### Event: A Product was Created
-
-```csharp
-// The Event (can be a simple POCO)
-public sealed record ProductCreatedEvent(Guid ProductId, string Name);
-
-// The Handler
-public sealed class ProductCreatedEventHandler : IEventHandler<ProductCreatedEvent>
-{
-    public Task HandleAsync(ProductCreatedEvent @event, CancellationToken cancellationToken)
-    {
-        // Your side-effect logic here (e.g., send an email, update a projection)
-        Console.WriteLine($"Handling side effects for new product '{@event.Name}'...");
-        return Task.CompletedTask;
-    }
-}
-```
-
-### 3. Configure and Mediate
-
-Register LiteBus and its modules in `Program.cs`, then inject the mediators into your services or controllers.
-
-```csharp
-// In Program.cs
 builder.Services.AddLiteBus(liteBus =>
 {
-    var appAssembly = typeof(Program).Assembly;
-
-    // Scan the assembly for all command/query/event handlers
-    liteBus.AddCommandModule(module => module.RegisterFromAssembly(appAssembly));
-    liteBus.AddQueryModule(module => module.RegisterFromAssembly(appAssembly));
-    liteBus.AddEventModule(module => module.RegisterFromAssembly(appAssembly));
+    var assembly = typeof(Program).Assembly;
+    liteBus.AddCommandModule(module => module.RegisterFromAssembly(assembly));
+    liteBus.AddQueryModule(module => module.RegisterFromAssembly(assembly));
+    liteBus.AddEventModule(module => module.RegisterFromAssembly(assembly));
 });
 
-// In your API Controller or Service
-public class ProductController : ControllerBase
-{
-    private readonly ICommandMediator _commandMediator;
-    private readonly IQueryMediator _queryMediator;
-    private readonly IEventMediator _eventMediator;
-
-    public ProductController(ICommandMediator cmd, IQueryMediator qry, IEventMediator evt)
-    {
-        _commandMediator = cmd;
-        _queryMediator = qry;
-        _eventMediator = evt;
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> Create(CreateProductCommand command)
-    {
-        // 1. Send a command to create the product
-        var productId = await _commandMediator.SendAsync(command);
-
-        // 2. Publish an event to handle side effects
-        await _eventMediator.PublishAsync(new ProductCreatedEvent(productId, command.Name));
-
-        // 3. Query for the newly created product to return it
-        var productDto = await _queryMediator.QueryAsync(new GetProductByIdQuery(productId));
-
-        return Ok(productDto);
-    }
-}
+// Inject ICommandMediator, IQueryMediator, IEventMediator where you need them
+var productId = await commandMediator.SendAsync(new CreateProductCommand("Widget", 9.99m));
 ```
 
-## Key Features
+Queries (`IQueryMediator.QueryAsync`) and events (`IEventMediator.PublishAsync`) follow the same shape. The [Getting Started](https://github.com/litenova/LiteBus/wiki/Getting-Started) guide walks through all three end to end.
 
-### A Semantic & Granular Pipeline
+## Features
 
-LiteBus provides a rich set of interfaces that make your pipeline explicit and type-specific. Each message type (Command, Query, Event) has its own set of `Pre-Handlers`, `Post-Handlers`, and `Error-Handlers`.
-
-This allows for fine-grained control, such as running validation logic, enriching a message, or logging results at specific stages of the pipeline. You can also share data between handlers via the `AmbientExecutionContext`.
-
-```csharp
-// A semantic validator that runs before the main handler
-
-public sealed class PlaceOrderValidator : ICommandValidator<PlaceOrderCommand> // or ICommandPreHandler<PlaceOrderCommand>
-{
-    public Task ValidateAsync(PlaceOrderCommand command, CancellationToken cancellationToken)
-    {
-        if (command.LineItems.Count == 0)
-        {
-            throw new ValidationException("At least one line item is required.");
-        }
-        return Task.CompletedTask;
-    }
-}
-
-// A post-handler that runs after the command is successfully handled
-public sealed class PlaceOrderNotifier : ICommandPostHandler<PlaceOrderCommand, Guid>
-{
-    public Task PostHandleAsync(PlaceOrderCommand command, Guid orderId, CancellationToken cancellationToken)
-    {
-        // Publish an OrderPlacedEvent with the result from the command handler
-        return _eventPublisher.PublishAsync(new OrderPlacedEvent(orderId));
-    }
-}
-```
-
-The mediator also supports **polymorphic dispatch**, allowing handlers for a base message type to process any derived messages.
-
-### Open Generic Handlers for Cross-Cutting Concerns
-
-Write a single handler that automatically applies to **every** command, query, or event. No changes to existing messages required.
-
-```csharp
-// This pre-handler runs before EVERY command, registered once and applied everywhere
-public sealed class CommandLogger<T> : ICommandPreHandler<T> where T : ICommand
-{
-    public Task PreHandleAsync(T message, CancellationToken cancellationToken)
-    {
-        Console.WriteLine($"Executing: {typeof(T).Name}");
-        return Task.CompletedTask;
-    }
-}
-
-// RegisterFromAssembly automatically discovers open generic handlers in the assembly
-builder.Services.AddLiteBus(liteBus =>
-{
-    liteBus.AddCommandModule(module =>
-    {
-        module.RegisterFromAssembly(typeof(Program).Assembly); // picks up CommandLogger<> too
-    });
-});
-
-// Or register explicitly if the handler is in a different assembly
-builder.Services.AddLiteBus(liteBus =>
-{
-    liteBus.AddCommandModule(module =>
-    {
-        module.Register(typeof(CommandLogger<>));  // from an external library
-        module.RegisterFromAssembly(typeof(Program).Assembly);
-    });
-});
-```
-
-`RegisterFromAssembly` automatically discovers open generic handlers in the scanned assembly, so no separate `Register(typeof(...))` call is needed. Use explicit registration only when the handler lives in a different assembly. LiteBus closes the generic at startup for each concrete message type. Generic constraints (`where T : ICommand`, `class`, `struct`, `new()`) are fully respected. Registration order does not matter.
-
-### Advanced Eventing with Concurrency Control
-
-Define execution priority and concurrency for event handlers to manage complex workflows.
-
-```csharp
-// This handler runs first
-[HandlerPriority(1)]
-public class ValidateOrderHandler : IEventHandler<OrderPlacedEvent> { /* ... */ }
-
-// These two handlers run concurrently after the validation handler completes
-[HandlerPriority(2)]
-public class PersistOrderHandler : IEventHandler<OrderPlacedEvent> { /* ... */ }
-
-[HandlerPriority(2)]
-public class NotifyInventoryHandler : IEventHandler<OrderPlacedEvent> { /* ... */ }
-
-// Configure execution strategy at runtime
-await _eventMediator.PublishAsync(e, new EventMediationSettings
-{
-    Execution = new EventMediationExecutionSettings
-    {
-        // Run priority groups one after another
-        PriorityGroupsConcurrencyMode = ConcurrencyMode.Sequential,
-        // Run handlers within the same group in parallel
-        HandlersWithinSamePriorityConcurrencyMode = ConcurrencyMode.Parallel
-    }
-});
-```
-
-### Contextual Filtering with Tags
-
-Execute specific handlers based on runtime context, such as the request origin.
-
-```csharp
-// This handler only runs if the "api" tag is specified
-[HandlerTag("api")]
-public class ApiValidationPreHandler : ICommandPreHandler<CreateProductCommand> { /* ... */ }
-
-// Mediate with a tag
-await _commandMediator.SendAsync(command, new CommandMediationSettings
-{
-    Filters = { Tags = ["api"] }
-});
-```
-
-### Inbox and Outbox
-
-Use the mediator APIs for in-process work. Use inbox and outbox APIs when the caller is accepting later execution or later publication.
-
-```csharp
-public sealed record ProcessPaymentCommand(Guid OrderId, decimal Amount) : ICommand;
-
-var receipt = await commandScheduler.ScheduleAsync(
-    new ProcessPaymentCommand(orderId, amount),
-    new CommandScheduleOptions
-    {
-        IdempotencyKey = $"payment:{orderId}"
-    },
-    cancellationToken);
-```
-
-```csharp
-public sealed record OrderSubmittedIntegrationEvent : IIntegrationEvent
-{
-    public required Guid OrderId { get; init; }
-}
-
-await integrationOutbox.AddAsync(
-    new OrderSubmittedIntegrationEvent
-    {
-        OrderId = orderId
-    },
-    new OutboxOptions
-    {
-        Topic = "orders"
-    },
-    cancellationToken);
-```
-
-`ICommandMediator.SendAsync` executes a command now. `ICommandScheduler.ScheduleAsync` stores it for an inbox processor. `IEventPublisher.PublishAsync` notifies handlers now. `IIntegrationOutbox.AddAsync` stores an event for later publication.
-
-Enable optional background loops with `AddCommandInboxProcessorHosting` / `AddOutboxProcessorHosting` after the core module is registered (separate hosting modules; no combined worker). Reference `LiteBus.Inbox.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.Extensions.Microsoft.Hosting`. See [Processor Hosting](Processor-Hosting.md).
-
-## Modular by Design
-
-LiteBus is built on a modular, DI-agnostic runtime. You only install what you need.
-
-| Category | Package Name | NuGet |
+| Feature | What it does | Docs |
 | --- | --- | --- |
-| **Metapackage** | `LiteBus` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.svg)](https://www.nuget.org/packages/LiteBus/) |
-| **Core Modules** | `LiteBus.Commands` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Commands.svg)](https://www.nuget.org/packages/LiteBus.Commands/) |
-| | `LiteBus.Queries` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Queries.svg)](https://www.nuget.org/packages/LiteBus.Queries/) |
-| | `LiteBus.Events` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Events.svg)](https://www.nuget.org/packages/LiteBus.Events/) |
-| | `LiteBus.Inbox` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Inbox.svg)](https://www.nuget.org/packages/LiteBus.Inbox/) |
-| | `LiteBus.Messaging` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Messaging.svg)](https://www.nuget.org/packages/LiteBus.Messaging/) |
-| | `LiteBus.Outbox` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Outbox.svg)](https://www.nuget.org/packages/LiteBus.Outbox/) |
-| | `LiteBus.Runtime` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Runtime.svg)](https://www.nuget.org/packages/LiteBus.Runtime/) |
-| **Abstractions** | `LiteBus.Commands.Abstractions` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Commands.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Commands.Abstractions/) |
-| | `LiteBus.Queries.Abstractions` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Queries.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Queries.Abstractions/) |
-| | `LiteBus.Events.Abstractions` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Events.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Events.Abstractions/) |
-| | `LiteBus.Inbox.Abstractions` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Inbox.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Inbox.Abstractions/) |
-| | `LiteBus.Messaging.Abstractions` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Messaging.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Messaging.Abstractions/) |
-| | `LiteBus.Outbox.Abstractions` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Outbox.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Outbox.Abstractions/) |
-| | `LiteBus.Runtime.Abstractions` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Runtime.Abstractions.svg)](https://www.nuget.org/packages/LiteBus.Runtime.Abstractions/) |
-| **PostgreSQL** | `LiteBus.Inbox.PostgreSql` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Inbox.PostgreSql.svg)](https://www.nuget.org/packages/LiteBus.Inbox.PostgreSql/) |
-| | `LiteBus.Outbox.PostgreSql` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Outbox.PostgreSql.svg)](https://www.nuget.org/packages/LiteBus.Outbox.PostgreSql/) |
-| **MS.DI Extensions** | `LiteBus.Extensions.Microsoft.DependencyInjection` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Extensions.Microsoft.DependencyInjection/) |
-| | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.DependencyInjection/) |
-| | `LiteBus.Queries.Extensions.Microsoft.DependencyInjection` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Queries.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Queries.Extensions.Microsoft.DependencyInjection/) |
-| | `LiteBus.Events.Extensions.Microsoft.DependencyInjection` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Events.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Events.Extensions.Microsoft.DependencyInjection/) |
-| | `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Messaging.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Messaging.Extensions.Microsoft.DependencyInjection/) |
-| | `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Runtime.Extensions.Microsoft.DependencyInjection/) |
-| **MS.Hosting Extensions** | `LiteBus.Inbox.Extensions.Microsoft.Hosting` | (inbox processor `IHostedService` registration and health checks) |
-| | `LiteBus.Outbox.Extensions.Microsoft.Hosting` | (outbox processor `IHostedService` registration and health checks) |
-| **Autofac Extensions**| `LiteBus.Commands.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Commands.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Commands.Extensions.Autofac/) |
-| | `LiteBus.Queries.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Queries.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Queries.Extensions.Autofac/) |
-| | `LiteBus.Events.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Events.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Events.Extensions.Autofac/) |
-| | `LiteBus.Messaging.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Messaging.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Messaging.Extensions.Autofac/) |
-| | `LiteBus.Runtime.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Runtime.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Runtime.Extensions.Autofac/) |
+| Typed pipeline | Pre-, post-, and error-handlers per message type, with an ambient context shared across a single mediation. | [The Handler Pipeline](https://github.com/litenova/LiteBus/wiki/The-Handler-Pipeline) |
+| Handler priority | Order handlers within a stage, and group event handlers into execution phases. | [Handler Priority](https://github.com/litenova/LiteBus/wiki/Handler-Priority) |
+| Tags and predicates | Run a different set of handlers per call based on runtime context. | [Handler Filtering](https://github.com/litenova/LiteBus/wiki/Handler-Filtering) |
+| Polymorphic dispatch | A handler for a base type runs for every derived message. | [Polymorphic Dispatch](https://github.com/litenova/LiteBus/wiki/Polymorphic-Dispatch) |
+| Open generic handlers | One handler applies to every matching message; closed at startup. Ideal for logging, validation, metrics. | [Open Generic Handlers](https://github.com/litenova/LiteBus/wiki/Open-Generic-Handlers) |
+| Event concurrency | Sequential or parallel execution across priority groups and within a group. | [Event Module](https://github.com/litenova/LiteBus/wiki/Event-Module) |
+| Streaming queries | Return `IAsyncEnumerable<T>` for large result sets. | [Query Module](https://github.com/litenova/LiteBus/wiki/Query-Module) |
+| Command inbox | Schedule commands for reliable, out-of-band execution with idempotency keys. | [Command Inbox](https://github.com/litenova/LiteBus/wiki/Command-Inbox) |
+| Outbox | Store integration events in the same transaction as a state change, publish after commit. | [Outbox](https://github.com/litenova/LiteBus/wiki/Outbox) |
+| DI-agnostic core | First-class Microsoft DI and Autofac adapters; an adapter pattern for others. | [Architecture](https://github.com/litenova/LiteBus/wiki/Architecture) |
 
-## Migrating from MediatR
+## Packages
 
-LiteBus offers a more semantic and feature-rich alternative to MediatR. If you're migrating, here's how the core concepts map.
+LiteBus ships as small packages so you reference only what you run. The full layout, including abstractions and DI adapters, is in the [Dependency Graph](https://github.com/litenova/LiteBus/wiki/Dependency-Graph).
 
--   **Requests (`IRequest<TResponse>` and `IRequest`)**
-    In MediatR, `IRequest` is used for both commands and queries. LiteBus separates these for CQS clarity:
-    -   Use `ICommand<TResult>` for operations that change state and return a value.
-    -   Use `IQuery<TResult>` for read-only operations.
-    -   Use `ICommand` for fire-and-forget operations that don't return a value.
+<details>
+<summary>Full package matrix</summary>
 
--   **Notifications (`INotification`)**
-    MediatR's `INotification` is equivalent to LiteBus's `IEvent`. A key advantage of LiteBus is that you **don't need to implement any interface**. You can publish any Plain Old C# Object (POCO) as an event, keeping your domain model completely clean.
+| Category | Package |
+| --- | --- |
+| Metapackage | `LiteBus` |
+| Core modules | `LiteBus.Commands`, `LiteBus.Queries`, `LiteBus.Events`, `LiteBus.Inbox`, `LiteBus.Outbox`, `LiteBus.Messaging`, `LiteBus.Runtime` |
+| Abstractions | `LiteBus.Commands.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` |
+| PostgreSQL | `LiteBus.Inbox.PostgreSql`, `LiteBus.Outbox.PostgreSql` |
+| Microsoft DI | `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Commands.Extensions.Microsoft.DependencyInjection`, `LiteBus.Queries.Extensions.Microsoft.DependencyInjection`, `LiteBus.Events.Extensions.Microsoft.DependencyInjection`, `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` |
+| Microsoft Hosting | `LiteBus.Inbox.Extensions.Microsoft.Hosting`, `LiteBus.Outbox.Extensions.Microsoft.Hosting` |
+| Autofac | `LiteBus.Commands.Extensions.Autofac`, `LiteBus.Queries.Extensions.Autofac`, `LiteBus.Events.Extensions.Autofac`, `LiteBus.Messaging.Extensions.Autofac`, `LiteBus.Runtime.Extensions.Autofac` |
 
--   **Stream Requests (`IStreamRequest<TResponse>`)**
-    This maps directly to `IStreamQuery<TResult>` in LiteBus, which returns an `IAsyncEnumerable<TResult>`. LiteBus semantically treats streams as a query concern.
+</details>
 
--   **Pipeline Behaviors (`IPipelineBehavior<,>`)**
-    MediatR uses a generic `IPipelineBehavior` for cross-cutting concerns. LiteBus provides a more granular and type-safe pipeline with distinct stages for each message type:
-    -   `ICommandPreHandler<TCommand>` / `IQueryPreHandler<TQuery>`: Run before the main handler. Ideal for validation (`ICommandValidator` is a semantic shortcut for this).
-    -   `ICommandPostHandler<TCommand, TResult>` / `IQueryPostHandler<TQuery, TResult>`: Run after the main handler, with access to the result.
-    -   `ICommandErrorHandler<TCommand>` / `IQueryErrorHandler<TQuery>`: Centralized error handling for specific message types.
-    -   **Open generic handlers** (e.g., `MyHandler<T> : ICommandPreHandler<T> where T : ICommand`) work similarly to MediatR's open generic `IPipelineBehavior<,>`: register once and they apply to all matching message types automatically.
+## Coming from MediatR
 
-This granular approach eliminates the need for generic pipeline behaviors and provides a more expressive and maintainable way to build your processing pipeline.
+| MediatR | LiteBus |
+| --- | --- |
+| `IRequest<TResponse>` | `ICommand<TResult>` (writes) or `IQuery<TResult>` (reads) |
+| `IRequest` | `ICommand` |
+| `INotification` | `IEvent`, or any POCO, no interface required |
+| `IStreamRequest<TResponse>` | `IStreamQuery<TResult>` returning `IAsyncEnumerable<TResult>` |
+| `IPipelineBehavior<,>` | Typed pre-, post-, and error-handlers per message type, plus open generic handlers |
 
-## Our Commitment to Open Source
-
-LiteBus was created to provide the .NET community with a semantic, high-performance, and free open-source tool. We believe essential infrastructure libraries should be community-driven and accessible to everyone without financial barriers.
-
-**LiteBus will always be free and licensed under the MIT license.**
-
-We are committed to maintaining and evolving LiteBus as a community project. Contributions are welcome, and we encourage you to get involved.
+See [LiteBus vs. MediatR](https://github.com/litenova/LiteBus/wiki/LiteBus-and-MediatR-Differences) for the full comparison and migration notes.
 
 ## Documentation
 
-For detailed documentation, feature guides, and examples, please visit the **[LiteBus Wiki](https://github.com/litenova/LiteBus/wiki)**.
+The [LiteBus Wiki](https://github.com/litenova/LiteBus/wiki) is the complete reference: concepts, per-module guides, reliable messaging, internals, troubleshooting, and a glossary.
+
+## License
+
+LiteBus is free and licensed under the [MIT License](LICENSE), and always will be. Contributions are welcome; see [Contributing](https://github.com/litenova/LiteBus/wiki/Contributing).
