@@ -64,22 +64,3 @@ jobs:
 
       - name: Publish to GitHub Packages
         run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --skip-duplicate
-
-      - name: Generate Release Notes
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "# Release v$VERSION" > release-notes.md
-          echo "" >> release-notes.md
-          echo "See [Changelog.md](https://github.com/${{ github.repository }}/blob/main/Changelog.md) for details." >> release-notes.md
-
-          echo "Generated release notes:"
-          cat release-notes.md
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          files: ./artifacts/*.nupkg
-          body_path: release-notes.md
-          draft: false
-          prerelease: ${{ contains(github.ref, '-') }}
-          token: ${{ secrets.GITHUB_TOKEN }}
