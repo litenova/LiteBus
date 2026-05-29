@@ -2,7 +2,7 @@ using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace LiteBus.Outbox.Hosting;
+namespace LiteBus.Outbox.Extensions.Microsoft.Hosting;
 
 /// <summary>
 ///     Registers LiteBus outbox processor health checks with Microsoft health-check hosting.

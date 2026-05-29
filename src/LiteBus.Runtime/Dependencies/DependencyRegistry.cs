@@ -33,10 +33,6 @@ public sealed class DependencyRegistry : IDependencyRegistry
         _descriptors.Add(descriptor);
     }
 
-    /// <summary>
-    ///     Returns an enumerator that iterates through the dependency descriptors.
-    /// </summary>
-    /// <returns>An enumerator that can be used to iterate through the dependency descriptors.</returns>
     /// <inheritdoc />
     public void RegisterHostedService(Type implementationType)
     {

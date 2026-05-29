@@ -51,42 +51,5 @@ public sealed class CommandInboxModule : IModule
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(Abstractions.ICommandInboxProcessor),
             typeof(CommandInboxProcessor)));
-
-        if (moduleBuilder.IsProcessorHostEnabled)
-        {
-            RegisterProcessorHost(configuration, moduleBuilder);
-        }
-    }
-
-    /// <summary>
-    ///     Registers DI-neutral processor host services and stores hosting metadata for integration modules.
-    /// </summary>
-    /// <param name="configuration">The module configuration used for dependency registration.</param>
-    /// <param name="moduleBuilder">The inbox module builder that contains host options.</param>
-    private static void RegisterProcessorHost(IModuleConfiguration configuration, CommandInboxModuleBuilder moduleBuilder)
-    {
-        var hostOptions = moduleBuilder.HostOptions;
-        var hostState = new Hosting.CommandInboxProcessorHostState();
-
-        configuration.SetContext(new CommandInboxProcessorHostRegistration
-        {
-            HostOptions = hostOptions
-        });
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(CommandInboxProcessorHostOptions),
-            hostOptions));
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(Hosting.CommandInboxProcessorHostState),
-            hostState));
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(ICommandInboxProcessorHostState),
-            hostState));
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(ICommandInboxProcessorHost),
-            typeof(Hosting.CommandInboxProcessorHost)));
     }
 }

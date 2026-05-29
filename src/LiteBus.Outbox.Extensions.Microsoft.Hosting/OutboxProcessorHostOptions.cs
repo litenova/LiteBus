@@ -1,14 +1,14 @@
 using System;
 
-namespace LiteBus.Outbox.Abstractions;
+namespace LiteBus.Outbox.Extensions.Microsoft.Hosting;
 
 /// <summary>
-///     Defines how the outbox processor host runs repeated publication passes.
+///     Defines how the outbox processor background service runs repeated publication passes.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         These options control the hosting loop only. Batch size, lease duration, and retry behavior remain on
-///         <see cref="OutboxProcessorOptions" /> because they describe how each pass leases and publishes messages.
+///         <see cref="Abstractions.OutboxProcessorOptions" /> because they describe how each pass leases and publishes messages.
 ///     </para>
 /// </remarks>
 public sealed class OutboxProcessorHostOptions

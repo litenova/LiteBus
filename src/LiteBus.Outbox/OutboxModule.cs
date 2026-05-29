@@ -62,42 +62,5 @@ public sealed class OutboxModule : IModule
                 typeof(IOutboxDispatcher),
                 typeof(LiteBusEventOutboxDispatcher)));
         }
-
-        if (moduleBuilder.IsProcessorHostEnabled)
-        {
-            RegisterProcessorHost(configuration, moduleBuilder);
-        }
-    }
-
-    /// <summary>
-    ///     Registers DI-neutral processor host services and stores hosting metadata for integration modules.
-    /// </summary>
-    /// <param name="configuration">The module configuration used for dependency registration.</param>
-    /// <param name="moduleBuilder">The outbox module builder that contains host options.</param>
-    private static void RegisterProcessorHost(IModuleConfiguration configuration, OutboxModuleBuilder moduleBuilder)
-    {
-        var hostOptions = moduleBuilder.HostOptions;
-        var hostState = new Hosting.OutboxProcessorHostState();
-
-        configuration.SetContext(new OutboxProcessorHostRegistration
-        {
-            HostOptions = hostOptions
-        });
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(OutboxProcessorHostOptions),
-            hostOptions));
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(Hosting.OutboxProcessorHostState),
-            hostState));
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxProcessorHostState),
-            hostState));
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxProcessorHost),
-            typeof(Hosting.OutboxProcessorHost)));
     }
 }

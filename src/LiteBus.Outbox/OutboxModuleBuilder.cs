@@ -12,6 +12,8 @@ namespace LiteBus.Outbox;
 ///     choose processor defaults through <see cref="UseProcessorOptions" />, and opt in to local LiteBus event dispatch
 ///     through <see cref="UseLiteBusEventDispatcher" /> when the outbox should replay events into in-process handlers.
 ///     Broker dispatchers can register their own <see cref="IOutboxDispatcher" /> instead.
+///     Background processing is configured separately through
+///     <see cref="Extensions.Microsoft.Hosting.ModuleRegistryHostingExtensions.AddOutboxProcessorHosting" />.
 /// </remarks>
 public sealed class OutboxModuleBuilder
 {
@@ -33,16 +35,6 @@ public sealed class OutboxModuleBuilder
     ///     Gets the outbox processor options that will be registered for <see cref="IOutboxProcessor" />.
     /// </summary>
     public OutboxProcessorOptions ProcessorOptions { get; private set; } = new();
-
-    /// <summary>
-    ///     Gets the outbox processor host options that will be registered when hosting is enabled.
-    /// </summary>
-    public OutboxProcessorHostOptions HostOptions { get; private set; } = new();
-
-    /// <summary>
-    ///     Gets a value that indicates whether processor hosting was requested for this module registration.
-    /// </summary>
-    public bool IsProcessorHostEnabled { get; private set; }
 
     /// <summary>
     ///     Gets a value that indicates whether the in-process LiteBus event dispatcher should be registered.
@@ -68,22 +60,6 @@ public sealed class OutboxModuleBuilder
     public OutboxModuleBuilder UseLiteBusEventDispatcher()
     {
         RegisterLiteBusEventDispatcher = true;
-        return this;
-    }
-
-    /// <summary>
-    ///     Enables the outbox processor host and optionally configures its loop behavior.
-    /// </summary>
-    /// <param name="configure">An optional callback that configures poll interval, startup delay, and adaptive polling.</param>
-    /// <returns>The current builder.</returns>
-    /// <remarks>
-    ///     Register <see cref="ModuleRegistryHostingExtensions.AddOutboxProcessorHosting" /> to add a
-    ///     <see cref="Microsoft.Extensions.Hosting.IHostedService" /> wrapper.
-    /// </remarks>
-    public OutboxModuleBuilder UseProcessorHost(Action<OutboxProcessorHostOptions>? configure = null)
-    {
-        IsProcessorHostEnabled = true;
-        configure?.Invoke(HostOptions);
         return this;
     }
 }

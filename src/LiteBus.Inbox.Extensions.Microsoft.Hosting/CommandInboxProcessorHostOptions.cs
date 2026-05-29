@@ -1,14 +1,14 @@
 using System;
 
-namespace LiteBus.Inbox.Abstractions;
+namespace LiteBus.Inbox.Extensions.Microsoft.Hosting;
 
 /// <summary>
-///     Defines how the command inbox processor host runs repeated processing passes.
+///     Defines how the command inbox processor background service runs repeated processing passes.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         These options control the hosting loop only. Batch size, lease duration, and retry behavior remain on
-///         <see cref="CommandInboxProcessorOptions" /> because they describe how each pass leases and executes commands.
+///         <see cref="Abstractions.CommandInboxProcessorOptions" /> because they describe how each pass leases and executes commands.
 ///     </para>
 /// </remarks>
 public sealed class CommandInboxProcessorHostOptions

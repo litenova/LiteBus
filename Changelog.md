@@ -28,12 +28,20 @@ All notable changes to this project will be documented in this file.
 - Added `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox`, and `LiteBus.Outbox.PostgreSql`.
 - Added raw Npgsql inbox and outbox stores with leasing, retry visibility, dead-letter state, and Testcontainers coverage.
 - Added benchmark smoke coverage through `LiteBus.Benchmarks` and CI dry-run execution.
+- Added `LiteBus.Inbox.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.Extensions.Microsoft.Hosting` for optional generic-host processor loops and health checks.
 
 ### Removed
 
 - Removed the v4 attribute-based command inbox API and related command inbox abstractions.
 - Removed `LiteBus.Commands.Extensions.Microsoft.Hosting` because it was tied to the old inbox host.
+- Removed `LiteBus.Inbox.Extensions.Autofac` and `LiteBus.Outbox.Extensions.Autofac` because hosting registration lives in the Microsoft hosting extension packages (Autofac apps use the same hosting modules through the runtime adapter).
 - Removed `IIdentifiedIntegrationEvent`; event identity now belongs to outbox envelope options.
+- Removed inbox/outbox processor host interfaces and `UseProcessorHost`; hosting is configured through `AddCommandInboxProcessorHosting` / `AddOutboxProcessorHosting` on the hosting extension packages.
+
+### Changed (hosting)
+
+- Moved inbox and outbox processor hosting out of core modules into separate extension packages with self-contained `BackgroundService` loops.
+- Core inbox/outbox modules now register processors only; they no longer reference Microsoft hosting or health-check packages.
 
 ### Docs
 

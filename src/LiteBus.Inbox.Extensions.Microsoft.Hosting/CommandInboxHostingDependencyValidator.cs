@@ -1,7 +1,8 @@
 using System;
 using LiteBus.Inbox.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
-namespace LiteBus.Inbox.Hosting;
+namespace LiteBus.Inbox.Extensions.Microsoft.Hosting;
 
 /// <summary>
 ///     Validates that command inbox hosting has the store and processor dependencies it needs.

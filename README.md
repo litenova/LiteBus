@@ -317,7 +317,7 @@ await integrationOutbox.AddAsync(
 
 `ICommandMediator.SendAsync` executes a command now. `ICommandScheduler.ScheduleAsync` stores it for an inbox processor. `IEventPublisher.PublishAsync` notifies handlers now. `IIntegrationOutbox.AddAsync` stores an event for later publication.
 
-Enable optional background loops with `UseProcessorHost` plus `AddCommandInboxProcessorHosting` / `AddOutboxProcessorHosting` (separate hosts; no combined worker). See the [Processor Hosting](https://github.com/litenova/LiteBus/wiki/Processor-Hosting) wiki page.
+Enable optional background loops with `AddCommandInboxProcessorHosting` / `AddOutboxProcessorHosting` after the core module is registered (separate hosting modules; no combined worker). Reference `LiteBus.Inbox.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.Extensions.Microsoft.Hosting`. See [Processor Hosting](Processor-Hosting.md).
 
 ## Modular by Design
 
@@ -348,9 +348,9 @@ LiteBus is built on a modular, DI-agnostic runtime. You only install what you ne
 | | `LiteBus.Events.Extensions.Microsoft.DependencyInjection` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Events.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Events.Extensions.Microsoft.DependencyInjection/) |
 | | `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Messaging.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Messaging.Extensions.Microsoft.DependencyInjection/) |
 | | `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.svg)](https://www.nuget.org/packages/LiteBus.Runtime.Extensions.Microsoft.DependencyInjection/) |
+| **MS.Hosting Extensions** | `LiteBus.Inbox.Extensions.Microsoft.Hosting` | (inbox processor `IHostedService` registration and health checks) |
+| | `LiteBus.Outbox.Extensions.Microsoft.Hosting` | (outbox processor `IHostedService` registration and health checks) |
 | **Autofac Extensions**| `LiteBus.Commands.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Commands.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Commands.Extensions.Autofac/) |
-| | `LiteBus.Inbox.Extensions.Autofac` | (inbox processor `IHostedService` registration) |
-| | `LiteBus.Outbox.Extensions.Autofac` | (outbox processor `IHostedService` registration) |
 | | `LiteBus.Queries.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Queries.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Queries.Extensions.Autofac/) |
 | | `LiteBus.Events.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Events.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Events.Extensions.Autofac/) |
 | | `LiteBus.Messaging.Extensions.Autofac` | [![NuGet](https://img.shields.io/nuget/v/LiteBus.Messaging.Extensions.Autofac.svg)](https://www.nuget.org/packages/LiteBus.Messaging.Extensions.Autofac/) |

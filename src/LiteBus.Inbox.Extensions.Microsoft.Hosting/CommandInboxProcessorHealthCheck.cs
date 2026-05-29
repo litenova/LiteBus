@@ -5,20 +5,20 @@ using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace LiteBus.Inbox.Hosting;
+namespace LiteBus.Inbox.Extensions.Microsoft.Hosting;
 
 /// <summary>
 ///     Reports whether the command inbox processor host loop is running successfully.
 /// </summary>
 public sealed class CommandInboxProcessorHealthCheck : IHealthCheck
 {
-    private readonly ICommandInboxProcessorHostState _state;
+    private readonly CommandInboxProcessorHostState _state;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="CommandInboxProcessorHealthCheck" /> class.
     /// </summary>
     /// <param name="state">The host state used to evaluate health.</param>
-    public CommandInboxProcessorHealthCheck(ICommandInboxProcessorHostState state)
+    public CommandInboxProcessorHealthCheck(CommandInboxProcessorHostState state)
     {
         _state = state ?? throw new ArgumentNullException(nameof(state));
     }

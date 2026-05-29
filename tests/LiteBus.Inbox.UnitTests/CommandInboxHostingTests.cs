@@ -3,12 +3,14 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Hosting;
+using LiteBus.Inbox.Extensions.Microsoft.Hosting;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
+
 namespace LiteBus.Inbox.UnitTests;
 
 [Collection("Sequential")]
@@ -21,38 +23,12 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
         var recorder = new CommandInboxTests.CommandRecorder();
 
         await using var provider = BuildProvider(store, recorder, hostOptions => hostOptions.Enabled = false);
-        var host = provider.GetRequiredService<ICommandInboxProcessorHost>();
+        var hostedService = provider.GetServices<IHostedService>().Single();
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
-        await host.RunAsync(cts.Token);
+        await hostedService.StartAsync(CancellationToken.None);
+        await hostedService.StopAsync(CancellationToken.None);
 
         recorder.Commands.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task ProcessorHost_ShouldInvokeLifecycleHooks()
-    {
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
-        var recorder = new CommandInboxTests.CommandRecorder();
-        var lifecycle = new RecordingInboxLifecycle();
-
-        await using var provider = BuildProvider(
-            store,
-            recorder,
-            configureHost: options =>
-            {
-                options.PollInterval = TimeSpan.FromMilliseconds(50);
-                options.StartupDelay = TimeSpan.Zero;
-            },
-            extraServices: services => services.AddSingleton<ICommandInboxProcessorHostLifecycle>(lifecycle));
-
-        var host = provider.GetRequiredService<ICommandInboxProcessorHost>();
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
-        await host.RunAsync(cts.Token);
-
-        lifecycle.StartingCount.Should().Be(1);
-        lifecycle.StoppingCount.Should().Be(1);
     }
 
     [Fact]
@@ -67,8 +43,8 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
             configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(50));
 
         var scheduler = provider.GetRequiredService<ICommandScheduler>();
-        var host = provider.GetRequiredService<ICommandInboxProcessorHost>();
-        var state = provider.GetRequiredService<ICommandInboxProcessorHostState>();
+        var hostedService = provider.GetServices<IHostedService>().Single();
+        var state = provider.GetRequiredService<CommandInboxProcessorHostState>();
         var healthCheck = new CommandInboxProcessorHealthCheck(state);
 
         var orderId = Guid.NewGuid();
@@ -79,7 +55,9 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
         });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await host.RunAsync(cts.Token);
+        await hostedService.StartAsync(cts.Token);
+        await Task.Delay(TimeSpan.FromMilliseconds(300));
+        await hostedService.StopAsync(CancellationToken.None);
 
         state.LastSuccessfulPassAt.Should().NotBeNull();
         state.ConsecutiveFailures.Should().Be(0);
@@ -116,10 +94,9 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     private static ServiceProvider BuildProvider(
         CommandInboxTests.InMemoryCommandInboxStore store,
         CommandInboxTests.CommandRecorder recorder,
-        Action<CommandInboxProcessorHostOptions>? configureHost = null,
-        Action<IServiceCollection>? extraServices = null)
+        Action<CommandInboxProcessorHostOptions>? configureHost = null)
     {
-        var services = new ServiceCollection()
+        return new ServiceCollection()
             .AddSingleton<ICommandInboxWriter>(store)
             .AddSingleton<ICommandInboxLeaseStore>(store)
             .AddSingleton<ICommandInboxStateStore>(store)
@@ -141,32 +118,10 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
                         LeaseOwner = "test-worker",
                         Retry = new RetryOptions { UseJitter = false }
                     });
-                    inbox.UseProcessorHost(configureHost);
                 });
 
-                configuration.AddCommandInboxProcessorHosting();
-            });
-
-        extraServices?.Invoke(services);
-        return services.BuildServiceProvider();
-    }
-
-    private sealed class RecordingInboxLifecycle : ICommandInboxProcessorHostLifecycle
-    {
-        public int StartingCount { get; private set; }
-
-        public int StoppingCount { get; private set; }
-
-        public Task OnHostStartingAsync(CancellationToken cancellationToken)
-        {
-            StartingCount++;
-            return Task.CompletedTask;
-        }
-
-        public Task OnHostStoppingAsync(CancellationToken cancellationToken)
-        {
-            StoppingCount++;
-            return Task.CompletedTask;
-        }
+                configuration.AddCommandInboxProcessorHosting(configureHost);
+            })
+            .BuildServiceProvider();
     }
 }

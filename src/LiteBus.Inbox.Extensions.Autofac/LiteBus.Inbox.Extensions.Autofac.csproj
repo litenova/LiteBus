@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-    <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
-        <ProjectReference Include="..\LiteBus.Runtime.Extensions.Autofac\LiteBus.Runtime.Extensions.Autofac.csproj"/>
-    </ItemGroup>
-
-</Project>

@@ -1,23 +1,30 @@
 using System;
-using LiteBus.Inbox.Abstractions;
 
-namespace LiteBus.Inbox.Hosting;
+namespace LiteBus.Outbox.Extensions.Microsoft.Hosting;
 
 /// <summary>
-///     Default mutable implementation of <see cref="ICommandInboxProcessorHostState" />.
+///     Tracks runtime state from the outbox processor background service for health checks.
 /// </summary>
-internal sealed class CommandInboxProcessorHostState : ICommandInboxProcessorHostState
+public sealed class OutboxProcessorHostState
 {
-    /// <inheritdoc />
+    /// <summary>
+    ///     Gets the UTC timestamp of the last pass that completed without a host-level failure.
+    /// </summary>
     public DateTimeOffset? LastSuccessfulPassAt { get; private set; }
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Gets the UTC timestamp of the last host-level failure.
+    /// </summary>
     public DateTimeOffset? LastFailureAt { get; private set; }
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Gets the message from the last host-level failure.
+    /// </summary>
     public string? LastFailureMessage { get; private set; }
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Gets the number of consecutive host-level failures since the last successful pass.
+    /// </summary>
     public int ConsecutiveFailures { get; private set; }
 
     /// <summary>
@@ -33,7 +40,7 @@ internal sealed class CommandInboxProcessorHostState : ICommandInboxProcessorHos
     }
 
     /// <summary>
-    ///     Records a host-level failure that occurred outside individual command handling.
+    ///     Records a host-level failure that occurred outside individual message dispatch.
     /// </summary>
     /// <param name="timestamp">The UTC timestamp when the failure was observed.</param>
     /// <param name="message">A short failure message suitable for health checks and operations logs.</param>

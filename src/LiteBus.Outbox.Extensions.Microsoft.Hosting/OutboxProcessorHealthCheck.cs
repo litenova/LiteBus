@@ -5,20 +5,20 @@ using System.Threading.Tasks;
 using LiteBus.Outbox.Abstractions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace LiteBus.Outbox.Hosting;
+namespace LiteBus.Outbox.Extensions.Microsoft.Hosting;
 
 /// <summary>
 ///     Reports whether the outbox processor host loop is running successfully.
 /// </summary>
 public sealed class OutboxProcessorHealthCheck : IHealthCheck
 {
-    private readonly IOutboxProcessorHostState _state;
+    private readonly OutboxProcessorHostState _state;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="OutboxProcessorHealthCheck" /> class.
     /// </summary>
     /// <param name="state">The host state used to evaluate health.</param>
-    public OutboxProcessorHealthCheck(IOutboxProcessorHostState state)
+    public OutboxProcessorHealthCheck(OutboxProcessorHostState state)
     {
         _state = state ?? throw new ArgumentNullException(nameof(state));
     }

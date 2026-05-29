@@ -1,7 +1,8 @@
 using System;
 using LiteBus.Outbox.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
-namespace LiteBus.Outbox.Hosting;
+namespace LiteBus.Outbox.Extensions.Microsoft.Hosting;
 
 /// <summary>
 ///     Validates that outbox hosting has the store, processor, and dispatcher dependencies it needs.

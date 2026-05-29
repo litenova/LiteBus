@@ -2,7 +2,7 @@ using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace LiteBus.Inbox.Hosting;
+namespace LiteBus.Inbox.Extensions.Microsoft.Hosting;
 
 /// <summary>
 ///     Registers LiteBus command inbox processor health checks with Microsoft health-check hosting.
