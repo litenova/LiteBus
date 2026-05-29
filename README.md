@@ -358,7 +358,7 @@ LiteBus is built on a modular, DI-agnostic runtime. You only install what you ne
 
 ## Migrating from MediatR
 
-LiteBus offers a more semantic and feature-rich alternative to MediatR. If you're migrating, here’s how the core concepts map.
+LiteBus offers a more semantic and feature-rich alternative to MediatR. If you're migrating, here's how the core concepts map.
 
 -   **Requests (`IRequest<TResponse>` and `IRequest`)**
     In MediatR, `IRequest` is used for both commands and queries. LiteBus separates these for CQS clarity:

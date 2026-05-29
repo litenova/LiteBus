@@ -21,8 +21,7 @@ public interface IMessagePostHandler
     /// </param>
     /// <returns>
     ///     An object representing any further processing result or a potentially modified version of the initial message
-    ///     result. This return value can be utilized to convey additional information or alterations stemming from the
-    ///     post-handling process.
+    ///     result. This return value can carry additional information or changes from the post-handling process.
     /// </returns>
     object PostHandle(object message, object? messageResult);
 }

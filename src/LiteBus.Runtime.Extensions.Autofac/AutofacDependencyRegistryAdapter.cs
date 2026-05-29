@@ -45,7 +45,7 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        // Use HashSet.Add which leverages IEquatable<DependencyDescriptor>
+        // Use HashSet.Add, which uses IEquatable<DependencyDescriptor>
         // Returns false if the descriptor is already present.
         if (!_registeredDescriptors.Add(descriptor))
         {

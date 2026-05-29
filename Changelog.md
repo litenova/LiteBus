@@ -62,7 +62,7 @@ All notable changes to this project will be documented in this file.
 
 ### Improved
 
-- **Testing Docs — `WebApplicationFactory` Isolation:** Added a dedicated wiki section documenting
+- **Testing Docs (`WebApplicationFactory` isolation):** Added a dedicated wiki section documenting
   the `MessageRegistryAccessor.Instance.Clear()` workaround required when using `WebApplicationFactory`
   in integration tests. Without this call the static `MessageRegistry` retains stale handler
   registrations across tests in the same process, causing intermittent `InvalidOperationException`
@@ -81,7 +81,7 @@ All notable changes to this project will be documented in this file.
 - **Open Generic Handler Support:** LiteBus now supports open generic pre-handlers, post-handlers, and error handlers
   (e.g., `MyPreHandler<T> : ICommandPreHandler<T> where T : ICommand`). When registered, LiteBus automatically closes
   the generic for every concrete message type that satisfies its constraints at startup. This enables cross-cutting
-  concerns like logging, validation, metrics, and authorization to be implemented once and applied universally — without
+  concerns like logging, validation, metrics, and authorization to be implemented once and applied universally, without
   modifying existing messages or handlers. Registration order does not matter. All standard C# generic constraints
   (interface, class, struct, new()) are fully respected.
 
@@ -165,7 +165,7 @@ Injection (DI) containers, introduce a durable Command Inbox, and provide advanc
 - **`IMessageDependencies` Renaming:** The `Handlers` and `IndirectHandlers` properties have been renamed to
   `MainHandlers` and `IndirectMainHandlers`, respectively. This affects custom mediation strategies.
 
-> **Note:** Due to the significant architectural changes, please refer to the **v4 Migration Guide** in the release
+> **Note:** Due to the large architectural changes, please refer to the **v4 Migration Guide** in the release
 > notes for detailed instructions on upgrading your project.
 
 ## v3.1.0
