@@ -5,12 +5,12 @@ namespace LiteBus.Inbox.Abstractions;
 /// <summary>
 ///     Represents an inbox command moved aside after processing failures.
 /// </summary>
-public sealed record InboxCommandDeadLetter
+public sealed record InboxEnvelopeDeadLetter
 {
     /// <summary>
     ///     Gets the command identifier.
     /// </summary>
-    public required Guid CommandId { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>
     ///     Gets the reason recorded with the dead-letter state.

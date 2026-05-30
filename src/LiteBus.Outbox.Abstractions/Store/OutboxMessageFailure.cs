@@ -5,12 +5,12 @@ namespace LiteBus.Outbox.Abstractions;
 /// <summary>
 ///     Represents a failed outbox publication attempt.
 /// </summary>
-public sealed record OutboxMessageFailure
+public sealed record OutboxEnvelopeFailure
 {
     /// <summary>
     ///     Gets the message identifier.
     /// </summary>
-    public required Guid MessageId { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>
     ///     Gets the latest publication error.

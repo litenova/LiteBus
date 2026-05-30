@@ -38,19 +38,34 @@ jobs:
       - name: Build
         run: dotnet build LiteBus.slnx --configuration Release --no-restore
 
-      - name: Docker Info
-        run: docker info
+      - name: Check Docker availability
+        id: docker
+        run: |
+          if docker info >/dev/null 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "Docker is available; integration tests will run."
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "Docker is not available; integration tests will be skipped."
+          fi
+        continue-on-error: true
 
-      - name: Test
-        run: dotnet test LiteBus.slnx --no-restore --verbosity normal --collect:"XPlat Code Coverage"
+      - name: Unit Tests
+        run: dotnet test LiteBus.slnx --no-restore --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName!~IntegrationTests"
+
+      - name: Integration Tests
+        if: steps.docker.outputs.available == 'true'
+        run: dotnet test LiteBus.slnx --no-restore --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName~IntegrationTests"
 
       - name: Upload Test Results
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: '**/TestResults/**/*.xml'
 
       - name: Upload Coverage to Codecov
+        if: always()
         uses: codecov/codecov-action@v6
         with:
           fail_ci_if_error: false

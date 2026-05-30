@@ -18,9 +18,9 @@ internal static class OutboxHostingDependencyValidator
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
-        Require<IOutboxMessageWriter>(serviceProvider, nameof(IOutboxMessageWriter));
-        Require<IOutboxMessageLeaseStore>(serviceProvider, nameof(IOutboxMessageLeaseStore));
-        Require<IOutboxMessageStateStore>(serviceProvider, nameof(IOutboxMessageStateStore));
+        Require<IOutboxStore>(serviceProvider, nameof(IOutboxStore));
+        Require<IOutboxLeaseStore>(serviceProvider, nameof(IOutboxLeaseStore));
+        Require<IOutboxStateStore>(serviceProvider, nameof(IOutboxStateStore));
         Require<IOutboxProcessor>(serviceProvider, nameof(IOutboxProcessor));
         Require<IOutboxDispatcher>(serviceProvider, nameof(IOutboxDispatcher));
         Require<OutboxProcessorOptions>(serviceProvider, nameof(OutboxProcessorOptions));

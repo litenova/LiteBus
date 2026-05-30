@@ -10,12 +10,12 @@ namespace LiteBus.Outbox.Abstractions;
 ///     serialized event; the contract fields identify the CLR type used for deserialization or transport mapping.
 ///     Processors update status, attempt count, lease, and error fields as the message moves through publication.
 /// </remarks>
-public sealed record OutboxMessageEnvelope
+public sealed record OutboxEnvelope
 {
     /// <summary>
     ///     Gets the unique outbox message identifier.
     /// </summary>
-    public required Guid MessageId { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>
     ///     Gets the stable event contract name used to resolve the event type.
@@ -50,7 +50,7 @@ public sealed record OutboxMessageEnvelope
     /// <summary>
     ///     Gets the current publication status.
     /// </summary>
-    public required OutboxMessageStatus Status { get; init; }
+    public required OutboxStatus Status { get; init; }
 
     /// <summary>
     ///     Gets the number of publication attempts. Stores increment this value when a message is leased.

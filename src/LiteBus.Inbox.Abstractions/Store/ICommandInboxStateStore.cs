@@ -18,7 +18,7 @@ namespace LiteBus.Inbox.Abstractions;
 ///         capability to command processors.
 ///     </para>
 /// </remarks>
-public interface ICommandInboxStateStore
+public interface IInboxStateStore
 {
     /// <summary>
     ///     Marks a leased command as completed after the command mediator has executed it without throwing.
@@ -34,7 +34,7 @@ public interface ICommandInboxStateStore
     /// <param name="failure">The failure details, including the command id, error text, and next visibility time.</param>
     /// <param name="cancellationToken">A token that cancels the status update.</param>
     /// <returns>A task that represents the asynchronous status update.</returns>
-    Task MarkFailedAsync(InboxCommandFailure failure, CancellationToken cancellationToken = default);
+    Task MarkFailedAsync(InboxEnvelopeFailure failure, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Moves a command to the dead-letter state after retry attempts are exhausted or a processor stops retrying it.
@@ -42,5 +42,5 @@ public interface ICommandInboxStateStore
     /// <param name="deadLetter">The dead-letter details, including the command id and diagnostic reason.</param>
     /// <param name="cancellationToken">A token that cancels the status update.</param>
     /// <returns>A task that represents the asynchronous status update.</returns>
-    Task MoveToDeadLetterAsync(InboxCommandDeadLetter deadLetter, CancellationToken cancellationToken = default);
+    Task MoveToDeadLetterAsync(InboxEnvelopeDeadLetter deadLetter, CancellationToken cancellationToken = default);
 }

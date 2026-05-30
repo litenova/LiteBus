@@ -10,12 +10,12 @@ namespace LiteBus.Inbox.Abstractions;
 ///     serialized command; the contract fields identify the CLR type used for deserialization. Processors update status,
 ///     attempt count, lease, and error fields as the command moves through execution.
 /// </remarks>
-public sealed record InboxCommandEnvelope
+public sealed record InboxEnvelope
 {
     /// <summary>
     ///     Gets the unique persisted command identifier.
     /// </summary>
-    public required Guid CommandId { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>
     ///     Gets the stable command contract name used to resolve the command type.
@@ -50,7 +50,7 @@ public sealed record InboxCommandEnvelope
     /// <summary>
     ///     Gets the current processing status.
     /// </summary>
-    public required InboxCommandStatus Status { get; init; }
+    public required InboxStatus Status { get; init; }
 
     /// <summary>
     ///     Gets the optional idempotency key used to detect duplicate submissions.

@@ -3,31 +3,29 @@
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Defines metadata used when a command is accepted into the inbox.
+///     Defines metadata used when a message is accepted into the inbox.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         These values describe storage and processing policy for one scheduled command. They are not serialized into
-///         the command payload, so they can change without changing the command contract.
+///         These values describe storage and processing policy for one stored message. They are not serialized into
+///         the message payload, so they can change without changing the message contract.
 ///     </para>
 ///     <para>
-///         Use <see cref="CommandId" /> or <see cref="IdempotencyKey" /> when a caller can retry the same request.
+///         Use <see cref="Id" /> or <see cref="IdempotencyKey" /> when a caller can retry the same request.
 ///         Use <see cref="VisibleAfter" /> for delayed execution. Use correlation, causation, and tenant fields for
 ///         tracing and isolation across inbox processing.
 ///     </para>
 /// </remarks>
-public sealed record CommandScheduleOptions
+public sealed record InboxOptions
 {
     /// <summary>
-    ///     Gets the optional command identifier. When omitted, the scheduler creates a new identifier.
-    ///     Supply this value when an upstream request already has a operation id.
+    ///     Gets the optional message identifier. When omitted, the inbox creates a new identifier.
+    ///     Supply this value when an upstream request already has a stable operation id.
     /// </summary>
-    public Guid? CommandId { get; init; }
+    public Guid? Id { get; init; }
 
     /// <summary>
-    ///     Gets the optional idempotency key used to detect duplicate command submissions.
-    ///     If this value is empty and the command implements <see cref="IIdempotentCommand" />, the scheduler copies
-    ///     the key from the command.
+    ///     Gets the optional idempotency key used to detect duplicate submissions.
     /// </summary>
     public string? IdempotencyKey { get; init; }
 

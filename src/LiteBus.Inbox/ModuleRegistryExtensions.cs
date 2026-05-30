@@ -5,17 +5,17 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Inbox;
 
 /// <summary>
-///     Provides extension methods for registering command inbox modules.
+///     Provides extension methods for registering inbox modules.
 /// </summary>
 public static class ModuleRegistryExtensions
 {
     /// <summary>
-    ///     Registers the command inbox module.
+    ///     Registers the inbox module.
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
-    /// <param name="builderAction">The command inbox module configuration action.</param>
+    /// <param name="builderAction">The inbox module configuration action.</param>
     /// <returns>The current module registry.</returns>
-    public static IModuleRegistry AddCommandInboxModule(this IModuleRegistry moduleRegistry, Action<CommandInboxModuleBuilder> builderAction)
+    public static IModuleRegistry AddInboxModule(this IModuleRegistry moduleRegistry, Action<InboxModuleBuilder> builderAction)
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
@@ -27,18 +27,18 @@ public static class ModuleRegistryExtensions
             }));
         }
 
-        moduleRegistry.Register(new CommandInboxModule(builderAction));
+        moduleRegistry.Register(new InboxModule(builderAction));
         return moduleRegistry;
     }
 
     /// <summary>
-    ///     Registers the command inbox module with default settings.
+    ///     Registers the inbox module with default settings.
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
     /// <returns>The current module registry.</returns>
-    public static IModuleRegistry AddCommandInboxModule(this IModuleRegistry moduleRegistry)
+    public static IModuleRegistry AddInboxModule(this IModuleRegistry moduleRegistry)
     {
-        return AddCommandInboxModule(moduleRegistry, moduleBuilder =>
+        return AddInboxModule(moduleRegistry, moduleBuilder =>
         {
         });
     }

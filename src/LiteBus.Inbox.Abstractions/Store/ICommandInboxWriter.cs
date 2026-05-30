@@ -17,7 +17,7 @@ namespace LiteBus.Inbox.Abstractions;
 ///         This interface is append-oriented. Scheduling code should not depend on leasing or completion APIs.
 ///     </para>
 /// </remarks>
-public interface ICommandInboxWriter
+public interface IInboxStore
 {
     /// <summary>
     ///     Adds a pending command envelope to the inbox.
@@ -28,5 +28,5 @@ public interface ICommandInboxWriter
     /// </param>
     /// <param name="cancellationToken">A token that cancels the database write before it is committed.</param>
     /// <returns>The stored envelope, or the existing envelope when the store detects a duplicate submission.</returns>
-    Task<InboxCommandEnvelope> AddAsync(InboxCommandEnvelope envelope, CancellationToken cancellationToken = default);
+    Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default);
 }

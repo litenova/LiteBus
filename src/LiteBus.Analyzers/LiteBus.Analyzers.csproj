@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <TargetFrameworks></TargetFrameworks>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <IsPackable>true</IsPackable>
+        <PackageId>LiteBus.Analyzers</PackageId>
+        <Authors>A. Shafie</Authors>
+        <Description>Roslyn analyzers for LiteBus handler registration, query purity, inbox usage, and message contracts.</Description>
+        <PackageTags>litebus;analyzers;roslyn;mediator;cqrs</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <DevelopmentDependency>true</DevelopmentDependency>
+        <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+        <NoWarn>$(NoWarn);RS2008</NoWarn>
+        <SignAssembly>false</SignAssembly>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0">
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="System.Collections.Immutable" Version="8.0.0">
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="AnalyzerReleaseTracking\**\*" Pack="true" PackagePath="AnalyzerReleaseTracking\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Remove="StyleCop.Analyzers" />
+        <PackageReference Remove="Microsoft.SourceLink.GitHub" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="LiteBus.Analyzers.Tests" />
+    </ItemGroup>
+
+    <Target Name="IncludeAnalyzersInPackage" DependsOnTargets="Build" BeforeTargets="_GetPackageFiles">
+        <ItemGroup>
+            <None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+        </ItemGroup>
+    </Target>
+
+</Project>

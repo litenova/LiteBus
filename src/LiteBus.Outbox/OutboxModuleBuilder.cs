@@ -8,10 +8,9 @@ namespace LiteBus.Outbox;
 ///     Configures services owned by the outbox module.
 /// </summary>
 /// <remarks>
-///     Use this builder from `AddOutboxModule`. Register every outbox event contract through <see cref="Contracts" />,
-///     choose processor defaults through <see cref="UseProcessorOptions" />, and opt in to local LiteBus event dispatch
-///     through <see cref="UseLiteBusEventDispatcher" /> when the outbox should replay events into in-process handlers.
-///     Broker dispatchers can register their own <see cref="IOutboxDispatcher" /> instead.
+///     Use this builder from `AddOutboxModule`. Register every outbox message contract through
+///     <see cref="Contracts" /> and optionally replace processor defaults through <see cref="UseProcessorOptions" />.
+///     Store and dispatcher registration are supplied by storage and dispatch modules, or by application DI registration.
 ///     Background processing is configured separately through `AddOutboxProcessorHosting`.
 /// </remarks>
 public sealed class OutboxModuleBuilder
@@ -36,11 +35,6 @@ public sealed class OutboxModuleBuilder
     public OutboxProcessorOptions ProcessorOptions { get; private set; } = new();
 
     /// <summary>
-    ///     Gets a value indicating whether the in-process LiteBus event dispatcher should be registered.
-    /// </summary>
-    public bool RegisterLiteBusEventDispatcher { get; private set; }
-
-    /// <summary>
     ///     Replaces the outbox processor options.
     /// </summary>
     /// <param name="options">The batch, lease, owner, and retry options used by the processor.</param>
@@ -48,17 +42,6 @@ public sealed class OutboxModuleBuilder
     public OutboxModuleBuilder UseProcessorOptions(OutboxProcessorOptions options)
     {
         ProcessorOptions = options ?? throw new ArgumentNullException(nameof(options));
-        return this;
-    }
-
-    /// <summary>
-    ///     Registers the dispatcher that publishes outbox messages through <see cref="Events.Abstractions.IEventPublisher" />.
-    ///     Do not call this when another module registers an external broker dispatcher as <see cref="IOutboxDispatcher" />.
-    /// </summary>
-    /// <returns>The current builder.</returns>
-    public OutboxModuleBuilder UseLiteBusEventDispatcher()
-    {
-        RegisterLiteBusEventDispatcher = true;
         return this;
     }
 }

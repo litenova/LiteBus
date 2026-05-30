@@ -16,7 +16,7 @@
 ///         correct when the key is absent because the same command can still be executed directly through the mediator.
 ///     </para>
 /// </remarks>
-public static class CommandInboxExecutionContextKeys
+public static class InboxExecutionContextKeys
 {
     /// <summary>
     ///     Identifies commands currently being executed by the inbox processor.

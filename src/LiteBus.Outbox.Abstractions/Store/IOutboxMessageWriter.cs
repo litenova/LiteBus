@@ -9,7 +9,7 @@ namespace LiteBus.Outbox.Abstractions;
 /// <remarks>
 ///     <para>
 ///         Implement this role in the same transaction boundary as the application state change that produced the
-///         event. The writer is append-oriented: it accepts an immutable <see cref="OutboxMessageEnvelope" /> and
+///         event. The writer is append-oriented: it accepts an immutable <see cref="OutboxEnvelope" /> and
 ///         returns the row that became the source of truth. Stores should treat duplicate message identifiers
 ///         as idempotent inserts and return the existing row when the backing database can prove that the message was
 ///         already accepted.
@@ -19,7 +19,7 @@ namespace LiteBus.Outbox.Abstractions;
 ///         writes messages should not need permission to lease or complete publication work.
 ///     </para>
 /// </remarks>
-public interface IOutboxMessageWriter
+public interface IOutboxStore
 {
     /// <summary>
     ///     Adds a pending message envelope to the outbox.
@@ -33,5 +33,5 @@ public interface IOutboxMessageWriter
     ///     The stored envelope. For idempotent duplicate inserts, the returned value should be the original stored row
     ///     rather than a copy of the rejected input.
     /// </returns>
-    Task<OutboxMessageEnvelope> AddAsync(OutboxMessageEnvelope envelope, CancellationToken cancellationToken = default);
+    Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default);
 }

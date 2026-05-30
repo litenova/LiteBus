@@ -12,7 +12,7 @@ namespace LiteBus.Inbox.Abstractions;
 ///         different options when an application needs different worker identities or batch sizes.
 ///     </para>
 /// </remarks>
-public sealed record CommandInboxProcessorOptions
+public sealed record InboxProcessorOptions
 {
     /// <summary>
     ///     Gets the maximum number of commands leased per processing pass. Larger batches reduce store round-trips but

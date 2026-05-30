@@ -43,7 +43,7 @@ public sealed class DependencyRegistry : IDependencyRegistry
 
         throw new InvalidOperationException(
             "Hosted services require LiteBus to be configured through Microsoft.Extensions.DependencyInjection or Autofac. " +
-            "Use services.AddLiteBus(...) or containerBuilder.AddLiteBus(...), then call AddCommandInboxProcessorHosting or AddOutboxProcessorHosting.");
+            "Use services.AddLiteBus(...) or containerBuilder.AddLiteBus(...), then call AddInboxProcessorHosting or AddOutboxProcessorHosting.");
     }
 
     /// <summary>

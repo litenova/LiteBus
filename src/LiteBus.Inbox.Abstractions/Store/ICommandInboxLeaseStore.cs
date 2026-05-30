@@ -18,7 +18,7 @@ namespace LiteBus.Inbox.Abstractions;
 ///         behavior after a worker crash or process shutdown.
 ///     </para>
 /// </remarks>
-public interface ICommandInboxLeaseStore
+public interface IInboxLeaseStore
 {
     /// <summary>
     ///     Leases pending, failed, or expired processing commands for one processing pass.
@@ -28,7 +28,7 @@ public interface ICommandInboxLeaseStore
     /// </param>
     /// <param name="cancellationToken">A token that cancels the lease operation before ownership is recorded.</param>
     /// <returns>The command envelopes claimed by the caller, ordered according to the store policy.</returns>
-    Task<IReadOnlyList<InboxCommandEnvelope>> LeasePendingAsync(
+    Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
         InboxLeaseRequest request,
         CancellationToken cancellationToken = default);
 }

@@ -45,12 +45,12 @@ public sealed class OutboxProcessor : IOutboxProcessor
     /// <summary>
     ///     Gets the store role used to lease due messages.
     /// </summary>
-    private readonly IOutboxMessageLeaseStore _leaseStore;
+    private readonly IOutboxLeaseStore _leaseStore;
 
     /// <summary>
     ///     Gets the store role used to record publication results.
     /// </summary>
-    private readonly IOutboxMessageStateStore _stateStore;
+    private readonly IOutboxStateStore _stateStore;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="OutboxProcessor" /> class.
@@ -61,8 +61,8 @@ public sealed class OutboxProcessor : IOutboxProcessor
     /// <param name="options">The batch, lease, owner, and retry settings for this processor instance.</param>
     /// <param name="clock">The time provider used for leasing and retry timestamps.</param>
     public OutboxProcessor(
-        IOutboxMessageLeaseStore leaseStore,
-        IOutboxMessageStateStore stateStore,
+        IOutboxLeaseStore leaseStore,
+        IOutboxStateStore stateStore,
         IOutboxDispatcher dispatcher,
         OutboxProcessorOptions options,
         TimeProvider clock)
@@ -119,12 +119,12 @@ public sealed class OutboxProcessor : IOutboxProcessor
     /// <param name="message">The leased outbox message returned by the store.</param>
     /// <param name="cancellationToken">A token used to cancel dispatch or the state update.</param>
     /// <returns>A task that represents the asynchronous dispatch and state update.</returns>
-    private async Task ProcessMessageAsync(OutboxMessageEnvelope message, CancellationToken cancellationToken)
+    private async Task ProcessMessageAsync(OutboxEnvelope message, CancellationToken cancellationToken)
     {
         try
         {
             await _dispatcher.DispatchAsync(message, cancellationToken).ConfigureAwait(false);
-            await _stateStore.MarkPublishedAsync(message.MessageId, cancellationToken).ConfigureAwait(false);
+            await _stateStore.MarkPublishedAsync(message.Id, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -139,24 +139,24 @@ public sealed class OutboxProcessor : IOutboxProcessor
     /// <param name="exception">The exception captured from dispatch.</param>
     /// <param name="cancellationToken">A token used to cancel the state update.</param>
     /// <returns>A task that represents the asynchronous retry or dead-letter state update.</returns>
-    private Task MarkFailedAsync(OutboxMessageEnvelope message, Exception exception, CancellationToken cancellationToken)
+    private Task MarkFailedAsync(OutboxEnvelope message, Exception exception, CancellationToken cancellationToken)
     {
         var error = MessageProcessorDiagnostics.FormatError(exception);
 
         if (message.AttemptCount >= _options.Retry.MaxAttempts)
         {
-            return _stateStore.MoveToDeadLetterAsync(new OutboxMessageDeadLetter
+            return _stateStore.MoveToDeadLetterAsync(new OutboxEnvelopeDeadLetter
             {
-                MessageId = message.MessageId,
+                Id = message.Id,
                 Reason = error
             }, cancellationToken);
         }
 
         var visibleAfter = _clock.GetUtcNow().Add(CalculateRetryDelay(message.AttemptCount));
 
-        return _stateStore.MarkFailedAsync(new OutboxMessageFailure
+        return _stateStore.MarkFailedAsync(new OutboxEnvelopeFailure
         {
-            MessageId = message.MessageId,
+            Id = message.Id,
             Error = error,
             VisibleAfter = visibleAfter
         }, cancellationToken);

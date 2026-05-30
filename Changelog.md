@@ -2,6 +2,74 @@
 
 All notable changes to this project will be documented in this file.
 
+## v6.0.0
+
+### Added
+
+- Added `LiteBus.Amqp` with `AmqpConnectionOptions`, `IAmqpConnectionManager`, `IAmqpPublisher`, `IAmqpConsumer`, `AmqpPublishRequest`, `AmqpReceivedMessage`, and stable LiteBus AMQP header constants for RabbitMQ and LavinMQ.
+- Added `tests/LiteBus.Amqp.IntegrationTests` with Testcontainers coverage against `rabbitmq:4-management` and `cloudamqp/lavinmq`.
+- Added `LiteBus.Storage.PostgreSql` (renamed from `LiteBus.PostgreSql`) with shared PostgreSQL schema infrastructure.
+- Added `LiteBus.Inbox.Storage.PostgreSql` (renamed from `LiteBus.Inbox.PostgreSql`) with `PostgreSqlInboxStore`, `AddPostgreSqlInboxStorage()`, and schema APIs (`GetCreateScript`, `GetUpgradeScript`, `EnsureAsync`, `ValidateAsync`).
+- Added `LiteBus.Outbox.Storage.PostgreSql` (renamed from `LiteBus.Outbox.PostgreSql`) with `PostgreSqlOutboxStore`, `AddPostgreSqlOutboxStorage()`, and matching schema APIs.
+- Added `LiteBus.Inbox.Storage.PostgreSql.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.Storage.PostgreSql.Extensions.Microsoft.Hosting` with `AddPostgreSqlInboxStorageSchemaHosting()` and `AddPostgreSqlOutboxStorageSchemaHosting()`.
+- Added `tests/LiteBus.Storage.PostgreSql.IntegrationTests` (renamed from `LiteBus.PostgreSql.IntegrationTests`) with Testcontainers coverage and explicit `AddInboxCommandDispatcher` / `AddOutboxEventDispatcher` in end-to-end tests.
+- Added `LiteBus.Storage.Testing` with abstract `InboxStoreContractTests` and `OutboxStoreContractTests` shared by in-memory, PostgreSQL, and future EF Core stores.
+- Added `LiteBus.Outbox.Storage.InMemory.UnitTests` exercising the in-memory store against the shared outbox store contract tests.
+- Added `docs/Testing.md` with guidance for in-memory storage and Testcontainers-based integration tests.
+- Added `LiteBus.Outbox.Dispatch.Events` with `EventOutboxDispatcher` and `AddOutboxEventDispatcher()` for in-process outbox publication through `IEventPublisher`.
+- Added `LiteBus.Outbox.Dispatch.Amqp` with `AmqpOutboxDispatcher`, `AmqpOutboxDispatcherOptions`, and `AddOutboxAmqpDispatcher()` for broker publication through `LiteBus.Amqp`. Registration aliases: `AddOutboxRabbitMqDispatcher`, `AddOutboxLavinMqDispatcher`.
+- Added `tests/LiteBus.Outbox.Dispatch.Amqp.IntegrationTests` with end-to-end coverage against RabbitMQ and LavinMQ Testcontainers (in-memory store, processor, AMQP queue assertion).
+- Added `docs/Outbox-Amqp-Dispatch.md` for AMQP outbox dispatch registration, routing, and wire format.
+- Added `LiteBus.Inbox.Dispatch.Commands` with `CommandInboxDispatcher`, `AddInboxCommandDispatcher()`, and single-dispatcher registration validation.
+- Added `LiteBus.Inbox.Dispatch.Amqp` with `AmqpInboxDispatcher`, `AmqpInboxDispatcherOptions`, and `AddInboxAmqpDispatcher()` (plus `AddInboxRabbitMqDispatcher` / `AddInboxLavinMqDispatcher` aliases) for publishing leased inbox envelopes to AMQP.
+- Added `tests/LiteBus.Inbox.Dispatch.Amqp.IntegrationTests` covering inbox processor dispatch to RabbitMQ and LavinMQ queues.
+- Added `docs/Inbox-Amqp.md` documenting AMQP inbox dispatch registration, headers, and remote execution flow.
+- Added `tests/LiteBus.Inbox.Dispatch.Commands.UnitTests` covering command dispatch success, non-command contract failure, trace metadata propagation, and cancellation.
+- Added `docs/Inbox.md` with core inbox module, writer, processor, hosting, and separate storage/dispatch registration.
+- Added `LiteBus.Inbox.Storage.InMemory` with `InMemoryInboxStore`, `AddInMemoryInboxStorage()`, and `InMemoryInboxStoreOptions` for capacity limits and default lease duration.
+- Added `LiteBus.Inbox.Storage.InMemory.UnitTests` with inbox store contract, concurrent lease, and idempotency coverage.
+- Added `LiteBus.Outbox.Storage.EntityFrameworkCore` with `OutboxMessageEntity`, `IOutboxDbContext`, `EfCoreOutboxStore`, `EfCoreOutboxStoreOptions`, `OutboxMessageEntityConfiguration.GetModelBuilderConfiguration()`, and `AddEfCoreOutboxStorage()`.
+- Added `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests` and `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests` against shared `OutboxStoreContractTests`.
+- Added [Entity Framework Core outbox storage](docs/Outbox-EntityFrameworkCore-Storage.md) documentation.
+- Added `LiteBus.Inbox.Ingress.Amqp` with `AmqpInboxIngressConsumer`, `AmqpInboxIngressHandler`, `AddInboxAmqpIngress()`, `AddInboxAmqpIngressHosting()`, and RabbitMQ/LavinMQ registration aliases.
+- Added `tests/LiteBus.Inbox.Ingress.Amqp.IntegrationTests` covering publish → ingress → store → processor → command dispatch against RabbitMQ and LavinMQ Testcontainers.
+- Added `docs/Inbox-Amqp-Ingress.md` for AMQP inbox ingress registration, wire format, and acknowledgement behavior.
+- Added `LiteBus.Inbox.Storage.EntityFrameworkCore` with `InboxMessageEntity`, `IInboxDbContext`, `EfCoreInboxStore`, `EfCoreInboxStoreOptions`, `GetModelBuilderConfiguration()`, and `AddEfCoreInboxStorage()`.
+- Added `tests/LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests` and `tests/LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests` against shared `InboxStoreContractTests`.
+- Added [Entity Framework Core inbox storage](docs/Inbox-EntityFrameworkCore-Storage.md) documentation.
+
+### Docs
+
+- Added `docs/Migration-Guide-v6.md` with package and API rename tables, registration before/after examples, and dispatcher-required guidance.
+- Updated `docs/Architecture.md` with Storage, Dispatch, and Ingress axis diagrams.
+- Updated `docs/Dependency-Graph.md` with the full v6 package map and dependency rules.
+- Updated `docs/Roadmap.md` to mark v6 storage, dispatch, ingress, and analyzer packages as implemented.
+- Updated `docs/Cookbook-and-Scenarios.md` with v6 recipes (PostgreSQL inbox + command dispatch, outbox + AMQP, EF outbox + events, InMemory testing, full ingress pipeline).
+- Updated `docs/_Sidebar.md` with links to v6 migration, testing, storage, dispatch, ingress, and analyzer pages.
+- Added `docs/Amqp-Transport.md` covering RabbitMQ and LavinMQ setup, connection strings, wire headers, and publish/consume usage.
+- Documented in-memory outbox registration in `docs/Outbox.md` and testing guidance in `docs/Testing.md`.
+- Added `samples/LiteBus.Samples.V6` demonstrating full v6 composition with InMemory storage and explicit dispatch registration.
+
+### Changed
+
+- Renamed PostgreSQL storage packages to the v6 `Storage` layout: `LiteBus.PostgreSql` → `LiteBus.Storage.PostgreSql`, `LiteBus.Inbox.PostgreSql` → `LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.PostgreSql` → `LiteBus.Outbox.Storage.PostgreSql`, and matching Microsoft.Hosting extensions.
+- Renamed inbox writer API: `ICommandScheduler.ScheduleAsync` → `IInbox.AddAsync`, `CommandScheduleOptions` → `InboxOptions`, `CommandReceipt<T>` → `InboxReceipt<T>`.
+- Renamed outbox writer API: `IOutboxWriter` / `IIntegrationOutbox` → `IOutbox`; `OutboxOptions.MessageId` → `OutboxOptions.Id`.
+- Renamed store roles and envelopes to neutral v6 names (`IInboxStore`, `InboxEnvelope`, `IOutboxStore`, `OutboxEnvelope`).
+- `LiteBus.Outbox` is now transport-neutral orchestration only. The core module registers `IOutbox`, `IOutboxProcessor`, and `OutboxProcessorOptions`. Storage and dispatch are registered separately.
+- `LiteBus.Inbox` is now transport-neutral orchestration only. Renamed `CommandScheduler` → `InboxWriter`, `CommandInboxProcessor` → `InboxProcessor`, `CommandInboxModule` → `InboxModule`, and matching builder/hosting extensions (`AddInboxModule`, `AddInboxProcessorHosting`, `AddLiteBusInboxProcessor`).
+- The core inbox module registers `IInbox`, `IInboxProcessor`, and `InboxProcessorOptions` only. Storage and dispatch are registered separately.
+- Inbox and outbox processor hosting validate that `IInboxDispatcher` and `IOutboxDispatcher` are registered before background loops start.
+
+### Removed
+
+- Removed `LiteBusEventOutboxDispatcher`, `IntegrationOutbox`, and `UseLiteBusEventDispatcher()` from `LiteBus.Outbox`.
+- Removed the `LiteBus.Events.Abstractions` project reference from `LiteBus.Outbox`.
+- Removed `CommandInboxDispatcher` from `LiteBus.Inbox`; command dispatch is provided by `LiteBus.Inbox.Dispatch.Commands`.
+- Removed the `LiteBus.Commands.Abstractions` project reference from `LiteBus.Inbox`.
+- Removed `IIdempotentCommand`; supply `InboxOptions.IdempotencyKey` explicitly.
+- Removed v5 `AddCommandInboxModule`, `ICommandScheduler`, `IIntegrationOutbox`, and other v5 registration aliases without obsolete shims.
+
 ## v5.0.0
 
 ### Changed
@@ -25,15 +93,15 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Added `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox`, and `LiteBus.Inbox.PostgreSql`.
-- Added `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox`, and `LiteBus.Outbox.PostgreSql`.
+- Added `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox`, and `LiteBus.Inbox.Storage.PostgreSql`.
+- Added `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox`, and `LiteBus.Outbox.Storage.PostgreSql`.
 - Added raw Npgsql inbox and outbox stores with leasing, retry visibility, dead-letter state, and Testcontainers coverage.
-- Added canonical `.sql` schema files in `LiteBus.PostgreSql`, `LiteBus.Inbox.PostgreSql`, and `LiteBus.Outbox.PostgreSql` for copy-paste migration ownership.
-- Added `IPostgreSqlSchemaLogger` to `LiteBus.PostgreSql` (Npgsql-only dependency) for optional schema operation logging.
+- Added canonical `.sql` schema files in `LiteBus.Storage.PostgreSql`, `LiteBus.Inbox.Storage.PostgreSql`, and `LiteBus.Outbox.Storage.PostgreSql` for copy-paste migration ownership.
+- Added `IPostgreSqlSchemaLogger` to `LiteBus.Storage.PostgreSql` (Npgsql-only dependency) for optional schema operation logging.
 - Added `PostgreSqlInboxSchema` / `PostgreSqlOutboxSchema` APIs: `GetCreateScript`, `GetUpgradeScript`, `EnsureAsync`, and `ValidateAsync`.
-- Added `LiteBus.Inbox.PostgreSql.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.PostgreSql.Extensions.Microsoft.Hosting` for opt-in schema bootstrap on generic host startup.
+- Added `LiteBus.Inbox.Storage.PostgreSql.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.Storage.PostgreSql.Extensions.Microsoft.Hosting` for opt-in schema bootstrap on generic host startup.
 - Added `LiteBus.Inbox.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.Extensions.Microsoft.Hosting` for optional generic-host processor loops and health checks.
-- Added `LiteBus.PostgreSql.IntegrationTests` with Testcontainers coverage for inbox/outbox stores, schema bootstrap and upgrades, drift validation, module registration, and end-to-end processor flows.
+- Added `LiteBus.Storage.PostgreSql.IntegrationTests` with Testcontainers coverage for inbox/outbox stores, schema bootstrap and upgrades, drift validation, module registration, and end-to-end processor flows.
 - Added `AGENTS.md`, `src/.editorconfig`, and StyleCop documentation analyzers (`GenerateDocumentationFile`) for all `src/` projects.
 - Added XML documentation on all library types, members, and private/internal fields under `src/`.
 
@@ -43,7 +111,7 @@ All notable changes to this project will be documented in this file.
 - Removed `LiteBus.Commands.Extensions.Microsoft.Hosting` because it was tied to the old inbox host.
 - Removed `LiteBus.Inbox.Extensions.Autofac` and `LiteBus.Outbox.Extensions.Autofac` because hosting registration lives in the Microsoft hosting extension packages (Autofac apps use the same hosting modules through the runtime adapter).
 - Removed `IIdentifiedIntegrationEvent`; event identity now belongs to outbox envelope options.
-- Removed inbox/outbox processor host interfaces and `UseProcessorHost`; hosting is configured through `AddCommandInboxProcessorHosting` / `AddOutboxProcessorHosting` on the hosting extension packages.
+- Removed inbox/outbox processor host interfaces and `UseProcessorHost`; hosting is configured through `AddInboxProcessorHosting` / `AddOutboxProcessorHosting` on the hosting extension packages.
 - Removed `IMessageContractRegistrar`; contract registration is part of `IMessageContractRegistry`.
 
 ### Changed (hosting)
@@ -68,7 +136,7 @@ All notable changes to this project will be documented in this file.
 ### Notes
 
 - Inbox and outbox processors deliver **at-least-once** semantics. Handlers and dispatch targets must be idempotent, or you must enforce idempotency with application keys such as `CommandScheduleOptions.IdempotencyKey` and `OutboxOptions.MessageId`.
-- v5 ships durable storage for **PostgreSQL only** (`LiteBus.Inbox.PostgreSql`, `LiteBus.Outbox.PostgreSql`). Entity Framework Core and SQL Server store packages remain on the roadmap; bring your own store by implementing the writer, lease, and state role interfaces until those packages ship.
+- v5 ships durable storage for **PostgreSQL only** (`LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.Storage.PostgreSql`). Entity Framework Core and SQL Server store packages remain on the roadmap; bring your own store by implementing the writer, lease, and state role interfaces until those packages ship.
 
 ## v4.4.0
 

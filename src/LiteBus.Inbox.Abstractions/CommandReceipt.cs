@@ -1,31 +1,29 @@
 ﻿using System;
-using LiteBus.Commands.Abstractions;
 
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Represents the result of accepting a command into the inbox.
+///     Represents the result of accepting a message into the inbox.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         A receipt means the store accepted the command envelope. It does not mean the command handler has run. Return
-///         this value from an API as acceptance or tracking data, then use queries to read the state produced by later
-///         command execution.
+///         A receipt means the store accepted the inbox envelope. It does not mean a handler has run. Return this value
+///         from an API as acceptance or tracking data, then use queries to read the state produced by later execution.
 ///     </para>
 /// </remarks>
-/// <typeparam name="TCommand">The command type associated with the receipt.</typeparam>
-public sealed record CommandReceipt<TCommand>
-    where TCommand : ICommand
+/// <typeparam name="T">The message type associated with the receipt.</typeparam>
+public sealed record InboxReceipt<T>
+    where T : notnull
 {
     /// <summary>
     ///     Gets the unique command identifier that processors and tracking endpoints can use.
     /// </summary>
-    public required Guid CommandId { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>
     ///     Gets the CLR command type that was scheduled. For closed generic commands, this is the closed runtime type.
     /// </summary>
-    public required Type CommandType { get; init; }
+    public required Type MessageType { get; init; }
 
     /// <summary>
     ///     Gets the stable message contract name stored with the payload.

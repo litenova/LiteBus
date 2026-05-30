@@ -11,19 +11,19 @@ namespace LiteBus.Outbox.Abstractions;
 ///         to its final target. Use the message id for diagnostics, replay tooling, or API acceptance responses.
 ///     </para>
 /// </remarks>
-/// <typeparam name="TEvent">The event type associated with the receipt.</typeparam>
-public sealed record OutboxReceipt<TEvent>
-    where TEvent : notnull
+/// <typeparam name="T">The message type associated with the receipt.</typeparam>
+public sealed record OutboxReceipt<T>
+    where T : notnull
 {
     /// <summary>
     ///     Gets the unique outbox message identifier used by processors and operational tooling.
     /// </summary>
-    public required Guid MessageId { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>
-    ///     Gets the CLR event type that was stored. For closed generic events, this is the closed runtime type.
+    ///     Gets the CLR message type that was stored. For closed generic types, this is the closed runtime type.
     /// </summary>
-    public required Type EventType { get; init; }
+    public required Type MessageType { get; init; }
 
     /// <summary>
     ///     Gets the stable event contract name stored with the payload.

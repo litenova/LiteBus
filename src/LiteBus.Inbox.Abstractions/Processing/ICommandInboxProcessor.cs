@@ -17,7 +17,7 @@ namespace LiteBus.Inbox.Abstractions;
 ///         writes that can be retried.
 ///     </para>
 /// </remarks>
-public interface ICommandInboxProcessor
+public interface IInboxProcessor
 {
     /// <summary>
     ///     Processes one batch of due inbox commands.
