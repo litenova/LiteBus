@@ -86,7 +86,8 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
 
     /// <summary>
     ///     Determines whether the specified <see cref="DependencyDescriptor" /> is equal to the current instance.
-    ///     Two descriptors are considered equal if they have the same dependency type and implementation type.
+    ///     Type registrations compare dependency and implementation types; instance and factory registrations compare
+    ///     dependency type and the registered instance or factory reference.
     /// </summary>
     /// <param name="other">The descriptor to compare with the current instance.</param>
     /// <returns><see langword="true" /> if the specified descriptor is equal to the current instance; otherwise, <see langword="false" />.</returns>
@@ -95,8 +96,27 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
         if (other is null) return false;
         if (ReferenceEquals(this, other)) return true;
 
-        return DependencyType == other.DependencyType &&
-               ImplementationType == other.ImplementationType;
+        if (DependencyType != other.DependencyType)
+        {
+            return false;
+        }
+
+        if (ImplementationType is not null || other.ImplementationType is not null)
+        {
+            return ImplementationType == other.ImplementationType;
+        }
+
+        if (Instance is not null || other.Instance is not null)
+        {
+            return ReferenceEquals(Instance, other.Instance);
+        }
+
+        if (Factory is not null || other.Factory is not null)
+        {
+            return ReferenceEquals(Factory, other.Factory);
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -115,7 +135,22 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// <returns>A 32-bit signed integer hash code.</returns>
     public override int GetHashCode()
     {
-        return HashCode.Combine(DependencyType, ImplementationType);
+        if (ImplementationType is not null)
+        {
+            return HashCode.Combine(DependencyType, ImplementationType);
+        }
+
+        if (Instance is not null)
+        {
+            return HashCode.Combine(DependencyType, Instance);
+        }
+
+        if (Factory is not null)
+        {
+            return HashCode.Combine(DependencyType, Factory);
+        }
+
+        return DependencyType.GetHashCode();
     }
 
     /// <summary>

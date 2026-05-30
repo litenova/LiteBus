@@ -16,12 +16,12 @@ public sealed record InboxReceipt<T>
     where T : notnull
 {
     /// <summary>
-    ///     Gets the unique command identifier that processors and tracking endpoints can use.
+    ///     Gets the unique message identifier that processors and tracking endpoints can use.
     /// </summary>
     public required Guid Id { get; init; }
 
     /// <summary>
-    ///     Gets the CLR command type that was scheduled. For closed generic commands, this is the closed runtime type.
+    ///     Gets the CLR message type that was accepted. For closed generic messages, this is the closed runtime type.
     /// </summary>
     public required Type MessageType { get; init; }
 
@@ -31,12 +31,12 @@ public sealed record InboxReceipt<T>
     public required string ContractName { get; init; }
 
     /// <summary>
-    ///     Gets the contract version used when the command was serialized.
+    ///     Gets the contract version used when the message was serialized.
     /// </summary>
     public required int ContractVersion { get; init; }
 
     /// <summary>
-    ///     Gets the UTC timestamp when the command was accepted by the store.
+    ///     Gets the UTC timestamp when the message was accepted by the store.
     /// </summary>
     public required DateTimeOffset AcceptedAt { get; init; }
 

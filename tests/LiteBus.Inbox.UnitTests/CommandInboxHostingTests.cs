@@ -3,12 +3,10 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Extensions.Microsoft.Hosting;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Inbox.UnitTests;
@@ -17,7 +15,7 @@ namespace LiteBus.Inbox.UnitTests;
 public sealed class CommandInboxHostingTests : LiteBusTestBase
 {
     [Fact]
-    public async Task ProcessorHost_WhenDisabled_ShouldCompleteWithoutProcessing()
+    public async Task ProcessorBackgroundWork_WhenDisabled_ShouldCompleteWithoutProcessing()
     {
         var store = new CommandInboxTests.InMemoryCommandInboxStore();
         var recorder = new CommandInboxTests.CommandRecorder();
@@ -32,7 +30,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorHost_ShouldRecordPassStateForHealthCheck()
+    public async Task ProcessorBackgroundWork_ShouldProcessScheduledCommands()
     {
         var store = new CommandInboxTests.InMemoryCommandInboxStore();
         var recorder = new CommandInboxTests.CommandRecorder();
@@ -44,8 +42,6 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var hostedService = provider.GetServices<IHostedService>().Single();
-        var state = provider.GetRequiredService<InboxProcessorHostState>();
-        var healthCheck = new InboxProcessorHealthCheck(state);
 
         var orderId = Guid.NewGuid();
         await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
@@ -59,97 +55,11 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
         await Task.Delay(TimeSpan.FromMilliseconds(300));
         await hostedService.StopAsync(CancellationToken.None);
 
-        state.LastSuccessfulPassAt.Should().NotBeNull();
-        state.ConsecutiveFailures.Should().Be(0);
-
-        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
-        result.Status.Should().Be(HealthStatus.Healthy);
         recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
     }
 
     [Fact]
-    public async Task ProcessorHost_BeforeFirstPass_HealthCheckShouldReportHealthyWithPendingMessage()
-    {
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
-        var recorder = new CommandInboxTests.CommandRecorder();
-
-        await using var provider = BuildProvider(store, recorder);
-        var state = provider.GetRequiredService<InboxProcessorHostState>();
-        var healthCheck = new InboxProcessorHealthCheck(state);
-
-        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
-
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("has not completed a pass yet");
-    }
-
-    [Fact]
-    public async Task ProcessorHost_WhenPassFails_ShouldRecordFailureAndReportUnhealthy()
-    {
-        var flakyLeaseStore = new InboxTestInfrastructure.ThrowingInboxLeaseStore();
-        var recorder = new CommandInboxTests.CommandRecorder();
-
-        await using var provider = BuildProvider(
-            flakyLeaseStore.Inner,
-            recorder,
-            configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(25),
-            leaseStore: flakyLeaseStore);
-
-        var hostedService = provider.GetServices<IHostedService>().Single();
-        var state = provider.GetRequiredService<InboxProcessorHostState>();
-        var healthCheck = new InboxProcessorHealthCheck(state);
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await hostedService.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(150));
-        await hostedService.StopAsync(CancellationToken.None);
-
-        state.ConsecutiveFailures.Should().BeGreaterThan(0);
-        state.LastFailureMessage.Should().Contain("Simulated lease store failure");
-
-        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-    }
-
-    [Fact]
-    public async Task ProcessorHost_WhenRecoversAfterFailure_ShouldReportHealthyAgain()
-    {
-        var flakyLeaseStore = new InboxTestInfrastructure.ThrowingInboxLeaseStore(failuresBeforeSuccess: 1);
-        var recorder = new CommandInboxTests.CommandRecorder();
-
-        await using var provider = BuildProvider(
-            flakyLeaseStore.Inner,
-            recorder,
-            configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(25),
-            leaseStore: flakyLeaseStore);
-
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var hostedService = provider.GetServices<IHostedService>().Single();
-        var state = provider.GetRequiredService<InboxProcessorHostState>();
-        var healthCheck = new InboxProcessorHealthCheck(state);
-
-        var orderId = Guid.NewGuid();
-        await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
-        {
-            OrderId = orderId,
-            IdempotencyKey = $"ship:{orderId}"
-        });
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await hostedService.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(400));
-        await hostedService.StopAsync(CancellationToken.None);
-
-        state.ConsecutiveFailures.Should().Be(0);
-        state.LastSuccessfulPassAt.Should().NotBeNull();
-
-        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
-        result.Status.Should().Be(HealthStatus.Healthy);
-        recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
-    }
-
-    [Fact]
-    public async Task ProcessorHost_WhenMissingDependency_ShouldThrowOnStart()
+    public async Task ProcessorBackgroundWork_WhenMissingDependency_ShouldThrowOnResolve()
     {
         var services = new ServiceCollection()
             .AddLiteBus(configuration =>
@@ -157,9 +67,8 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
                 configuration.AddInboxModule(inbox =>
                 {
                     inbox.Contracts.Register<CommandInboxTests.ShipOrderCommand>("orders.commands.ship", 1);
+                    inbox.UseProcessorBackgroundWork();
                 });
-
-                configuration.AddInboxProcessorHosting();
             });
 
         await using var provider = services.BuildServiceProvider();
@@ -171,7 +80,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public void ProcessorHost_WhenDispatcherMissing_ShouldThrowOnStart()
+    public void ProcessorBackgroundWork_WhenDispatcherMissing_ShouldThrowOnResolve()
     {
         var store = new CommandInboxTests.InMemoryCommandInboxStore();
 
@@ -184,9 +93,8 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
                 configuration.AddInboxModule(inbox =>
                 {
                     inbox.Contracts.Register<CommandInboxTests.ShipOrderCommand>("orders.commands.ship", 1);
+                    inbox.UseProcessorBackgroundWork();
                 });
-
-                configuration.AddInboxProcessorHosting();
             });
 
         using var provider = services.BuildServiceProvider();
@@ -198,7 +106,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorHost_ShouldRespectStartupDelay()
+    public async Task ProcessorBackgroundWork_ShouldRespectStartupDelay()
     {
         var store = new CommandInboxTests.InMemoryCommandInboxStore();
         var recorder = new CommandInboxTests.CommandRecorder();
@@ -235,7 +143,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorHost_WithAdaptivePollingAndFullBatch_ShouldProcessMultipleCommandsQuickly()
+    public async Task ProcessorBackgroundWork_WithAdaptivePollingAndFullBatch_ShouldProcessMultipleCommandsQuickly()
     {
         var store = new CommandInboxTests.InMemoryCommandInboxStore();
         var recorder = new CommandInboxTests.CommandRecorder();
@@ -281,17 +189,6 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
         var elapsed = DateTimeOffset.UtcNow - startedAt;
         elapsed.Should().BeLessThan(TimeSpan.FromSeconds(1));
         recorder.Commands.Should().HaveCount(4);
-    }
-
-    [Fact]
-    public void AddLiteBusInboxProcessor_ShouldRegisterNamedHealthCheck()
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton(new InboxProcessorHostState());
-
-        var act = () => services.AddHealthChecks().AddLiteBusInboxProcessor("inbox-host");
-
-        act.Should().NotThrow();
     }
 
     [Fact]
@@ -355,9 +252,9 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
                             Retry = new RetryOptions { UseJitter = false }
                         });
                     }
-                });
 
-                configuration.AddInboxProcessorHosting(configureHost);
+                    inbox.UseProcessorBackgroundWork(configureHost);
+                });
             })
             .BuildServiceProvider();
     }

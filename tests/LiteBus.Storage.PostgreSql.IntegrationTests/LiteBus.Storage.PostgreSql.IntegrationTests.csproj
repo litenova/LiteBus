@@ -28,12 +28,10 @@
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.Commands\LiteBus.Inbox.Dispatch.Commands.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.PostgreSql.Extensions.Microsoft.Hosting\LiteBus.Inbox.Storage.PostgreSql.Extensions.Microsoft.Hosting.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.PostgreSql\LiteBus.Inbox.Storage.PostgreSql.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.Events\LiteBus.Outbox.Dispatch.Events.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.PostgreSql.Extensions.Microsoft.Hosting\LiteBus.Outbox.Storage.PostgreSql.Extensions.Microsoft.Hosting.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.PostgreSql\LiteBus.Outbox.Storage.PostgreSql.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Storage.PostgreSql\LiteBus.Storage.PostgreSql.csproj"/>
         <ProjectReference Include="..\LiteBus.Storage.Testing\LiteBus.Storage.Testing.csproj"/>

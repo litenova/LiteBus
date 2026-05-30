@@ -54,6 +54,32 @@ internal static class AnalyzerTest
     }
 
     /// <summary>
+    ///     Verifies that invalid source produces the expected diagnostics for the supplied analyzer.
+    /// </summary>
+    /// <typeparam name="TAnalyzer">The analyzer type under test.</typeparam>
+    /// <param name="source">The source under test.</param>
+    /// <param name="expectedDiagnostics">The expected diagnostics.</param>
+    /// <returns>A task that completes when verification finishes.</returns>
+    internal static Task VerifyDiagnosticsAsync<TAnalyzer>(
+        string source,
+        params (DiagnosticDescriptor Descriptor, int MarkupLocation, object[] Arguments)[] expectedDiagnostics)
+        where TAnalyzer : DiagnosticAnalyzer, new()
+    {
+        var test = CreateTest<TAnalyzer>();
+        test.TestCode = source;
+
+        foreach (var (descriptor, markupLocation, arguments) in expectedDiagnostics)
+        {
+            test.ExpectedDiagnostics.Add(
+                new DiagnosticResult(descriptor)
+                    .WithLocation(markupLocation)
+                    .WithArguments(arguments));
+        }
+
+        return test.RunAsync(CancellationToken.None);
+    }
+
+    /// <summary>
     ///     Creates a configured analyzer test instance with LiteBus references.
     /// </summary>
     /// <typeparam name="TAnalyzer">The analyzer type under test.</typeparam>

@@ -13,6 +13,26 @@ public sealed class AmqpInboxIngressModuleBuilder
     public AmqpInboxIngressOptions Options { get; private set; } = new();
 
     /// <summary>
+    ///     Gets the options for the ingress background loop.
+    /// </summary>
+    public AmqpInboxIngressHostOptions HostOptions { get; private set; } = new();
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="AmqpInboxIngressBackgroundWork" /> is registered.
+    /// </summary>
+    public bool RegisterBackgroundWork { get; private set; } = true;
+
+    /// <summary>
+    ///     Disables registration of the AMQP ingress background loop.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    public AmqpInboxIngressModuleBuilder DisableBackgroundWork()
+    {
+        RegisterBackgroundWork = false;
+        return this;
+    }
+
+    /// <summary>
     ///     Replaces the AMQP inbox ingress options.
     /// </summary>
     /// <param name="options">The broker connection and queue settings.</param>

@@ -44,11 +44,9 @@
     <Project Path="src/LiteBus.Inbox.Abstractions/LiteBus.Inbox.Abstractions.csproj" />
     <Project Path="src/LiteBus.Inbox.Dispatch.Amqp/LiteBus.Inbox.Dispatch.Amqp.csproj" />
     <Project Path="src/LiteBus.Inbox.Dispatch.Commands/LiteBus.Inbox.Dispatch.Commands.csproj" />
-    <Project Path="src/LiteBus.Inbox.Extensions.Microsoft.Hosting/LiteBus.Inbox.Extensions.Microsoft.Hosting.csproj" />
     <Project Path="src/LiteBus.Inbox.Ingress.Amqp/LiteBus.Inbox.Ingress.Amqp.csproj" />
     <Project Path="src/LiteBus.Inbox.Storage.EntityFrameworkCore/LiteBus.Inbox.Storage.EntityFrameworkCore.csproj" />
     <Project Path="src/LiteBus.Inbox.Storage.InMemory/LiteBus.Inbox.Storage.InMemory.csproj" />
-    <Project Path="src/LiteBus.Inbox.Storage.PostgreSql.Extensions.Microsoft.Hosting/LiteBus.Inbox.Storage.PostgreSql.Extensions.Microsoft.Hosting.csproj" />
     <Project Path="src/LiteBus.Inbox.Storage.PostgreSql/LiteBus.Inbox.Storage.PostgreSql.csproj" />
     <Project Path="src/LiteBus.Inbox/LiteBus.Inbox.csproj" />
     <Project Path="src/LiteBus.Messaging.Abstractions/LiteBus.Messaging.Abstractions.csproj" />
@@ -58,10 +56,8 @@
     <Project Path="src/LiteBus.Outbox.Abstractions/LiteBus.Outbox.Abstractions.csproj" />
     <Project Path="src/LiteBus.Outbox.Dispatch.Amqp/LiteBus.Outbox.Dispatch.Amqp.csproj" />
     <Project Path="src/LiteBus.Outbox.Dispatch.Events/LiteBus.Outbox.Dispatch.Events.csproj" />
-    <Project Path="src/LiteBus.Outbox.Extensions.Microsoft.Hosting/LiteBus.Outbox.Extensions.Microsoft.Hosting.csproj" />
     <Project Path="src/LiteBus.Outbox.Storage.EntityFrameworkCore/LiteBus.Outbox.Storage.EntityFrameworkCore.csproj" />
     <Project Path="src/LiteBus.Outbox.Storage.InMemory/LiteBus.Outbox.Storage.InMemory.csproj" />
-    <Project Path="src/LiteBus.Outbox.Storage.PostgreSql.Extensions.Microsoft.Hosting/LiteBus.Outbox.Storage.PostgreSql.Extensions.Microsoft.Hosting.csproj" />
     <Project Path="src/LiteBus.Outbox.Storage.PostgreSql/LiteBus.Outbox.Storage.PostgreSql.csproj" />
     <Project Path="src/LiteBus.Outbox/LiteBus.Outbox.csproj" />
     <Project Path="src/LiteBus.Queries.Abstractions/LiteBus.Queries.Abstractions.csproj" />
@@ -98,6 +94,7 @@
     <Project Path="tests/LiteBus.Outbox.Storage.InMemory.UnitTests/LiteBus.Outbox.Storage.InMemory.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Outbox.UnitTests/LiteBus.Outbox.UnitTests.csproj" />
     <Project Path="tests/LiteBus.QueryModule.UnitTests/LiteBus.QueryModule.UnitTests.csproj" />
+    <Project Path="tests/LiteBus.Runtime.UnitTests/LiteBus.Runtime.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Storage.PostgreSql.IntegrationTests/LiteBus.Storage.PostgreSql.IntegrationTests.csproj" />
     <Project Path="tests/LiteBus.Storage.Testing/LiteBus.Storage.Testing.csproj" />
     <Project Path="tests/LiteBus.Testing/LiteBus.Testing.csproj" />

@@ -169,7 +169,9 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
             try
             {
                 await SaveChangesAsync(context, token).ConfigureAwait(false);
-                return ToEnvelope(entity);
+                var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
+                    .ConfigureAwait(false);
+                return ToEnvelope(stored ?? entity);
             }
             catch (DbUpdateException)
             {

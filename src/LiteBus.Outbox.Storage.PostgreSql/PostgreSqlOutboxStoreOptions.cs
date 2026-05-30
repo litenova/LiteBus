@@ -21,8 +21,7 @@ public sealed record PostgreSqlOutboxStoreOptions : PostgreSqlSchemaStoreOptions
     ///     Gets a value indicating whether the application host should create or upgrade the outbox schema on startup.
     /// </summary>
     /// <remarks>
-    ///     When <see langword="true" />, register <c>AddPostgreSqlOutboxStorageSchemaHosting</c> from
-    ///     <c>LiteBus.Outbox.Storage.PostgreSql.Extensions.Microsoft.Hosting</c>
+    ///     When <see langword="true" />, <see cref="PostgreSqlOutboxSchemaBackgroundWork" /> creates or upgrades schema on host startup.
     ///     so schema creation runs before outbox processing starts. Production systems that use Flyway, Liquibase, or EF
     ///     migrations should leave this <see langword="false" /> and apply the canonical SQL files from
     ///     <see cref="PostgreSqlOutboxSchema.SqlFiles" /> or scripts from

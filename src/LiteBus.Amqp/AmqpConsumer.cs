@@ -96,7 +96,7 @@ public sealed class AmqpConsumer : IAmqpConsumer
                     consumerTag: options.ConsumerTag ?? string.Empty,
                     noLocal: false,
                     exclusive: options.Exclusive,
-                    arguments: CopyQueueArguments(options.QueueArguments),
+                    arguments: null,
                     consumer: consumer,
                     cancellationToken: cancellationToken)
                 .ConfigureAwait(false);

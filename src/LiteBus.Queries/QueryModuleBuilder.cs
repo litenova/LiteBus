@@ -53,13 +53,18 @@ public sealed class QueryModuleBuilder
     }
 
     /// <summary>
-    ///     Registers all query types from the specified assembly that implement <see cref="IRegistrableQueryConstruct" />.
+    ///     Registers all concrete query constructs from the specified assembly that implement
+    ///     <see cref="IRegistrableQueryConstruct" />.
     /// </summary>
     /// <param name="assembly">The assembly from which to register query types.</param>
     /// <returns>The current <see cref="QueryModuleBuilder" /> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="assembly" /> is <see langword="null" />.</exception>
     public QueryModuleBuilder RegisterFromAssembly(Assembly assembly)
     {
-        foreach (var registrableQueryConstruct in assembly.GetTypes().Where(t => t.IsAssignableTo(typeof(IRegistrableQueryConstruct))))
+        ArgumentNullException.ThrowIfNull(assembly);
+
+        foreach (var registrableQueryConstruct in assembly.GetTypes()
+                     .Where(t => t is { IsClass: true, IsAbstract: false } && t.IsAssignableTo(typeof(IRegistrableQueryConstruct))))
         {
             _messageRegistry.Register(registrableQueryConstruct);
         }

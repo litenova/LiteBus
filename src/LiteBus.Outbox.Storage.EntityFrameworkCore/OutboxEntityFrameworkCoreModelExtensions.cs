@@ -43,7 +43,8 @@ public static class OutboxEntityFrameworkCoreModelExtensions
         entity.HasKey(message => message.Id);
 
         entity.Property(message => message.Id)
-            .HasColumnName("message_id");
+            .HasColumnName("message_id")
+            .ValueGeneratedNever();
 
         entity.Property(message => message.ContractName)
             .HasColumnName("contract_name")
@@ -54,6 +55,7 @@ public static class OutboxEntityFrameworkCoreModelExtensions
 
         entity.Property(message => message.Payload)
             .HasColumnName("payload")
+            .HasColumnType("jsonb")
             .IsRequired();
 
         entity.Property(message => message.Topic)

@@ -25,6 +25,11 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
 
     /// <summary>
+    ///     Tracks background-work implementation types already registered with the container builder.
+    /// </summary>
+    private readonly HashSet<Type> _registeredBackgroundWork = [];
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="AutofacDependencyRegistryAdapter" /> class.
     /// </summary>
     /// <param name="builder">The Autofac container builder to register services with.</param>
@@ -82,18 +87,28 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     }
 
     /// <inheritdoc />
-    public void RegisterHostedService(Type implementationType)
+    public void RegisterBackgroundWork(Type implementationType)
     {
         ArgumentNullException.ThrowIfNull(implementationType);
 
-        if (!typeof(IHostedService).IsAssignableFrom(implementationType))
+        if (!typeof(ILiteBusBackgroundWork).IsAssignableFrom(implementationType))
         {
             throw new ArgumentException(
-                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(IHostedService)}.",
+                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(ILiteBusBackgroundWork)}.",
                 nameof(implementationType));
         }
 
+        if (!_registeredBackgroundWork.Add(implementationType))
+        {
+            return;
+        }
+
         _builder.RegisterType(implementationType)
+            .AsSelf()
+            .SingleInstance();
+
+        _builder.Register(context => new LiteBusBackgroundWorkHostedService(
+                (ILiteBusBackgroundWork)context.Resolve(implementationType)))
             .As<IHostedService>()
             .SingleInstance();
     }

@@ -1,12 +1,10 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Inbox.Storage.PostgreSql;
-using LiteBus.Inbox.Storage.PostgreSql.Extensions.Microsoft.Hosting;
-using LiteBus.Outbox.Storage.PostgreSql;
-using LiteBus.Outbox.Storage.PostgreSql.Extensions.Microsoft.Hosting;
-using LiteBus.Storage.PostgreSql;
 using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Inbox.Storage.PostgreSql;
+using LiteBus.Outbox.Storage.PostgreSql;
+using LiteBus.Runtime.Abstractions;
+using LiteBus.Storage.PostgreSql;
 using LiteBus.Testing;
-using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 
@@ -20,45 +18,41 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     }
 
     [Fact]
-    public async Task InboxSchemaHostedService_WhenEnabled_ShouldCreateSchemaOnStartup()
+    public async Task InboxSchemaBackgroundWork_WhenEnabled_ShouldCreateSchemaOnStartup()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions() with
         {
             EnsureSchemaCreationOnStartup = true
         };
 
-        await using var provider = BuildInboxProvider(options, includeSchemaHosting: true);
-        var hostedService = provider.GetServices<IHostedService>()
-            .OfType<PostgreSqlInboxSchemaHostedService>()
-            .Single();
+        await using var provider = BuildInboxProvider(options);
+        var backgroundWork = provider.GetRequiredService<PostgreSqlInboxSchemaBackgroundWork>();
 
-        await hostedService.StartAsync(CancellationToken.None);
+        await backgroundWork.RunAsync(CancellationToken.None);
 
         var action = async () => await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options);
         await action.Should().NotThrowAsync();
     }
 
     [Fact]
-    public async Task InboxSchemaHostedService_WhenDisabled_ShouldNotCreateSchemaOnStartup()
+    public async Task InboxSchemaBackgroundWork_WhenDisabled_ShouldNotCreateSchemaOnStartup()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions() with
         {
             EnsureSchemaCreationOnStartup = false
         };
 
-        await using var provider = BuildInboxProvider(options, includeSchemaHosting: true);
-        var hostedService = provider.GetServices<IHostedService>()
-            .OfType<PostgreSqlInboxSchemaHostedService>()
-            .Single();
+        await using var provider = BuildInboxProvider(options);
+        var backgroundWork = provider.GetRequiredService<PostgreSqlInboxSchemaBackgroundWork>();
 
-        await hostedService.StartAsync(CancellationToken.None);
+        await backgroundWork.RunAsync(CancellationToken.None);
 
         var action = async () => await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options);
         await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>();
     }
 
     [Fact]
-    public async Task InboxSchemaHostedService_WhenValidationEnabled_ShouldValidateAfterEnsure()
+    public async Task InboxSchemaBackgroundWork_WhenValidationEnabled_ShouldValidateAfterEnsure()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions() with
         {
@@ -66,73 +60,65 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
             ValidateSchemaCreationOnStartup = true
         };
 
-        await using var provider = BuildInboxProvider(options, includeSchemaHosting: true);
-        var hostedService = provider.GetServices<IHostedService>()
-            .OfType<PostgreSqlInboxSchemaHostedService>()
-            .Single();
+        await using var provider = BuildInboxProvider(options);
+        var backgroundWork = provider.GetRequiredService<PostgreSqlInboxSchemaBackgroundWork>();
 
-        var action = async () => await hostedService.StartAsync(CancellationToken.None);
+        var action = async () => await backgroundWork.RunAsync(CancellationToken.None);
         await action.Should().NotThrowAsync();
     }
 
     [Fact]
-    public async Task OutboxSchemaHostedService_WhenEnabled_ShouldCreateSchemaOnStartup()
+    public async Task OutboxSchemaBackgroundWork_WhenEnabled_ShouldCreateSchemaOnStartup()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxOptions() with
         {
             EnsureSchemaCreationOnStartup = true
         };
 
-        await using var provider = BuildOutboxProvider(options, includeSchemaHosting: true);
-        var hostedService = provider.GetServices<IHostedService>()
-            .OfType<PostgreSqlOutboxSchemaHostedService>()
-            .Single();
+        await using var provider = BuildOutboxProvider(options);
+        var backgroundWork = provider.GetRequiredService<PostgreSqlOutboxSchemaBackgroundWork>();
 
-        await hostedService.StartAsync(CancellationToken.None);
+        await backgroundWork.RunAsync(CancellationToken.None);
 
         var action = async () => await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options);
         await action.Should().NotThrowAsync();
     }
 
     [Fact]
-    public async Task OutboxSchemaHostedService_WhenDisabled_ShouldNotCreateSchemaOnStartup()
+    public async Task OutboxSchemaBackgroundWork_WhenDisabled_ShouldNotCreateSchemaOnStartup()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxOptions() with
         {
             EnsureSchemaCreationOnStartup = false
         };
 
-        await using var provider = BuildOutboxProvider(options, includeSchemaHosting: true);
-        var hostedService = provider.GetServices<IHostedService>()
-            .OfType<PostgreSqlOutboxSchemaHostedService>()
-            .Single();
+        await using var provider = BuildOutboxProvider(options);
+        var backgroundWork = provider.GetRequiredService<PostgreSqlOutboxSchemaBackgroundWork>();
 
-        await hostedService.StartAsync(CancellationToken.None);
+        await backgroundWork.RunAsync(CancellationToken.None);
 
         var action = async () => await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options);
         await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>();
     }
 
     [Fact]
-    public async Task SchemaHostedService_SecondStartup_ShouldRemainIdempotent()
+    public async Task SchemaBackgroundWork_SecondRun_ShouldRemainIdempotent()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions() with
         {
             EnsureSchemaCreationOnStartup = true
         };
 
-        await using var provider = BuildInboxProvider(options, includeSchemaHosting: true);
-        var hostedService = provider.GetServices<IHostedService>()
-            .OfType<PostgreSqlInboxSchemaHostedService>()
-            .Single();
+        await using var provider = BuildInboxProvider(options);
+        var backgroundWork = provider.GetRequiredService<PostgreSqlInboxSchemaBackgroundWork>();
 
-        await hostedService.StartAsync(CancellationToken.None);
-        await hostedService.StartAsync(CancellationToken.None);
+        await backgroundWork.RunAsync(CancellationToken.None);
+        await backgroundWork.RunAsync(CancellationToken.None);
 
         await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options);
     }
 
-    private ServiceProvider BuildInboxProvider(PostgreSqlInboxStoreOptions options, bool includeSchemaHosting)
+    private ServiceProvider BuildInboxProvider(PostgreSqlInboxStoreOptions options)
     {
         var services = new ServiceCollection();
         services.AddLiteBus(configuration =>
@@ -142,17 +128,12 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
             });
-
-            if (includeSchemaHosting)
-            {
-                configuration.AddPostgreSqlInboxStorageSchemaHosting();
-            }
         });
 
         return services.BuildServiceProvider();
     }
 
-    private ServiceProvider BuildOutboxProvider(PostgreSqlOutboxStoreOptions options, bool includeSchemaHosting)
+    private ServiceProvider BuildOutboxProvider(PostgreSqlOutboxStoreOptions options)
     {
         var services = new ServiceCollection();
         services.AddLiteBus(configuration =>
@@ -162,11 +143,6 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
             });
-
-            if (includeSchemaHosting)
-            {
-                configuration.AddPostgreSqlOutboxStorageSchemaHosting();
-            }
         });
 
         return services.BuildServiceProvider();

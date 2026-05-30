@@ -3,12 +3,12 @@
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Represents one persisted command row in a inbox store.
+///     Represents one persisted inbox row in a store.
 /// </summary>
 /// <remarks>
-///     Store implementations use this non-generic envelope so one table can hold many command types. The payload is the
-///     serialized command; the contract fields identify the CLR type used for deserialization. Processors update status,
-///     attempt count, lease, and error fields as the command moves through execution.
+///     Store implementations use this non-generic envelope so one table can hold many message types. The payload is the
+///     serialized message; the contract fields identify the CLR type used for deserialization. Processors update status,
+///     attempt count, lease, and error fields as the envelope moves through execution.
 /// </remarks>
 public sealed record InboxEnvelope
 {

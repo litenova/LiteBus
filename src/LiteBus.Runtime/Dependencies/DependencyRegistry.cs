@@ -25,7 +25,7 @@ public sealed class DependencyRegistry : IDependencyRegistry
 
     /// <summary>
     ///     Registers a dependency in the registry if it hasn't been registered already.
-    ///     Duplicate registrations (same dependency type and implementation type) are ignored.
+    ///     Duplicate registrations with equal descriptors are ignored; see <see cref="DependencyDescriptor.Equals(DependencyDescriptor?)" />.
     /// </summary>
     /// <param name="descriptor">The dependency descriptor that defines how the dependency should be registered.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
@@ -37,13 +37,13 @@ public sealed class DependencyRegistry : IDependencyRegistry
     }
 
     /// <inheritdoc />
-    public void RegisterHostedService(Type implementationType)
+    public void RegisterBackgroundWork(Type implementationType)
     {
         ArgumentNullException.ThrowIfNull(implementationType);
 
         throw new InvalidOperationException(
-            "Hosted services require LiteBus to be configured through Microsoft.Extensions.DependencyInjection or Autofac. " +
-            "Use services.AddLiteBus(...) or containerBuilder.AddLiteBus(...), then call AddInboxProcessorHosting or AddOutboxProcessorHosting.");
+            "Background work requires LiteBus to be configured through Microsoft.Extensions.DependencyInjection or Autofac. " +
+            "Use services.AddLiteBus(...) or containerBuilder.AddLiteBus(...).");
     }
 
     /// <summary>

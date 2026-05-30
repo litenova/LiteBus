@@ -46,6 +46,21 @@ public sealed class PostgreSqlInboxModuleBuilder
     public PostgreSqlInboxStoreOptions Options { get; private set; } = new();
 
     /// <summary>
+    ///     Gets a value indicating whether <see cref="PostgreSqlInboxSchemaBackgroundWork" /> is registered.
+    /// </summary>
+    public bool RegisterSchemaBackgroundWork { get; private set; } = true;
+
+    /// <summary>
+    ///     Disables registration of inbox schema bootstrap background work.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    public PostgreSqlInboxModuleBuilder DisableSchemaBackgroundWork()
+    {
+        RegisterSchemaBackgroundWork = false;
+        return this;
+    }
+
+    /// <summary>
     ///     Sets an existing PostgreSQL data source used by the store.
     /// </summary>
     /// <param name="dataSource">A data source owned by the application.</param>
@@ -97,9 +112,8 @@ public sealed class PostgreSqlInboxModuleBuilder
     /// </summary>
     /// <returns>The current builder.</returns>
     /// <remarks>
-    ///     Requires <c>AddPostgreSqlInboxStorageSchemaHosting</c> from
-    ///     <c>LiteBus.Inbox.Storage.PostgreSql.Extensions.Microsoft.Hosting</c>.
-    ///     Register schema hosting before inbox processor hosting.
+    ///     Schema bootstrap runs through <see cref="PostgreSqlInboxSchemaBackgroundWork" /> when
+    ///     <see cref="RegisterSchemaBackgroundWork" /> is enabled.
     /// </remarks>
     public PostgreSqlInboxModuleBuilder EnsureSchemaCreationOnStartup()
     {

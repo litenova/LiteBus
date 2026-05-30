@@ -434,6 +434,109 @@ public sealed class CommandInboxTests : LiteBusTestBase
     }
 
     [Fact]
+    public async Task ProcessPendingAsync_WhenMarkCompletedFailsAfterSuccessfulDispatch_ShouldNotMarkFailed()
+    {
+        var clock = new InboxTestInfrastructure.ManualTimeProvider(
+            new DateTimeOffset(2026, 5, 30, 12, 0, 0, TimeSpan.Zero));
+        var inner = new CommandInboxTests.InMemoryCommandInboxStore();
+        var flakyStateStore = new FlakyInboxStateStore(inner, failCompletionsBeforeSuccess: 1);
+        var recorder = new CommandInboxTests.CommandRecorder();
+
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton<IInboxStore>(inner)
+            .AddSingleton<IInboxLeaseStore>(inner)
+            .AddSingleton<IInboxStateStore>(flakyStateStore)
+            .AddSingleton(recorder)
+            .AddCommandMediatorInboxDispatcher()
+            .AddLiteBus(configuration =>
+            {
+                configuration.AddCommandModule(builder =>
+                {
+                    builder.Register<CommandInboxTests.ShipOrderCommand>();
+                    builder.Register<CommandInboxTests.ShipOrderCommandHandler>();
+                });
+
+                configuration.AddInboxModule(builder =>
+                {
+                    builder.Contracts.Register<CommandInboxTests.ShipOrderCommand>("orders.commands.ship", 1);
+                    builder.UseProcessorOptions(new InboxProcessorOptions
+                    {
+                        BatchSize = 10,
+                        LeaseOwner = "test-worker",
+                        LeaseDuration = TimeSpan.FromSeconds(30),
+                        Retry = new RetryOptions { UseJitter = false }
+                    });
+                });
+            })
+            .AddSingleton<TimeProvider>(clock)
+            .BuildServiceProvider();
+
+        var scheduler = serviceProvider.GetRequiredService<IInbox>();
+        var processor = serviceProvider.GetRequiredService<CommandInboxProcessorContract>();
+
+        var orderId = Guid.NewGuid();
+        var receipt = await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
+        {
+            OrderId = orderId,
+            IdempotencyKey = $"ship:{orderId}"
+        });
+
+        var act = async () => await processor.ProcessPendingAsync();
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*Simulated completion failure*");
+
+        recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
+
+        var envelope = inner.Get(receipt.Id);
+        envelope.Status.Should().Be(InboxStatus.Processing);
+        envelope.LastError.Should().BeNull();
+        envelope.AttemptCount.Should().Be(1);
+
+        clock.Advance(TimeSpan.FromMinutes(1));
+
+        await processor.ProcessPendingAsync();
+
+        inner.Get(receipt.Id).Status.Should().Be(InboxStatus.Completed);
+        recorder.Commands.Should().HaveCount(2);
+    }
+
+    internal sealed class FlakyInboxStateStore : IInboxStateStore
+    {
+        private readonly CommandInboxTests.InMemoryCommandInboxStore _inner;
+        private readonly int _failCompletionsBeforeSuccess;
+        private int _completionAttempts;
+
+        public FlakyInboxStateStore(
+            CommandInboxTests.InMemoryCommandInboxStore inner,
+            int failCompletionsBeforeSuccess)
+        {
+            _inner = inner;
+            _failCompletionsBeforeSuccess = failCompletionsBeforeSuccess;
+        }
+
+        public Task MarkCompletedAsync(Guid commandId, CancellationToken cancellationToken = default)
+        {
+            if (_completionAttempts++ < _failCompletionsBeforeSuccess)
+            {
+                throw new InvalidOperationException("Simulated completion failure.");
+            }
+
+            return _inner.MarkCompletedAsync(commandId, cancellationToken);
+        }
+
+        public Task MarkFailedAsync(InboxEnvelopeFailure failure, CancellationToken cancellationToken = default)
+        {
+            return _inner.MarkFailedAsync(failure, cancellationToken);
+        }
+
+        public Task MoveToDeadLetterAsync(InboxEnvelopeDeadLetter deadLetter, CancellationToken cancellationToken = default)
+        {
+            return _inner.MoveToDeadLetterAsync(deadLetter, cancellationToken);
+        }
+    }
+
+    [Fact]
     public void InboxProcessor_WithInvalidMaxAttempts_ShouldThrow()
     {
         var act = () => new InboxProcessor(

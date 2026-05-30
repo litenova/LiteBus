@@ -68,4 +68,40 @@ public sealed class DuplicateCommandHandlerAnalyzerTests
             "FirstCreateUserCommandHandler",
             "SecondCreateUserCommandHandler");
     }
+
+    /// <summary>
+    ///     Verifies that duplicate command handlers with result types produce LB1001.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task DuplicateCommandHandlersWithResult_ProduceDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand<int>;
+
+                              public sealed class FirstCreateUserCommandHandler : ICommandHandler<CreateUserCommand, int>
+                              {
+                                  public Task<int> HandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
+                                      => Task.FromResult(1);
+                              }
+
+                              public sealed class {|#0:SecondCreateUserCommandHandler|} : ICommandHandler<CreateUserCommand, int>
+                              {
+                                  public Task<int> HandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
+                                      => Task.FromResult(2);
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<DuplicateCommandHandlerAnalyzer>(
+            source,
+            DiagnosticDescriptors.DuplicateCommandHandler,
+            0,
+            "CreateUserCommand",
+            "FirstCreateUserCommandHandler",
+            "SecondCreateUserCommandHandler");
+    }
 }

@@ -19,6 +19,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.EntityFrameworkCore\LiteBus.Outbox.Storage.EntityFrameworkCore.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.PostgreSql\LiteBus.Outbox.Storage.PostgreSql.csproj"/>
         <ProjectReference Include="..\LiteBus.Storage.Testing\LiteBus.Storage.Testing.csproj"/>
     </ItemGroup>
 

@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Inbox.Abstractions;
 using LiteBus.Queries.Abstractions;
 using Xunit;
 
@@ -69,5 +70,39 @@ public sealed class QueryHandlerImpurityAnalyzerTests
             0,
             "GetUserQueryHandler",
             "LiteBus.Commands.Abstractions.ICommandMediator");
+    }
+
+    /// <summary>
+    ///     Verifies that a query handler depending on <see cref="LiteBus.Inbox.Abstractions.IInbox" /> produces LB1003.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task QueryHandlerWithInbox_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Inbox.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+
+                              public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
+                              {
+                                  public GetUserQueryHandler(IInbox {|#0:inbox|})
+                                  {
+                                  }
+
+                                  public Task<string> HandleAsync(GetUserQuery query, CancellationToken cancellationToken = default)
+                                      => Task.FromResult("user");
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<QueryHandlerImpurityAnalyzer>(
+            source,
+            DiagnosticDescriptors.QueryHandlerImpurity,
+            0,
+            "GetUserQueryHandler",
+            "LiteBus.Inbox.Abstractions.IInbox");
     }
 }

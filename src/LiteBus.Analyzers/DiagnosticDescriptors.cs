@@ -19,17 +19,6 @@ public static class DiagnosticDescriptors
         isEnabledByDefault: true);
 
     /// <summary>
-    ///     Two event handlers for the same event type have overlapping routing tags.
-    /// </summary>
-    internal static readonly DiagnosticDescriptor DuplicateEventHandler = new(
-        DiagnosticIds.DuplicateEventHandler,
-        "Duplicate event handler routing",
-        "Event type '{0}' has multiple event handlers with overlapping routing ('{1}' and '{2}'). Use distinct handler tags or merge the handlers.",
-        "LiteBus.Handlers",
-        DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
-
-    /// <summary>
     ///     A query handler depends on a side-effecting mediator or durable writer.
     /// </summary>
     internal static readonly DiagnosticDescriptor QueryHandlerImpurity = new(
@@ -63,17 +52,6 @@ public static class DiagnosticDescriptors
         isEnabledByDefault: true);
 
     /// <summary>
-    ///     Two handlers for the same message and pipeline stage share a priority value.
-    /// </summary>
-    internal static readonly DiagnosticDescriptor HandlerPriorityConflict = new(
-        DiagnosticIds.HandlerPriorityConflict,
-        "Handler priority conflict",
-        "Message type '{0}' has multiple {1} handlers with priority {2} ('{3}' and '{4}'). Assign distinct priorities when execution order matters.",
-        "LiteBus.Handlers",
-        DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
-
-    /// <summary>
     ///     A handled message type lacks a durable contract registration.
     /// </summary>
     internal static readonly DiagnosticDescriptor MissingMessageContractRegistration = new(
@@ -82,5 +60,38 @@ public static class DiagnosticDescriptors
         "Message type '{0}' is handled by '{1}' but has no durable contract registration. Apply [MessageContract(\"name\", version)] or call Contracts.Register<{0}>(...) during module configuration.",
         "LiteBus.Contracts",
         DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    ///     A command type has no main command handler in the compilation.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor MissingCommandHandler = new(
+        DiagnosticIds.MissingCommandHandler,
+        "Missing command handler",
+        "Command type '{0}' has no command handler. Register ICommandHandler<{0}> or a handler for a base command type that covers it.",
+        "LiteBus.Handlers",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    ///     A query type has no main query handler in the compilation.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor MissingQueryHandler = new(
+        DiagnosticIds.MissingQueryHandler,
+        "Missing query handler",
+        "Query type '{0}' has no query handler. Register IQueryHandler<{0}, TResult> or a handler for a base query type that covers it.",
+        "LiteBus.Handlers",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    ///     Two query handlers are registered for the same query type.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor DuplicateQueryHandler = new(
+        DiagnosticIds.DuplicateQueryHandler,
+        "Duplicate query handler",
+        "Query type '{0}' has more than one query handler ('{1}' and '{2}'). Each query type must have exactly one handler.",
+        "LiteBus.Handlers",
+        DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 }

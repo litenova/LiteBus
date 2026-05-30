@@ -44,7 +44,8 @@ public static class InboxEntityFrameworkCoreModelExtensions
         entity.HasKey(message => message.Id);
 
         entity.Property(message => message.Id)
-            .HasColumnName("command_id");
+            .HasColumnName("command_id")
+            .ValueGeneratedNever();
 
         entity.Property(message => message.ContractName)
             .HasColumnName("contract_name")
@@ -55,6 +56,7 @@ public static class InboxEntityFrameworkCoreModelExtensions
 
         entity.Property(message => message.Payload)
             .HasColumnName("payload")
+            .HasColumnType("jsonb")
             .IsRequired();
 
         entity.Property(message => message.CreatedAt)

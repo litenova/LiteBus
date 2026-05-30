@@ -89,11 +89,17 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         }
 
         var publishMethod = ClosedPublishMethodCache.GetOrAdd(eventType, t => GenericPublishMethod.MakeGenericMethod(t));
-        var publishTask = publishMethod.Invoke(_eventPublisher, [@event, mediationSettings, cancellationToken]) as Task;
 
-        if (publishTask is null)
+        Task publishTask;
+        try
         {
-            throw new InvalidOperationException($"The event publisher did not return a Task for '{eventType.FullName ?? eventType.Name}'.");
+            publishTask = publishMethod.Invoke(_eventPublisher, [@event, mediationSettings, cancellationToken]) as Task
+                          ?? throw new InvalidOperationException(
+                              $"The event publisher did not return a Task for '{eventType.FullName ?? eventType.Name}'.");
+        }
+        catch (TargetInvocationException exception) when (exception.InnerException is Exception inner)
+        {
+            publishTask = Task.FromException(inner);
         }
 
         await publishTask.ConfigureAwait(false);

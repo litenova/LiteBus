@@ -9,7 +9,7 @@ namespace LiteBus.Inbox.Ingress.Amqp;
 public static class ModuleRegistryExtensions
 {
     /// <summary>
-    ///     Registers AMQP inbox ingress services.
+    ///     Registers AMQP inbox ingress services and background work for the generic host.
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
     /// <param name="configure">The AMQP ingress configuration action.</param>
@@ -17,10 +17,6 @@ public static class ModuleRegistryExtensions
     /// <exception cref="InvalidOperationException">
     ///     Thrown when <see cref="AmqpInboxIngressModule" /> is already registered.
     /// </exception>
-    /// <remarks>
-    ///     Call this after <c>AddInboxModule</c> and an inbox store registration. Pair with
-    ///     <see cref="AddInboxAmqpIngressHosting" /> to run the consumer on the generic host.
-    /// </remarks>
     public static IModuleRegistry AddInboxAmqpIngress(
         this IModuleRegistry moduleRegistry,
         Action<AmqpInboxIngressModuleBuilder> configure)
@@ -35,25 +31,6 @@ public static class ModuleRegistryExtensions
         }
 
         moduleRegistry.Register(new AmqpInboxIngressModule(configure));
-        return moduleRegistry;
-    }
-
-    /// <summary>
-    ///     Registers the AMQP inbox ingress background service for the generic host.
-    /// </summary>
-    /// <param name="moduleRegistry">The LiteBus module registry.</param>
-    /// <param name="configure">An optional callback that configures whether the ingress loop is enabled.</param>
-    /// <returns>The current module registry.</returns>
-    /// <remarks>
-    ///     Call <see cref="AddInboxAmqpIngress" /> before calling this method.
-    /// </remarks>
-    public static IModuleRegistry AddInboxAmqpIngressHosting(
-        this IModuleRegistry moduleRegistry,
-        Action<AmqpInboxIngressHostOptions>? configure = null)
-    {
-        ArgumentNullException.ThrowIfNull(moduleRegistry);
-
-        moduleRegistry.Register(new AmqpInboxIngressHostingModule(configure));
         return moduleRegistry;
     }
 
@@ -81,31 +58,5 @@ public static class ModuleRegistryExtensions
         Action<AmqpInboxIngressModuleBuilder> configure)
     {
         return AddInboxAmqpIngress(moduleRegistry, configure);
-    }
-
-    /// <summary>
-    ///     Registers the AMQP inbox ingress background service for RabbitMQ.
-    /// </summary>
-    /// <param name="moduleRegistry">The LiteBus module registry.</param>
-    /// <param name="configure">An optional callback that configures whether the ingress loop is enabled.</param>
-    /// <returns>The current module registry.</returns>
-    public static IModuleRegistry AddInboxRabbitMqIngressHosting(
-        this IModuleRegistry moduleRegistry,
-        Action<AmqpInboxIngressHostOptions>? configure = null)
-    {
-        return AddInboxAmqpIngressHosting(moduleRegistry, configure);
-    }
-
-    /// <summary>
-    ///     Registers the AMQP inbox ingress background service for LavinMQ.
-    /// </summary>
-    /// <param name="moduleRegistry">The LiteBus module registry.</param>
-    /// <param name="configure">An optional callback that configures whether the ingress loop is enabled.</param>
-    /// <returns>The current module registry.</returns>
-    public static IModuleRegistry AddInboxLavinMqIngressHosting(
-        this IModuleRegistry moduleRegistry,
-        Action<AmqpInboxIngressHostOptions>? configure = null)
-    {
-        return AddInboxAmqpIngressHosting(moduleRegistry, configure);
     }
 }

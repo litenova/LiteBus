@@ -13,11 +13,9 @@
         <ProjectReference Include="..\..\src\LiteBus.Commands.Extensions.Microsoft.DependencyInjection\LiteBus.Commands.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Events.Extensions.Microsoft.DependencyInjection\LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.Commands\LiteBus.Inbox.Dispatch.Commands.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Inbox.Extensions.Microsoft.Hosting\LiteBus.Inbox.Extensions.Microsoft.Hosting.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.Events\LiteBus.Outbox.Dispatch.Events.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Outbox.Extensions.Microsoft.Hosting\LiteBus.Outbox.Extensions.Microsoft.Hosting.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.InMemory\LiteBus.Outbox.Storage.InMemory.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
     </ItemGroup>

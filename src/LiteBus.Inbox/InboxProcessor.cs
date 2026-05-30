@@ -15,9 +15,10 @@ namespace LiteBus.Inbox;
 ///         envelope. Deserialization and handler routing are the dispatcher's concern, not the processor's.
 ///     </para>
 ///     <para>
-///         Failures are recorded through <see cref="IInboxStateStore" />. Retry timing is calculated here so store
-///         implementations do not need retry-policy knowledge. Cancellation is allowed to escape so the host can stop
-///         without converting shutdown into a failure record.
+///         Failures from <see cref="IInboxDispatcher.DispatchAsync" /> are recorded through
+///         <see cref="IInboxStateStore" />. Completion failures are not converted into retry state because dispatch
+///         already succeeded; the active lease remains until it expires or a later completion attempt succeeds.
+///         Cancellation is allowed to escape so the host can stop without converting shutdown into a failure record.
 ///     </para>
 /// </remarks>
 public sealed class InboxProcessor : Abstractions.IInboxProcessor
@@ -124,12 +125,14 @@ public sealed class InboxProcessor : Abstractions.IInboxProcessor
         try
         {
             await _dispatcher.DispatchAsync(envelope, cancellationToken).ConfigureAwait(false);
-            await _stateStore.MarkCompletedAsync(envelope.Id, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             await MarkFailedAsync(envelope, exception, cancellationToken).ConfigureAwait(false);
+            return;
         }
+
+        await _stateStore.MarkCompletedAsync(envelope.Id, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

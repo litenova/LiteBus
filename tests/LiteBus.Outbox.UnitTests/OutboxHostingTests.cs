@@ -2,10 +2,8 @@ using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Extensions.Microsoft.Hosting;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Outbox.UnitTests;
@@ -14,7 +12,7 @@ namespace LiteBus.Outbox.UnitTests;
 public sealed class OutboxHostingTests : LiteBusTestBase
 {
     [Fact]
-    public async Task ProcessorHost_WhenDisabled_ShouldCompleteWithoutPublishing()
+    public async Task ProcessorBackgroundWork_WhenDisabled_ShouldCompleteWithoutPublishing()
     {
         var store = new OutboxTests.InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
@@ -29,7 +27,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorHost_ShouldRecordPassStateForHealthCheck()
+    public async Task ProcessorBackgroundWork_ShouldPublishScheduledMessages()
     {
         var store = new OutboxTests.InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
@@ -41,23 +39,15 @@ public sealed class OutboxHostingTests : LiteBusTestBase
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var hostedService = provider.GetServices<IHostedService>().Single();
-        var state = provider.GetRequiredService<OutboxProcessorHostState>();
-        var healthCheck = new OutboxProcessorHealthCheck(state);
 
         var orderId = Guid.NewGuid();
-        var messageId = Guid.NewGuid();
-        await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { Id = messageId });
+        await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { Id = Guid.NewGuid() });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         await hostedService.StartAsync(cts.Token);
         await Task.Delay(TimeSpan.FromMilliseconds(300));
         await hostedService.StopAsync(CancellationToken.None);
 
-        state.LastSuccessfulPassAt.Should().NotBeNull();
-        state.ConsecutiveFailures.Should().Be(0);
-
-        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
-        result.Status.Should().Be(HealthStatus.Healthy);
         dispatcher.Instance!.DispatchedMessages
             .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
             .Should()
@@ -65,87 +55,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorHost_BeforeFirstPass_HealthCheckShouldReportHealthyWithPendingMessage()
-    {
-        var store = new OutboxTests.InMemoryOutboxStore();
-        var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
-
-        await using var provider = BuildProvider(store, dispatcher);
-        var state = provider.GetRequiredService<OutboxProcessorHostState>();
-        var healthCheck = new OutboxProcessorHealthCheck(state);
-
-        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
-
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("has not completed a pass yet");
-    }
-
-    [Fact]
-    public async Task ProcessorHost_WhenPassFails_ShouldRecordFailureAndReportUnhealthy()
-    {
-        var flakyLeaseStore = new OutboxTestInfrastructure.ThrowingOutboxLeaseStore();
-        var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
-
-        await using var provider = BuildProvider(
-            flakyLeaseStore.Inner,
-            dispatcher,
-            configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(25),
-            leaseStore: flakyLeaseStore);
-
-        var hostedService = provider.GetServices<IHostedService>().Single();
-        var state = provider.GetRequiredService<OutboxProcessorHostState>();
-        var healthCheck = new OutboxProcessorHealthCheck(state);
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await hostedService.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(150));
-        await hostedService.StopAsync(CancellationToken.None);
-
-        state.ConsecutiveFailures.Should().BeGreaterThan(0);
-        state.LastFailureMessage.Should().Contain("Simulated lease store failure");
-
-        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-    }
-
-    [Fact]
-    public async Task ProcessorHost_WhenRecoversAfterFailure_ShouldReportHealthyAgain()
-    {
-        var flakyLeaseStore = new OutboxTestInfrastructure.ThrowingOutboxLeaseStore(failuresBeforeSuccess: 1);
-        var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
-
-        await using var provider = BuildProvider(
-            flakyLeaseStore.Inner,
-            dispatcher,
-            configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(25),
-            leaseStore: flakyLeaseStore);
-
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var hostedService = provider.GetServices<IHostedService>().Single();
-        var state = provider.GetRequiredService<OutboxProcessorHostState>();
-        var healthCheck = new OutboxProcessorHealthCheck(state);
-
-        var orderId = Guid.NewGuid();
-        await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { Id = Guid.NewGuid() });
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await hostedService.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(400));
-        await hostedService.StopAsync(CancellationToken.None);
-
-        state.ConsecutiveFailures.Should().Be(0);
-        state.LastSuccessfulPassAt.Should().NotBeNull();
-
-        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
-        result.Status.Should().Be(HealthStatus.Healthy);
-        dispatcher.Instance!.DispatchedMessages
-            .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
-            .Should()
-            .ContainSingle(submitted => submitted.OrderId == orderId);
-    }
-
-    [Fact]
-    public async Task ProcessorHost_WhenMissingDependency_ShouldThrowOnStart()
+    public async Task ProcessorBackgroundWork_WhenMissingDependency_ShouldThrowOnResolve()
     {
         var services = new ServiceCollection()
             .AddLiteBus(configuration =>
@@ -153,9 +63,8 @@ public sealed class OutboxHostingTests : LiteBusTestBase
                 configuration.AddOutboxModule(outbox =>
                 {
                     outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                    outbox.UseProcessorBackgroundWork();
                 });
-
-                configuration.AddOutboxProcessorHosting();
             });
 
         await using var provider = services.BuildServiceProvider();
@@ -167,7 +76,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorHost_WhenMissingDispatcher_ShouldThrowOnStart()
+    public async Task ProcessorBackgroundWork_WhenMissingDispatcher_ShouldThrowOnResolve()
     {
         var store = new OutboxTests.InMemoryOutboxStore();
 
@@ -180,15 +89,8 @@ public sealed class OutboxHostingTests : LiteBusTestBase
                 configuration.AddOutboxModule(outbox =>
                 {
                     outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
-                    outbox.UseProcessorOptions(new OutboxProcessorOptions
-                    {
-                        BatchSize = 10,
-                        LeaseOwner = "test-publisher",
-                        Retry = new RetryOptions { UseJitter = false }
-                    });
+                    outbox.UseProcessorBackgroundWork();
                 });
-
-                configuration.AddOutboxProcessorHosting();
             });
 
         await using var provider = services.BuildServiceProvider();
@@ -200,7 +102,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorHost_ShouldRespectStartupDelay()
+    public async Task ProcessorBackgroundWork_ShouldRespectStartupDelay()
     {
         var store = new OutboxTests.InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
@@ -236,7 +138,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorHost_WithAdaptivePollingAndFullBatch_ShouldPublishMultipleMessagesQuickly()
+    public async Task ProcessorBackgroundWork_WithAdaptivePollingAndFullBatch_ShouldPublishMultipleMessagesQuickly()
     {
         var store = new OutboxTests.InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
@@ -279,17 +181,6 @@ public sealed class OutboxHostingTests : LiteBusTestBase
         dispatcher.Instance!.DispatchedMessages.Should().HaveCount(4);
     }
 
-    [Fact]
-    public void AddLiteBusOutboxProcessor_ShouldRegisterNamedHealthCheck()
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton(new OutboxProcessorHostState());
-
-        var act = () => services.AddHealthChecks().AddLiteBusOutboxProcessor("outbox-host");
-
-        act.Should().NotThrow();
-    }
-
     private static ServiceProvider BuildProvider(
         OutboxTests.InMemoryOutboxStore store,
         OutboxTestInfrastructure.RecordingOutboxDispatcherHolder dispatcherHolder,
@@ -305,8 +196,8 @@ public sealed class OutboxHostingTests : LiteBusTestBase
             .AddSingleton<OutboxTestInfrastructure.RecordingOutboxDispatcher>(sp =>
             {
                 var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcher(
-                    sp.GetRequiredService<LiteBus.Messaging.Abstractions.IMessageContractRegistry>(),
-                    sp.GetRequiredService<LiteBus.Messaging.Abstractions.IMessageSerializer>());
+                    sp.GetRequiredService<IMessageContractRegistry>(),
+                    sp.GetRequiredService<IMessageSerializer>());
 
                 dispatcherHolder.Instance = dispatcher;
                 return dispatcher;
@@ -330,9 +221,9 @@ public sealed class OutboxHostingTests : LiteBusTestBase
                             Retry = new RetryOptions { UseJitter = false }
                         });
                     }
-                });
 
-                configuration.AddOutboxProcessorHosting(configureHost);
+                    outbox.UseProcessorBackgroundWork(configureHost);
+                });
             })
             .BuildServiceProvider();
     }

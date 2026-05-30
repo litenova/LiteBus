@@ -1,25 +1,25 @@
 ﻿namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Defines execution-context item keys written by the inbox processor.
+///     Defines execution-context item keys written by inbox dispatchers during processor replay.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The inbox processor sets <see cref="IsInboxExecution" /> to <see langword="true" /> before it calls
-///         `ICommandMediator.SendAsync`. It also copies stored correlation, causation, and tenant values into
-///         <see cref="LiteBus.Messaging.Abstractions.MessageTraceContextKeys" />. Command pre-handlers, post-handlers,
-///         and error handlers can read these keys from `CommandMediationSettings.Items` or the ambient execution
-///         context when they need different behavior for a command replayed from storage.
+///         Dispatch adapters set <see cref="IsInboxExecution" /> to <see langword="true" /> before they execute the
+///         deserialized message. They also copy stored correlation, causation, and tenant values into
+///         <see cref="LiteBus.Messaging.Abstractions.MessageTraceContextKeys" />. Pre-handlers, post-handlers, and error
+///         handlers can read these keys from mediation settings or the ambient execution context when they need different
+///         behavior for a message replayed from storage.
 ///     </para>
 ///     <para>
 ///         Use this key only for pipeline policy, logging, metrics, or idempotency checks. Business handlers should stay
-///         correct when the key is absent because the same command can still be executed directly through the mediator.
+///         correct when the key is absent because the same message can still be executed directly through the mediator.
 ///     </para>
 /// </remarks>
 public static class InboxExecutionContextKeys
 {
     /// <summary>
-    ///     Identifies commands currently being executed by the inbox processor.
+    ///     Identifies messages currently being executed from an inbox replay.
     /// </summary>
     public const string IsInboxExecution = "__LiteBus.CommandInbox.IsInboxExecution";
 }

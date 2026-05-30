@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 using LiteBus.Events.MediationStrategies;
@@ -23,12 +24,16 @@ public sealed class EventMediator : IEventPublisher
     /// <param name="messageMediator">The core message mediator for immediate event publication.</param>
     public EventMediator(IMessageMediator messageMediator)
     {
+        ArgumentNullException.ThrowIfNull(messageMediator);
+
         _messageMediator = messageMediator;
     }
 
     /// <inheritdoc />
     public Task PublishAsync(IEvent @event, EventMediationSettings? eventMediationSettings = null, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(@event);
+
         eventMediationSettings ??= new EventMediationSettings();
 
         var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(eventMediationSettings);
@@ -49,6 +54,8 @@ public sealed class EventMediator : IEventPublisher
     /// <inheritdoc />
     public Task PublishAsync<TEvent>(TEvent @event, EventMediationSettings? eventMediationSettings = null, CancellationToken cancellationToken = default) where TEvent : notnull
     {
+        ArgumentNullException.ThrowIfNull(@event);
+
         eventMediationSettings ??= new EventMediationSettings();
 
         var mediationStrategy = new AsyncBroadcastMediationStrategy<TEvent>(eventMediationSettings);

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
@@ -17,22 +16,16 @@ internal sealed class HandlerRegistration
     /// <param name="handlerType">The handler type symbol.</param>
     /// <param name="messageType">The handled message type symbol.</param>
     /// <param name="pipeline">The pipeline stage name.</param>
-    /// <param name="priority">The handler priority value.</param>
-    /// <param name="tags">The handler routing tags.</param>
     /// <param name="location">The diagnostic location.</param>
     internal HandlerRegistration(
         INamedTypeSymbol handlerType,
         ITypeSymbol messageType,
         string pipeline,
-        int priority,
-        ImmutableArray<string> tags,
         Location location)
     {
         HandlerType = handlerType;
         MessageType = messageType;
         Pipeline = pipeline;
-        Priority = priority;
-        Tags = tags;
         Location = location;
     }
 
@@ -50,16 +43,6 @@ internal sealed class HandlerRegistration
     ///     Gets the pipeline stage name.
     /// </summary>
     internal string Pipeline { get; }
-
-    /// <summary>
-    ///     Gets the handler priority value.
-    /// </summary>
-    internal int Priority { get; }
-
-    /// <summary>
-    ///     Gets the handler routing tags.
-    /// </summary>
-    internal ImmutableArray<string> Tags { get; }
 
     /// <summary>
     ///     Gets the diagnostic location.
@@ -114,8 +97,6 @@ internal static class HandlerAnalysis
                     continue;
                 }
 
-                var priority = GetPriority(symbol);
-                var tags = GetTags(symbol);
                 var location = symbol.Locations.FirstOrDefault() ?? Location.None;
 
                 foreach (var handlerInterface in symbol.AllInterfaces)
@@ -128,7 +109,7 @@ internal static class HandlerAnalysis
                     }
 
                     var messageType = handlerInterface.TypeArguments[0];
-                    builder.Add(new HandlerRegistration(symbol, messageType, pipeline, priority, tags, location));
+                    builder.Add(new HandlerRegistration(symbol, messageType, pipeline, location));
                 }
             }
         }
@@ -158,27 +139,6 @@ internal static class HandlerAnalysis
         }
 
         return null;
-    }
-
-    /// <summary>
-    ///     Determines whether two handler tag sets overlap for routing purposes.
-    /// </summary>
-    /// <param name="left">The first tag set.</param>
-    /// <param name="right">The second tag set.</param>
-    /// <returns><see langword="true" /> when routing overlaps; otherwise, <see langword="false" />.</returns>
-    internal static bool TagsOverlap(ImmutableArray<string> left, ImmutableArray<string> right)
-    {
-        if (left.IsEmpty && right.IsEmpty)
-        {
-            return true;
-        }
-
-        if (left.IsEmpty || right.IsEmpty)
-        {
-            return false;
-        }
-
-        return left.Intersect(right, StringComparer.Ordinal).Any();
     }
 
     /// <summary>
@@ -236,72 +196,6 @@ internal static class HandlerAnalysis
         }
 
         return false;
-    }
-
-    /// <summary>
-    ///     Gets the priority declared on the handler type, defaulting to zero.
-    /// </summary>
-    /// <param name="handlerType">The handler type symbol.</param>
-    /// <returns>The declared priority value.</returns>
-    internal static int GetPriority(INamedTypeSymbol handlerType)
-    {
-        foreach (var attribute in handlerType.GetAttributes())
-        {
-            if (attribute.AttributeClass?.Name != "HandlerPriorityAttribute" ||
-                attribute.AttributeClass.ContainingNamespace?.ToDisplayString() != "LiteBus.Messaging.Abstractions")
-            {
-                continue;
-            }
-
-            if (attribute.ConstructorArguments.Length > 0 &&
-                attribute.ConstructorArguments[0].Value is int priority)
-            {
-                return priority;
-            }
-        }
-
-        return 0;
-    }
-
-    /// <summary>
-    ///     Gets routing tags declared on the handler type.
-    /// </summary>
-    /// <param name="handlerType">The handler type symbol.</param>
-    /// <returns>The declared routing tags.</returns>
-    internal static ImmutableArray<string> GetTags(INamedTypeSymbol handlerType)
-    {
-        var tags = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var attribute in handlerType.GetAttributes())
-        {
-            if (attribute.AttributeClass is null ||
-                attribute.AttributeClass.ContainingNamespace?.ToDisplayString() != "LiteBus.Messaging.Abstractions")
-            {
-                continue;
-            }
-
-            if (attribute.AttributeClass.Name == "HandlerTagAttribute" &&
-                attribute.ConstructorArguments.Length > 0 &&
-                attribute.ConstructorArguments[0].Value is string singleTag)
-            {
-                tags.Add(singleTag);
-            }
-
-            if (attribute.AttributeClass.Name == "HandlerTagsAttribute" &&
-                attribute.ConstructorArguments.Length > 0 &&
-                attribute.ConstructorArguments[0].Values is { Length: > 0 } values)
-            {
-                foreach (var value in values)
-                {
-                    if (value.Value is string tag)
-                    {
-                        tags.Add(tag);
-                    }
-                }
-            }
-        }
-
-        return tags.OrderBy(tag => tag, StringComparer.Ordinal).ToImmutableArray();
     }
 
     /// <summary>

@@ -21,8 +21,7 @@ public sealed record PostgreSqlInboxStoreOptions : PostgreSqlSchemaStoreOptions,
     ///     Gets a value indicating whether the application host should create or upgrade the inbox schema on startup.
     /// </summary>
     /// <remarks>
-    ///     When <see langword="true" />, register <c>AddPostgreSqlInboxStorageSchemaHosting</c> from
-    ///     <c>LiteBus.Inbox.Storage.PostgreSql.Extensions.Microsoft.Hosting</c>
+    ///     When <see langword="true" />, <see cref="PostgreSqlInboxSchemaBackgroundWork" /> creates or upgrades schema on host startup.
     ///     so schema creation runs before inbox processing starts. Production systems that use Flyway, Liquibase, or EF
     ///     migrations should leave this <see langword="false" /> and apply the canonical SQL files from
     ///     <see cref="PostgreSqlInboxSchema.SqlFiles" /> or scripts from

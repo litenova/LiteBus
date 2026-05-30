@@ -46,6 +46,21 @@ public sealed class PostgreSqlOutboxModuleBuilder
     public PostgreSqlOutboxStoreOptions Options { get; private set; } = new();
 
     /// <summary>
+    ///     Gets a value indicating whether <see cref="PostgreSqlOutboxSchemaBackgroundWork" /> is registered.
+    /// </summary>
+    public bool RegisterSchemaBackgroundWork { get; private set; } = true;
+
+    /// <summary>
+    ///     Disables registration of outbox schema bootstrap background work.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    public PostgreSqlOutboxModuleBuilder DisableSchemaBackgroundWork()
+    {
+        RegisterSchemaBackgroundWork = false;
+        return this;
+    }
+
+    /// <summary>
     ///     Sets an existing PostgreSQL data source used by the store.
     /// </summary>
     /// <param name="dataSource">A data source owned by the application.</param>
@@ -97,9 +112,8 @@ public sealed class PostgreSqlOutboxModuleBuilder
     /// </summary>
     /// <returns>The current builder.</returns>
     /// <remarks>
-    ///     Requires <c>AddPostgreSqlOutboxStorageSchemaHosting</c> from
-    ///     <c>LiteBus.Outbox.Storage.PostgreSql.Extensions.Microsoft.Hosting</c>.
-    ///     Register schema hosting before outbox processor hosting.
+    ///     Schema bootstrap runs through <see cref="PostgreSqlOutboxSchemaBackgroundWork" /> when
+    ///     <see cref="RegisterSchemaBackgroundWork" /> is enabled.
     /// </remarks>
     public PostgreSqlOutboxModuleBuilder EnsureSchemaCreationOnStartup()
     {

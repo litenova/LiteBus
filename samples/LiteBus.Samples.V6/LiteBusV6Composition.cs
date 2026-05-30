@@ -4,11 +4,9 @@ using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Commands;
-using LiteBus.Inbox.Extensions.Microsoft.Hosting;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Dispatch.Events;
-using LiteBus.Outbox.Extensions.Microsoft.Hosting;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Samples.V6.Commands;
 using LiteBus.Samples.V6.Events;
@@ -46,18 +44,18 @@ public static class LiteBusV6Composition
                     BatchSize = 20,
                     LeaseDuration = TimeSpan.FromMinutes(1)
                 });
+                inbox.UseProcessorBackgroundWork(host => host.PollInterval = TimeSpan.FromSeconds(2));
             });
             lb.AddInMemoryInboxStorage();
             lb.AddInboxCommandDispatcher();
-            lb.AddInboxProcessorHosting(host => host.PollInterval = TimeSpan.FromSeconds(2));
 
             lb.AddOutboxModule(outbox =>
             {
                 outbox.Contracts.Register<PaymentProcessed>("payments.payment-processed", 1);
+                outbox.UseProcessorBackgroundWork(host => host.PollInterval = TimeSpan.FromSeconds(2));
             });
             lb.AddInMemoryOutboxStorage();
             lb.AddOutboxEventDispatcher();
-            lb.AddOutboxProcessorHosting(host => host.PollInterval = TimeSpan.FromSeconds(2));
         });
 
         return services;

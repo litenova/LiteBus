@@ -7,7 +7,7 @@ using LiteBus.Outbox.Abstractions;
 namespace LiteBus.Outbox;
 
 /// <summary>
-///     Default writer that turns an event instance into a outbox envelope.
+///     Default writer that turns an event instance into an outbox envelope.
 /// </summary>
 /// <remarks>
 ///     <para>

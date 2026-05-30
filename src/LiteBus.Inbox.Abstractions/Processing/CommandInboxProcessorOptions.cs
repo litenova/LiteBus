@@ -4,7 +4,7 @@ using LiteBus.Messaging.Abstractions;
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Defines command inbox processor settings.
+///     Defines inbox processor settings.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -15,19 +15,19 @@ namespace LiteBus.Inbox.Abstractions;
 public sealed record InboxProcessorOptions
 {
     /// <summary>
-    ///     Gets the maximum number of commands leased per processing pass. Larger batches reduce store round-trips but
-    ///     hold more leases while handlers run.
+    ///     Gets the maximum number of envelopes leased per processing pass. Larger batches reduce store round-trips but
+    ///     hold more leases while dispatch runs.
     /// </summary>
     public int BatchSize { get; init; } = 20;
 
     /// <summary>
-    ///     Gets the processing lease duration. Set this longer than the expected handler time so another worker does not
-    ///     reclaim the command while the first worker is still running.
+    ///     Gets the processing lease duration. Set this longer than the expected dispatch time so another worker does not
+    ///     reclaim the envelope while the first worker is still running.
     /// </summary>
     public TimeSpan LeaseDuration { get; init; } = TimeSpan.FromMinutes(1);
 
     /// <summary>
-    ///     Gets the retry settings used after command failures.
+    ///     Gets the retry settings used after dispatch failures.
     /// </summary>
     public RetryOptions Retry { get; init; } = new();
 

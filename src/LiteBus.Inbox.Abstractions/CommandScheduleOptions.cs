@@ -30,7 +30,7 @@ public sealed record InboxOptions
     public string? IdempotencyKey { get; init; }
 
     /// <summary>
-    ///     Gets the earliest UTC timestamp at which the command may be processed. A null value means the command is due
+    ///     Gets the earliest UTC timestamp at which the message may be processed. A null value means the message is due
     ///     as soon as a processor leases it.
     /// </summary>
     public DateTimeOffset? VisibleAfter { get; init; }
@@ -41,7 +41,7 @@ public sealed record InboxOptions
     public string? CorrelationId { get; init; }
 
     /// <summary>
-    ///     Gets the optional causation identifier used to identify the message or request that caused this command.
+    ///     Gets the optional causation identifier used to identify the message or request that caused this acceptance.
     /// </summary>
     public string? CausationId { get; init; }
 

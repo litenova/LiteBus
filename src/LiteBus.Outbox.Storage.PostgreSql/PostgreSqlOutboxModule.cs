@@ -64,5 +64,14 @@ public sealed class PostgreSqlOutboxModule : IModule
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxStateStore),
             store));
+
+        if (moduleBuilder.RegisterSchemaBackgroundWork)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(PostgreSqlOutboxSchemaBackgroundWork),
+                typeof(PostgreSqlOutboxSchemaBackgroundWork)));
+
+            configuration.DependencyRegistry.RegisterBackgroundWork(typeof(PostgreSqlOutboxSchemaBackgroundWork));
+        }
     }
 }

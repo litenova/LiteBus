@@ -50,5 +50,18 @@ public sealed class OutboxModule : IModule
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxProcessor),
             typeof(OutboxProcessor)));
+
+        if (moduleBuilder.RegisterProcessorBackgroundWork)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(OutboxProcessorHostOptions),
+                moduleBuilder.ProcessorHostOptions));
+
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(OutboxProcessorBackgroundWork),
+                typeof(OutboxProcessorBackgroundWork)));
+
+            configuration.DependencyRegistry.RegisterBackgroundWork(typeof(OutboxProcessorBackgroundWork));
+        }
     }
 }

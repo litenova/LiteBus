@@ -382,6 +382,31 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
 
+    [Fact]
+    public async Task ProcessPendingAsync_WhenCancellationRequested_ShouldPropagateOperationCanceledException()
+    {
+        var store = new OutboxTests.InMemoryOutboxStore();
+        await using var provider = BuildProcessorProvider(store, batchSize: 10);
+
+        var outbox = provider.GetRequiredService<IOutbox>();
+        var processor = provider.GetRequiredService<IOutboxProcessor>();
+
+        for (var i = 0; i < 3; i++)
+        {
+            await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
+            {
+                Id = Guid.NewGuid()
+            });
+        }
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var act = async () => await processor.ProcessPendingAsync(cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
     public sealed record PocoIntegrationEvent
     {
         public required string Value { get; init; }

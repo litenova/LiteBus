@@ -11,11 +11,6 @@ internal static class DiagnosticIds
     internal const string DuplicateCommandHandler = "LB1001";
 
     /// <summary>
-    ///     Duplicate event handler routing for the same event type.
-    /// </summary>
-    internal const string DuplicateEventHandler = "LB1002";
-
-    /// <summary>
     ///     Query handler depends on side-effecting mediators or durable writers.
     /// </summary>
     internal const string QueryHandlerImpurity = "LB1003";
@@ -31,12 +26,22 @@ internal static class DiagnosticIds
     internal const string UnsupportedOpenGenericHandler = "LB1005";
 
     /// <summary>
-    ///     Handlers for the same message and pipeline stage share a priority value.
-    /// </summary>
-    internal const string HandlerPriorityConflict = "LB1006";
-
-    /// <summary>
     ///     Message type lacks a durable contract registration.
     /// </summary>
     internal const string MissingMessageContractRegistration = "LB1007";
+
+    /// <summary>
+    ///     Command type has no main command handler in the compilation.
+    /// </summary>
+    internal const string MissingCommandHandler = "LB1008";
+
+    /// <summary>
+    ///     Query type has no main query handler in the compilation.
+    /// </summary>
+    internal const string MissingQueryHandler = "LB1009";
+
+    /// <summary>
+    ///     Duplicate query handler for the same query type.
+    /// </summary>
+    internal const string DuplicateQueryHandler = "LB1010";
 }

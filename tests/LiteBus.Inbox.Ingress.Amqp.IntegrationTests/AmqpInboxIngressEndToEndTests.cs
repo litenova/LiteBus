@@ -6,7 +6,6 @@ using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Commands;
-using LiteBus.Inbox.Extensions.Microsoft.Hosting;
 using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
@@ -83,6 +82,7 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
                     LeaseOwner = "ingress-test-worker",
                     Retry = new RetryOptions { UseJitter = false }
                 });
+                inbox.UseProcessorBackgroundWork(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
             });
 
             liteBus.AddInMemoryInboxStorage();
@@ -97,9 +97,6 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
                     Connection = connectionOptions
                 });
             });
-
-            liteBus.AddInboxAmqpIngressHosting();
-            liteBus.AddInboxProcessorHosting(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
         });
 
         await using var provider = services.BuildServiceProvider();

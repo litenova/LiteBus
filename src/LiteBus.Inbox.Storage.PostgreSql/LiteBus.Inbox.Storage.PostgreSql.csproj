@@ -11,6 +11,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Storage.PostgreSql\LiteBus.Storage.PostgreSql.csproj"/>
     </ItemGroup>
 

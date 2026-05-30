@@ -11,7 +11,7 @@ namespace LiteBus.Outbox;
 ///     Use this builder from `AddOutboxModule`. Register every outbox message contract through
 ///     <see cref="Contracts" /> and optionally replace processor defaults through <see cref="UseProcessorOptions" />.
 ///     Store and dispatcher registration are supplied by storage and dispatch modules, or by application DI registration.
-///     Background processing is configured separately through `AddOutboxProcessorHosting`.
+///     Enable background processing through <see cref="UseProcessorBackgroundWork" />.
 /// </remarks>
 public sealed class OutboxModuleBuilder
 {
@@ -33,6 +33,28 @@ public sealed class OutboxModuleBuilder
     ///     Gets the outbox processor options that will be registered for <see cref="IOutboxProcessor" />.
     /// </summary>
     public OutboxProcessorOptions ProcessorOptions { get; private set; } = new();
+
+    /// <summary>
+    ///     Gets the options for the optional outbox processor background loop.
+    /// </summary>
+    public OutboxProcessorHostOptions ProcessorHostOptions { get; private set; } = new();
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="OutboxProcessorBackgroundWork" /> is registered.
+    /// </summary>
+    public bool RegisterProcessorBackgroundWork { get; private set; }
+
+    /// <summary>
+    ///     Registers the outbox processor background loop for the generic host.
+    /// </summary>
+    /// <param name="configure">An optional callback that configures poll interval, startup delay, and adaptive polling.</param>
+    /// <returns>The current builder.</returns>
+    public OutboxModuleBuilder UseProcessorBackgroundWork(Action<OutboxProcessorHostOptions>? configure = null)
+    {
+        RegisterProcessorBackgroundWork = true;
+        configure?.Invoke(ProcessorHostOptions);
+        return this;
+    }
 
     /// <summary>
     ///     Replaces the outbox processor options.
