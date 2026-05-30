@@ -84,7 +84,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
             if (allMainHandlers.Count > 0)
             {
-                executionTaskOfAllHandlers = ExecuteHandlersByPriority(message, allMainHandlers);
+                executionTaskOfAllHandlers = ExecuteHandlersByPriority(message, allMainHandlers, executionContext);
                 await executionTaskOfAllHandlers;
             }
 
@@ -105,9 +105,11 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     /// </summary>
     /// <param name="message">The message being broadcast to handlers.</param>
     /// <param name="handlers">The main handlers to execute, grouped by priority before invocation.</param>
+    /// <param name="executionContext">The execution context propagated to each handler invocation.</param>
     /// <returns>A task that completes when all priority groups have finished executing.</returns>
     private async Task ExecuteHandlersByPriority(TMessage message,
-                                                 IReadOnlyList<LazyHandler<IMessageHandler, IMainHandlerDescriptor>> handlers)
+                                                 IReadOnlyList<LazyHandler<IMessageHandler, IMainHandlerDescriptor>> handlers,
+                                                 IExecutionContext executionContext)
     {
         var priorityGroups = handlers
             .GroupBy(h => h.Descriptor.Priority)
@@ -116,14 +118,14 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
         if (_settings.Execution.PriorityGroupsConcurrencyMode == ConcurrencyMode.Parallel)
         {
-            var allGroupTasks = priorityGroups.Select(group => ExecuteHandlersInGroup(message, group.ToList()));
+            var allGroupTasks = priorityGroups.Select(group => ExecuteHandlersInGroup(message, group.ToList(), executionContext));
             await Task.WhenAll(allGroupTasks);
         }
         else
         {
             foreach (var priorityGroup in priorityGroups)
             {
-                await ExecuteHandlersInGroup(message, priorityGroup.ToList());
+                await ExecuteHandlersInGroup(message, priorityGroup.ToList(), executionContext);
             }
         }
     }
@@ -134,20 +136,22 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     /// </summary>
     /// <param name="message">The message being broadcast to handlers.</param>
     /// <param name="handlersInGroup">The handlers that share the same priority value.</param>
+    /// <param name="executionContext">The execution context propagated to each handler invocation.</param>
     /// <returns>A task that completes when every handler in the group has finished executing.</returns>
     private async Task ExecuteHandlersInGroup(TMessage message,
-                                              IReadOnlyList<LazyHandler<IMessageHandler, IMainHandlerDescriptor>> handlersInGroup)
+                                              IReadOnlyList<LazyHandler<IMessageHandler, IMainHandlerDescriptor>> handlersInGroup,
+                                              IExecutionContext executionContext)
     {
         if (_settings.Execution.HandlersWithinSamePriorityConcurrencyMode == ConcurrencyMode.Parallel)
         {
-            var handlerTasks = handlersInGroup.Select(lazyHandler => ExecuteSingleHandler(message, lazyHandler));
+            var handlerTasks = handlersInGroup.Select(lazyHandler => ExecuteSingleHandler(message, lazyHandler, executionContext));
             await Task.WhenAll(handlerTasks);
         }
         else
         {
             foreach (var lazyHandler in handlersInGroup)
             {
-                await ExecuteSingleHandler(message, lazyHandler);
+                await ExecuteSingleHandler(message, lazyHandler, executionContext);
             }
         }
     }
@@ -157,10 +161,14 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     /// </summary>
     /// <param name="message">The message passed to the handler.</param>
     /// <param name="lazyHandler">The lazily resolved handler and its descriptor.</param>
+    /// <param name="executionContext">The execution context set on the ambient scope before the handler runs.</param>
     /// <returns>A task that completes when the handler has finished processing the message.</returns>
     private static async Task ExecuteSingleHandler(TMessage message,
-                                                   LazyHandler<IMessageHandler, IMainHandlerDescriptor> lazyHandler)
+                                                   LazyHandler<IMessageHandler, IMainHandlerDescriptor> lazyHandler,
+                                                   IExecutionContext executionContext)
     {
+        AmbientExecutionContext.Current = executionContext;
+
         var handleTask = (Task) lazyHandler.Handler.Value.Handle(message);
         await handleTask;
     }

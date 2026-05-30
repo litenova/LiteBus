@@ -7,12 +7,12 @@ using LiteBus.Outbox.Abstractions;
 namespace LiteBus.Outbox;
 
 /// <summary>
-///     Default writer that turns an event instance into a outbox envelope.
+///     Default writer that turns an event instance into an outbox envelope.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         The writer performs only acceptance work: contract lookup, serialization, metadata mapping, and append to the
-///         configured <see cref="IOutboxMessageWriter" />. It does not publish the event. Publication belongs to
+///         configured <see cref="IOutboxStore" />. It does not publish the event. Publication belongs to
 ///         <see cref="OutboxProcessor" /> and the configured <see cref="IOutboxDispatcher" />.
 ///     </para>
 ///     <para>
@@ -20,7 +20,7 @@ namespace LiteBus.Outbox;
 ///         contract registered for that closed type. A stable message id can be supplied through <see cref="OutboxOptions" />.
 ///     </para>
 /// </remarks>
-public sealed class OutboxWriter : IOutboxWriter
+public sealed class OutboxWriter : IOutbox
 {
     /// <summary>
     ///     Gets the time provider used to stamp storage time.
@@ -40,7 +40,7 @@ public sealed class OutboxWriter : IOutboxWriter
     /// <summary>
     ///     Gets the outbox writer store used to persist newly accepted envelopes.
     /// </summary>
-    private readonly IOutboxMessageWriter _store;
+    private readonly IOutboxStore _store;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="OutboxWriter" /> class.
@@ -50,7 +50,7 @@ public sealed class OutboxWriter : IOutboxWriter
     /// <param name="messageSerializer">The serializer used to create the serialized payload.</param>
     /// <param name="clock">The time provider used to stamp storage time.</param>
     public OutboxWriter(
-        IOutboxMessageWriter store,
+        IOutboxStore store,
         IMessageContractRegistry contractRegistry,
         IMessageSerializer messageSerializer,
         TimeProvider clock)
@@ -75,19 +75,19 @@ public sealed class OutboxWriter : IOutboxWriter
         var eventType = @event.GetType();
         var contract = _contractRegistry.GetContract(eventType);
         var storedAt = _clock.GetUtcNow();
-        var messageId = options.MessageId ?? Guid.NewGuid();
+        var messageId = options.Id ?? Guid.NewGuid();
         var payload = await _messageSerializer.SerializeAsync(@event, cancellationToken).ConfigureAwait(false);
 
-        var envelope = new OutboxMessageEnvelope
+        var envelope = new OutboxEnvelope
         {
-            MessageId = messageId,
+            Id = messageId,
             ContractName = contract.Name,
             ContractVersion = contract.Version,
             Payload = payload,
             Topic = options.Topic,
             CreatedAt = storedAt,
             VisibleAfter = options.VisibleAfter,
-            Status = OutboxMessageStatus.Pending,
+            Status = OutboxStatus.Pending,
             AttemptCount = 0,
             CorrelationId = options.CorrelationId,
             CausationId = options.CausationId,
@@ -98,8 +98,8 @@ public sealed class OutboxWriter : IOutboxWriter
 
         return new OutboxReceipt<TEvent>
         {
-            MessageId = storedEnvelope.MessageId,
-            EventType = eventType,
+            Id = storedEnvelope.Id,
+            MessageType = eventType,
             ContractName = storedEnvelope.ContractName,
             ContractVersion = storedEnvelope.ContractVersion,
             StoredAt = storedEnvelope.CreatedAt,

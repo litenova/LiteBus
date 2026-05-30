@@ -101,9 +101,9 @@ LiteBus ships as small packages so you reference only what you run. The full lay
 | Metapackage | `LiteBus` |
 | Core modules | `LiteBus.Commands`, `LiteBus.Queries`, `LiteBus.Events`, `LiteBus.Inbox`, `LiteBus.Outbox`, `LiteBus.Messaging`, `LiteBus.Runtime` |
 | Abstractions | `LiteBus.Commands.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` |
-| PostgreSQL | `LiteBus.Inbox.PostgreSql`, `LiteBus.Outbox.PostgreSql` |
+| PostgreSQL | `LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.Storage.PostgreSql` |
 | Microsoft DI | `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Commands.Extensions.Microsoft.DependencyInjection`, `LiteBus.Queries.Extensions.Microsoft.DependencyInjection`, `LiteBus.Events.Extensions.Microsoft.DependencyInjection`, `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` |
-| Microsoft Hosting | `LiteBus.Inbox.Extensions.Microsoft.Hosting`, `LiteBus.Outbox.Extensions.Microsoft.Hosting` |
+| Background work | `ILiteBusBackgroundWork` via `LiteBus.Inbox`, `LiteBus.Outbox`, storage, and ingress modules (requires `AddLiteBus` on MS DI or Autofac) |
 | Autofac | `LiteBus.Commands.Extensions.Autofac`, `LiteBus.Queries.Extensions.Autofac`, `LiteBus.Events.Extensions.Autofac`, `LiteBus.Messaging.Extensions.Autofac`, `LiteBus.Runtime.Extensions.Autofac` |
 
 </details>

@@ -3,19 +3,19 @@
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Represents one persisted command row in a inbox store.
+///     Represents one persisted inbox row in a store.
 /// </summary>
 /// <remarks>
-///     Store implementations use this non-generic envelope so one table can hold many command types. The payload is the
-///     serialized command; the contract fields identify the CLR type used for deserialization. Processors update status,
-///     attempt count, lease, and error fields as the command moves through execution.
+///     Store implementations use this non-generic envelope so one table can hold many message types. The payload is the
+///     serialized message; the contract fields identify the CLR type used for deserialization. Processors update status,
+///     attempt count, lease, and error fields as the envelope moves through execution.
 /// </remarks>
-public sealed record InboxCommandEnvelope
+public sealed record InboxEnvelope
 {
     /// <summary>
     ///     Gets the unique persisted command identifier.
     /// </summary>
-    public required Guid CommandId { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>
     ///     Gets the stable command contract name used to resolve the command type.
@@ -50,7 +50,7 @@ public sealed record InboxCommandEnvelope
     /// <summary>
     ///     Gets the current processing status.
     /// </summary>
-    public required InboxCommandStatus Status { get; init; }
+    public required InboxStatus Status { get; init; }
 
     /// <summary>
     ///     Gets the optional idempotency key used to detect duplicate submissions.

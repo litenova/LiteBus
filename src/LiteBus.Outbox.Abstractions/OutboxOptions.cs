@@ -11,7 +11,7 @@ namespace LiteBus.Outbox.Abstractions;
 ///         payload, so they can change independently from the event contract.
 ///     </para>
 ///     <para>
-///         Use <see cref="MessageId" /> for idempotent writes when the application already has a stable event id. The
+///         Use <see cref="Id" /> for idempotent writes when the application already has a stable event id. The
 ///         former identified-event marker was removed; the outbox message id now belongs to options rather than the
 ///         event contract.
 ///     </para>
@@ -21,7 +21,7 @@ public sealed record OutboxOptions
     /// <summary>
     ///     Gets the optional outbox message identifier. When omitted, the writer creates a new identifier.
     /// </summary>
-    public Guid? MessageId { get; init; }
+    public Guid? Id { get; init; }
 
     /// <summary>
     ///     Gets the optional correlation identifier used to group logs, traces, and stored messages for one workflow.

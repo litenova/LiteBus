@@ -18,12 +18,14 @@ public interface IDependencyRegistry : IReadOnlyCollection<DependencyDescriptor>
     void Register(DependencyDescriptor descriptor);
 
     /// <summary>
-    ///     Registers a hosted background service implementation with the underlying container when the adapter supports
-    ///     hosted-service registration.
+    ///     Registers host-neutral background work that the container adapter maps to a generic-host background service when
+    ///     supported.
     /// </summary>
-    /// <param name="implementationType">The concrete hosted-service type to register.</param>
+    /// <param name="implementationType">The concrete type that implements <see cref="ILiteBusBackgroundWork" />.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="implementationType" /> is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="implementationType" /> is not assignable to a hosted service contract.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when the adapter does not support hosted-service registration.</exception>
-    void RegisterHostedService(Type implementationType);
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="implementationType" /> does not implement <see cref="ILiteBusBackgroundWork" />.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">Thrown when the adapter does not support background-work registration.</exception>
+    void RegisterBackgroundWork(Type implementationType);
 }

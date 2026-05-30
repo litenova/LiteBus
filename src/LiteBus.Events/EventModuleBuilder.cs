@@ -53,13 +53,18 @@ public sealed class EventModuleBuilder
     }
 
     /// <summary>
-    ///     Registers all event types from the specified assembly that implement <see cref="IRegistrableEventConstruct" />.
+    ///     Registers all concrete event constructs from the specified assembly that implement
+    ///     <see cref="IRegistrableEventConstruct" />.
     /// </summary>
     /// <param name="assembly">The assembly from which to register event types.</param>
     /// <returns>The current <see cref="EventModuleBuilder" /> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="assembly" /> is <see langword="null" />.</exception>
     public EventModuleBuilder RegisterFromAssembly(Assembly assembly)
     {
-        foreach (var registrableEventConstruct in assembly.GetTypes().Where(t => t.IsAssignableTo(typeof(IRegistrableEventConstruct))))
+        ArgumentNullException.ThrowIfNull(assembly);
+
+        foreach (var registrableEventConstruct in assembly.GetTypes()
+                     .Where(t => t is { IsClass: true, IsAbstract: false } && t.IsAssignableTo(typeof(IRegistrableEventConstruct))))
         {
             _messageRegistry.Register(registrableEventConstruct);
         }

@@ -19,7 +19,7 @@ namespace LiteBus.Outbox.Abstractions;
 ///         stores easier to test and allows hosts to grant processors only the capabilities they need.
 ///     </para>
 /// </remarks>
-public interface IOutboxMessageStateStore
+public interface IOutboxStateStore
 {
     /// <summary>
     ///     Marks a leased message as published after the dispatcher has completed without throwing.
@@ -35,7 +35,7 @@ public interface IOutboxMessageStateStore
     /// <param name="failure">The failure details, including the message id, error text, and next visibility time.</param>
     /// <param name="cancellationToken">A token that cancels the status update.</param>
     /// <returns>A task that represents the asynchronous status update.</returns>
-    Task MarkFailedAsync(OutboxMessageFailure failure, CancellationToken cancellationToken = default);
+    Task MarkFailedAsync(OutboxEnvelopeFailure failure, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Moves a message to the dead-letter state after retry attempts are exhausted or a processor chooses to stop retrying.
@@ -43,5 +43,5 @@ public interface IOutboxMessageStateStore
     /// <param name="deadLetter">The dead-letter details, including the message id and diagnostic reason.</param>
     /// <param name="cancellationToken">A token that cancels the status update.</param>
     /// <returns>A task that represents the asynchronous status update.</returns>
-    Task MoveToDeadLetterAsync(OutboxMessageDeadLetter deadLetter, CancellationToken cancellationToken = default);
+    Task MoveToDeadLetterAsync(OutboxEnvelopeDeadLetter deadLetter, CancellationToken cancellationToken = default);
 }

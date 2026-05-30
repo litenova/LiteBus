@@ -8,11 +8,10 @@ namespace LiteBus.Outbox;
 ///     Configures services owned by the outbox module.
 /// </summary>
 /// <remarks>
-///     Use this builder from `AddOutboxModule`. Register every outbox event contract through <see cref="Contracts" />,
-///     choose processor defaults through <see cref="UseProcessorOptions" />, and opt in to local LiteBus event dispatch
-///     through <see cref="UseLiteBusEventDispatcher" /> when the outbox should replay events into in-process handlers.
-///     Broker dispatchers can register their own <see cref="IOutboxDispatcher" /> instead.
-///     Background processing is configured separately through `AddOutboxProcessorHosting`.
+///     Use this builder from `AddOutboxModule`. Register every outbox message contract through
+///     <see cref="Contracts" /> and optionally replace processor defaults through <see cref="UseProcessorOptions" />.
+///     Store and dispatcher registration are supplied by storage and dispatch modules, or by application DI registration.
+///     Enable background processing through <see cref="UseProcessorBackgroundWork" />.
 /// </remarks>
 public sealed class OutboxModuleBuilder
 {
@@ -36,9 +35,26 @@ public sealed class OutboxModuleBuilder
     public OutboxProcessorOptions ProcessorOptions { get; private set; } = new();
 
     /// <summary>
-    ///     Gets a value indicating whether the in-process LiteBus event dispatcher should be registered.
+    ///     Gets the options for the optional outbox processor background loop.
     /// </summary>
-    public bool RegisterLiteBusEventDispatcher { get; private set; }
+    public OutboxProcessorHostOptions ProcessorHostOptions { get; private set; } = new();
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="OutboxProcessorBackgroundWork" /> is registered.
+    /// </summary>
+    public bool RegisterProcessorBackgroundWork { get; private set; }
+
+    /// <summary>
+    ///     Registers the outbox processor background loop for the generic host.
+    /// </summary>
+    /// <param name="configure">An optional callback that configures poll interval, startup delay, and adaptive polling.</param>
+    /// <returns>The current builder.</returns>
+    public OutboxModuleBuilder UseProcessorBackgroundWork(Action<OutboxProcessorHostOptions>? configure = null)
+    {
+        RegisterProcessorBackgroundWork = true;
+        configure?.Invoke(ProcessorHostOptions);
+        return this;
+    }
 
     /// <summary>
     ///     Replaces the outbox processor options.
@@ -48,17 +64,6 @@ public sealed class OutboxModuleBuilder
     public OutboxModuleBuilder UseProcessorOptions(OutboxProcessorOptions options)
     {
         ProcessorOptions = options ?? throw new ArgumentNullException(nameof(options));
-        return this;
-    }
-
-    /// <summary>
-    ///     Registers the dispatcher that publishes outbox messages through <see cref="Events.Abstractions.IEventPublisher" />.
-    ///     Do not call this when another module registers an external broker dispatcher as <see cref="IOutboxDispatcher" />.
-    /// </summary>
-    /// <returns>The current builder.</returns>
-    public OutboxModuleBuilder UseLiteBusEventDispatcher()
-    {
-        RegisterLiteBusEventDispatcher = true;
         return this;
     }
 }

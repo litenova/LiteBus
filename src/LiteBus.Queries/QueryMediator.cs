@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
@@ -23,6 +24,8 @@ public sealed class QueryMediator : IQueryMediator
     /// <param name="messageMediator">The core message mediator for immediate query execution.</param>
     public QueryMediator(IMessageMediator messageMediator)
     {
+        ArgumentNullException.ThrowIfNull(messageMediator);
+
         _messageMediator = messageMediator;
     }
 
@@ -31,6 +34,8 @@ public sealed class QueryMediator : IQueryMediator
                                                        QueryMediationSettings? queryMediationSettings = null,
                                                        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(query);
+
         queryMediationSettings ??= new QueryMediationSettings();
         var mediationStrategy = new SingleAsyncHandlerMediationStrategy<IQuery<TQueryResult>, TQueryResult>();
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
@@ -51,6 +56,8 @@ public sealed class QueryMediator : IQueryMediator
                                                                     QueryMediationSettings? queryMediationSettings = null,
                                                                     CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(query);
+
         queryMediationSettings ??= new QueryMediationSettings();
         var mediationStrategy = new SingleStreamHandlerMediationStrategy<IStreamQuery<TQueryResult>, TQueryResult>(cancellationToken);
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();

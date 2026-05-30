@@ -1,0 +1,9 @@
+{
+  "$schema": "https://dotnet.microsoft.com/json/schemas/slnx/1.0/slnx.schema.json",
+  "solution": {
+    "path": "../../LiteBus.slnx"
+  },
+  "projects": [
+    "../LiteBus.Samples.V6/LiteBus.Samples.V6.csproj"
+  ]
+}

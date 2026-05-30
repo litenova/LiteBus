@@ -3,7 +3,7 @@ namespace LiteBus.Outbox.Abstractions;
 /// <summary>
 ///     Represents the publication status of an outbox message.
 /// </summary>
-public enum OutboxMessageStatus
+public enum OutboxStatus
 {
     /// <summary>
     ///     The message is waiting to be published.

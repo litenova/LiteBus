@@ -19,7 +19,7 @@ namespace LiteBus.Outbox.Abstractions;
 ///         messages stuck in the publishing state.
 ///     </para>
 /// </remarks>
-public interface IOutboxMessageLeaseStore
+public interface IOutboxLeaseStore
 {
     /// <summary>
     ///     Leases pending, failed, or expired publishing messages for one processing pass.
@@ -29,7 +29,7 @@ public interface IOutboxMessageLeaseStore
     /// </param>
     /// <param name="cancellationToken">A token that cancels the lease operation before ownership is recorded.</param>
     /// <returns>The envelopes claimed by the caller, ordered according to the store policy.</returns>
-    Task<IReadOnlyList<OutboxMessageEnvelope>> LeasePendingAsync(
+    Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
         OutboxLeaseRequest request,
         CancellationToken cancellationToken = default);
 }

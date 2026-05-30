@@ -7,7 +7,7 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Outbox;
 
 /// <summary>
-///     Module for configuring event publication.
+///     Module for configuring durable outbox orchestration.
 /// </summary>
 public sealed class OutboxModule : IModule
 {
@@ -44,22 +44,24 @@ public sealed class OutboxModule : IModule
             moduleBuilder.ProcessorOptions));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxWriter),
+            typeof(IOutbox),
             typeof(OutboxWriter)));
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IIntegrationOutbox),
-            typeof(IntegrationOutbox)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxProcessor),
             typeof(OutboxProcessor)));
 
-        if (moduleBuilder.RegisterLiteBusEventDispatcher)
+        if (moduleBuilder.RegisterProcessorBackgroundWork)
         {
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(IOutboxDispatcher),
-                typeof(LiteBusEventOutboxDispatcher)));
+                typeof(OutboxProcessorHostOptions),
+                moduleBuilder.ProcessorHostOptions));
+
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(OutboxProcessorBackgroundWork),
+                typeof(OutboxProcessorBackgroundWork)));
+
+            configuration.DependencyRegistry.RegisterBackgroundWork(typeof(OutboxProcessorBackgroundWork));
         }
     }
 }

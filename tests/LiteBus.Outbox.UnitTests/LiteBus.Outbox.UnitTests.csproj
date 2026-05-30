@@ -22,11 +22,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\LiteBus.Events\LiteBus.Events.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Outbox.Extensions.Microsoft.Hosting\LiteBus.Outbox.Extensions.Microsoft.Hosting.csproj"/>
         <ProjectReference Include="..\LiteBus.Testing\LiteBus.Testing.csproj"/>
     </ItemGroup>
 

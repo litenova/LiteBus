@@ -3,7 +3,7 @@ namespace LiteBus.Inbox.Abstractions;
 /// <summary>
 ///     Represents the processing status of a persisted inbox command.
 /// </summary>
-public enum InboxCommandStatus
+public enum InboxStatus
 {
     /// <summary>
     ///     The command is waiting to be processed.

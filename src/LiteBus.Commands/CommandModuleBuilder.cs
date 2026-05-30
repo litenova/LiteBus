@@ -53,13 +53,18 @@ public sealed class CommandModuleBuilder
     }
 
     /// <summary>
-    ///     Registers all command types from the specified assembly that implement <see cref="IRegistrableCommandConstruct" />.
+    ///     Registers all concrete command constructs from the specified assembly that implement
+    ///     <see cref="IRegistrableCommandConstruct" />.
     /// </summary>
     /// <param name="assembly">The assembly from which to register command types.</param>
     /// <returns>The current <see cref="CommandModuleBuilder" /> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="assembly" /> is <see langword="null" />.</exception>
     public CommandModuleBuilder RegisterFromAssembly(Assembly assembly)
     {
-        foreach (var registrableCommandConstruct in assembly.GetTypes().Where(t => t.IsAssignableTo(typeof(IRegistrableCommandConstruct))))
+        ArgumentNullException.ThrowIfNull(assembly);
+
+        foreach (var registrableCommandConstruct in assembly.GetTypes()
+                     .Where(t => t is { IsClass: true, IsAbstract: false } && t.IsAssignableTo(typeof(IRegistrableCommandConstruct))))
         {
             _messageRegistry.Register(registrableCommandConstruct);
         }

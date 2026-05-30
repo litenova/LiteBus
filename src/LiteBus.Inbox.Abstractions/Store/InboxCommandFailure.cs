@@ -5,12 +5,12 @@ namespace LiteBus.Inbox.Abstractions;
 /// <summary>
 ///     Represents a failed inbox command attempt.
 /// </summary>
-public sealed record InboxCommandFailure
+public sealed record InboxEnvelopeFailure
 {
     /// <summary>
     ///     Gets the command identifier.
     /// </summary>
-    public required Guid CommandId { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>
     ///     Gets the latest processing error.
