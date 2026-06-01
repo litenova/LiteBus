@@ -15,7 +15,7 @@ namespace LiteBus.Samples.V6;
 
 /// <summary>
 ///     Registers a full LiteBus v6 composition: core mediators, inbox/outbox modules, InMemory storage,
-///     explicit dispatch adapters, and processor hosting.
+///     explicit dispatch adapters, and hosted processor background services.
 /// </summary>
 public static class LiteBusV6Composition
 {
@@ -44,7 +44,7 @@ public static class LiteBusV6Composition
                     BatchSize = 20,
                     LeaseDuration = TimeSpan.FromMinutes(1)
                 });
-                inbox.UseProcessorBackgroundWork(host => host.PollInterval = TimeSpan.FromSeconds(2));
+                inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
             });
             lb.AddInMemoryInboxStorage();
             lb.AddInboxCommandDispatcher();
@@ -52,7 +52,7 @@ public static class LiteBusV6Composition
             lb.AddOutboxModule(outbox =>
             {
                 outbox.Contracts.Register<PaymentProcessed>("payments.payment-processed", 1);
-                outbox.UseProcessorBackgroundWork(host => host.PollInterval = TimeSpan.FromSeconds(2));
+                outbox.EnableOutboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
             });
             lb.AddInMemoryOutboxStorage();
             lb.AddOutboxEventDispatcher();

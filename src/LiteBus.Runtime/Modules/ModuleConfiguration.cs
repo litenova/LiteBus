@@ -16,6 +16,11 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
     private readonly Dictionary<Type, object> _contexts = [];
 
     /// <summary>
+    ///     Background service implementation types registered for host execution.
+    /// </summary>
+    private readonly HashSet<Type> _backgroundServices = [];
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="ModuleConfiguration" /> class.
     /// </summary>
     /// <param name="dependencyRegistry">The dependency registry for service registration.</param>
@@ -27,6 +32,24 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
 
     /// <inheritdoc />
     public IDependencyRegistry DependencyRegistry { get; }
+
+    /// <inheritdoc />
+    public IReadOnlyList<Type> BackgroundServices => [.. _backgroundServices];
+
+    /// <inheritdoc />
+    public void RegisterBackgroundService(Type implementationType)
+    {
+        ArgumentNullException.ThrowIfNull(implementationType);
+
+        if (!typeof(IBackgroundService).IsAssignableFrom(implementationType))
+        {
+            throw new ArgumentException(
+                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(IBackgroundService)}.",
+                nameof(implementationType));
+        }
+
+        _backgroundServices.Add(implementationType);
+    }
 
     /// <inheritdoc />
     public T GetContext<T>() where T : class

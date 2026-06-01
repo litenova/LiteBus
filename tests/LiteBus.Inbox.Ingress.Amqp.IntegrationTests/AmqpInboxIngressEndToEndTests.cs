@@ -82,7 +82,7 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
                     LeaseOwner = "ingress-test-worker",
                     Retry = new RetryOptions { UseJitter = false }
                 });
-                inbox.UseProcessorBackgroundWork(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
+                inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
             });
 
             liteBus.AddInMemoryInboxStorage();

@@ -12,7 +12,7 @@ namespace LiteBus.Outbox.UnitTests;
 public sealed class OutboxHostingTests : LiteBusTestBase
 {
     [Fact]
-    public async Task ProcessorBackgroundWork_WhenDisabled_ShouldCompleteWithoutPublishing()
+    public async Task ProcessorBackgroundService_WhenDisabled_ShouldCompleteWithoutPublishing()
     {
         var store = new OutboxTests.InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
@@ -27,7 +27,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorBackgroundWork_ShouldPublishScheduledMessages()
+    public async Task ProcessorBackgroundService_ShouldPublishScheduledMessages()
     {
         var store = new OutboxTests.InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
@@ -55,7 +55,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorBackgroundWork_WhenMissingDependency_ShouldThrowOnResolve()
+    public async Task ProcessorBackgroundService_WhenMissingDependency_ShouldThrowOnResolve()
     {
         var services = new ServiceCollection()
             .AddLiteBus(configuration =>
@@ -63,7 +63,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
                 configuration.AddOutboxModule(outbox =>
                 {
                     outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
-                    outbox.UseProcessorBackgroundWork();
+                    outbox.EnableOutboxProcessor();
                 });
             });
 
@@ -76,7 +76,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorBackgroundWork_WhenMissingDispatcher_ShouldThrowOnResolve()
+    public async Task ProcessorBackgroundService_WhenMissingDispatcher_ShouldThrowOnResolve()
     {
         var store = new OutboxTests.InMemoryOutboxStore();
 
@@ -89,7 +89,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
                 configuration.AddOutboxModule(outbox =>
                 {
                     outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
-                    outbox.UseProcessorBackgroundWork();
+                    outbox.EnableOutboxProcessor();
                 });
             });
 
@@ -102,7 +102,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorBackgroundWork_ShouldRespectStartupDelay()
+    public async Task ProcessorBackgroundService_ShouldRespectStartupDelay()
     {
         var store = new OutboxTests.InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
@@ -138,7 +138,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorBackgroundWork_WithAdaptivePollingAndFullBatch_ShouldPublishMultipleMessagesQuickly()
+    public async Task ProcessorBackgroundService_WithAdaptivePollingAndFullBatch_ShouldPublishMultipleMessagesQuickly()
     {
         var store = new OutboxTests.InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
@@ -222,7 +222,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
                         });
                     }
 
-                    outbox.UseProcessorBackgroundWork(configureHost);
+                    outbox.EnableOutboxProcessor(configureHost);
                 });
             })
             .BuildServiceProvider();

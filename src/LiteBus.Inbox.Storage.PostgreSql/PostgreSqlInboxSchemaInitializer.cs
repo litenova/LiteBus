@@ -8,7 +8,7 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 /// <summary>
 ///     Ensures the PostgreSQL inbox schema exists during host startup when configured to do so.
 /// </summary>
-public sealed class PostgreSqlInboxSchemaBackgroundWork : ILiteBusBackgroundWork
+public sealed class PostgreSqlInboxSchemaInitializer : IBackgroundService
 {
     /// <summary>
     ///     The registered inbox store configuration consumed during host startup.
@@ -16,16 +16,16 @@ public sealed class PostgreSqlInboxSchemaBackgroundWork : ILiteBusBackgroundWork
     private readonly PostgreSqlInboxStoreRegistration _registration;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="PostgreSqlInboxSchemaBackgroundWork" /> class.
+    ///     Initializes a new instance of the <see cref="PostgreSqlInboxSchemaInitializer" /> class.
     /// </summary>
     /// <param name="registration">The registered PostgreSQL inbox store configuration.</param>
-    public PostgreSqlInboxSchemaBackgroundWork(PostgreSqlInboxStoreRegistration registration)
+    public PostgreSqlInboxSchemaInitializer(PostgreSqlInboxStoreRegistration registration)
     {
         _registration = registration ?? throw new ArgumentNullException(nameof(registration));
     }
 
     /// <inheritdoc />
-    public async Task RunAsync(CancellationToken cancellationToken)
+    public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!_registration.Options.EnsureSchemaCreationOnStartup)
         {
@@ -35,7 +35,7 @@ public sealed class PostgreSqlInboxSchemaBackgroundWork : ILiteBusBackgroundWork
         await PostgreSqlInboxSchema.EnsureAsync(
                 _registration.DataSource,
                 _registration.Options,
-                cancellationToken)
+                stoppingToken)
             .ConfigureAwait(false);
 
         if (_registration.Options.ValidateSchemaCreationOnStartup)
@@ -43,7 +43,7 @@ public sealed class PostgreSqlInboxSchemaBackgroundWork : ILiteBusBackgroundWork
             await PostgreSqlInboxSchema.ValidateAsync(
                     _registration.DataSource,
                     _registration.Options,
-                    cancellationToken)
+                    stoppingToken)
                 .ConfigureAwait(false);
         }
     }

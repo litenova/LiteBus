@@ -9,9 +9,9 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Inbox.Ingress.Amqp;
 
 /// <summary>
-///     Consumes AMQP messages and accepts them into the inbox store as LiteBus background work.
+///     Consumes AMQP messages and accepts them into the inbox store as LiteBus background service work.
 /// </summary>
-public sealed class AmqpInboxIngressBackgroundWork : ILiteBusBackgroundWork
+public sealed class AmqpInboxConsumer : IBackgroundService
 {
     /// <summary>
     ///     Gets the AMQP consumer used to subscribe to the ingress queue.
@@ -34,13 +34,13 @@ public sealed class AmqpInboxIngressBackgroundWork : ILiteBusBackgroundWork
     private readonly AmqpInboxIngressOptions _options;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="AmqpInboxIngressBackgroundWork" /> class.
+    ///     Initializes a new instance of the <see cref="AmqpInboxConsumer" /> class.
     /// </summary>
     /// <param name="consumer">The AMQP consumer used to subscribe to the ingress queue.</param>
     /// <param name="handler">The handler that maps deliveries to inbox acceptance.</param>
     /// <param name="options">The ingress queue and broker settings.</param>
     /// <param name="hostOptions">The hosting options that control whether the ingress loop is enabled.</param>
-    public AmqpInboxIngressBackgroundWork(
+    public AmqpInboxConsumer(
         IAmqpConsumer consumer,
         AmqpInboxIngressHandler handler,
         AmqpInboxIngressOptions options,
@@ -53,7 +53,7 @@ public sealed class AmqpInboxIngressBackgroundWork : ILiteBusBackgroundWork
     }
 
     /// <inheritdoc />
-    public async Task RunAsync(CancellationToken cancellationToken)
+    public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!_hostOptions.Enabled)
         {
@@ -69,14 +69,14 @@ public sealed class AmqpInboxIngressBackgroundWork : ILiteBusBackgroundWork
         };
 
         await _consumer
-            .StartAsync(consumerOptions, HandleDeliveryAsync, cancellationToken)
+            .StartAsync(consumerOptions, HandleDeliveryAsync, stoppingToken)
             .ConfigureAwait(false);
 
         try
         {
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
         }
         finally

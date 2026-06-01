@@ -4,8 +4,6 @@ using System.Collections.Generic;
 using Autofac;
 using Autofac.Builder;
 using LiteBus.Runtime.Abstractions;
-using Microsoft.Extensions.Hosting;
-
 namespace LiteBus.Runtime.Extensions.Autofac;
 
 /// <summary>
@@ -23,11 +21,6 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     ///     Tracks descriptors already translated into Autofac registrations.
     /// </summary>
     private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
-
-    /// <summary>
-    ///     Tracks background-work implementation types already registered with the container builder.
-    /// </summary>
-    private readonly HashSet<Type> _registeredBackgroundWork = [];
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="AutofacDependencyRegistryAdapter" /> class.
@@ -84,33 +77,6 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();
-    }
-
-    /// <inheritdoc />
-    public void RegisterBackgroundWork(Type implementationType)
-    {
-        ArgumentNullException.ThrowIfNull(implementationType);
-
-        if (!typeof(ILiteBusBackgroundWork).IsAssignableFrom(implementationType))
-        {
-            throw new ArgumentException(
-                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(ILiteBusBackgroundWork)}.",
-                nameof(implementationType));
-        }
-
-        if (!_registeredBackgroundWork.Add(implementationType))
-        {
-            return;
-        }
-
-        _builder.RegisterType(implementationType)
-            .AsSelf()
-            .SingleInstance();
-
-        _builder.Register(context => new LiteBusBackgroundWorkHostedService(
-                (ILiteBusBackgroundWork)context.Resolve(implementationType)))
-            .As<IHostedService>()
-            .SingleInstance();
     }
 
     /// <summary>

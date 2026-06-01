@@ -46,17 +46,17 @@ public sealed class PostgreSqlOutboxModuleBuilder
     public PostgreSqlOutboxStoreOptions Options { get; private set; } = new();
 
     /// <summary>
-    ///     Gets a value indicating whether <see cref="PostgreSqlOutboxSchemaBackgroundWork" /> is registered.
+    ///     Gets a value indicating whether <see cref="PostgreSqlOutboxSchemaInitializer" /> is registered.
     /// </summary>
-    public bool RegisterSchemaBackgroundWork { get; private set; } = true;
+    public bool EnableSchemaInitialization { get; private set; } = true;
 
     /// <summary>
-    ///     Disables registration of outbox schema bootstrap background work.
+    ///     Disables registration of outbox schema initialization background service work.
     /// </summary>
     /// <returns>The current builder.</returns>
-    public PostgreSqlOutboxModuleBuilder DisableSchemaBackgroundWork()
+    public PostgreSqlOutboxModuleBuilder DisableSchemaInitialization()
     {
-        RegisterSchemaBackgroundWork = false;
+        EnableSchemaInitialization = false;
         return this;
     }
 
@@ -112,8 +112,8 @@ public sealed class PostgreSqlOutboxModuleBuilder
     /// </summary>
     /// <returns>The current builder.</returns>
     /// <remarks>
-    ///     Schema bootstrap runs through <see cref="PostgreSqlOutboxSchemaBackgroundWork" /> when
-    ///     <see cref="RegisterSchemaBackgroundWork" /> is enabled.
+    ///     Schema bootstrap runs through <see cref="PostgreSqlOutboxSchemaInitializer" /> when
+    ///     <see cref="EnableSchemaInitialization" /> is enabled.
     /// </remarks>
     public PostgreSqlOutboxModuleBuilder EnsureSchemaCreationOnStartup()
     {

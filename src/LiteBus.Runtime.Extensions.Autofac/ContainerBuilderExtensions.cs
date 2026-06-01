@@ -2,6 +2,7 @@ using System;
 using Autofac;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Extensions.Autofac;
+using LiteBus.Runtime.Extensions.Autofac.Hosting;
 using LiteBus.Runtime.Modules;
 
 // ReSharper disable once CheckNamespace
@@ -52,6 +53,8 @@ public static class ContainerBuilderExtensions
         {
             moduleDescriptor.Module.Build(moduleConfiguration);
         }
+
+        builder.RegisterBackgroundServices(moduleConfiguration.BackgroundServices);
 
         // Register IServiceProvider for factory compatibility.
         builder.Register(c => new AutofacServiceProvider(c.Resolve<IComponentContext>()))

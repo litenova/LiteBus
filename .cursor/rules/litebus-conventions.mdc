@@ -1,0 +1,41 @@
+---
+description: LiteBus library conventions for naming, modules, background services, and XML documentation
+globs: src/**/*.cs,AGENTS.md,Changelog.md,docs/**/*.md
+alwaysApply: true
+---
+
+# LiteBus conventions
+
+Follow these rules when editing shipping code under `src/`. See `AGENTS.md` for XML documentation requirements.
+
+## Background services
+
+| Concern | Where it lives |
+| :--- | :--- |
+| Contract | `IBackgroundService` (`ExecuteAsync`) in `LiteBus.Runtime.Abstractions` |
+| Host manifest | `IModuleConfiguration.RegisterBackgroundService` |
+| Generic host bridge | `BackgroundServiceHostAdapter` in `*.Hosting` extension packages |
+| Feature loops | `*BackgroundService`, `AmqpInboxConsumer`, `*SchemaInitializer` |
+
+Builder APIs: `EnableInboxProcessor`, `EnableOutboxProcessor`, `DisableSchemaInitialization`, `DisableIngressConsumer`. Do not use Runnable naming in code or docs.
+
+## Modules and packages
+
+- One primary module per feature area; optional builder for configuration.
+- Transport-neutral core (`LiteBus.Inbox`, `LiteBus.Outbox`) must not reference hosting packages.
+- Extension method classes: `ModuleRegistryExtensions` in the feature assembly namespace.
+- Project names: `LiteBus.{Feature}` or `LiteBus.{Feature}.{Capability}` (for example `LiteBus.Inbox.Ingress.Amqp`).
+
+## Interfaces and semantics
+
+- Prefer small interfaces with clear nouns; one obvious implementation per module registration path.
+- Use `ArgumentNullException.ThrowIfNull` on public entry points.
+- Use complete sentences in XML `<summary>` text; indent with four spaces after the opening tag.
+
+## XML documentation
+
+Required on every type and member under `src/`, including `private` and `internal`. Use `<see cref="..." />`, `<param>`, `<returns>`, `<typeparam>`, and `<value>` as appropriate. Run `dotnet build LiteBus.slnx` and fix SA16xx documentation warnings before finishing.
+
+## Changelog
+
+Update `Changelog.md` under the current major version section when public API or documented behavior changes.

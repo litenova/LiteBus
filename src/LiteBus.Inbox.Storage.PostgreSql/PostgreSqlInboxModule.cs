@@ -65,13 +65,13 @@ public sealed class PostgreSqlInboxModule : IModule
             typeof(IInboxStateStore),
             store));
 
-        if (moduleBuilder.RegisterSchemaBackgroundWork)
+        if (moduleBuilder.EnableSchemaInitialization)
         {
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(PostgreSqlInboxSchemaBackgroundWork),
-                typeof(PostgreSqlInboxSchemaBackgroundWork)));
+                typeof(PostgreSqlInboxSchemaInitializer),
+                typeof(PostgreSqlInboxSchemaInitializer)));
 
-            configuration.DependencyRegistry.RegisterBackgroundWork(typeof(PostgreSqlInboxSchemaBackgroundWork));
+            configuration.RegisterBackgroundService(typeof(PostgreSqlInboxSchemaInitializer));
         }
     }
 }

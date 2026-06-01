@@ -1,4 +1,4 @@
-﻿using LiteBus.Commands.Abstractions;
+using LiteBus.Commands.Abstractions;
 using LiteBus.Samples.Queries;
 
 namespace LiteBus.Samples.Commands;

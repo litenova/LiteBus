@@ -1,6 +1,7 @@
 using System;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Runtime.Extensions.Microsoft.Hosting;
 using LiteBus.Runtime.Modules;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -49,6 +50,8 @@ public static class ServiceCollectionExtensions
         {
             moduleDescriptor.Module.Build(moduleConfiguration);
         }
+
+        services.RegisterBackgroundServices(moduleConfiguration.BackgroundServices);
 
         return services;
     }

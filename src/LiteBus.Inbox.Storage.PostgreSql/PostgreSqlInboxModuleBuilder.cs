@@ -46,17 +46,17 @@ public sealed class PostgreSqlInboxModuleBuilder
     public PostgreSqlInboxStoreOptions Options { get; private set; } = new();
 
     /// <summary>
-    ///     Gets a value indicating whether <see cref="PostgreSqlInboxSchemaBackgroundWork" /> is registered.
+    ///     Gets a value indicating whether <see cref="PostgreSqlInboxSchemaInitializer" /> is registered.
     /// </summary>
-    public bool RegisterSchemaBackgroundWork { get; private set; } = true;
+    public bool EnableSchemaInitialization { get; private set; } = true;
 
     /// <summary>
-    ///     Disables registration of inbox schema bootstrap background work.
+    ///     Disables registration of inbox schema initialization background service work.
     /// </summary>
     /// <returns>The current builder.</returns>
-    public PostgreSqlInboxModuleBuilder DisableSchemaBackgroundWork()
+    public PostgreSqlInboxModuleBuilder DisableSchemaInitialization()
     {
-        RegisterSchemaBackgroundWork = false;
+        EnableSchemaInitialization = false;
         return this;
     }
 
@@ -112,8 +112,8 @@ public sealed class PostgreSqlInboxModuleBuilder
     /// </summary>
     /// <returns>The current builder.</returns>
     /// <remarks>
-    ///     Schema bootstrap runs through <see cref="PostgreSqlInboxSchemaBackgroundWork" /> when
-    ///     <see cref="RegisterSchemaBackgroundWork" /> is enabled.
+    ///     Schema bootstrap runs through <see cref="PostgreSqlInboxSchemaInitializer" /> when
+    ///     <see cref="EnableSchemaInitialization" /> is enabled.
     /// </remarks>
     public PostgreSqlInboxModuleBuilder EnsureSchemaCreationOnStartup()
     {

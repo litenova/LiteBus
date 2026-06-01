@@ -36,16 +36,6 @@ public sealed class DependencyRegistry : IDependencyRegistry
         _descriptors.Add(descriptor);
     }
 
-    /// <inheritdoc />
-    public void RegisterBackgroundWork(Type implementationType)
-    {
-        ArgumentNullException.ThrowIfNull(implementationType);
-
-        throw new InvalidOperationException(
-            "Background work requires LiteBus to be configured through Microsoft.Extensions.DependencyInjection or Autofac. " +
-            "Use services.AddLiteBus(...) or containerBuilder.AddLiteBus(...).");
-    }
-
     /// <summary>
     ///     Returns an enumerator that iterates through the dependency descriptors.
     /// </summary>

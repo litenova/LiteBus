@@ -8,9 +8,9 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Inbox;
 
 /// <summary>
-///     Runs the inbox processor in a continuous loop as LiteBus background work.
+///     Runs the inbox processor in a continuous loop as LiteBus background service work.
 /// </summary>
-public sealed class InboxProcessorBackgroundWork : ILiteBusBackgroundWork
+public sealed class InboxProcessorBackgroundService : IBackgroundService
 {
     /// <summary>
     ///     Gets the loop timing and adaptive polling options for the processor.
@@ -28,12 +28,12 @@ public sealed class InboxProcessorBackgroundWork : ILiteBusBackgroundWork
     private readonly InboxProcessorOptions _processorOptions;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="InboxProcessorBackgroundWork" /> class.
+    ///     Initializes a new instance of the <see cref="InboxProcessorBackgroundService" /> class.
     /// </summary>
     /// <param name="processor">The inbox processor that performs each pass.</param>
     /// <param name="processorOptions">The batch and lease options used to interpret adaptive polling.</param>
     /// <param name="hostOptions">The loop timing and adaptive polling options.</param>
-    public InboxProcessorBackgroundWork(
+    public InboxProcessorBackgroundService(
         IInboxProcessor processor,
         InboxProcessorOptions processorOptions,
         InboxProcessorHostOptions hostOptions)
@@ -44,7 +44,7 @@ public sealed class InboxProcessorBackgroundWork : ILiteBusBackgroundWork
     }
 
     /// <inheritdoc />
-    public async Task RunAsync(CancellationToken cancellationToken)
+    public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!_hostOptions.Enabled)
         {
@@ -53,28 +53,28 @@ public sealed class InboxProcessorBackgroundWork : ILiteBusBackgroundWork
 
         if (_hostOptions.StartupDelay > TimeSpan.Zero)
         {
-            await Task.Delay(_hostOptions.StartupDelay, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(_hostOptions.StartupDelay, stoppingToken).ConfigureAwait(false);
         }
 
-        while (!cancellationToken.IsCancellationRequested)
+        while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                var passResult = await _processor.ProcessPendingAsync(cancellationToken).ConfigureAwait(false);
+                var passResult = await _processor.ProcessPendingAsync(stoppingToken).ConfigureAwait(false);
 
                 if (ShouldDelayAfterPass(passResult))
                 {
-                    await Task.Delay(_hostOptions.PollInterval, cancellationToken).ConfigureAwait(false);
+                    await Task.Delay(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
                 }
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 break;
             }
             catch (Exception exception)
             {
                 _ = MessageProcessorDiagnostics.FormatError(exception);
-                await Task.Delay(_hostOptions.PollInterval, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
             }
         }
     }

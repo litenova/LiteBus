@@ -69,8 +69,18 @@ dotnet build LiteBus.slnx
 
 `StyleCop.Analyzers` is referenced from `src/Directory.Build.props`. Only **documentation** rule categories are warnings (`src/.editorconfig`); other StyleCop categories are disabled so layout and naming rules do not churn existing code. Fix documentation analyzer warnings (SA1600 through SA1629) before finishing a documentation task. File header rules (SA1633 and related) are disabled.
 
+## Background services and hosting
+
+- Host-lifetime work implements `IBackgroundService` in `LiteBus.Runtime.Abstractions` with `Task ExecuteAsync(CancellationToken stoppingToken)`.
+- Modules register services with `configuration.DependencyRegistry.Register(DependencyDescriptor)` and host execution with `configuration.RegisterBackgroundService(Type)`.
+- Do not put `RegisterBackgroundService` on `IDependencyRegistry`. DI adapters must not reference `Microsoft.Extensions.Hosting`.
+- Generic host bridging lives in `LiteBus.Runtime.Extensions.Microsoft.Hosting` and `LiteBus.Runtime.Extensions.Autofac.Hosting` (`BackgroundServiceHostAdapter`, applied from `AddLiteBus` after module build).
+- Feature types: `InboxProcessorBackgroundService`, `AmqpInboxConsumer`, `PostgreSqlInboxSchemaInitializer`. Builder APIs: `EnableInboxProcessor`, `EnableOutboxProcessor`, `DisableSchemaInitialization`, `DisableIngressConsumer`.
+
+See `docs/Hosted-services.md` for registration examples.
+
 ## General coding expectations
 
 - Follow existing naming, project layout, and module patterns.
 - Keep changes scoped to the task.
-- Update `Changelog.md` under `v5.0.0` when public API or documented behavior changes.
+- Update `Changelog.md` under the current major version section when public API or documented behavior changes.

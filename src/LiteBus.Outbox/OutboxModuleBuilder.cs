@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
 
@@ -11,10 +11,15 @@ namespace LiteBus.Outbox;
 ///     Use this builder from `AddOutboxModule`. Register every outbox message contract through
 ///     <see cref="Contracts" /> and optionally replace processor defaults through <see cref="UseProcessorOptions" />.
 ///     Store and dispatcher registration are supplied by storage and dispatch modules, or by application DI registration.
-///     Enable background processing through <see cref="UseProcessorBackgroundWork" />.
+///     Enable background processing through <see cref="EnableOutboxProcessor" />.
 /// </remarks>
 public sealed class OutboxModuleBuilder
 {
+    /// <summary>
+    ///     Gets whether <see cref="OutboxProcessorBackgroundService" /> registration was requested.
+    /// </summary>
+    private bool _enableOutboxProcessor;
+
     /// <summary>
     ///     Initializes a new instance of the <see cref="OutboxModuleBuilder" /> class.
     /// </summary>
@@ -40,18 +45,18 @@ public sealed class OutboxModuleBuilder
     public OutboxProcessorHostOptions ProcessorHostOptions { get; private set; } = new();
 
     /// <summary>
-    ///     Gets a value indicating whether <see cref="OutboxProcessorBackgroundWork" /> is registered.
+    ///     Gets a value indicating whether <see cref="OutboxProcessorBackgroundService" /> is registered.
     /// </summary>
-    public bool RegisterProcessorBackgroundWork { get; private set; }
+    internal bool IsOutboxProcessorEnabled => _enableOutboxProcessor;
 
     /// <summary>
     ///     Registers the outbox processor background loop for the generic host.
     /// </summary>
     /// <param name="configure">An optional callback that configures poll interval, startup delay, and adaptive polling.</param>
     /// <returns>The current builder.</returns>
-    public OutboxModuleBuilder UseProcessorBackgroundWork(Action<OutboxProcessorHostOptions>? configure = null)
+    public OutboxModuleBuilder EnableOutboxProcessor(Action<OutboxProcessorHostOptions>? configure = null)
     {
-        RegisterProcessorBackgroundWork = true;
+        _enableOutboxProcessor = true;
         configure?.Invoke(ProcessorHostOptions);
         return this;
     }

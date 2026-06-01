@@ -1,4 +1,4 @@
-﻿namespace LiteBus.Inbox.Abstractions;
+namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
 ///     Defines execution-context item keys written by inbox dispatchers during processor replay.

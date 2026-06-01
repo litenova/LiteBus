@@ -1,11 +1,6 @@
 using LiteBus.Commands.Abstractions;
 
-namespace LiteBus.Inbox.Ingress.Amqp.IntegrationTests;
-
-internal sealed record ShipOrderCommand : ICommand
-{
-    public required Guid OrderId { get; init; }
-}
+namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 
 internal sealed class ShipOrderCommandHandler : ICommandHandler<ShipOrderCommand>
 {
@@ -21,13 +16,4 @@ internal sealed class ShipOrderCommandHandler : ICommandHandler<ShipOrderCommand
         _recorder.Record(message);
         return Task.CompletedTask;
     }
-}
-
-internal sealed class CommandRecorder
-{
-    private readonly List<ShipOrderCommand> _commands = [];
-
-    public IReadOnlyList<ShipOrderCommand> Commands => _commands;
-
-    public void Record(ShipOrderCommand command) => _commands.Add(command);
 }

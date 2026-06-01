@@ -15,7 +15,7 @@ namespace LiteBus.Inbox.UnitTests;
 public sealed class CommandInboxHostingTests : LiteBusTestBase
 {
     [Fact]
-    public async Task ProcessorBackgroundWork_WhenDisabled_ShouldCompleteWithoutProcessing()
+    public async Task ProcessorBackgroundService_WhenDisabled_ShouldCompleteWithoutProcessing()
     {
         var store = new CommandInboxTests.InMemoryCommandInboxStore();
         var recorder = new CommandInboxTests.CommandRecorder();
@@ -30,7 +30,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorBackgroundWork_ShouldProcessScheduledCommands()
+    public async Task ProcessorBackgroundService_ShouldProcessScheduledCommands()
     {
         var store = new CommandInboxTests.InMemoryCommandInboxStore();
         var recorder = new CommandInboxTests.CommandRecorder();
@@ -59,7 +59,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorBackgroundWork_WhenMissingDependency_ShouldThrowOnResolve()
+    public async Task ProcessorBackgroundService_WhenMissingDependency_ShouldThrowOnResolve()
     {
         var services = new ServiceCollection()
             .AddLiteBus(configuration =>
@@ -67,7 +67,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
                 configuration.AddInboxModule(inbox =>
                 {
                     inbox.Contracts.Register<CommandInboxTests.ShipOrderCommand>("orders.commands.ship", 1);
-                    inbox.UseProcessorBackgroundWork();
+                    inbox.EnableInboxProcessor();
                 });
             });
 
@@ -80,7 +80,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public void ProcessorBackgroundWork_WhenDispatcherMissing_ShouldThrowOnResolve()
+    public void ProcessorBackgroundService_WhenDispatcherMissing_ShouldThrowOnResolve()
     {
         var store = new CommandInboxTests.InMemoryCommandInboxStore();
 
@@ -93,7 +93,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
                 configuration.AddInboxModule(inbox =>
                 {
                     inbox.Contracts.Register<CommandInboxTests.ShipOrderCommand>("orders.commands.ship", 1);
-                    inbox.UseProcessorBackgroundWork();
+                    inbox.EnableInboxProcessor();
                 });
             });
 
@@ -106,7 +106,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorBackgroundWork_ShouldRespectStartupDelay()
+    public async Task ProcessorBackgroundService_ShouldRespectStartupDelay()
     {
         var store = new CommandInboxTests.InMemoryCommandInboxStore();
         var recorder = new CommandInboxTests.CommandRecorder();
@@ -143,7 +143,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorBackgroundWork_WithAdaptivePollingAndFullBatch_ShouldProcessMultipleCommandsQuickly()
+    public async Task ProcessorBackgroundService_WithAdaptivePollingAndFullBatch_ShouldProcessMultipleCommandsQuickly()
     {
         var store = new CommandInboxTests.InMemoryCommandInboxStore();
         var recorder = new CommandInboxTests.CommandRecorder();
@@ -253,7 +253,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
                         });
                     }
 
-                    inbox.UseProcessorBackgroundWork(configureHost);
+                    inbox.EnableInboxProcessor(configureHost);
                 });
             })
             .BuildServiceProvider();

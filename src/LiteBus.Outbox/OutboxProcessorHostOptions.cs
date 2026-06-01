@@ -3,7 +3,7 @@ using System;
 namespace LiteBus.Outbox;
 
 /// <summary>
-///     Defines how the outbox processor background work runs repeated publication passes.
+///     Defines how the outbox processor background loop runs repeated publication passes.
 /// </summary>
 /// <remarks>
 ///     <para>

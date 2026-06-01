@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.MessageModule.UnitTests.Data.PlainMessage;

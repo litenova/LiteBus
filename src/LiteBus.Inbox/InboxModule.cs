@@ -51,17 +51,17 @@ public sealed class InboxModule : IModule
             typeof(Abstractions.IInboxProcessor),
             typeof(InboxProcessor)));
 
-        if (moduleBuilder.RegisterProcessorBackgroundWork)
+        if (moduleBuilder.IsInboxProcessorEnabled)
         {
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
                 typeof(InboxProcessorHostOptions),
                 moduleBuilder.ProcessorHostOptions));
 
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(InboxProcessorBackgroundWork),
-                typeof(InboxProcessorBackgroundWork)));
+                typeof(InboxProcessorBackgroundService),
+                typeof(InboxProcessorBackgroundService)));
 
-            configuration.DependencyRegistry.RegisterBackgroundWork(typeof(InboxProcessorBackgroundWork));
+            configuration.RegisterBackgroundService(typeof(InboxProcessorBackgroundService));
         }
     }
 }

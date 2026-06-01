@@ -18,17 +18,17 @@ public sealed class AmqpInboxIngressModuleBuilder
     public AmqpInboxIngressHostOptions HostOptions { get; private set; } = new();
 
     /// <summary>
-    ///     Gets a value indicating whether <see cref="AmqpInboxIngressBackgroundWork" /> is registered.
+    ///     Gets a value indicating whether <see cref="AmqpInboxConsumer" /> is registered.
     /// </summary>
-    public bool RegisterBackgroundWork { get; private set; } = true;
+    public bool EnableIngressConsumer { get; private set; } = true;
 
     /// <summary>
-    ///     Disables registration of the AMQP ingress background loop.
+    ///     Disables registration of the AMQP ingress consumer background service.
     /// </summary>
     /// <returns>The current builder.</returns>
-    public AmqpInboxIngressModuleBuilder DisableBackgroundWork()
+    public AmqpInboxIngressModuleBuilder DisableIngressConsumer()
     {
-        RegisterBackgroundWork = false;
+        EnableIngressConsumer = false;
         return this;
     }
 

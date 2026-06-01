@@ -3,7 +3,7 @@ using System;
 namespace LiteBus.Inbox;
 
 /// <summary>
-///     Defines how the inbox processor background work runs repeated processing passes.
+///     Defines how the inbox processor background loop runs repeated processing passes.
 /// </summary>
 /// <remarks>
 ///     <para>

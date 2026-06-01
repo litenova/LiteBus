@@ -8,7 +8,7 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 /// <summary>
 ///     Ensures the PostgreSQL outbox schema exists during host startup when configured to do so.
 /// </summary>
-public sealed class PostgreSqlOutboxSchemaBackgroundWork : ILiteBusBackgroundWork
+public sealed class PostgreSqlOutboxSchemaInitializer : IBackgroundService
 {
     /// <summary>
     ///     The registered outbox store configuration consumed during host startup.
@@ -16,16 +16,16 @@ public sealed class PostgreSqlOutboxSchemaBackgroundWork : ILiteBusBackgroundWor
     private readonly PostgreSqlOutboxStoreRegistration _registration;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="PostgreSqlOutboxSchemaBackgroundWork" /> class.
+    ///     Initializes a new instance of the <see cref="PostgreSqlOutboxSchemaInitializer" /> class.
     /// </summary>
     /// <param name="registration">The registered PostgreSQL outbox store configuration.</param>
-    public PostgreSqlOutboxSchemaBackgroundWork(PostgreSqlOutboxStoreRegistration registration)
+    public PostgreSqlOutboxSchemaInitializer(PostgreSqlOutboxStoreRegistration registration)
     {
         _registration = registration ?? throw new ArgumentNullException(nameof(registration));
     }
 
     /// <inheritdoc />
-    public async Task RunAsync(CancellationToken cancellationToken)
+    public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!_registration.Options.EnsureSchemaCreationOnStartup)
         {
@@ -35,7 +35,7 @@ public sealed class PostgreSqlOutboxSchemaBackgroundWork : ILiteBusBackgroundWor
         await PostgreSqlOutboxSchema.EnsureAsync(
                 _registration.DataSource,
                 _registration.Options,
-                cancellationToken)
+                stoppingToken)
             .ConfigureAwait(false);
 
         if (_registration.Options.ValidateSchemaCreationOnStartup)
@@ -43,7 +43,7 @@ public sealed class PostgreSqlOutboxSchemaBackgroundWork : ILiteBusBackgroundWor
             await PostgreSqlOutboxSchema.ValidateAsync(
                     _registration.DataSource,
                     _registration.Options,
-                    cancellationToken)
+                    stoppingToken)
                 .ConfigureAwait(false);
         }
     }

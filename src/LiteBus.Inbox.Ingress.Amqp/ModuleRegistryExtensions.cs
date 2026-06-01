@@ -9,7 +9,7 @@ namespace LiteBus.Inbox.Ingress.Amqp;
 public static class ModuleRegistryExtensions
 {
     /// <summary>
-    ///     Registers AMQP inbox ingress services and background work for the generic host.
+    ///     Registers AMQP inbox ingress services and the ingress consumer background service for the generic host.
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
     /// <param name="configure">The AMQP ingress configuration action.</param>

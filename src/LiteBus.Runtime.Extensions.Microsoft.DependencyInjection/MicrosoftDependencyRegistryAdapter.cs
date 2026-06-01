@@ -3,8 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using LiteBus.Runtime.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-
 namespace LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 
 /// <summary>
@@ -17,11 +15,6 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     ///     Tracks descriptors already translated into Microsoft DI service registrations.
     /// </summary>
     private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
-
-    /// <summary>
-    ///     Tracks background-work implementation types already registered with the service collection.
-    /// </summary>
-    private readonly HashSet<Type> _registeredBackgroundWork = [];
 
     /// <summary>
     ///     The service collection receiving LiteBus dependency registrations.
@@ -84,29 +77,6 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();
-    }
-
-    /// <inheritdoc />
-    public void RegisterBackgroundWork(Type implementationType)
-    {
-        ArgumentNullException.ThrowIfNull(implementationType);
-
-        if (!typeof(ILiteBusBackgroundWork).IsAssignableFrom(implementationType))
-        {
-            throw new ArgumentException(
-                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(ILiteBusBackgroundWork)}.",
-                nameof(implementationType));
-        }
-
-        if (!_registeredBackgroundWork.Add(implementationType))
-        {
-            return;
-        }
-
-        _services.Add(ServiceDescriptor.Singleton(implementationType, implementationType));
-        _services.Add(ServiceDescriptor.Singleton<IHostedService>(serviceProvider =>
-            new LiteBusBackgroundWorkHostedService(
-                (ILiteBusBackgroundWork)serviceProvider.GetRequiredService(implementationType))));
     }
 
     /// <summary>

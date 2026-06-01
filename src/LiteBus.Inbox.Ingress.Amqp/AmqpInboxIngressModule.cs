@@ -47,17 +47,17 @@ public sealed class AmqpInboxIngressModule : IModule
             typeof(AmqpInboxIngressHandler),
             typeof(AmqpInboxIngressHandler)));
 
-        if (moduleBuilder.RegisterBackgroundWork)
+        if (moduleBuilder.EnableIngressConsumer)
         {
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
                 typeof(AmqpInboxIngressHostOptions),
                 moduleBuilder.HostOptions));
 
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(AmqpInboxIngressBackgroundWork),
-                typeof(AmqpInboxIngressBackgroundWork)));
+                typeof(AmqpInboxConsumer),
+                typeof(AmqpInboxConsumer)));
 
-            configuration.DependencyRegistry.RegisterBackgroundWork(typeof(AmqpInboxIngressBackgroundWork));
+            configuration.RegisterBackgroundService(typeof(AmqpInboxConsumer));
         }
     }
 

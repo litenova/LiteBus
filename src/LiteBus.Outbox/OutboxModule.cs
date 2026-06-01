@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
@@ -51,17 +51,17 @@ public sealed class OutboxModule : IModule
             typeof(IOutboxProcessor),
             typeof(OutboxProcessor)));
 
-        if (moduleBuilder.RegisterProcessorBackgroundWork)
+        if (moduleBuilder.IsOutboxProcessorEnabled)
         {
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
                 typeof(OutboxProcessorHostOptions),
                 moduleBuilder.ProcessorHostOptions));
 
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(OutboxProcessorBackgroundWork),
-                typeof(OutboxProcessorBackgroundWork)));
+                typeof(OutboxProcessorBackgroundService),
+                typeof(OutboxProcessorBackgroundService)));
 
-            configuration.DependencyRegistry.RegisterBackgroundWork(typeof(OutboxProcessorBackgroundWork));
+            configuration.RegisterBackgroundService(typeof(OutboxProcessorBackgroundService));
         }
     }
 }

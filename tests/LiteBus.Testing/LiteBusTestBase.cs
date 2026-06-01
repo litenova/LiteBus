@@ -1,4 +1,4 @@
-﻿using LiteBus.Messaging.Registry;
+using LiteBus.Messaging.Registry;
 
 namespace LiteBus.Testing;
 

@@ -1,4 +1,4 @@
-﻿using LiteBus.Events;
+using LiteBus.Events;
 using LiteBus.Events.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.MessageModule.UnitTests.Data.PlainMessage;

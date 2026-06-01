@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Registry;
