@@ -3,7 +3,7 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.Commands;
+using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
@@ -262,7 +262,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
                 });
             });
 
-            configuration.AddInboxCommandDispatcher();
+            configuration.AddInboxInProcessDispatcher();
         });
 
         if (clock is not null)

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Amqp;
+using LiteBus.Transport.Amqp;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
 

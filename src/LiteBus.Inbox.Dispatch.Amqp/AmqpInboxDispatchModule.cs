@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using LiteBus.Amqp;
+using LiteBus.Transport.Amqp;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 

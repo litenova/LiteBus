@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using System.Text.Json;
-using LiteBus.Amqp;
+using LiteBus.Transport.Amqp;
 using LiteBus.Commands;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.Commands;
+using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
@@ -86,7 +86,7 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
             });
 
             liteBus.AddInMemoryInboxStorage();
-            liteBus.AddInboxCommandDispatcher();
+            liteBus.AddInboxInProcessDispatcher();
 
             liteBus.AddInboxAmqpIngress(ingress =>
             {

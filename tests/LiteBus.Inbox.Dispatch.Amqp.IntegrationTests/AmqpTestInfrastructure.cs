@@ -1,5 +1,5 @@
 using System.Text;
-using LiteBus.Amqp;
+using LiteBus.Transport.Amqp;
 using RabbitMQ.Client;
 
 namespace LiteBus.Inbox.Dispatch.Amqp.IntegrationTests;

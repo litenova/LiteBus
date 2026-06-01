@@ -3,10 +3,10 @@ using LiteBus.Events;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.Commands;
+using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Outbox;
-using LiteBus.Outbox.Dispatch.Events;
+using LiteBus.Outbox.Dispatch.InProcess;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Samples.V6.Commands;
 using LiteBus.Samples.V6.Events;
@@ -47,7 +47,7 @@ public static class LiteBusV6Composition
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
             });
             lb.AddInMemoryInboxStorage();
-            lb.AddInboxCommandDispatcher();
+            lb.AddInboxInProcessDispatcher();
 
             lb.AddOutboxModule(outbox =>
             {
@@ -55,7 +55,7 @@ public static class LiteBusV6Composition
                 outbox.EnableOutboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
             });
             lb.AddInMemoryOutboxStorage();
-            lb.AddOutboxEventDispatcher();
+            lb.AddOutboxInProcessDispatcher();
         });
 
         return services;

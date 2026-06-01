@@ -2,7 +2,7 @@ using System;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Amqp;
+using LiteBus.Transport.Amqp;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 

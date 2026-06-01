@@ -9,4 +9,11 @@
         <SignAssembly Condition="Exists('$(MSBuildThisFileDirectory)..\LiteBus.snk')">true</SignAssembly>
         <AssemblyOriginatorKeyFile Condition="Exists('$(MSBuildThisFileDirectory)..\LiteBus.snk')">$(MSBuildThisFileDirectory)..\LiteBus.snk</AssemblyOriginatorKeyFile>
     </PropertyGroup>
+
+    <ItemGroup Condition="'$(ManagePackageVersionsCentrally)' == 'true'">
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
 </Project>

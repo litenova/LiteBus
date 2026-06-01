@@ -21,5 +21,5 @@ public static class InboxExecutionContextKeys
     /// <summary>
     ///     Identifies messages currently being executed from an inbox replay.
     /// </summary>
-    public const string IsInboxExecution = "__LiteBus.CommandInbox.IsInboxExecution";
+    public const string IsInboxExecution = "__LiteBus.Inbox.IsInboxExecution";
 }

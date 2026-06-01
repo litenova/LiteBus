@@ -1,0 +1,34 @@
+using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Storage.InMemory;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace LiteBus.Inbox.Storage.InMemory.UnitTests;
+
+public sealed class InMemoryInboxStorageModuleTests
+{
+    [Fact]
+    public void AddInMemoryInboxStorage_ShouldRegisterAllStoreRoles()
+    {
+        var provider = new ServiceCollection()
+            .AddLiteBus(configuration => configuration.AddInMemoryInboxStorage())
+            .BuildServiceProvider();
+
+        provider.GetRequiredService<IInboxStore>().Should().BeOfType<InMemoryInboxStore>();
+        provider.GetRequiredService<IInboxLeaseStore>().Should().BeSameAs(provider.GetRequiredService<IInboxStore>());
+        provider.GetRequiredService<IInboxStateStore>().Should().BeSameAs(provider.GetRequiredService<IInboxStore>());
+        provider.GetRequiredService<InMemoryInboxStore>().Should().BeSameAs(provider.GetRequiredService<IInboxStore>());
+    }
+
+    [Fact]
+    public void AddInMemoryInboxStorage_WithCustomTimeProvider_ShouldRegisterTimeProvider()
+    {
+        var timeProvider = TimeProvider.System;
+
+        var provider = new ServiceCollection()
+            .AddLiteBus(configuration => configuration.AddInMemoryInboxStorage(builder => builder.UseTimeProvider(timeProvider)))
+            .BuildServiceProvider();
+
+        provider.GetRequiredService<TimeProvider>().Should().BeSameAs(timeProvider);
+    }
+}

@@ -1,6 +1,6 @@
 using System.Text;
 using System.Text.Json;
-using LiteBus.Amqp;
+using LiteBus.Transport.Amqp;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;

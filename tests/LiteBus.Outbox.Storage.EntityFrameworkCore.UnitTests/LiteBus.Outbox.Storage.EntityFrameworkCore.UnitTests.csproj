@@ -9,11 +9,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="coverlet.collector">
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-            <PrivateAssets>all</PrivateAssets>
-        </PackageReference>
-    </ItemGroup>
+</ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.EntityFrameworkCore\LiteBus.Outbox.Storage.EntityFrameworkCore.csproj"/>

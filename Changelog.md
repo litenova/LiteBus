@@ -6,24 +6,24 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Added `LiteBus.Amqp` with `AmqpConnectionOptions`, `IAmqpConnectionManager`, `IAmqpPublisher`, `IAmqpConsumer`, `AmqpPublishRequest`, `AmqpReceivedMessage`, and stable LiteBus AMQP header constants for RabbitMQ and LavinMQ.
-- Added `tests/LiteBus.Amqp.IntegrationTests` with Testcontainers coverage against `rabbitmq:4-management` and `cloudamqp/lavinmq`.
+- Added `LiteBus.Transport.Amqp` with `AmqpConnectionOptions`, `IAmqpConnectionManager`, `IAmqpPublisher`, `IAmqpConsumer`, `AmqpPublishRequest`, `AmqpReceivedMessage`, and stable LiteBus AMQP header constants for RabbitMQ and LavinMQ.
+- Added `tests/LiteBus.Transport.Amqp.IntegrationTests` with Testcontainers coverage against `rabbitmq:4-management` and `cloudamqp/lavinmq`.
 - Added `LiteBus.Storage.PostgreSql` (renamed from `LiteBus.PostgreSql`) with shared PostgreSQL schema infrastructure.
 - Added `LiteBus.Inbox.Storage.PostgreSql` (renamed from `LiteBus.Inbox.PostgreSql`) with `PostgreSqlInboxStore`, `AddPostgreSqlInboxStorage()`, and schema APIs (`GetCreateScript`, `GetUpgradeScript`, `EnsureAsync`, `ValidateAsync`).
 - Added `LiteBus.Outbox.Storage.PostgreSql` (renamed from `LiteBus.Outbox.PostgreSql`) with `PostgreSqlOutboxStore`, `AddPostgreSqlOutboxStorage()`, and matching schema APIs.
-- Added `tests/LiteBus.Storage.PostgreSql.IntegrationTests` (renamed from `LiteBus.PostgreSql.IntegrationTests`) with Testcontainers coverage and explicit `AddInboxCommandDispatcher` / `AddOutboxEventDispatcher` in end-to-end tests.
+- Added `tests/LiteBus.Storage.PostgreSql.IntegrationTests` (renamed from `LiteBus.PostgreSql.IntegrationTests`) with Testcontainers coverage and explicit `AddInboxInProcessDispatcher` / `AddOutboxInProcessDispatcher` in end-to-end tests.
 - Added `LiteBus.Storage.Testing` with abstract `InboxStoreContractTests` and `OutboxStoreContractTests` shared by in-memory, PostgreSQL, and future EF Core stores.
 - Added `LiteBus.Outbox.Storage.InMemory.UnitTests` exercising the in-memory store against the shared outbox store contract tests.
 - Added `docs/Testing.md` with guidance for in-memory storage and Testcontainers-based integration tests.
-- Added `LiteBus.Outbox.Dispatch.Events` with `EventOutboxDispatcher` and `AddOutboxEventDispatcher()` for in-process outbox publication through `IEventPublisher`.
-- Added `LiteBus.Outbox.Dispatch.Amqp` with `AmqpOutboxDispatcher`, `AmqpOutboxDispatcherOptions`, and `AddOutboxAmqpDispatcher()` for broker publication through `LiteBus.Amqp`. Registration aliases: `AddOutboxRabbitMqDispatcher`, `AddOutboxLavinMqDispatcher`.
+- Added `LiteBus.Outbox.Dispatch.InProcess` with `InProcessOutboxDispatcher` and `AddOutboxInProcessDispatcher()` for in-process outbox publication through `IEventPublisher`.
+- Added `LiteBus.Outbox.Dispatch.Amqp` with `AmqpOutboxDispatcher`, `AmqpOutboxDispatcherOptions`, and `AddOutboxAmqpDispatcher()` for broker publication through `LiteBus.Transport.Amqp`. Registration aliases: `AddOutboxRabbitMqDispatcher`, `AddOutboxLavinMqDispatcher`.
 - Added `tests/LiteBus.Outbox.Dispatch.Amqp.IntegrationTests` with end-to-end coverage against RabbitMQ and LavinMQ Testcontainers (in-memory store, processor, AMQP queue assertion).
 - Added `docs/Outbox-Amqp-Dispatch.md` for AMQP outbox dispatch registration, routing, and wire format.
-- Added `LiteBus.Inbox.Dispatch.Commands` with `CommandInboxDispatcher`, `AddInboxCommandDispatcher()`, and single-dispatcher registration validation.
+- Added `LiteBus.Inbox.Dispatch.InProcess` with `InProcessInboxDispatcher`, `AddInboxInProcessDispatcher()`, and single-dispatcher registration validation.
 - Added `LiteBus.Inbox.Dispatch.Amqp` with `AmqpInboxDispatcher`, `AmqpInboxDispatcherOptions`, and `AddInboxAmqpDispatcher()` (plus `AddInboxRabbitMqDispatcher` / `AddInboxLavinMqDispatcher` aliases) for publishing leased inbox envelopes to AMQP.
 - Added `tests/LiteBus.Inbox.Dispatch.Amqp.IntegrationTests` covering inbox processor dispatch to RabbitMQ and LavinMQ queues.
 - Added `docs/Inbox-Amqp.md` documenting AMQP inbox dispatch registration, headers, and remote execution flow.
-- Added `tests/LiteBus.Inbox.Dispatch.Commands.UnitTests` covering command dispatch success, non-command contract failure, trace metadata propagation, and cancellation.
+- Added `tests/LiteBus.Inbox.Dispatch.InProcess.UnitTests` covering in-process dispatch success, non-command contract failure, trace metadata propagation, and cancellation.
 - Added `docs/Inbox.md` with core inbox module, writer, processor, hosting, and separate storage/dispatch registration.
 - Added `LiteBus.Inbox.Storage.InMemory` with `InMemoryInboxStore`, `AddInMemoryInboxStorage()`, and `InMemoryInboxStoreOptions` for capacity limits and default lease duration.
 - Added `LiteBus.Inbox.Storage.InMemory.UnitTests` with inbox store contract, concurrent lease, and idempotency coverage.
@@ -38,6 +38,11 @@ All notable changes to this project will be documented in this file.
 - Added `LiteBus.Inbox.Storage.EntityFrameworkCore` with `InboxMessageEntity`, `IInboxDbContext`, `EfCoreInboxStore`, `EfCoreInboxStoreOptions`, `GetModelBuilderConfiguration()`, and `AddEfCoreInboxStorage()`.
 - Added `tests/LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests` and `tests/LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests` against shared `InboxStoreContractTests`.
 - Added [Entity Framework Core inbox storage](docs/Inbox-EntityFrameworkCore-Storage.md) documentation.
+- Added v6 readiness integration and registration tests: PostgreSQL with AMQP ingress and dispatch, ingress failure acknowledgement paths, module registration guards (`DisableSchemaInitialization`, `DisableIngressConsumer`, duplicate dispatcher/ingress), EF Core processor end-to-end coverage, and `LiteBus.Composition.UnitTests` smoke test for `LiteBus.Samples.V6`.
+
+### Improved
+
+- Expanded v6 test coverage across PostgreSQL, AMQP ingress/dispatch, EF Core processor paths, module registration, and sample composition smoke verification.
 
 ### Docs
 
@@ -69,10 +74,15 @@ All notable changes to this project will be documented in this file.
 - DI adapters ignore duplicate `RegisterHostedService` calls for the same implementation type.
 - Entity Framework Core inbox and outbox model configuration maps `payload` as PostgreSQL `jsonb`, marks message identifiers as application-assigned (`ValueGeneratedNever`), and reloads rows after insert so returned payloads match PostgreSQL normalization.
 - Added `tests/LiteBus.Runtime.UnitTests` covering module ordering, dependency descriptors, DI adapters, and `AddLiteBus` integration.
+- Renamed `LiteBus.Amqp` → `LiteBus.Transport.Amqp` (`LiteBus.{Area}.{Technology}` shared util layout; storage uses `LiteBus.Storage.PostgreSql`).
+- Renamed `LiteBus.Inbox.Dispatch.Commands` → `LiteBus.Inbox.Dispatch.InProcess` (`InProcessInboxDispatcher`, `InProcessInboxDispatchModule`, `AddInboxInProcessDispatcher`).
+- Renamed `LiteBus.Outbox.Dispatch.Events` → `LiteBus.Outbox.Dispatch.InProcess` (`InProcessOutboxDispatcher`, `InProcessOutboxDispatchModule`, `AddOutboxInProcessDispatcher`).
+- Changed `InboxExecutionContextKeys.IsInboxExecution` from `__LiteBus.CommandInbox.IsInboxExecution` to `__LiteBus.Inbox.IsInboxExecution`.
+- Removed unused `Microsoft.Extensions.Diagnostics.HealthChecks` central package versions from `src/Directory.Packages.props`.
 
 - Removed `LiteBusEventOutboxDispatcher`, `IntegrationOutbox`, and `UseLiteBusEventDispatcher()` from `LiteBus.Outbox`.
 - Removed the `LiteBus.Events.Abstractions` project reference from `LiteBus.Outbox`.
-- Removed `CommandInboxDispatcher` from `LiteBus.Inbox`; command dispatch is provided by `LiteBus.Inbox.Dispatch.Commands`.
+- Removed `CommandInboxDispatcher` from `LiteBus.Inbox`; in-process dispatch is provided by `LiteBus.Inbox.Dispatch.InProcess`.
 - Removed the `LiteBus.Commands.Abstractions` project reference from `LiteBus.Inbox`.
 - Removed `IIdempotentCommand`; supply `InboxOptions.IdempotencyKey` explicitly.
 - Removed v5 `AddCommandInboxModule`, `ICommandScheduler`, `IIntegrationOutbox`, and other v5 registration aliases without obsolete shims.

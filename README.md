@@ -28,7 +28,7 @@ LiteBus is an in-process mediator that keeps commands, queries, and events as se
 - **Semantic by design.** `ICommand<TResult>`, `IQuery<TResult>`, and `IEvent` instead of one generic request. Events can be plain POCOs.
 - **Typed pipeline per message.** Distinct pre-handlers, post-handlers, and error-handlers for each message type, plus open generic handlers for cross-cutting concerns.
 - **Event concurrency you control.** Order handlers into priority groups and run each group, and the handlers within it, sequentially or in parallel.
-- **Durable when needed.** An inbox schedules commands and an outbox stores integration events, with at-least-once delivery on PostgreSQL.
+- **Durable when needed.** An inbox stores messages for later execution and an outbox stores messages for later publication, with at-least-once delivery and composable storage and dispatch packages.
 
 ## Install
 
@@ -85,8 +85,9 @@ Queries (`IQueryMediator.QueryAsync`) and events (`IEventMediator.PublishAsync`)
 | Open generic handlers | One handler applies to every matching message; closed at startup. Ideal for logging, validation, metrics. | [Open Generic Handlers](https://github.com/litenova/LiteBus/wiki/Open-Generic-Handlers) |
 | Event concurrency | Sequential or parallel execution across priority groups and within a group. | [Event Module](https://github.com/litenova/LiteBus/wiki/Event-Module) |
 | Streaming queries | Return `IAsyncEnumerable<T>` for large result sets. | [Query Module](https://github.com/litenova/LiteBus/wiki/Query-Module) |
-| Command inbox | Schedule commands for reliable, out-of-band execution with idempotency keys. | [Command Inbox](https://github.com/litenova/LiteBus/wiki/Command-Inbox) |
-| Outbox | Store integration events in the same transaction as a state change, publish after commit. | [Outbox](https://github.com/litenova/LiteBus/wiki/Outbox) |
+| Inbox | Store messages for reliable, out-of-band execution with idempotency keys. | [Inbox](https://github.com/litenova/LiteBus/wiki/Inbox) |
+| Outbox | Store messages in the same transaction as a state change, publish after commit. | [Outbox](https://github.com/litenova/LiteBus/wiki/Outbox) |
+| InProcess dispatch | Replay inbox/outbox envelopes through command and event mediators in the same process. | [Dependency Graph](https://github.com/litenova/LiteBus/wiki/Dependency-Graph) |
 | DI-agnostic core | First-class Microsoft DI and Autofac adapters; an adapter pattern for others. | [Architecture](https://github.com/litenova/LiteBus/wiki/Architecture) |
 
 ## Packages
@@ -98,8 +99,10 @@ LiteBus ships as small packages so you reference only what you run. The full lay
 
 | Category | Package |
 | --- | --- |
-| Metapackage | `LiteBus` |
+| Metapackage | `LiteBus` (core modules only; storage and dispatch are opt-in) |
 | Core modules | `LiteBus.Commands`, `LiteBus.Queries`, `LiteBus.Events`, `LiteBus.Inbox`, `LiteBus.Outbox`, `LiteBus.Messaging`, `LiteBus.Runtime` |
+| InProcess dispatch | `LiteBus.Inbox.Dispatch.InProcess`, `LiteBus.Outbox.Dispatch.InProcess` |
+| Transport | `LiteBus.Transport.Amqp`, `LiteBus.Inbox.Dispatch.Amqp`, `LiteBus.Outbox.Dispatch.Amqp`, `LiteBus.Inbox.Ingress.Amqp` |
 | Abstractions | `LiteBus.Commands.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` |
 | PostgreSQL | `LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.Storage.PostgreSql` |
 | Microsoft DI | `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Commands.Extensions.Microsoft.DependencyInjection`, `LiteBus.Queries.Extensions.Microsoft.DependencyInjection`, `LiteBus.Events.Extensions.Microsoft.DependencyInjection`, `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` |

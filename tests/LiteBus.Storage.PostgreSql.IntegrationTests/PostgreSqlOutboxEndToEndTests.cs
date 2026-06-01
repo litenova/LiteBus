@@ -5,7 +5,7 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Dispatch.Events;
+using LiteBus.Outbox.Dispatch.InProcess;
 using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -229,7 +229,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
 
             if (!useFailingDispatcher)
             {
-                configuration.AddOutboxEventDispatcher();
+                configuration.AddOutboxInProcessDispatcher();
             }
         });
 

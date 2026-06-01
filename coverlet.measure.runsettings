@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura,json</Format>
+          <Exclude>[*.Tests]*,[*.UnitTests]*,[*.IntegrationTests]*,[LiteBus.Storage.Testing]*,[LiteBus.Testing]*</Exclude>
+          <ExcludeByFile>**/tests/**,**/samples/**,**/benchmarks/**</ExcludeByFile>
+          <IncludeDirectory>../src/</IncludeDirectory>
+          <SingleHit>false</SingleHit>
+          <UseSourceLink>true</UseSourceLink>
+          <SkipAutoProps>true</SkipAutoProps>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

@@ -16,7 +16,7 @@
     <File Path=".github/workflows/release.yml" />
   </Folder>
   <Folder Name="/samples/">
-    <Project Path="samples/LiteBus.Samples.NetCore/LiteBus.Samples.NetCore.csproj" />
+    <Project Path="samples/LiteBus.Samples.V6/LiteBus.Samples.V6.csproj" />
     <Project Path="samples/LiteBus.Samples/LiteBus.Samples.csproj" />
   </Folder>
   <Folder Name="/solution-items/">
@@ -30,7 +30,7 @@
   <Folder Name="/src/">
     <File Path="src/Directory.Build.props" />
     <File Path="src/Directory.Packages.props" />
-    <Project Path="src/LiteBus.Amqp/LiteBus.Amqp.csproj" />
+    <Project Path="src/LiteBus.Transport.Amqp/LiteBus.Transport.Amqp.csproj" />
     <Project Path="src/LiteBus.Analyzers/LiteBus.Analyzers.csproj" />
     <Project Path="src/LiteBus.Commands.Abstractions/LiteBus.Commands.Abstractions.csproj" />
     <Project Path="src/LiteBus.Commands.Extensions.Autofac/LiteBus.Commands.Extensions.Autofac.csproj" />
@@ -43,7 +43,7 @@
     <Project Path="src/LiteBus.Extensions.Microsoft.DependencyInjection/LiteBus.Extensions.Microsoft.DependencyInjection.csproj" />
     <Project Path="src/LiteBus.Inbox.Abstractions/LiteBus.Inbox.Abstractions.csproj" />
     <Project Path="src/LiteBus.Inbox.Dispatch.Amqp/LiteBus.Inbox.Dispatch.Amqp.csproj" />
-    <Project Path="src/LiteBus.Inbox.Dispatch.Commands/LiteBus.Inbox.Dispatch.Commands.csproj" />
+    <Project Path="src/LiteBus.Inbox.Dispatch.InProcess/LiteBus.Inbox.Dispatch.InProcess.csproj" />
     <Project Path="src/LiteBus.Inbox.Ingress.Amqp/LiteBus.Inbox.Ingress.Amqp.csproj" />
     <Project Path="src/LiteBus.Inbox.Storage.EntityFrameworkCore/LiteBus.Inbox.Storage.EntityFrameworkCore.csproj" />
     <Project Path="src/LiteBus.Inbox.Storage.InMemory/LiteBus.Inbox.Storage.InMemory.csproj" />
@@ -55,7 +55,7 @@
     <Project Path="src/LiteBus.Messaging/LiteBus.Messaging.csproj" />
     <Project Path="src/LiteBus.Outbox.Abstractions/LiteBus.Outbox.Abstractions.csproj" />
     <Project Path="src/LiteBus.Outbox.Dispatch.Amqp/LiteBus.Outbox.Dispatch.Amqp.csproj" />
-    <Project Path="src/LiteBus.Outbox.Dispatch.Events/LiteBus.Outbox.Dispatch.Events.csproj" />
+    <Project Path="src/LiteBus.Outbox.Dispatch.InProcess/LiteBus.Outbox.Dispatch.InProcess.csproj" />
     <Project Path="src/LiteBus.Outbox.Storage.EntityFrameworkCore/LiteBus.Outbox.Storage.EntityFrameworkCore.csproj" />
     <Project Path="src/LiteBus.Outbox.Storage.InMemory/LiteBus.Outbox.Storage.InMemory.csproj" />
     <Project Path="src/LiteBus.Outbox.Storage.PostgreSql/LiteBus.Outbox.Storage.PostgreSql.csproj" />
@@ -76,21 +76,23 @@
   <Folder Name="/tests/">
     <File Path="tests/Directory.Build.props" />
     <File Path="tests/Directory.Packages.props" />
-    <Project Path="tests/LiteBus.Amqp.IntegrationTests/LiteBus.Amqp.IntegrationTests.csproj" />
+    <Project Path="tests/LiteBus.Transport.Amqp.IntegrationTests/LiteBus.Transport.Amqp.IntegrationTests.csproj" />
     <Project Path="tests/LiteBus.Analyzers.Tests/LiteBus.Analyzers.Tests.csproj" />
     <Project Path="tests/LiteBus.CommandModule.UnitTests/LiteBus.CommandModule.UnitTests.csproj" />
+    <Project Path="tests/LiteBus.Composition.UnitTests/LiteBus.Composition.UnitTests.csproj" />
     <Project Path="tests/LiteBus.EventModule.UnitTests/LiteBus.EventModule.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Extensions.Autofac.UnitTests/LiteBus.Extensions.Autofac.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Inbox.Dispatch.Amqp.IntegrationTests/LiteBus.Inbox.Dispatch.Amqp.IntegrationTests.csproj" />
-    <Project Path="tests/LiteBus.Inbox.Dispatch.Commands.UnitTests/LiteBus.Inbox.Dispatch.Commands.UnitTests.csproj" />
+    <Project Path="tests/LiteBus.Inbox.Dispatch.InProcess.UnitTests/LiteBus.Inbox.Dispatch.InProcess.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Inbox.Ingress.Amqp.IntegrationTests/LiteBus.Inbox.Ingress.Amqp.IntegrationTests.csproj" />
+    <Project Path="tests/LiteBus.Inbox.Ingress.Amqp.UnitTests/LiteBus.Inbox.Ingress.Amqp.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests/LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests.csproj" />
     <Project Path="tests/LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests/LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Inbox.Storage.InMemory.UnitTests/LiteBus.Inbox.Storage.InMemory.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Inbox.UnitTests/LiteBus.Inbox.UnitTests.csproj" />
     <Project Path="tests/LiteBus.MessageModule.UnitTests/LiteBus.MessageModule.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Outbox.Dispatch.Amqp.IntegrationTests/LiteBus.Outbox.Dispatch.Amqp.IntegrationTests.csproj" />
-    <Project Path="tests/LiteBus.Outbox.Dispatch.Events.UnitTests/LiteBus.Outbox.Dispatch.Events.UnitTests.csproj" />
+    <Project Path="tests/LiteBus.Outbox.Dispatch.InProcess.UnitTests/LiteBus.Outbox.Dispatch.InProcess.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests/LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests.csproj" />
     <Project Path="tests/LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests/LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Outbox.Storage.InMemory.UnitTests/LiteBus.Outbox.Storage.InMemory.UnitTests.csproj" />

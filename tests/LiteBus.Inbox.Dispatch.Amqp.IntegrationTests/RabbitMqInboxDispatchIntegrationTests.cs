@@ -1,4 +1,4 @@
-using LiteBus.Amqp;
+using LiteBus.Transport.Amqp;
 
 namespace LiteBus.Inbox.Dispatch.Amqp.IntegrationTests;
 

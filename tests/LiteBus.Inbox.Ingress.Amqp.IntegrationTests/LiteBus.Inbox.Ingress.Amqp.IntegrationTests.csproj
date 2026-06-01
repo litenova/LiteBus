@@ -13,17 +13,13 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="coverlet.collector">
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-            <PrivateAssets>all</PrivateAssets>
-        </PackageReference>
-    </ItemGroup>
+</ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\LiteBus.Amqp\LiteBus.Amqp.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands\LiteBus.Commands.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.Commands\LiteBus.Inbox.Dispatch.Commands.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.InProcess\LiteBus.Inbox.Dispatch.InProcess.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.Amqp\LiteBus.Inbox.Ingress.Amqp.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>

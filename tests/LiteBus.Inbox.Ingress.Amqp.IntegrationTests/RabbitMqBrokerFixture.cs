@@ -1,4 +1,4 @@
-using LiteBus.Amqp;
+using LiteBus.Transport.Amqp;
 using Testcontainers.RabbitMq;
 
 namespace LiteBus.Inbox.Ingress.Amqp.IntegrationTests;

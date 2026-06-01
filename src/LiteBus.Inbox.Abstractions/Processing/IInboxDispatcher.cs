@@ -13,7 +13,7 @@ namespace LiteBus.Inbox.Abstractions;
 ///         should throw so the processor can record retry or dead-letter state.
 ///     </para>
 ///     <para>
-///         The default in-process implementation lives in <c>LiteBus.Inbox.Dispatch.Commands</c> and dispatches through
+///         The default in-process implementation lives in <c>LiteBus.Inbox.Dispatch.InProcess</c> and dispatches through
 ///         <c>ICommandMediator</c>. Register a custom implementation when the inbox needs a different execution target.
 ///     </para>
 /// </remarks>
