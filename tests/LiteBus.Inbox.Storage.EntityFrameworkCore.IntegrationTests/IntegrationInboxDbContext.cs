@@ -1,4 +1,5 @@
 using LiteBus.Inbox.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests;
@@ -14,14 +15,24 @@ internal sealed class IntegrationInboxDbContext : DbContext, IInboxDbContext
     private readonly EfCoreInboxStoreOptions _storeOptions;
 
     /// <summary>
+    ///     The storage provider used for model configuration.
+    /// </summary>
+    private readonly EfCoreStorageProvider _storageProvider;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="IntegrationInboxDbContext" /> class.
     /// </summary>
     /// <param name="options">The context options.</param>
     /// <param name="storeOptions">The inbox store options.</param>
-    public IntegrationInboxDbContext(DbContextOptions<IntegrationInboxDbContext> options, EfCoreInboxStoreOptions storeOptions)
+    /// <param name="storageProvider">The storage provider used for model configuration.</param>
+    public IntegrationInboxDbContext(
+        DbContextOptions<IntegrationInboxDbContext> options,
+        EfCoreInboxStoreOptions storeOptions,
+        EfCoreStorageProvider storageProvider = EfCoreStorageProvider.PostgreSql)
         : base(options)
     {
         _storeOptions = storeOptions;
+        _storageProvider = storageProvider;
     }
 
     /// <inheritdoc />
@@ -30,6 +41,6 @@ internal sealed class IntegrationInboxDbContext : DbContext, IInboxDbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.GetModelBuilderConfiguration(_storeOptions);
+        modelBuilder.GetModelBuilderConfiguration(_storeOptions, _storageProvider);
     }
 }

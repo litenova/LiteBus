@@ -1,4 +1,5 @@
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests;
@@ -27,10 +28,10 @@ public sealed class OutboxEntityFrameworkCoreModelTests
     }
 
     [Fact]
-    public void GetModelBuilderConfiguration_ShouldMapTraceContextAsJsonb()
+    public void GetModelBuilderConfiguration_ShouldMapTraceContextAsJsonbWhenProviderSpecified()
     {
         var modelBuilder = new ModelBuilder();
-        modelBuilder.GetModelBuilderConfiguration();
+        modelBuilder.GetModelBuilderConfiguration(provider: EfCoreStorageProvider.PostgreSql);
 
         var entity = modelBuilder.Model.FindEntityType(typeof(OutboxMessageEntity));
         var traceContext = entity!.FindProperty(nameof(OutboxMessageEntity.TraceContext));

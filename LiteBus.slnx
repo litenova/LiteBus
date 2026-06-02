@@ -71,6 +71,7 @@
     <Project Path="src/LiteBus.Runtime.Extensions.Microsoft.Hosting/LiteBus.Runtime.Extensions.Microsoft.Hosting.csproj" />
     <Project Path="src/LiteBus.Runtime/LiteBus.Runtime.csproj" />
     <Project Path="src/LiteBus.Storage.PostgreSql/LiteBus.Storage.PostgreSql.csproj" />
+    <Project Path="src/LiteBus.Storage.EntityFrameworkCore/LiteBus.Storage.EntityFrameworkCore.csproj" />
     <Project Path="src/LiteBus/LiteBus.csproj" />
   </Folder>
   <Folder Name="/tests/">

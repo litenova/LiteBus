@@ -1,5 +1,6 @@
 using System;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -15,15 +16,20 @@ public static class InboxEntityFrameworkCoreModelExtensions
     /// </summary>
     /// <param name="modelBuilder">The model builder used by the application <see cref="DbContext" />.</param>
     /// <param name="options">Optional store options that control schema and table names.</param>
+    /// <param name="provider">
+    ///     An optional storage provider used to apply store-specific JSON column types. When omitted, payload and
+    ///     trace columns remain provider-neutral strings and applications should set column types explicitly if needed.
+    /// </param>
     /// <returns>The same <paramref name="modelBuilder" /> for chaining.</returns>
     public static ModelBuilder GetModelBuilderConfiguration(
         this ModelBuilder modelBuilder,
-        EfCoreInboxStoreOptions? options = null)
+        EfCoreInboxStoreOptions? options = null,
+        EfCoreStorageProvider? provider = null)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
         options ??= new EfCoreInboxStoreOptions();
-        ConfigureInboxMessageEntity(modelBuilder.Entity<InboxMessageEntity>(), options);
+        ConfigureInboxMessageEntity(modelBuilder.Entity<InboxMessageEntity>(), options, provider);
         return modelBuilder;
     }
 
@@ -32,9 +38,13 @@ public static class InboxEntityFrameworkCoreModelExtensions
     /// </summary>
     /// <param name="entity">The entity type builder.</param>
     /// <param name="options">Store options that control schema and table names.</param>
+    /// <param name="provider">
+    ///     An optional storage provider used to apply store-specific JSON column types.
+    /// </param>
     internal static void ConfigureInboxMessageEntity(
         EntityTypeBuilder<InboxMessageEntity> entity,
-        EfCoreInboxStoreOptions options)
+        EfCoreInboxStoreOptions options,
+        EfCoreStorageProvider? provider = null)
     {
         ArgumentNullException.ThrowIfNull(entity);
         ArgumentNullException.ThrowIfNull(options);
@@ -56,7 +66,7 @@ public static class InboxEntityFrameworkCoreModelExtensions
 
         entity.Property(message => message.Payload)
             .HasColumnName("payload")
-            .HasColumnType("jsonb")
+            .ConfigureJsonPayloadColumn<InboxMessageEntity>(provider)
             .IsRequired();
 
         entity.Property(message => message.CreatedAt)
@@ -95,7 +105,7 @@ public static class InboxEntityFrameworkCoreModelExtensions
 
         entity.Property(message => message.TraceContext)
             .HasColumnName("trace_context")
-            .HasColumnType("jsonb");
+            .ConfigureJsonTraceContextColumn<InboxMessageEntity>(provider);
 
         entity.HasIndex(message => message.IdempotencyKey)
             .IsUnique()

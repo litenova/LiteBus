@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore.Leasing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,8 +17,9 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         PostgreSQL uses <c>FOR UPDATE SKIP LOCKED</c> for leasing. The in-memory provider uses a
-///         process-wide lock with the same visibility rules so unit tests can run without a database.
+///         Relational providers use provider-specific skip-locked lease SQL for PostgreSQL, SQL Server, and MySQL.
+///         The in-memory provider uses a process-wide lock with the same visibility rules so unit tests can run
+///         without a database.
 ///     </para>
 ///     <para>
 ///         Applications own the <see cref="DbContext" /> and migrations. Call
@@ -26,56 +29,6 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 /// </remarks>
 public sealed class EfCoreOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutboxStateStore
 {
-    /// <summary>
-    ///     Provider name for the Entity Framework Core in-memory database.
-    /// </summary>
-    private const string InMemoryProviderName = "Microsoft.EntityFrameworkCore.InMemory";
-
-    /// <summary>
-    ///     Provider name for the Npgsql Entity Framework Core provider.
-    /// </summary>
-    private const string NpgsqlProviderName = "Npgsql.EntityFrameworkCore.PostgreSQL";
-
-    /// <summary>
-    ///     PostgreSQL lease SQL with a table placeholder replaced at runtime.
-    /// </summary>
-    private const string PostgreSqlLeaseSql = """
-                                            WITH candidates AS (
-                                                SELECT message_id
-                                                FROM {TABLE}
-                                                WHERE
-                                                    ((status IN ({0}, {1}) AND (visible_after IS NULL OR visible_after <= {2}))
-                                                     OR (status = {3} AND lease_expires_at IS NOT NULL AND lease_expires_at <= {2}))
-                                                ORDER BY created_at ASC
-                                                LIMIT {4}
-                                                FOR UPDATE SKIP LOCKED
-                                            )
-                                            UPDATE {TABLE} AS outbox
-                                            SET
-                                                status = {3},
-                                                lease_owner = {5},
-                                                lease_expires_at = {6},
-                                                attempt_count = outbox.attempt_count + 1
-                                            FROM candidates
-                                            WHERE outbox.message_id = candidates.message_id
-                                            RETURNING
-                                                outbox.message_id,
-                                                outbox.contract_name,
-                                                outbox.contract_version,
-                                                outbox.payload,
-                                                outbox.topic,
-                                                outbox.created_at,
-                                                outbox.visible_after,
-                                                outbox.status,
-                                                outbox.attempt_count,
-                                                outbox.lease_owner,
-                                                outbox.lease_expires_at,
-                                                outbox.last_error,
-                                                outbox.correlation_id,
-                                                outbox.causation_id,
-                                                outbox.tenant_id;
-                                            """;
-
     /// <summary>
     ///     Synchronizes in-memory leasing when multiple workers run in one process.
     /// </summary>
@@ -102,11 +55,6 @@ public sealed class EfCoreOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutbox
     private readonly IServiceScopeFactory? _scopeFactory;
 
     /// <summary>
-    ///     The quoted qualified table name used by PostgreSQL lease SQL.
-    /// </summary>
-    private readonly string _qualifiedTableName;
-
-    /// <summary>
     ///     Initializes a new instance of the <see cref="EfCoreOutboxStore" /> class using dependency injection scopes.
     /// </summary>
     /// <param name="scopeFactory">The scope factory that resolves the application database context.</param>
@@ -131,7 +79,6 @@ public sealed class EfCoreOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutbox
         _scopeFactory = scopeFactory;
         _dbContextType = dbContextType;
         _options = options;
-        _qualifiedTableName = QualifyTableName(options.SchemaName, options.TableName);
     }
 
     /// <summary>
@@ -145,7 +92,6 @@ public sealed class EfCoreOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutbox
     {
         _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
         _options = options ?? throw new ArgumentNullException(nameof(options));
-        _qualifiedTableName = QualifyTableName(options.SchemaName, options.TableName);
     }
 
     /// <inheritdoc />
@@ -194,23 +140,19 @@ public sealed class EfCoreOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutbox
 
         return await ExecuteAsync(async (context, token) =>
         {
-            if (IsInMemoryProvider(context))
+            if (context is not DbContext dbContext)
+            {
+                throw new InvalidOperationException("Leasing requires a DbContext-backed outbox database context.");
+            }
+
+            var provider = EfCoreProviderResolver.Resolve(dbContext, _options.LeaseProvider);
+
+            if (provider == EfCoreStorageProvider.InMemory)
             {
                 return await LeasePendingInMemoryAsync(context, request, token).ConfigureAwait(false);
             }
 
-            if (IsNpgsqlProvider(context))
-            {
-                return await LeasePendingPostgreSqlAsync(context, request, token).ConfigureAwait(false);
-            }
-
-            var providerName = context is DbContext dbContext
-                ? dbContext.Database.ProviderName
-                : "unknown";
-
-            throw new NotSupportedException(
-                $"Leasing is not supported for Entity Framework provider '{providerName}'. " +
-                "Use the in-memory provider for unit tests or Npgsql.EntityFrameworkCore.PostgreSQL for PostgreSQL.");
+            return await LeasePendingRelationalAsync(dbContext, provider, request, token).ConfigureAwait(false);
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -330,37 +272,80 @@ public sealed class EfCoreOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutbox
     }
 
     /// <summary>
-    ///     Leases messages using PostgreSQL row locking semantics.
+    ///     Leases messages using a supported relational provider dialect.
     /// </summary>
-    /// <param name="context">The database context.</param>
+    /// <param name="dbContext">The database context.</param>
+    /// <param name="provider">The resolved storage provider.</param>
     /// <param name="request">The lease request.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The leased message envelopes.</returns>
-    private async Task<IReadOnlyList<OutboxEnvelope>> LeasePendingPostgreSqlAsync(
-        IOutboxDbContext context,
+    private async Task<IReadOnlyList<OutboxEnvelope>> LeasePendingRelationalAsync(
+        DbContext dbContext,
+        EfCoreStorageProvider provider,
         OutboxLeaseRequest request,
         CancellationToken cancellationToken)
     {
-        if (context is not DbContext dbContext)
+        if (provider == EfCoreStorageProvider.Sqlite)
         {
-            throw new InvalidOperationException("PostgreSQL leasing requires a DbContext-backed outbox database context.");
+            throw new NotSupportedException(
+                "SQLite does not support concurrent outbox leasing for multiple processors. " +
+                "Use PostgreSQL, SQL Server, MySQL, or run a single outbox processor instance.");
         }
 
         var leaseExpiresAt = request.Now.Add(request.LeaseDuration);
-        var sql = PostgreSqlLeaseSql.Replace("{TABLE}", _qualifiedTableName, StringComparison.Ordinal);
-
-        var rows = await dbContext.Database
-            .SqlQueryRaw<OutboxMessageLeaseRow>(
-                sql,
-                (int)OutboxStatus.Pending,
-                (int)OutboxStatus.Failed,
-                request.Now,
-                (int)OutboxStatus.Publishing,
-                request.BatchSize,
-                request.LeaseOwner,
-                leaseExpiresAt)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+        List<OutboxMessageLeaseRow> rows = provider switch
+        {
+            EfCoreStorageProvider.PostgreSql => await EfCoreRelationalLeaseExecutor
+                .LeasePostgreSqlAsync<OutboxMessageLeaseRow>(
+                    dbContext,
+                    EfCoreLeaseComponent.Outbox,
+                    provider,
+                    _options.SchemaName,
+                    _options.TableName,
+                    (int)OutboxStatus.Pending,
+                    (int)OutboxStatus.Failed,
+                    request.Now,
+                    (int)OutboxStatus.Publishing,
+                    request.BatchSize,
+                    request.LeaseOwner,
+                    leaseExpiresAt,
+                    cancellationToken)
+                .ConfigureAwait(false),
+            EfCoreStorageProvider.SqlServer => await EfCoreRelationalLeaseExecutor
+                .LeaseSqlServerAsync<OutboxMessageLeaseRow>(
+                    dbContext,
+                    EfCoreLeaseComponent.Outbox,
+                    provider,
+                    _options.SchemaName,
+                    _options.TableName,
+                    (int)OutboxStatus.Pending,
+                    (int)OutboxStatus.Failed,
+                    request.Now,
+                    (int)OutboxStatus.Publishing,
+                    request.BatchSize,
+                    request.LeaseOwner,
+                    leaseExpiresAt,
+                    cancellationToken)
+                .ConfigureAwait(false),
+            EfCoreStorageProvider.MySql => await EfCoreRelationalLeaseExecutor
+                .LeaseMySqlAsync<OutboxMessageLeaseRow>(
+                    dbContext,
+                    EfCoreLeaseComponent.Outbox,
+                    provider,
+                    _options.SchemaName,
+                    _options.TableName,
+                    (int)OutboxStatus.Pending,
+                    (int)OutboxStatus.Failed,
+                    request.Now,
+                    (int)OutboxStatus.Publishing,
+                    request.BatchSize,
+                    request.LeaseOwner,
+                    leaseExpiresAt,
+                    cancellationToken)
+                .ConfigureAwait(false),
+            _ => throw new NotSupportedException(
+                $"Outbox leasing is not supported for Entity Framework provider '{provider}'.")
+        };
 
         return rows.Select(ToEnvelope).ToArray();
     }
@@ -482,39 +467,6 @@ public sealed class EfCoreOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutbox
     }
 
     /// <summary>
-    ///     Returns whether the context uses the in-memory provider.
-    /// </summary>
-    /// <param name="context">The database context.</param>
-    /// <returns><see langword="true" /> when the in-memory provider is active.</returns>
-    private static bool IsInMemoryProvider(IOutboxDbContext context)
-    {
-        return context is DbContext dbContext
-               && dbContext.Database.ProviderName == InMemoryProviderName;
-    }
-
-    /// <summary>
-    ///     Returns whether the context uses the Npgsql provider.
-    /// </summary>
-    /// <param name="context">The database context.</param>
-    /// <returns><see langword="true" /> when the Npgsql provider is active.</returns>
-    private static bool IsNpgsqlProvider(IOutboxDbContext context)
-    {
-        return context is DbContext dbContext
-               && dbContext.Database.ProviderName == NpgsqlProviderName;
-    }
-
-    /// <summary>
-    ///     Builds a quoted schema-qualified table name for PostgreSQL SQL.
-    /// </summary>
-    /// <param name="schemaName">The schema name.</param>
-    /// <param name="tableName">The table name.</param>
-    /// <returns>The quoted qualified table name.</returns>
-    private static string QualifyTableName(string schemaName, string tableName)
-    {
-        return $"\"{schemaName}\".\"{tableName}\"";
-    }
-
-    /// <summary>
     ///     Maps a persisted entity to an outbox envelope.
     /// </summary>
     /// <param name="entity">The entity to map.</param>
@@ -596,7 +548,7 @@ public sealed class EfCoreOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutbox
     }
 
     /// <summary>
-    ///     Represents one row returned by PostgreSQL lease SQL.
+    ///     Represents one row returned by relational lease SQL.
     /// </summary>
     private sealed class OutboxMessageLeaseRow
     {

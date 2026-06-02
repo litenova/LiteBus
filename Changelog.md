@@ -38,6 +38,8 @@ All notable changes to this project will be documented in this file.
 - Added `LiteBus.Inbox.Storage.EntityFrameworkCore` with `InboxMessageEntity`, `IInboxDbContext`, `EfCoreInboxStore`, `EfCoreInboxStoreOptions`, `GetModelBuilderConfiguration()`, and `AddEfCoreInboxStorage()`.
 - Added `tests/LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests` and `tests/LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests` against shared `InboxStoreContractTests`.
 - Added [Entity Framework Core inbox storage](docs/Inbox-EntityFrameworkCore-Storage.md) documentation.
+- Added `LiteBus.Storage.EntityFrameworkCore` with shared EF relational leasing SQL, `EfCoreStorageProvider`, and provider-aware model column helpers used by inbox and outbox EF stores.
+- Extended `EfCoreInboxStore` and `EfCoreOutboxStore` with multi-provider leasing for PostgreSQL, SQL Server, and MySQL (Pomelo) without adding provider packages to LiteBus shipping assemblies. Added optional `LeaseProvider` on EF store options and SQL Server integration contract tests.
 - Added v6 readiness integration and registration tests: PostgreSQL with AMQP ingress and dispatch, ingress failure acknowledgement paths, module registration guards (`DisableSchemaInitialization`, `DisableIngressConsumer`, duplicate dispatcher/ingress), EF Core processor end-to-end coverage, and `LiteBus.Composition.UnitTests` smoke test for `LiteBus.Samples.V6`.
 
 ### Improved

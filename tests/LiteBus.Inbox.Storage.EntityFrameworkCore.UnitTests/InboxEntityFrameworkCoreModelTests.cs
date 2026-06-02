@@ -1,4 +1,5 @@
 using LiteBus.Inbox.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests;
@@ -40,10 +41,10 @@ public sealed class InboxEntityFrameworkCoreModelTests
     }
 
     [Fact]
-    public void GetModelBuilderConfiguration_ShouldMapTraceContextAsJsonb()
+    public void GetModelBuilderConfiguration_ShouldMapTraceContextAsJsonbWhenProviderSpecified()
     {
         var modelBuilder = new ModelBuilder();
-        modelBuilder.GetModelBuilderConfiguration();
+        modelBuilder.GetModelBuilderConfiguration(provider: EfCoreStorageProvider.PostgreSql);
 
         var entity = modelBuilder.Model.FindEntityType(typeof(InboxMessageEntity));
         var traceContext = entity!.FindProperty(nameof(InboxMessageEntity.TraceContext));
@@ -52,5 +53,18 @@ public sealed class InboxEntityFrameworkCoreModelTests
         traceContext!.GetColumnName().Should().Be("trace_context");
         traceContext.GetColumnType().Should().Be("jsonb");
         traceContext.IsNullable.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GetModelBuilderConfiguration_ShouldLeaveTraceContextProviderNeutralByDefault()
+    {
+        var modelBuilder = new ModelBuilder();
+        modelBuilder.GetModelBuilderConfiguration();
+
+        var entity = modelBuilder.Model.FindEntityType(typeof(InboxMessageEntity));
+        var traceContext = entity!.FindProperty(nameof(InboxMessageEntity.TraceContext));
+
+        traceContext.Should().NotBeNull();
+        traceContext!.GetColumnType().Should().BeNull();
     }
 }
