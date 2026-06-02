@@ -1,15 +1,15 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace LiteBus.Runtime.Extensions.Microsoft.Hosting;
+namespace LiteBus.Runtime.Extensions.Autofac.Hosting;
 
 /// <summary>
-///     Signals when startup-phase background services have finished so long-running loops can begin.
+///     Signals when startup tasks have finished so long-running background service loops can begin.
 /// </summary>
-internal sealed class BackgroundServiceStartupGate
+internal sealed class StartupTaskGate
 {
     /// <summary>
-    ///     The task that completes when startup-phase background services finish.
+    ///     The task that completes when startup tasks finish.
     /// </summary>
     private readonly TaskCompletionSource _completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -24,7 +24,7 @@ internal sealed class BackgroundServiceStartupGate
     }
 
     /// <summary>
-    ///     Marks startup-phase background services as complete so continuous services can start.
+    ///     Marks startup tasks as complete so continuous background services can start.
     /// </summary>
     public void SignalComplete()
     {

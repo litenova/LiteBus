@@ -12,16 +12,26 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
     {
         var services = new ServiceCollection();
 
-        services.RegisterBackgroundServices([typeof(RecordingBackgroundService), typeof(RecordingBackgroundService)]);
+        services.RegisterBackgroundServices([], [typeof(RecordingBackgroundService), typeof(RecordingBackgroundService)]);
 
-        services.Count(descriptor => descriptor.ServiceType == typeof(IHostedService)).Should().Be(2);
+        services.Count(descriptor => descriptor.ServiceType == typeof(IHostedService)).Should().Be(1);
         services.Count(descriptor => descriptor.ServiceType == typeof(RecordingBackgroundService)).Should().Be(1);
     }
 
     [Fact]
     public void RegisterBackgroundServices_WhenServicesNull_ShouldThrow()
     {
-        var act = () => MicrosoftBackgroundServiceHostingExtensions.RegisterBackgroundServices(null!, []);
+        var act = () => MicrosoftBackgroundServiceHostingExtensions.RegisterBackgroundServices(null!, [], []);
+
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void RegisterBackgroundServices_WhenStartupTasksNull_ShouldThrow()
+    {
+        var services = new ServiceCollection();
+
+        var act = () => services.RegisterBackgroundServices(null!, []);
 
         act.Should().Throw<ArgumentNullException>();
     }
@@ -31,7 +41,7 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
     {
         var services = new ServiceCollection();
 
-        var act = () => services.RegisterBackgroundServices(null!);
+        var act = () => services.RegisterBackgroundServices([], null!);
 
         act.Should().Throw<ArgumentNullException>();
     }
@@ -40,7 +50,7 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
     public async Task RegisterBackgroundServices_ShouldExecuteUnderlyingBackgroundService()
     {
         var services = new ServiceCollection();
-        services.RegisterBackgroundServices([typeof(RecordingBackgroundService)]);
+        services.RegisterBackgroundServices([], [typeof(RecordingBackgroundService)]);
 
         await using var provider = services.BuildServiceProvider();
         var hostedServices = provider.GetServices<IHostedService>().ToList();
@@ -63,16 +73,14 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
     }
 
     [Fact]
-    public async Task RegisterBackgroundServices_WhenStartupInitializerRegisteredFirst_ShouldCompleteStartupBeforeContinuousLoop()
+    public async Task RegisterBackgroundServices_WhenStartupTaskRegisteredFirst_ShouldCompleteStartupBeforeContinuousLoop()
     {
-        RecordingStartupBackgroundServiceState.StartupCompleted = false;
+        RecordingStartupTaskState.StartupCompleted = false;
 
         var services = new ServiceCollection();
         services.RegisterBackgroundServices(
-        [
-            typeof(RecordingStartupBackgroundService),
-            typeof(OrderedContinuousBackgroundService)
-        ]);
+            [typeof(RecordingStartupTask)],
+            [typeof(OrderedContinuousBackgroundService)]);
 
         await using var provider = services.BuildServiceProvider();
         var hostedServices = provider.GetServices<IHostedService>().ToList();
@@ -94,20 +102,20 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
         }
     }
 
-    private sealed class RecordingStartupBackgroundService : IBackgroundServiceStartupInitializer
+    private sealed class RecordingStartupTask : IStartupTask
     {
         /// <inheritdoc />
-        public Task ExecuteAsync(CancellationToken stoppingToken)
+        public Task RunAsync(CancellationToken cancellationToken)
         {
-            RecordingStartupBackgroundServiceState.StartupCompleted = true;
+            RecordingStartupTaskState.StartupCompleted = true;
             return Task.CompletedTask;
         }
     }
 
-    private static class RecordingStartupBackgroundServiceState
+    private static class RecordingStartupTaskState
     {
         /// <summary>
-        ///     Gets or sets a value indicating whether the startup initializer has completed.
+        ///     Gets or sets a value indicating whether the startup task has completed.
         /// </summary>
         public static bool StartupCompleted { get; set; }
     }
@@ -115,14 +123,14 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
     private sealed class OrderedContinuousBackgroundService : IBackgroundService
     {
         /// <summary>
-        ///     Gets a value indicating whether the continuous loop started after the startup initializer completed.
+        ///     Gets a value indicating whether the continuous loop started after the startup task completed.
         /// </summary>
         public bool StartedAfterStartup { get; private set; }
 
         /// <inheritdoc />
         public async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            StartedAfterStartup = RecordingStartupBackgroundServiceState.StartupCompleted;
+            StartedAfterStartup = RecordingStartupTaskState.StartupCompleted;
 
             while (!stoppingToken.IsCancellationRequested)
             {

@@ -54,7 +54,7 @@ public static class ContainerBuilderExtensions
             moduleDescriptor.Module.Build(moduleConfiguration);
         }
 
-        builder.RegisterBackgroundServices(moduleConfiguration.BackgroundServices);
+        builder.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
 
         // Register IServiceProvider for factory compatibility.
         builder.Register(c => new AutofacServiceProvider(c.Resolve<IComponentContext>()))

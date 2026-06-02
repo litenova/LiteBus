@@ -16,6 +16,16 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
     private readonly Dictionary<Type, object> _contexts = [];
 
     /// <summary>
+    ///     Startup task implementation types registered for host execution in first-registration order.
+    /// </summary>
+    private readonly List<Type> _startupTasks = [];
+
+    /// <summary>
+    ///     Tracks startup task types already registered so duplicates are ignored without reordering.
+    /// </summary>
+    private readonly HashSet<Type> _startupTaskTypes = [];
+
+    /// <summary>
     ///     Background service implementation types registered for host execution in first-registration order.
     /// </summary>
     private readonly List<Type> _backgroundServices = [];
@@ -39,12 +49,41 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
     public IDependencyRegistry DependencyRegistry { get; }
 
     /// <inheritdoc />
+    public IReadOnlyList<Type> StartupTasks => [.. _startupTasks];
+
+    /// <inheritdoc />
     public IReadOnlyList<Type> BackgroundServices => [.. _backgroundServices];
+
+    /// <inheritdoc />
+    public void RegisterStartupTask(Type implementationType)
+    {
+        ArgumentNullException.ThrowIfNull(implementationType);
+
+        if (!typeof(IStartupTask).IsAssignableFrom(implementationType))
+        {
+            throw new ArgumentException(
+                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(IStartupTask)}.",
+                nameof(implementationType));
+        }
+
+        if (_startupTaskTypes.Add(implementationType))
+        {
+            _startupTasks.Add(implementationType);
+        }
+    }
 
     /// <inheritdoc />
     public void RegisterBackgroundService(Type implementationType)
     {
         ArgumentNullException.ThrowIfNull(implementationType);
+
+        if (typeof(IStartupTask).IsAssignableFrom(implementationType))
+        {
+            throw new ArgumentException(
+                $"Type '{implementationType.FullName ?? implementationType.Name}' implements {nameof(IStartupTask)}. " +
+                $"Use {nameof(RegisterStartupTask)} instead of {nameof(RegisterBackgroundService)}.",
+                nameof(implementationType));
+        }
 
         if (!typeof(IBackgroundService).IsAssignableFrom(implementationType))
         {

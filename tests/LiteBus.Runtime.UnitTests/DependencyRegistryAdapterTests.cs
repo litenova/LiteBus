@@ -54,7 +54,7 @@ public sealed class DependencyRegistryAdapterTests
             }));
         });
 
-        services.Count(service => service.ServiceType == typeof(IHostedService)).Should().Be(2);
+        services.Count(service => service.ServiceType == typeof(IHostedService)).Should().Be(1);
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public sealed class DependencyRegistryAdapterTests
             registry.Register(new BackgroundServiceRegistrationModule(typeof(TestBackgroundService), typeof(OtherBackgroundService)));
         });
 
-        services.Count(service => service.ServiceType == typeof(IHostedService)).Should().Be(3);
+        services.Count(service => service.ServiceType == typeof(IHostedService)).Should().Be(2);
     }
 
     [Fact]
@@ -107,6 +107,6 @@ public sealed class DependencyRegistryAdapterTests
         });
 
         using var container = builder.Build();
-        container.Resolve<IEnumerable<IHostedService>>().Should().HaveCount(2);
+        container.Resolve<IEnumerable<IHostedService>>().Should().HaveCount(1);
     }
 }

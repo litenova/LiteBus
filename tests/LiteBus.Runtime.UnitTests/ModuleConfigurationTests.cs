@@ -7,23 +7,41 @@ namespace LiteBus.Runtime.UnitTests;
 public sealed class ModuleConfigurationTests
 {
     [Fact]
+    public void RegisterStartupTask_ShouldPreserveFirstRegistrationOrderAndDeduplicate()
+    {
+        var configuration = new ModuleConfiguration(new DependencyRegistry());
+
+        configuration.RegisterStartupTask(typeof(RecordingStartupTask));
+        configuration.RegisterStartupTask(typeof(RecordingStartupTask));
+
+        configuration.StartupTasks.Should().Equal(typeof(RecordingStartupTask));
+    }
+
+    [Fact]
     public void RegisterBackgroundService_ShouldPreserveFirstRegistrationOrderAndDeduplicate()
     {
         var configuration = new ModuleConfiguration(new DependencyRegistry());
 
-        configuration.RegisterBackgroundService(typeof(RecordingStartupBackgroundService));
         configuration.RegisterBackgroundService(typeof(RecordingContinuousBackgroundService));
-        configuration.RegisterBackgroundService(typeof(RecordingStartupBackgroundService));
+        configuration.RegisterBackgroundService(typeof(RecordingContinuousBackgroundService));
 
-        configuration.BackgroundServices.Should().Equal(
-            typeof(RecordingStartupBackgroundService),
-            typeof(RecordingContinuousBackgroundService));
+        configuration.BackgroundServices.Should().Equal(typeof(RecordingContinuousBackgroundService));
     }
 
-    private sealed class RecordingStartupBackgroundService : IBackgroundServiceStartupInitializer
+    [Fact]
+    public void RegisterBackgroundService_WhenTypeImplementsStartupTask_ShouldThrow()
+    {
+        var configuration = new ModuleConfiguration(new DependencyRegistry());
+
+        var act = () => configuration.RegisterBackgroundService(typeof(RecordingStartupTask));
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    private sealed class RecordingStartupTask : IStartupTask
     {
         /// <inheritdoc />
-        public Task ExecuteAsync(CancellationToken stoppingToken)
+        public Task RunAsync(CancellationToken cancellationToken)
         {
             return Task.CompletedTask;
         }

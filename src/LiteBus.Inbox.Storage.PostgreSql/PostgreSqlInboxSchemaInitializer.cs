@@ -8,7 +8,7 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 /// <summary>
 ///     Ensures the PostgreSQL inbox schema exists during host startup when configured to do so.
 /// </summary>
-public sealed class PostgreSqlInboxSchemaInitializer : IBackgroundServiceStartupInitializer
+public sealed class PostgreSqlInboxSchemaInitializer : IStartupTask
 {
     /// <summary>
     ///     The registered inbox store configuration consumed during host startup.
@@ -25,14 +25,14 @@ public sealed class PostgreSqlInboxSchemaInitializer : IBackgroundServiceStartup
     }
 
     /// <inheritdoc />
-    public async Task ExecuteAsync(CancellationToken stoppingToken)
+    public async Task RunAsync(CancellationToken cancellationToken)
     {
         if (_registration.Options.EnsureSchemaCreationOnStartup)
         {
             await PostgreSqlInboxSchema.EnsureAsync(
                     _registration.DataSource,
                     _registration.Options,
-                    stoppingToken)
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -41,7 +41,7 @@ public sealed class PostgreSqlInboxSchemaInitializer : IBackgroundServiceStartup
             await PostgreSqlInboxSchema.ValidateAsync(
                     _registration.DataSource,
                     _registration.Options,
-                    stoppingToken)
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
     }

@@ -11,18 +11,18 @@ public sealed class AutofacBackgroundServiceHostingExtensionsTests
     public void RegisterBackgroundServices_WhenImplementationTypeRepeated_ShouldResolveSingleHostedService()
     {
         var builder = new ContainerBuilder();
-        builder.RegisterBackgroundServices([typeof(RecordingBackgroundService), typeof(RecordingBackgroundService)]);
+        builder.RegisterBackgroundServices([], [typeof(RecordingBackgroundService), typeof(RecordingBackgroundService)]);
 
         using var container = builder.Build();
 
-        container.Resolve<IEnumerable<IHostedService>>().Should().HaveCount(2);
+        container.Resolve<IEnumerable<IHostedService>>().Should().HaveCount(1);
         container.Resolve<RecordingBackgroundService>().Should().NotBeNull();
     }
 
     [Fact]
     public void RegisterBackgroundServices_WhenBuilderNull_ShouldThrow()
     {
-        var act = () => AutofacBackgroundServiceHostingExtensions.RegisterBackgroundServices(null!, []);
+        var act = () => AutofacBackgroundServiceHostingExtensions.RegisterBackgroundServices(null!, [], []);
 
         act.Should().Throw<ArgumentNullException>();
     }
@@ -32,7 +32,7 @@ public sealed class AutofacBackgroundServiceHostingExtensionsTests
     {
         var builder = new ContainerBuilder();
 
-        var act = () => builder.RegisterBackgroundServices(null!);
+        var act = () => builder.RegisterBackgroundServices([], null!);
 
         act.Should().Throw<ArgumentNullException>();
     }
@@ -41,7 +41,7 @@ public sealed class AutofacBackgroundServiceHostingExtensionsTests
     public async Task RegisterBackgroundServices_ShouldExecuteUnderlyingBackgroundService()
     {
         var builder = new ContainerBuilder();
-        builder.RegisterBackgroundServices([typeof(RecordingBackgroundService)]);
+        builder.RegisterBackgroundServices([], [typeof(RecordingBackgroundService)]);
 
         await using var container = builder.Build();
 

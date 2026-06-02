@@ -71,11 +71,12 @@ dotnet build LiteBus.slnx
 
 ## Background services and hosting
 
-- Host-lifetime work implements `IBackgroundService` in `LiteBus.Runtime.Abstractions` with `Task ExecuteAsync(CancellationToken stoppingToken)`.
-- Modules register services with `configuration.DependencyRegistry.Register(DependencyDescriptor)` and host execution with `configuration.RegisterBackgroundService(Type)`.
-- Do not put `RegisterBackgroundService` on `IDependencyRegistry`. DI adapters must not reference `Microsoft.Extensions.Hosting`.
-- Generic host bridging lives in `LiteBus.Runtime.Extensions.Microsoft.Hosting` and `LiteBus.Runtime.Extensions.Autofac.Hosting` (`BackgroundServiceHostAdapter`, applied from `AddLiteBus` after module build).
-- Feature types: `InboxProcessorBackgroundService`, `AmqpInboxConsumer`, `PostgreSqlInboxSchemaInitializer`. Builder APIs: `EnableInboxProcessor`, `EnableOutboxProcessor`, `DisableSchemaInitialization`, `DisableIngressConsumer`.
+- One-shot host startup work implements `IStartupTask` in `LiteBus.Runtime.Abstractions` with `Task RunAsync(CancellationToken cancellationToken)` and registers through `configuration.RegisterStartupTask(Type)`.
+- Long-running host loops implement `IBackgroundService` with `Task ExecuteAsync(CancellationToken stoppingToken)` and register through `configuration.RegisterBackgroundService(Type)`.
+- Modules register services with `configuration.DependencyRegistry.Register(DependencyDescriptor)`.
+- Do not put `RegisterBackgroundService` or `RegisterStartupTask` on `IDependencyRegistry`. DI adapters must not reference `Microsoft.Extensions.Hosting`.
+- Generic host bridging lives in `LiteBus.Runtime.Extensions.Microsoft.Hosting` and `LiteBus.Runtime.Extensions.Autofac.Hosting` (`StartupTaskPhaseHostedService`, `BackgroundServiceHostAdapter`, applied from `AddLiteBus` after module build).
+- Feature types: `InboxProcessorBackgroundService`, `AmqpInboxConsumer`, `PostgreSqlInboxSchemaInitializer` (`IStartupTask`). Builder APIs: `EnableInboxProcessor`, `EnableOutboxProcessor`, `DisableSchemaInitialization`, `DisableIngressConsumer`.
 
 See `docs/Hosted-services.md` for registration examples.
 

@@ -7,9 +7,10 @@ namespace LiteBus.Runtime.Abstractions;
 ///     Defines work that runs when the application host starts and stops when the host shuts down.
 /// </summary>
 /// <remarks>
-///     Implementations may complete quickly or run until cancellation (for example processor or ingress loops).
-///     One-shot startup work should implement <see cref="IBackgroundServiceStartupInitializer" /> instead.
-///     Register implementations through <see cref="IModuleConfiguration.RegisterBackgroundService" />.
+///     Implementations run until cancellation (for example processor or ingress loops).
+///     One-shot startup work should implement <see cref="IStartupTask" /> and register through
+///     <see cref="IModuleConfiguration.RegisterStartupTask" /> instead.
+///     Register background services through <see cref="IModuleConfiguration.RegisterBackgroundService" />.
 /// </remarks>
 public interface IBackgroundService
 {

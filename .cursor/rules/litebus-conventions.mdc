@@ -12,10 +12,12 @@ Follow these rules when editing shipping code under `src/`. See `AGENTS.md` for 
 
 | Concern | Where it lives |
 | :--- | :--- |
-| Contract | `IBackgroundService` (`ExecuteAsync`) in `LiteBus.Runtime.Abstractions` |
-| Host manifest | `IModuleConfiguration.RegisterBackgroundService` |
-| Generic host bridge | `BackgroundServiceHostAdapter` in `*.Hosting` extension packages |
-| Feature loops | `*BackgroundService`, `AmqpInboxConsumer`, `*SchemaInitializer` |
+| Startup contract | `IStartupTask` (`RunAsync`) in `LiteBus.Runtime.Abstractions` |
+| Startup manifest | `IModuleConfiguration.RegisterStartupTask` |
+| Loop contract | `IBackgroundService` (`ExecuteAsync`) in `LiteBus.Runtime.Abstractions` |
+| Loop manifest | `IModuleConfiguration.RegisterBackgroundService` |
+| Generic host bridge | `StartupTaskPhaseHostedService`, `BackgroundServiceHostAdapter` in `*.Hosting` extension packages |
+| Feature loops | `*BackgroundService`, `AmqpInboxConsumer`, `*SchemaInitializer` (`IStartupTask`) |
 
 Builder APIs: `EnableInboxProcessor`, `EnableOutboxProcessor`, `DisableSchemaInitialization`, `DisableIngressConsumer`. Do not use Runnable naming in code or docs.
 

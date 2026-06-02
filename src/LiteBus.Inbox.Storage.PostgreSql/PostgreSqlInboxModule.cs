@@ -71,7 +71,7 @@ public sealed class PostgreSqlInboxModule : IModule
                 typeof(PostgreSqlInboxSchemaInitializer),
                 typeof(PostgreSqlInboxSchemaInitializer)));
 
-            configuration.RegisterBackgroundService(typeof(PostgreSqlInboxSchemaInitializer));
+            configuration.RegisterStartupTask(typeof(PostgreSqlInboxSchemaInitializer));
         }
     }
 }

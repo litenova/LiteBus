@@ -71,7 +71,7 @@ public sealed class PostgreSqlOutboxModule : IModule
                 typeof(PostgreSqlOutboxSchemaInitializer),
                 typeof(PostgreSqlOutboxSchemaInitializer)));
 
-            configuration.RegisterBackgroundService(typeof(PostgreSqlOutboxSchemaInitializer));
+            configuration.RegisterStartupTask(typeof(PostgreSqlOutboxSchemaInitializer));
         }
     }
 }

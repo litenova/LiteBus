@@ -14,9 +14,24 @@ public interface IModuleConfiguration
     IDependencyRegistry DependencyRegistry { get; }
 
     /// <summary>
+    ///     Gets the startup task implementation types registered by modules for host execution.
+    /// </summary>
+    IReadOnlyList<Type> StartupTasks { get; }
+
+    /// <summary>
     ///     Gets the background service implementation types registered by modules for host execution.
     /// </summary>
     IReadOnlyList<Type> BackgroundServices { get; }
+
+    /// <summary>
+    ///     Registers a startup task implementation type for host execution after dependency registration is applied.
+    /// </summary>
+    /// <param name="implementationType">The concrete type that implements <see cref="IStartupTask" />.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="implementationType" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="implementationType" /> does not implement <see cref="IStartupTask" />.
+    /// </exception>
+    void RegisterStartupTask(Type implementationType);
 
     /// <summary>
     ///     Registers a background service implementation type for host execution after dependency registration is applied.

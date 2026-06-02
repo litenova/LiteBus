@@ -51,7 +51,7 @@ public static class ServiceCollectionExtensions
             moduleDescriptor.Module.Build(moduleConfiguration);
         }
 
-        services.RegisterBackgroundServices(moduleConfiguration.BackgroundServices);
+        services.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
 
         return services;
     }
