@@ -1,19 +1,18 @@
-using LiteBus.Commands;
+﻿using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
-using CommandInboxProcessorContract = LiteBus.Inbox.Abstractions.IInboxProcessor;
-
 namespace LiteBus.Inbox.UnitTests;
 
 [Collection("Sequential")]
-public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
+public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
 {
     private static readonly DateTimeOffset BaseTime = new(2026, 5, 29, 8, 0, 0, TimeSpan.Zero);
 
@@ -21,9 +20,9 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ScheduleAsync_ShouldPersistVisibleAfterFromOptions()
     {
         var visibleAfter = BaseTime.AddHours(1);
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
+        var store = new InMemoryInboxStore();
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<CommandInboxTests.ShipOrderCommand>("orders.commands.ship", 1);
+        contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
 
         var scheduler = new InboxWriter(
             store,
@@ -31,7 +30,7 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
             new SystemTextJsonMessageSerializer(),
             new InboxTestInfrastructure.ManualTimeProvider(BaseTime));
 
-        await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
+        await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = "ship-visible"
@@ -43,9 +42,9 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ScheduleAsync_ShouldStoreIdempotencyKeyFromOptions()
     {
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
+        var store = new InMemoryInboxStore();
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<CommandInboxTests.ShipOrderCommand>("orders.commands.ship", 1);
+        contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
 
         var scheduler = new InboxWriter(
             store,
@@ -54,7 +53,7 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
             TimeProvider.System);
 
         var orderId = Guid.NewGuid();
-        await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
+        await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
@@ -67,14 +66,14 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ScheduleAsync_WhenContractNotRegistered_ShouldThrowMessageContractNotRegisteredException()
     {
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
+        var store = new InMemoryInboxStore();
         var scheduler = new InboxWriter(
             store,
             new MessageContractRegistry(),
             new SystemTextJsonMessageSerializer(),
             TimeProvider.System);
 
-        var act = async () => await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
+        var act = async () => await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = "missing-contract"
@@ -86,17 +85,17 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldProcessMultipleCommandsInSinglePass()
     {
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
-        var recorder = new CommandInboxTests.CommandRecorder();
+        var store = new InMemoryInboxStore();
+        var recorder = new InboxTestFixtures.CommandRecorder();
         await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10);
 
         var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<CommandInboxProcessorContract>();
+        var processor = provider.GetRequiredService<IInboxProcessor>();
 
         for (var i = 0; i < 3; i++)
         {
             var orderId = Guid.NewGuid();
-            await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
+            await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
             {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
@@ -112,17 +111,17 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldRespectBatchSize()
     {
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
-        var recorder = new CommandInboxTests.CommandRecorder();
+        var store = new InMemoryInboxStore();
+        var recorder = new InboxTestFixtures.CommandRecorder();
         await using var provider = BuildProcessorProvider(store, recorder, batchSize: 2);
 
         var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<CommandInboxProcessorContract>();
+        var processor = provider.GetRequiredService<IInboxProcessor>();
 
         for (var i = 0; i < 5; i++)
         {
             var orderId = Guid.NewGuid();
-            await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
+            await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
             {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
@@ -142,14 +141,14 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenVisibleAfterInFuture_ShouldNotLeaseCommand()
     {
         var clock = new InboxTestInfrastructure.ManualTimeProvider(BaseTime);
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
-        var recorder = new CommandInboxTests.CommandRecorder();
+        var store = new InMemoryInboxStore();
+        var recorder = new InboxTestFixtures.CommandRecorder();
         await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10, clock: clock);
 
         var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<CommandInboxProcessorContract>();
+        var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
+        await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = "future"
@@ -165,14 +164,14 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenVisibleAfterReached_ShouldProcessCommand()
     {
         var clock = new InboxTestInfrastructure.ManualTimeProvider(BaseTime);
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
-        var recorder = new CommandInboxTests.CommandRecorder();
+        var store = new InMemoryInboxStore();
+        var recorder = new InboxTestFixtures.CommandRecorder();
         await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10, clock: clock);
 
         var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<CommandInboxProcessorContract>();
+        var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
+        await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = "due-later"
@@ -189,7 +188,7 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenFixedBackoffConfigured_ShouldSetVisibleAfterToInitialDelay()
     {
         var clock = new InboxTestInfrastructure.ManualTimeProvider(BaseTime);
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
+        var store = new InMemoryInboxStore();
         await using var provider = BuildProcessorProvider(
             store,
             recorder: null,
@@ -197,7 +196,7 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
             clock: clock,
             configureInbox: inbox =>
             {
-                inbox.Contracts.Register<CommandInboxTests.FaultyCommand>("orders.commands.faulty", 1);
+                inbox.Contracts.Register<InboxTestFixtures.FaultyCommand>("orders.commands.faulty", 1);
                 inbox.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 10,
@@ -214,9 +213,9 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
             registerFaultyHandler: true);
 
         var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<CommandInboxProcessorContract>();
+        var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AddAsync(new CommandInboxTests.FaultyCommand());
+        var receipt = await scheduler.AddAsync(new InboxTestFixtures.FaultyCommand());
         await processor.ProcessPendingAsync();
 
         store.Get(receipt.Id).VisibleAfter.Should().Be(BaseTime.AddSeconds(30));
@@ -226,7 +225,7 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenExponentialBackoffConfigured_ShouldDoubleDelayPerAttempt()
     {
         var clock = new InboxTestInfrastructure.ManualTimeProvider(BaseTime);
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
+        var store = new InMemoryInboxStore();
         await using var provider = BuildProcessorProvider(
             store,
             recorder: null,
@@ -234,7 +233,7 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
             clock: clock,
             configureInbox: inbox =>
             {
-                inbox.Contracts.Register<CommandInboxTests.FaultyCommand>("orders.commands.faulty", 1);
+                inbox.Contracts.Register<InboxTestFixtures.FaultyCommand>("orders.commands.faulty", 1);
                 inbox.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 10,
@@ -252,9 +251,9 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
             registerFaultyHandler: true);
 
         var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<CommandInboxProcessorContract>();
+        var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AddAsync(new CommandInboxTests.FaultyCommand());
+        var receipt = await scheduler.AddAsync(new InboxTestFixtures.FaultyCommand());
         await processor.ProcessPendingAsync();
 
         store.Get(receipt.Id).VisibleAfter.Should().Be(BaseTime.AddSeconds(10));
@@ -264,14 +263,14 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimStuckCommand()
     {
         var clock = new InboxTestInfrastructure.ManualTimeProvider(BaseTime);
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
-        var recorder = new CommandInboxTests.CommandRecorder();
+        var store = new InMemoryInboxStore();
+        var recorder = new InboxTestFixtures.CommandRecorder();
         await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10, clock: clock);
 
         var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<CommandInboxProcessorContract>();
+        var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
+        var receipt = await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = "lease-expiry"
@@ -299,10 +298,10 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenContractNameUnknown_ShouldMarkFailed()
     {
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
-        await using var provider = BuildProcessorProvider(store, new CommandInboxTests.CommandRecorder(), batchSize: 10);
+        var store = new InMemoryInboxStore();
+        await using var provider = BuildProcessorProvider(store, new InboxTestFixtures.CommandRecorder(), batchSize: 10);
 
-        var processor = provider.GetRequiredService<CommandInboxProcessorContract>();
+        var processor = provider.GetRequiredService<IInboxProcessor>();
         var commandId = Guid.NewGuid();
 
         await store.AddAsync(new InboxEnvelope
@@ -326,9 +325,9 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     public void InboxProcessor_WithInvalidBatchSize_ShouldThrow()
     {
         var act = () => new InboxProcessor(
-            new CommandInboxTests.InMemoryCommandInboxStore(),
-            new CommandInboxTests.InMemoryCommandInboxStore(),
-            new CommandInboxTests.StubInboxDispatcher(),
+            new InMemoryInboxStore(),
+            new InMemoryInboxStore(),
+            new InboxTestFixtures.StubInboxDispatcher(),
             new InboxProcessorOptions { BatchSize = 0 },
             TimeProvider.System);
 
@@ -339,9 +338,9 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     public void InboxProcessor_WithInvalidLeaseDuration_ShouldThrow()
     {
         var act = () => new InboxProcessor(
-            new CommandInboxTests.InMemoryCommandInboxStore(),
-            new CommandInboxTests.InMemoryCommandInboxStore(),
-            new CommandInboxTests.StubInboxDispatcher(),
+            new InMemoryInboxStore(),
+            new InMemoryInboxStore(),
+            new InboxTestFixtures.StubInboxDispatcher(),
             new InboxProcessorOptions { LeaseDuration = TimeSpan.Zero },
             TimeProvider.System);
 
@@ -351,17 +350,17 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenCancellationRequested_ShouldPropagateOperationCanceledException()
     {
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
-        var recorder = new CommandInboxTests.CommandRecorder();
+        var store = new InMemoryInboxStore();
+        var recorder = new InboxTestFixtures.CommandRecorder();
         await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10);
 
         var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<CommandInboxProcessorContract>();
+        var processor = provider.GetRequiredService<IInboxProcessor>();
 
         for (var i = 0; i < 3; i++)
         {
             var orderId = Guid.NewGuid();
-            await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
+            await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
             {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
@@ -377,8 +376,8 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
     }
 
     private static ServiceProvider BuildProcessorProvider(
-        CommandInboxTests.InMemoryCommandInboxStore store,
-        CommandInboxTests.CommandRecorder? recorder,
+        InMemoryInboxStore store,
+        InboxTestFixtures.CommandRecorder? recorder,
         int batchSize,
         TimeProvider? clock = null,
         Action<InboxModuleBuilder>? configureInbox = null,
@@ -402,13 +401,13 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
                 {
                     if (registerFaultyHandler)
                     {
-                        builder.Register<CommandInboxTests.FaultyCommand>();
-                        builder.Register<CommandInboxTests.FaultyCommandHandler>();
+                        builder.Register<InboxTestFixtures.FaultyCommand>();
+                        builder.Register<InboxTestFixtures.FaultyCommandHandler>();
                     }
                     else
                     {
-                        builder.Register<CommandInboxTests.ShipOrderCommand>();
-                        builder.Register<CommandInboxTests.ShipOrderCommandHandler>();
+                        builder.Register<InboxTestFixtures.ShipOrderCommand>();
+                        builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                     }
                 });
 
@@ -420,7 +419,7 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
                     }
                     else
                     {
-                        inbox.Contracts.Register<CommandInboxTests.ShipOrderCommand>("orders.commands.ship", 1);
+                        inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
                         inbox.UseProcessorOptions(new InboxProcessorOptions
                         {
                             BatchSize = batchSize,
@@ -439,3 +438,4 @@ public sealed class CommandInboxProcessorEdgeCaseTests : LiteBusTestBase
         return services.BuildServiceProvider();
     }
 }
+

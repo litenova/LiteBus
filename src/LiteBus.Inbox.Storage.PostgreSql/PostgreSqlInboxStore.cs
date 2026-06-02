@@ -10,7 +10,7 @@ using NpgsqlTypes;
 namespace LiteBus.Inbox.Storage.PostgreSql;
 
 /// <summary>
-///     PostgreSQL command inbox store backed by raw Npgsql commands.
+///     PostgreSQL inbox store backed by raw Npgsql commands.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -19,7 +19,7 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 ///         processors, and tests can use the smallest required capability.
 ///     </para>
 ///     <para>
-///         Leasing uses `FOR UPDATE SKIP LOCKED` to let multiple processors claim different commands concurrently.
+///         Leasing uses `FOR UPDATE SKIP LOCKED` to let multiple processors claim different messages concurrently.
 ///         Expired processing leases are eligible for another worker, which gives at-least-once execution after worker
 ///         failure.
 ///     </para>
@@ -58,7 +58,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
 
         var sql = $"""
                   INSERT INTO {_tableName} (
-                      command_id,
+                      message_id,
                       contract_name,
                       contract_version,
                       payload,
@@ -74,7 +74,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                       causation_id,
                       tenant_id)
                   VALUES (
-                      @command_id,
+                      @message_id,
                       @contract_name,
                       @contract_version,
                       @payload,
@@ -89,11 +89,11 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                       @correlation_id,
                       @causation_id,
                       @tenant_id)
-                  -- No conflict target: catches both the command_id primary key violation and the
+                  -- No conflict target: catches both the message_id primary key violation and the
                   -- unique partial index on idempotency_key. Both represent the same idempotent intent.
                   ON CONFLICT DO NOTHING
                   RETURNING
-                      command_id,
+                      message_id,
                       contract_name,
                       contract_version,
                       payload::text,
@@ -125,7 +125,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
 
         var sql = $"""
                   WITH candidates AS (
-                      SELECT command_id
+                      SELECT message_id
                       FROM {_tableName}
                       WHERE
                           ((status IN (@pending_status, @failed_status) AND (visible_after IS NULL OR visible_after <= @now))
@@ -141,9 +141,9 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                       lease_expires_at = @lease_expires_at,
                       attempt_count = inbox.attempt_count + 1
                   FROM candidates
-                  WHERE inbox.command_id = candidates.command_id
+                  WHERE inbox.message_id = candidates.message_id
                   RETURNING
-                      inbox.command_id,
+                      inbox.message_id,
                       inbox.contract_name,
                       inbox.contract_version,
                       inbox.payload::text,
@@ -173,7 +173,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
     }
 
     /// <inheritdoc />
-    public async Task MarkCompletedAsync(Guid commandId, CancellationToken cancellationToken = default)
+    public async Task MarkCompletedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         var sql = $"""
                   UPDATE {_tableName}
@@ -182,12 +182,12 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                       lease_owner = NULL,
                       lease_expires_at = NULL,
                       last_error = NULL
-                  WHERE command_id = @command_id;
+                  WHERE message_id = @message_id;
                   """;
 
         await using var command = _dataSource.CreateCommand(sql);
         command.Parameters.AddWithValue("completed_status", (int)InboxStatus.Completed);
-        command.Parameters.AddWithValue("command_id", commandId);
+        command.Parameters.AddWithValue("message_id", messageId);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -204,14 +204,14 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                       lease_owner = NULL,
                       lease_expires_at = NULL,
                       last_error = @last_error
-                  WHERE command_id = @command_id;
+                  WHERE message_id = @message_id;
                   """;
 
         await using var command = _dataSource.CreateCommand(sql);
         command.Parameters.AddWithValue("failed_status", (int)InboxStatus.Failed);
         command.Parameters.AddWithValue("visible_after", (object?)failure.VisibleAfter ?? DBNull.Value);
         command.Parameters.AddWithValue("last_error", failure.Error);
-        command.Parameters.AddWithValue("command_id", failure.Id);
+        command.Parameters.AddWithValue("message_id", failure.Id);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -227,34 +227,34 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                       lease_owner = NULL,
                       lease_expires_at = NULL,
                       last_error = @last_error
-                  WHERE command_id = @command_id;
+                  WHERE message_id = @message_id;
                   """;
 
         await using var command = _dataSource.CreateCommand(sql);
         command.Parameters.AddWithValue("dead_lettered_status", (int)InboxStatus.DeadLettered);
         command.Parameters.AddWithValue("last_error", deadLetter.Reason);
-        command.Parameters.AddWithValue("command_id", deadLetter.Id);
+        command.Parameters.AddWithValue("message_id", deadLetter.Id);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
     ///     Reads the row that caused an idempotent insert to be skipped.
     /// </summary>
-    /// <param name="commandId">The command id from the attempted insert.</param>
+    /// <param name="messageId">The message id from the attempted insert.</param>
     /// <param name="idempotencyKey">The idempotency key from the attempted insert, when one was supplied.</param>
     /// <param name="cancellationToken">A token used to cancel the lookup.</param>
     /// <returns>The existing stored envelope that should be returned to the scheduler.</returns>
-    private async Task<InboxEnvelope> FindExistingAsync(Guid commandId, string? idempotencyKey, CancellationToken cancellationToken)
+    private async Task<InboxEnvelope> FindExistingAsync(Guid messageId, string? idempotencyKey, CancellationToken cancellationToken)
     {
         string sql;
         await using var command = _dataSource.CreateCommand();
-        command.Parameters.AddWithValue("command_id", commandId);
+        command.Parameters.AddWithValue("message_id", messageId);
 
         if (string.IsNullOrWhiteSpace(idempotencyKey))
         {
             sql = $"""
                    SELECT
-                       command_id,
+                       message_id,
                        contract_name,
                        contract_version,
                        payload::text,
@@ -270,7 +270,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                        causation_id,
                        tenant_id
                    FROM {_tableName}
-                   WHERE command_id = @command_id
+                   WHERE message_id = @message_id
                    LIMIT 1;
                    """;
         }
@@ -278,7 +278,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
         {
             sql = $"""
                    SELECT
-                       command_id,
+                       message_id,
                        contract_name,
                        contract_version,
                        payload::text,
@@ -294,9 +294,9 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                        causation_id,
                        tenant_id
                    FROM {_tableName}
-                   WHERE command_id = @command_id
+                   WHERE message_id = @message_id
                       OR idempotency_key = @idempotency_key
-                   ORDER BY CASE WHEN command_id = @command_id THEN 0 ELSE 1 END
+                   ORDER BY CASE WHEN message_id = @message_id THEN 0 ELSE 1 END
                    LIMIT 1;
                    """;
 
@@ -306,7 +306,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
         command.CommandText = sql;
 
         return await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false)
-               ?? throw new InvalidOperationException("The command inbox insert was skipped but the existing command could not be found.");
+               ?? throw new InvalidOperationException("The inbox insert was skipped but the existing message could not be found.");
     }
 
     /// <summary>
@@ -316,7 +316,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
     /// <param name="envelope">The envelope being inserted.</param>
     private static void AddEnvelopeParameters(NpgsqlCommand command, InboxEnvelope envelope)
     {
-        command.Parameters.AddWithValue("command_id", envelope.Id);
+        command.Parameters.AddWithValue("message_id", envelope.Id);
         command.Parameters.AddWithValue("contract_name", envelope.ContractName);
         command.Parameters.AddWithValue("contract_version", envelope.ContractVersion);
 

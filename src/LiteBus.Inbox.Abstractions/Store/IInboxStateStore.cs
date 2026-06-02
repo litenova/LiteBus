@@ -23,10 +23,10 @@ public interface IInboxStateStore
     /// <summary>
     ///     Marks a leased envelope as completed after dispatch succeeds without throwing.
     /// </summary>
-    /// <param name="commandId">The envelope identifier.</param>
+    /// <param name="messageId">The envelope identifier.</param>
     /// <param name="cancellationToken">A token that cancels the status update.</param>
     /// <returns>A task that represents the asynchronous status update.</returns>
-    Task MarkCompletedAsync(Guid commandId, CancellationToken cancellationToken = default);
+    Task MarkCompletedAsync(Guid messageId, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Marks a leased envelope as failed and records when the next execution attempt may occur.

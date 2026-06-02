@@ -16,8 +16,8 @@ public sealed class EfCoreInboxStoreOptions
     /// <summary>
     ///     Gets or sets the inbox table name.
     /// </summary>
-    /// <value>The table name. The default is <c>litebus_inbox_commands</c>.</value>
-    public string TableName { get; set; } = "litebus_inbox_commands";
+    /// <value>The table name. The default is <c>litebus_inbox_messages</c>.</value>
+    public string TableName { get; set; } = "litebus_inbox_messages";
 
     /// <summary>
     ///     Gets or sets an optional lease provider override.

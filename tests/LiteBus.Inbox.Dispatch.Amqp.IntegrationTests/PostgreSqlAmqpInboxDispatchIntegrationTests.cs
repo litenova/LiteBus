@@ -138,7 +138,7 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
         };
     }
 
-    private async Task<(InboxStatus Status, int AttemptCount)?> ReadInboxAsync(PostgreSqlInboxStoreOptions options, Guid commandId)
+    private async Task<(InboxStatus Status, int AttemptCount)?> ReadInboxAsync(PostgreSqlInboxStoreOptions options, Guid messageId)
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
@@ -147,9 +147,9 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
         command.CommandText = $"""
                                SELECT status, attempt_count
                                FROM {tableName}
-                               WHERE command_id = @command_id;
+                               WHERE message_id = @message_id;
                                """;
-        command.Parameters.AddWithValue("command_id", commandId);
+        command.Parameters.AddWithValue("message_id", messageId);
 
         await using var reader = await command.ExecuteReaderAsync();
         if (!await reader.ReadAsync())

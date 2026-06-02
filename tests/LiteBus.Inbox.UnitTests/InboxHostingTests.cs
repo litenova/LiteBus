@@ -1,8 +1,9 @@
-using LiteBus.Commands;
+﻿using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
@@ -12,13 +13,13 @@ using Microsoft.Extensions.Hosting;
 namespace LiteBus.Inbox.UnitTests;
 
 [Collection("Sequential")]
-public sealed class CommandInboxHostingTests : LiteBusTestBase
+public sealed class InboxHostingTests : LiteBusTestBase
 {
     [Fact]
     public async Task ProcessorBackgroundService_WhenDisabled_ShouldCompleteWithoutProcessing()
     {
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
-        var recorder = new CommandInboxTests.CommandRecorder();
+        var store = new InMemoryInboxStore();
+        var recorder = new InboxTestFixtures.CommandRecorder();
 
         await using var provider = BuildProvider(store, recorder, hostOptions => hostOptions.Enabled = false);
         var hostedService = provider.GetServices<IHostedService>().Single();
@@ -32,8 +33,8 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessorBackgroundService_ShouldProcessScheduledCommands()
     {
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
-        var recorder = new CommandInboxTests.CommandRecorder();
+        var store = new InMemoryInboxStore();
+        var recorder = new InboxTestFixtures.CommandRecorder();
 
         await using var provider = BuildProvider(
             store,
@@ -44,7 +45,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
         var hostedService = provider.GetServices<IHostedService>().Single();
 
         var orderId = Guid.NewGuid();
-        await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
+        await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
@@ -66,7 +67,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
             {
                 configuration.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<CommandInboxTests.ShipOrderCommand>("orders.commands.ship", 1);
+                    inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
                     inbox.EnableInboxProcessor();
                 });
             });
@@ -82,7 +83,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     [Fact]
     public void ProcessorBackgroundService_WhenDispatcherMissing_ShouldThrowOnResolve()
     {
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
+        var store = new InMemoryInboxStore();
 
         var services = new ServiceCollection()
             .AddSingleton<IInboxStore>(store)
@@ -92,7 +93,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
             {
                 configuration.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<CommandInboxTests.ShipOrderCommand>("orders.commands.ship", 1);
+                    inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
                     inbox.EnableInboxProcessor();
                 });
             });
@@ -108,8 +109,8 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessorBackgroundService_ShouldRespectStartupDelay()
     {
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
-        var recorder = new CommandInboxTests.CommandRecorder();
+        var store = new InMemoryInboxStore();
+        var recorder = new InboxTestFixtures.CommandRecorder();
 
         await using var provider = BuildProvider(
             store,
@@ -124,7 +125,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
         var hostedService = provider.GetServices<IHostedService>().Single();
 
         var orderId = Guid.NewGuid();
-        await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
+        await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
@@ -145,15 +146,15 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessorBackgroundService_WithAdaptivePollingAndFullBatch_ShouldProcessMultipleCommandsQuickly()
     {
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
-        var recorder = new CommandInboxTests.CommandRecorder();
+        var store = new InMemoryInboxStore();
+        var recorder = new InboxTestFixtures.CommandRecorder();
 
         await using var provider = BuildProvider(
             store,
             recorder,
             configureInbox: inbox =>
             {
-                inbox.Contracts.Register<CommandInboxTests.ShipOrderCommand>("orders.commands.ship", 1);
+                inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
                 inbox.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 2,
@@ -173,7 +174,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
         for (var i = 0; i < 4; i++)
         {
             var orderId = Guid.NewGuid();
-            await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
+            await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
             {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
@@ -194,8 +195,8 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldReturnLeasedCount()
     {
-        var store = new CommandInboxTests.InMemoryCommandInboxStore();
-        var recorder = new CommandInboxTests.CommandRecorder();
+        var store = new InMemoryInboxStore();
+        var recorder = new InboxTestFixtures.CommandRecorder();
 
         await using var provider = BuildProvider(store, recorder);
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -205,7 +206,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
         emptyPass.LeasedCount.Should().Be(0);
 
         var orderId = Guid.NewGuid();
-        await scheduler.AddAsync(new CommandInboxTests.ShipOrderCommand
+        await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
@@ -216,8 +217,8 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
     }
 
     private static ServiceProvider BuildProvider(
-        CommandInboxTests.InMemoryCommandInboxStore store,
-        CommandInboxTests.CommandRecorder recorder,
+        InMemoryInboxStore store,
+        InboxTestFixtures.CommandRecorder recorder,
         Action<InboxProcessorHostOptions>? configureHost = null,
         Action<InboxModuleBuilder>? configureInbox = null,
         IInboxLeaseStore? leaseStore = null)
@@ -232,8 +233,8 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
             {
                 configuration.AddCommandModule(builder =>
                 {
-                    builder.Register<CommandInboxTests.ShipOrderCommand>();
-                    builder.Register<CommandInboxTests.ShipOrderCommandHandler>();
+                    builder.Register<InboxTestFixtures.ShipOrderCommand>();
+                    builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                 });
 
                 configuration.AddInboxModule(inbox =>
@@ -244,7 +245,7 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
                     }
                     else
                     {
-                        inbox.Contracts.Register<CommandInboxTests.ShipOrderCommand>("orders.commands.ship", 1);
+                        inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
                         inbox.UseProcessorOptions(new InboxProcessorOptions
                         {
                             BatchSize = 10,
@@ -259,3 +260,4 @@ public sealed class CommandInboxHostingTests : LiteBusTestBase
             .BuildServiceProvider();
     }
 }
+

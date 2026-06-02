@@ -19,4 +19,9 @@ internal static class PostgreSqlInboxSchemaEmbeddedSql
     ///     Embedded resource path for inbox index ensure SQL.
     /// </summary>
     internal const string V1EnsureIndexes = "inbox/v1/ensure_indexes.sql";
+
+    /// <summary>
+    ///     Embedded resource path for version 3 inbox identity rename SQL.
+    /// </summary>
+    internal const string V3Upgrade = "inbox/v3/rename_message_identity.sql";
 }

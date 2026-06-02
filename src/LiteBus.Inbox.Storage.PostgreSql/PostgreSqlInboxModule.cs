@@ -6,7 +6,7 @@ using Npgsql;
 namespace LiteBus.Inbox.Storage.PostgreSql;
 
 /// <summary>
-///     Module for registering the PostgreSQL command inbox store.
+///     Module for registering the PostgreSQL inbox store.
 /// </summary>
 public sealed class PostgreSqlInboxModule : IModule
 {
@@ -35,7 +35,7 @@ public sealed class PostgreSqlInboxModule : IModule
         if (moduleBuilder.DataSource is null)
         {
             throw new InvalidOperationException(
-                "A PostgreSQL command inbox data source must be configured. " +
+                "A PostgreSQL inbox data source must be configured. " +
                 "Call UseDataSource(NpgsqlDataSource) or UseConnectionString(string).");
         }
 

@@ -4,7 +4,7 @@ using Npgsql;
 namespace LiteBus.Inbox.Storage.PostgreSql;
 
 /// <summary>
-///     Holds the PostgreSQL data source and options registered for the command inbox store.
+///     Holds the PostgreSQL data source and options registered for the inbox store.
 /// </summary>
 /// <remarks>
 ///     This registration is consumed by optional schema bootstrap hosting and is registered automatically by

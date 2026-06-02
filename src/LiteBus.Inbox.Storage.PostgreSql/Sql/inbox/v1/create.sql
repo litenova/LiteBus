@@ -1,7 +1,7 @@
 CREATE SCHEMA IF NOT EXISTS {{QuotedSchemaName}};
 
 CREATE TABLE IF NOT EXISTS {{QualifiedTableName}} (
-    command_id uuid PRIMARY KEY,
+    message_id uuid PRIMARY KEY,
     contract_name text NOT NULL,
     contract_version integer NOT NULL,
     payload jsonb NOT NULL,

@@ -194,7 +194,11 @@ internal static class PostgreSqlSchemaManager
 
             if (inferredVersion < currentVersion)
             {
-                currentVersion = inferredVersion;
+                // Do not downgrade a recorded version to zero when inference cannot see renamed columns (inbox schema v3).
+                if (inferredVersion > 0 || currentVersion == 0)
+                {
+                    currentVersion = inferredVersion;
+                }
             }
             else if (currentVersion == 0 || inferredVersion > currentVersion)
             {

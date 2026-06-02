@@ -3,7 +3,7 @@ using System;
 namespace LiteBus.Inbox.Storage.InMemory;
 
 /// <summary>
-///     Configures the in-memory command inbox store.
+///     Configures the in-memory inbox store.
 /// </summary>
 public sealed record InMemoryInboxStoreOptions
 {

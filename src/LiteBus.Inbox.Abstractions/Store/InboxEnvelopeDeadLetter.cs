@@ -3,12 +3,12 @@ using System;
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Represents an inbox command moved aside after processing failures.
+///     Represents an inbox message moved aside after processing failures.
 /// </summary>
 public sealed record InboxEnvelopeDeadLetter
 {
     /// <summary>
-    ///     Gets the command identifier.
+    ///     Gets the message identifier.
     /// </summary>
     public required Guid Id { get; init; }
 

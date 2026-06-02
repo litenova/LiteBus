@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -50,14 +51,14 @@ internal static class InboxTestInfrastructure
     {
         private readonly int _failuresBeforeSuccess;
         private int _attempts;
-        private readonly CommandInboxTests.InMemoryCommandInboxStore _inner = new();
+        private readonly InMemoryInboxStore _inner = new();
 
         public ThrowingInboxLeaseStore(int failuresBeforeSuccess = int.MaxValue)
         {
             _failuresBeforeSuccess = failuresBeforeSuccess;
         }
 
-        public CommandInboxTests.InMemoryCommandInboxStore Inner => _inner;
+        public InMemoryInboxStore Inner => _inner;
 
         public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
             InboxLeaseRequest request,
@@ -74,11 +75,11 @@ internal static class InboxTestInfrastructure
 
     internal sealed class DelegatingInboxLeaseStore : IInboxLeaseStore
     {
-        private readonly CommandInboxTests.InMemoryCommandInboxStore _inner;
+        private readonly InMemoryInboxStore _inner;
         private readonly Func<InboxLeaseRequest, IReadOnlyList<InboxEnvelope>>? _onLease;
 
         public DelegatingInboxLeaseStore(
-            CommandInboxTests.InMemoryCommandInboxStore inner,
+            InMemoryInboxStore inner,
             Func<InboxLeaseRequest, IReadOnlyList<InboxEnvelope>>? onLease = null)
         {
             _inner = inner;

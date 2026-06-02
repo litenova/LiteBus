@@ -8,7 +8,7 @@ using Npgsql;
 namespace LiteBus.Inbox.Storage.PostgreSql;
 
 /// <summary>
-///     Creates, upgrades, and validates the PostgreSQL command inbox schema used by
+///     Creates, upgrades, and validates the PostgreSQL inbox schema used by
 ///     <see cref="PostgreSqlInboxStore" />.
 /// </summary>
 /// <remarks>
@@ -47,7 +47,7 @@ public static class PostgreSqlInboxSchema
     /// <summary>
     ///     Gets the inbox table schema version implemented by this package release.
     /// </summary>
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     /// <summary>
     ///     Gets the canonical SQL files shipped with the inbox PostgreSQL package.
@@ -63,14 +63,14 @@ public static class PostgreSqlInboxSchema
     /// <summary>
     ///     Returns the SQL script that creates the current inbox schema, indexes, and metadata table.
     /// </summary>
-    /// <param name="options">The schema and table options. Defaults create <c>public.litebus_inbox_commands</c>.</param>
+    /// <param name="options">The schema and table options. Defaults create <c>public.litebus_inbox_messages</c>.</param>
     /// <returns>The canonical create script for <see cref="CurrentSchemaVersion" />.</returns>
     /// <example>
     ///     <code>
     /// var ddl = PostgreSqlInboxSchema.GetCreateScript(new PostgreSqlInboxStoreOptions
     /// {
     ///     SchemaName = "app",
-    ///     TableName = "command_inbox"
+    ///     TableName = "app_inbox"
     /// });
     /// File.WriteAllText("V001__litebus_inbox.sql", ddl);
     ///     </code>
@@ -153,7 +153,7 @@ public static class PostgreSqlInboxSchema
     ///     Creates the inbox table and indexes when they do not exist.
     /// </summary>
     /// <param name="dataSource">The PostgreSQL data source.</param>
-    /// <param name="options">The schema and table options. Defaults create <c>public.litebus_inbox_commands</c>.</param>
+    /// <param name="options">The schema and table options. Defaults create <c>public.litebus_inbox_messages</c>.</param>
     /// <param name="cancellationToken">A token used to cancel the database command before it completes.</param>
     /// <returns>A task that completes when the schema reaches the expected version.</returns>
     /// <remarks>

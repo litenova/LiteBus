@@ -54,7 +54,7 @@ public static class InboxEntityFrameworkCoreModelExtensions
         entity.HasKey(message => message.Id);
 
         entity.Property(message => message.Id)
-            .HasColumnName("command_id")
+            .HasColumnName("message_id")
             .ValueGeneratedNever();
 
         entity.Property(message => message.ContractName)

@@ -145,12 +145,12 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxSt
     }
 
     /// <inheritdoc />
-    public Task MarkCompletedAsync(Guid commandId, CancellationToken cancellationToken = default)
+    public Task MarkCompletedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         lock (_sync)
         {
-            var envelope = GetRequired(commandId);
-            _envelopes[commandId] = envelope with
+            var envelope = GetRequired(messageId);
+            _envelopes[messageId] = envelope with
             {
                 Status = InboxStatus.Completed,
                 LeaseOwner = null,
@@ -204,15 +204,15 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxSt
     }
 
     /// <summary>
-    ///     Gets the stored envelope for the given command identifier.
+    ///     Gets the stored envelope for the given message identifier.
     /// </summary>
-    /// <param name="commandId">The command identifier.</param>
+    /// <param name="messageId">The message identifier.</param>
     /// <returns>The stored envelope.</returns>
-    public InboxEnvelope Get(Guid commandId)
+    public InboxEnvelope Get(Guid messageId)
     {
         lock (_sync)
         {
-            return GetRequired(commandId);
+            return GetRequired(messageId);
         }
     }
 
@@ -268,11 +268,11 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxSt
     /// <summary>
     ///     Returns the envelope for the given identifier or throws when it is missing.
     /// </summary>
-    /// <param name="commandId">The command identifier.</param>
+    /// <param name="messageId">The message identifier.</param>
     /// <returns>The stored envelope.</returns>
-    private InboxEnvelope GetRequired(Guid commandId)
+    private InboxEnvelope GetRequired(Guid messageId)
     {
-        return _envelopes[commandId];
+        return _envelopes[messageId];
     }
 
     /// <summary>

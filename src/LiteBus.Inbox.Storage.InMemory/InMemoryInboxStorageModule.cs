@@ -5,7 +5,7 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Inbox.Storage.InMemory;
 
 /// <summary>
-///     Module for registering the in-memory command inbox store.
+///     Module for registering the in-memory inbox store.
 /// </summary>
 public sealed class InMemoryInboxStorageModule : IModule
 {

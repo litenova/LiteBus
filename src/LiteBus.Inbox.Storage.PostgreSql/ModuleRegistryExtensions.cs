@@ -4,12 +4,12 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Inbox.Storage.PostgreSql;
 
 /// <summary>
-///     Provides extension methods for registering PostgreSQL command inbox stores.
+///     Provides extension methods for registering PostgreSQL inbox stores.
 /// </summary>
 public static class ModuleRegistryExtensions
 {
     /// <summary>
-    ///     Registers the PostgreSQL command inbox store.
+    ///     Registers the PostgreSQL inbox store.
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
     /// <param name="builderAction">The PostgreSQL store configuration action.</param>

@@ -6,6 +6,7 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Storage.EntityFrameworkCore;
 using LiteBus.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -160,7 +161,7 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.GetModelBuilderConfiguration(_storeOptions);
+            modelBuilder.GetModelBuilderConfiguration(_storeOptions, EfCoreStorageProvider.PostgreSql);
         }
     }
 }

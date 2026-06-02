@@ -6,13 +6,14 @@ namespace LiteBus.Storage.EntityFrameworkCore.Leasing;
 internal static class EfCoreLeaseTableMetadata
 {
     /// <summary>
-    ///     Gets the primary key column name for one lease component.
+    ///     Gets the primary key column name for inbox and outbox lease SQL.
     /// </summary>
-    /// <param name="component">The lease component.</param>
-    /// <returns>The primary key column name.</returns>
+    /// <param name="component">The lease component (inbox and outbox use the same column name).</param>
+    /// <returns>The primary key column name <c>message_id</c>.</returns>
     internal static string GetIdColumn(EfCoreLeaseComponent component)
     {
-        return component == EfCoreLeaseComponent.Inbox ? "command_id" : "message_id";
+        _ = component;
+        return "message_id";
     }
 
     /// <summary>

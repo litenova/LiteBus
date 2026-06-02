@@ -15,9 +15,9 @@ public sealed class PostgreSqlIdentifierTests
     [Fact]
     public void Qualify_ShouldReturnQuotedSchemaAndTable()
     {
-        var qualified = PostgreSqlIdentifier.Qualify("litebus_tests", "inbox_commands");
+        var qualified = PostgreSqlIdentifier.Qualify("litebus_tests", "inbox_messages");
 
-        qualified.Should().Be("\"litebus_tests\".\"inbox_commands\"");
+        qualified.Should().Be("\"litebus_tests\".\"inbox_messages\"");
     }
 
     [Fact]

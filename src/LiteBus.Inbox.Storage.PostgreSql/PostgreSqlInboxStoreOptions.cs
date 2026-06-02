@@ -3,19 +3,19 @@ using LiteBus.Storage.PostgreSql;
 namespace LiteBus.Inbox.Storage.PostgreSql;
 
 /// <summary>
-///     Defines PostgreSQL command inbox store and schema bootstrap options.
+///     Defines PostgreSQL inbox store and schema bootstrap options.
 /// </summary>
 public sealed record PostgreSqlInboxStoreOptions : PostgreSqlSchemaStoreOptions, IPostgreSqlStoreTableOptions
 {
     /// <summary>
-    ///     Gets the PostgreSQL schema name that stores inbox commands.
+    ///     Gets the PostgreSQL schema name that stores inbox messages.
     /// </summary>
     public string SchemaName { get; init; } = "public";
 
     /// <summary>
-    ///     Gets the PostgreSQL table name that stores inbox commands.
+    ///     Gets the PostgreSQL table name that stores inbox messages.
     /// </summary>
-    public string TableName { get; init; } = "litebus_inbox_commands";
+    public string TableName { get; init; } = "litebus_inbox_messages";
 
     /// <summary>
     ///     Gets a value indicating whether the application host should create or upgrade the inbox schema on startup.

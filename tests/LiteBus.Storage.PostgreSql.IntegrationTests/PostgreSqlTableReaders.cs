@@ -12,7 +12,7 @@ internal static class PostgreSqlTableReaders
     internal static async Task<InboxEnvelope?> ReadInboxAsync(
         NpgsqlDataSource dataSource,
         PostgreSqlInboxStoreOptions options,
-        Guid commandId,
+        Guid messageId,
         CancellationToken cancellationToken = default)
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
@@ -21,7 +21,7 @@ internal static class PostgreSqlTableReaders
         await using var command = connection.CreateCommand();
         command.CommandText = $"""
                                SELECT
-                                   command_id,
+                                   message_id,
                                    contract_name,
                                    contract_version,
                                    payload::text,
@@ -37,9 +37,9 @@ internal static class PostgreSqlTableReaders
                                    causation_id,
                                    tenant_id
                                FROM {tableName}
-                               WHERE command_id = @command_id;
+                               WHERE message_id = @message_id;
                                """;
-        command.Parameters.AddWithValue("command_id", commandId);
+        command.Parameters.AddWithValue("message_id", messageId);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))

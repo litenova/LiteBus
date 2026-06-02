@@ -27,7 +27,7 @@ All notable changes to this project will be documented in this file.
 - Added `docs/Inbox.md` with core inbox module, writer, processor, hosting, and separate storage/dispatch registration.
 - Added `LiteBus.Inbox.Storage.InMemory` with `InMemoryInboxStore`, `AddInMemoryInboxStorage()`, and `InMemoryInboxStoreOptions` for capacity limits and default lease duration.
 - Added `LiteBus.Inbox.Storage.InMemory.UnitTests` with inbox store contract, concurrent lease, and idempotency coverage.
-- Added `LiteBus.Outbox.Storage.EntityFrameworkCore` with `OutboxMessageEntity`, `IOutboxDbContext`, `EfCoreOutboxStore`, `EfCoreOutboxStoreOptions`, `OutboxMessageEntityConfiguration.GetModelBuilderConfiguration()`, and `AddEfCoreOutboxStorage()`.
+- Added `LiteBus.Outbox.Storage.EntityFrameworkCore` with `OutboxMessageEntity`, `IOutboxDbContext`, `EfCoreOutboxStore`, `EfCoreOutboxStoreOptions`, `OutboxEntityFrameworkCoreModelExtensions.GetModelBuilderConfiguration()`, and `AddEfCoreOutboxStorage()`.
 - Added `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests` and `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests` against shared `OutboxStoreContractTests`.
 - Added [Entity Framework Core outbox storage](docs/Outbox-EntityFrameworkCore-Storage.md) documentation.
 - Added `LiteBus.Inbox.Ingress.Amqp` with `AmqpInboxConsumer`, `AmqpInboxIngressHandler`, `AddInboxAmqpIngress()`, and RabbitMQ/LavinMQ registration aliases.
@@ -62,7 +62,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Aligned Entity Framework Core inbox storage defaults with PostgreSQL native schema: `public.litebus_inbox_commands` (was `litebus.inbox_messages`). Added nullable `TraceContext` (`trace_context jsonb`) to inbox and outbox EF entities for schema version 2 parity with PostgreSQL stores.
+- Renamed `IInboxStateStore.MarkCompletedAsync` parameter `commandId` to `messageId`. Updated inbox envelope, status, lease, failure, and dead-letter XML to message-neutral wording. Removed unused `LiteBus.Commands.Abstractions` reference from `LiteBus.Inbox.Abstractions`. Aligned `OutboxEnvelope` XML with message-neutral wording.
+- Renamed inbox PostgreSQL and EF Core storage defaults to neutral table and column names: `public.litebus_inbox_messages` with primary key column `message_id` (replacing `litebus_inbox_commands` / `command_id`). PostgreSQL inbox schema version is 3; `EnsureAsync` and `GetUpgradeScript(2, 3)` apply `Sql/inbox/v3/rename_message_identity.sql` to rename legacy columns and the default table when present. Migration-owned deployments can run the same DDL manually. Added nullable `TraceContext` (`trace_context`) to inbox and outbox EF entities for schema version 2 parity with PostgreSQL stores.
 - Replaced per-feature `*.Extensions.Microsoft.Hosting` packages with `IBackgroundService` types registered from core modules via `RegisterBackgroundService`. Inbox and outbox loops use `EnableInboxProcessor()` / `EnableOutboxProcessor()`. AMQP ingress registers `AmqpInboxConsumer` from `AddInboxAmqpIngress()`. PostgreSQL schema bootstrap uses `PostgreSqlInboxSchemaInitializer` / `PostgreSqlOutboxSchemaInitializer`. Removed processor health checks and separate `AddInboxAmqpIngressHosting` / `Add*ProcessorHosting` / `AddPostgreSql*SchemaHosting` extension methods. User-facing documentation uses background service naming; see `docs/Hosted-services.md`.
 - Removed analyzer rules LB1002 (duplicate event handler routing) and LB1006 (handler priority conflict). Multiple event handlers for the same event and handlers sharing a priority value are intentional LiteBus behavior.
 - Added analyzer rules LB1008 (missing command handler), LB1009 (missing query handler), and LB1010 (duplicate query handler).
@@ -77,7 +78,7 @@ All notable changes to this project will be documented in this file.
 - `InboxProcessor` no longer records retry or dead-letter state when `MarkCompletedAsync` fails after a successful dispatch. The envelope keeps its active lease until completion succeeds or the lease expires.
 - `DependencyDescriptor` equality now distinguishes instance and factory registrations with different targets instead of treating every singleton-instance registration for the same service type as a duplicate.
 - DI adapters ignore duplicate `RegisterHostedService` calls for the same implementation type.
-- Entity Framework Core inbox and outbox model configuration maps `payload` as PostgreSQL `jsonb`, marks message identifiers as application-assigned (`ValueGeneratedNever`), and reloads rows after insert so returned payloads match PostgreSQL normalization.
+- Entity Framework Core inbox and outbox model configuration applies provider-specific JSON column types when `EfCoreStorageProvider` is passed to `GetModelBuilderConfiguration()`, marks message identifiers as application-assigned (`ValueGeneratedNever`), and reloads rows after insert so returned payloads match PostgreSQL normalization.
 - Added `tests/LiteBus.Runtime.UnitTests` covering module ordering, dependency descriptors, DI adapters, and `AddLiteBus` integration.
 - Renamed `LiteBus.Amqp` → `LiteBus.Transport.Amqp` (`LiteBus.{Area}.{Technology}` shared util layout; storage uses `LiteBus.Storage.PostgreSql`).
 - Renamed `LiteBus.Inbox.Dispatch.Commands` → `LiteBus.Inbox.Dispatch.InProcess` (`InProcessInboxDispatcher`, `InProcessInboxDispatchModule`, `AddInboxInProcessDispatcher`).

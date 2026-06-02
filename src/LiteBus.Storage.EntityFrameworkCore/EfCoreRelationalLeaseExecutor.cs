@@ -228,7 +228,6 @@ internal static class EfCoreRelationalLeaseExecutor
     /// <summary>
     ///     Builds the parameter array for a MySQL lease update statement.
     /// </summary>
-    /// <typeparam name="TId">The identifier type.</typeparam>
     /// <param name="pendingStatus">The pending status value.</param>
     /// <param name="failedStatus">The failed status value.</param>
     /// <param name="now">The current timestamp.</param>

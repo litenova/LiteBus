@@ -18,7 +18,7 @@ public sealed class InboxEntityFrameworkCoreModelTests
         var entity = modelBuilder.Model.FindEntityType(typeof(InboxMessageEntity));
         entity.Should().NotBeNull();
         entity!.GetSchema().Should().Be("public");
-        entity.GetTableName().Should().Be("litebus_inbox_commands");
+        entity.GetTableName().Should().Be("litebus_inbox_messages");
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public sealed class InboxEntityFrameworkCoreModelTests
         var options = new EfCoreInboxStoreOptions
         {
             SchemaName = "app",
-            TableName = "command_inbox"
+            TableName = "inbox_messages"
         };
 
         var modelBuilder = new ModelBuilder();
@@ -36,8 +36,8 @@ public sealed class InboxEntityFrameworkCoreModelTests
         var entity = modelBuilder.Model.FindEntityType(typeof(InboxMessageEntity));
         entity.Should().NotBeNull();
         entity!.GetSchema().Should().Be("app");
-        entity.GetTableName().Should().Be("command_inbox");
-        entity.FindProperty(nameof(InboxMessageEntity.Id))!.GetColumnName().Should().Be("command_id");
+        entity.GetTableName().Should().Be("inbox_messages");
+        entity.FindProperty(nameof(InboxMessageEntity.Id))!.GetColumnName().Should().Be("message_id");
     }
 
     [Fact]

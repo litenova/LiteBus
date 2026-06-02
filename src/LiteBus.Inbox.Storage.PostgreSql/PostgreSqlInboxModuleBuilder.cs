@@ -5,7 +5,7 @@ using Npgsql;
 namespace LiteBus.Inbox.Storage.PostgreSql;
 
 /// <summary>
-///     Configures the PostgreSQL command inbox store module.
+///     Configures the PostgreSQL inbox store module.
 /// </summary>
 /// <example>
 ///     Register with an existing data source:

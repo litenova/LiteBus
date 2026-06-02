@@ -38,6 +38,7 @@ msbuild.wrn
 [Tt]est[Rr]esults/
 *.trx
 test-results*.txt
+agent-tools/test-runs/
 
 # Code coverage (local / CI artifacts)
 coverage/

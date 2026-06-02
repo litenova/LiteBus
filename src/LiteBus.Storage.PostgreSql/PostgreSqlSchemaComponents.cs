@@ -6,7 +6,7 @@ namespace LiteBus.Storage.PostgreSql;
 public static class PostgreSqlSchemaComponents
 {
     /// <summary>
-    ///     The command inbox store component name.
+    ///     The inbox store component name.
     /// </summary>
     public const string Inbox = "inbox";
 

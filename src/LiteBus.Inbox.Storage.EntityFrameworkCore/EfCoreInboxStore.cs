@@ -161,12 +161,12 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
     }
 
     /// <inheritdoc />
-    public Task MarkCompletedAsync(Guid commandId, CancellationToken cancellationToken = default)
+    public Task MarkCompletedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         return ExecuteAsync(async (context, token) =>
         {
             var entity = await context.InboxMessages
-                .SingleOrDefaultAsync(message => message.Id == commandId, token)
+                .SingleOrDefaultAsync(message => message.Id == messageId, token)
                 .ConfigureAwait(false);
 
             if (entity is null)
@@ -427,13 +427,13 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
     ///     Finds an existing row after a duplicate insert attempt.
     /// </summary>
     /// <param name="context">The database context.</param>
-    /// <param name="commandId">The command identifier from the attempted insert.</param>
+    /// <param name="messageId">The message identifier from the attempted insert.</param>
     /// <param name="idempotencyKey">The idempotency key from the attempted insert.</param>
     /// <param name="cancellationToken">A token that cancels the lookup.</param>
     /// <returns>The existing entity when found; otherwise, <see langword="null" />.</returns>
     private static async Task<InboxMessageEntity?> FindExistingEntityAsync(
         IInboxDbContext context,
-        Guid commandId,
+        Guid messageId,
         string? idempotencyKey,
         CancellationToken cancellationToken)
     {
@@ -441,14 +441,14 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
         {
             return await context.InboxMessages
                 .AsNoTracking()
-                .SingleOrDefaultAsync(message => message.Id == commandId, cancellationToken)
+                .SingleOrDefaultAsync(message => message.Id == messageId, cancellationToken)
                 .ConfigureAwait(false);
         }
 
         return await context.InboxMessages
             .AsNoTracking()
-            .Where(message => message.Id == commandId || message.IdempotencyKey == idempotencyKey)
-            .OrderBy(message => message.Id == commandId ? 0 : 1)
+            .Where(message => message.Id == messageId || message.IdempotencyKey == idempotencyKey)
+            .OrderBy(message => message.Id == messageId ? 0 : 1)
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -569,9 +569,9 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
     private sealed class InboxMessageLeaseRow
     {
         /// <summary>
-        ///     Gets or sets the command identifier column.
+        ///     Gets or sets the message identifier column.
         /// </summary>
-        [Column("command_id")]
+        [Column("message_id")]
         public Guid Id { get; set; }
 
         /// <summary>

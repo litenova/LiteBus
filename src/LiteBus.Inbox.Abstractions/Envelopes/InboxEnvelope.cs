@@ -13,37 +13,37 @@ namespace LiteBus.Inbox.Abstractions;
 public sealed record InboxEnvelope
 {
     /// <summary>
-    ///     Gets the unique persisted command identifier.
+    ///     Gets the unique persisted message identifier.
     /// </summary>
     public required Guid Id { get; init; }
 
     /// <summary>
-    ///     Gets the stable command contract name used to resolve the command type.
+    ///     Gets the stable message contract name used to resolve the message type.
     /// </summary>
     public required string ContractName { get; init; }
 
     /// <summary>
-    ///     Gets the command contract version used to resolve the command type and payload shape.
+    ///     Gets the message contract version used to resolve the message type and payload shape.
     /// </summary>
     public required int ContractVersion { get; init; }
 
     /// <summary>
-    ///     Gets the serialized command payload. The default PostgreSQL store writes this value to a `jsonb` column.
+    ///     Gets the serialized message payload. The default PostgreSQL store writes this value to a `jsonb` column.
     /// </summary>
     public required string Payload { get; init; }
 
     /// <summary>
-    ///     Gets the UTC timestamp when the command was accepted.
+    ///     Gets the UTC timestamp when the message was accepted.
     /// </summary>
     public required DateTimeOffset CreatedAt { get; init; }
 
     /// <summary>
-    ///     Gets the earliest UTC timestamp at which the command may be processed.
+    ///     Gets the earliest UTC timestamp at which the message may be processed.
     /// </summary>
     public DateTimeOffset? VisibleAfter { get; init; }
 
     /// <summary>
-    ///     Gets the number of processing attempts. Stores increment this value when a command is leased.
+    ///     Gets the number of processing attempts. Stores increment this value when a message is leased.
     /// </summary>
     public required int AttemptCount { get; init; }
 
@@ -58,7 +58,7 @@ public sealed record InboxEnvelope
     public string? IdempotencyKey { get; init; }
 
     /// <summary>
-    ///     Gets the optional processing lease owner that currently holds the command.
+    ///     Gets the optional processing lease owner that currently holds the message.
     /// </summary>
     public string? LeaseOwner { get; init; }
 

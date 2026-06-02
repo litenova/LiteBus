@@ -55,7 +55,7 @@ internal static class EfCorePostgreSqlLeaseSql
     private static string BuildInboxReturning(string alias)
     {
         return $"""
-                {alias}.command_id,
+                {alias}.message_id,
                 {alias}.contract_name,
                 {alias}.contract_version,
                 {alias}.payload,

@@ -52,7 +52,7 @@ internal static class EfCoreSqlServerLeaseSql
     private static string BuildInboxOutput()
     {
         return """
-               INSERTED.[command_id],
+               INSERTED.[message_id],
                INSERTED.[contract_name],
                INSERTED.[contract_version],
                INSERTED.[payload],

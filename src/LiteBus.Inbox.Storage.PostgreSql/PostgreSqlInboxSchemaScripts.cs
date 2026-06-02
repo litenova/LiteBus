@@ -18,11 +18,16 @@ internal static class PostgreSqlInboxSchemaScripts
     private static readonly Assembly Assembly = typeof(PostgreSqlInboxSchemaScripts).Assembly;
 
     /// <summary>
+    ///     The legacy default inbox table name shipped before schema version 3.
+    /// </summary>
+    private const string LegacyDefaultTableName = "litebus_inbox_commands";
+
+    /// <summary>
     ///     The column names introduced by inbox schema version 1.
     /// </summary>
     internal static readonly IReadOnlyList<string> Version1Columns =
     [
-        "command_id",
+        "message_id",
         "contract_name",
         "contract_version",
         "payload",
@@ -48,12 +53,20 @@ internal static class PostgreSqlInboxSchemaScripts
     ];
 
     /// <summary>
+    ///     The column names introduced by inbox schema version 3 (message-neutral PK rename from <c>command_id</c>).
+    /// </summary>
+    internal static readonly IReadOnlyList<string> Version3Columns =
+    [
+    ];
+
+    /// <summary>
     ///     The ordered column groups introduced by each inbox schema version.
     /// </summary>
     internal static readonly IReadOnlyList<IReadOnlyList<string>> VersionColumnSets =
     [
         Version1Columns,
-        Version2Columns
+        Version2Columns,
+        Version3Columns
     ];
 
     /// <summary>
@@ -63,13 +76,16 @@ internal static class PostgreSqlInboxSchemaScripts
     [
         new PostgreSqlSchemaSqlFile(
             PostgreSqlInboxSchemaSqlPaths.V1Create,
-            "Creates the version 1 command inbox table and indexes."),
+            "Creates the version 1 inbox table and indexes."),
         new PostgreSqlSchemaSqlFile(
             PostgreSqlInboxSchemaSqlPaths.V1EnsureIndexes,
-            "Ensures command inbox indexes exist for the current schema version."),
+            "Ensures inbox indexes exist for the current schema version."),
         new PostgreSqlSchemaSqlFile(
             PostgreSqlInboxSchemaSqlPaths.V2Upgrade,
-            "Upgrades the command inbox table from version 1 to version 2.")
+            "Upgrades the inbox table from version 1 to version 2."),
+        new PostgreSqlSchemaSqlFile(
+            PostgreSqlInboxSchemaSqlPaths.V3Upgrade,
+            "Upgrades the inbox table from version 2 to version 3 (message_id and default table rename).")
     ];
 
     /// <summary>
@@ -146,6 +162,10 @@ internal static class PostgreSqlInboxSchemaScripts
         return toVersion switch
         {
             2 => PostgreSqlSchemaExecutor.LoadSharedAddTraceContextColumnScript(options),
+            3 => PostgreSqlSqlScriptLoader.LoadAndRender(
+                Assembly,
+                PostgreSqlInboxSchemaEmbeddedSql.V3Upgrade,
+                CreateStoreTokens(options)),
             _ => throw new ArgumentOutOfRangeException(nameof(toVersion), toVersion, "Unsupported inbox schema version.")
         };
     }
@@ -197,6 +217,10 @@ internal static class PostgreSqlInboxSchemaScripts
         var tokens = PostgreSqlSchemaSqlTokens.ForStoreTable(options);
         tokens["IdempotencyIndexName"] = PostgreSqlIdentifier.IndexName(options.TableName, "idempotency_key_uidx");
         tokens["LeaseIndexName"] = PostgreSqlIdentifier.IndexName(options.TableName, "lease_idx");
+        tokens["UnquotedSchemaName"] = options.SchemaName;
+        tokens["UnquotedTableName"] = options.TableName;
+        tokens["QuotedTableName"] = PostgreSqlIdentifier.Quote(options.TableName);
+        tokens["LegacyQualifiedTableName"] = PostgreSqlIdentifier.Qualify(options.SchemaName, LegacyDefaultTableName);
         return tokens;
     }
 }

@@ -3,11 +3,11 @@ using System;
 namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
-///     Represents one persisted event row in an outbox store.
+///     Represents one persisted message row in an outbox store.
 /// </summary>
 /// <remarks>
-///     Store implementations use this non-generic envelope so one table can hold many event types. The payload is the
-///     serialized event; the contract fields identify the CLR type used for deserialization or transport mapping.
+///     Store implementations use this non-generic envelope so one table can hold many message types. The payload is the
+///     serialized message; the contract fields identify the CLR type used for deserialization or transport mapping.
 ///     Processors update status, attempt count, lease, and error fields as the message moves through publication.
 /// </remarks>
 public sealed record OutboxEnvelope
@@ -18,17 +18,17 @@ public sealed record OutboxEnvelope
     public required Guid Id { get; init; }
 
     /// <summary>
-    ///     Gets the stable event contract name used to resolve the event type.
+    ///     Gets the stable message contract name used to resolve the message type.
     /// </summary>
     public required string ContractName { get; init; }
 
     /// <summary>
-    ///     Gets the event contract version used to resolve the event type and payload shape.
+    ///     Gets the message contract version used to resolve the message type and payload shape.
     /// </summary>
     public required int ContractVersion { get; init; }
 
     /// <summary>
-    ///     Gets the serialized event payload. The default PostgreSQL store writes this value to a `jsonb` column.
+    ///     Gets the serialized message payload. The default PostgreSQL store writes this value to a `jsonb` column.
     /// </summary>
     public required string Payload { get; init; }
 
@@ -38,7 +38,7 @@ public sealed record OutboxEnvelope
     public string? Topic { get; init; }
 
     /// <summary>
-    ///     Gets the UTC timestamp when the event was stored.
+    ///     Gets the UTC timestamp when the message was stored.
     /// </summary>
     public required DateTimeOffset CreatedAt { get; init; }
 
