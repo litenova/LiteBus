@@ -52,4 +52,9 @@ internal sealed class PostgreSqlComponentSchemaDefinition
     ///     Gets the function that creates the advisory lock key for one store table.
     /// </summary>
     public required Func<IPostgreSqlStoreTableOptions, string> CreateLockKey { get; init; }
+
+    /// <summary>
+    ///     Gets the function that returns index names required for the current schema version.
+    /// </summary>
+    public required Func<IPostgreSqlStoreTableOptions, IReadOnlyList<string>> GetRequiredIndexNames { get; init; }
 }

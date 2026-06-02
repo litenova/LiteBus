@@ -92,6 +92,10 @@ public static class OutboxEntityFrameworkCoreModelExtensions
         entity.Property(message => message.TenantId)
             .HasColumnName("tenant_id");
 
+        entity.Property(message => message.TraceContext)
+            .HasColumnName("trace_context")
+            .HasColumnType("jsonb");
+
         entity.HasIndex(message => new { message.Status, message.VisibleAfter, message.LeaseExpiresAt, message.CreatedAt });
 
         entity.HasIndex(message => message.Topic)

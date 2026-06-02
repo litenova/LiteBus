@@ -48,6 +48,17 @@ public static class PostgreSqlIdentifier
     /// <returns>A quoted index identifier.</returns>
     public static string IndexName(string tableName, string suffix)
     {
+        return Quote(UnquotedIndexName(tableName, suffix));
+    }
+
+    /// <summary>
+    ///     Creates a deterministic unquoted index name that stays within PostgreSQL identifier length limits.
+    /// </summary>
+    /// <param name="tableName">The table name used as the index name prefix.</param>
+    /// <param name="suffix">The logical suffix that describes the index role.</param>
+    /// <returns>The unquoted index name as stored in <c>pg_indexes.indexname</c>.</returns>
+    public static string UnquotedIndexName(string tableName, string suffix)
+    {
         var builder = new StringBuilder(tableName.Length + suffix.Length + 1);
 
         foreach (var character in $"{tableName}_{suffix}")
@@ -59,13 +70,10 @@ public static class PostgreSqlIdentifier
 
         if (name.Length > 60)
         {
-            // GetHashCode is process-randomized (Marvin32 seed), so it cannot be used to produce
-            // a stable suffix that survives application restarts. FNV-1a produces the same value
-            // for the same input on every run, preventing orphan indexes.
             name = name[..48] + "_" + StableHash(name).ToString("x8");
         }
 
-        return Quote(name);
+        return name;
     }
 
     /// <summary>

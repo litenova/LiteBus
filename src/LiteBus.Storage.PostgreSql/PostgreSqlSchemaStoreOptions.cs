@@ -28,4 +28,15 @@ public record PostgreSqlSchemaStoreOptions
     ///     application logging without adding logging package dependencies to <c>LiteBus.Storage.PostgreSql</c>.
     /// </remarks>
     public IPostgreSqlSchemaLogger? Logger { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="PostgreSqlSchemaManager.ValidateAsync" /> should verify required
+    ///     indexes exist on the store table.
+    /// </summary>
+    /// <remarks>
+    ///     When <see langword="true" />, validation fails with <see cref="PostgreSqlSchemaDriftException" /> when an
+    ///     expected index is missing. Set to <see langword="false" /> only when an external migration tool manages indexes
+    ///     separately and startup should check columns and metadata only.
+    /// </remarks>
+    public bool ValidateIndexesOnStartup { get; init; } = true;
 }

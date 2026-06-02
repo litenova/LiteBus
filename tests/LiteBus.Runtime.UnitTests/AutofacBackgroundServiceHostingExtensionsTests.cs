@@ -15,7 +15,7 @@ public sealed class AutofacBackgroundServiceHostingExtensionsTests
 
         using var container = builder.Build();
 
-        container.Resolve<IEnumerable<IHostedService>>().Should().ContainSingle();
+        container.Resolve<IEnumerable<IHostedService>>().Should().HaveCount(2);
         container.Resolve<RecordingBackgroundService>().Should().NotBeNull();
     }
 
@@ -45,11 +45,20 @@ public sealed class AutofacBackgroundServiceHostingExtensionsTests
 
         await using var container = builder.Build();
 
-        var hostedService = container.Resolve<IHostedService>();
+        var hostedServices = container.Resolve<IEnumerable<IHostedService>>().ToList();
         using var cts = new CancellationTokenSource();
-        await hostedService.StartAsync(cts.Token);
+
+        foreach (var hostedService in hostedServices)
+        {
+            await hostedService.StartAsync(cts.Token);
+        }
+
         await Task.Delay(50, cts.Token);
-        await hostedService.StopAsync(CancellationToken.None);
+
+        foreach (var hostedService in hostedServices)
+        {
+            await hostedService.StopAsync(CancellationToken.None);
+        }
 
         container.Resolve<RecordingBackgroundService>().ExecuteCount.Should().BeGreaterThan(0);
     }

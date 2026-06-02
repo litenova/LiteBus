@@ -7,6 +7,38 @@ namespace LiteBus.Runtime.UnitTests;
 public sealed class ModuleConfigurationTests
 {
     [Fact]
+    public void RegisterBackgroundService_ShouldPreserveFirstRegistrationOrderAndDeduplicate()
+    {
+        var configuration = new ModuleConfiguration(new DependencyRegistry());
+
+        configuration.RegisterBackgroundService(typeof(RecordingStartupBackgroundService));
+        configuration.RegisterBackgroundService(typeof(RecordingContinuousBackgroundService));
+        configuration.RegisterBackgroundService(typeof(RecordingStartupBackgroundService));
+
+        configuration.BackgroundServices.Should().Equal(
+            typeof(RecordingStartupBackgroundService),
+            typeof(RecordingContinuousBackgroundService));
+    }
+
+    private sealed class RecordingStartupBackgroundService : IBackgroundServiceStartupInitializer
+    {
+        /// <inheritdoc />
+        public Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingContinuousBackgroundService : IBackgroundService
+    {
+        /// <inheritdoc />
+        public Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
     public void GetContext_WhenMissing_ShouldThrowInvalidOperationException()
     {
         var configuration = new ModuleConfiguration(new DependencyRegistry());

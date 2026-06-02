@@ -34,8 +34,9 @@ public sealed record PostgreSqlInboxStoreOptions : PostgreSqlSchemaStoreOptions,
     ///     <see cref="PostgreSqlInboxSchema.CurrentSchemaVersion" />.
     /// </summary>
     /// <remarks>
-    ///     Validation runs after <see cref="EnsureSchemaCreationOnStartup" /> when both options are enabled. Manual callers
-    ///     can invoke
+    ///     When <see langword="true" />, <see cref="PostgreSqlInboxSchemaInitializer" /> validates the schema during host
+    ///     startup even if <see cref="EnsureSchemaCreationOnStartup" /> is <see langword="false" />. Validation runs after
+    ///     ensure when both options are enabled. Manual callers can invoke
     ///     <see cref="PostgreSqlInboxSchema.ValidateAsync(Npgsql.NpgsqlDataSource, PostgreSqlInboxStoreOptions?, System.Threading.CancellationToken)" />
     ///     directly during deploy checks.
     /// </remarks>

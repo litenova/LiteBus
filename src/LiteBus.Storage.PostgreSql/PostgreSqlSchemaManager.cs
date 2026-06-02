@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Npgsql;
@@ -195,7 +196,7 @@ internal static class PostgreSqlSchemaManager
             {
                 currentVersion = inferredVersion;
             }
-            else if (currentVersion == 0)
+            else if (currentVersion == 0 || inferredVersion > currentVersion)
             {
                 currentVersion = inferredVersion;
             }
@@ -362,6 +363,73 @@ internal static class PostgreSqlSchemaManager
             logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
             throw exception;
         }
+
+        if (ShouldValidateIndexes(options))
+        {
+            await ValidateRequiredIndexesAsync(connection, options, definition, logger, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Returns <see langword="true" /> when startup validation should verify required indexes on the store table.
+    /// </summary>
+    /// <param name="options">The store table and metadata options.</param>
+    /// <returns><see langword="true" /> when index validation is enabled; otherwise, <see langword="false" />.</returns>
+    private static bool ShouldValidateIndexes(IPostgreSqlStoreTableOptions options)
+    {
+        return options is PostgreSqlSchemaStoreOptions storeOptions
+            ? storeOptions.ValidateIndexesOnStartup
+            : true;
+    }
+
+    /// <summary>
+    ///     Validates that all required indexes for the current schema version exist on the store table.
+    /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="options">The store table and metadata options.</param>
+    /// <param name="definition">The component schema definition that supplies index names.</param>
+    /// <param name="logger">The schema logger that receives operational output.</param>
+    /// <param name="cancellationToken">A token used to cancel the lookup.</param>
+    /// <returns>A task that completes when validation succeeds.</returns>
+    private static async Task ValidateRequiredIndexesAsync(
+        NpgsqlConnection connection,
+        IPostgreSqlStoreTableOptions options,
+        PostgreSqlComponentSchemaDefinition definition,
+        IPostgreSqlSchemaLogger logger,
+        CancellationToken cancellationToken)
+    {
+        var missingIndexes = new List<string>();
+
+        foreach (var indexName in definition.GetRequiredIndexNames(options))
+        {
+            if (!await PostgreSqlSchemaInspector.IndexExistsAsync(
+                    connection,
+                    options.SchemaName,
+                    options.TableName,
+                    indexName,
+                    cancellationToken)
+                .ConfigureAwait(false))
+            {
+                missingIndexes.Add(indexName);
+            }
+        }
+
+        if (missingIndexes.Count == 0)
+        {
+            return;
+        }
+
+        var exception = new PostgreSqlSchemaDriftException(
+            definition.Component,
+            options.SchemaName,
+            options.TableName,
+            definition.CurrentSchemaVersion,
+            actualVersion: null,
+            $"Missing indexes: {string.Join(", ", missingIndexes)}.");
+
+        logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
+        throw exception;
     }
 
     /// <summary>

@@ -8,7 +8,7 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 /// <summary>
 ///     Ensures the PostgreSQL outbox schema exists during host startup when configured to do so.
 /// </summary>
-public sealed class PostgreSqlOutboxSchemaInitializer : IBackgroundService
+public sealed class PostgreSqlOutboxSchemaInitializer : IBackgroundServiceStartupInitializer
 {
     /// <summary>
     ///     The registered outbox store configuration consumed during host startup.
@@ -27,16 +27,14 @@ public sealed class PostgreSqlOutboxSchemaInitializer : IBackgroundService
     /// <inheritdoc />
     public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_registration.Options.EnsureSchemaCreationOnStartup)
+        if (_registration.Options.EnsureSchemaCreationOnStartup)
         {
-            return;
+            await PostgreSqlOutboxSchema.EnsureAsync(
+                    _registration.DataSource,
+                    _registration.Options,
+                    stoppingToken)
+                .ConfigureAwait(false);
         }
-
-        await PostgreSqlOutboxSchema.EnsureAsync(
-                _registration.DataSource,
-                _registration.Options,
-                stoppingToken)
-            .ConfigureAwait(false);
 
         if (_registration.Options.ValidateSchemaCreationOnStartup)
         {

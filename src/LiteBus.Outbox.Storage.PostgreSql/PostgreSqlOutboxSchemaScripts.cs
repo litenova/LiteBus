@@ -85,7 +85,8 @@ internal static class PostgreSqlOutboxSchemaScripts
         BuildUpgradeScript = BuildUpgradeScript,
         BuildEnsureIndexesScript = BuildEnsureIndexesScript,
         BuildCreateScript = BuildCreateScript,
-        CreateLockKey = CreateLockKey
+        CreateLockKey = CreateLockKey,
+        GetRequiredIndexNames = GetRequiredIndexNames
     };
 
     /// <summary>
@@ -160,6 +161,20 @@ internal static class PostgreSqlOutboxSchemaScripts
             Assembly,
             PostgreSqlOutboxSchemaEmbeddedSql.V1EnsureIndexes,
             CreateStoreTokens(options));
+    }
+
+    /// <summary>
+    ///     Returns the index names required for the current outbox schema version.
+    /// </summary>
+    /// <param name="options">The store table and metadata options.</param>
+    /// <returns>The required index names for validation.</returns>
+    internal static IReadOnlyList<string> GetRequiredIndexNames(IPostgreSqlStoreTableOptions options)
+    {
+        return
+        [
+            PostgreSqlIdentifier.UnquotedIndexName(options.TableName, "lease_idx"),
+            PostgreSqlIdentifier.UnquotedIndexName(options.TableName, "topic_idx")
+        ];
     }
 
     /// <summary>

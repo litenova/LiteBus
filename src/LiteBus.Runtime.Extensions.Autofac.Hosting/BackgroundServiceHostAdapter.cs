@@ -17,17 +17,25 @@ internal sealed class BackgroundServiceHostAdapter : BackgroundService
     private readonly IBackgroundService _backgroundService;
 
     /// <summary>
+    ///     The gate that blocks continuous loops until startup-phase background services finish.
+    /// </summary>
+    private readonly BackgroundServiceStartupGate _startupGate;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="BackgroundServiceHostAdapter" /> class.
     /// </summary>
     /// <param name="backgroundService">The background service executed by the host.</param>
-    public BackgroundServiceHostAdapter(IBackgroundService backgroundService)
+    /// <param name="startupGate">The gate that blocks until startup-phase background services finish.</param>
+    public BackgroundServiceHostAdapter(IBackgroundService backgroundService, BackgroundServiceStartupGate startupGate)
     {
         _backgroundService = backgroundService ?? throw new ArgumentNullException(nameof(backgroundService));
+        _startupGate = startupGate ?? throw new ArgumentNullException(nameof(startupGate));
     }
 
     /// <inheritdoc />
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        return _backgroundService.ExecuteAsync(stoppingToken);
+        await _startupGate.WaitAsync(stoppingToken).ConfigureAwait(false);
+        await _backgroundService.ExecuteAsync(stoppingToken).ConfigureAwait(false);
     }
 }

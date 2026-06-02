@@ -16,9 +16,14 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
     private readonly Dictionary<Type, object> _contexts = [];
 
     /// <summary>
-    ///     Background service implementation types registered for host execution.
+    ///     Background service implementation types registered for host execution in first-registration order.
     /// </summary>
-    private readonly HashSet<Type> _backgroundServices = [];
+    private readonly List<Type> _backgroundServices = [];
+
+    /// <summary>
+    ///     Tracks background service types already registered so duplicates are ignored without reordering.
+    /// </summary>
+    private readonly HashSet<Type> _backgroundServiceTypes = [];
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="ModuleConfiguration" /> class.
@@ -48,7 +53,10 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
                 nameof(implementationType));
         }
 
-        _backgroundServices.Add(implementationType);
+        if (_backgroundServiceTypes.Add(implementationType))
+        {
+            _backgroundServices.Add(implementationType);
+        }
     }
 
     /// <inheritdoc />

@@ -31,7 +31,7 @@ All notable changes to this project will be documented in this file.
 - Added `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests` and `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests` against shared `OutboxStoreContractTests`.
 - Added [Entity Framework Core outbox storage](docs/Outbox-EntityFrameworkCore-Storage.md) documentation.
 - Added `LiteBus.Inbox.Ingress.Amqp` with `AmqpInboxConsumer`, `AmqpInboxIngressHandler`, `AddInboxAmqpIngress()`, and RabbitMQ/LavinMQ registration aliases.
-- Added `IBackgroundService`, `IModuleConfiguration.RegisterBackgroundService`, `LiteBus.Runtime.Extensions.Microsoft.Hosting`, and `LiteBus.Runtime.Extensions.Autofac.Hosting` so feature modules register host work separately from `DependencyDescriptor` registration.
+- Added `IBackgroundService`, `IBackgroundServiceStartupInitializer`, `IModuleConfiguration.RegisterBackgroundService`, `LiteBus.Runtime.Extensions.Microsoft.Hosting`, and `LiteBus.Runtime.Extensions.Autofac.Hosting` so feature modules register host work separately from `DependencyDescriptor` registration.
 - Added `tests/LiteBus.Inbox.Ingress.Amqp.IntegrationTests` covering publish → ingress → store → processor → command dispatch against RabbitMQ and LavinMQ Testcontainers.
 - Added `docs/Inbox-Amqp-Ingress.md` for AMQP inbox ingress registration, wire format, and acknowledgement behavior.
 - Added `LiteBus.Analyzers` with compile-time rules LB1001, LB1003, LB1004, LB1005, and LB1007 (duplicate command handlers, query impurity, inbox misuse, open generic handlers, missing contracts) and `docs/Analyzers.md`.
@@ -42,6 +42,8 @@ All notable changes to this project will be documented in this file.
 
 ### Improved
 
+- PostgreSQL schema startup: validate-only path when `EnsureSchemaCreationOnStartup` is false and `ValidateSchemaCreationOnStartup` is true; index existence checks in `ValidateAsync` (optional via `ValidateIndexesOnStartup` on `PostgreSqlSchemaStoreOptions`); metadata repair in `EnsureAsync` when physical shape matches the current version but metadata is stale; `IBackgroundServiceStartupInitializer` and host startup gate so schema initializers finish before processor and ingress loops.
+- `IModuleConfiguration.BackgroundServices` preserves first-registration order while deduplicating types.
 - Expanded v6 test coverage across PostgreSQL, AMQP ingress/dispatch, EF Core processor paths, module registration, and sample composition smoke verification.
 
 ### Docs
@@ -58,6 +60,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Aligned Entity Framework Core inbox storage defaults with PostgreSQL native schema: `public.litebus_inbox_commands` (was `litebus.inbox_messages`). Added nullable `TraceContext` (`trace_context jsonb`) to inbox and outbox EF entities for schema version 2 parity with PostgreSQL stores.
 - Replaced per-feature `*.Extensions.Microsoft.Hosting` packages with `IBackgroundService` types registered from core modules via `RegisterBackgroundService`. Inbox and outbox loops use `EnableInboxProcessor()` / `EnableOutboxProcessor()`. AMQP ingress registers `AmqpInboxConsumer` from `AddInboxAmqpIngress()`. PostgreSQL schema bootstrap uses `PostgreSqlInboxSchemaInitializer` / `PostgreSqlOutboxSchemaInitializer`. Removed processor health checks and separate `AddInboxAmqpIngressHosting` / `Add*ProcessorHosting` / `AddPostgreSql*SchemaHosting` extension methods. User-facing documentation uses background service naming; see `docs/Hosted-services.md`.
 - Removed analyzer rules LB1002 (duplicate event handler routing) and LB1006 (handler priority conflict). Multiple event handlers for the same event and handlers sharing a priority value are intentional LiteBus behavior.
 - Added analyzer rules LB1008 (missing command handler), LB1009 (missing query handler), and LB1010 (duplicate query handler).

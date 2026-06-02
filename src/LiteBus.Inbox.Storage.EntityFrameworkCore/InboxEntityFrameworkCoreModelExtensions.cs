@@ -93,6 +93,10 @@ public static class InboxEntityFrameworkCoreModelExtensions
         entity.Property(message => message.TenantId)
             .HasColumnName("tenant_id");
 
+        entity.Property(message => message.TraceContext)
+            .HasColumnName("trace_context")
+            .HasColumnType("jsonb");
+
         entity.HasIndex(message => message.IdempotencyKey)
             .IsUnique()
             .HasFilter("idempotency_key IS NOT NULL");

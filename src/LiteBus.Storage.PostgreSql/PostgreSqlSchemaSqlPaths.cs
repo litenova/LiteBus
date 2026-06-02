@@ -44,6 +44,11 @@ public static class PostgreSqlSchemaSqlPaths
     public const string InspectorListColumns = Root + "inspector/list_columns.sql";
 
     /// <summary>
+    ///     Checks whether one index exists on a table.
+    /// </summary>
+    public const string InspectorIndexExists = Root + "inspector/index_exists.sql";
+
+    /// <summary>
     ///     Adds the shared version 2 <c>trace_context</c> column.
     /// </summary>
     public const string SharedAddTraceContextColumn = Root + "shared/add_trace_context_column.sql";
@@ -58,6 +63,7 @@ public static class PostgreSqlSchemaSqlPaths
         new PostgreSqlSchemaSqlFile(MetadataUpsertVersion, "Writes one schema version row. Used internally at runtime."),
         new PostgreSqlSchemaSqlFile(InspectorTableExists, "Checks whether a table exists. Used internally at runtime."),
         new PostgreSqlSchemaSqlFile(InspectorListColumns, "Lists table columns. Used internally at runtime."),
+        new PostgreSqlSchemaSqlFile(InspectorIndexExists, "Checks whether one index exists. Used internally at runtime."),
         new PostgreSqlSchemaSqlFile(
             SharedAddTraceContextColumn,
             "Version 2 upgrade that adds nullable trace_context jsonb to inbox or outbox tables.")
@@ -93,6 +99,11 @@ internal static class PostgreSqlSchemaEmbeddedSql
     ///     Embedded resource path for column listing inspection SQL.
     /// </summary>
     internal const string InspectorListColumns = "inspector/list_columns.sql";
+
+    /// <summary>
+    ///     Embedded resource path for index existence inspection SQL.
+    /// </summary>
+    internal const string InspectorIndexExists = "inspector/index_exists.sql";
 
     /// <summary>
     ///     Embedded resource path for the shared trace context column upgrade SQL.

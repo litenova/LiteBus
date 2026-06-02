@@ -85,7 +85,8 @@ internal static class PostgreSqlInboxSchemaScripts
         BuildUpgradeScript = BuildUpgradeScript,
         BuildEnsureIndexesScript = BuildEnsureIndexesScript,
         BuildCreateScript = BuildCreateScript,
-        CreateLockKey = CreateLockKey
+        CreateLockKey = CreateLockKey,
+        GetRequiredIndexNames = GetRequiredIndexNames
     };
 
     /// <summary>
@@ -160,6 +161,20 @@ internal static class PostgreSqlInboxSchemaScripts
             Assembly,
             PostgreSqlInboxSchemaEmbeddedSql.V1EnsureIndexes,
             CreateStoreTokens(options));
+    }
+
+    /// <summary>
+    ///     Returns the index names required for the current inbox schema version.
+    /// </summary>
+    /// <param name="options">The store table and metadata options.</param>
+    /// <returns>The required index names for validation.</returns>
+    internal static IReadOnlyList<string> GetRequiredIndexNames(IPostgreSqlStoreTableOptions options)
+    {
+        return
+        [
+            PostgreSqlIdentifier.UnquotedIndexName(options.TableName, "idempotency_key_uidx"),
+            PostgreSqlIdentifier.UnquotedIndexName(options.TableName, "lease_idx")
+        ];
     }
 
     /// <summary>

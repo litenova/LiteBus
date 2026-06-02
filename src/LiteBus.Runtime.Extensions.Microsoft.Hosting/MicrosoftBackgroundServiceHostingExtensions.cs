@@ -21,18 +21,57 @@ public static class MicrosoftBackgroundServiceHostingExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(backgroundServices);
 
-        var registeredBackgroundServices = new HashSet<Type>();
+        var registration = BackgroundServiceHostingRegistrationSplitter.Split(backgroundServices);
 
-        foreach (var implementationType in backgroundServices)
+        if (registration.StartupInitializerTypes.Count == 0 && registration.ContinuousServiceTypes.Count == 0)
         {
-            if (!registeredBackgroundServices.Add(implementationType))
+            return;
+        }
+
+        if (registration.StartupInitializerTypes.Count > 0)
+        {
+            services.AddSingleton<BackgroundServiceStartupGate>();
+
+            foreach (var implementationType in registration.StartupInitializerTypes)
             {
-                continue;
+                services.Add(ServiceDescriptor.Singleton(implementationType, implementationType));
             }
 
-            services.Add(ServiceDescriptor.Singleton(implementationType, implementationType));
             services.Add(ServiceDescriptor.Singleton<IHostedService>(serviceProvider =>
-                new BackgroundServiceHostAdapter((IBackgroundService)serviceProvider.GetRequiredService(implementationType))));
+            {
+                var startupServices = new List<IBackgroundServiceStartupInitializer>(registration.StartupInitializerTypes.Count);
+
+                foreach (var implementationType in registration.StartupInitializerTypes)
+                {
+                    startupServices.Add((IBackgroundServiceStartupInitializer)serviceProvider.GetRequiredService(implementationType));
+                }
+
+                return new BackgroundServiceStartupPhaseHostedService(
+                    startupServices,
+                    serviceProvider.GetRequiredService<BackgroundServiceStartupGate>());
+            }));
+        }
+        else
+        {
+            services.AddSingleton(_ =>
+            {
+                var gate = new BackgroundServiceStartupGate();
+                gate.SignalComplete();
+                return gate;
+            });
+        }
+
+        foreach (var implementationType in registration.ContinuousServiceTypes)
+        {
+            services.Add(ServiceDescriptor.Singleton(implementationType, implementationType));
+        }
+
+        foreach (var implementationType in registration.ContinuousServiceTypes)
+        {
+            services.Add(ServiceDescriptor.Singleton<IHostedService>(serviceProvider =>
+                new BackgroundServiceHostAdapter(
+                    (IBackgroundService)serviceProvider.GetRequiredService(implementationType),
+                    serviceProvider.GetRequiredService<BackgroundServiceStartupGate>())));
         }
     }
 }

@@ -21,21 +21,65 @@ public static class AutofacBackgroundServiceHostingExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(backgroundServices);
 
-        var registeredBackgroundServices = new HashSet<Type>();
+        var registration = BackgroundServiceHostingRegistrationSplitter.Split(backgroundServices);
 
-        foreach (var implementationType in backgroundServices)
+        if (registration.StartupInitializerTypes.Count == 0 && registration.ContinuousServiceTypes.Count == 0)
         {
-            if (!registeredBackgroundServices.Add(implementationType))
+            return;
+        }
+
+        if (registration.StartupInitializerTypes.Count > 0)
+        {
+            builder.RegisterType<BackgroundServiceStartupGate>()
+                .SingleInstance();
+
+            foreach (var implementationType in registration.StartupInitializerTypes)
             {
-                continue;
+                builder.RegisterType(implementationType)
+                    .AsSelf()
+                    .SingleInstance();
             }
 
+            builder.Register(context =>
+                {
+                    var startupServices = new List<IBackgroundServiceStartupInitializer>(registration.StartupInitializerTypes.Count);
+
+                    foreach (var implementationType in registration.StartupInitializerTypes)
+                    {
+                        startupServices.Add((IBackgroundServiceStartupInitializer)context.Resolve(implementationType));
+                    }
+
+                    return new BackgroundServiceStartupPhaseHostedService(
+                        startupServices,
+                        context.Resolve<BackgroundServiceStartupGate>());
+                })
+                .As<IHostedService>()
+                .SingleInstance();
+        }
+        else
+        {
+            builder.Register(_ =>
+                {
+                    var gate = new BackgroundServiceStartupGate();
+                    gate.SignalComplete();
+                    return gate;
+                })
+                .As<BackgroundServiceStartupGate>()
+                .SingleInstance();
+        }
+
+        foreach (var implementationType in registration.ContinuousServiceTypes)
+        {
             builder.RegisterType(implementationType)
                 .AsSelf()
                 .SingleInstance();
+        }
 
+        foreach (var implementationType in registration.ContinuousServiceTypes)
+        {
             builder.Register(context => new BackgroundServiceHostAdapter(
-                    (IBackgroundService)context.Resolve(implementationType)))
+                    (IBackgroundService)context.Resolve(implementationType),
+                    context.Resolve<BackgroundServiceStartupGate>()))
                 .As<IHostedService>()
                 .SingleInstance();
         }

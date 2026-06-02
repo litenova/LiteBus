@@ -47,6 +47,38 @@ internal static class PostgreSqlSchemaInspector
     }
 
     /// <summary>
+    ///     Returns <see langword="true" /> when the named index exists on the table in the supplied schema.
+    /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="schemaName">The unquoted schema name.</param>
+    /// <param name="tableName">The unquoted table name.</param>
+    /// <param name="indexName">The unquoted index name.</param>
+    /// <param name="cancellationToken">A token used to cancel the lookup.</param>
+    /// <returns><see langword="true" /> when the index exists; otherwise, <see langword="false" />.</returns>
+    public static async Task<bool> IndexExistsAsync(
+        NpgsqlConnection connection,
+        string schemaName,
+        string tableName,
+        string indexName,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(schemaName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+
+        var sql = PostgreSqlSqlScriptLoader.Load(Assembly, PostgreSqlSchemaEmbeddedSql.InspectorIndexExists);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.Parameters.AddWithValue("schemaName", schemaName);
+        command.Parameters.AddWithValue("tableName", tableName);
+        command.Parameters.AddWithValue("indexName", indexName);
+
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) ?? false);
+    }
+
+    /// <summary>
     ///     Returns the set of column names defined on the table.
     /// </summary>
     /// <param name="connection">The open PostgreSQL connection.</param>

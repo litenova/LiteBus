@@ -87,4 +87,9 @@ public sealed class OutboxMessageEntity
     ///     Gets or sets the optional tenant identifier.
     /// </summary>
     public string? TenantId { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the optional distributed trace context stored as JSON text.
+    /// </summary>
+    public string? TraceContext { get; set; }
 }

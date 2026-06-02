@@ -25,4 +25,19 @@ public sealed class OutboxEntityFrameworkCoreModelTests
         entity!.GetTableName().Should().Be("outbox");
         entity.GetSchema().Should().Be("app");
     }
+
+    [Fact]
+    public void GetModelBuilderConfiguration_ShouldMapTraceContextAsJsonb()
+    {
+        var modelBuilder = new ModelBuilder();
+        modelBuilder.GetModelBuilderConfiguration();
+
+        var entity = modelBuilder.Model.FindEntityType(typeof(OutboxMessageEntity));
+        var traceContext = entity!.FindProperty(nameof(OutboxMessageEntity.TraceContext));
+
+        traceContext.Should().NotBeNull();
+        traceContext!.GetColumnName().Should().Be("trace_context");
+        traceContext.GetColumnType().Should().Be("jsonb");
+        traceContext.IsNullable.Should().BeTrue();
+    }
 }

@@ -35,11 +35,30 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     }
 
     [Fact]
+    public async Task InboxSchemaInitializer_WhenValidateOnly_ShouldValidateWithoutEnsure()
+    {
+        var options = PostgreSqlTestInfrastructure.CreateInboxOptions() with
+        {
+            EnsureSchemaCreationOnStartup = false,
+            ValidateSchemaCreationOnStartup = true
+        };
+
+        await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options);
+
+        await using var provider = BuildInboxProvider(options);
+        var backgroundService = provider.GetRequiredService<PostgreSqlInboxSchemaInitializer>();
+
+        var action = async () => await backgroundService.ExecuteAsync(CancellationToken.None);
+        await action.Should().NotThrowAsync();
+    }
+
+    [Fact]
     public async Task InboxSchemaInitializer_WhenDisabled_ShouldNotCreateSchemaOnStartup()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions() with
         {
-            EnsureSchemaCreationOnStartup = false
+            EnsureSchemaCreationOnStartup = false,
+            ValidateSchemaCreationOnStartup = false
         };
 
         await using var provider = BuildInboxProvider(options);
@@ -85,11 +104,30 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     }
 
     [Fact]
+    public async Task OutboxSchemaInitializer_WhenValidateOnly_ShouldValidateWithoutEnsure()
+    {
+        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions() with
+        {
+            EnsureSchemaCreationOnStartup = false,
+            ValidateSchemaCreationOnStartup = true
+        };
+
+        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options);
+
+        await using var provider = BuildOutboxProvider(options);
+        var backgroundService = provider.GetRequiredService<PostgreSqlOutboxSchemaInitializer>();
+
+        var action = async () => await backgroundService.ExecuteAsync(CancellationToken.None);
+        await action.Should().NotThrowAsync();
+    }
+
+    [Fact]
     public async Task OutboxSchemaInitializer_WhenDisabled_ShouldNotCreateSchemaOnStartup()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxOptions() with
         {
-            EnsureSchemaCreationOnStartup = false
+            EnsureSchemaCreationOnStartup = false,
+            ValidateSchemaCreationOnStartup = false
         };
 
         await using var provider = BuildOutboxProvider(options);

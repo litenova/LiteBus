@@ -34,8 +34,9 @@ public sealed record PostgreSqlOutboxStoreOptions : PostgreSqlSchemaStoreOptions
     ///     <see cref="PostgreSqlOutboxSchema.CurrentSchemaVersion" />.
     /// </summary>
     /// <remarks>
-    ///     Validation runs after <see cref="EnsureSchemaCreationOnStartup" /> when both options are enabled. Manual callers
-    ///     can invoke
+    ///     When <see langword="true" />, <see cref="PostgreSqlOutboxSchemaInitializer" /> validates the schema during host
+    ///     startup even if <see cref="EnsureSchemaCreationOnStartup" /> is <see langword="false" />. Validation runs after
+    ///     ensure when both options are enabled. Manual callers can invoke
     ///     <see cref="PostgreSqlOutboxSchema.ValidateAsync(Npgsql.NpgsqlDataSource, PostgreSqlOutboxStoreOptions?, System.Threading.CancellationToken)" />
     ///     directly during deploy checks.
     /// </remarks>
