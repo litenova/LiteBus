@@ -1,5 +1,6 @@
 using System;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Inbox.Ingress.Amqp;
 
@@ -14,9 +15,12 @@ public static class ModuleRegistryExtensions
     /// <param name="moduleRegistry">The module registry.</param>
     /// <param name="configure">The AMQP ingress configuration action.</param>
     /// <returns>The current module registry.</returns>
-    /// <exception cref="InvalidOperationException">
+    /// <exception cref="LiteBusConfigurationException">
     ///     Thrown when <see cref="AmqpInboxIngressModule" /> is already registered.
     /// </exception>
+    [Obsolete(
+        "Use AddInboxModule(i => i.UseAmqpIngress(...)) instead. " +
+        "This top-level registration method will be removed in a future version.")]
     public static IModuleRegistry AddInboxAmqpIngress(
         this IModuleRegistry moduleRegistry,
         Action<AmqpInboxIngressModuleBuilder> configure)
@@ -26,7 +30,7 @@ public static class ModuleRegistryExtensions
 
         if (moduleRegistry.IsModuleRegistered<AmqpInboxIngressModule>())
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 "The AMQP inbox ingress module is already registered. Call AddInboxAmqpIngress only once.");
         }
 
@@ -40,6 +44,9 @@ public static class ModuleRegistryExtensions
     /// <param name="moduleRegistry">The module registry.</param>
     /// <param name="configure">The AMQP ingress configuration action.</param>
     /// <returns>The current module registry.</returns>
+    [Obsolete(
+        "Use AddInboxModule(i => i.UseAmqpIngress(...)) instead. " +
+        "This top-level registration method will be removed in a future version.")]
     public static IModuleRegistry AddInboxRabbitMqIngress(
         this IModuleRegistry moduleRegistry,
         Action<AmqpInboxIngressModuleBuilder> configure)
@@ -53,6 +60,9 @@ public static class ModuleRegistryExtensions
     /// <param name="moduleRegistry">The module registry.</param>
     /// <param name="configure">The AMQP ingress configuration action.</param>
     /// <returns>The current module registry.</returns>
+    [Obsolete(
+        "Use AddInboxModule(i => i.UseAmqpIngress(...)) instead. " +
+        "This top-level registration method will be removed in a future version.")]
     public static IModuleRegistry AddInboxLavinMqIngress(
         this IModuleRegistry moduleRegistry,
         Action<AmqpInboxIngressModuleBuilder> configure)

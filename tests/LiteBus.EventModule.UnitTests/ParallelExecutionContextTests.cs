@@ -50,9 +50,9 @@ public sealed class ParallelExecutionContextTests : LiteBusTestBase
     public async Task PublishAsync_WithParallelHandlers_PropagatesExecutionContextToEachHandler()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddEventModule(builder =>
+                modules.AddEventModule(builder =>
                 {
                     builder.Register<ParallelContextEventHandler1>();
                     builder.Register<ParallelContextEventHandler2>();

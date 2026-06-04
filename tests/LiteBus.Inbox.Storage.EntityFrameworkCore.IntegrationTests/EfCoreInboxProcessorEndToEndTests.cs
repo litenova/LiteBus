@@ -59,7 +59,7 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
         var orderId = Guid.NewGuid();
-        await scheduler.AddAsync(new ShipOrderCommand
+        await scheduler.AcceptAsync(new ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
@@ -84,21 +84,21 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
             return new ProcessorEndToEndInboxDbContext(builder.Options, storeOptions);
         });
 
-        services.AddLiteBus(configuration =>
+        services.AddLiteBus(modules =>
         {
-            configuration.AddEfCoreInboxStorage(builder =>
+            modules.AddEfCoreInboxStorage(builder =>
             {
                 builder.UseDbContext<ProcessorEndToEndInboxDbContext>();
                 builder.UseOptions(storeOptions);
             });
 
-            configuration.AddCommandModule(module =>
+            modules.AddCommandModule(module =>
             {
                 module.Register<ShipOrderCommand>();
                 module.Register<ShipOrderCommandHandler>();
             });
 
-            configuration.AddInboxModule(inbox =>
+            modules.AddInboxModule(inbox =>
             {
                 inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
                 inbox.UseProcessorOptions(new InboxProcessorOptions
@@ -109,7 +109,7 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
                 });
             });
 
-            configuration.AddInboxInProcessDispatcher();
+            modules.AddInboxInProcessDispatcher();
         });
 
         return services.BuildServiceProvider();

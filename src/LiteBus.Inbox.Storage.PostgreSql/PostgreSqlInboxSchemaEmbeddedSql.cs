@@ -24,4 +24,9 @@ internal static class PostgreSqlInboxSchemaEmbeddedSql
     ///     Embedded resource path for version 3 inbox identity rename SQL.
     /// </summary>
     internal const string V3Upgrade = "inbox/v3/rename_message_identity.sql";
+
+    /// <summary>
+    ///     Embedded resource path for version 4 insert notify trigger SQL.
+    /// </summary>
+    internal const string V4Upgrade = "inbox/v4/add_insert_notify.sql";
 }

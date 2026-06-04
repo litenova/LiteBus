@@ -14,6 +14,9 @@ public static class ModuleRegistryExtensions
     /// <param name="moduleRegistry">The module registry.</param>
     /// <param name="builderAction">The PostgreSQL store configuration action.</param>
     /// <returns>The current module registry.</returns>
+    [Obsolete(
+        "Use AddOutboxModule(o => o.UsePostgreSqlStorage(...)) instead. " +
+        "This top-level registration method will be removed in a future version.")]
     public static IModuleRegistry AddPostgreSqlOutboxStorage(
         this IModuleRegistry moduleRegistry,
         Action<PostgreSqlOutboxModuleBuilder> builderAction)

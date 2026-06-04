@@ -13,9 +13,9 @@ public sealed class QueryMediatorValidationTests : LiteBusTestBase
     public async Task QueryAsync_WithNullQuery_ThrowsArgumentNullException()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddQueryModule(builder =>
+                modules.AddQueryModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(GetProductQuery).Assembly);
                 });
@@ -33,9 +33,9 @@ public sealed class QueryMediatorValidationTests : LiteBusTestBase
     public async Task StreamAsync_WithNullQuery_ThrowsArgumentNullException()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddQueryModule(builder =>
+                modules.AddQueryModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(GetProductQuery).Assembly);
                 });

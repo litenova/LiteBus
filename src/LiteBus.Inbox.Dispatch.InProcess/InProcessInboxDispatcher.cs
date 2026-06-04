@@ -32,7 +32,7 @@ public sealed class InProcessInboxDispatcher : IInboxDispatcher
     /// <summary>
     ///     Gets the registry used to resolve persisted contracts back to CLR types.
     /// </summary>
-    private readonly IMessageContractRegistry _contractRegistry;
+    private readonly IContractReader _contractRegistry;
 
     /// <summary>
     ///     Gets the serializer used to hydrate envelope payloads.
@@ -47,7 +47,7 @@ public sealed class InProcessInboxDispatcher : IInboxDispatcher
     /// <param name="messageSerializer">The serializer used to hydrate envelope payloads.</param>
     public InProcessInboxDispatcher(
         ICommandMediator commandMediator,
-        IMessageContractRegistry contractRegistry,
+        IContractReader contractRegistry,
         IMessageSerializer messageSerializer)
     {
         _commandMediator = commandMediator ?? throw new ArgumentNullException(nameof(commandMediator));
@@ -75,7 +75,8 @@ public sealed class InProcessInboxDispatcher : IInboxDispatcher
             mediationSettings.Items,
             envelope.CorrelationId,
             envelope.CausationId,
-            envelope.TenantId);
+            envelope.TenantId,
+            envelope.TraceContext);
 
         await _commandMediator.SendAsync(command, mediationSettings, cancellationToken).ConfigureAwait(false);
     }

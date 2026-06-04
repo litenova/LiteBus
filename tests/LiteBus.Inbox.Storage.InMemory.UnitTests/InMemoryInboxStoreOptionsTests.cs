@@ -1,5 +1,6 @@
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
+using LiteBus.Inbox.Storage.InMemory.Exceptions;
 
 namespace LiteBus.Inbox.Storage.InMemory.UnitTests;
 
@@ -20,7 +21,7 @@ public sealed class InMemoryInboxStoreOptionsTests
 
         var act = () => store.AddAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(1)));
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
+        await act.Should().ThrowAsync<InboxStorageException>()
             .WithMessage("*capacity of 1*");
     }
 

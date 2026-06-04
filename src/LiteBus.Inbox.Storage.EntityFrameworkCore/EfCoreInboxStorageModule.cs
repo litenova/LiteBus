@@ -29,6 +29,14 @@ public sealed class EfCoreInboxStorageModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
+        {
+            throw new InvalidOperationException(
+                $"{nameof(EfCoreInboxStorageModule)} requires InboxModule core services " +
+                "to be registered first. Configure storage inside AddInboxModule(...) " +
+                "using UseEfCoreStorage().");
+        }
+
         var moduleBuilder = new EfCoreInboxStorageModuleBuilder();
         _builder(moduleBuilder);
 
@@ -43,16 +51,28 @@ public sealed class EfCoreInboxStorageModule : IModule
             moduleBuilder.Options));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(EfCoreInboxStore),
+            serviceProvider => CreateStore(serviceProvider, moduleBuilder),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IInboxStore),
-            serviceProvider => CreateStore(serviceProvider, moduleBuilder)));
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreInboxStore>(),
+            InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IInboxLeaseStore),
-            serviceProvider => CreateStore(serviceProvider, moduleBuilder)));
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreInboxStore>(),
+            InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IInboxStateStore),
-            serviceProvider => CreateStore(serviceProvider, moduleBuilder)));
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreInboxStore>(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IInboxWorkSignal),
+            typeof(InboxPollingWorkSignal)));
     }
 
     /// <summary>

@@ -45,7 +45,7 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
         var workItemId = Guid.NewGuid();
-        var receipt = await inbox.AddAsync(new RemoteWorkCommand
+        var receipt = await inbox.AcceptAsync(new RemoteWorkCommand
         {
             WorkItemId = workItemId,
             IdempotencyKey = $"work:{workItemId}"
@@ -82,9 +82,9 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
     private static ServiceProvider BuildProvider(AmqpConnectionOptions connectionOptions, string exchangeName, string routingKey)
     {
         return new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddInboxModule(inbox =>
+                modules.AddInboxModule(inbox =>
                 {
                     inbox.Contracts.Register<RemoteWorkCommand>(ContractName, ContractVersion);
                     inbox.UseProcessorOptions(new InboxProcessorOptions
@@ -98,8 +98,8 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
                     });
                 });
 
-                configuration.AddInMemoryInboxStorage();
-                configuration.AddInboxAmqpDispatcher(amqp =>
+                modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
+                modules.AddInboxAmqpDispatcher(amqp =>
                 {
                     amqp.Connection = connectionOptions;
                     amqp.DefaultExchange = exchangeName;

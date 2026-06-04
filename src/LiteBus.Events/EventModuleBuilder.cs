@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Events;
 
@@ -20,10 +21,17 @@ public sealed class EventModuleBuilder
     ///     Initializes a new instance of the <see cref="EventModuleBuilder" /> class.
     /// </summary>
     /// <param name="messageRegistry">The message registry to which events will be registered.</param>
-    public EventModuleBuilder(IMessageRegistry messageRegistry)
+    /// <param name="contracts">The contract writer used during module configuration.</param>
+    public EventModuleBuilder(IMessageRegistry messageRegistry, IContractWriter contracts)
     {
         _messageRegistry = messageRegistry;
+        Contracts = contracts ?? throw new ArgumentNullException(nameof(contracts));
     }
+
+    /// <summary>
+    ///     Gets the message contract writer for persisted event contracts.
+    /// </summary>
+    public IContractWriter Contracts { get; }
 
     /// <summary>
     ///     Registers an event type for the message registry.
@@ -45,7 +53,7 @@ public sealed class EventModuleBuilder
     {
         if (!type.IsAssignableTo(typeof(IRegistrableEventConstruct)))
         {
-            throw new NotSupportedException($"The given type '{type.Name}' is not an event construct and cannot be registered.");
+            throw new LiteBusNotSupportedException($"The given type '{type.Name}' is not an event construct and cannot be registered.");
         }
 
         _messageRegistry.Register(type);

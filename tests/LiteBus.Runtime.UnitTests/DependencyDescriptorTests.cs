@@ -59,4 +59,13 @@ public sealed class DependencyDescriptorTests
 
         left.Should().NotBe(right);
     }
+
+    [Fact]
+    public void FactoryConstructor_WithSingletonLifetime_ShouldRetainLifetime()
+    {
+        var descriptor = new DependencyDescriptor(typeof(ITestService), _ => new TestServiceA(), InstanceLifetime.Singleton);
+
+        descriptor.Lifetime.Should().Be(InstanceLifetime.Singleton);
+        descriptor.Factory.Should().NotBeNull();
+    }
 }

@@ -84,9 +84,9 @@ public sealed class OpenGenericHandlerTests : LiteBusTestBase
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register(typeof(OpenGenericPreHandler<>));
                     builder.Register<SimpleCommandHandler>();
@@ -112,9 +112,9 @@ public sealed class OpenGenericHandlerTests : LiteBusTestBase
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register(typeof(OpenGenericPreHandler<>));
                     builder.Register<SimpleCommandHandler>();
@@ -149,9 +149,9 @@ public sealed class OpenGenericHandlerTests : LiteBusTestBase
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register(typeof(OpenGenericPostHandler<>));
                     builder.Register<SimpleCommandHandler>();
@@ -177,9 +177,9 @@ public sealed class OpenGenericHandlerTests : LiteBusTestBase
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register(typeof(OpenGenericPreHandler<>));
                     builder.Register(typeof(OpenGenericPostHandler<>));
@@ -207,9 +207,9 @@ public sealed class OpenGenericHandlerTests : LiteBusTestBase
     {
         // Arrange - register open generic BEFORE registering the command and handler
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register(typeof(OpenGenericPreHandler<>));
                     builder.Register<SimpleCommand>();
@@ -235,9 +235,9 @@ public sealed class OpenGenericHandlerTests : LiteBusTestBase
     {
         // Arrange - register the command and handler BEFORE the open generic
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<SimpleCommand>();
                     builder.Register<SimpleCommandHandler>();

@@ -23,6 +23,12 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 ///         Expired publishing leases are eligible for another publisher, which gives at-least-once publication after
 ///         worker failure.
 ///     </para>
+///     <para>
+///         The default store opens its own connection per call. Use
+///         <see cref="UseExistingConnection(NpgsqlConnection, NpgsqlTransaction)" /> when outbox writes must share the
+///         caller's PostgreSQL transaction. Without that overload, <see cref="IOutbox.AddAsync" /> commits in a separate
+///         transaction from manual SQL or ADO.NET work.
+///     </para>
 /// </remarks>
 public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutboxStateStore
 {
@@ -37,6 +43,16 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
     private readonly string _tableName;
 
     /// <summary>
+    ///     The existing open PostgreSQL connection used when callers provide an external transaction boundary.
+    /// </summary>
+    private readonly NpgsqlConnection? _transactionConnection;
+
+    /// <summary>
+    ///     The existing PostgreSQL transaction used for command execution when provided by the caller.
+    /// </summary>
+    private readonly NpgsqlTransaction? _transaction;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="PostgreSqlOutboxStore" /> class.
     /// </summary>
     /// <param name="dataSource">The PostgreSQL data source.</param>
@@ -48,6 +64,49 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
         options ??= new PostgreSqlOutboxStoreOptions();
         _dataSource = dataSource;
         _tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
+    }
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="PostgreSqlOutboxStore" /> class bound to an existing transaction.
+    /// </summary>
+    /// <param name="dataSource">The PostgreSQL data source.</param>
+    /// <param name="tableName">The fully qualified outbox table name.</param>
+    /// <param name="transactionConnection">The existing open PostgreSQL connection.</param>
+    /// <param name="transaction">The existing PostgreSQL transaction.</param>
+    private PostgreSqlOutboxStore(
+        NpgsqlDataSource dataSource,
+        string tableName,
+        NpgsqlConnection? transactionConnection,
+        NpgsqlTransaction? transaction)
+    {
+        _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+        _tableName = tableName ?? throw new ArgumentNullException(nameof(tableName));
+        _transactionConnection = transactionConnection;
+        _transaction = transaction;
+    }
+
+    /// <summary>
+    ///     Returns a store that executes commands on an existing PostgreSQL connection and transaction.
+    /// </summary>
+    /// <param name="connection">The existing open connection owned by the caller.</param>
+    /// <param name="transaction">The transaction that should contain outbox writes.</param>
+    /// <returns>A store instance bound to the supplied connection and transaction.</returns>
+    public PostgreSqlOutboxStore UseExistingConnection(NpgsqlConnection connection, NpgsqlTransaction transaction)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
+
+        if (!ReferenceEquals(transaction.Connection, connection))
+        {
+            throw new ArgumentException("The supplied transaction must belong to the supplied connection.", nameof(transaction));
+        }
+
+        if (connection.State != System.Data.ConnectionState.Open)
+        {
+            throw new InvalidOperationException("The supplied connection must already be open.");
+        }
+
+        return new PostgreSqlOutboxStore(_dataSource, _tableName, connection, transaction);
     }
 
     /// <inheritdoc />
@@ -71,7 +130,9 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
                       last_error,
                       correlation_id,
                       causation_id,
-                      tenant_id)
+                      tenant_id,
+                      idempotency_key,
+                      trace_context)
                   VALUES (
                       @message_id,
                       @contract_name,
@@ -87,8 +148,10 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
                       @last_error,
                       @correlation_id,
                       @causation_id,
-                      @tenant_id)
-                  ON CONFLICT (message_id) DO NOTHING
+                      @tenant_id,
+                      @idempotency_key,
+                      @trace_context)
+                  ON CONFLICT DO NOTHING
                   RETURNING
                       message_id,
                       contract_name,
@@ -104,15 +167,17 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
                       last_error,
                       correlation_id,
                       causation_id,
-                      tenant_id;
+                      tenant_id,
+                      idempotency_key,
+                      trace_context::text;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         AddEnvelopeParameters(command, envelope);
 
         var storedEnvelope = await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false);
 
-        return storedEnvelope ?? await FindExistingAsync(envelope.Id, cancellationToken).ConfigureAwait(false);
+        return storedEnvelope ?? await FindExistingAsync(envelope.Id, envelope.IdempotencyKey, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -154,10 +219,11 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
                       outbox.last_error,
                       outbox.correlation_id,
                       outbox.causation_id,
-                      outbox.tenant_id;
+                      outbox.tenant_id,
+                      outbox.trace_context::text;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("pending_status", (int)OutboxStatus.Pending);
         command.Parameters.AddWithValue("failed_status", (int)OutboxStatus.Failed);
         command.Parameters.AddWithValue("publishing_status", (int)OutboxStatus.Publishing);
@@ -182,7 +248,7 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
                   WHERE message_id = @message_id;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("published_status", (int)OutboxStatus.Published);
         command.Parameters.AddWithValue("message_id", messageId);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -204,7 +270,7 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
                   WHERE message_id = @message_id;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("failed_status", (int)OutboxStatus.Failed);
         command.Parameters.AddWithValue("visible_after", (object?)failure.VisibleAfter ?? DBNull.Value);
         command.Parameters.AddWithValue("last_error", failure.Error);
@@ -227,20 +293,160 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
                   WHERE message_id = @message_id;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("dead_lettered_status", (int)OutboxStatus.DeadLettered);
         command.Parameters.AddWithValue("last_error", deadLetter.Reason);
         command.Parameters.AddWithValue("message_id", deadLetter.Id);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public async Task MarkPublishedAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageIds);
+
+        if (messageIds.Count == 0)
+        {
+            return;
+        }
+
+        if (messageIds.Count == 1)
+        {
+            await MarkPublishedAsync(messageIds[0], cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var sql = $"""
+                  UPDATE {_tableName}
+                  SET
+                      status = @published_status,
+                      lease_owner = NULL,
+                      lease_expires_at = NULL,
+                      last_error = NULL
+                  WHERE message_id = ANY(@message_ids);
+                  """;
+
+        await using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("published_status", (int)OutboxStatus.Published);
+        command.Parameters.AddWithValue("message_ids", messageIds);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task MarkFailedAsync(IReadOnlyList<OutboxEnvelopeFailure> failures, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(failures);
+
+        if (failures.Count == 0)
+        {
+            return;
+        }
+
+        if (failures.Count == 1)
+        {
+            await MarkFailedAsync(failures[0], cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var ids = new Guid[failures.Count];
+        var visibleAfter = new DateTimeOffset?[failures.Count];
+        var errors = new string[failures.Count];
+
+        for (var index = 0; index < failures.Count; index++)
+        {
+            ids[index] = failures[index].Id;
+            visibleAfter[index] = failures[index].VisibleAfter;
+            errors[index] = failures[index].Error;
+        }
+
+        var sql = $"""
+                  UPDATE {_tableName} AS outbox
+                  SET
+                      status = @failed_status,
+                      visible_after = batch.visible_after,
+                      lease_owner = NULL,
+                      lease_expires_at = NULL,
+                      last_error = batch.last_error
+                  FROM unnest(@message_ids, @visible_after, @last_errors) AS batch(message_id, visible_after, last_error)
+                  WHERE outbox.message_id = batch.message_id;
+                  """;
+
+        await using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("failed_status", (int)OutboxStatus.Failed);
+        command.Parameters.AddWithValue("message_ids", ids);
+        command.Parameters.AddWithValue("visible_after", visibleAfter);
+        command.Parameters.AddWithValue("last_errors", errors);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task RequeueDeadLetterAsync(Guid messageId, CancellationToken cancellationToken = default)
+    {
+        var sql = $"""
+                  UPDATE {_tableName}
+                  SET
+                      status = @pending_status,
+                      visible_after = NULL,
+                      attempt_count = 0,
+                      lease_owner = NULL,
+                      lease_expires_at = NULL,
+                      last_error = NULL
+                  WHERE message_id = @message_id AND status = @dead_lettered_status;
+                  """;
+
+        await using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("pending_status", (int)OutboxStatus.Pending);
+        command.Parameters.AddWithValue("dead_lettered_status", (int)OutboxStatus.DeadLettered);
+        command.Parameters.AddWithValue("message_id", messageId);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> DeletePublishedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
+    {
+        var sql = $"""
+                  DELETE FROM {_tableName}
+                  WHERE status = @published_status AND created_at < @older_than;
+                  """;
+
+        await using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("published_status", (int)OutboxStatus.Published);
+        command.Parameters.AddWithValue("older_than", olderThan);
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<OutboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
+    {
+        var sql = $"""
+                  SELECT status, COUNT(*)::int
+                  FROM {_tableName}
+                  GROUP BY status;
+                  """;
+
+        await using var command = CreateCommand(sql);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var counts = new Dictionary<OutboxStatus, int>();
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            counts[(OutboxStatus)reader.GetInt32(0)] = reader.GetInt32(1);
+        }
+
+        return counts;
+    }
+
     /// <summary>
     ///     Reads the row that caused an idempotent insert to be skipped.
     /// </summary>
     /// <param name="messageId">The message id from the attempted insert.</param>
+    /// <param name="idempotencyKey">The optional idempotency key from the attempted insert.</param>
     /// <param name="cancellationToken">A token used to cancel the lookup.</param>
     /// <returns>The existing stored envelope that should be returned to the writer.</returns>
-    private async Task<OutboxEnvelope> FindExistingAsync(Guid messageId, CancellationToken cancellationToken)
+    private async Task<OutboxEnvelope> FindExistingAsync(
+        Guid messageId,
+        string? idempotencyKey,
+        CancellationToken cancellationToken)
     {
         var sql = $"""
                   SELECT
@@ -258,14 +464,18 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
                       last_error,
                       correlation_id,
                       causation_id,
-                      tenant_id
+                      tenant_id,
+                      idempotency_key,
+                      trace_context::text
                   FROM {_tableName}
                   WHERE message_id = @message_id
+                     OR (@idempotency_key IS NOT NULL AND idempotency_key = @idempotency_key)
                   LIMIT 1;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("message_id", messageId);
+        command.Parameters.AddWithValue("idempotency_key", (object?)idempotencyKey ?? DBNull.Value);
 
         return await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false)
                ?? throw new InvalidOperationException("The outbox insert was skipped but the existing message could not be found.");
@@ -296,6 +506,10 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
         command.Parameters.AddWithValue("correlation_id", (object?)envelope.CorrelationId ?? DBNull.Value);
         command.Parameters.AddWithValue("causation_id", (object?)envelope.CausationId ?? DBNull.Value);
         command.Parameters.AddWithValue("tenant_id", (object?)envelope.TenantId ?? DBNull.Value);
+        command.Parameters.AddWithValue("idempotency_key", (object?)envelope.IdempotencyKey ?? DBNull.Value);
+
+        var traceContextParameter = command.Parameters.Add("trace_context", NpgsqlDbType.Jsonb);
+        traceContextParameter.Value = string.IsNullOrWhiteSpace(envelope.TraceContext) ? DBNull.Value : envelope.TraceContext;
     }
 
     /// <summary>
@@ -356,7 +570,9 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
             LastError = GetNullableString(reader, 11),
             CorrelationId = GetNullableString(reader, 12),
             CausationId = GetNullableString(reader, 13),
-            TenantId = GetNullableString(reader, 14)
+            TenantId = GetNullableString(reader, 14),
+            IdempotencyKey = GetNullableString(reader, 15),
+            TraceContext = GetNullableString(reader, 16)
         };
     }
 
@@ -382,5 +598,33 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
     private static string? GetNullableString(NpgsqlDataReader reader, int ordinal)
     {
         return reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
+    }
+
+    /// <summary>
+    ///     Creates a command against the configured data source or caller-supplied transaction.
+    /// </summary>
+    /// <param name="sql">The SQL command text.</param>
+    /// <returns>The initialized PostgreSQL command.</returns>
+    private NpgsqlCommand CreateCommand(string sql)
+    {
+        var command = CreateCommand();
+        command.CommandText = sql;
+        return command;
+    }
+
+    /// <summary>
+    ///     Creates a command object for the current execution mode.
+    /// </summary>
+    /// <returns>The initialized PostgreSQL command.</returns>
+    private NpgsqlCommand CreateCommand()
+    {
+        if (_transactionConnection is null || _transaction is null)
+        {
+            return _dataSource.CreateCommand();
+        }
+
+        var command = _transactionConnection.CreateCommand();
+        command.Transaction = _transaction;
+        return command;
     }
 }

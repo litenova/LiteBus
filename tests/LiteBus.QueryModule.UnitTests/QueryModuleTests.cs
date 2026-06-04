@@ -19,9 +19,9 @@ public sealed class QueryModuleTests : LiteBusTestBase
     public async Task Mediating_GetProductQuery_ShouldGoThroughHandlersCorrectly()
     {
         // Arrange
-        var serviceProvider = new ServiceCollection().AddLiteBus(configuration =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
         {
-            configuration.AddQueryModule(builder =>
+            modules.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(GetProductQuery).Assembly);
             });
@@ -49,9 +49,9 @@ public sealed class QueryModuleTests : LiteBusTestBase
     public async Task Mediating_GetProductByCriteriaQuery_ShouldGoThroughHandlersCorrectly()
     {
         // Arrange
-        var serviceProvider = new ServiceCollection().AddLiteBus(configuration =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
         {
-            configuration.AddQueryModule(builder =>
+            modules.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(GetProductByCriteriaQuery<>).Assembly);
             });
@@ -79,9 +79,9 @@ public sealed class QueryModuleTests : LiteBusTestBase
     public async Task Mediating_StreamProductsQuery_ShouldGoThroughHandlersCorrectly()
     {
         // Arrange
-        var serviceProvider = new ServiceCollection().AddLiteBus(configuration =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
         {
-            configuration.AddQueryModule(builder =>
+            modules.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(GetProductQuery).Assembly);
                 builder.Register<StreamProductsQueryHandlerPostHandler2>();
@@ -108,9 +108,9 @@ public sealed class QueryModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_a_query_with_exception_in_pre_handler_goes_through_error_handlers()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(configuration =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
         {
-            configuration.AddQueryModule(builder =>
+            modules.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProblematicQueryPreHandler).Assembly);
             });
@@ -134,9 +134,9 @@ public sealed class QueryModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_a_query_with_exception_in_post_global_handler_goes_through_error_handlers()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(configuration =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
         {
-            configuration.AddQueryModule(builder =>
+            modules.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProblematicQueryPreHandler).Assembly);
             });
@@ -163,9 +163,9 @@ public sealed class QueryModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_an_query_with_specified_tag_goes_through_handlers_with_that_tag_and_handlers_without_any_tag_correctly()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(configuration =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
         {
-            configuration.AddQueryModule(builder =>
+            modules.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProblematicQueryPreHandler).Assembly);
             });
@@ -192,9 +192,9 @@ public sealed class QueryModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_the_an_query_with_both_all_available_tags_will_fail_as_there_are_two_main_handlers()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(configuration =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
         {
-            configuration.AddQueryModule(builder =>
+            modules.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProblematicQueryPreHandler).Assembly);
             });
@@ -215,9 +215,9 @@ public sealed class QueryModuleTests : LiteBusTestBase
     public async Task mediating_a_stream_query_that_is_aborted_in_pre_handler_goes_through_correct_handlers()
     {
         // Arrange
-        var serviceProvider = new ServiceCollection().AddLiteBus(configuration =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
         {
-            configuration.AddQueryModule(builder =>
+            modules.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(GetProductQuery).Assembly);
             });
@@ -240,9 +240,9 @@ public sealed class QueryModuleTests : LiteBusTestBase
     public async Task Mediating_StreamQuery_PassesMetadataViaExecutionContext()
     {
         // Arrange
-        var serviceProvider = new ServiceCollection().AddLiteBus(configuration =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
         {
-            configuration.AddQueryModule(builder =>
+            modules.AddQueryModule(builder =>
             {
                 builder.Register<StreamProductsQueryHandler>();
                 builder.Register<StreamProductsQueryHandlerPostHandler1>();

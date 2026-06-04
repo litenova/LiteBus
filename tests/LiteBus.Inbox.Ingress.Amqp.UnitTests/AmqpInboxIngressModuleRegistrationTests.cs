@@ -12,11 +12,11 @@ public sealed class AmqpInboxIngressModuleRegistrationTests : LiteBusTestBase
     public void AddInboxRabbitMqIngress_ShouldRegisterIngressHandler()
     {
         var provider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddInboxModule();
-                configuration.AddInMemoryInboxStorage();
-                configuration.AddInboxRabbitMqIngress(ingress =>
+                modules.AddInboxModule();
+                modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
+                modules.AddInboxRabbitMqIngress(ingress =>
                 {
                     ingress.DisableIngressConsumer();
                     ingress.UseOptions(new AmqpInboxIngressOptions
@@ -35,11 +35,11 @@ public sealed class AmqpInboxIngressModuleRegistrationTests : LiteBusTestBase
     public void AddInboxLavinMqIngress_ShouldRegisterIngressHandler()
     {
         var provider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddInboxModule();
-                configuration.AddInMemoryInboxStorage();
-                configuration.AddInboxLavinMqIngress(ingress =>
+                modules.AddInboxModule();
+                modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
+                modules.AddInboxLavinMqIngress(ingress =>
                 {
                     ingress.DisableIngressConsumer();
                     ingress.UseOptions(new AmqpInboxIngressOptions

@@ -8,10 +8,10 @@ using LiteBus.Messaging.Abstractions;
 namespace LiteBus.Events;
 
 /// <summary>
-///     The primary implementation of <see cref="IEventPublisher" />. It orchestrates the event publication
+///     The primary implementation of <see cref="IEventMediator" />. It orchestrates the event publication
 ///     pipeline for immediate, in-process event broadcasting.
 /// </summary>
-public sealed class EventMediator : IEventPublisher
+public sealed class EventMediator : IEventMediator
 {
     /// <summary>
     ///     Gets the core message mediator used to execute the event pipeline.

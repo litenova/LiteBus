@@ -17,9 +17,9 @@ public sealed class PredicateFilteringTests : LiteBusTestBase
     public async Task Publish_Event_WithPredicate_ShouldExecuteOnlyMatchingHandlers()
     {
         // ARRANGE
-        var serviceProvider = new ServiceCollection().AddLiteBus(configuration =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
         {
-            configuration.AddEventModule(builder =>
+            modules.AddEventModule(builder =>
             {
                 builder.Register<FilterableEventHandler>();
                 builder.Register<AnotherFilterableEventHandler>();
@@ -53,9 +53,9 @@ public sealed class PredicateFilteringTests : LiteBusTestBase
     public async Task Publish_IEvent_WithPredicate_ShouldExecuteOnlyMatchingHandlers()
     {
         // ARRANGE
-        var serviceProvider = new ServiceCollection().AddLiteBus(configuration =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
         {
-            configuration.AddEventModule(builder =>
+            modules.AddEventModule(builder =>
             {
                 builder.Register<FilterableEventHandler>();
                 builder.Register<AnotherFilterableEventHandler>();

@@ -1,6 +1,7 @@
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.Storage.InMemory;
 
 namespace LiteBus.Outbox.UnitTests;
 
@@ -35,14 +36,14 @@ internal static class OutboxTestInfrastructure
     {
         private readonly int _failuresBeforeSuccess;
         private int _attempts;
-        private readonly OutboxTests.InMemoryOutboxStore _inner = new();
+        private readonly InMemoryOutboxStore _inner = new();
 
         public ThrowingOutboxLeaseStore(int failuresBeforeSuccess = int.MaxValue)
         {
             _failuresBeforeSuccess = failuresBeforeSuccess;
         }
 
-        public OutboxTests.InMemoryOutboxStore Inner => _inner;
+        public InMemoryOutboxStore Inner => _inner;
 
         public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
             OutboxLeaseRequest request,

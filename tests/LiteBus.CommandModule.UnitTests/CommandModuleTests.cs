@@ -21,9 +21,9 @@ public sealed class CommandModuleTests : LiteBusTestBase
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(CreateProductCommand).Assembly);
                 });
@@ -54,9 +54,9 @@ public sealed class CommandModuleTests : LiteBusTestBase
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(UpdateProductCommand).Assembly);
                 });
@@ -85,9 +85,9 @@ public sealed class CommandModuleTests : LiteBusTestBase
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(LogActivityCommand<>).Assembly);
                 });
@@ -118,9 +118,9 @@ public sealed class CommandModuleTests : LiteBusTestBase
     public async Task mediating_a_command_with_exception_in_pre_handler_goes_through_error_handlers()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ProblematicCommandPreHandler).Assembly);
                 });
@@ -152,9 +152,9 @@ public sealed class CommandModuleTests : LiteBusTestBase
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(CreateProductCommand).Assembly);
                 });
@@ -184,9 +184,9 @@ public sealed class CommandModuleTests : LiteBusTestBase
     public async Task mediating_a_command_with_exception_in_post_global_handler_goes_through_error_handlers()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ProblematicCommandPreHandler).Assembly);
                     builder.Register<GlobalCommandPreHandler>();
@@ -221,9 +221,9 @@ public sealed class CommandModuleTests : LiteBusTestBase
     public async Task mediating_an_command_with_specified_tag_goes_through_handlers_with_that_tag_and_handlers_without_any_tag_correctly()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ProblematicCommandPreHandler).Assembly);
                 });
@@ -260,9 +260,9 @@ public sealed class CommandModuleTests : LiteBusTestBase
     public async Task mediating_the_an_command_with_both_all_available_tags_will_fail_as_there_are_two_main_handlers()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ProblematicCommandPreHandler).Assembly);
                 });

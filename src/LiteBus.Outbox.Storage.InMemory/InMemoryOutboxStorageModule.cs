@@ -14,6 +14,14 @@ public sealed class InMemoryOutboxStorageModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        if (!configuration.TryGetContext<OutboxCoreRegisteredMarker>(out _))
+        {
+            throw new InvalidOperationException(
+                $"{nameof(InMemoryOutboxStorageModule)} requires OutboxModule core services " +
+                "to be registered first. Configure storage inside AddOutboxModule(...) " +
+                "using UseInMemoryStorage().");
+        }
+
         var store = new InMemoryOutboxStore();
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

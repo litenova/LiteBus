@@ -15,11 +15,13 @@ public static class MessageProcessorDiagnostics
     /// <param name="correlationId">The correlation identifier copied when non-empty.</param>
     /// <param name="causationId">The causation identifier copied when non-empty.</param>
     /// <param name="tenantId">The tenant identifier copied when non-empty.</param>
+    /// <param name="traceContext">The trace context JSON copied when non-empty.</param>
     public static void ApplyTraceMetadata(
         IDictionary<string, object> items,
         string? correlationId,
         string? causationId,
-        string? tenantId)
+        string? tenantId,
+        string? traceContext = null)
     {
         ArgumentNullException.ThrowIfNull(items);
 
@@ -36,6 +38,11 @@ public static class MessageProcessorDiagnostics
         if (!string.IsNullOrWhiteSpace(tenantId))
         {
             items[MessageTraceContextKeys.TenantId] = tenantId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(traceContext))
+        {
+            items[MessageTraceContextKeys.TraceContext] = traceContext;
         }
     }
 

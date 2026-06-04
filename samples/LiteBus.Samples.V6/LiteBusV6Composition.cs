@@ -29,14 +29,14 @@ public static class LiteBusV6Composition
     {
         _ = configuration;
 
-        services.AddLiteBus(lb =>
+        services.AddLiteBus(modules =>
         {
             var assembly = typeof(ProcessPaymentCommand).Assembly;
 
-            lb.AddCommandModule(c => c.RegisterFromAssembly(assembly));
-            lb.AddEventModule(e => e.RegisterFromAssembly(assembly));
+            modules.AddCommandModule(c => c.RegisterFromAssembly(assembly));
+            modules.AddEventModule(e => e.RegisterFromAssembly(assembly));
 
-            lb.AddInboxModule(inbox =>
+            modules.AddInboxModule(inbox =>
             {
                 inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
                 inbox.UseProcessorOptions(new InboxProcessorOptions
@@ -46,16 +46,16 @@ public static class LiteBusV6Composition
                 });
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
             });
-            lb.AddInMemoryInboxStorage();
-            lb.AddInboxInProcessDispatcher();
+            modules.AddInMemoryInboxStorage();
+            modules.AddInboxInProcessDispatcher();
 
-            lb.AddOutboxModule(outbox =>
+            modules.AddOutboxModule(outbox =>
             {
                 outbox.Contracts.Register<PaymentProcessed>("payments.payment-processed", 1);
                 outbox.EnableOutboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
             });
-            lb.AddInMemoryOutboxStorage();
-            lb.AddOutboxInProcessDispatcher();
+            modules.AddInMemoryOutboxStorage();
+            modules.AddOutboxInProcessDispatcher();
         });
 
         return services;

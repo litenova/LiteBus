@@ -28,19 +28,27 @@ public sealed class InboxProcessorBackgroundService : IBackgroundService
     private readonly InboxProcessorOptions _processorOptions;
 
     /// <summary>
+    ///     Gets the signal used to wait for PostgreSQL notifications or polling delays.
+    /// </summary>
+    private readonly IInboxWorkSignal _workSignal;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="InboxProcessorBackgroundService" /> class.
     /// </summary>
     /// <param name="processor">The inbox processor that performs each pass.</param>
     /// <param name="processorOptions">The batch and lease options used to interpret adaptive polling.</param>
     /// <param name="hostOptions">The loop timing and adaptive polling options.</param>
+    /// <param name="workSignal">The signal used to wait for work notifications or polling delays.</param>
     public InboxProcessorBackgroundService(
         IInboxProcessor processor,
         InboxProcessorOptions processorOptions,
-        InboxProcessorHostOptions hostOptions)
+        InboxProcessorHostOptions hostOptions,
+        IInboxWorkSignal workSignal)
     {
         _processor = processor ?? throw new ArgumentNullException(nameof(processor));
         _processorOptions = processorOptions ?? throw new ArgumentNullException(nameof(processorOptions));
         _hostOptions = hostOptions ?? throw new ArgumentNullException(nameof(hostOptions));
+        _workSignal = workSignal ?? throw new ArgumentNullException(nameof(workSignal));
     }
 
     /// <inheritdoc />
@@ -64,7 +72,7 @@ public sealed class InboxProcessorBackgroundService : IBackgroundService
 
                 if (ShouldDelayAfterPass(passResult))
                 {
-                    await Task.Delay(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
+                    await _workSignal.WaitForWorkOrDelayAsync(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -74,7 +82,7 @@ public sealed class InboxProcessorBackgroundService : IBackgroundService
             catch (Exception exception)
             {
                 _ = MessageProcessorDiagnostics.FormatError(exception);
-                await Task.Delay(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
+                await _workSignal.WaitForWorkOrDelayAsync(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
             }
         }
     }

@@ -4,6 +4,7 @@ using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Outbox.Dispatch.InProcess;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,14 +25,14 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
             .AddSingleton<IOutboxLeaseStore>(store)
             .AddSingleton<IOutboxStateStore>(store)
             .AddSingleton(recorder)
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddEventModule(builder =>
+                modules.AddEventModule(builder =>
                 {
                     builder.Register<OrderSubmittedEventHandler>();
                 });
 
-                configuration.AddOutboxModule(builder =>
+                modules.AddOutboxModule(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -42,7 +43,7 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
                     });
                 });
 
-                configuration.AddOutboxInProcessDispatcher();
+                modules.AddOutboxInProcessDispatcher();
             })
             .BuildServiceProvider();
 
@@ -51,7 +52,7 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
         var eventId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { Id = eventId });
+        await outbox.EnqueueAsync(new OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { Id = eventId });
         await processor.ProcessPendingAsync();
 
         recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
@@ -73,10 +74,10 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
             .AddSingleton<IOutboxLeaseStore>(store)
             .AddSingleton<IOutboxStateStore>(store)
             .AddSingleton(recorder)
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddEventModule(builder => builder.Register<PocoEventHandler>());
-                configuration.AddOutboxModule(builder =>
+                modules.AddEventModule(builder => builder.Register<PocoEventHandler>());
+                modules.AddOutboxModule(builder =>
                 {
                     builder.Contracts.Register<PocoIntegrationEvent>("poco.events.sample", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -87,7 +88,7 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
                     });
                 });
 
-                configuration.AddOutboxInProcessDispatcher();
+                modules.AddOutboxInProcessDispatcher();
             })
             .BuildServiceProvider();
 
@@ -95,7 +96,7 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
         var messageId = Guid.NewGuid();
 
-        await writer.AddAsync(new PocoIntegrationEvent { Value = "poco-test" }, new OutboxOptions { Id = messageId });
+        await writer.EnqueueAsync(new PocoIntegrationEvent { Value = "poco-test" }, new OutboxOptions { Id = messageId });
         await processor.ProcessPendingAsync();
 
         recorder.Values.Should().ContainSingle("poco-test");
@@ -112,10 +113,10 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
             .AddSingleton<IOutboxLeaseStore>(store)
             .AddSingleton<IOutboxStateStore>(store)
             .AddSingleton(capture)
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddEventModule(builder => builder.Register<TraceMetadataEventHandler>());
-                configuration.AddOutboxModule(builder =>
+                modules.AddEventModule(builder => builder.Register<TraceMetadataEventHandler>());
+                modules.AddOutboxModule(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -126,14 +127,14 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
                     });
                 });
 
-                configuration.AddOutboxInProcessDispatcher();
+                modules.AddOutboxInProcessDispatcher();
             })
             .BuildServiceProvider();
 
         var writer = serviceProvider.GetRequiredService<IOutbox>();
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
 
-        await writer.AddAsync(
+        await writer.EnqueueAsync(
             new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
             new OutboxOptions
             {
@@ -154,11 +155,11 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
     public void AddOutboxInProcessDispatcher_ShouldRegisterInProcessOutboxDispatcher()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddEventModule();
-                configuration.AddOutboxModule();
-                configuration.AddOutboxInProcessDispatcher();
+                modules.AddEventModule();
+                modules.AddOutboxModule();
+                modules.AddOutboxInProcessDispatcher();
             })
             .BuildServiceProvider();
 
@@ -169,16 +170,16 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
     public void AddOutboxInProcessDispatcher_WhenAnotherDispatcherRegistered_ShouldThrow()
     {
         var act = () => new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddEventModule();
-                configuration.AddOutboxModule();
-                configuration.Register(new PreRegisteredOutboxDispatcherModule());
-                configuration.AddOutboxInProcessDispatcher();
+                modules.AddEventModule();
+                modules.AddOutboxModule();
+                modules.Register(new PreRegisteredOutboxDispatcherModule());
+                modules.AddOutboxInProcessDispatcher();
             })
             .BuildServiceProvider();
 
-        act.Should().Throw<InvalidOperationException>()
+        act.Should().Throw<LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException>()
             .WithMessage("*IOutboxDispatcher*");
     }
 
@@ -188,16 +189,16 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
         var act = () =>
         {
             new ServiceCollection()
-                .AddLiteBus(configuration =>
+                .AddLiteBus(modules =>
                 {
-                    configuration.AddEventModule();
-                    configuration.AddOutboxModule();
-                    configuration.AddOutboxInProcessDispatcher();
-                    configuration.AddOutboxInProcessDispatcher();
+                    modules.AddEventModule();
+                    modules.AddOutboxModule();
+                    modules.AddOutboxInProcessDispatcher();
+                    modules.AddOutboxInProcessDispatcher();
                 });
         };
 
-        act.Should().Throw<InvalidOperationException>()
+        act.Should().Throw<LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException>()
             .WithMessage("*in-process outbox dispatcher module is already registered*");
     }
 
@@ -320,97 +321,4 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
         }
     }
 
-    public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutboxStateStore
-    {
-        private readonly Dictionary<Guid, OutboxEnvelope> _envelopes = [];
-
-        public Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
-        {
-            if (_envelopes.TryGetValue(envelope.Id, out var existing))
-            {
-                return Task.FromResult(existing);
-            }
-
-            _envelopes[envelope.Id] = envelope;
-            return Task.FromResult(envelope);
-        }
-
-        public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(OutboxLeaseRequest request, CancellationToken cancellationToken = default)
-        {
-            var leased = _envelopes.Values
-                .Where(envelope => IsAvailable(envelope, request.Now))
-                .OrderBy(envelope => envelope.CreatedAt)
-                .Take(request.BatchSize)
-                .Select(envelope => envelope with
-                {
-                    Status = OutboxStatus.Publishing,
-                    LeaseOwner = request.LeaseOwner,
-                    LeaseExpiresAt = request.Now.Add(request.LeaseDuration),
-                    AttemptCount = envelope.AttemptCount + 1
-                })
-                .ToArray();
-
-            foreach (var envelope in leased)
-            {
-                _envelopes[envelope.Id] = envelope;
-            }
-
-            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>(leased);
-        }
-
-        public Task MarkPublishedAsync(Guid messageId, CancellationToken cancellationToken = default)
-        {
-            var envelope = Get(messageId);
-            _envelopes[messageId] = envelope with
-            {
-                Status = OutboxStatus.Published,
-                LeaseOwner = null,
-                LeaseExpiresAt = null,
-                LastError = null
-            };
-
-            return Task.CompletedTask;
-        }
-
-        public Task MarkFailedAsync(OutboxEnvelopeFailure failure, CancellationToken cancellationToken = default)
-        {
-            var envelope = Get(failure.Id);
-            _envelopes[failure.Id] = envelope with
-            {
-                Status = OutboxStatus.Failed,
-                LeaseOwner = null,
-                LeaseExpiresAt = null,
-                LastError = failure.Error,
-                VisibleAfter = failure.VisibleAfter
-            };
-
-            return Task.CompletedTask;
-        }
-
-        public Task MoveToDeadLetterAsync(OutboxEnvelopeDeadLetter deadLetter, CancellationToken cancellationToken = default)
-        {
-            var envelope = Get(deadLetter.Id);
-            _envelopes[deadLetter.Id] = envelope with
-            {
-                Status = OutboxStatus.DeadLettered,
-                LeaseOwner = null,
-                LeaseExpiresAt = null,
-                LastError = deadLetter.Reason
-            };
-
-            return Task.CompletedTask;
-        }
-
-        public OutboxEnvelope Get(Guid messageId)
-        {
-            return _envelopes[messageId];
-        }
-
-        private static bool IsAvailable(OutboxEnvelope envelope, DateTimeOffset now)
-        {
-            return ((envelope.Status is OutboxStatus.Pending or OutboxStatus.Failed) &&
-                    (envelope.VisibleAfter is null || envelope.VisibleAfter <= now)) ||
-                   (envelope.Status == OutboxStatus.Publishing && envelope.LeaseExpiresAt <= now);
-        }
-    }
 }

@@ -86,4 +86,9 @@ public sealed record InboxEnvelope
     ///     Gets the optional tenant identifier.
     /// </summary>
     public string? TenantId { get; init; }
+
+    /// <summary>
+    ///     Gets the optional distributed trace context stored as JSON text (for example W3C trace context or OpenTelemetry baggage).
+    /// </summary>
+    public string? TraceContext { get; init; }
 }

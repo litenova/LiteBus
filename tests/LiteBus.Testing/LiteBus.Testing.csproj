@@ -1,14 +1,45 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+
+
     <PropertyGroup>
+
         <IsTestProject>false</IsTestProject>
+
     </PropertyGroup>
 
-    <ItemGroup>
-        <ProjectReference Include="..\..\src\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
-    </ItemGroup>
+
 
     <ItemGroup>
+
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
+
         <PackageReference Include="Newtonsoft.Json"/>
+
     </ItemGroup>
+
+
+
+    <ItemGroup>
+
+        <ProjectReference Include="..\..\src\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.csproj"/>
+
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
+
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>
+
+        <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
+
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj"/>
+
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.InMemory\LiteBus.Outbox.Storage.InMemory.csproj"/>
+
+        <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
+
+    </ItemGroup>
+
+
+
 </Project>
+

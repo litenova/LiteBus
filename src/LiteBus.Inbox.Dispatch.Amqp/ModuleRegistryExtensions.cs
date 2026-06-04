@@ -1,5 +1,6 @@
 using System;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Inbox.Dispatch.Amqp;
 
@@ -14,7 +15,7 @@ public static class ModuleRegistryExtensions
     /// <param name="moduleRegistry">The module registry.</param>
     /// <param name="configure">The callback that configures AMQP connection and routing options.</param>
     /// <returns>The current module registry.</returns>
-    /// <exception cref="InvalidOperationException">
+    /// <exception cref="LiteBusConfigurationException">
     ///     Thrown when <see cref="AmqpInboxDispatchModule" /> is already registered.
     /// </exception>
     /// <remarks>
@@ -22,6 +23,9 @@ public static class ModuleRegistryExtensions
     ///     <see cref="Inbox.Abstractions.IInboxDispatcher" /> when using this extension. RabbitMQ and LavinMQ both use
     ///     this registration; only connection settings differ between brokers.
     /// </remarks>
+    [Obsolete(
+        "Use AddInboxModule(i => i.UseAmqpDispatcher(...)) instead. " +
+        "This top-level registration method will be removed in a future version.")]
     public static IModuleRegistry AddInboxAmqpDispatcher(
         this IModuleRegistry moduleRegistry,
         Action<AmqpInboxDispatcherOptions> configure)
@@ -31,7 +35,7 @@ public static class ModuleRegistryExtensions
 
         if (moduleRegistry.IsModuleRegistered<AmqpInboxDispatchModule>())
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 "The AMQP inbox dispatcher module is already registered. Call AddInboxAmqpDispatcher only once.");
         }
 
@@ -52,6 +56,9 @@ public static class ModuleRegistryExtensions
     ///     This method is an alias for <see cref="AddInboxAmqpDispatcher" />. RabbitMQ and LavinMQ share the same
     ///     AMQP 0.9.1 client implementation.
     /// </remarks>
+    [Obsolete(
+        "Use AddInboxModule(i => i.UseAmqpDispatcher(...)) instead. " +
+        "This top-level registration method will be removed in a future version.")]
     public static IModuleRegistry AddInboxRabbitMqDispatcher(
         this IModuleRegistry moduleRegistry,
         Action<AmqpInboxDispatcherOptions> configure)
@@ -69,6 +76,9 @@ public static class ModuleRegistryExtensions
     ///     This method is an alias for <see cref="AddInboxAmqpDispatcher" />. LavinMQ is wire-compatible with the
     ///     same <c>RabbitMQ.Client</c> stack used for RabbitMQ.
     /// </remarks>
+    [Obsolete(
+        "Use AddInboxModule(i => i.UseAmqpDispatcher(...)) instead. " +
+        "This top-level registration method will be removed in a future version.")]
     public static IModuleRegistry AddInboxLavinMqDispatcher(
         this IModuleRegistry moduleRegistry,
         Action<AmqpInboxDispatcherOptions> configure)

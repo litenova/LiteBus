@@ -69,7 +69,8 @@ internal static class EfCorePostgreSqlLeaseSql
                 {alias}.last_error,
                 {alias}.correlation_id,
                 {alias}.causation_id,
-                {alias}.tenant_id
+                {alias}.tenant_id,
+                {alias}.trace_context
                 """;
     }
 
@@ -95,7 +96,8 @@ internal static class EfCorePostgreSqlLeaseSql
                 {alias}.last_error,
                 {alias}.correlation_id,
                 {alias}.causation_id,
-                {alias}.tenant_id
+                {alias}.tenant_id,
+                {alias}.trace_context
                 """;
     }
 }

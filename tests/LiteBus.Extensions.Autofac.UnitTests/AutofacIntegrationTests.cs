@@ -20,9 +20,9 @@ public sealed class AutofacIntegrationTests : LiteBusTestBase
         var builder = new ContainerBuilder();
 
         // Configure LiteBus using the Autofac extension
-        builder.AddLiteBus(configuration =>
+        builder.AddLiteBus(modules =>
         {
-            configuration.AddCommandModule(commandModuleBuilder =>
+            modules.AddCommandModule(commandModuleBuilder =>
             {
                 commandModuleBuilder.Register<RegisterComponentCommand>();
                 commandModuleBuilder.Register<RegisterComponentCommandPreHandler>();

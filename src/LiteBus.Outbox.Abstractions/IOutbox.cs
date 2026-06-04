@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,26 +14,43 @@ namespace LiteBus.Outbox.Abstractions;
 ///         <see cref="IOutboxProcessor" /> and a registered <see cref="IOutboxDispatcher" />.
 ///     </para>
 ///     <para>
-///         Register each stored message type in `IMessageContractRegistry` with a stable name and version. Closed generic
-///         message types are supported when each closed shape is registered. Open generic contract definitions are rejected.
+///         Register each stored message type in <see cref="LiteBus.Messaging.Abstractions.IMessageContractRegistry" /> with a
+///         stable name and version, or apply <see cref="LiteBus.Messaging.Abstractions.MessageContractAttribute" /> and scan the
+///         assembly during module configuration. Closed generic message types are supported when each closed shape is registered.
+///         Open generic contract definitions are rejected.
 ///     </para>
 /// </remarks>
 public interface IOutbox
 {
     /// <summary>
-    ///     Adds an event to the outbox for later publication.
+    ///     Enqueues an event for later publication by an outbox processor.
     /// </summary>
     /// <typeparam name="TEvent">The compile-time event type. The runtime type is used for contract lookup.</typeparam>
     /// <param name="event">The event instance to serialize and store.</param>
     /// <param name="options">
-    ///     Optional message metadata such as a caller-supplied message id, topic, correlation id, causation id, and tenant
-    ///     id. Use <see cref="OutboxOptions.Id" /> when the caller already owns a stable event identifier.
+    ///     Optional message metadata such as a caller-supplied message id, idempotency key, topic, correlation id,
+    ///     causation id, and tenant id. Use <see cref="OutboxOptions.Id" /> when the caller already owns a stable event identifier.
     /// </param>
     /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
     /// <returns>A receipt containing the outbox message id, contract name, version, storage time, and trace metadata.</returns>
-    Task<OutboxReceipt<TEvent>> AddAsync<TEvent>(
+    Task<OutboxReceipt<TEvent>> EnqueueAsync<TEvent>(
         TEvent @event,
         OutboxOptions? options = null,
         CancellationToken cancellationToken = default)
         where TEvent : notnull;
+
+    /// <summary>
+    ///     Obsolete alias for <see cref="EnqueueAsync{TEvent}" />.
+    /// </summary>
+    /// <typeparam name="TEvent">The compile-time event type.</typeparam>
+    /// <param name="event">The event instance to serialize and store.</param>
+    /// <param name="options">Optional enqueue metadata.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
+    /// <returns>The acceptance receipt returned by <see cref="EnqueueAsync{TEvent}" />.</returns>
+    [Obsolete("Use EnqueueAsync instead. AddAsync will be removed in a future major release.")]
+    Task<OutboxReceipt<TEvent>> AddAsync<TEvent>(
+        TEvent @event,
+        OutboxOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where TEvent : notnull => EnqueueAsync(@event, options, cancellationToken);
 }

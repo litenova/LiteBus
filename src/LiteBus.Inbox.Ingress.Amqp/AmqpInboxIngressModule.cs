@@ -1,7 +1,9 @@
 using System;
 using System.Linq;
-using LiteBus.Transport.Amqp;
+using LiteBus.Inbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
+using LiteBus.Transport.Amqp;
 
 namespace LiteBus.Inbox.Ingress.Amqp;
 
@@ -29,6 +31,14 @@ public sealed class AmqpInboxIngressModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
+        {
+            throw new InvalidOperationException(
+                $"{nameof(AmqpInboxIngressModule)} requires InboxModule core services " +
+                "to be registered first. Configure ingress inside AddInboxModule(...) " +
+                "using UseAmqpIngress().");
+        }
+
         var moduleBuilder = new AmqpInboxIngressModuleBuilder();
         _builder(moduleBuilder);
 
@@ -36,7 +46,7 @@ public sealed class AmqpInboxIngressModule : IModule
 
         if (string.IsNullOrWhiteSpace(options.QueueName))
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 $"{nameof(AmqpInboxIngressOptions.QueueName)} must be configured before registering AMQP inbox ingress.");
         }
 

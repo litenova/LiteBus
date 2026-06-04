@@ -13,6 +13,9 @@ public static class ModuleRegistryExtensions
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
     /// <returns>The current module registry.</returns>
+    [Obsolete(
+        "Use AddOutboxModule(o => o.UseInMemoryStorage()) instead. " +
+        "This top-level registration method will be removed in a future version.")]
     public static IModuleRegistry AddInMemoryOutboxStorage(this IModuleRegistry moduleRegistry)
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);

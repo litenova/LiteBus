@@ -106,7 +106,7 @@ internal sealed class PostgreSqlAdvisoryLockScope : IAsyncDisposable
 
             if (DateTime.UtcNow >= deadline)
             {
-                throw new TimeoutException(
+                throw new Exceptions.PostgreSqlStorageTimeoutException(
                     $"Timed out after {timeout} waiting for PostgreSQL advisory lock '{lockKey}'.");
             }
 
@@ -138,9 +138,9 @@ internal sealed class PostgreSqlAdvisoryLockScope : IAsyncDisposable
     /// <returns>The key pair passed to PostgreSQL advisory lock functions.</returns>
     internal static (int Key1, int Key2) CreateLockKeys(string lockKey)
     {
-        var hash = PostgreSqlIdentifier.StableHash(lockKey);
-        var key1 = (int)(hash & 0x7FFFFFFF);
-        var key2 = (int)((hash >> 16) & 0x7FFFFFFF);
+        const string key2Seed = "\u0000litebus:advisory:key2";
+        var key1 = (int)(PostgreSqlIdentifier.StableHash(lockKey) & 0x7FFFFFFF);
+        var key2 = (int)(PostgreSqlIdentifier.StableHash(lockKey + key2Seed) & 0x7FFFFFFF);
         return (key1, key2);
     }
 }

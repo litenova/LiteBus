@@ -1,8 +1,9 @@
-using System.Reflection;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
-using LiteBus.Messaging.Registry;
+using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.CommandModule.UnitTests;
 
@@ -11,9 +12,11 @@ public sealed class CommandModuleBuilderTests : LiteBusTestBase
     [Fact]
     public void RegisterFromAssembly_WithNullAssembly_ThrowsArgumentNullException()
     {
-        var builder = new CommandModuleBuilder(MessageRegistryAccessor.Instance);
-
-        var act = () => builder.RegisterFromAssembly(null!);
+        var act = () =>
+        {
+            new ServiceCollection().AddLiteBus(modules =>
+                modules.AddCommandModule(module => module.RegisterFromAssembly(null!)));
+        };
 
         act.Should().Throw<ArgumentNullException>();
     }
@@ -21,12 +24,16 @@ public sealed class CommandModuleBuilderTests : LiteBusTestBase
     [Fact]
     public void RegisterFromAssembly_DoesNotRegisterMarkerInterfaces()
     {
-        MessageRegistryAccessor.Instance.Clear();
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(modules =>
+            {
+                modules.AddCommandModule(module => module.RegisterFromAssembly(typeof(ICommand).Assembly));
+            })
+            .BuildServiceProvider();
 
-        var builder = new CommandModuleBuilder(MessageRegistryAccessor.Instance);
-        builder.RegisterFromAssembly(typeof(ICommand).Assembly);
+        var registry = serviceProvider.GetRequiredService<IMessageRegistry>();
 
-        MessageRegistryAccessor.Instance
+        registry
             .Should()
             .NotContain(descriptor => descriptor.MessageType == typeof(ICommand));
     }

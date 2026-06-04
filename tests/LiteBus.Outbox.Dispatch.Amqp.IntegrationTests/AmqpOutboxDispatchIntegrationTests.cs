@@ -50,7 +50,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        await outbox.AddAsync(
+        await outbox.EnqueueAsync(
             new OrderSubmittedIntegrationEvent { OrderId = orderId },
             new OutboxOptions
             {
@@ -104,7 +104,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        await outbox.AddAsync(
+        await outbox.EnqueueAsync(
             new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
             new OutboxOptions { Id = messageId });
 
@@ -129,9 +129,9 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
             .AddSingleton<IOutboxStore>(store)
             .AddSingleton<IOutboxLeaseStore>(store)
             .AddSingleton<IOutboxStateStore>(store)
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddOutboxModule(builder =>
+                modules.AddOutboxModule(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -142,7 +142,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
                     });
                 });
 
-                RegisterDispatcher(configuration, ConnectionOptions, exchangeName);
+                RegisterDispatcher(modules, ConnectionOptions, exchangeName);
             })
             .BuildServiceProvider();
     }
@@ -352,10 +352,10 @@ public sealed class AmqpOutboxDispatchRegistrationTests : LiteBusTestBase
     public void AddOutboxAmqpDispatcher_ShouldRegisterAmqpOutboxDispatcher()
     {
         var provider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddOutboxModule();
-                configuration.AddOutboxAmqpDispatcher(options =>
+                modules.AddOutboxModule();
+                modules.AddOutboxAmqpDispatcher(options =>
                 {
                     options.Connection.HostName = "localhost";
                 });

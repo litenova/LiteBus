@@ -60,7 +60,7 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
 
         var workItemId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
-        await inbox.AddAsync(new RemoteWorkCommand
+        await inbox.AcceptAsync(new RemoteWorkCommand
         {
             WorkItemId = workItemId,
             IdempotencyKey = $"work:{workItemId}"
@@ -94,16 +94,16 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
         string routingKey)
     {
         return new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddPostgreSqlInboxStorage(postgres =>
+                modules.AddPostgreSqlInboxStorage(postgres =>
                 {
                     postgres.UseDataSource(_postgresFixture.DataSource);
                     postgres.UseOptions(storeOptions);
                     postgres.DisableSchemaInitialization();
                 });
 
-                configuration.AddInboxModule(inbox =>
+                modules.AddInboxModule(inbox =>
                 {
                     inbox.Contracts.Register<RemoteWorkCommand>(ContractName, ContractVersion);
                     inbox.UseProcessorOptions(new InboxProcessorOptions
@@ -114,7 +114,7 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
                     });
                 });
 
-                configuration.AddInboxAmqpDispatcher(amqp =>
+                modules.AddInboxAmqpDispatcher(amqp =>
                 {
                     amqp.Connection = _rabbitMqFixture.ConnectionOptions;
                     amqp.DefaultExchange = exchangeName;

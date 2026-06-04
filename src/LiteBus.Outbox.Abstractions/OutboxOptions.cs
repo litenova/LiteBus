@@ -24,6 +24,11 @@ public sealed record OutboxOptions
     public Guid? Id { get; init; }
 
     /// <summary>
+    ///     Gets the optional idempotency key used to collapse duplicate enqueue attempts into one stored row.
+    /// </summary>
+    public string? IdempotencyKey { get; init; }
+
+    /// <summary>
     ///     Gets the optional correlation identifier used to group logs, traces, and stored messages for one workflow.
     /// </summary>
     public string? CorrelationId { get; init; }
@@ -48,4 +53,9 @@ public sealed record OutboxOptions
     ///     as soon as a processor leases it.
     /// </summary>
     public DateTimeOffset? VisibleAfter { get; init; }
+
+    /// <summary>
+    ///     Gets the optional distributed trace context stored as JSON text and persisted in the outbox <c>trace_context</c> column.
+    /// </summary>
+    public string? TraceContext { get; init; }
 }

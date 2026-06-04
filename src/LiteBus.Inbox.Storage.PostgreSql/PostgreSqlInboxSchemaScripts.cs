@@ -60,13 +60,21 @@ internal static class PostgreSqlInboxSchemaScripts
     ];
 
     /// <summary>
+    ///     The schema objects introduced by inbox schema version 4 (insert notify trigger).
+    /// </summary>
+    internal static readonly IReadOnlyList<string> Version4Columns =
+    [
+    ];
+
+    /// <summary>
     ///     The ordered column groups introduced by each inbox schema version.
     /// </summary>
     internal static readonly IReadOnlyList<IReadOnlyList<string>> VersionColumnSets =
     [
         Version1Columns,
         Version2Columns,
-        Version3Columns
+        Version3Columns,
+        Version4Columns
     ];
 
     /// <summary>
@@ -85,7 +93,10 @@ internal static class PostgreSqlInboxSchemaScripts
             "Upgrades the inbox table from version 1 to version 2."),
         new PostgreSqlSchemaSqlFile(
             PostgreSqlInboxSchemaSqlPaths.V3Upgrade,
-            "Upgrades the inbox table from version 2 to version 3 (message_id and default table rename).")
+            "Upgrades the inbox table from version 2 to version 3 (message_id and default table rename)."),
+        new PostgreSqlSchemaSqlFile(
+            PostgreSqlInboxSchemaSqlPaths.V4Upgrade,
+            "Upgrades the inbox table from version 3 to version 4 (insert notify trigger).")
     ];
 
     /// <summary>
@@ -166,6 +177,10 @@ internal static class PostgreSqlInboxSchemaScripts
                 Assembly,
                 PostgreSqlInboxSchemaEmbeddedSql.V3Upgrade,
                 CreateStoreTokens(options)),
+            4 => PostgreSqlSqlScriptLoader.LoadAndRender(
+                Assembly,
+                PostgreSqlInboxSchemaEmbeddedSql.V4Upgrade,
+                CreateStoreTokens(options)),
             _ => throw new ArgumentOutOfRangeException(nameof(toVersion), toVersion, "Unsupported inbox schema version.")
         };
     }
@@ -221,6 +236,9 @@ internal static class PostgreSqlInboxSchemaScripts
         tokens["UnquotedTableName"] = options.TableName;
         tokens["QuotedTableName"] = PostgreSqlIdentifier.Quote(options.TableName);
         tokens["LegacyQualifiedTableName"] = PostgreSqlIdentifier.Qualify(options.SchemaName, LegacyDefaultTableName);
+        tokens["NotifyChannelName"] = PostgreSqlInboxNotifyChannel.ChannelName;
+        tokens["NotifyFunctionName"] = PostgreSqlIdentifier.UnquotedIndexName(options.TableName, "insert_notify_fn");
+        tokens["NotifyTriggerName"] = PostgreSqlIdentifier.UnquotedIndexName(options.TableName, "insert_notify_trg");
         return tokens;
     }
 }

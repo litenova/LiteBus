@@ -1,7 +1,8 @@
 using System;
 using System.Linq;
 using System.Runtime.ExceptionServices;
-using System.Threading.Tasks;
+using System.Threading.Tasks;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -39,7 +40,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
 
             if (handler is null)
             {
-                throw new InvalidOperationException($"Handler for {typeof(TMessage).Name} is not of the expected type.");
+                throw new LiteBusConfigurationException($"Handler for {typeof(TMessage).Name} is not of the expected type.");
             }
 
             messageResult = await (Task<TMessageResult>) handler.Handle(message);
@@ -57,7 +58,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         {
             if (executionContext.MessageResult is null)
             {
-                throw new InvalidOperationException(
+                throw new LiteBusConfigurationException(
                     $"A Message result of type '{typeof(TMessageResult).Name}' is required when the execution is aborted as this message has a specific result.");
             }
 

@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Outbox.Dispatch.InProcess;
 
@@ -11,7 +12,7 @@ namespace LiteBus.Outbox.Dispatch.InProcess;
 /// <remarks>
 ///     Register this module through <see cref="ModuleRegistryExtensions.AddOutboxInProcessDispatcher" /> after
 ///     <c>AddOutboxModule</c> and <c>AddEventModule</c>. The outbox module supplies contract registration and the
-///     event module supplies <c>IEventPublisher</c> from <c>LiteBus.Events.Abstractions</c>.
+///     event module supplies <c>IEventMediator</c> from <c>LiteBus.Events.Abstractions</c>.
 /// </remarks>
 public sealed class InProcessOutboxDispatchModule : IModule
 {
@@ -20,9 +21,17 @@ public sealed class InProcessOutboxDispatchModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IOutboxDispatcher)))
+        if (!configuration.TryGetContext<OutboxCoreRegisteredMarker>(out _))
         {
             throw new InvalidOperationException(
+                $"{nameof(InProcessOutboxDispatchModule)} requires OutboxModule core services " +
+                "to be registered first. Configure the dispatcher inside AddOutboxModule(...) " +
+                "using UseInProcessDispatcher().");
+        }
+
+        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IOutboxDispatcher)))
+        {
+            throw new LiteBusConfigurationException(
                 "An IOutboxDispatcher is already registered. Register only one outbox dispatcher implementation.");
         }
 

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
@@ -92,6 +94,9 @@ public sealed class OutboxProcessor : IOutboxProcessor
     /// <inheritdoc />
     public async Task<ProcessorPassResult> ProcessPendingAsync(CancellationToken cancellationToken = default)
     {
+        using var passActivity = OutboxProcessorTelemetry.ActivitySource.StartActivity("outbox.processor.pass");
+
+        var stopwatch = ValueStopwatch.StartNew();
         var now = _clock.GetUtcNow();
         var leasedMessages = await _leaseStore.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -101,65 +106,116 @@ public sealed class OutboxProcessor : IOutboxProcessor
             LeaseDuration = _options.LeaseDuration
         }, cancellationToken).ConfigureAwait(false);
 
+        var publishedIds = new List<Guid>(leasedMessages.Count);
+        var failures = new List<OutboxEnvelopeFailure>();
+        var deadLetters = new List<OutboxEnvelopeDeadLetter>();
+
         foreach (var message in leasedMessages)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await ProcessMessageAsync(message, cancellationToken).ConfigureAwait(false);
+            await ProcessMessageAsync(message, publishedIds, failures, deadLetters, cancellationToken).ConfigureAwait(false);
         }
 
-        return new ProcessorPassResult
+        if (publishedIds.Count > 0)
         {
-            LeasedCount = leasedMessages.Count
+            await _stateStore.MarkPublishedAsync(publishedIds, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (failures.Count > 0)
+        {
+            await _stateStore.MarkFailedAsync(failures, cancellationToken).ConfigureAwait(false);
+        }
+
+        foreach (var deadLetter in deadLetters)
+        {
+            await _stateStore.MoveToDeadLetterAsync(deadLetter, cancellationToken).ConfigureAwait(false);
+        }
+
+        var elapsed = stopwatch.GetElapsedTime();
+        var result = new ProcessorPassResult
+        {
+            LeasedCount = leasedMessages.Count,
+            SucceededCount = publishedIds.Count,
+            FailedCount = failures.Count,
+            DeadLetteredCount = deadLetters.Count,
+            ElapsedTime = elapsed
         };
+
+        passActivity?.SetTag("litebus.outbox.leased_count", result.LeasedCount);
+        passActivity?.SetTag("litebus.outbox.succeeded_count", result.SucceededCount);
+        passActivity?.SetTag("litebus.outbox.failed_count", result.FailedCount);
+        passActivity?.SetTag("litebus.outbox.dead_lettered_count", result.DeadLetteredCount);
+        OutboxProcessorTelemetry.RecordPass(
+            result.LeasedCount,
+            result.SucceededCount,
+            result.FailedCount,
+            result.DeadLetteredCount);
+
+        return result;
     }
 
     /// <summary>
     ///     Publishes one leased message envelope and records its terminal state for this attempt.
     /// </summary>
     /// <param name="message">The leased outbox message returned by the store.</param>
+    /// <param name="publishedIds">The list that collects identifiers for batch publication updates.</param>
+    /// <param name="failures">The list that collects failures for batch retry updates.</param>
+    /// <param name="deadLetters">The list that collects dead-letter transitions applied individually.</param>
     /// <param name="cancellationToken">A token used to cancel dispatch or the state update.</param>
     /// <returns>A task that represents the asynchronous dispatch and state update.</returns>
-    private async Task ProcessMessageAsync(OutboxEnvelope message, CancellationToken cancellationToken)
+    private async Task ProcessMessageAsync(
+        OutboxEnvelope message,
+        List<Guid> publishedIds,
+        List<OutboxEnvelopeFailure> failures,
+        List<OutboxEnvelopeDeadLetter> deadLetters,
+        CancellationToken cancellationToken)
     {
+        using var messageActivity = OutboxProcessorTelemetry.ActivitySource.StartActivity("outbox.processor.message");
+        messageActivity?.SetTag("litebus.message_id", message.Id);
+
         try
         {
             await _dispatcher.DispatchAsync(message, cancellationToken).ConfigureAwait(false);
-            await _stateStore.MarkPublishedAsync(message.Id, cancellationToken).ConfigureAwait(false);
+            publishedIds.Add(message.Id);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            await MarkFailedAsync(message, exception, cancellationToken).ConfigureAwait(false);
+            RecordFailure(message, exception, failures, deadLetters);
         }
     }
 
     /// <summary>
-    ///     Converts a dispatcher failure into retry or dead-letter state.
+    ///     Converts a dispatcher failure into retry or dead-letter state collected for batch persistence.
     /// </summary>
     /// <param name="message">The outbox message that failed during this attempt.</param>
     /// <param name="exception">The exception captured from dispatch.</param>
-    /// <param name="cancellationToken">A token used to cancel the state update.</param>
-    /// <returns>A task that represents the asynchronous retry or dead-letter state update.</returns>
-    private Task MarkFailedAsync(OutboxEnvelope message, Exception exception, CancellationToken cancellationToken)
+    /// <param name="failures">The list that collects failures for batch retry updates.</param>
+    /// <param name="deadLetters">The list that collects dead-letter transitions.</param>
+    private void RecordFailure(
+        OutboxEnvelope message,
+        Exception exception,
+        List<OutboxEnvelopeFailure> failures,
+        List<OutboxEnvelopeDeadLetter> deadLetters)
     {
         var error = MessageProcessorDiagnostics.FormatError(exception);
 
         if (message.AttemptCount >= _options.Retry.MaxAttempts)
         {
-            return _stateStore.MoveToDeadLetterAsync(new OutboxEnvelopeDeadLetter
+            deadLetters.Add(new OutboxEnvelopeDeadLetter
             {
                 Id = message.Id,
                 Reason = error
-            }, cancellationToken);
+            });
+
+            return;
         }
 
-        var visibleAfter = _clock.GetUtcNow().Add(CalculateRetryDelay(message.AttemptCount));
-
-        return _stateStore.MarkFailedAsync(new OutboxEnvelopeFailure
+        failures.Add(new OutboxEnvelopeFailure
         {
             Id = message.Id,
             Error = error,
-            VisibleAfter = visibleAfter
-        }, cancellationToken);
+            VisibleAfter = _clock.GetUtcNow().Add(CalculateRetryDelay(message.AttemptCount))
+        });
     }
 
     /// <summary>
@@ -184,5 +240,41 @@ public sealed class OutboxProcessor : IOutboxProcessor
 
         var jitterFactor = 0.8 + Random.Shared.NextDouble() * 0.4;
         return TimeSpan.FromTicks((long)Math.Min(delay.Ticks * jitterFactor, retryOptions.MaxDelay.Ticks));
+    }
+
+    /// <summary>
+    ///     Lightweight stopwatch used to measure processor pass duration without allocating <see cref="Stopwatch" />.
+    /// </summary>
+    private readonly struct ValueStopwatch
+    {
+        /// <summary>
+        ///     The timestamp captured when the stopwatch started.
+        /// </summary>
+        private readonly long _startedTimestamp;
+
+        /// <summary>
+        ///     Starts a new stopwatch instance.
+        /// </summary>
+        /// <returns>The running stopwatch value.</returns>
+        public static ValueStopwatch StartNew() => new(Environment.TickCount64);
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="ValueStopwatch" /> struct.
+        /// </summary>
+        /// <param name="startedTimestamp">The tick count captured at start.</param>
+        private ValueStopwatch(long startedTimestamp)
+        {
+            _startedTimestamp = startedTimestamp;
+        }
+
+        /// <summary>
+        ///     Gets the elapsed time since the stopwatch was started.
+        /// </summary>
+        /// <returns>The elapsed duration.</returns>
+        public TimeSpan GetElapsedTime()
+        {
+            var elapsedTicks = Environment.TickCount64 - _startedTimestamp;
+            return TimeSpan.FromMilliseconds(elapsedTicks);
+        }
     }
 }

@@ -46,7 +46,7 @@ public static class PostgreSqlOutboxSchema
     /// <summary>
     ///     Gets the outbox table schema version implemented by this package release.
     /// </summary>
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     /// <summary>
     ///     Gets the canonical SQL files shipped with the outbox PostgreSQL package.

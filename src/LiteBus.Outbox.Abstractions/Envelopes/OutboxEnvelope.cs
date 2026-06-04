@@ -86,4 +86,14 @@ public sealed record OutboxEnvelope
     ///     Gets the optional tenant identifier.
     /// </summary>
     public string? TenantId { get; init; }
+
+    /// <summary>
+    ///     Gets the optional idempotency key used to collapse duplicate enqueue attempts into one stored row.
+    /// </summary>
+    public string? IdempotencyKey { get; init; }
+
+    /// <summary>
+    ///     Gets the optional distributed trace context stored as JSON text (for example W3C trace context or OpenTelemetry baggage).
+    /// </summary>
+    public string? TraceContext { get; init; }
 }

@@ -159,9 +159,9 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     private ServiceProvider BuildInboxProvider(PostgreSqlInboxStoreOptions options)
     {
         var services = new ServiceCollection();
-        services.AddLiteBus(configuration =>
+        services.AddLiteBus(modules =>
         {
-            configuration.AddPostgreSqlInboxStorage(postgres =>
+            modules.AddPostgreSqlInboxStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
@@ -174,9 +174,9 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     private ServiceProvider BuildOutboxProvider(PostgreSqlOutboxStoreOptions options)
     {
         var services = new ServiceCollection();
-        services.AddLiteBus(configuration =>
+        services.AddLiteBus(modules =>
         {
-            configuration.AddPostgreSqlOutboxStorage(postgres =>
+            modules.AddPostgreSqlOutboxStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);

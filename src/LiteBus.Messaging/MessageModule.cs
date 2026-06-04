@@ -31,12 +31,10 @@ public sealed class MessageModule : IModule
     /// <inheritdoc />
     public void Build(IModuleConfiguration configuration)
     {
-        // Create or get the message registry - this will be shared across all messaging-related modules.
-        var messageRegistry = MessageRegistryAccessor.Instance;
+        // Create or get the message registry shared by all messaging-related modules in this configuration.
+        var messageRegistry = configuration.GetOrCreateContext<IMessageRegistry>(() => new MessageRegistry());
         var messageContractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
         var startIndex = messageRegistry.Handlers.Count;
-
-        configuration.SetContext(messageRegistry);
 
         // Configure the message module using the builder.
         var moduleBuilder = new MessageModuleBuilder(messageRegistry, messageContractRegistry);
@@ -65,6 +63,14 @@ public sealed class MessageModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageContractRegistry),
+            messageContractRegistry));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IContractReader),
+            messageContractRegistry));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IContractWriter),
             messageContractRegistry));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

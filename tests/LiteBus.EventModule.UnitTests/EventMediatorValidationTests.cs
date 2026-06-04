@@ -13,9 +13,9 @@ public sealed class EventMediatorValidationTests : LiteBusTestBase
     public async Task PublishAsync_WithNullEvent_ThrowsArgumentNullException()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddEventModule(builder =>
+                modules.AddEventModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
                 });
@@ -33,9 +33,9 @@ public sealed class EventMediatorValidationTests : LiteBusTestBase
     public async Task PublishAsync_WithNullGenericEvent_ThrowsArgumentNullException()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddEventModule(builder =>
+                modules.AddEventModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
                 });

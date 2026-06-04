@@ -18,9 +18,9 @@ public sealed class ContextPropagationTests : LiteBusTestBase
     public async Task Send_Command_ShouldPropagateContextItemsToAllHandlers()
     {
         // ARRANGE
-        var serviceProvider = new ServiceCollection().AddLiteBus(configuration =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
         {
-            configuration.AddCommandModule(builder =>
+            modules.AddCommandModule(builder =>
             {
                 builder.Register<ContextPropagationPreHandler>();
                 builder.Register<ContextPropagationCommandHandler>();

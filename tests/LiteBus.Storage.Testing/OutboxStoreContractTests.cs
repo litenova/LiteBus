@@ -29,7 +29,7 @@ public abstract class OutboxStoreContractTests
         var messageId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.Writer.AddAsync(CreatePendingEnvelope(messageId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -76,6 +76,34 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that duplicate idempotency keys return the original stored row.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task AddAsync_ShouldReturnExistingMessageForDuplicateIdempotencyKey()
+    {
+        var store = CreateStore();
+        var messageId = Guid.NewGuid();
+        var now = BaseTime;
+        const string idempotencyKey = "order-submitted-1";
+
+        var first = await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now) with
+        {
+            IdempotencyKey = idempotencyKey
+        });
+
+        var duplicate = await store.Writer.EnqueueAsync(first with
+        {
+            Id = Guid.NewGuid(),
+            Payload = "{\"orderId\":\"2\"}"
+        });
+
+        duplicate.Id.Should().Be(first.Id);
+        duplicate.Payload.Should().Be(first.Payload);
+        duplicate.IdempotencyKey.Should().Be(idempotencyKey);
+    }
+
+    /// <summary>
     ///     Verifies that duplicate message identifiers return the original stored row.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
@@ -86,8 +114,8 @@ public abstract class OutboxStoreContractTests
         var messageId = Guid.NewGuid();
         var now = BaseTime;
 
-        var first = await store.Writer.AddAsync(CreatePendingEnvelope(messageId, now));
-        var duplicate = await store.Writer.AddAsync(first with { Payload = "{\"orderId\":\"2\"}" });
+        var first = await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
+        var duplicate = await store.Writer.EnqueueAsync(first with { Payload = "{\"orderId\":\"2\"}" });
 
         duplicate.Id.Should().Be(first.Id);
         duplicate.Payload.Should().Be(first.Payload);
@@ -104,7 +132,7 @@ public abstract class OutboxStoreContractTests
         var messageId = Guid.NewGuid();
         var visibleAfter = BaseTime.AddHours(3);
 
-        var stored = await store.Writer.AddAsync(new OutboxEnvelope
+        var stored = await store.Writer.EnqueueAsync(new OutboxEnvelope
         {
             Id = messageId,
             ContractName = "tests.events.submitted",
@@ -117,12 +145,14 @@ public abstract class OutboxStoreContractTests
             AttemptCount = 0,
             CorrelationId = "correlation-1",
             CausationId = "causation-1",
-            TenantId = "tenant-1"
+            TenantId = "tenant-1",
+            TraceContext = "{\"traceparent\":\"00-def\"}"
         });
 
         stored.Topic.Should().Be("orders");
         stored.VisibleAfter.Should().Be(visibleAfter);
         stored.CorrelationId.Should().Be("correlation-1");
+        stored.TraceContext.Should().Be("{\"traceparent\":\"00-def\"}");
     }
 
     /// <summary>
@@ -136,7 +166,7 @@ public abstract class OutboxStoreContractTests
         var messageId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.Writer.AddAsync(CreatePendingEnvelope(messageId, now) with
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now) with
         {
             VisibleAfter = now.AddHours(2)
         });
@@ -165,9 +195,9 @@ public abstract class OutboxStoreContractTests
         var secondId = Guid.NewGuid();
         var thirdId = Guid.NewGuid();
 
-        await store.Writer.AddAsync(CreatePendingEnvelope(firstId, now));
-        await store.Writer.AddAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1)));
-        await store.Writer.AddAsync(CreatePendingEnvelope(thirdId, now.AddSeconds(2)));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(firstId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1)));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(thirdId, now.AddSeconds(2)));
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -194,7 +224,7 @@ public abstract class OutboxStoreContractTests
         var now = BaseTime;
         var visibleAfter = now.AddMinutes(15);
 
-        await store.Writer.AddAsync(CreatePendingEnvelope(messageId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -237,7 +267,7 @@ public abstract class OutboxStoreContractTests
         var messageId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.Writer.AddAsync(CreatePendingEnvelope(messageId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
 
         await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -275,7 +305,7 @@ public abstract class OutboxStoreContractTests
         var messageId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.Writer.AddAsync(CreatePendingEnvelope(messageId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
 
         await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -310,7 +340,7 @@ public abstract class OutboxStoreContractTests
 
         for (var index = 0; index < 6; index++)
         {
-            await store.Writer.AddAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(index)));
+            await store.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(index)));
         }
 
         var request = new OutboxLeaseRequest

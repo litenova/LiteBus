@@ -33,7 +33,7 @@ public sealed class PaymentsController : ControllerBase
         [FromBody] AcceptPaymentRequest request,
         CancellationToken cancellationToken)
     {
-        var receipt = await _inbox.AddAsync(
+        var receipt = await _inbox.AcceptAsync(
             new ProcessPaymentCommand(request.PaymentId, request.Amount),
             new InboxOptions
             {

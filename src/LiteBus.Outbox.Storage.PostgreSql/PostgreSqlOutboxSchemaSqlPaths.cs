@@ -29,4 +29,9 @@ public static class PostgreSqlOutboxSchemaSqlPaths
     ///     Shared version 2 upgrade that adds <c>trace_context</c>.
     /// </summary>
     public const string V2Upgrade = "src/LiteBus.Storage.PostgreSql/Sql/shared/add_trace_context_column.sql";
+
+    /// <summary>
+    ///     Shared version 3 upgrade that adds <c>idempotency_key</c> and its unique partial index.
+    /// </summary>
+    public const string V3Upgrade = "src/LiteBus.Storage.PostgreSql/Sql/shared/add_idempotency_key_column.sql";
 }

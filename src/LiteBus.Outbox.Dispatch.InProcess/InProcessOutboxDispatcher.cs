@@ -45,12 +45,12 @@ public sealed class InProcessOutboxDispatcher : IOutboxDispatcher
     /// <summary>
     ///     Gets the registry used to resolve persisted contracts back to event types.
     /// </summary>
-    private readonly IMessageContractRegistry _contractRegistry;
+    private readonly IContractReader _contractRegistry;
 
     /// <summary>
     ///     Gets the LiteBus event publisher used as the dispatch target.
     /// </summary>
-    private readonly IEventPublisher _eventPublisher;
+    private readonly IEventMediator _eventPublisher;
 
     /// <summary>
     ///     Gets the serializer used to hydrate the persisted payload.
@@ -64,8 +64,8 @@ public sealed class InProcessOutboxDispatcher : IOutboxDispatcher
     /// <param name="contractRegistry">The registry used to resolve persisted contracts back to event types.</param>
     /// <param name="messageSerializer">The serializer used to hydrate the persisted payload.</param>
     public InProcessOutboxDispatcher(
-        IEventPublisher eventPublisher,
-        IMessageContractRegistry contractRegistry,
+        IEventMediator eventPublisher,
+        IContractReader contractRegistry,
         IMessageSerializer messageSerializer)
     {
         _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
@@ -117,7 +117,8 @@ public sealed class InProcessOutboxDispatcher : IOutboxDispatcher
             settings.Items,
             message.CorrelationId,
             message.CausationId,
-            message.TenantId);
+            message.TenantId,
+            message.TraceContext);
 
         return settings;
     }

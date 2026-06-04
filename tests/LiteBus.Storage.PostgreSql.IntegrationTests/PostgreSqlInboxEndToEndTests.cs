@@ -35,7 +35,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
         var orderId = Guid.NewGuid();
-        var receipt = await scheduler.AddAsync(new ShipOrderCommand
+        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
@@ -69,7 +69,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AddAsync(new FaultyCommand());
+        var receipt = await scheduler.AcceptAsync(new FaultyCommand());
         await processor.ProcessPendingAsync();
 
         var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, receipt.Id);
@@ -94,7 +94,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AddAsync(new FaultyCommand());
+        var receipt = await scheduler.AcceptAsync(new FaultyCommand());
         await processor.ProcessPendingAsync();
 
         var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, receipt.Id);
@@ -116,7 +116,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
 
         var orderId = Guid.NewGuid();
-        var receipt = await scheduler.AddAsync(new ShipOrderCommand
+        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = "lease-expiry"
@@ -153,7 +153,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
         var orderId = Guid.NewGuid();
-        await scheduler.AddAsync(new ShipOrderCommand
+        await scheduler.AcceptAsync(new ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
@@ -179,7 +179,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         var writer = provider.GetRequiredService<IInboxStore>();
         var commandId = Guid.NewGuid();
 
-        await writer.AddAsync(new InboxEnvelope
+        await writer.EnqueueAsync(new InboxEnvelope
         {
             Id = commandId,
             ContractName = "unknown.contract",
@@ -214,15 +214,9 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
             services.AddSingleton(recorder);
         }
 
-        services.AddLiteBus(configuration =>
+        services.AddLiteBus(modules =>
         {
-            configuration.AddPostgreSqlInboxStorage(postgres =>
-            {
-                postgres.UseDataSource(fixture.DataSource);
-                postgres.UseOptions(options);
-            });
-
-            configuration.AddCommandModule(builder =>
+            modules.AddCommandModule(builder =>
             {
                 if (registerShipHandler)
                 {
@@ -237,8 +231,14 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
                 }
             });
 
-            configuration.AddInboxModule(builder =>
+            modules.AddInboxModule(builder =>
             {
+                builder.UsePostgreSqlStorage(postgres =>
+                {
+                    postgres.UseDataSource(fixture.DataSource);
+                    postgres.UseOptions(options);
+                });
+
                 if (registerShipHandler)
                 {
                     builder.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
@@ -260,9 +260,9 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
                         UseJitter = false
                     }
                 });
-            });
 
-            configuration.AddInboxInProcessDispatcher();
+                builder.UseInProcessDispatcher();
+            });
         });
 
         if (clock is not null)

@@ -71,4 +71,20 @@ internal static class PostgreSqlSchemaExecutor
             PostgreSqlSchemaEmbeddedSql.SharedAddTraceContextColumn,
             PostgreSqlSchemaSqlTokens.ForStoreTable(options));
     }
+
+    /// <summary>
+    ///     Loads and renders the shared version 3 upgrade script that adds <c>idempotency_key</c>.
+    /// </summary>
+    /// <param name="options">The store table options used to replace SQL placeholders.</param>
+    /// <returns>The rendered upgrade SQL batch.</returns>
+    internal static string LoadSharedAddIdempotencyKeyColumnScript(IPostgreSqlStoreTableOptions options)
+    {
+        var tokens = PostgreSqlSchemaSqlTokens.ForStoreTable(options);
+        tokens["IdempotencyIndexName"] = PostgreSqlIdentifier.IndexName(options.TableName, "idempotency_idx");
+
+        return PostgreSqlSqlScriptLoader.LoadAndRender(
+            Assembly,
+            PostgreSqlSchemaEmbeddedSql.SharedAddIdempotencyKeyColumn,
+            tokens);
+    }
 }

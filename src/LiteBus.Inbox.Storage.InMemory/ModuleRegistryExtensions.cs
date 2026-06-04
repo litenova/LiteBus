@@ -13,6 +13,9 @@ public static class ModuleRegistryExtensions
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
     /// <returns>The current module registry.</returns>
+    [Obsolete(
+        "Use AddInboxModule(i => i.UseInMemoryStorage(...)) instead. " +
+        "This top-level registration method will be removed in a future version.")]
     public static IModuleRegistry AddInMemoryInboxStorage(this IModuleRegistry moduleRegistry)
     {
         return AddInMemoryInboxStorage(moduleRegistry, _ =>
@@ -26,6 +29,9 @@ public static class ModuleRegistryExtensions
     /// <param name="moduleRegistry">The module registry.</param>
     /// <param name="builderAction">The in-memory store configuration action.</param>
     /// <returns>The current module registry.</returns>
+    [Obsolete(
+        "Use AddInboxModule(i => i.UseInMemoryStorage(...)) instead. " +
+        "This top-level registration method will be removed in a future version.")]
     public static IModuleRegistry AddInMemoryInboxStorage(
         this IModuleRegistry moduleRegistry,
         Action<InMemoryInboxStorageModuleBuilder> builderAction)

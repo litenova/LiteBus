@@ -2,6 +2,7 @@ using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -14,7 +15,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessorBackgroundService_WhenDisabled_ShouldCompleteWithoutPublishing()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
+        var store = new InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         await using var provider = BuildProvider(store, dispatcher, hostOptions => hostOptions.Enabled = false);
@@ -29,7 +30,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessorBackgroundService_ShouldPublishScheduledMessages()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
+        var store = new InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         await using var provider = BuildProvider(
@@ -41,7 +42,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
         var hostedService = provider.GetServices<IHostedService>().Single();
 
         var orderId = Guid.NewGuid();
-        await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { Id = Guid.NewGuid() });
+        await outbox.EnqueueAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { Id = Guid.NewGuid() });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         await hostedService.StartAsync(cts.Token);
@@ -58,9 +59,9 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     public async Task ProcessorBackgroundService_WhenMissingDependency_ShouldThrowOnResolve()
     {
         var services = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddOutboxModule(outbox =>
+                modules.AddOutboxModule(outbox =>
                 {
                     outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
                     outbox.EnableOutboxProcessor();
@@ -78,15 +79,15 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessorBackgroundService_WhenMissingDispatcher_ShouldThrowOnResolve()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
+        var store = new InMemoryOutboxStore();
 
         var services = new ServiceCollection()
             .AddSingleton<IOutboxStore>(store)
             .AddSingleton<IOutboxLeaseStore>(store)
             .AddSingleton<IOutboxStateStore>(store)
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddOutboxModule(outbox =>
+                modules.AddOutboxModule(outbox =>
                 {
                     outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
                     outbox.EnableOutboxProcessor();
@@ -104,7 +105,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessorBackgroundService_ShouldRespectStartupDelay()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
+        var store = new InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         await using var provider = BuildProvider(
@@ -120,7 +121,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
         var hostedService = provider.GetServices<IHostedService>().Single();
 
         var orderId = Guid.NewGuid();
-        await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { Id = Guid.NewGuid() });
+        await outbox.EnqueueAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { Id = Guid.NewGuid() });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await hostedService.StartAsync(cts.Token);
@@ -140,7 +141,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessorBackgroundService_WithAdaptivePollingAndFullBatch_ShouldPublishMultipleMessagesQuickly()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
+        var store = new InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         await using var provider = BuildProvider(
@@ -167,7 +168,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
 
         for (var i = 0; i < 4; i++)
         {
-            await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions { Id = Guid.NewGuid() });
+            await outbox.EnqueueAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions { Id = Guid.NewGuid() });
         }
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -182,7 +183,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     }
 
     private static ServiceProvider BuildProvider(
-        OutboxTests.InMemoryOutboxStore store,
+        InMemoryOutboxStore store,
         OutboxTestInfrastructure.RecordingOutboxDispatcherHolder dispatcherHolder,
         Action<OutboxProcessorHostOptions>? configureHost = null,
         Action<OutboxModuleBuilder>? configureOutbox = null,
@@ -203,9 +204,9 @@ public sealed class OutboxHostingTests : LiteBusTestBase
                 return dispatcher;
             })
             .AddSingleton<IOutboxDispatcher>(sp => sp.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>())
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddOutboxModule(outbox =>
+                modules.AddOutboxModule(outbox =>
                 {
                     if (configureOutbox is not null)
                     {

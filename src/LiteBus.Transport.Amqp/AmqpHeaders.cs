@@ -38,4 +38,9 @@ public static class AmqpHeaders
     ///     Gets the header name for the tenant identifier.
     /// </summary>
     public const string TenantId = "tenant-id";
+
+    /// <summary>
+    ///     Gets the header name for the distributed trace context JSON blob.
+    /// </summary>
+    public const string TraceContext = "litebus-trace-context";
 }

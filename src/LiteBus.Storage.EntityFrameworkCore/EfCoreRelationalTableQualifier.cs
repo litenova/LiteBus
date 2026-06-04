@@ -1,5 +1,4 @@
 using System;
-
 namespace LiteBus.Storage.EntityFrameworkCore;
 
 /// <summary>
@@ -26,7 +25,7 @@ public static class EfCoreRelationalTableQualifier
             EfCoreStorageProvider.MySql => $"`{schemaName}`.`{tableName}`",
             EfCoreStorageProvider.InMemory => $"\"{schemaName}\".\"{tableName}\"",
             EfCoreStorageProvider.Sqlite => $"\"{schemaName}\".\"{tableName}\"",
-            _ => throw new NotSupportedException($"Table qualification is not supported for provider '{provider}'.")
+            _ => throw new Exceptions.EfCoreStorageNotSupportedException($"Table qualification is not supported for provider '{provider}'.")
         };
     }
 }

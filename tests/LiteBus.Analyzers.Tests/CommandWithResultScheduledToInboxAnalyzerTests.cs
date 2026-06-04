@@ -36,7 +36,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzerTests
                                   }
 
                                   public Task ScheduleAsync(ProcessPaymentCommand command, CancellationToken cancellationToken)
-                                      => _inbox.AddAsync(command, cancellationToken: cancellationToken);
+                                      => _inbox.AcceptAsync(command, cancellationToken: cancellationToken);
                               }
                               """;
 
@@ -68,7 +68,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzerTests
                                   }
 
                                   public Task ScheduleAsync(CreateUserCommand command, CancellationToken cancellationToken)
-                                      => {|#0:_inbox.AddAsync(command, cancellationToken: cancellationToken)|};
+                                      => {|#0:_inbox.AcceptAsync(command, cancellationToken: cancellationToken)|};
                               }
                               """;
 

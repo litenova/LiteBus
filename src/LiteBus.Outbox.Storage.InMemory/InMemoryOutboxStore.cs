@@ -29,6 +29,11 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
     private readonly Dictionary<Guid, OutboxEnvelope> _envelopes = [];
 
     /// <summary>
+    ///     The idempotency keys mapped to the accepted message identifier.
+    /// </summary>
+    private readonly Dictionary<string, Guid> _idempotencyIndex = new(StringComparer.Ordinal);
+
+    /// <summary>
     ///     The lock that serializes mutations and lease scans.
     /// </summary>
     private readonly object _sync = new();
@@ -40,12 +45,25 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
 
         lock (_sync)
         {
-            if (_envelopes.TryGetValue(envelope.Id, out var existing))
+            if (_envelopes.TryGetValue(envelope.Id, out var existingById))
             {
-                return Task.FromResult(existing);
+                return Task.FromResult(existingById);
+            }
+
+            if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey) &&
+                _idempotencyIndex.TryGetValue(envelope.IdempotencyKey, out var existingId) &&
+                _envelopes.TryGetValue(existingId, out var existingByKey))
+            {
+                return Task.FromResult(existingByKey);
             }
 
             _envelopes[envelope.Id] = envelope;
+
+            if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
+            {
+                _idempotencyIndex[envelope.IdempotencyKey] = envelope.Id;
+            }
+
             return Task.FromResult(envelope);
         }
     }
@@ -140,6 +158,111 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
         return Task.CompletedTask;
     }
 
+    /// <inheritdoc />
+    public Task MarkPublishedAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageIds);
+
+        lock (_sync)
+        {
+            foreach (var messageId in messageIds)
+            {
+                var envelope = GetRequired(messageId);
+                _envelopes[messageId] = envelope with
+                {
+                    Status = OutboxStatus.Published,
+                    LeaseOwner = null,
+                    LeaseExpiresAt = null,
+                    LastError = null
+                };
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task MarkFailedAsync(IReadOnlyList<OutboxEnvelopeFailure> failures, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(failures);
+
+        lock (_sync)
+        {
+            foreach (var failure in failures)
+            {
+                var envelope = GetRequired(failure.Id);
+                _envelopes[failure.Id] = envelope with
+                {
+                    Status = OutboxStatus.Failed,
+                    LeaseOwner = null,
+                    LeaseExpiresAt = null,
+                    LastError = failure.Error,
+                    VisibleAfter = failure.VisibleAfter
+                };
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task RequeueDeadLetterAsync(Guid messageId, CancellationToken cancellationToken = default)
+    {
+        lock (_sync)
+        {
+            var envelope = GetRequired(messageId);
+
+            if (envelope.Status != OutboxStatus.DeadLettered)
+            {
+                return Task.CompletedTask;
+            }
+
+            _envelopes[messageId] = envelope with
+            {
+                Status = OutboxStatus.Pending,
+                VisibleAfter = null,
+                AttemptCount = 0,
+                LeaseOwner = null,
+                LeaseExpiresAt = null,
+                LastError = null
+            };
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<int> DeletePublishedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
+    {
+        lock (_sync)
+        {
+            var toRemove = _envelopes.Values
+                .Where(envelope => envelope.Status == OutboxStatus.Published && envelope.CreatedAt < olderThan)
+                .Select(envelope => envelope.Id)
+                .ToArray();
+
+            foreach (var messageId in toRemove)
+            {
+                _envelopes.Remove(messageId);
+            }
+
+            return Task.FromResult(toRemove.Length);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<OutboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_sync)
+        {
+            var counts = _envelopes.Values
+                .GroupBy(envelope => envelope.Status)
+                .ToDictionary(group => group.Key, group => group.Count());
+
+            return Task.FromResult<IReadOnlyDictionary<OutboxStatus, int>>(counts);
+        }
+    }
+
     /// <summary>
     ///     Gets the stored envelope for the given message identifier.
     /// </summary>
@@ -196,6 +319,8 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
     {
         return ((envelope.Status is OutboxStatus.Pending or OutboxStatus.Failed) &&
                 (envelope.VisibleAfter is null || envelope.VisibleAfter <= now)) ||
-               (envelope.Status == OutboxStatus.Publishing && envelope.LeaseExpiresAt <= now);
+               (envelope.Status == OutboxStatus.Publishing
+                && envelope.LeaseExpiresAt is not null
+                && envelope.LeaseExpiresAt <= now);
     }
 }

@@ -39,8 +39,8 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
         var symbol = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol as IMethodSymbol;
 
         if (symbol is null ||
-            symbol.Name != "AddAsync" ||
-            !IsInboxAddAsync(symbol))
+            (symbol.Name != "AddAsync" && symbol.Name != "AcceptAsync") ||
+            !IsInboxAcceptMethod(symbol))
         {
             return;
         }
@@ -67,19 +67,19 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
     }
 
     /// <summary>
-    ///     Determines whether the method symbol is <see cref="LiteBus.Inbox.Abstractions.IInbox.AddAsync" />.
+    ///     Determines whether the method symbol is an inbox acceptance API on <c>IInbox</c>.
     /// </summary>
     /// <param name="method">The invoked method symbol.</param>
-    /// <returns><see langword="true" /> when the method is inbox <c>AddAsync</c>; otherwise, <see langword="false" />.</returns>
-    private static bool IsInboxAddAsync(IMethodSymbol method)
+    /// <returns><see langword="true" /> when the method accepts messages into the inbox; otherwise, <see langword="false" />.</returns>
+    private static bool IsInboxAcceptMethod(IMethodSymbol method)
     {
-        return method.Name == "AddAsync" &&
+        return (method.Name == "AddAsync" || method.Name == "AcceptAsync") &&
                method.ContainingType?.Name == "IInbox" &&
                method.ContainingType.ContainingNamespace?.ToDisplayString() == "LiteBus.Inbox.Abstractions";
     }
 
     /// <summary>
-    ///     Gets the message type passed to inbox <c>AddAsync</c>.
+    ///     Gets the message type passed to inbox acceptance APIs.
     /// </summary>
     /// <param name="method">The invoked method symbol.</param>
     /// <param name="invocation">The invocation syntax.</param>

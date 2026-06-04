@@ -1,5 +1,6 @@
 using System;
-using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging;
 
@@ -42,7 +43,7 @@ public static class ModuleRegistryExtensions
         // Check if MessageModule is already registered.
         if (moduleRegistry.IsModuleRegistered<MessageModule>())
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 "Ensure that AddMessageModule() is called before other LiteBus modules " +
                 "(AddCommandModule, AddEventModule, AddQueryModule) to provide the core messaging infrastructure.");
         }

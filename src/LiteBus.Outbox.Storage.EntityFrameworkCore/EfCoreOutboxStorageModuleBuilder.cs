@@ -19,6 +19,27 @@ public sealed class EfCoreOutboxStorageModuleBuilder
     public EfCoreOutboxStoreOptions Options { get; private set; } = new();
 
     /// <summary>
+    ///     Gets a value indicating whether <see cref="LiteBusOutboxSaveChangesInterceptor" /> is registered in dependency injection.
+    /// </summary>
+    public bool RegisterSaveChangesInterceptor { get; private set; }
+
+    /// <summary>
+    ///     Registers <see cref="LiteBusOutboxSaveChangesInterceptor" /> as a singleton for use with application <see cref="DbContext" /> configuration.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     The interceptor is not attached to a <see cref="DbContext" /> automatically. Call
+    ///     <see cref="OutboxDbContextExtensions.AddLiteBusOutboxInterceptor(DbContextOptionsBuilder, LiteBusOutboxSaveChangesInterceptor)" />
+    ///     when building context options, for example
+    ///     <c>options.AddLiteBusOutboxInterceptor(interceptor)</c>.
+    /// </remarks>
+    public EfCoreOutboxStorageModuleBuilder EnableSaveChangesInterceptor()
+    {
+        RegisterSaveChangesInterceptor = true;
+        return this;
+    }
+
+    /// <summary>
     ///     Configures the application database context type used by the outbox store.
     /// </summary>
     /// <typeparam name="TContext">The database context type.</typeparam>

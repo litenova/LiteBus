@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Commands;
 
@@ -20,10 +21,17 @@ public sealed class CommandModuleBuilder
     ///     Initializes a new instance of the <see cref="CommandModuleBuilder" /> class.
     /// </summary>
     /// <param name="messageRegistry">The message registry to which commands will be registered.</param>
-    public CommandModuleBuilder(IMessageRegistry messageRegistry)
+    /// <param name="contracts">The contract writer used during module configuration.</param>
+    public CommandModuleBuilder(IMessageRegistry messageRegistry, IContractWriter contracts)
     {
         _messageRegistry = messageRegistry;
+        Contracts = contracts ?? throw new ArgumentNullException(nameof(contracts));
     }
+
+    /// <summary>
+    ///     Gets the message contract writer for persisted command contracts.
+    /// </summary>
+    public IContractWriter Contracts { get; }
 
     /// <summary>
     ///     Registers a command type for the message registry.
@@ -45,7 +53,7 @@ public sealed class CommandModuleBuilder
     {
         if (!type.IsAssignableTo(typeof(IRegistrableCommandConstruct)))
         {
-            throw new NotSupportedException($"The given type '{type.Name}' is not a command construct and cannot be registered.");
+            throw new LiteBusNotSupportedException($"The given type '{type.Name}' is not a command construct and cannot be registered.");
         }
 
         _messageRegistry.Register(type);

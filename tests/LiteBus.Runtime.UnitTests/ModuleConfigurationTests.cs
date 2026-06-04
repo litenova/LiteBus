@@ -1,4 +1,7 @@
+using System.Collections;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Dependencies;
 using LiteBus.Runtime.Modules;
 
@@ -56,14 +59,42 @@ public sealed class ModuleConfigurationTests
         }
     }
 
+    private sealed class TestMessageRegistry : IMessageRegistry
+    {
+        /// <inheritdoc />
+        public int Count => 0;
+
+        /// <inheritdoc />
+        public IReadOnlyList<IHandlerDescriptor> Handlers => [];
+
+        /// <inheritdoc />
+        public void Clear()
+        {
+        }
+
+        /// <inheritdoc />
+        public void Register(Type type)
+        {
+        }
+
+        /// <inheritdoc />
+        public IEnumerator<IMessageDescriptor> GetEnumerator()
+        {
+            return Enumerable.Empty<IMessageDescriptor>().GetEnumerator();
+        }
+
+        /// <inheritdoc />
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
     [Fact]
-    public void GetContext_WhenMissing_ShouldThrowInvalidOperationException()
+    public void GetContext_WhenMissing_ShouldThrowLiteBusConfigurationException()
     {
         var configuration = new ModuleConfiguration(new DependencyRegistry());
 
         var act = () => configuration.GetContext<FoundationModule>();
 
-        act.Should().Throw<InvalidOperationException>();
+        act.Should().Throw<LiteBusConfigurationException>();
     }
 
     [Fact]
@@ -99,6 +130,18 @@ public sealed class ModuleConfigurationTests
 
         found.Should().BeFalse();
         context.Should().BeNull();
+    }
+
+    [Fact]
+    public void GetOrCreateContext_ForMessageRegistry_ShouldCreateSeparateInstancesPerConfiguration()
+    {
+        var firstConfiguration = new ModuleConfiguration(new DependencyRegistry());
+        var secondConfiguration = new ModuleConfiguration(new DependencyRegistry());
+
+        var firstRegistry = firstConfiguration.GetOrCreateContext<IMessageRegistry>(() => new TestMessageRegistry());
+        var secondRegistry = secondConfiguration.GetOrCreateContext<IMessageRegistry>(() => new TestMessageRegistry());
+
+        firstRegistry.Should().NotBeSameAs(secondRegistry);
     }
 
     [Fact]

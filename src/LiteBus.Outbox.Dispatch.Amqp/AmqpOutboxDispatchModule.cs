@@ -3,6 +3,7 @@ using System.Linq;
 using LiteBus.Transport.Amqp;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Outbox.Dispatch.Amqp;
 
@@ -35,9 +36,17 @@ public sealed class AmqpOutboxDispatchModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IOutboxDispatcher)))
+        if (!configuration.TryGetContext<OutboxCoreRegisteredMarker>(out _))
         {
             throw new InvalidOperationException(
+                $"{nameof(AmqpOutboxDispatchModule)} requires OutboxModule core services " +
+                "to be registered first. Configure the dispatcher inside AddOutboxModule(...) " +
+                "using UseAmqpDispatcher().");
+        }
+
+        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IOutboxDispatcher)))
+        {
+            throw new LiteBusConfigurationException(
                 "An IOutboxDispatcher is already registered. Register only one outbox dispatcher implementation.");
         }
 

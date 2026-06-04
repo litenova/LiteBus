@@ -89,6 +89,11 @@ public sealed class OutboxMessageEntity
     public string? TenantId { get; set; }
 
     /// <summary>
+    ///     Gets or sets the optional idempotency key used to collapse duplicate enqueue attempts.
+    /// </summary>
+    public string? IdempotencyKey { get; set; }
+
+    /// <summary>
     ///     Gets or sets the optional distributed trace context stored as JSON text.
     /// </summary>
     public string? TraceContext { get; set; }

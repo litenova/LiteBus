@@ -34,4 +34,9 @@ public static class PostgreSqlInboxSchemaSqlPaths
     ///     Upgrades the inbox table from version 2 to version 3 (message-neutral <c>message_id</c> and default table name).
     /// </summary>
     public const string V3Upgrade = Root + "inbox/v3/rename_message_identity.sql";
+
+    /// <summary>
+    ///     Upgrades the inbox table from version 3 to version 4 (insert notify trigger).
+    /// </summary>
+    public const string V4Upgrade = Root + "inbox/v4/add_insert_notify.sql";
 }

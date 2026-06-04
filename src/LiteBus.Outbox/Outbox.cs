@@ -20,7 +20,7 @@ namespace LiteBus.Outbox;
 ///         contract registered for that closed type. A stable message id can be supplied through <see cref="OutboxOptions" />.
 ///     </para>
 /// </remarks>
-public sealed class OutboxWriter : IOutbox
+public sealed class Outbox : IOutbox
 {
     /// <summary>
     ///     Gets the time provider used to stamp storage time.
@@ -30,7 +30,7 @@ public sealed class OutboxWriter : IOutbox
     /// <summary>
     ///     Gets the registry used to map the runtime event type to a stable contract.
     /// </summary>
-    private readonly IMessageContractRegistry _contractRegistry;
+    private readonly IContractReader _contractRegistry;
 
     /// <summary>
     ///     Gets the serializer used to create the serialized payload.
@@ -43,15 +43,15 @@ public sealed class OutboxWriter : IOutbox
     private readonly IOutboxStore _store;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="OutboxWriter" /> class.
+    ///     Initializes a new instance of the <see cref="Outbox" /> class.
     /// </summary>
     /// <param name="store">The outbox writer store used to persist newly accepted envelopes.</param>
     /// <param name="contractRegistry">The registry used to map the runtime event type to a stable contract.</param>
     /// <param name="messageSerializer">The serializer used to create the serialized payload.</param>
     /// <param name="clock">The time provider used to stamp storage time.</param>
-    public OutboxWriter(
+    public Outbox(
         IOutboxStore store,
-        IMessageContractRegistry contractRegistry,
+        IContractReader contractRegistry,
         IMessageSerializer messageSerializer,
         TimeProvider clock)
     {
@@ -62,7 +62,7 @@ public sealed class OutboxWriter : IOutbox
     }
 
     /// <inheritdoc />
-    public async Task<OutboxReceipt<TEvent>> AddAsync<TEvent>(
+    public async Task<OutboxReceipt<TEvent>> EnqueueAsync<TEvent>(
         TEvent @event,
         OutboxOptions? options = null,
         CancellationToken cancellationToken = default)
@@ -91,7 +91,9 @@ public sealed class OutboxWriter : IOutbox
             AttemptCount = 0,
             CorrelationId = options.CorrelationId,
             CausationId = options.CausationId,
-            TenantId = options.TenantId
+            TenantId = options.TenantId,
+            IdempotencyKey = string.IsNullOrWhiteSpace(options.IdempotencyKey) ? null : options.IdempotencyKey,
+            TraceContext = options.TraceContext
         };
 
         var storedEnvelope = await _store.AddAsync(envelope, cancellationToken).ConfigureAwait(false);

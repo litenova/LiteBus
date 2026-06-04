@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Queries;
 
@@ -20,10 +21,17 @@ public sealed class QueryModuleBuilder
     ///     Initializes a new instance of the <see cref="QueryModuleBuilder" /> class.
     /// </summary>
     /// <param name="messageRegistry">The message registry to which queries will be registered.</param>
-    public QueryModuleBuilder(IMessageRegistry messageRegistry)
+    /// <param name="contracts">The contract writer used during module configuration.</param>
+    public QueryModuleBuilder(IMessageRegistry messageRegistry, IContractWriter contracts)
     {
         _messageRegistry = messageRegistry;
+        Contracts = contracts ?? throw new ArgumentNullException(nameof(contracts));
     }
+
+    /// <summary>
+    ///     Gets the message contract writer for persisted query contracts.
+    /// </summary>
+    public IContractWriter Contracts { get; }
 
     /// <summary>
     ///     Registers a query type for the message registry.
@@ -45,7 +53,7 @@ public sealed class QueryModuleBuilder
     {
         if (!type.IsAssignableTo(typeof(IRegistrableQueryConstruct)))
         {
-            throw new NotSupportedException($"The given type '{type.Name}' is not a query construct and cannot be registered.");
+            throw new LiteBusNotSupportedException($"The given type '{type.Name}' is not a query construct and cannot be registered.");
         }
 
         _messageRegistry.Register(type);

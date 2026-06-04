@@ -57,7 +57,7 @@ public sealed class AmqpConsumer : IAmqpConsumer
         {
             if (_consumerChannel is not null)
             {
-                throw new InvalidOperationException("The AMQP consumer is already started.");
+                throw new Exceptions.AmqpTransportConfigurationException("The AMQP consumer is already started.");
             }
 
             _consumerChannel = await _connectionManager.CreateChannelAsync(cancellationToken).ConfigureAwait(false);

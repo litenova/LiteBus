@@ -17,9 +17,9 @@ public sealed class PolymorphicDispatchTests : LiteBusTestBase
     public async Task Send_SpecializedCommand_ShouldBeHandledByBaseCommandHandler()
     {
         // ARRANGE
-        var serviceProvider = new ServiceCollection().AddLiteBus(configuration =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
         {
-            configuration.AddCommandModule(builder =>
+            modules.AddCommandModule(builder =>
             {
                 // Register only the handler for the BASE command.
                 // LiteBus should be smart enough to route the specialized command to it.

@@ -35,7 +35,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions
+        await outbox.EnqueueAsync(new OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions
         {
             Id = messageId
         });
@@ -69,7 +69,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         var messageId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
+        await outbox.EnqueueAsync(new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
         {
             Id = messageId
         });
@@ -98,7 +98,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         var messageId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
+        await outbox.EnqueueAsync(new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
         {
             Id = messageId
         });
@@ -124,7 +124,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions
+        await outbox.EnqueueAsync(new OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions
         {
             Id = messageId
         });
@@ -161,7 +161,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         var messageId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
+        await outbox.EnqueueAsync(new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
         {
             Id = messageId,
             VisibleAfter = visibleAfter
@@ -197,20 +197,20 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
             services.AddSingleton<IOutboxDispatcher, AlwaysFailingOutboxDispatcher>();
         }
 
-        services.AddLiteBus(configuration =>
+        services.AddLiteBus(modules =>
         {
-            configuration.AddPostgreSqlOutboxStorage(postgres =>
+            modules.AddPostgreSqlOutboxStorage(postgres =>
             {
                 postgres.UseDataSource(fixture.DataSource);
                 postgres.UseOptions(options);
             });
 
-            configuration.AddEventModule(builder =>
+            modules.AddEventModule(builder =>
             {
                 builder.Register<OrderSubmittedEventHandler>();
             });
 
-            configuration.AddOutboxModule(builder =>
+            modules.AddOutboxModule(builder =>
             {
                 builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
 
@@ -229,7 +229,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
 
             if (!useFailingDispatcher)
             {
-                configuration.AddOutboxInProcessDispatcher();
+                modules.AddOutboxInProcessDispatcher();
             }
         });
 

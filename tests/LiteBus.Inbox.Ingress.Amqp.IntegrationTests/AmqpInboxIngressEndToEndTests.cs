@@ -65,15 +65,15 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
         var services = new ServiceCollection();
         services.AddSingleton(recorder);
 
-        services.AddLiteBus(liteBus =>
+        services.AddLiteBus(modules =>
         {
-            liteBus.AddCommandModule(module =>
+            modules.AddCommandModule(module =>
             {
                 module.Register<ShipOrderCommand>();
                 module.Register<ShipOrderCommandHandler>();
             });
 
-            liteBus.AddInboxModule(inbox =>
+            modules.AddInboxModule(inbox =>
             {
                 inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
                 inbox.UseProcessorOptions(new InboxProcessorOptions
@@ -85,10 +85,10 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
             });
 
-            liteBus.AddInMemoryInboxStorage();
-            liteBus.AddInboxInProcessDispatcher();
+            modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
+            modules.AddInboxInProcessDispatcher();
 
-            liteBus.AddInboxAmqpIngress(ingress =>
+            modules.AddInboxAmqpIngress(ingress =>
             {
                 ingress.UseOptions(new AmqpInboxIngressOptions
                 {

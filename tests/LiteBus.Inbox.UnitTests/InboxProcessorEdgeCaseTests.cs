@@ -1,4 +1,4 @@
-﻿using LiteBus.Commands;
+using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
@@ -24,13 +24,13 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
 
-        var scheduler = new InboxWriter(
+        var scheduler = new Inbox(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
             new InboxTestInfrastructure.ManualTimeProvider(BaseTime));
 
-        await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
+        await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = "ship-visible"
@@ -46,14 +46,14 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
 
-        var scheduler = new InboxWriter(
+        var scheduler = new Inbox(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
             TimeProvider.System);
 
         var orderId = Guid.NewGuid();
-        await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
+        await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
@@ -67,13 +67,13 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ScheduleAsync_WhenContractNotRegistered_ShouldThrowMessageContractNotRegisteredException()
     {
         var store = new InMemoryInboxStore();
-        var scheduler = new InboxWriter(
+        var scheduler = new Inbox(
             store,
             new MessageContractRegistry(),
             new SystemTextJsonMessageSerializer(),
             TimeProvider.System);
 
-        var act = async () => await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
+        var act = async () => await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = "missing-contract"
@@ -95,7 +95,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         for (var i = 0; i < 3; i++)
         {
             var orderId = Guid.NewGuid();
-            await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
+            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
             {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
@@ -121,7 +121,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         for (var i = 0; i < 5; i++)
         {
             var orderId = Guid.NewGuid();
-            await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
+            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
             {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
@@ -148,7 +148,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
+        await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = "future"
@@ -171,7 +171,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
+        await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = "due-later"
@@ -215,7 +215,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AddAsync(new InboxTestFixtures.FaultyCommand());
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.FaultyCommand());
         await processor.ProcessPendingAsync();
 
         store.Get(receipt.Id).VisibleAfter.Should().Be(BaseTime.AddSeconds(30));
@@ -253,7 +253,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AddAsync(new InboxTestFixtures.FaultyCommand());
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.FaultyCommand());
         await processor.ProcessPendingAsync();
 
         store.Get(receipt.Id).VisibleAfter.Should().Be(BaseTime.AddSeconds(10));
@@ -270,7 +270,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = "lease-expiry"
@@ -360,7 +360,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         for (var i = 0; i < 3; i++)
         {
             var orderId = Guid.NewGuid();
-            await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
+            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
             {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
@@ -395,9 +395,9 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
 
         services.AddCommandMediatorInboxDispatcher();
 
-        services.AddLiteBus(configuration =>
+        services.AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     if (registerFaultyHandler)
                     {
@@ -411,7 +411,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
                     }
                 });
 
-                configuration.AddInboxModule(inbox =>
+                modules.AddInboxModule(inbox =>
                 {
                     if (configureInbox is not null)
                     {

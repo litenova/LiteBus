@@ -1,5 +1,6 @@
 using System;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Storage.PostgreSql.Exceptions;
 using LiteBus.Runtime.Abstractions;
 using Npgsql;
 
@@ -29,12 +30,20 @@ public sealed class PostgreSqlInboxModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
+        {
+            throw new InvalidOperationException(
+                $"{nameof(PostgreSqlInboxModule)} requires InboxModule core services " +
+                "to be registered first. Configure storage inside AddInboxModule(...) " +
+                "using UsePostgreSqlStorage().");
+        }
+
         var moduleBuilder = new PostgreSqlInboxModuleBuilder();
         _builder(moduleBuilder);
 
         if (moduleBuilder.DataSource is null)
         {
-            throw new InvalidOperationException(
+            throw new InboxPostgreSqlStorageConfigurationException(
                 "A PostgreSQL inbox data source must be configured. " +
                 "Call UseDataSource(NpgsqlDataSource) or UseConnectionString(string).");
         }
@@ -73,5 +82,11 @@ public sealed class PostgreSqlInboxModule : IModule
 
             configuration.RegisterStartupTask(typeof(PostgreSqlInboxSchemaInitializer));
         }
+
+        var workSignal = moduleBuilder.Options.UseListenNotify
+            ? (IInboxWorkSignal)new PostgreSqlInboxWorkSignal(moduleBuilder.DataSource)
+            : new InboxPollingWorkSignal();
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxWorkSignal), workSignal));
     }
 }

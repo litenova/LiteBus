@@ -19,4 +19,9 @@ public static class MessageTraceContextKeys
     ///     Tenant identifier copied from a stored envelope into mediation settings.
     /// </summary>
     public const string TenantId = "__LiteBus.Trace.TenantId";
+
+    /// <summary>
+    ///     Distributed trace context JSON copied from a stored envelope into mediation settings.
+    /// </summary>
+    public const string TraceContext = "__LiteBus.Trace.TraceContext";
 }

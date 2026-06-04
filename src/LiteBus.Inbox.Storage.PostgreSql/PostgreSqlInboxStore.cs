@@ -72,7 +72,8 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                       last_error,
                       correlation_id,
                       causation_id,
-                      tenant_id)
+                      tenant_id,
+                      trace_context)
                   VALUES (
                       @message_id,
                       @contract_name,
@@ -88,7 +89,8 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                       @last_error,
                       @correlation_id,
                       @causation_id,
-                      @tenant_id)
+                      @tenant_id,
+                      @trace_context)
                   -- No conflict target: catches both the message_id primary key violation and the
                   -- unique partial index on idempotency_key. Both represent the same idempotent intent.
                   ON CONFLICT DO NOTHING
@@ -107,7 +109,8 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                       last_error,
                       correlation_id,
                       causation_id,
-                      tenant_id;
+                      tenant_id,
+                      trace_context::text;
                   """;
 
         await using var command = _dataSource.CreateCommand(sql);
@@ -157,7 +160,8 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                       inbox.last_error,
                       inbox.correlation_id,
                       inbox.causation_id,
-                      inbox.tenant_id;
+                      inbox.tenant_id,
+                      inbox.trace_context::text;
                   """;
 
         await using var command = _dataSource.CreateCommand(sql);
@@ -237,6 +241,142 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public async Task MarkCompletedAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageIds);
+
+        if (messageIds.Count == 0)
+        {
+            return;
+        }
+
+        if (messageIds.Count == 1)
+        {
+            await MarkCompletedAsync(messageIds[0], cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var sql = $"""
+                  UPDATE {_tableName}
+                  SET
+                      status = @completed_status,
+                      lease_owner = NULL,
+                      lease_expires_at = NULL,
+                      last_error = NULL
+                  WHERE message_id = ANY(@message_ids);
+                  """;
+
+        await using var command = _dataSource.CreateCommand(sql);
+        command.Parameters.AddWithValue("completed_status", (int)InboxStatus.Completed);
+        command.Parameters.AddWithValue("message_ids", messageIds);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task MarkFailedAsync(IReadOnlyList<InboxEnvelopeFailure> failures, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(failures);
+
+        if (failures.Count == 0)
+        {
+            return;
+        }
+
+        if (failures.Count == 1)
+        {
+            await MarkFailedAsync(failures[0], cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var ids = new Guid[failures.Count];
+        var visibleAfter = new DateTimeOffset?[failures.Count];
+        var errors = new string[failures.Count];
+
+        for (var index = 0; index < failures.Count; index++)
+        {
+            ids[index] = failures[index].Id;
+            visibleAfter[index] = failures[index].VisibleAfter;
+            errors[index] = failures[index].Error;
+        }
+
+        var sql = $"""
+                  UPDATE {_tableName} AS inbox
+                  SET
+                      status = @failed_status,
+                      visible_after = batch.visible_after,
+                      lease_owner = NULL,
+                      lease_expires_at = NULL,
+                      last_error = batch.last_error
+                  FROM unnest(@message_ids, @visible_after, @last_errors) AS batch(message_id, visible_after, last_error)
+                  WHERE inbox.message_id = batch.message_id;
+                  """;
+
+        await using var command = _dataSource.CreateCommand(sql);
+        command.Parameters.AddWithValue("failed_status", (int)InboxStatus.Failed);
+        command.Parameters.AddWithValue("message_ids", ids);
+        command.Parameters.AddWithValue("visible_after", visibleAfter);
+        command.Parameters.AddWithValue("last_errors", errors);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task RequeueDeadLetterAsync(Guid messageId, CancellationToken cancellationToken = default)
+    {
+        var sql = $"""
+                  UPDATE {_tableName}
+                  SET
+                      status = @pending_status,
+                      visible_after = NULL,
+                      attempt_count = 0,
+                      lease_owner = NULL,
+                      lease_expires_at = NULL,
+                      last_error = NULL
+                  WHERE message_id = @message_id AND status = @dead_lettered_status;
+                  """;
+
+        await using var command = _dataSource.CreateCommand(sql);
+        command.Parameters.AddWithValue("pending_status", (int)InboxStatus.Pending);
+        command.Parameters.AddWithValue("dead_lettered_status", (int)InboxStatus.DeadLettered);
+        command.Parameters.AddWithValue("message_id", messageId);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> DeleteCompletedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
+    {
+        var sql = $"""
+                  DELETE FROM {_tableName}
+                  WHERE status = @completed_status AND created_at < @older_than;
+                  """;
+
+        await using var command = _dataSource.CreateCommand(sql);
+        command.Parameters.AddWithValue("completed_status", (int)InboxStatus.Completed);
+        command.Parameters.AddWithValue("older_than", olderThan);
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<InboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
+    {
+        var sql = $"""
+                  SELECT status, COUNT(*)::int
+                  FROM {_tableName}
+                  GROUP BY status;
+                  """;
+
+        await using var command = _dataSource.CreateCommand(sql);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var counts = new Dictionary<InboxStatus, int>();
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            counts[(InboxStatus)reader.GetInt32(0)] = reader.GetInt32(1);
+        }
+
+        return counts;
+    }
+
     /// <summary>
     ///     Reads the row that caused an idempotent insert to be skipped.
     /// </summary>
@@ -268,7 +408,8 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                        last_error,
                        correlation_id,
                        causation_id,
-                       tenant_id
+                       tenant_id,
+                       trace_context::text
                    FROM {_tableName}
                    WHERE message_id = @message_id
                    LIMIT 1;
@@ -292,7 +433,8 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                        last_error,
                        correlation_id,
                        causation_id,
-                       tenant_id
+                       tenant_id,
+                       trace_context::text
                    FROM {_tableName}
                    WHERE message_id = @message_id
                       OR idempotency_key = @idempotency_key
@@ -334,6 +476,9 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
         command.Parameters.AddWithValue("correlation_id", (object?)envelope.CorrelationId ?? DBNull.Value);
         command.Parameters.AddWithValue("causation_id", (object?)envelope.CausationId ?? DBNull.Value);
         command.Parameters.AddWithValue("tenant_id", (object?)envelope.TenantId ?? DBNull.Value);
+
+        var traceContextParameter = command.Parameters.Add("trace_context", NpgsqlDbType.Jsonb);
+        traceContextParameter.Value = string.IsNullOrWhiteSpace(envelope.TraceContext) ? DBNull.Value : envelope.TraceContext;
     }
 
     /// <summary>
@@ -394,7 +539,8 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
             LastError = GetNullableString(reader, 11),
             CorrelationId = GetNullableString(reader, 12),
             CausationId = GetNullableString(reader, 13),
-            TenantId = GetNullableString(reader, 14)
+            TenantId = GetNullableString(reader, 14),
+            TraceContext = GetNullableString(reader, 15)
         };
     }
 

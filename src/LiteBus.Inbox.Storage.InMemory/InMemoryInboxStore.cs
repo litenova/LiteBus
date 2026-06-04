@@ -93,7 +93,7 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxSt
 
             if (_options.Capacity > 0 && _envelopes.Count >= _options.Capacity)
             {
-                throw new InvalidOperationException(
+                throw new Exceptions.InboxStorageException(
                     $"The in-memory inbox store reached its capacity of {_options.Capacity} commands.");
             }
 
@@ -201,6 +201,117 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxSt
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task MarkCompletedAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageIds);
+
+        lock (_sync)
+        {
+            foreach (var messageId in messageIds)
+            {
+                var envelope = GetRequired(messageId);
+                _envelopes[messageId] = envelope with
+                {
+                    Status = InboxStatus.Completed,
+                    LeaseOwner = null,
+                    LeaseExpiresAt = null,
+                    LastError = null
+                };
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task MarkFailedAsync(IReadOnlyList<InboxEnvelopeFailure> failures, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(failures);
+
+        lock (_sync)
+        {
+            foreach (var failure in failures)
+            {
+                var envelope = GetRequired(failure.Id);
+                _envelopes[failure.Id] = envelope with
+                {
+                    Status = InboxStatus.Failed,
+                    LeaseOwner = null,
+                    LeaseExpiresAt = null,
+                    LastError = failure.Error,
+                    VisibleAfter = failure.VisibleAfter
+                };
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task RequeueDeadLetterAsync(Guid messageId, CancellationToken cancellationToken = default)
+    {
+        lock (_sync)
+        {
+            var envelope = GetRequired(messageId);
+
+            if (envelope.Status != InboxStatus.DeadLettered)
+            {
+                return Task.CompletedTask;
+            }
+
+            _envelopes[messageId] = envelope with
+            {
+                Status = InboxStatus.Pending,
+                VisibleAfter = null,
+                AttemptCount = 0,
+                LeaseOwner = null,
+                LeaseExpiresAt = null,
+                LastError = null
+            };
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<int> DeleteCompletedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
+    {
+        lock (_sync)
+        {
+            var toRemove = _envelopes.Values
+                .Where(envelope => envelope.Status == InboxStatus.Completed && envelope.CreatedAt < olderThan)
+                .Select(envelope => envelope.Id)
+                .ToArray();
+
+            foreach (var messageId in toRemove)
+            {
+                if (_envelopes.TryGetValue(messageId, out var envelope) &&
+                    !string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
+                {
+                    _idempotencyIndex.Remove(envelope.IdempotencyKey);
+                }
+
+                _envelopes.Remove(messageId);
+            }
+
+            return Task.FromResult(toRemove.Length);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<InboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_sync)
+        {
+            var counts = _envelopes.Values
+                .GroupBy(envelope => envelope.Status)
+                .ToDictionary(group => group.Key, group => group.Count());
+
+            return Task.FromResult<IReadOnlyDictionary<InboxStatus, int>>(counts);
+        }
     }
 
     /// <summary>

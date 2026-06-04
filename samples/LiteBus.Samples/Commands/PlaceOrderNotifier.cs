@@ -6,9 +6,9 @@ namespace LiteBus.Samples.Commands;
 
 public sealed class PlaceOrderNotifier : ICommandPostHandler<PlaceOrderCommand, Guid>
 {
-    private readonly IEventPublisher _eventPublisher;
+    private readonly IEventMediator _eventPublisher;
 
-    public PlaceOrderNotifier(IEventPublisher eventPublisher)
+    public PlaceOrderNotifier(IEventMediator eventPublisher)
     {
         _eventPublisher = eventPublisher;
     }

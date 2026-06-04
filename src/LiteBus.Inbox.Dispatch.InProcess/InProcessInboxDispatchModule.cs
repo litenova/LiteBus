@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Inbox.Dispatch.InProcess;
 
@@ -20,9 +21,17 @@ public sealed class InProcessInboxDispatchModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IInboxDispatcher)))
+        if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
         {
             throw new InvalidOperationException(
+                $"{nameof(InProcessInboxDispatchModule)} requires InboxModule core services " +
+                "to be registered first. Configure the dispatcher inside AddInboxModule(...) " +
+                "using UseInProcessDispatcher().");
+        }
+
+        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IInboxDispatcher)))
+        {
+            throw new LiteBusConfigurationException(
                 "An IInboxDispatcher is already registered. Register only one inbox dispatcher implementation.");
         }
 

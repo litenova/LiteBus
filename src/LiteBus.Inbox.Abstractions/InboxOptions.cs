@@ -49,4 +49,9 @@ public sealed record InboxOptions
     ///     Gets the optional tenant identifier used by multi-tenant applications and operational tooling.
     /// </summary>
     public string? TenantId { get; init; }
+
+    /// <summary>
+    ///     Gets the optional distributed trace context stored as JSON text and persisted in the inbox <c>trace_context</c> column.
+    /// </summary>
+    public string? TraceContext { get; init; }
 }

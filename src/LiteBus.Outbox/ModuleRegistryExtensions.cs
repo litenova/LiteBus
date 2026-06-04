@@ -1,5 +1,6 @@
 using System;
 using LiteBus.Messaging;
+using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Outbox;
@@ -22,7 +23,7 @@ public static class ModuleRegistryExtensions
 
         if (!moduleRegistry.IsModuleRegistered<MessageModule>())
         {
-            moduleRegistry.Register(new MessageModule(moduleBuilder =>
+            moduleRegistry.Register(new MessageModule(_ =>
             {
             }));
         }
@@ -38,7 +39,7 @@ public static class ModuleRegistryExtensions
     /// <returns>The current module registry.</returns>
     public static IModuleRegistry AddOutboxModule(this IModuleRegistry moduleRegistry)
     {
-        return AddOutboxModule(moduleRegistry, moduleBuilder =>
+        return AddOutboxModule(moduleRegistry, _ =>
         {
         });
     }

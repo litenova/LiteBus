@@ -1,11 +1,12 @@
 using System;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Inbox.Storage.InMemory;
 
 /// <summary>
 ///     Configures the in-memory inbox store.
 /// </summary>
-public sealed record InMemoryInboxStoreOptions
+public sealed record InMemoryInboxStoreOptions : IMessageStoreRetentionOptions
 {
     /// <summary>
     ///     Gets the maximum number of commands retained by the store.
@@ -20,4 +21,7 @@ public sealed record InMemoryInboxStoreOptions
     ///     Gets the default processing lease duration used when a lease request supplies a zero duration.
     /// </summary>
     public TimeSpan DefaultLeaseDuration { get; init; } = TimeSpan.FromMinutes(1);
+
+    /// <inheritdoc />
+    public TimeSpan? TerminalRetention { get; init; }
 }

@@ -105,7 +105,7 @@ internal static class AnalyzerTest
         test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(
             typeof(LiteBus.Messaging.Abstractions.HandlerPriorityAttribute).Assembly.Location));
         test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(
-            typeof(MessageContractAttribute).Assembly.Location));
+            typeof(LiteBus.Messaging.Abstractions.MessageContractAttribute).Assembly.Location));
 
         return test;
     }

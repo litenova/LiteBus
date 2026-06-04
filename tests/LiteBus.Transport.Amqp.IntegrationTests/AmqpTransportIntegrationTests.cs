@@ -239,7 +239,7 @@ public abstract class AmqpTransportIntegrationTests
     /// </summary>
     /// <returns>A task that completes when the duplicate start is rejected.</returns>
     [Fact]
-    public async Task StartAsync_WhenAlreadyStarted_ThrowsInvalidOperationException()
+    public async Task StartAsync_WhenAlreadyStarted_ThrowsLiteBusConfigurationException()
     {
         var queueName = CreateUniqueQueueName("double-start");
         await using var manager = new AmqpConnectionManager(ConnectionOptions);
@@ -253,7 +253,7 @@ public abstract class AmqpTransportIntegrationTests
             new AmqpConsumerOptions { QueueName = queueName },
             (_, _) => Task.CompletedTask);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
+        await act.Should().ThrowAsync<LiteBus.Transport.Amqp.Exceptions.AmqpTransportConfigurationException>()
             .WithMessage("*already started*");
 
         await consumer.StopAsync(CancellationToken.None);

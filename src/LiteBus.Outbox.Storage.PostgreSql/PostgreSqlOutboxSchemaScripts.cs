@@ -48,12 +48,21 @@ internal static class PostgreSqlOutboxSchemaScripts
     ];
 
     /// <summary>
+    ///     The column names introduced by outbox schema version 3.
+    /// </summary>
+    internal static readonly IReadOnlyList<string> Version3Columns =
+    [
+        "idempotency_key"
+    ];
+
+    /// <summary>
     ///     The ordered column groups introduced by each outbox schema version.
     /// </summary>
     internal static readonly IReadOnlyList<IReadOnlyList<string>> VersionColumnSets =
     [
         Version1Columns,
-        Version2Columns
+        Version2Columns,
+        Version3Columns
     ];
 
     /// <summary>
@@ -146,6 +155,7 @@ internal static class PostgreSqlOutboxSchemaScripts
         return toVersion switch
         {
             2 => PostgreSqlSchemaExecutor.LoadSharedAddTraceContextColumnScript(options),
+            3 => PostgreSqlSchemaExecutor.LoadSharedAddIdempotencyKeyColumnScript(options),
             _ => throw new ArgumentOutOfRangeException(nameof(toVersion), toVersion, "Unsupported outbox schema version.")
         };
     }
@@ -197,6 +207,7 @@ internal static class PostgreSqlOutboxSchemaScripts
         var tokens = PostgreSqlSchemaSqlTokens.ForStoreTable(options);
         tokens["LeaseIndexName"] = PostgreSqlIdentifier.IndexName(options.TableName, "lease_idx");
         tokens["TopicIndexName"] = PostgreSqlIdentifier.IndexName(options.TableName, "topic_idx");
+        tokens["IdempotencyIndexName"] = PostgreSqlIdentifier.IndexName(options.TableName, "idempotency_idx");
         return tokens;
     }
 }

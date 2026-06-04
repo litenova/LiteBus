@@ -55,4 +55,9 @@ public sealed class AmqpConnectionOptions
     ///     Gets or sets the interval between network recovery attempts.
     /// </summary>
     public TimeSpan NetworkRecoveryInterval { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    ///     Gets the circuit breaker settings applied to connection and publish operations.
+    /// </summary>
+    public AmqpCircuitBreakerOptions CircuitBreaker { get; init; } = new();
 }

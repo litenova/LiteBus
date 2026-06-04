@@ -1,4 +1,5 @@
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Modules;
 
 namespace LiteBus.Runtime.UnitTests;
@@ -40,7 +41,7 @@ public sealed class ModuleRegistryTests
     }
 
     [Fact]
-    public void Enumerate_WithCircularDependency_ShouldThrowInvalidOperationException()
+    public void Enumerate_WithCircularDependency_ShouldThrowLiteBusConfigurationException()
     {
         var registry = new ModuleRegistry();
         registry.Register(new CycleAModule());
@@ -49,12 +50,12 @@ public sealed class ModuleRegistryTests
         var act = () => registry.ToList();
 
         act.Should()
-            .Throw<InvalidOperationException>()
+            .Throw<LiteBusConfigurationException>()
             .WithMessage("*Circular dependency*");
     }
 
     [Fact]
-    public void Enumerate_WithMissingRequiredModule_ShouldThrowInvalidOperationException()
+    public void Enumerate_WithMissingRequiredModule_ShouldThrowLiteBusConfigurationException()
     {
         var registry = new ModuleRegistry();
         registry.Register(new MissingDependencyModule());
@@ -62,7 +63,7 @@ public sealed class ModuleRegistryTests
         var act = () => registry.ToList();
 
         act.Should()
-            .Throw<InvalidOperationException>()
+            .Throw<LiteBusConfigurationException>()
             .WithMessage("*requires*FoundationModule*not registered*");
     }
 

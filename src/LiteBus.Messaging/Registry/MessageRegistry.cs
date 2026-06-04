@@ -29,6 +29,16 @@ internal sealed class MessageRegistry : IMessageRegistry
     private readonly List<MessageDescriptor> _committedMessages = [];
 
     /// <summary>
+    ///     Normalized message types already committed for O(1) duplicate detection.
+    /// </summary>
+    private readonly HashSet<Type> _committedMessageTypes = [];
+
+    /// <summary>
+    ///     Normalized message types registered in the current pass before commit.
+    /// </summary>
+    private readonly HashSet<Type> _pendingMessageTypes = [];
+
+    /// <summary>
     ///     Builders that discover handler descriptors from registered CLR types.
     /// </summary>
     private readonly List<IHandlerDescriptorBuilder> _descriptorBuilders =
@@ -148,7 +158,9 @@ internal sealed class MessageRegistry : IMessageRegistry
         {
             _handlerDescriptorsInOrder.Clear();
             _committedMessages.Clear();
+            _committedMessageTypes.Clear();
             _pendingMessages.Clear();
+            _pendingMessageTypes.Clear();
             _processedTypes.Clear();
             _openGenericHandlers.Clear();
         }
@@ -189,16 +201,7 @@ internal sealed class MessageRegistry : IMessageRegistry
             ? messageType.GetGenericTypeDefinition()
             : messageType;
 
-        // Check if already exists in committed messages (create snapshot to avoid enumeration issues).
-        var committedSnapshot = _committedMessages.ToList();
-
-        if (committedSnapshot.Any(m => m.MessageType == normalizedType))
-            return;
-
-        // Check if already exists in pending messages (create snapshot to avoid enumeration issues).
-        var pendingSnapshot = _pendingMessages.ToList();
-
-        if (pendingSnapshot.Any(m => m.MessageType == normalizedType))
+        if (_committedMessageTypes.Contains(normalizedType) || !_pendingMessageTypes.Add(normalizedType))
             return;
 
         // Add to pending messages.
@@ -399,7 +402,9 @@ internal sealed class MessageRegistry : IMessageRegistry
         if (_pendingMessages.Count > 0)
         {
             _committedMessages.AddRange(_pendingMessages);
+            _committedMessageTypes.UnionWith(_pendingMessageTypes);
             _pendingMessages.Clear();
+            _pendingMessageTypes.Clear();
         }
     }
 }

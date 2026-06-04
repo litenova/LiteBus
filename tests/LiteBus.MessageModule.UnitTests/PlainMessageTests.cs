@@ -17,9 +17,9 @@ public sealed class PlainMessageTests : LiteBusTestBase
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddMessageModule(builder =>
+                modules.AddMessageModule(builder =>
                 {
                     // Global Handlers
                     builder.Register<FakeGlobalCommandPostHandler>();
@@ -30,11 +30,11 @@ public sealed class PlainMessageTests : LiteBusTestBase
                     builder.Register<FakePlainMessageAsyncHandler3>();
                 });
 
-                configuration.AddEventModule();
+                modules.AddEventModule();
             })
             .BuildServiceProvider();
 
-        var eventPublisher = serviceProvider.GetRequiredService<IEventPublisher>();
+        var eventPublisher = serviceProvider.GetRequiredService<IEventMediator>();
         var plainMessage = new FakePlainMessage();
 
         // Act

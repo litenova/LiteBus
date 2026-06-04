@@ -21,9 +21,9 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     {
         // ARRANGE
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<OverrideResultCommandHandler>();
                     builder.Register<OverrideResultCommandPostHandler>();
@@ -46,9 +46,9 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     {
         // ARRANGE
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<NoOverrideCommandHandler>();
                     builder.Register<NoOverrideCommandPostHandler>();
@@ -71,9 +71,9 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     {
         // ARRANGE
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<MultiOverrideCommandHandler>();
                     builder.Register<MultiOverrideCommandFirstPostHandler>();
@@ -97,9 +97,9 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     {
         // ARRANGE
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddQueryModule(builder =>
+                modules.AddQueryModule(builder =>
                 {
                     builder.Register<OverrideResultQueryHandler>();
                     builder.Register<OverrideResultQueryPostHandler>();
@@ -122,9 +122,9 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     {
         // ARRANGE
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<ImmutableResultCommandHandler>();
                     builder.Register<ImmutableResultCommandPostHandler>();
@@ -148,9 +148,9 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     {
         // ARRANGE
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<VoidCommandHandler>();
                     builder.Register<VoidCommandPostHandler>();
@@ -173,9 +173,9 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     {
         // ARRANGE
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<FirstSequentialCommandHandler>();
                     builder.Register<FirstSequentialCommandPostHandler>();

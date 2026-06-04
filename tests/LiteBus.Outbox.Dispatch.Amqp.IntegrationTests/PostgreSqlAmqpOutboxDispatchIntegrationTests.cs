@@ -55,7 +55,7 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        await outbox.AddAsync(
+        await outbox.EnqueueAsync(
             new OrderSubmittedIntegrationEvent { OrderId = orderId },
             new OutboxOptions
             {
@@ -86,16 +86,16 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
     private ServiceProvider BuildProvider(PostgreSqlOutboxStoreOptions storeOptions, string exchangeName)
     {
         return new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddPostgreSqlOutboxStorage(postgres =>
+                modules.AddPostgreSqlOutboxStorage(postgres =>
                 {
                     postgres.UseDataSource(_postgresFixture.DataSource);
                     postgres.UseOptions(storeOptions);
                     postgres.DisableSchemaInitialization();
                 });
 
-                configuration.AddOutboxModule(builder =>
+                modules.AddOutboxModule(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -106,7 +106,7 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
                     });
                 });
 
-                configuration.AddOutboxAmqpDispatcher(options =>
+                modules.AddOutboxAmqpDispatcher(options =>
                 {
                     options.Connection = _rabbitMqFixture.ConnectionOptions;
                     options.DefaultExchange = exchangeName;

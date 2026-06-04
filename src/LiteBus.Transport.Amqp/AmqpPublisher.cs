@@ -17,6 +17,11 @@ public sealed class AmqpPublisher : IAmqpPublisher
     private readonly IAmqpConnectionManager _connectionManager;
 
     /// <summary>
+    ///     Gets the circuit breaker shared with the connection manager when it is a <see cref="AmqpConnectionManager" />.
+    /// </summary>
+    private readonly AmqpCircuitBreaker? _circuitBreaker;
+
+    /// <summary>
     ///     Serializes publish operations on the shared publish channel.
     /// </summary>
     private readonly SemaphoreSlim _publishGate = new(1, 1);
@@ -33,12 +38,17 @@ public sealed class AmqpPublisher : IAmqpPublisher
     public AmqpPublisher(IAmqpConnectionManager connectionManager)
     {
         _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
+        _circuitBreaker = connectionManager is AmqpConnectionManager manager
+            ? manager.CircuitBreaker
+            : null;
     }
 
     /// <inheritdoc />
     public async Task PublishAsync(AmqpPublishRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        _circuitBreaker?.ThrowIfOpen();
 
         await _publishGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -47,15 +57,25 @@ public sealed class AmqpPublisher : IAmqpPublisher
             var channel = await GetPublishChannelAsync(cancellationToken).ConfigureAwait(false);
             var properties = CreateBasicProperties(channel, request);
 
-            await channel
-                .BasicPublishAsync(
-                    request.Exchange,
-                    request.RoutingKey,
-                    request.Mandatory,
-                    properties,
-                    request.Body,
-                    cancellationToken)
-                .ConfigureAwait(false);
+            try
+            {
+                await channel
+                    .BasicPublishAsync(
+                        request.Exchange,
+                        request.RoutingKey,
+                        request.Mandatory,
+                        properties,
+                        request.Body,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+
+                _circuitBreaker?.RecordSuccess();
+            }
+            catch (Exception)
+            {
+                _circuitBreaker?.RecordFailure();
+                throw;
+            }
         }
         finally
         {

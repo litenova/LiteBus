@@ -1,8 +1,8 @@
 using System;
 using System.Linq;
 using LiteBus.Events.Abstractions;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Events;
@@ -37,11 +37,12 @@ public sealed class EventModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var messageRegistry = MessageRegistryAccessor.Instance;
+        var messageRegistry = configuration.GetContext<IMessageRegistry>();
+        var contractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
 
         var startIndex = messageRegistry.Handlers.Count;
 
-        var moduleBuilder = new EventModuleBuilder(messageRegistry);
+        var moduleBuilder = new EventModuleBuilder(messageRegistry, contractRegistry);
         _builder(moduleBuilder);
 
         RegisterEventServices(configuration);
@@ -56,10 +57,6 @@ public sealed class EventModule : IModule
     {
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IEventMediator),
-            typeof(EventMediator)));
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IEventPublisher),
             typeof(EventMediator)));
     }
 

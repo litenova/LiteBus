@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
-using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Runtime.Modules;
 
@@ -106,7 +107,7 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
             return (T) context;
         }
 
-        throw new InvalidOperationException(
+        throw new LiteBusConfigurationException(
             $"Context of type '{typeof(T).Name}' was not found. " +
             "Ensure the module that provides this context has been registered and runs before this module.");
     }

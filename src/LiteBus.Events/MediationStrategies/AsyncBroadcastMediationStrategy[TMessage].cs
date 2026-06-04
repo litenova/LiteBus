@@ -167,7 +167,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
                                                    LazyHandler<IMessageHandler, IMainHandlerDescriptor> lazyHandler,
                                                    IExecutionContext executionContext)
     {
-        AmbientExecutionContext.Current = executionContext;
+        using var _ = AmbientExecutionContext.CreateScope(executionContext);
 
         var handleTask = (Task) lazyHandler.Handler.Value.Handle(message);
         await handleTask;

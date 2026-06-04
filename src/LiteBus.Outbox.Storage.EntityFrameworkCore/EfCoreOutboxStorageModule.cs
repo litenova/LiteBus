@@ -29,6 +29,14 @@ public sealed class EfCoreOutboxStorageModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        if (!configuration.TryGetContext<OutboxCoreRegisteredMarker>(out _))
+        {
+            throw new InvalidOperationException(
+                $"{nameof(EfCoreOutboxStorageModule)} requires OutboxModule core services " +
+                "to be registered first. Configure storage inside AddOutboxModule(...) " +
+                "using UseEfCoreStorage().");
+        }
+
         var moduleBuilder = new EfCoreOutboxStorageModuleBuilder();
         _builder(moduleBuilder);
 
@@ -42,17 +50,33 @@ public sealed class EfCoreOutboxStorageModule : IModule
             typeof(EfCoreOutboxStoreOptions),
             moduleBuilder.Options));
 
+        if (moduleBuilder.RegisterSaveChangesInterceptor)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(LiteBusOutboxSaveChangesInterceptor),
+                _ => new LiteBusOutboxSaveChangesInterceptor(),
+                InstanceLifetime.Singleton));
+        }
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(EfCoreOutboxStore),
+            serviceProvider => CreateStore(serviceProvider, moduleBuilder),
+            InstanceLifetime.Singleton));
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxStore),
-            serviceProvider => CreateStore(serviceProvider, moduleBuilder)));
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
+            InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxLeaseStore),
-            serviceProvider => CreateStore(serviceProvider, moduleBuilder)));
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
+            InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxStateStore),
-            serviceProvider => CreateStore(serviceProvider, moduleBuilder)));
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
+            InstanceLifetime.Singleton));
     }
 
     /// <summary>

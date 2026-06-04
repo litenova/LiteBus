@@ -28,7 +28,7 @@ public sealed class AmqpOutboxDispatcher : IOutboxDispatcher
     /// <summary>
     ///     Gets the registry used to resolve persisted contracts back to CLR types.
     /// </summary>
-    private readonly IMessageContractRegistry _contractRegistry;
+    private readonly IContractReader _contractRegistry;
 
     /// <summary>
     ///     Gets the serializer used to validate envelope payloads before publication.
@@ -54,7 +54,7 @@ public sealed class AmqpOutboxDispatcher : IOutboxDispatcher
     /// <param name="options">The dispatcher options that control connection settings and routing conventions.</param>
     public AmqpOutboxDispatcher(
         IAmqpPublisher publisher,
-        IMessageContractRegistry contractRegistry,
+        IContractReader contractRegistry,
         IMessageSerializer messageSerializer,
         AmqpOutboxDispatcherOptions options)
     {
@@ -118,6 +118,11 @@ public sealed class AmqpOutboxDispatcher : IOutboxDispatcher
         if (!string.IsNullOrWhiteSpace(message.TenantId))
         {
             headers[AmqpHeaders.TenantId] = message.TenantId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(message.TraceContext))
+        {
+            headers[AmqpHeaders.TraceContext] = message.TraceContext;
         }
 
         return headers;

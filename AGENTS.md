@@ -80,6 +80,80 @@ dotnet build LiteBus.slnx
 
 See `docs/Hosted-services.md` for registration examples.
 
+## Architecture and governing principles
+
+### Layer model
+
+Every package belongs to exactly one layer. A package may only reference packages in the same layer or layers strictly below it.
+
+| Layer | Number | Contents |
+|---|---|---|
+| Platform Contracts | 0 | Runtime.Abstractions |
+| Domain Abstractions | 1 | Messaging.Abstractions, Commands.Abstractions, Events.Abstractions, Queries.Abstractions, Inbox.Abstractions, Outbox.Abstractions |
+| Core Implementations | 2 | Runtime, Messaging, Commands, Events, Queries, Inbox, Outbox, Transport.Amqp |
+| Shared Storage Infrastructure | 3 | Storage.PostgreSql, Storage.EfCore |
+| Integration Adapters | 4 | Inbox.Storage.*, Inbox.Dispatch.*, Inbox.Ingress.*, Outbox.Storage.*, Outbox.Dispatch.* |
+| Hosting / Composition | 5 | Runtime.Extensions.Microsoft.DI, Runtime.Extensions.Autofac |
+
+### Abstract package rules
+
+Packages ending in `.Abstractions` contain only interfaces, value objects, enums, exceptions, attributes, and coordination types whose fields and parameters are abstract types. They never reference concrete implementation, storage, transport, or hosting packages.
+
+### Composite module pattern
+
+Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs during `Register()` before any `Build()`. The builder action runs inside `DeclareChildren`. `Build()` registers core services only. Sub-modules check for a parent context marker as their first `Build()` operation. The registry inserts children depth-first after the parent, then topological sort runs. Duplicate registration of the same module type is a silent no-op.
+
+### Contract registration
+
+- `IContractWriter` for module builders at configuration time.
+- `IContractReader` for dispatchers and envelope factories at runtime.
+- `IMessageContractRegistry` extends both and is the DI singleton key.
+- `MessageContractBuilder` defers registrations until the parent module `Build()`.
+- `[MessageContract]` is read at runtime via `AddFromAssembly` and on-demand in `GetContract`.
+
+### Correctness invariants
+
+- `IsAvailable` must guard `LeaseExpiresAt is not null` when status is processing/publishing.
+- Inbox and outbox store implementations register one singleton instance for writer, lease, and state interfaces.
+- `trace_context` must be wired end-to-end when present in schema (envelopes, mappings, SQL, lease rows).
+
+## Architecture and governing principles
+
+### Layer model
+
+Every package belongs to exactly one layer. A package may only reference packages in the same layer or layers strictly below it. No upward references and no circular references.
+
+| Layer | Number | Contents |
+|---|---|---|
+| Platform Contracts | 0 | Runtime.Abstractions |
+| Domain Abstractions | 1 | Messaging.Abstractions, Commands.Abstractions, Events.Abstractions, Queries.Abstractions, Inbox.Abstractions, Outbox.Abstractions |
+| Core Implementations | 2 | Runtime, Messaging, Commands, Events, Queries, Inbox, Outbox, Transport.Amqp |
+| Shared Storage Infrastructure | 3 | Storage.PostgreSql, Storage.EfCore |
+| Integration Adapters | 4 | Inbox.Storage.*, Inbox.Dispatch.*, Inbox.Ingress.*, Outbox.Storage.*, Outbox.Dispatch.* |
+| Hosting / Composition | 5 | Runtime.Extensions.Microsoft.DI, Runtime.Extensions.Autofac |
+
+### Abstract package rules
+
+Packages ending in `.Abstractions` contain only interfaces, value objects, enums, exceptions, attributes, and concrete coordination types whose fields and parameters are abstract types. They never reference concrete implementation, storage, transport, or hosting packages.
+
+### Composite module pattern
+
+Modules that own sub-modules implement `ICompositeModule` alongside `IModule`. The builder action runs in `DeclareChildren` (called during `Register`, before any `Build`). `Build()` registers core services only and sets a context marker (`InboxCoreRegisteredMarker`, `OutboxCoreRegisteredMarker`). Child modules check that marker first in `Build()` and throw when the parent core was not registered. The registry inserts children depth-first after the parent; duplicate registration of the same module type is a silent no-op.
+
+### Contract registration
+
+- `IContractWriter` — configuration-time writes (module builders).
+- `IContractReader` — runtime reads (dispatchers, `Inbox`, `Outbox`).
+- `IMessageContractRegistry` — live singleton; extends both.
+- `MessageContractBuilder` — deferred registrations replayed during parent `Build()`.
+- `[MessageContract]` is read at runtime via `AddFromAssembly`.
+
+Configure inbox/outbox through `AddInboxModule(i => i.UsePostgreSqlStorage(...))` (and outbox equivalents). Top-level `AddPostgreSqlInboxStorage` methods are obsolete.
+
+### Store invariants
+
+`IsAvailable` must guard nullable `LeaseExpiresAt`. Inbox and outbox store implementations register one singleton instance for `I*Store`, `I*LeaseStore`, and `I*StateStore`. The `trace_context` column must be wired end-to-end when present in schema.
+
 ## General coding expectations
 
 - Follow existing naming, project layout, and module patterns.

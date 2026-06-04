@@ -26,17 +26,30 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     private IConnection? _connection;
 
     /// <summary>
+    ///     Gets the circuit breaker that guards broker connectivity.
+    /// </summary>
+    private readonly AmqpCircuitBreaker _circuitBreaker;
+
+    /// <summary>
+    ///     Gets the circuit breaker shared with publishers created from this connection manager.
+    /// </summary>
+    internal AmqpCircuitBreaker CircuitBreaker => _circuitBreaker;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="AmqpConnectionManager" /> class.
     /// </summary>
     /// <param name="options">The connection settings used to connect to the broker.</param>
     public AmqpConnectionManager(AmqpConnectionOptions options)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _circuitBreaker = new AmqpCircuitBreaker(options.CircuitBreaker);
     }
 
     /// <inheritdoc />
     public async Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default)
     {
+        _circuitBreaker.ThrowIfOpen();
+
         if (_connection is { IsOpen: true })
         {
             return _connection;
@@ -57,9 +70,18 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
                 _connection = null;
             }
 
-            var factory = CreateConnectionFactory();
-            _connection = await factory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-            return _connection;
+            try
+            {
+                var factory = CreateConnectionFactory();
+                _connection = await factory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
+                _circuitBreaker.RecordSuccess();
+                return _connection;
+            }
+            catch (Exception)
+            {
+                _circuitBreaker.RecordFailure();
+                throw;
+            }
         }
         finally
         {

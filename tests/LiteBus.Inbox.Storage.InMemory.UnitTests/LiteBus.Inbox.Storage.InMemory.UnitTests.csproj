@@ -17,6 +17,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>
         <ProjectReference Include="..\LiteBus.Storage.Testing\LiteBus.Storage.Testing.csproj"/>
     </ItemGroup>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -43,4 +44,43 @@ public interface IInboxStateStore
     /// <param name="cancellationToken">A token that cancels the status update.</param>
     /// <returns>A task that represents the asynchronous status update.</returns>
     Task MoveToDeadLetterAsync(InboxEnvelopeDeadLetter deadLetter, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Marks multiple leased envelopes as completed after dispatch succeeds.
+    /// </summary>
+    /// <param name="messageIds">The envelope identifiers completed during one processor pass.</param>
+    /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous batch status update.</returns>
+    Task MarkCompletedAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Marks multiple leased envelopes as failed and records their next visibility times.
+    /// </summary>
+    /// <param name="failures">The failure details for each envelope.</param>
+    /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous batch status update.</returns>
+    Task MarkFailedAsync(IReadOnlyList<InboxEnvelopeFailure> failures, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Moves a dead-lettered envelope back to the pending state for manual replay.
+    /// </summary>
+    /// <param name="messageId">The envelope identifier to requeue.</param>
+    /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous requeue operation.</returns>
+    Task RequeueDeadLetterAsync(Guid messageId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Deletes completed envelopes whose completion time is older than the supplied cutoff.
+    /// </summary>
+    /// <param name="olderThan">Rows with <c>created_at</c> strictly before this timestamp are eligible for deletion.</param>
+    /// <param name="cancellationToken">A token that cancels the delete operation.</param>
+    /// <returns>The number of rows deleted.</returns>
+    Task<int> DeleteCompletedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Returns the number of stored envelopes grouped by <see cref="InboxStatus" />.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the query.</param>
+    /// <returns>A read-only map of status to row count.</returns>
+    Task<IReadOnlyDictionary<InboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default);
 }

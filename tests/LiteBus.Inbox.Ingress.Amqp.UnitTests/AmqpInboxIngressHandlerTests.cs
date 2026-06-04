@@ -5,6 +5,7 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Abstractions.Exceptions;
 using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
@@ -71,7 +72,7 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
 
         var act = () => handler.AcceptAsync(message);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
+        await act.Should().ThrowAsync<InboxDispatchException>()
             .WithMessage("*litebus-contract-name*required*");
     }
 
@@ -85,7 +86,7 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
             new ShipOrderCommand { OrderId = Guid.NewGuid() },
             headers => headers[AmqpHeaders.ContractVersion] = "not-a-number"));
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
+        await act.Should().ThrowAsync<InboxDispatchException>()
             .WithMessage("*positive integer*");
     }
 
@@ -99,7 +100,7 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
             new ShipOrderCommand { OrderId = Guid.NewGuid() },
             headers => headers[AmqpHeaders.ContractVersion] = "0"));
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
+        await act.Should().ThrowAsync<InboxDispatchException>()
             .WithMessage("*positive integer*");
     }
 
@@ -194,15 +195,15 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
     private static ServiceProvider BuildProvider()
     {
         return new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(module => module.Register<ShipOrderCommandHandler>());
-                configuration.AddInboxModule(inbox =>
+                modules.AddCommandModule(module => module.Register<ShipOrderCommandHandler>());
+                modules.AddInboxModule(inbox =>
                 {
                     inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
                 });
-                configuration.AddInMemoryInboxStorage();
-                configuration.AddInboxAmqpIngress(ingress =>
+                modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
+                modules.AddInboxAmqpIngress(ingress =>
                 {
                     ingress.DisableIngressConsumer();
                     ingress.UseOptions(new AmqpInboxIngressOptions

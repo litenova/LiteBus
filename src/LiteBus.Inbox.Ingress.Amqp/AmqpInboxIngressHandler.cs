@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using LiteBus.Transport.Amqp;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Inbox.Abstractions.Exceptions;
 
 namespace LiteBus.Inbox.Ingress.Amqp;
 
@@ -30,12 +31,12 @@ public sealed class AmqpInboxIngressHandler
     /// </summary>
     private static readonly MethodInfo AddAsyncMethodDefinition =
         typeof(IInbox).GetMethod(nameof(IInbox.AddAsync), BindingFlags.Public | BindingFlags.Instance)
-        ?? throw new InvalidOperationException($"Could not resolve {nameof(IInbox.AddAsync)}.");
+        ?? throw new Exceptions.AmqpInboxIngressConfigurationException($"Could not resolve {nameof(IInbox.AcceptAsync)}.");
 
     /// <summary>
     ///     Gets the registry used to resolve persisted contracts back to CLR types.
     /// </summary>
-    private readonly IMessageContractRegistry _contractRegistry;
+    private readonly IContractReader _contractRegistry;
 
     /// <summary>
     ///     Gets the inbox writer used to accept deserialized messages.
@@ -55,7 +56,7 @@ public sealed class AmqpInboxIngressHandler
     /// <param name="messageSerializer">The serializer used to hydrate AMQP message bodies.</param>
     public AmqpInboxIngressHandler(
         IInbox inbox,
-        IMessageContractRegistry contractRegistry,
+        IContractReader contractRegistry,
         IMessageSerializer messageSerializer)
     {
         _inbox = inbox ?? throw new ArgumentNullException(nameof(inbox));
@@ -113,6 +114,7 @@ public sealed class AmqpInboxIngressHandler
             CorrelationId = GetOptionalHeader(message, AmqpHeaders.CorrelationId) ?? message.CorrelationId,
             CausationId = GetOptionalHeader(message, AmqpHeaders.CausationId),
             TenantId = GetOptionalHeader(message, AmqpHeaders.TenantId),
+            TraceContext = GetOptionalHeader(message, AmqpHeaders.TraceContext),
             VisibleAfter = TryGetVisibleAfter(message)
         };
 
@@ -131,7 +133,7 @@ public sealed class AmqpInboxIngressHandler
 
         if (string.IsNullOrWhiteSpace(value))
         {
-            throw new InvalidOperationException($"AMQP header '{headerName}' is required for inbox ingress.");
+            throw new InboxDispatchException($"AMQP header '{headerName}' is required for inbox ingress.");
         }
 
         return value;
@@ -148,7 +150,7 @@ public sealed class AmqpInboxIngressHandler
 
         if (!int.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var version) || version <= 0)
         {
-            throw new InvalidOperationException(
+            throw new InboxDispatchException(
                 $"AMQP header '{AmqpHeaders.ContractVersion}' must contain a positive integer.");
         }
 

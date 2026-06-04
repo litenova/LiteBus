@@ -40,7 +40,7 @@ public abstract class InboxStoreContractTests
         var secondCommandId = Guid.NewGuid();
         var now = BaseTime;
 
-        var first = await roles.Writer.AddAsync(new InboxEnvelope
+        var first = await roles.Writer.EnqueueAsync(new InboxEnvelope
         {
             Id = firstCommandId,
             ContractName = "tests.commands.ship",
@@ -52,7 +52,7 @@ public abstract class InboxStoreContractTests
             IdempotencyKey = "ship-1"
         });
 
-        var duplicate = await roles.Writer.AddAsync(first with
+        var duplicate = await roles.Writer.EnqueueAsync(first with
         {
             Id = secondCommandId,
             Payload = "{\"orderId\":\"2\"}"
@@ -72,8 +72,8 @@ public abstract class InboxStoreContractTests
         var commandId = Guid.NewGuid();
         var now = BaseTime;
 
-        var first = await roles.Writer.AddAsync(CreatePendingEnvelope(commandId, now) with { IdempotencyKey = null });
-        var duplicate = await roles.Writer.AddAsync(first with { Payload = "{\"changed\":true}" });
+        var first = await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now) with { IdempotencyKey = null });
+        var duplicate = await roles.Writer.EnqueueAsync(first with { Payload = "{\"changed\":true}" });
 
         duplicate.Id.Should().Be(commandId);
         duplicate.Payload.Should().Be(first.Payload);
@@ -89,7 +89,7 @@ public abstract class InboxStoreContractTests
         var commandId = Guid.NewGuid();
         var visibleAfter = BaseTime.AddHours(2);
 
-        var stored = await roles.Writer.AddAsync(new InboxEnvelope
+        var stored = await roles.Writer.EnqueueAsync(new InboxEnvelope
         {
             Id = commandId,
             ContractName = "tests.commands.ship",
@@ -101,13 +101,15 @@ public abstract class InboxStoreContractTests
             Status = InboxStatus.Pending,
             CorrelationId = "correlation-1",
             CausationId = "causation-1",
-            TenantId = "tenant-1"
+            TenantId = "tenant-1",
+            TraceContext = "{\"traceparent\":\"00-abc\"}"
         });
 
         stored.VisibleAfter.Should().Be(visibleAfter);
         stored.CorrelationId.Should().Be("correlation-1");
         stored.CausationId.Should().Be("causation-1");
         stored.TenantId.Should().Be("tenant-1");
+        stored.TraceContext.Should().Be("{\"traceparent\":\"00-abc\"}");
     }
 
     /// <summary>
@@ -120,7 +122,7 @@ public abstract class InboxStoreContractTests
         var commandId = Guid.NewGuid();
         var now = BaseTime;
 
-        await roles.Writer.AddAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -159,7 +161,7 @@ public abstract class InboxStoreContractTests
         var commandId = Guid.NewGuid();
         var now = BaseTime;
 
-        await roles.Writer.AddAsync(CreatePendingEnvelope(commandId, now) with
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now) with
         {
             VisibleAfter = now.AddHours(1)
         });
@@ -187,9 +189,9 @@ public abstract class InboxStoreContractTests
         var secondId = Guid.NewGuid();
         var thirdId = Guid.NewGuid();
 
-        await roles.Writer.AddAsync(CreatePendingEnvelope(firstId, now));
-        await roles.Writer.AddAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1)));
-        await roles.Writer.AddAsync(CreatePendingEnvelope(thirdId, now.AddSeconds(2)));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(firstId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1)));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(thirdId, now.AddSeconds(2)));
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -215,7 +217,7 @@ public abstract class InboxStoreContractTests
         var now = BaseTime;
         var visibleAfter = now.AddMinutes(10);
 
-        await roles.Writer.AddAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
 
         await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -265,7 +267,7 @@ public abstract class InboxStoreContractTests
         var commandId = Guid.NewGuid();
         var now = BaseTime;
 
-        await roles.Writer.AddAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
 
         await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -315,7 +317,7 @@ public abstract class InboxStoreContractTests
         var commandId = Guid.NewGuid();
         var now = BaseTime;
 
-        await roles.Writer.AddAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
 
         await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -352,7 +354,7 @@ public abstract class InboxStoreContractTests
         var commandId = Guid.NewGuid();
         var now = BaseTime;
 
-        await roles.Writer.AddAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
 
         await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -387,7 +389,7 @@ public abstract class InboxStoreContractTests
 
         for (var index = 0; index < 8; index++)
         {
-            await roles.Writer.AddAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(index)));
+            await roles.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(index)));
         }
 
         var request = new InboxLeaseRequest

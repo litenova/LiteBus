@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Runtime.Modules;
 
@@ -13,9 +14,14 @@ namespace LiteBus.Runtime.Modules;
 internal sealed class ModuleRegistry : IModuleRegistry
 {
     /// <summary>
-    ///     The modules registered before dependency ordering is computed.
+    ///     The modules registered before dependency ordering is computed, in registration order.
     /// </summary>
-    private readonly HashSet<IModule> _modules = [];
+    private readonly List<IModule> _orderedModules = [];
+
+    /// <summary>
+    ///     Module types already registered; duplicate top-level registrations are ignored.
+    /// </summary>
+    private readonly HashSet<Type> _registeredTypes = [];
 
     /// <summary>
     ///     Cached module descriptors sorted in dependency order.
@@ -26,9 +32,20 @@ internal sealed class ModuleRegistry : IModuleRegistry
     public IModuleRegistry Register(IModule module)
     {
         ArgumentNullException.ThrowIfNull(module);
-        _modules.Add(module);
 
-        // Invalidate cache when new modules are added.
+        var moduleType = module.GetType();
+        if (!_registeredTypes.Add(moduleType))
+        {
+            return this;
+        }
+
+        _orderedModules.Add(module);
+
+        if (module is ICompositeModule composite)
+        {
+            composite.DeclareChildren(child => Register(child));
+        }
+
         _cachedOrderedModules = null;
 
         return this;
@@ -37,14 +54,14 @@ internal sealed class ModuleRegistry : IModuleRegistry
     /// <inheritdoc />
     public bool IsModuleRegistered<T>() where T : IModule
     {
-        return _modules.Any(module => module.GetType() == typeof(T));
+        return _registeredTypes.Contains(typeof(T));
     }
 
     /// <summary>
     ///     Gets the ordered module descriptors, using caching for performance.
     /// </summary>
     /// <returns>Module descriptors in dependency order.</returns>
-    /// <exception cref="System.InvalidOperationException">
+    /// <exception cref="LiteBusConfigurationException">
     ///     Thrown when circular dependencies are detected or when required dependencies are missing.
     /// </exception>
     private IReadOnlyList<ModuleDescriptor> GetOrderedModules()
@@ -52,14 +69,13 @@ internal sealed class ModuleRegistry : IModuleRegistry
         if (_cachedOrderedModules is not null)
             return _cachedOrderedModules;
 
-        if (_modules.Count == 0)
+        if (_orderedModules.Count == 0)
         {
             _cachedOrderedModules = [];
             return _cachedOrderedModules;
         }
 
-        // Create descriptors for all registered modules.
-        var descriptors = _modules.Select(ModuleDescriptor.Create).ToList();
+        var descriptors = _orderedModules.Select(ModuleDescriptor.Create).ToList();
 
         // Perform topological sort to determine dependency order.
         _cachedOrderedModules = TopologicalSort(descriptors);
@@ -71,7 +87,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
     /// </summary>
     /// <param name="descriptors">The module descriptors to sort.</param>
     /// <returns>Module descriptors in dependency order (dependencies first).</returns>
-    /// <exception cref="System.InvalidOperationException">
+    /// <exception cref="LiteBusConfigurationException">
     ///     Thrown when circular dependencies are detected or when a dependency is missing.
     /// </exception>
     private static IReadOnlyList<ModuleDescriptor> TopologicalSort(
@@ -99,7 +115,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
     /// <param name="visited">Set of already processed module types.</param>
     /// <param name="visiting">Set of module types currently being processed (for cycle detection).</param>
     /// <param name="result">The result list where modules are added in dependency order.</param>
-    /// <exception cref="System.InvalidOperationException">
+    /// <exception cref="LiteBusConfigurationException">
     ///     Thrown when a circular dependency is detected or when a required dependency is missing.
     /// </exception>
     private static void Visit(
@@ -115,7 +131,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
         // Detect circular dependencies.
         if (!visiting.Add(moduleType))
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 $"Circular dependency detected involving module '{moduleType.Name}'. " +
                 "Check your IRequires<T> declarations for cycles.");
         }
@@ -128,7 +144,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
             // Ensure the dependency is registered.
             if (!descriptorsByType.ContainsKey(dependencyType))
             {
-                throw new InvalidOperationException(
+                throw new LiteBusConfigurationException(
                     $"Module '{moduleType.Name}' requires '{dependencyType.Name}', " +
                     "but it is not registered. Ensure all required modules are added to the module registry.");
             }

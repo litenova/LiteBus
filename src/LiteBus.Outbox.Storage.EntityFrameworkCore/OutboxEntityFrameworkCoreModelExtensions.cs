@@ -102,6 +102,13 @@ public static class OutboxEntityFrameworkCoreModelExtensions
         entity.Property(message => message.TenantId)
             .HasColumnName("tenant_id");
 
+        entity.Property(message => message.IdempotencyKey)
+            .HasColumnName("idempotency_key");
+
+        entity.HasIndex(message => message.IdempotencyKey)
+            .IsUnique()
+            .HasFilter("idempotency_key IS NOT NULL");
+
         entity.Property(message => message.TraceContext)
             .HasColumnName("trace_context")
             .ConfigureJsonTraceContextColumn<OutboxMessageEntity>(provider);

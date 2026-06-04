@@ -6,6 +6,7 @@ using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Inbox;
+using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Testing;
@@ -29,9 +30,10 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
 
         var services = new ServiceCollection();
-        services.AddLiteBus(configuration =>
+        services.AddLiteBus(modules =>
         {
-            configuration.AddPostgreSqlInboxStorage(postgres =>
+            modules.AddInboxModule();
+            modules.AddPostgreSqlInboxStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
@@ -52,9 +54,10 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
 
         var services = new ServiceCollection();
-        services.AddLiteBus(configuration =>
+        services.AddLiteBus(modules =>
         {
-            configuration.AddPostgreSqlOutboxStorage(postgres =>
+            modules.AddOutboxModule();
+            modules.AddPostgreSqlOutboxStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
@@ -75,9 +78,10 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
 
         var services = new ServiceCollection();
-        services.AddLiteBus(configuration =>
+        services.AddLiteBus(modules =>
         {
-            configuration.AddPostgreSqlInboxStorage(postgres =>
+            modules.AddInboxModule();
+            modules.AddPostgreSqlInboxStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
@@ -99,9 +103,10 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
 
         var services = new ServiceCollection();
-        services.AddLiteBus(configuration =>
+        services.AddLiteBus(modules =>
         {
-            configuration.AddPostgreSqlOutboxStorage(postgres =>
+            modules.AddOutboxModule();
+            modules.AddPostgreSqlOutboxStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
@@ -123,11 +128,11 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         var act = () =>
         {
             new ServiceCollection()
-                .AddLiteBus(configuration =>
+                .AddLiteBus(modules =>
                 {
-                    configuration.AddInboxModule();
-                    configuration.AddInboxInProcessDispatcher();
-                    configuration.AddInboxAmqpDispatcher(options => options.Connection.HostName = "localhost");
+                    modules.AddInboxModule();
+                    modules.AddInboxInProcessDispatcher();
+                    modules.AddInboxAmqpDispatcher(options => options.Connection.HostName = "localhost");
                 })
                 .BuildServiceProvider();
         };
@@ -142,13 +147,13 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
     {
         var act = () =>
         {
-            new ServiceCollection().AddLiteBus(configuration =>
+            new ServiceCollection().AddLiteBus(modules =>
             {
-                configuration.AddInboxAmqpIngress(ingress =>
+                modules.AddInboxAmqpIngress(ingress =>
                 {
                     ingress.UseOptions(new AmqpInboxIngressOptions { QueueName = "queue.one" });
                 });
-                configuration.AddInboxAmqpIngress(ingress =>
+                modules.AddInboxAmqpIngress(ingress =>
                 {
                     ingress.UseOptions(new AmqpInboxIngressOptions { QueueName = "queue.two" });
                 });
@@ -164,11 +169,11 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
     public void DisableIngressConsumer_ShouldNotRegisterIngressHostedService()
     {
         var services = new ServiceCollection();
-        services.AddLiteBus(configuration =>
+        services.AddLiteBus(modules =>
         {
-            configuration.AddInboxModule();
-            configuration.AddInMemoryInboxStorage();
-            configuration.AddInboxAmqpIngress(ingress =>
+            modules.AddInboxModule();
+            modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
+            modules.AddInboxAmqpIngress(ingress =>
             {
                 ingress.DisableIngressConsumer();
                 ingress.UseOptions(new AmqpInboxIngressOptions

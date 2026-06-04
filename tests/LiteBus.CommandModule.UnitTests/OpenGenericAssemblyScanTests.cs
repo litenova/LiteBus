@@ -20,9 +20,9 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
     {
         // Arrange: only RegisterFromAssembly, no explicit Register(typeof(...))
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ScanTestCommand).Assembly);
                 });
@@ -44,9 +44,9 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ScanTestCommand).Assembly);
                 });
@@ -68,9 +68,9 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ScanTestCommand).Assembly);
                 });
@@ -101,9 +101,9 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ScanTestCommand).Assembly);
                 });
@@ -132,9 +132,9 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
     {
         // Arrange: CreateProductCommand does NOT implement IOpenGenericScanTestCommand
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ScanTestCommand).Assembly);
                 });
@@ -167,9 +167,9 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         // Arrange: ONLY RegisterFromAssembly, no Register(typeof(...)) at all.
         // This proves that assembly scanning is sufficient to discover open generic handlers.
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ScanTestCommand).Assembly);
                 });

@@ -66,7 +66,8 @@ internal static class EfCoreSqlServerLeaseSql
                INSERTED.[last_error],
                INSERTED.[correlation_id],
                INSERTED.[causation_id],
-               INSERTED.[tenant_id]
+               INSERTED.[tenant_id],
+               INSERTED.[trace_context]
                """;
     }
 
@@ -91,7 +92,8 @@ internal static class EfCoreSqlServerLeaseSql
                INSERTED.[last_error],
                INSERTED.[correlation_id],
                INSERTED.[causation_id],
-               INSERTED.[tenant_id]
+               INSERTED.[tenant_id],
+               INSERTED.[trace_context]
                """;
     }
 }

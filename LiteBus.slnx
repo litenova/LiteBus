@@ -89,6 +89,7 @@
     <Project Path="tests/LiteBus.Inbox.Ingress.Amqp.UnitTests/LiteBus.Inbox.Ingress.Amqp.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests/LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests.csproj" />
     <Project Path="tests/LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests/LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests.csproj" />
+    <Project Path="tests/LiteBus.Inbox.Abstractions.UnitTests/LiteBus.Inbox.Abstractions.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Inbox.Storage.InMemory.UnitTests/LiteBus.Inbox.Storage.InMemory.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Inbox.UnitTests/LiteBus.Inbox.UnitTests.csproj" />
     <Project Path="tests/LiteBus.MessageModule.UnitTests/LiteBus.MessageModule.UnitTests.csproj" />
@@ -100,8 +101,11 @@
     <Project Path="tests/LiteBus.Outbox.UnitTests/LiteBus.Outbox.UnitTests.csproj" />
     <Project Path="tests/LiteBus.QueryModule.UnitTests/LiteBus.QueryModule.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Runtime.UnitTests/LiteBus.Runtime.UnitTests.csproj" />
+    <Project Path="tests/LiteBus.Storage.EntityFrameworkCore.UnitTests/LiteBus.Storage.EntityFrameworkCore.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Storage.PostgreSql.IntegrationTests/LiteBus.Storage.PostgreSql.IntegrationTests.csproj" />
+    <Project Path="tests/LiteBus.Storage.PostgreSql.UnitTests/LiteBus.Storage.PostgreSql.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Storage.Testing/LiteBus.Storage.Testing.csproj" />
     <Project Path="tests/LiteBus.Testing/LiteBus.Testing.csproj" />
+    <Project Path="tests/LiteBus.Transport.Amqp.UnitTests/LiteBus.Transport.Amqp.UnitTests.csproj" />
   </Folder>
 </Solution>

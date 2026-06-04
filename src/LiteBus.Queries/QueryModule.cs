@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Registry;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Runtime.Abstractions;
 
@@ -37,10 +37,11 @@ public sealed class QueryModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var messageRegistry = MessageRegistryAccessor.Instance;
+        var messageRegistry = configuration.GetContext<IMessageRegistry>();
+        var contractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
 
         var startIndex = messageRegistry.Handlers.Count;
-        var moduleBuilder = new QueryModuleBuilder(messageRegistry);
+        var moduleBuilder = new QueryModuleBuilder(messageRegistry, contractRegistry);
         _builder(moduleBuilder);
 
         RegisterQueryServices(configuration);

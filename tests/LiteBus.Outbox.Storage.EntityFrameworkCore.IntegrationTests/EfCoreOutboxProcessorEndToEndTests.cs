@@ -61,7 +61,7 @@ public sealed class EfCoreOutboxProcessorEndToEndTests : LiteBusTestBase, IClass
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions
+        await outbox.EnqueueAsync(new OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions
         {
             Id = messageId
         });
@@ -85,20 +85,20 @@ public sealed class EfCoreOutboxProcessorEndToEndTests : LiteBusTestBase, IClass
             return new ProcessorEndToEndOutboxDbContext(builder.Options, storeOptions);
         });
 
-        services.AddLiteBus(configuration =>
+        services.AddLiteBus(modules =>
         {
-            configuration.AddEfCoreOutboxStorage(builder =>
+            modules.AddEfCoreOutboxStorage(builder =>
             {
                 builder.UseDbContext<ProcessorEndToEndOutboxDbContext>();
                 builder.UseOptions(storeOptions);
             });
 
-            configuration.AddEventModule(module =>
+            modules.AddEventModule(module =>
             {
                 module.Register<OrderSubmittedEventHandler>();
             });
 
-            configuration.AddOutboxModule(outbox =>
+            modules.AddOutboxModule(outbox =>
             {
                 outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
                 outbox.UseProcessorOptions(new OutboxProcessorOptions
@@ -109,7 +109,7 @@ public sealed class EfCoreOutboxProcessorEndToEndTests : LiteBusTestBase, IClass
                 });
             });
 
-            configuration.AddOutboxInProcessDispatcher();
+            modules.AddOutboxInProcessDispatcher();
         });
 
         return services.BuildServiceProvider();

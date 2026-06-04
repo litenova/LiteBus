@@ -107,7 +107,7 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
             await StartIngressAsync(provider);
 
             var inbox = provider.GetRequiredService<IInbox>();
-            await inbox.AddAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() });
+            await inbox.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() });
 
             await PublishAsync(
                 fixture.ConnectionOptions,
@@ -132,33 +132,31 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
         var services = new ServiceCollection();
         services.AddSingleton(new CommandRecorder());
 
-        services.AddLiteBus(liteBus =>
+        services.AddLiteBus(modules =>
         {
-            liteBus.AddCommandModule(module =>
+            modules.AddCommandModule(module =>
             {
                 module.Register<ShipOrderCommand>();
                 module.Register<ShipOrderCommandHandler>();
             });
 
-            liteBus.AddInboxModule(inbox =>
+            modules.AddInboxModule(inbox =>
             {
                 inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
-            });
-
-            liteBus.AddInMemoryInboxStorage(builder => builder.UseOptions(new InMemoryInboxStoreOptions
-            {
-                Capacity = inboxCapacity
-            }));
-            liteBus.AddInboxInProcessDispatcher();
-
-            liteBus.AddInboxAmqpIngress(ingress =>
-            {
-                ingress.UseOptions(new AmqpInboxIngressOptions
+                inbox.UseInMemoryStorage(builder => builder.UseOptions(new InMemoryInboxStoreOptions
                 {
-                    QueueName = queueName,
-                    PrefetchCount = 1,
-                    Connection = connectionOptions,
-                    RequeueOnFailure = true
+                    Capacity = inboxCapacity
+                }));
+                inbox.UseInProcessDispatcher();
+                inbox.UseAmqpIngress(ingress =>
+                {
+                    ingress.UseOptions(new AmqpInboxIngressOptions
+                    {
+                        QueueName = queueName,
+                        PrefetchCount = 1,
+                        Connection = connectionOptions,
+                        RequeueOnFailure = true
+                    });
                 });
             });
         });

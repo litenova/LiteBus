@@ -1,4 +1,4 @@
-﻿using LiteBus.Commands;
+using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
@@ -22,7 +22,7 @@ public sealed class InboxTests : LiteBusTestBase
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 2);
 
-        var scheduler = new InboxWriter(
+        var scheduler = new Inbox(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
@@ -31,7 +31,7 @@ public sealed class InboxTests : LiteBusTestBase
         var commandId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-        var receipt = await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
@@ -71,15 +71,15 @@ public sealed class InboxTests : LiteBusTestBase
             .AddSingleton<IInboxStateStore>(store)
             .AddSingleton(recorder)
             .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
                     builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                 });
 
-                configuration.AddInboxModule(builder =>
+                modules.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -98,7 +98,7 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
         var orderId = Guid.NewGuid();
-        var receipt = await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
@@ -126,15 +126,15 @@ public sealed class InboxTests : LiteBusTestBase
             .AddSingleton<IInboxStateStore>(store)
             .AddSingleton(recorder)
             .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.ArchiveCommand<string>>();
                     builder.Register<InboxTestFixtures.ArchiveStringCommandHandler>();
                 });
 
-                configuration.AddInboxModule(builder =>
+                modules.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.ArchiveCommand<string>>("archive.commands.string", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -153,7 +153,7 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AddAsync(new InboxTestFixtures.ArchiveCommand<string>
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ArchiveCommand<string>
         {
             Value = "closed-generic"
         });
@@ -171,7 +171,7 @@ public sealed class InboxTests : LiteBusTestBase
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
 
-        var scheduler = new InboxWriter(
+        var scheduler = new Inbox(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
@@ -180,13 +180,13 @@ public sealed class InboxTests : LiteBusTestBase
         var orderId = Guid.NewGuid();
         var idempotencyKey = $"ship:{orderId}";
 
-        var first = await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
+        var first = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = idempotencyKey
         }, new InboxOptions { IdempotencyKey = idempotencyKey });
 
-        var second = await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
+        var second = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = idempotencyKey
@@ -205,15 +205,15 @@ public sealed class InboxTests : LiteBusTestBase
             .AddSingleton<IInboxLeaseStore>(store)
             .AddSingleton<IInboxStateStore>(store)
             .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.FaultyCommand>();
                     builder.Register<InboxTestFixtures.FaultyCommandHandler>();
                 });
 
-                configuration.AddInboxModule(builder =>
+                modules.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.FaultyCommand>("orders.commands.faulty", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -234,7 +234,7 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AddAsync(new InboxTestFixtures.FaultyCommand());
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.FaultyCommand());
 
         await processor.ProcessPendingAsync();
 
@@ -254,15 +254,15 @@ public sealed class InboxTests : LiteBusTestBase
             .AddSingleton<IInboxLeaseStore>(store)
             .AddSingleton<IInboxStateStore>(store)
             .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.FaultyCommand>();
                     builder.Register<InboxTestFixtures.FaultyCommandHandler>();
                 });
 
-                configuration.AddInboxModule(builder =>
+                modules.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.FaultyCommand>("orders.commands.faulty", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -283,7 +283,7 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AddAsync(new InboxTestFixtures.FaultyCommand());
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.FaultyCommand());
 
         // Attempt 1 of 2: AttemptCount reaches 1 which is < MaxAttempts (2), so envelope is retried.
         await processor.ProcessPendingAsync();
@@ -305,15 +305,15 @@ public sealed class InboxTests : LiteBusTestBase
             .AddSingleton<IInboxStateStore>(store)
             .AddSingleton(capture)
             .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.InboxCheckCommand>();
                     builder.Register<InboxTestFixtures.InboxCheckCommandHandler>();
                 });
 
-                configuration.AddInboxModule(builder =>
+                modules.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.InboxCheckCommand>("test.commands.inbox-check", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -329,7 +329,7 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
-        await scheduler.AddAsync(new InboxTestFixtures.InboxCheckCommand());
+        await scheduler.AcceptAsync(new InboxTestFixtures.InboxCheckCommand());
         await processor.ProcessPendingAsync();
 
         capture.IsInboxExecution.Should().BeTrue();
@@ -347,15 +347,15 @@ public sealed class InboxTests : LiteBusTestBase
             .AddSingleton<IInboxStateStore>(store)
             .AddSingleton(capture)
             .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.InboxCheckCommand>();
                     builder.Register<InboxTestFixtures.TraceMetadataCommandHandler>();
                 });
 
-                configuration.AddInboxModule(builder =>
+                modules.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.InboxCheckCommand>("test.commands.inbox-check", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -371,7 +371,7 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
-        await scheduler.AddAsync(new InboxTestFixtures.InboxCheckCommand(), new InboxOptions
+        await scheduler.AcceptAsync(new InboxTestFixtures.InboxCheckCommand(), new InboxOptions
         {
             CorrelationId = "correlation-42",
             CausationId = "causation-42",
@@ -395,15 +395,15 @@ public sealed class InboxTests : LiteBusTestBase
             .AddSingleton<IInboxLeaseStore>(store)
             .AddSingleton<IInboxStateStore>(store)
             .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.FaultyCommand>();
                     builder.Register<InboxTestFixtures.FaultyCommandHandler>();
                 });
 
-                configuration.AddInboxModule(builder =>
+                modules.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.FaultyCommand>("orders.commands.faulty", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -424,7 +424,7 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AddAsync(new InboxTestFixtures.FaultyCommand());
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.FaultyCommand());
         await processor.ProcessPendingAsync();
 
         var lastError = store.Get(receipt.Id).LastError;
@@ -447,15 +447,15 @@ public sealed class InboxTests : LiteBusTestBase
             .AddSingleton<IInboxStateStore>(flakyStateStore)
             .AddSingleton(recorder)
             .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(configuration =>
+            .AddLiteBus(modules =>
             {
-                configuration.AddCommandModule(builder =>
+                modules.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
                     builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                 });
 
-                configuration.AddInboxModule(builder =>
+                modules.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -474,7 +474,7 @@ public sealed class InboxTests : LiteBusTestBase
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
         var orderId = Guid.NewGuid();
-        var receipt = await scheduler.AddAsync(new InboxTestFixtures.ShipOrderCommand
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"

@@ -30,7 +30,7 @@ public sealed class ProcessPaymentCommandHandler : ICommandHandler<ProcessPaymen
             // Example: skip duplicate external side effects during inbox replay.
         }
 
-        await _outbox.AddAsync(
+        await _outbox.EnqueueAsync(
             new PaymentProcessed(command.PaymentId, command.Amount),
             new OutboxOptions
             {

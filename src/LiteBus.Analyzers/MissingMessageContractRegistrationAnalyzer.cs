@@ -73,7 +73,9 @@ public sealed class MissingMessageContractRegistrationAnalyzer : DiagnosticAnaly
 
         foreach (var attribute in namedType.GetAttributes())
         {
-            if (attribute.AttributeClass?.Name == "MessageContractAttribute")
+            if (attribute.AttributeClass?.Name == "MessageContractAttribute" &&
+                attribute.AttributeClass.ContainingNamespace?.ToDisplayString() is
+                    "LiteBus.Messaging.Abstractions" or "LiteBus.Analyzers")
             {
                 return true;
             }

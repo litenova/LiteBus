@@ -48,10 +48,27 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     ///     Thrown when <paramref name="dependencyType" /> or <paramref name="factory" /> is <see langword="null" />.
     /// </exception>
     public DependencyDescriptor(Type dependencyType, Func<IServiceProvider, object> factory)
+        : this(dependencyType, factory, InstanceLifetime.Transient)
+    {
+    }
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="DependencyDescriptor" /> class for factory registration with an explicit lifetime.
+    /// </summary>
+    /// <param name="dependencyType">The dependency type to register.</param>
+    /// <param name="factory">The factory function that creates instances of the dependency.</param>
+    /// <param name="lifetime">The instance lifetime for factory-created instances.</param>
+    /// <exception cref="System.ArgumentNullException">
+    ///     Thrown when <paramref name="dependencyType" /> or <paramref name="factory" /> is <see langword="null" />.
+    /// </exception>
+    public DependencyDescriptor(
+        Type dependencyType,
+        Func<IServiceProvider, object> factory,
+        InstanceLifetime lifetime)
     {
         DependencyType = dependencyType ?? throw new ArgumentNullException(nameof(dependencyType));
         Factory = factory ?? throw new ArgumentNullException(nameof(factory));
-        Lifetime = InstanceLifetime.Transient;
+        Lifetime = lifetime;
     }
 
     /// <summary>

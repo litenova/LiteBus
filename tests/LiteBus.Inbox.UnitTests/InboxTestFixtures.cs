@@ -209,5 +209,35 @@ internal static class InboxTestFixtures
         {
             return _inner.MoveToDeadLetterAsync(deadLetter, cancellationToken);
         }
+
+        /// <inheritdoc />
+        public Task MarkCompletedAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+        {
+            return _inner.MarkCompletedAsync(messageIds, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task MarkFailedAsync(IReadOnlyList<InboxEnvelopeFailure> failures, CancellationToken cancellationToken = default)
+        {
+            return _inner.MarkFailedAsync(failures, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task RequeueDeadLetterAsync(Guid messageId, CancellationToken cancellationToken = default)
+        {
+            return _inner.RequeueDeadLetterAsync(messageId, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task<int> DeleteCompletedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
+        {
+            return _inner.DeleteCompletedOlderThanAsync(olderThan, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task<IReadOnlyDictionary<InboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
+        {
+            return _inner.GetStatusCountsAsync(cancellationToken);
+        }
     }
 }

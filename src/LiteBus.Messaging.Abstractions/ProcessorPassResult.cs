@@ -1,3 +1,5 @@
+using System;
+
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
@@ -15,4 +17,24 @@ public sealed record ProcessorPassResult
     ///     Gets the number of commands or messages leased and processed during the pass.
     /// </summary>
     public required int LeasedCount { get; init; }
+
+    /// <summary>
+    ///     Gets the number of leased envelopes that completed successfully during the pass.
+    /// </summary>
+    public int SucceededCount { get; init; }
+
+    /// <summary>
+    ///     Gets the number of leased envelopes that were marked failed for retry during the pass.
+    /// </summary>
+    public int FailedCount { get; init; }
+
+    /// <summary>
+    ///     Gets the number of leased envelopes that were moved to dead-letter state during the pass.
+    /// </summary>
+    public int DeadLetteredCount { get; init; }
+
+    /// <summary>
+    ///     Gets the wall-clock duration of the pass, including leasing and state updates.
+    /// </summary>
+    public TimeSpan ElapsedTime { get; init; }
 }

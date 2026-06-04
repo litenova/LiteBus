@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Runtime.Abstractions;
 
@@ -22,7 +23,7 @@ public static class ModuleRegistryExtensions
 
         if (!moduleRegistry.IsModuleRegistered<MessageModule>())
         {
-            moduleRegistry.Register(new MessageModule(moduleBuilder =>
+            moduleRegistry.Register(new MessageModule(_ =>
             {
             }));
         }
@@ -38,7 +39,7 @@ public static class ModuleRegistryExtensions
     /// <returns>The current module registry.</returns>
     public static IModuleRegistry AddInboxModule(this IModuleRegistry moduleRegistry)
     {
-        return AddInboxModule(moduleRegistry, moduleBuilder =>
+        return AddInboxModule(moduleRegistry, _ =>
         {
         });
     }

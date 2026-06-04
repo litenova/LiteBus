@@ -28,6 +28,14 @@ public sealed class InMemoryInboxStorageModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
+        {
+            throw new InvalidOperationException(
+                $"{nameof(InMemoryInboxStorageModule)} requires InboxModule core services " +
+                "to be registered first. Configure storage inside AddInboxModule(...) " +
+                "using UseInMemoryStorage().");
+        }
+
         var moduleBuilder = new InMemoryInboxStorageModuleBuilder();
         _builder(moduleBuilder);
 
@@ -43,5 +51,6 @@ public sealed class InMemoryInboxStorageModule : IModule
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxLeaseStore), store));
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxStateStore), store));
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(InMemoryInboxStore), store));
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxWorkSignal), typeof(InboxPollingWorkSignal)));
     }
 }

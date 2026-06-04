@@ -65,22 +65,22 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
         var services = new ServiceCollection();
         services.AddSingleton(recorder);
 
-        services.AddLiteBus(liteBus =>
+        services.AddLiteBus(modules =>
         {
-            liteBus.AddPostgreSqlInboxStorage(postgres =>
+            modules.AddPostgreSqlInboxStorage(postgres =>
             {
                 postgres.UseDataSource(_postgresFixture.DataSource);
                 postgres.UseOptions(options);
                 postgres.DisableSchemaInitialization();
             });
 
-            liteBus.AddCommandModule(module =>
+            modules.AddCommandModule(module =>
             {
                 module.Register<ShipOrderCommand>();
                 module.Register<ShipOrderCommandHandler>();
             });
 
-            liteBus.AddInboxModule(inbox =>
+            modules.AddInboxModule(inbox =>
             {
                 inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
                 inbox.UseProcessorOptions(new InboxProcessorOptions
@@ -92,9 +92,9 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
             });
 
-            liteBus.AddInboxInProcessDispatcher();
+            modules.AddInboxInProcessDispatcher();
 
-            liteBus.AddInboxAmqpIngress(ingress =>
+            modules.AddInboxAmqpIngress(ingress =>
             {
                 ingress.UseOptions(new AmqpInboxIngressOptions
                 {

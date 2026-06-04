@@ -20,7 +20,7 @@ namespace LiteBus.Inbox;
 ///         registered for that closed type.
 ///     </para>
 /// </remarks>
-public sealed class InboxWriter : IInbox
+public sealed class Inbox : IInbox
 {
     /// <summary>
     ///     Gets the time provider used to stamp acceptance time.
@@ -30,7 +30,7 @@ public sealed class InboxWriter : IInbox
     /// <summary>
     ///     Gets the registry used to map the runtime message type to a stable contract.
     /// </summary>
-    private readonly IMessageContractRegistry _contractRegistry;
+    private readonly IContractReader _contractRegistry;
 
     /// <summary>
     ///     Gets the serializer used to create the serialized payload.
@@ -43,15 +43,15 @@ public sealed class InboxWriter : IInbox
     private readonly IInboxStore _store;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="InboxWriter" /> class.
+    ///     Initializes a new instance of the <see cref="Inbox" /> class.
     /// </summary>
     /// <param name="store">The inbox store used to persist newly accepted envelopes.</param>
     /// <param name="contractRegistry">The registry used to map the runtime message type to a stable contract.</param>
     /// <param name="messageSerializer">The serializer used to create the serialized payload.</param>
     /// <param name="clock">The time provider used to stamp acceptance time.</param>
-    public InboxWriter(
+    public Inbox(
         IInboxStore store,
-        IMessageContractRegistry contractRegistry,
+        IContractReader contractRegistry,
         IMessageSerializer messageSerializer,
         TimeProvider clock)
     {
@@ -62,7 +62,7 @@ public sealed class InboxWriter : IInbox
     }
 
     /// <inheritdoc />
-    public async Task<InboxReceipt<T>> AddAsync<T>(
+    public async Task<InboxReceipt<T>> AcceptAsync<T>(
         T message,
         InboxOptions? options = null,
         CancellationToken cancellationToken = default)
@@ -91,7 +91,8 @@ public sealed class InboxWriter : IInbox
             IdempotencyKey = string.IsNullOrWhiteSpace(options.IdempotencyKey) ? null : options.IdempotencyKey,
             CorrelationId = options.CorrelationId,
             CausationId = options.CausationId,
-            TenantId = options.TenantId
+            TenantId = options.TenantId,
+            TraceContext = options.TraceContext
         };
 
         var storedEnvelope = await _store.AddAsync(envelope, cancellationToken).ConfigureAwait(false);

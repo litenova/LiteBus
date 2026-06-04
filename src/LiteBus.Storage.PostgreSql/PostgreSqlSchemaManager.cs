@@ -137,7 +137,7 @@ internal static class PostgreSqlSchemaManager
             await Task.Delay(DefaultLockPollInterval, cancellationToken).ConfigureAwait(false);
         }
 
-        throw new TimeoutException(
+        throw new Exceptions.PostgreSqlStorageTimeoutException(
             $"Timed out after {DefaultLockTimeout} waiting for {definition.Component} schema " +
             $"'{options.SchemaName}.{options.TableName}' to reach version {definition.CurrentSchemaVersion}.");
     }

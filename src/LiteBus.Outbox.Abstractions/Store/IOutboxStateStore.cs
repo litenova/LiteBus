@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -44,4 +45,43 @@ public interface IOutboxStateStore
     /// <param name="cancellationToken">A token that cancels the status update.</param>
     /// <returns>A task that represents the asynchronous status update.</returns>
     Task MoveToDeadLetterAsync(OutboxEnvelopeDeadLetter deadLetter, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Marks multiple leased messages as published after dispatch succeeds.
+    /// </summary>
+    /// <param name="messageIds">The message identifiers published during one processor pass.</param>
+    /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous batch status update.</returns>
+    Task MarkPublishedAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Marks multiple leased messages as failed and records their next visibility times.
+    /// </summary>
+    /// <param name="failures">The failure details for each message.</param>
+    /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous batch status update.</returns>
+    Task MarkFailedAsync(IReadOnlyList<OutboxEnvelopeFailure> failures, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Moves a dead-lettered message back to the pending state for manual replay.
+    /// </summary>
+    /// <param name="messageId">The message identifier to requeue.</param>
+    /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous requeue operation.</returns>
+    Task RequeueDeadLetterAsync(Guid messageId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Deletes published messages whose creation time is older than the supplied cutoff.
+    /// </summary>
+    /// <param name="olderThan">Rows with <c>created_at</c> strictly before this timestamp are eligible for deletion.</param>
+    /// <param name="cancellationToken">A token that cancels the delete operation.</param>
+    /// <returns>The number of rows deleted.</returns>
+    Task<int> DeletePublishedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Returns the number of stored messages grouped by <see cref="OutboxStatus" />.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the query.</param>
+    /// <returns>A read-only map of status to row count.</returns>
+    Task<IReadOnlyDictionary<OutboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default);
 }

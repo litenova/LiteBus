@@ -1,8 +1,8 @@
 using System;
 using System.Linq;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Commands;
@@ -37,11 +37,12 @@ public sealed class CommandModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var messageRegistry = MessageRegistryAccessor.Instance;
+        var messageRegistry = configuration.GetContext<IMessageRegistry>();
+        var contractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
 
         var startIndex = messageRegistry.Handlers.Count;
 
-        var moduleBuilder = new CommandModuleBuilder(messageRegistry);
+        var moduleBuilder = new CommandModuleBuilder(messageRegistry, contractRegistry);
         _builder(moduleBuilder);
 
         RegisterCommandServices(configuration);

@@ -1,28 +1,37 @@
-using LiteBus.Messaging.Registry;
+using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Testing;
 
 /// <summary>
-///     Base class for LiteBus tests that ensures proper test isolation by clearing the message registry.
+///     Base class for LiteBus tests that builds an isolated <see cref="InboxOutboxTestHost" /> per test class instance.
 /// </summary>
-public abstract class LiteBusTestBase : IDisposable
+public abstract class LiteBusTestBase : IAsyncDisposable
 {
     /// <summary>
-    ///     Initializes a new instance of the test base class and ensures a clean registry state.
+    ///     Gets the isolated LiteBus test host created for the current test class.
     /// </summary>
-    protected LiteBusTestBase()
-    {
-        // Clear registry before each test to ensure isolation
-        MessageRegistryAccessor.Instance.Clear();
-    }
+    protected InboxOutboxTestHost Host { get; private set; } = null!;
 
     /// <summary>
-    ///     Performs cleanup after test execution to prevent state pollution.
+    ///     Creates the default in-memory inbox and outbox test host.
     /// </summary>
-    public virtual void Dispose()
+    /// <param name="configureModules">An optional LiteBus module configuration callback.</param>
+    /// <param name="timeProvider">An optional fake clock for deterministic timestamps.</param>
+    protected virtual void InitializeHost(
+        Action<IModuleRegistry>? configureModules = null,
+        TimeProvider? timeProvider = null)
     {
-        // Clear registry after each test to prevent pollution of subsequent tests
-        MessageRegistryAccessor.Instance.Clear();
+        Host = InboxOutboxTestHost.Create(configureModules, timeProvider: timeProvider);
+    }
+
+    /// <inheritdoc />
+    public virtual async ValueTask DisposeAsync()
+    {
+        if (Host is not null)
+        {
+            await Host.DisposeAsync().ConfigureAwait(false);
+        }
+
         GC.SuppressFinalize(this);
     }
 }

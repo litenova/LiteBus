@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Added `ICompositeModule`, composite module registration in `ModuleRegistry`, and nested inbox/outbox configuration through `InboxModuleBuilder` / `OutboxModuleBuilder` with `UsePostgreSqlStorage`, `UseEfCoreStorage`, `UseInMemoryStorage`, `UseInProcessDispatcher`, `UseAmqpDispatcher`, and `UseAmqpIngress` extension methods.
+- Added `IContractWriter`, `IContractReader`, and `MessageContractBuilder`; `IMessageContractRegistry` now composes read and write surfaces. Runtime services (`Inbox`, `Outbox`, dispatchers) depend on `IContractReader` only.
+- Added `InboxProcessorHostOptions`, `OutboxProcessorHostOptions`, and cleanup host options to the inbox/outbox abstractions packages.
+- Added unit tests for composite module ordering, contract registry try-methods, `MessageContractBuilder`, and nested inbox/outbox DI composition.
+- Added transactional outbox participation APIs: `LiteBusOutboxSaveChangesInterceptor`, `OutboxDbContextExtensions.AddLiteBusOutboxInterceptor`, `EfCoreOutboxStorageModuleBuilder.EnableSaveChangesInterceptor`, `EfCoreOutboxStore.UseExistingDbContext<TContext>`, and `PostgreSqlOutboxStore.UseExistingConnection`. Documented that default `IOutbox.AddAsync` commits in a separate store transaction unless callers use these APIs. Added PostgreSQL and EF Core integration tests for atomic commit and rollback with domain state.
 - Added `LiteBus.Transport.Amqp` with `AmqpConnectionOptions`, `IAmqpConnectionManager`, `IAmqpPublisher`, `IAmqpConsumer`, `AmqpPublishRequest`, `AmqpReceivedMessage`, and stable LiteBus AMQP header constants for RabbitMQ and LavinMQ.
 - Added `tests/LiteBus.Transport.Amqp.IntegrationTests` with Testcontainers coverage against `rabbitmq:4-management` and `cloudamqp/lavinmq`.
 - Added `LiteBus.Storage.PostgreSql` (renamed from `LiteBus.PostgreSql`) with shared PostgreSQL schema infrastructure.
@@ -40,10 +45,42 @@ All notable changes to this project will be documented in this file.
 - Added [Entity Framework Core inbox storage](docs/Inbox-EntityFrameworkCore-Storage.md) documentation.
 - Added `LiteBus.Storage.EntityFrameworkCore` with shared EF relational leasing SQL, `EfCoreStorageProvider`, and provider-aware model column helpers used by inbox and outbox EF stores.
 - Extended `EfCoreInboxStore` and `EfCoreOutboxStore` with multi-provider leasing for PostgreSQL, SQL Server, and MySQL (Pomelo) without adding provider packages to LiteBus shipping assemblies. Added optional `LeaseProvider` on EF store options and SQL Server integration contract tests.
+- Expanded `ProcessorPassResult` with `SucceededCount`, `FailedCount`, `DeadLetteredCount`, and `ElapsedTime`; inbox and outbox processors batch terminal state updates and emit OpenTelemetry activities and metrics (`LiteBus.Inbox`, `LiteBus.Outbox`).
+- Added batch `MarkCompleted` / `MarkFailed` (inbox) and `MarkPublished` / `MarkFailed` (outbox) store APIs, `RequeueDeadLetterAsync`, retention cleanup via `EnableCleanup()`, optional insert `NOTIFY` with `UseListenNotify` (schema version 4), and AMQP circuit breaker settings on `AmqpConnectionOptions`.
 - Added v6 readiness integration and registration tests: PostgreSQL with AMQP ingress and dispatch, ingress failure acknowledgement paths, module registration guards (`DisableSchemaInitialization`, `DisableIngressConsumer`, duplicate dispatcher/ingress), EF Core processor end-to-end coverage, and `LiteBus.Composition.UnitTests` smoke test for `LiteBus.Samples.V6`.
+
+### Fixed
+
+- `InMemoryOutboxStore` no longer treats publishing envelopes with a null lease expiry as immediately leasable.
+- Entity Framework Core inbox and outbox modules register one singleton store instance for writer, lease, and state roles so in-process lease locking works when all roles resolve from DI.
+- `EfCoreInboxStore.AddAsync` returns the inserted entity on the happy path without a redundant reload.
+- PostgreSQL advisory lock keys now use two independent stable hashes instead of overlapping bit slices from one hash.
+- EF Core in-memory and SQLite inbox/outbox leasing filters pending rows in the database before `Take`, and SQLite uses the same in-process lease path as the EF in-memory provider.
+
+### Breaking Changes
+
+- Removed `MessageRegistryAccessor` and the process-wide singleton `MessageRegistry`. Custom modules must obtain `IMessageRegistry` from `configuration.GetContext<IMessageRegistry>()` after the messaging module runs (or `GetOrCreateContext` when defining a new messaging entry point). Integration tests no longer need `MessageRegistryAccessor.Instance.Clear()`; use separate host factories or `IMessageRegistry.Clear()` only when reusing a single registry instance in a test.
+
+### Changed
+
+- Obsoleted top-level `AddPostgreSqlInboxStorage`, `AddEfCoreInboxStorage`, `AddInMemoryInboxStorage`, and flat inbox/outbox dispatch and ingress registration methods in favor of nested `AddInboxModule` / `AddOutboxModule` configuration.
+- Restored the thin `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` and `LiteBus.Extensions.Microsoft.DependencyInjection` dependency graphs. The meta package references only the command, event, messaging, and query DI extension packages; register inbox, outbox, storage, and dispatch through the packages you install and `AddLiteBus(Action<IModuleRegistry>)`.
+- Replaced cross-layer `LiteBusConfigurationException` / `LiteBusTimeoutException` usage in storage and transport with package-specific exception types.
+- Moved `InboxPollingWorkSignal` to `LiteBus.Inbox.Abstractions` so inbox storage packages do not reference `LiteBus.Inbox`.
+- Renamed inbox writer API surface: `IInbox.AcceptAsync` is the preferred acceptance method; `IInbox.AddAsync` is obsolete and forwards to `AcceptAsync`.
+- Renamed outbox writer API surface: `IOutbox.EnqueueAsync` is the preferred enqueue method; `IOutbox.AddAsync` is obsolete and forwards to `EnqueueAsync`.
+- Added `OutboxEnvelope.IdempotencyKey`, `OutboxOptions.IdempotencyKey`, PostgreSQL schema version 3 upgrade, and store idempotency handling aligned with the inbox model.
+- Moved `MessageContractAttribute` to `LiteBus.Messaging.Abstractions` with `RegisterFromAssembly` scanning and runtime mismatch validation when both attributes and explicit `Register` calls are used.
+- Removed `IEventPublisher`; use `IEventMediator` for in-process event publication.
+- `InboxEnvelope` and `OutboxEnvelope` expose `TraceContext` (JSON text) end-to-end through PostgreSQL and EF Core stores, lease SQL, in-process and AMQP dispatch, and AMQP ingress. Processors copy it into mediation settings via `MessageTraceContextKeys.TraceContext`.
+- `EfCoreInboxStoreOptions` is a sealed record with init-only properties, matching `EfCoreOutboxStoreOptions`.
+- PostgreSQL inbox and outbox store options default `EnsureSchemaCreationOnStartup` to `true` and `ValidateSchemaCreationOnStartup` to `false` so new hosts create schema automatically; opt in to validate-only startup for external migration workflows.
 
 ### Improved
 
+- Parallel event broadcast handlers each run under an isolated `AmbientExecutionContext` scope so concurrent handlers no longer overwrite a shared `AsyncLocal` value.
+- `MessageRegistry` duplicate message-type detection uses hash sets for O(1) lookups while preserving registration order for handlers and committed messages.
+- Each `AddLiteBus` / module build receives its own `IMessageRegistry` through `IModuleConfiguration.GetOrCreateContext`, improving test isolation and multi-configuration hosts.
 - PostgreSQL schema startup: validate-only path when `EnsureSchemaCreationOnStartup` is false and `ValidateSchemaCreationOnStartup` is true; index existence checks in `ValidateAsync` (optional via `ValidateIndexesOnStartup` on `PostgreSqlSchemaStoreOptions`); metadata repair in `EnsureAsync` when physical shape matches the current version but metadata is stale; `IStartupTask` and host startup gate so schema initializers finish before processor and ingress loops.
 - `IModuleConfiguration.StartupTasks` and `IModuleConfiguration.BackgroundServices` preserve first-registration order while deduplicating types.
 - Expanded v6 test coverage across PostgreSQL, AMQP ingress/dispatch, EF Core processor paths, module registration, and sample composition smoke verification.
@@ -62,6 +99,11 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Renamed inbox writer API surface: `IInbox.AcceptAsync` is the preferred acceptance method; `IInbox.AddAsync` is obsolete and forwards to `AcceptAsync`.
+- Renamed outbox writer API surface: `IOutbox.EnqueueAsync` is the preferred enqueue method; `IOutbox.AddAsync` is obsolete and forwards to `EnqueueAsync`.
+- Added `OutboxEnvelope.IdempotencyKey`, `OutboxOptions.IdempotencyKey`, PostgreSQL schema version 3 upgrade, and store idempotency handling aligned with the inbox model.
+- Moved `MessageContractAttribute` to `LiteBus.Messaging.Abstractions` with `RegisterFromAssembly` scanning and runtime mismatch validation when both attributes and explicit `Register` calls are used.
+- Removed `IEventPublisher`; use `IEventMediator` for in-process event publication.
 - Renamed `IInboxStateStore.MarkCompletedAsync` parameter `commandId` to `messageId`. Updated inbox envelope, status, lease, failure, and dead-letter XML to message-neutral wording. Removed unused `LiteBus.Commands.Abstractions` reference from `LiteBus.Inbox.Abstractions`. Aligned `OutboxEnvelope` XML with message-neutral wording.
 - Renamed inbox PostgreSQL and EF Core storage defaults to neutral table and column names: `public.litebus_inbox_messages` with primary key column `message_id` (replacing `litebus_inbox_commands` / `command_id`). PostgreSQL inbox schema version is 3; `EnsureAsync` and `GetUpgradeScript(2, 3)` apply `Sql/inbox/v3/rename_message_identity.sql` to rename legacy columns and the default table when present. Migration-owned deployments can run the same DDL manually. Added nullable `TraceContext` (`trace_context`) to inbox and outbox EF entities for schema version 2 parity with PostgreSQL stores.
 - Replaced per-feature `*.Extensions.Microsoft.Hosting` packages with `IBackgroundService` types registered from core modules via `RegisterBackgroundService`. Inbox and outbox loops use `EnableInboxProcessor()` / `EnableOutboxProcessor()`. AMQP ingress registers `AmqpInboxConsumer` from `AddInboxAmqpIngress()`. PostgreSQL schema bootstrap uses `PostgreSqlInboxSchemaInitializer` / `PostgreSqlOutboxSchemaInitializer`. Removed processor health checks and separate `AddInboxAmqpIngressHosting` / `Add*ProcessorHosting` / `AddPostgreSql*SchemaHosting` extension methods. User-facing documentation uses background service naming; see `docs/Hosted-services.md`.

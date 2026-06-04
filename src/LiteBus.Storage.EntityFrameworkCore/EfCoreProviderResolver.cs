@@ -1,6 +1,5 @@
 using System;
 using Microsoft.EntityFrameworkCore;
-
 namespace LiteBus.Storage.EntityFrameworkCore;
 
 /// <summary>
@@ -37,7 +36,7 @@ public static class EfCoreProviderResolver
     /// </summary>
     /// <param name="providerName">The provider name reported by Entity Framework Core.</param>
     /// <returns>The mapped storage provider.</returns>
-    /// <exception cref="NotSupportedException">Thrown when the provider name is not recognized.</exception>
+    /// <exception cref="Exceptions.EfCoreStorageNotSupportedException">Thrown when the provider name is not recognized.</exception>
     public static EfCoreStorageProvider ResolveProviderName(string? providerName)
     {
         return providerName switch
@@ -47,7 +46,7 @@ public static class EfCoreProviderResolver
             EfCoreRelationalProviderNames.SqlServer => EfCoreStorageProvider.SqlServer,
             EfCoreRelationalProviderNames.MySql => EfCoreStorageProvider.MySql,
             EfCoreRelationalProviderNames.Sqlite => EfCoreStorageProvider.Sqlite,
-            _ => throw new NotSupportedException(
+            _ => throw new Exceptions.EfCoreStorageNotSupportedException(
                 $"Entity Framework provider '{providerName ?? "unknown"}' is not supported for LiteBus relational storage. " +
                 "Use PostgreSQL, SQL Server, MySQL (Pomelo), or the in-memory provider, or set an explicit lease provider override in store options.")
         };

@@ -18,8 +18,8 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 /// <remarks>
 ///     <para>
 ///         Relational providers use provider-specific skip-locked lease SQL for PostgreSQL, SQL Server, and MySQL.
-///         The in-memory provider uses a process-wide lock with the same visibility rules so unit tests can run
-///         without a database.
+///         The in-memory and SQLite providers use a process-wide lock with translatable queries and the same
+///         visibility rules so unit tests and local SQLite deployments can run without skip-locked SQL.
 ///     </para>
 ///     <para>
 ///         Applications own the <see cref="DbContext" /> and migrations. Call
@@ -30,9 +30,9 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStateStore
 {
     /// <summary>
-    ///     Synchronizes in-memory leasing when multiple workers run in one process.
+    ///     Serializes in-memory and SQLite inbox leasing when multiple workers run in one process.
     /// </summary>
-    private readonly object _inMemoryLeaseLock = new();
+    private readonly SemaphoreSlim _inMemoryLeaseLock = new(1, 1);
 
     /// <summary>
     ///     Resolves a database context for direct factory construction used in tests.
@@ -115,9 +115,7 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
             try
             {
                 await SaveChangesAsync(context, token).ConfigureAwait(false);
-                var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
-                    .ConfigureAwait(false);
-                return ToEnvelope(stored ?? entity);
+                return ToEnvelope(entity);
             }
             catch (DbUpdateException)
             {
@@ -151,7 +149,7 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
 
             var provider = EfCoreProviderResolver.Resolve(dbContext, _options.LeaseProvider);
 
-            if (provider == EfCoreStorageProvider.InMemory)
+            if (provider is EfCoreStorageProvider.InMemory or EfCoreStorageProvider.Sqlite)
             {
                 return await LeasePendingInMemoryAsync(context, request, token).ConfigureAwait(false);
             }
@@ -231,6 +229,122 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
         }, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public Task MarkCompletedAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageIds);
+
+        return ExecuteAsync(async (context, token) =>
+        {
+            var entities = await context.InboxMessages
+                .Where(message => messageIds.Contains(message.Id))
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+
+            foreach (var entity in entities)
+            {
+                entity.Status = InboxStatus.Completed;
+                entity.LeaseOwner = null;
+                entity.LeaseExpiresAt = null;
+                entity.LastError = null;
+            }
+
+            if (entities.Count > 0)
+            {
+                await SaveChangesAsync(context, token).ConfigureAwait(false);
+            }
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task MarkFailedAsync(IReadOnlyList<InboxEnvelopeFailure> failures, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(failures);
+
+        return ExecuteAsync(async (context, token) =>
+        {
+            var failureById = failures.ToDictionary(failure => failure.Id);
+
+            var entities = await context.InboxMessages
+                .Where(message => failureById.Keys.Contains(message.Id))
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+
+            foreach (var entity in entities)
+            {
+                var failure = failureById[entity.Id];
+                entity.Status = InboxStatus.Failed;
+                entity.VisibleAfter = failure.VisibleAfter;
+                entity.LeaseOwner = null;
+                entity.LeaseExpiresAt = null;
+                entity.LastError = failure.Error;
+            }
+
+            if (entities.Count > 0)
+            {
+                await SaveChangesAsync(context, token).ConfigureAwait(false);
+            }
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task RequeueDeadLetterAsync(Guid messageId, CancellationToken cancellationToken = default)
+    {
+        return ExecuteAsync(async (context, token) =>
+        {
+            var entity = await context.InboxMessages
+                .SingleOrDefaultAsync(message => message.Id == messageId, token)
+                .ConfigureAwait(false);
+
+            if (entity is null || entity.Status != InboxStatus.DeadLettered)
+            {
+                return;
+            }
+
+            entity.Status = InboxStatus.Pending;
+            entity.VisibleAfter = null;
+            entity.AttemptCount = 0;
+            entity.LeaseOwner = null;
+            entity.LeaseExpiresAt = null;
+            entity.LastError = null;
+            await SaveChangesAsync(context, token).ConfigureAwait(false);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<int> DeleteCompletedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
+    {
+        return ExecuteAsync(async (context, token) =>
+        {
+            if (context is not DbContext dbContext)
+            {
+                throw new InvalidOperationException("Retention cleanup requires a DbContext-backed inbox database context.");
+            }
+
+            return await dbContext.Set<InboxMessageEntity>()
+                .Where(message => message.Status == InboxStatus.Completed && message.CreatedAt < olderThan)
+                .ExecuteDeleteAsync(token)
+                .ConfigureAwait(false);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<InboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
+    {
+        return ExecuteAsync(async (context, token) =>
+        {
+            var counts = await context.InboxMessages
+                .GroupBy(message => message.Status)
+                .Select(group => new { Status = group.Key, Count = group.Count() })
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+
+            return (IReadOnlyDictionary<InboxStatus, int>)counts.ToDictionary(
+                entry => entry.Status,
+                entry => entry.Count);
+        }, cancellationToken);
+    }
+
     /// <summary>
     ///     Runs one store operation against a resolved database context.
     /// </summary>
@@ -289,13 +403,6 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
         InboxLeaseRequest request,
         CancellationToken cancellationToken)
     {
-        if (provider == EfCoreStorageProvider.Sqlite)
-        {
-            throw new NotSupportedException(
-                "SQLite does not support concurrent inbox leasing for multiple processors. " +
-                "Use PostgreSQL, SQL Server, MySQL, or run a single inbox processor instance.");
-        }
-
         var leaseExpiresAt = request.Now.Add(request.LeaseDuration);
         List<InboxMessageLeaseRow> rows = provider switch
         {
@@ -361,36 +468,52 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
     /// <param name="request">The lease request.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The leased command envelopes.</returns>
-    private Task<IReadOnlyList<InboxEnvelope>> LeasePendingInMemoryAsync(
+    private async Task<IReadOnlyList<InboxEnvelope>> LeasePendingInMemoryAsync(
         IInboxDbContext context,
         InboxLeaseRequest request,
         CancellationToken cancellationToken)
     {
-        _ = cancellationToken;
+        await _inMemoryLeaseLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-        lock (_inMemoryLeaseLock)
+        try
         {
-            return Task.FromResult(LeasePendingInMemoryCore(context, request));
+            return await LeasePendingInMemoryCoreAsync(context, request, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _inMemoryLeaseLock.Release();
         }
     }
 
     /// <summary>
-    ///     Leases commands from the in-memory provider inside the in-memory lease lock.
+    ///     Leases commands from the in-memory or SQLite provider inside the in-process lease lock.
     /// </summary>
     /// <param name="context">The database context.</param>
     /// <param name="request">The lease request.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The leased command envelopes.</returns>
-    private static IReadOnlyList<InboxEnvelope> LeasePendingInMemoryCore(
+    private static async Task<IReadOnlyList<InboxEnvelope>> LeasePendingInMemoryCoreAsync(
         IInboxDbContext context,
-        InboxLeaseRequest request)
+        InboxLeaseRequest request,
+        CancellationToken cancellationToken)
     {
+        var now = request.Now;
         var leaseExpiresAt = request.Now.Add(request.LeaseDuration);
-        var candidates = context.InboxMessages
-            .AsEnumerable()
-            .Where(message => IsAvailable(message, request.Now))
+        var pendingStatus = InboxStatus.Pending;
+        var failedStatus = InboxStatus.Failed;
+        var processingStatus = InboxStatus.Processing;
+
+        var candidates = await context.InboxMessages
+            .Where(message =>
+                (message.Status == pendingStatus || message.Status == failedStatus)
+                && (message.VisibleAfter == null || message.VisibleAfter <= now)
+                || message.Status == processingStatus
+                && message.LeaseExpiresAt != null
+                && message.LeaseExpiresAt <= now)
             .OrderBy(message => message.CreatedAt)
             .Take(request.BatchSize)
-            .ToList();
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         foreach (var message in candidates)
         {
@@ -402,25 +525,10 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
 
         if (context is DbContext dbContext)
         {
-            dbContext.SaveChanges();
+            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 
         return candidates.Select(ToEnvelope).ToArray();
-    }
-
-    /// <summary>
-    ///     Determines whether a command is eligible for leasing at the supplied time.
-    /// </summary>
-    /// <param name="message">The persisted message.</param>
-    /// <param name="now">The current UTC timestamp.</param>
-    /// <returns><see langword="true" /> when the message can be leased; otherwise, <see langword="false" />.</returns>
-    private static bool IsAvailable(InboxMessageEntity message, DateTimeOffset now)
-    {
-        return (message.Status is InboxStatus.Pending or InboxStatus.Failed
-                && (message.VisibleAfter is null || message.VisibleAfter <= now))
-               || (message.Status == InboxStatus.Processing
-                   && message.LeaseExpiresAt is not null
-                   && message.LeaseExpiresAt <= now);
     }
 
     /// <summary>
@@ -505,7 +613,8 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
             LastError = entity.LastError,
             CorrelationId = entity.CorrelationId,
             CausationId = entity.CausationId,
-            TenantId = entity.TenantId
+            TenantId = entity.TenantId,
+            TraceContext = entity.TraceContext
         };
     }
 
@@ -532,7 +641,8 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
             LastError = row.LastError,
             CorrelationId = row.CorrelationId,
             CausationId = row.CausationId,
-            TenantId = row.TenantId
+            TenantId = row.TenantId,
+            TraceContext = row.TraceContext
         };
     }
 
@@ -559,7 +669,8 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
             LastError = envelope.LastError,
             CorrelationId = envelope.CorrelationId,
             CausationId = envelope.CausationId,
-            TenantId = envelope.TenantId
+            TenantId = envelope.TenantId,
+            TraceContext = envelope.TraceContext
         };
     }
 
@@ -657,5 +768,11 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
         /// </summary>
         [Column("tenant_id")]
         public string? TenantId { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the trace context column stored as JSON text.
+        /// </summary>
+        [Column("trace_context")]
+        public string? TraceContext { get; set; }
     }
 }

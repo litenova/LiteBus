@@ -1,7 +1,6 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
 namespace LiteBus.Storage.EntityFrameworkCore;
 
 /// <summary>
@@ -23,7 +22,7 @@ public static class EfCoreRelationalModelColumnTypes
             EfCoreStorageProvider.MySql => "json",
             EfCoreStorageProvider.Sqlite => "TEXT",
             EfCoreStorageProvider.InMemory => "TEXT",
-            _ => throw new NotSupportedException($"Payload column types are not defined for provider '{provider}'.")
+            _ => throw new Exceptions.EfCoreStorageNotSupportedException($"Payload column types are not defined for provider '{provider}'.")
         };
     }
 
