@@ -68,9 +68,7 @@ public sealed class ModuleConfigurationTests
         public IReadOnlyList<IHandlerDescriptor> Handlers => [];
 
         /// <inheritdoc />
-        public void Clear()
-        {
-        }
+        public IMessageDescriptor? Find(Type messageType) => null;
 
         /// <inheritdoc />
         public void Register(Type type)

@@ -62,6 +62,14 @@ public sealed class MessageModule : IModule
             messageRegistry));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IMessageReader),
+            messageRegistry));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IMessageWriter),
+            messageRegistry));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageContractRegistry),
             messageContractRegistry));
 

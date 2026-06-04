@@ -111,6 +111,13 @@ Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs du
 - `MessageContractBuilder` defers registrations until the parent module `Build()`.
 - `[MessageContract]` is read at runtime via `AddFromAssembly` and on-demand in `GetContract`.
 
+### Message registry
+
+- `IMessageWriter` for module builders at configuration time (`Register(Type)`).
+- `IMessageReader` for the mediator and resolve strategies at runtime (`Find`, enumeration, `Handlers`, `Count`).
+- `IMessageRegistry` extends both and is the DI singleton key; created once per `IModuleConfiguration` in `MessageModule.Build()` via `GetOrCreateContext`.
+- Do not use a process-wide static accessor or `Clear()`; tests use a new `MessageRegistry` instance per case.
+
 ### Correctness invariants
 
 - `IsAvailable` must guard `LeaseExpiresAt is not null` when status is processing/publishing.
@@ -147,6 +154,12 @@ Modules that own sub-modules implement `ICompositeModule` alongside `IModule`. T
 - `IMessageContractRegistry` — live singleton; extends both.
 - `MessageContractBuilder` — deferred registrations replayed during parent `Build()`.
 - `[MessageContract]` is read at runtime via `AddFromAssembly`.
+
+### Message registry
+
+- `IMessageWriter` — configuration-time handler and message type registration.
+- `IMessageReader` — runtime descriptor lookup (`Find` is O(1) for exact types).
+- `IMessageRegistry` — live singleton; extends both; one instance per `IModuleConfiguration`.
 
 Configure inbox/outbox through `AddInboxModule(i => i.UsePostgreSqlStorage(...))` (and outbox equivalents). Top-level `AddPostgreSqlInboxStorage` methods are obsolete.
 

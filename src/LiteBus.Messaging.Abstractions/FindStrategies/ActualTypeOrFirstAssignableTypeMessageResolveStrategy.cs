@@ -14,32 +14,19 @@ namespace LiteBus.Messaging.Abstractions;
 /// </remarks>
 public sealed class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMessageResolveStrategy
 {
-    /// <summary>
-    ///     Finds a message descriptor for the specified message type from the message registry.
-    /// </summary>
-    /// <param name="messageType">The type of the message to find a descriptor for.</param>
-    /// <param name="messageRegistry">The message registry to search in.</param>
-    /// <returns>
-    ///     The message descriptor for the exact message type if found; otherwise, the first descriptor
-    ///     for a type that is assignable from the message type; or <see langword="null" /> if no suitable descriptor is found.
-    /// </returns>
-    /// <remarks>
-    ///     For generic types, this method uses the generic type definition for matching.
-    /// </remarks>
-    public IMessageDescriptor? Find(Type messageType, IMessageRegistry messageRegistry)
+    /// <inheritdoc />
+    public IMessageDescriptor? Find(Type messageType, IMessageReader messageReader)
     {
-        if (messageType.IsGenericType)
+        var lookupType = messageType.IsGenericType
+            ? messageType.GetGenericTypeDefinition()
+            : messageType;
+
+        var descriptor = messageReader.Find(lookupType);
+        if (descriptor is not null)
         {
-            messageType = messageType.GetGenericTypeDefinition();
+            return descriptor;
         }
 
-        var descriptor = messageRegistry.SingleOrDefault(d => d.MessageType == messageType);
-
-        if (descriptor == null)
-        {
-            descriptor = messageRegistry.FirstOrDefault(d => d.MessageType.IsAssignableFrom(messageType));
-        }
-
-        return descriptor;
+        return messageReader.FirstOrDefault(d => d.MessageType.IsAssignableFrom(messageType));
     }
 }

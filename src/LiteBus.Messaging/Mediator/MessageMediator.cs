@@ -11,7 +11,7 @@ namespace LiteBus.Messaging.Mediator;
 ///     The <see cref="MessageMediator" /> is responsible for handling the mediation of messages by:
 ///     <list type="bullet">
 ///         <item><description>Creating and managing execution contexts for each mediation operation</description></item>
-///         <item><description>Resolving message handlers through the message registry</description></item>
+///         <item><description>Resolving message handlers through the message reader</description></item>
 ///         <item><description>Applying the appropriate mediation strategy to process messages</description></item>
 ///         <item><description>Managing nested mediation calls by preserving execution context state</description></item>
 ///     </list>
@@ -19,9 +19,14 @@ namespace LiteBus.Messaging.Mediator;
 internal sealed class MessageMediator : IMessageMediator
 {
     /// <summary>
-    ///     The message registry used to resolve message descriptors during mediation.
+    ///     The message reader used to resolve message descriptors during mediation.
     /// </summary>
-    private readonly IMessageRegistry _messageRegistry;
+    private readonly IMessageReader _messageReader;
+
+    /// <summary>
+    ///     The message writer used when plain messages are registered on the spot.
+    /// </summary>
+    private readonly IMessageWriter _messageWriter;
 
     /// <summary>
     ///     The service provider used to resolve handler instances and dependencies.
@@ -31,12 +36,16 @@ internal sealed class MessageMediator : IMessageMediator
     /// <summary>
     ///     Initializes a new instance of the <see cref="MessageMediator" /> class.
     /// </summary>
-    /// <param name="messageRegistry">The registry containing message handler information.</param>
+    /// <param name="messageReader">The reader containing message handler information.</param>
+    /// <param name="messageWriter">The writer used for on-the-spot message registration.</param>
     /// <param name="serviceProvider">The service provider used to resolve dependencies.</param>
-    public MessageMediator(IMessageRegistry messageRegistry,
-                           IServiceProvider serviceProvider)
+    public MessageMediator(
+        IMessageReader messageReader,
+        IMessageWriter messageWriter,
+        IServiceProvider serviceProvider)
     {
-        _messageRegistry = messageRegistry ?? throw new ArgumentNullException(nameof(messageRegistry));
+        _messageReader = messageReader ?? throw new ArgumentNullException(nameof(messageReader));
+        _messageWriter = messageWriter ?? throw new ArgumentNullException(nameof(messageWriter));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
 
@@ -69,7 +78,7 @@ internal sealed class MessageMediator : IMessageMediator
         var messageType = message.GetType();
 
         // Find the message descriptor.
-        var descriptor = options.MessageResolveStrategy.Find(messageType, _messageRegistry);
+        var descriptor = options.MessageResolveStrategy.Find(messageType, _messageReader);
 
         if (descriptor is null)
         {
@@ -78,9 +87,9 @@ internal sealed class MessageMediator : IMessageMediator
                 throw new NoHandlerFoundException(messageType);
             }
 
-            _messageRegistry.Register(messageType);
+            _messageWriter.Register(messageType);
 
-            descriptor = options.MessageResolveStrategy.Find(messageType, _messageRegistry);
+            descriptor = options.MessageResolveStrategy.Find(messageType, _messageReader);
         }
 
         if (descriptor is null)
@@ -89,7 +98,7 @@ internal sealed class MessageMediator : IMessageMediator
                 messageType,
                 options.MessageResolveStrategy.GetType(),
                 options.RegisterPlainMessagesOnSpot,
-                _messageRegistry.Count);
+                _messageReader.Count);
         }
 
         // Resolve the dependencies in lazy mode.

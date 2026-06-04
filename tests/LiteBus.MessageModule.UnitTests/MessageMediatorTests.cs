@@ -14,7 +14,7 @@ public sealed class MessageMediatorTests : LiteBusTestBase
     {
         var registry = new MessageRegistry();
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
-        var mediator = new MessageMediator(registry, serviceProvider);
+        var mediator = new MessageMediator(registry, registry, serviceProvider);
 
         var options = new MediateOptions<string, string>
         {

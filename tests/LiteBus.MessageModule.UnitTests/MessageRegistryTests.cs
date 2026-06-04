@@ -314,24 +314,36 @@ public sealed class MessageRegistryTests : LiteBusTestBase
     }
 
     [Fact]
-    public void Clear_ShouldClearOpenGenericHandlers()
+    public void Find_ExactType_ShouldReturnDescriptorInConstantTime()
     {
         // Arrange
         var registry = new MessageRegistry();
-        registry.Register(typeof(OpenGenericTestPreHandler<>));
         registry.Register(typeof(TestCommandHandler));
-
-        // Verify it was registered
-        registry.Single(d => d.MessageType == typeof(TestCommand)).PreHandlers.Should().HaveCount(1);
 
         // Act
-        registry.Clear();
+        var descriptor = registry.Find(typeof(TestCommand));
 
-        // Register again without the open generic
-        registry.Register(typeof(TestCommandHandler));
+        // Assert
+        descriptor.Should().NotBeNull();
+        descriptor!.MessageType.Should().Be(typeof(TestCommand));
+    }
 
-        // Assert - open generic should not be applied after Clear
-        var descriptor = registry.Single(d => d.MessageType == typeof(TestCommand));
+    [Fact]
+    public void NewRegistryInstance_ShouldNotRetainOpenGenericHandlersFromAnotherInstance()
+    {
+        // Arrange
+        var firstRegistry = new MessageRegistry();
+        firstRegistry.Register(typeof(OpenGenericTestPreHandler<>));
+        firstRegistry.Register(typeof(TestCommandHandler));
+        firstRegistry.Single(d => d.MessageType == typeof(TestCommand)).PreHandlers.Should().HaveCount(1);
+
+        var secondRegistry = new MessageRegistry();
+
+        // Act
+        secondRegistry.Register(typeof(TestCommandHandler));
+
+        // Assert
+        var descriptor = secondRegistry.Single(d => d.MessageType == typeof(TestCommand));
         descriptor.PreHandlers.Should().BeEmpty();
     }
 

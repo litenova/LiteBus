@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Added `ICompositeModule`, composite module registration in `ModuleRegistry`, and nested inbox/outbox configuration through `InboxModuleBuilder` / `OutboxModuleBuilder` with `UsePostgreSqlStorage`, `UseEfCoreStorage`, `UseInMemoryStorage`, `UseInProcessDispatcher`, `UseAmqpDispatcher`, and `UseAmqpIngress` extension methods.
 - Added `IContractWriter`, `IContractReader`, and `MessageContractBuilder`; `IMessageContractRegistry` now composes read and write surfaces. Runtime services (`Inbox`, `Outbox`, dispatchers) depend on `IContractReader` only.
+- Added `IMessageWriter`, `IMessageReader`, and O(1) `Find` on the message registry; `IMessageRegistry` now composes read and write surfaces. `MessageMediator` and resolve strategies depend on `IMessageReader` only; on-the-spot registration uses `IMessageWriter`. Removed `Clear()` and the global `MessageRegistryAccessor`; each `IModuleConfiguration` owns its own `MessageRegistry` instance.
 - Added `InboxProcessorHostOptions`, `OutboxProcessorHostOptions`, and cleanup host options to the inbox/outbox abstractions packages.
 - Added unit tests for composite module ordering, contract registry try-methods, `MessageContractBuilder`, and nested inbox/outbox DI composition.
 - Added transactional outbox participation APIs: `LiteBusOutboxSaveChangesInterceptor`, `OutboxDbContextExtensions.AddLiteBusOutboxInterceptor`, `EfCoreOutboxStorageModuleBuilder.EnableSaveChangesInterceptor`, `EfCoreOutboxStore.UseExistingDbContext<TContext>`, and `PostgreSqlOutboxStore.UseExistingConnection`. Documented that default `IOutbox.AddAsync` commits in a separate store transaction unless callers use these APIs. Added PostgreSQL and EF Core integration tests for atomic commit and rollback with domain state.
@@ -59,7 +60,8 @@ All notable changes to this project will be documented in this file.
 
 ### Breaking Changes
 
-- Removed `MessageRegistryAccessor` and the process-wide singleton `MessageRegistry`. Custom modules must obtain `IMessageRegistry` from `configuration.GetContext<IMessageRegistry>()` after the messaging module runs (or `GetOrCreateContext` when defining a new messaging entry point). Integration tests no longer need `MessageRegistryAccessor.Instance.Clear()`; use separate host factories or `IMessageRegistry.Clear()` only when reusing a single registry instance in a test.
+- Removed `MessageRegistryAccessor`, `IMessageRegistry.Clear()`, and the process-wide singleton `MessageRegistry`. Custom modules must obtain `IMessageRegistry` from `configuration.GetContext<IMessageRegistry>()` after the messaging module runs (or `GetOrCreateContext` when defining a new messaging entry point). Use a new `MessageRegistry` per test or separate `AddLiteBus` hosts for isolation.
+- `IMessageRegistry` now extends `IMessageWriter` and `IMessageReader`; `MessageMediator` and `IMessageResolveStrategy` take the read (and write for on-the-spot registration) surfaces instead of the combined registry.
 
 ### Changed
 

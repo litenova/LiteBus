@@ -29,9 +29,9 @@ internal sealed class MessageRegistry : IMessageRegistry
     private readonly List<MessageDescriptor> _committedMessages = [];
 
     /// <summary>
-    ///     Normalized message types already committed for O(1) duplicate detection.
+    ///     Committed message descriptors keyed by normalized message type for O(1) exact lookup.
     /// </summary>
-    private readonly HashSet<Type> _committedMessageTypes = [];
+    private readonly Dictionary<Type, MessageDescriptor> _descriptorsByType = new();
 
     /// <summary>
     ///     Normalized message types registered in the current pass before commit.
@@ -86,6 +86,21 @@ internal sealed class MessageRegistry : IMessageRegistry
             {
                 return _committedMessages.Count;
             }
+        }
+    }
+
+    /// <inheritdoc />
+    public IMessageDescriptor? Find(Type messageType)
+    {
+        ArgumentNullException.ThrowIfNull(messageType);
+
+        var lookupType = messageType.IsGenericType
+            ? messageType.GetGenericTypeDefinition()
+            : messageType;
+
+        lock (_lock)
+        {
+            return _descriptorsByType.GetValueOrDefault(lookupType);
         }
     }
 
@@ -151,21 +166,6 @@ internal sealed class MessageRegistry : IMessageRegistry
         }
     }
 
-    /// <inheritdoc />
-    public void Clear()
-    {
-        lock (_lock)
-        {
-            _handlerDescriptorsInOrder.Clear();
-            _committedMessages.Clear();
-            _committedMessageTypes.Clear();
-            _pendingMessages.Clear();
-            _pendingMessageTypes.Clear();
-            _processedTypes.Clear();
-            _openGenericHandlers.Clear();
-        }
-    }
-
     /// <summary>
     ///     Processes newly discovered handler descriptors by adding them to the handler collection
     ///     and linking them to existing message descriptors.
@@ -201,7 +201,7 @@ internal sealed class MessageRegistry : IMessageRegistry
             ? messageType.GetGenericTypeDefinition()
             : messageType;
 
-        if (_committedMessageTypes.Contains(normalizedType) || !_pendingMessageTypes.Add(normalizedType))
+        if (_descriptorsByType.ContainsKey(normalizedType) || !_pendingMessageTypes.Add(normalizedType))
             return;
 
         // Add to pending messages.
@@ -401,8 +401,12 @@ internal sealed class MessageRegistry : IMessageRegistry
     {
         if (_pendingMessages.Count > 0)
         {
+            foreach (var descriptor in _pendingMessages)
+            {
+                _descriptorsByType[descriptor.MessageType] = descriptor;
+            }
+
             _committedMessages.AddRange(_pendingMessages);
-            _committedMessageTypes.UnionWith(_pendingMessageTypes);
             _pendingMessages.Clear();
             _pendingMessageTypes.Clear();
         }
