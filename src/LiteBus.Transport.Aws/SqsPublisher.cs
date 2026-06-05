@@ -1,0 +1,56 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Amazon.SQS;
+using LiteBus.Transport.Abstractions;
+using LiteBus.Transport;
+
+namespace LiteBus.Transport.Aws;
+
+/// <summary>
+///     Publishes messages to Amazon SQS queues.
+/// </summary>
+public sealed class SqsPublisher : IMessageTransport
+{
+    /// <summary>
+    ///     Gets the SQS client used to send messages.
+    /// </summary>
+    private readonly IAmazonSQS _sqsClient;
+
+    /// <summary>
+    ///     Gets the circuit breaker guarding publish operations.
+    /// </summary>
+    private readonly ITransportCircuitBreaker _circuitBreaker;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="SqsPublisher" /> class.
+    /// </summary>
+    /// <param name="sqsClient">The SQS client used to send messages.</param>
+    /// <param name="circuitBreaker">The circuit breaker guarding publish operations.</param>
+    public SqsPublisher(IAmazonSQS sqsClient, ITransportCircuitBreaker circuitBreaker)
+    {
+        _sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
+        _circuitBreaker = circuitBreaker ?? throw new ArgumentNullException(nameof(circuitBreaker));
+    }
+
+    /// <inheritdoc />
+    public async Task PublishAsync(TransportPublishRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        _circuitBreaker.ThrowIfOpen();
+
+        try
+        {
+            var sendRequest = SqsMessageMapper.ToSendMessageRequest(request);
+            await _sqsClient.SendMessageAsync(sendRequest, cancellationToken).ConfigureAwait(false);
+            _circuitBreaker.RecordSuccess();
+        }
+        catch (Exception)
+        {
+            _circuitBreaker.RecordFailure();
+            throw;
+        }
+    }
+}
+

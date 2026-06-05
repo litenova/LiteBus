@@ -5,6 +5,7 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Inbox;
@@ -69,7 +70,7 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
             throw new LiteBusConfigurationException(
                 "EnableInboxProcessor requires both storage and dispatcher to be configured. " +
                 "Call UseInMemoryStorage, UsePostgreSqlStorage, or UseEfCoreStorage and " +
-                "UseInProcessDispatcher or UseAmqpDispatcher inside AddInboxModule(...).");
+                "UseInProcessDispatcher or UseTransport inside AddInboxModule(...).");
         }
 
         var contractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
@@ -87,8 +88,19 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
             typeof(InboxProcessorOptions),
             _builder.ProcessorOptions));
 
+        if (_builder.CollectPayloadEncryptor() is { } inboxEncryptor)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(IPayloadEncryptor),
+                inboxEncryptor));
+        }
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IInbox),
+            typeof(Inbox)));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IInboxScheduler),
             typeof(Inbox)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -180,23 +192,9 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
     }
 
     /// <summary>
-    ///     Creates an <see cref="InboxProcessor" /> from the dependency injection container.
+    ///     Creates an <see cref="Abstractions.IInboxProcessor" /> from the dependency injection container.
     /// </summary>
     /// <param name="services">The service provider used to resolve processor dependencies.</param>
     /// <returns>The configured inbox processor instance.</returns>
-    private static object CreateInboxProcessor(IServiceProvider services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        var logger = services.GetService(typeof(ILogger<InboxProcessor>)) as ILogger<InboxProcessor>
-                     ?? NullLogger<InboxProcessor>.Instance;
-
-        return new InboxProcessor(
-            (IInboxLeaseStore)services.GetService(typeof(IInboxLeaseStore))!,
-            (IInboxStateWriter)services.GetService(typeof(IInboxStateWriter))!,
-            (IInboxDispatcher)services.GetService(typeof(IInboxDispatcher))!,
-            (InboxProcessorOptions)services.GetService(typeof(InboxProcessorOptions))!,
-            services.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System,
-            logger);
-    }
+    private static object CreateInboxProcessor(IServiceProvider services) => InboxProcessorFactory.Create(services);
 }

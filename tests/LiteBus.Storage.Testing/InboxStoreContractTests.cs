@@ -606,6 +606,81 @@ public abstract class InboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that batch accept returns stored rows in input order.
+    /// </summary>
+    [Fact]
+    public async Task AddBatchAsync_ShouldReturnStoredEnvelopesInInputOrder()
+    {
+        var roles = CreateStore();
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+        var now = BaseTime;
+
+        var stored = await roles.Writer.AddBatchAsync([
+            CreatePendingEnvelope(firstId, now),
+            CreatePendingEnvelope(secondId, now) with { ContractName = "tests.commands.archive" }
+        ]);
+
+        stored.Should().HaveCount(2);
+        stored[0].Id.Should().Be(firstId);
+        stored[1].Id.Should().Be(secondId);
+    }
+
+    /// <summary>
+    ///     Verifies that batch accept returns the original row when an idempotency key conflicts.
+    /// </summary>
+    [Fact]
+    public async Task AddBatchAsync_ShouldReturnExistingRowForDuplicateIdempotencyKey()
+    {
+        var roles = CreateStore();
+        var firstId = Guid.NewGuid();
+        var duplicateId = Guid.NewGuid();
+        var now = BaseTime;
+
+        var first = await roles.Writer.EnqueueAsync(new InboxEnvelope
+        {
+            Id = firstId,
+            ContractName = "tests.commands.ship",
+            ContractVersion = 1,
+            Payload = "{\"orderId\":\"1\"}",
+            CreatedAt = now,
+            AttemptCount = 0,
+            Status = InboxStatus.Pending,
+            IdempotencyKey = "batch-ship-1"
+        });
+
+        var batch = await roles.Writer.AddBatchAsync([
+            first with { Id = duplicateId, Payload = "{\"orderId\":\"changed\"}" },
+            CreatePendingEnvelope(Guid.NewGuid(), now) with { IdempotencyKey = "batch-ship-2" }
+        ]);
+
+        batch.Should().HaveCount(2);
+        batch[0].Id.Should().Be(first.Id);
+        batch[0].Payload.Should().Be(first.Payload);
+        batch[1].IdempotencyKey.Should().Be("batch-ship-2");
+    }
+
+    /// <summary>
+    ///     Verifies that batch accept returns the original row when a message identifier already exists.
+    /// </summary>
+    [Fact]
+    public async Task AddBatchAsync_WhenMessageIdAlreadyExists_ShouldReturnExistingRow()
+    {
+        var roles = CreateStore();
+        var commandId = Guid.NewGuid();
+        var now = BaseTime;
+
+        var first = await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now) with { IdempotencyKey = null });
+        var batch = await roles.Writer.AddBatchAsync([
+            first with { Payload = "{\"changed\":true}" }
+        ]);
+
+        batch.Should().ContainSingle();
+        batch[0].Id.Should().Be(commandId);
+        batch[0].Payload.Should().Be(first.Payload);
+    }
+
+    /// <summary>
     ///     Creates a pending envelope for contract tests.
     /// </summary>
     /// <param name="commandId">The command identifier.</param>

@@ -20,7 +20,7 @@ namespace LiteBus.Outbox;
 ///         contract registered for that closed type. A stable message id can be supplied through <see cref="OutboxOptions" />.
 ///     </para>
 /// </remarks>
-public sealed class Outbox : IOutbox
+public sealed class Outbox : IOutbox, IOutboxScheduler
 {
     /// <summary>
     ///     Gets the time provider used to stamp storage time.
@@ -43,22 +43,30 @@ public sealed class Outbox : IOutbox
     private readonly IOutboxStore _store;
 
     /// <summary>
+    ///     Gets the optional encryptor applied before payloads are written to storage.
+    /// </summary>
+    private readonly IPayloadEncryptor? _payloadEncryptor;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="Outbox" /> class.
     /// </summary>
     /// <param name="store">The outbox writer store used to persist newly accepted envelopes.</param>
     /// <param name="contractRegistry">The registry used to map the runtime event type to a stable contract.</param>
     /// <param name="messageSerializer">The serializer used to create the serialized payload.</param>
     /// <param name="clock">The time provider used to stamp storage time.</param>
+    /// <param name="payloadEncryptor">The optional encryptor applied before payloads are written to storage.</param>
     public Outbox(
         IOutboxStore store,
         IContractReader contractRegistry,
         IMessageSerializer messageSerializer,
-        TimeProvider clock)
+        TimeProvider clock,
+        IPayloadEncryptor? payloadEncryptor = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
         _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _payloadEncryptor = payloadEncryptor;
     }
 
     /// <inheritdoc />
@@ -77,6 +85,7 @@ public sealed class Outbox : IOutbox
         var storedAt = _clock.GetUtcNow();
         var messageId = options.Id ?? Guid.NewGuid();
         var payload = await _messageSerializer.SerializeAsync(@event, cancellationToken).ConfigureAwait(false);
+        payload = await PayloadProtection.ProtectAsync(payload, _payloadEncryptor, cancellationToken).ConfigureAwait(false);
 
         var envelope = new OutboxEnvelope
         {
@@ -109,5 +118,42 @@ public sealed class Outbox : IOutbox
             CausationId = storedEnvelope.CausationId,
             TenantId = storedEnvelope.TenantId
         };
+    }
+
+    /// <inheritdoc />
+    public Task<OutboxReceipt<TEvent>> ScheduleAsync<TEvent>(
+        TEvent @event,
+        DateTimeOffset enqueueAt,
+        OutboxOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where TEvent : notnull
+    {
+        return EnqueueAsync(@event, WithVisibleAfter(options, enqueueAt), cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<OutboxReceipt<TEvent>> ScheduleAfterAsync<TEvent>(
+        TEvent @event,
+        TimeSpan delay,
+        OutboxOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where TEvent : notnull
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(delay, TimeSpan.Zero, nameof(delay));
+
+        return EnqueueAsync(@event, WithVisibleAfter(options, _clock.GetUtcNow().Add(delay)), cancellationToken);
+    }
+
+    /// <summary>
+    ///     Merges the supplied options with a scheduled visibility timestamp.
+    /// </summary>
+    /// <param name="options">The caller-supplied outbox options, if any.</param>
+    /// <param name="visibleAfter">The UTC timestamp when the event becomes visible to processors.</param>
+    /// <returns>Outbox options with <see cref="OutboxOptions.VisibleAfter" /> set.</returns>
+    private static OutboxOptions WithVisibleAfter(OutboxOptions? options, DateTimeOffset visibleAfter)
+    {
+        options ??= new OutboxOptions();
+
+        return options with { VisibleAfter = visibleAfter };
     }
 }

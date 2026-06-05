@@ -1,6 +1,7 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.Amqp;
+using LiteBus.Inbox.Dispatch.Transport;
+using LiteBus.Transport.Amqp;
 using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
@@ -130,16 +131,20 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
     }
 
     [Fact]
-    public void AddInboxInProcessDispatcher_ThenAddInboxAmqpDispatcher_ShouldThrow()
+    public void AddInboxInProcessDispatcher_ThenUseTransport_ShouldThrow()
     {
         var act = () =>
         {
             new ServiceCollection()
                 .AddLiteBus(modules =>
                 {
-                    modules.AddInboxModule();
-                    modules.AddInboxInProcessDispatcher();
-                    modules.AddInboxAmqpDispatcher(options => options.Connection.HostName = "localhost");
+                    modules.AddInboxModule(inbox =>
+                    {
+                        inbox.UseInProcessDispatcher();
+                        inbox.UseTransport(
+                            _ => { },
+                            new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
+                    });
                 })
                 .BuildServiceProvider();
         };

@@ -35,14 +35,8 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 ///     </para>
 /// </remarks>
 public sealed class EfCoreInboxStore :
-    IInboxStore,
-    IInboxLeaseStore,
-    IInboxStateWriter,
-    IInboxDeadLetterStore,
-    IInboxRetentionStore,
-    IInboxDiagnosticsStore,
-    IInboxMessageQuery,
-    IInboxPurgeStore,
+    IInboxProcessingStore,
+    IInboxOperationsStore,
     ITransactionalInboxStore,
     IAsyncDisposable
 {
@@ -188,6 +182,7 @@ public sealed class EfCoreInboxStore :
             try
             {
                 await SaveChangesAsync(context, token).ConfigureAwait(false);
+                await ReloadEntityAsync(context, entity, token).ConfigureAwait(false);
                 return ToEnvelope(entity);
             }
             catch (DbUpdateException)
@@ -204,6 +199,125 @@ public sealed class EfCoreInboxStore :
                 return ToEnvelope(stored);
             }
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
+        IReadOnlyList<InboxEnvelope> envelopes,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelopes);
+
+        if (envelopes.Count == 0)
+        {
+            return Array.Empty<InboxEnvelope>();
+        }
+
+        return await ExecuteAsync(async (context, token) =>
+        {
+            var results = new InboxEnvelope[envelopes.Count];
+            var pending = new List<(int Index, InboxEnvelope Envelope)>();
+
+            for (var index = 0; index < envelopes.Count; index++)
+            {
+                var envelope = envelopes[index];
+                var local = context.InboxMessages.Local.SingleOrDefault(message => message.Id == envelope.Id);
+                if (local is not null)
+                {
+                    results[index] = ToEnvelope(local);
+                    continue;
+                }
+
+                var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
+                    .ConfigureAwait(false);
+
+                if (existing is not null)
+                {
+                    results[index] = ToEnvelope(existing);
+                    continue;
+                }
+
+                pending.Add((index, envelope));
+            }
+
+            if (pending.Count == 0)
+            {
+                return results;
+            }
+
+            var entities = pending.Select(entry => ToEntity(entry.Envelope)).ToList();
+            context.InboxMessages.AddRange(entities);
+
+            if (!_saveChangesOnAdd)
+            {
+                for (var index = 0; index < pending.Count; index++)
+                {
+                    results[pending[index].Index] = ToEnvelope(entities[index]);
+                }
+
+                return results;
+            }
+
+            try
+            {
+                await SaveChangesAsync(context, token).ConfigureAwait(false);
+
+                for (var index = 0; index < pending.Count; index++)
+                {
+                    await ReloadEntityAsync(context, entities[index], token).ConfigureAwait(false);
+                    results[pending[index].Index] = ToEnvelope(entities[index]);
+                }
+            }
+            catch (DbUpdateException)
+            {
+                foreach (var entity in entities)
+                {
+                    DetachFailedInsert(context, entity);
+                }
+
+                foreach (var (index, envelope) in pending)
+                {
+                    var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
+                        .ConfigureAwait(false)
+                        ?? throw new InvalidOperationException(
+                            "The inbox batch insert failed and the existing message could not be found.");
+
+                    results[index] = ToEnvelope(stored);
+                }
+            }
+
+            return results;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> RenewLeaseAsync(
+        Guid messageId,
+        string leaseOwner,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(leaseOwner);
+
+        return ExecuteAsync(async (context, token) =>
+        {
+            if (context is not DbContext dbContext)
+            {
+                throw new InvalidOperationException("Lease renewal requires a DbContext-backed inbox database context.");
+            }
+
+            var affected = await dbContext.Set<InboxMessageEntity>()
+                .Where(message =>
+                    message.Id == messageId &&
+                    message.Status == InboxStatus.Processing &&
+                    message.LeaseOwner == leaseOwner)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(message => message.LeaseExpiresAt, expiresAt),
+                    token)
+                .ConfigureAwait(false);
+
+            return affected > 0;
+        }, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -312,15 +426,24 @@ public sealed class EfCoreInboxStore :
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        var updated = false;
+
         foreach (var entity in entities)
         {
             var source = envelopeById[entity.Id];
+
+            if (!CanApplyInFlightTerminalState(entity, source))
+            {
+                continue;
+            }
+
             ApplyMutableState(entity, source.Status == InboxStatus.Completed
                 ? source
                 : source.AsCompleted());
+            updated = true;
         }
 
-        return entities.Count > 0;
+        return updated;
     }
 
     /// <summary>
@@ -341,12 +464,22 @@ public sealed class EfCoreInboxStore :
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        var updated = false;
+
         foreach (var entity in entities)
         {
-            ApplyMutableState(entity, envelopeById[entity.Id]);
+            var source = envelopeById[entity.Id];
+
+            if (!CanApplyInFlightTerminalState(entity, source))
+            {
+                continue;
+            }
+
+            ApplyMutableState(entity, source);
+            updated = true;
         }
 
-        return entities.Count > 0;
+        return updated;
     }
 
     /// <summary>
@@ -367,12 +500,34 @@ public sealed class EfCoreInboxStore :
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        var updated = false;
+
         foreach (var entity in entities)
         {
-            ApplyMutableState(entity, envelopeById[entity.Id]);
+            var source = envelopeById[entity.Id];
+
+            if (!CanApplyInFlightTerminalState(entity, source))
+            {
+                continue;
+            }
+
+            ApplyMutableState(entity, source);
+            updated = true;
         }
 
-        return entities.Count > 0;
+        return updated;
+    }
+
+    /// <summary>
+    ///     Determines whether a terminal persist can be applied to one tracked in-flight row.
+    /// </summary>
+    /// <param name="entity">The tracked entity loaded from storage.</param>
+    /// <param name="envelope">The post-transition envelope supplied by the processor.</param>
+    /// <returns><see langword="true" /> when the row is still leased by the same owner; otherwise, <see langword="false" />.</returns>
+    private static bool CanApplyInFlightTerminalState(InboxMessageEntity entity, InboxEnvelope envelope)
+    {
+        return entity.Status == InboxStatus.Processing &&
+               string.Equals(entity.LeaseOwner, envelope.LeaseOwner, StringComparison.Ordinal);
     }
 
     /// <inheritdoc />
@@ -721,6 +876,23 @@ public sealed class EfCoreInboxStore :
         }
 
         return dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    ///     Reloads a tracked entity from the database so provider-specific JSON columns return canonical values.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="entity">The entity to reload.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    private static async Task ReloadEntityAsync(
+        IInboxDbContext context,
+        InboxMessageEntity entity,
+        CancellationToken cancellationToken)
+    {
+        if (context is DbContext dbContext)
+        {
+            await dbContext.Entry(entity).ReloadAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>

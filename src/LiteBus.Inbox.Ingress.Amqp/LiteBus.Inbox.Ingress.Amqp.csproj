@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Inbox.Ingress.Transport\LiteBus.Inbox.Ingress.Transport.csproj"/>
         <ProjectReference Include="..\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>
         <ProjectReference Include="..\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Inbox\LiteBus.Inbox.csproj"/>

@@ -1,34 +1,38 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Transport.Amqp;
+using LiteBus.Inbox.Ingress.Transport;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Transport.Abstractions;
+using LiteBus.Transport.Amqp;
+using LiteBus.Transport;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LiteBus.Inbox.Ingress.Amqp;
 
 /// <summary>
-///     Consumes AMQP messages and accepts them into the inbox store as LiteBus background service work.
+///     Consumes transport messages and accepts them into the inbox store as LiteBus background service work.
 /// </summary>
 public sealed class AmqpInboxConsumer : IBackgroundService
 {
     /// <summary>
-    ///     Gets the AMQP consumer used to subscribe to the ingress queue.
+    ///     Gets the transport consumer used to subscribe to the ingress queue.
     /// </summary>
-    private readonly IAmqpConsumer _consumer;
+    private readonly IMessageConsumer _consumer;
 
     /// <summary>
-    ///     Gets the optional circuit breaker shared with the AMQP connection manager.
+    ///     Gets the optional circuit breaker shared with the transport connection manager.
     /// </summary>
-    private readonly AmqpCircuitBreaker? _circuitBreaker;
+    private readonly ITransportCircuitBreaker? _circuitBreaker;
 
     /// <summary>
     ///     Gets the handler that maps deliveries to <see cref="Abstractions.IInbox.AcceptAsync" />.
     /// </summary>
-    private readonly AmqpInboxIngressHandler _handler;
+    private readonly TransportInboxIngressHandler _handler;
 
     /// <summary>
     ///     Gets the hosting options that control whether the ingress loop is enabled.
@@ -46,17 +50,27 @@ public sealed class AmqpInboxConsumer : IBackgroundService
     private readonly ILogger<AmqpInboxConsumer> _logger;
 
     /// <summary>
+    ///     The lock that serializes access to the optional batch accept buffer.
+    /// </summary>
+    private readonly object _batchSync = new();
+
+    /// <summary>
+    ///     The buffered deliveries waiting for a batch accept flush.
+    /// </summary>
+    private readonly List<TransportMessage> _batchBuffer = [];
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="AmqpInboxConsumer" /> class.
     /// </summary>
-    /// <param name="consumer">The AMQP consumer used to subscribe to the ingress queue.</param>
+    /// <param name="consumer">The transport consumer used to subscribe to the ingress queue.</param>
     /// <param name="handler">The handler that maps deliveries to inbox acceptance.</param>
     /// <param name="options">The ingress queue and broker settings.</param>
     /// <param name="hostOptions">The hosting options that control whether the ingress loop is enabled.</param>
     /// <param name="connectionManager">The optional connection manager used to resolve the shared circuit breaker.</param>
     /// <param name="logger">The optional logger for ingress restart diagnostics.</param>
     public AmqpInboxConsumer(
-        IAmqpConsumer consumer,
-        AmqpInboxIngressHandler handler,
+        IMessageConsumer consumer,
+        TransportInboxIngressHandler handler,
         AmqpInboxIngressOptions options,
         AmqpInboxIngressHostOptions hostOptions,
         IAmqpConnectionManager? connectionManager = null,
@@ -66,7 +80,7 @@ public sealed class AmqpInboxConsumer : IBackgroundService
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _hostOptions = hostOptions ?? throw new ArgumentNullException(nameof(hostOptions));
-        _circuitBreaker = connectionManager is AmqpConnectionManager manager ? manager.CircuitBreaker : null;
+        _circuitBreaker = connectionManager is AmqpConnectionManager manager ? manager.TransportCircuitBreaker : null;
         _logger = logger ?? NullLogger<AmqpInboxConsumer>.Instance;
     }
 
@@ -78,12 +92,12 @@ public sealed class AmqpInboxConsumer : IBackgroundService
             return;
         }
 
-        var consumerOptions = new AmqpConsumerOptions
+        var consumerOptions = new TransportConsumerOptions
         {
-            QueueName = _options.QueueName,
+            Destination = _options.QueueName,
             PrefetchCount = _options.PrefetchCount,
-            DeclareQueue = _options.DeclareQueue,
-            DurableQueue = _options.DurableQueue
+            DeclareDestination = _options.DeclareQueue,
+            DurableDestination = _options.DurableQueue
         };
 
         while (!stoppingToken.IsCancellationRequested)
@@ -106,6 +120,7 @@ public sealed class AmqpInboxConsumer : IBackgroundService
             }
             finally
             {
+                await FlushBatchBufferAsync(CancellationToken.None).ConfigureAwait(false);
                 await _consumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
             }
 
@@ -122,12 +137,79 @@ public sealed class AmqpInboxConsumer : IBackgroundService
     }
 
     /// <summary>
-    ///     Accepts one AMQP delivery into the inbox and acknowledges the broker delivery.
+    ///     Accepts one transport delivery into the inbox and acknowledges the broker delivery.
     /// </summary>
-    /// <param name="message">The received AMQP delivery.</param>
+    /// <param name="message">The received transport delivery.</param>
     /// <param name="cancellationToken">The token used to cancel acceptance.</param>
     /// <returns>A task that completes when the delivery has been acknowledged.</returns>
-    private async Task HandleDeliveryAsync(AmqpReceivedMessage message, CancellationToken cancellationToken)
+    private async Task HandleDeliveryAsync(TransportMessage message, CancellationToken cancellationToken)
+    {
+        if (_options.EnableBatchAccept)
+        {
+            await HandleDeliveryWithBatchBufferAsync(message, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await AcceptAndAcknowledgeAsync(message, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Buffers a delivery until the prefetch threshold is reached, then accepts and acknowledges as a batch.
+    /// </summary>
+    /// <param name="message">The received transport delivery.</param>
+    /// <param name="cancellationToken">The token used to cancel acceptance.</param>
+    /// <returns>A task that completes when the delivery is buffered or flushed.</returns>
+    private async Task HandleDeliveryWithBatchBufferAsync(TransportMessage message, CancellationToken cancellationToken)
+    {
+        List<TransportMessage>? batchToFlush = null;
+
+        lock (_batchSync)
+        {
+            _batchBuffer.Add(message);
+
+            if (_batchBuffer.Count >= _options.PrefetchCount)
+            {
+                batchToFlush = [.. _batchBuffer];
+                _batchBuffer.Clear();
+            }
+        }
+
+        if (batchToFlush is not null)
+        {
+            await AcceptAndAcknowledgeBatchAsync(batchToFlush, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Flushes any buffered deliveries still waiting for a batch accept call.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel acceptance.</param>
+    /// <returns>A task that completes when the buffer is empty.</returns>
+    private async Task FlushBatchBufferAsync(CancellationToken cancellationToken)
+    {
+        List<TransportMessage>? batchToFlush;
+
+        lock (_batchSync)
+        {
+            if (_batchBuffer.Count == 0)
+            {
+                return;
+            }
+
+            batchToFlush = [.. _batchBuffer];
+            _batchBuffer.Clear();
+        }
+
+        await AcceptAndAcknowledgeBatchAsync(batchToFlush, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Accepts one delivery into the inbox and acknowledges the broker delivery.
+    /// </summary>
+    /// <param name="message">The received transport delivery.</param>
+    /// <param name="cancellationToken">The token used to cancel acceptance.</param>
+    /// <returns>A task that completes when the delivery has been acknowledged.</returns>
+    private async Task AcceptAndAcknowledgeAsync(TransportMessage message, CancellationToken cancellationToken)
     {
         _circuitBreaker?.ThrowIfOpen();
 
@@ -155,6 +237,56 @@ public sealed class AmqpInboxConsumer : IBackgroundService
         {
             _circuitBreaker?.RecordFailure();
             await message.DiscardAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Accepts a buffered batch into the inbox and acknowledges every broker delivery on success.
+    /// </summary>
+    /// <param name="messages">The buffered transport deliveries.</param>
+    /// <param name="cancellationToken">The token used to cancel acceptance.</param>
+    /// <returns>A task that completes when the batch has been accepted and acknowledged.</returns>
+    private async Task AcceptAndAcknowledgeBatchAsync(
+        IReadOnlyList<TransportMessage> messages,
+        CancellationToken cancellationToken)
+    {
+        _circuitBreaker?.ThrowIfOpen();
+
+        try
+        {
+            await _handler.AcceptBatchAsync(messages, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (ShouldRequeue(exception))
+        {
+            foreach (var message in messages)
+            {
+                await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return;
+        }
+        catch (Exception)
+        {
+            foreach (var message in messages)
+            {
+                await message.DiscardAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return;
+        }
+
+        foreach (var message in messages)
+        {
+            try
+            {
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+                _circuitBreaker?.RecordSuccess();
+            }
+            catch
+            {
+                _circuitBreaker?.RecordFailure();
+                await message.DiscardAsync(CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 

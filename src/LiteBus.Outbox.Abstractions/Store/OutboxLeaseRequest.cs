@@ -26,4 +26,9 @@ public sealed record OutboxLeaseRequest
     ///     Gets the duration of the publication lease.
     /// </summary>
     public required TimeSpan LeaseDuration { get; init; }
+
+    /// <summary>
+    ///     Gets the optional tenant identifier used to isolate leased messages.
+    /// </summary>
+    public string? TenantId { get; init; }
 }

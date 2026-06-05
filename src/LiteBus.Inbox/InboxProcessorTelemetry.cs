@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Inbox;
 
@@ -65,5 +66,19 @@ internal static class InboxProcessorTelemetry
         SucceededCounter.Add(succeededCount);
         FailedCounter.Add(failedCount);
         DeadLetteredCounter.Add(deadLetteredCount);
+    }
+
+    /// <summary>
+    ///     Records pass-level activity tags and metrics after one processor pass completes.
+    /// </summary>
+    /// <param name="passActivity">The pass activity started for the current iteration.</param>
+    /// <param name="result">The aggregated pass result.</param>
+    public static void RecordPassResult(Activity? passActivity, ProcessorPassResult result)
+    {
+        passActivity?.SetTag("litebus.inbox.leased_count", result.LeasedCount);
+        passActivity?.SetTag("litebus.inbox.succeeded_count", result.SucceededCount);
+        passActivity?.SetTag("litebus.inbox.failed_count", result.FailedCount);
+        passActivity?.SetTag("litebus.inbox.dead_lettered_count", result.DeadLetteredCount);
+        RecordPass(result.LeasedCount, result.SucceededCount, result.FailedCount, result.DeadLetteredCount);
     }
 }

@@ -105,7 +105,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzerTests
                                   }
 
                                   public Task ScheduleAsync(CreateUserCommand command, CancellationToken cancellationToken)
-                                      => {|#0:_inbox.AddAsync<CreateUserCommand>(command, cancellationToken: cancellationToken)|};
+                                      => {|#0:_inbox.AcceptAsync(command, typeof(CreateUserCommand), cancellationToken: cancellationToken)|};
                               }
                               """;
 

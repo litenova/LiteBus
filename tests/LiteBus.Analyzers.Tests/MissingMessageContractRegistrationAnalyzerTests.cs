@@ -22,7 +22,7 @@ public sealed class MissingMessageContractRegistrationAnalyzerTests
         const string source = """
                               using System.Threading;
                               using System.Threading.Tasks;
-                              using LiteBus.Analyzers;
+                              using LiteBus.Messaging.Abstractions;
                               using LiteBus.Commands.Abstractions;
 
                               [MessageContract("payments.process-payment", 1)]

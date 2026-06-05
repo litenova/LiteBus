@@ -326,7 +326,6 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     {
         var act = () => new InboxProcessor(
             new InMemoryInboxStore(),
-            new InMemoryInboxStore(),
             new InboxTestFixtures.StubInboxDispatcher(),
             new InboxProcessorOptions { BatchSize = 0 },
             TimeProvider.System);
@@ -338,7 +337,6 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     public void InboxProcessor_WithInvalidLeaseDuration_ShouldThrow()
     {
         var act = () => new InboxProcessor(
-            new InMemoryInboxStore(),
             new InMemoryInboxStore(),
             new InboxTestFixtures.StubInboxDispatcher(),
             new InboxProcessorOptions { LeaseDuration = TimeSpan.Zero },

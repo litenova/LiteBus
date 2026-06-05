@@ -12,6 +12,9 @@
         <PackageVersion Include="OpenTelemetry" Version="1.12.0"/>
         <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.300" PrivateAssets="All"/>
         <PackageVersion Include="Npgsql" Version="9.0.4"/>
+        <PackageVersion Include="AWSSDK.SQS" Version="3.7.400.118"/>
+        <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.18.4"/>
+        <PackageVersion Include="Confluent.Kafka" Version="2.8.0"/>
         <PackageVersion Include="RabbitMQ.Client" Version="7.1.2"/>
         <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556"/>
     </ItemGroup>

@@ -76,6 +76,38 @@ public abstract class InboxRetentionStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that retention uses <c>completed_at</c> when set instead of falling back to <c>created_at</c>.
+    /// </summary>
+    [Fact]
+    public async Task DeleteCompletedOlderThanAsync_WhenCompletedAtIsRecentButCreatedAtIsOld_ShouldRetainRow()
+    {
+        var roles = CreateStore();
+        var messageId = Guid.NewGuid();
+        var createdAt = BaseTime.AddDays(-30);
+        var completedAt = BaseTime;
+        var now = BaseTime;
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, createdAt));
+
+        var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "worker-1",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        await roles.StateWriter.PersistAsync([leased[0].AsCompleted() with { CompletedAt = completedAt }]);
+
+        var deleted = await roles.RetentionStore.DeleteCompletedOlderThanAsync(now.AddDays(-1));
+
+        deleted.Should().Be(0);
+
+        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync();
+        counts.Should().ContainKey(InboxStatus.Completed).WhoseValue.Should().Be(1);
+    }
+
+    /// <summary>
     ///     Verifies that no rows are deleted when the cutoff is earlier than every completed row.
     /// </summary>
     [Fact]

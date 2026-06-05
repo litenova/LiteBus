@@ -347,7 +347,6 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     {
         var act = () => new OutboxProcessor(
             new InMemoryOutboxStore(),
-            new InMemoryOutboxStore(),
             new OutboxTests.AlwaysFailingOutboxDispatcher(),
             new OutboxProcessorOptions { BatchSize = 0 },
             TimeProvider.System);
@@ -360,7 +359,6 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     {
         var act = () => new OutboxProcessor(
             new InMemoryOutboxStore(),
-            new InMemoryOutboxStore(),
             new OutboxTests.AlwaysFailingOutboxDispatcher(),
             new OutboxProcessorOptions { LeaseDuration = TimeSpan.Zero },
             TimeProvider.System);
@@ -372,7 +370,6 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     public void OutboxProcessor_WithInvalidMaxAttempts_ShouldThrow()
     {
         var act = () => new OutboxProcessor(
-            new InMemoryOutboxStore(),
             new InMemoryOutboxStore(),
             new OutboxTests.AlwaysFailingOutboxDispatcher(),
             new OutboxProcessorOptions { Retry = new RetryOptions { MaxAttempts = 0 } },

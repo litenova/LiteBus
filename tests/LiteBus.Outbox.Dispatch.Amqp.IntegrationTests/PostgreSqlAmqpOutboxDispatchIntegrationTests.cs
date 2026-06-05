@@ -3,7 +3,7 @@ using System.Text.Json;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Dispatch.Amqp;
+using LiteBus.Outbox.Dispatch.Transport;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Storage.PostgreSql;
@@ -106,10 +106,11 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
                     });
                 });
 
-                modules.AddOutboxAmqpDispatcher(options =>
+                modules.AddOutboxModule(outbox =>
                 {
-                    options.Connection = _rabbitMqFixture.ConnectionOptions;
-                    options.DefaultExchange = exchangeName;
+                    outbox.UseTransport(
+                        transport => transport.DefaultDestination = exchangeName,
+                        new AmqpTransportModule(_rabbitMqFixture.ConnectionOptions));
                 });
             })
             .BuildServiceProvider();

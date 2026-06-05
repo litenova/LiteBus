@@ -1,0 +1,41 @@
+using AwesomeAssertions;
+using LiteBus.Runtime.Dependencies;
+using LiteBus.Runtime.Modules;
+using LiteBus.Transport.Abstractions;
+using LiteBus.Transport.Aws;
+
+namespace LiteBus.Transport.Aws.UnitTests;
+
+/// <summary>
+///     Verifies AWS SQS transport module registration behavior.
+/// </summary>
+public sealed class AwsSqsTransportModuleTests
+{
+    /// <summary>
+    ///     Verifies the module registers transport services once per configuration.
+    /// </summary>
+    [Fact]
+    public void Build_ShouldRegisterTransportServicesOnce()
+    {
+        var configuration = new ModuleConfiguration(new DependencyRegistry());
+        var options = new AwsSqsTransportOptions
+        {
+            Region = "us-east-1"
+        };
+
+        var module = new AwsSqsTransportModule(options);
+        module.Build(configuration);
+        module.Build(configuration);
+
+        configuration.DependencyRegistry
+            .Count(descriptor => descriptor.DependencyType == typeof(IMessageTransport))
+            .Should()
+            .Be(1);
+
+        configuration.DependencyRegistry
+            .Count(descriptor => descriptor.DependencyType == typeof(IMessageConsumer))
+            .Should()
+            .Be(1);
+    }
+}
+

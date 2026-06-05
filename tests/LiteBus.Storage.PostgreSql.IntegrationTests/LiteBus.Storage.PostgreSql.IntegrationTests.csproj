@@ -25,7 +25,7 @@
         <ProjectReference Include="..\..\src\LiteBus.Commands\LiteBus.Commands.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Events\LiteBus.Events.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.Amqp\LiteBus.Inbox.Dispatch.Amqp.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.Transport\LiteBus.Inbox.Dispatch.Transport.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.InProcess\LiteBus.Inbox.Dispatch.InProcess.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.Amqp\LiteBus.Inbox.Ingress.Amqp.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>

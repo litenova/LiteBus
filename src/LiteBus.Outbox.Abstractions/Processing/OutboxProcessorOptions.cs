@@ -1,5 +1,6 @@
 using System;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Outbox.Abstractions;
 
@@ -69,4 +70,41 @@ public sealed record OutboxProcessorOptions
     ///     Supply a stable name when operators correlate leases in logs or SQL with a known deployment slot or pod name.
     /// </remarks>
     public string? LeaseOwner { get; init; }
+
+    /// <summary>
+    ///     Gets the processor execution model used when the outbox module creates <see cref="IOutboxProcessor" />.
+    /// </summary>
+    /// <value>
+    ///     Default is <see cref="ProcessorArchitecture.Pipelined" />. Set
+    ///     <see cref="ProcessorArchitecture.Legacy" /> to restore the original sequential foreach loop.
+    /// </value>
+    public ProcessorArchitecture Architecture { get; init; } = ProcessorArchitecture.Pipelined;
+
+    /// <summary>
+    ///     Gets the number of parallel dispatch workers used when <see cref="Architecture" /> is
+    ///     <see cref="ProcessorArchitecture.Pipelined" />.
+    /// </summary>
+    /// <value>
+    ///     Default is <c>1</c>, which serializes dispatch within a pass. Values less than or equal to zero are rejected
+    ///     at processor construction.
+    /// </value>
+    public int DispatcherConcurrency { get; init; } = 1;
+
+    /// <summary>
+    ///     Gets the interval at which active leases are renewed while publication is in progress.
+    /// </summary>
+    /// <value>
+    ///     Default is 15 seconds. Unit: <see cref="TimeSpan" /> (wall-clock duration). Set to
+    ///     <see cref="TimeSpan.Zero" /> to disable heartbeat renewal.
+    /// </value>
+    public TimeSpan LeaseHeartbeatInterval { get; init; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    ///     Gets the optional tenant identifier that limits leasing to one tenant partition.
+    /// </summary>
+    /// <value>
+    ///     <see langword="null" /> by default, which leases messages for all tenants. Set this when registering a
+    ///     dedicated processor instance per tenant.
+    /// </value>
+    public string? TenantId { get; init; }
 }

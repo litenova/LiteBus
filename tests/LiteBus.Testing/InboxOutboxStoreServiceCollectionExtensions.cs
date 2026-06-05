@@ -17,7 +17,7 @@ public static class InboxOutboxStoreServiceCollectionExtensions
     /// <param name="store">The store instance shared by all roles.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddInboxStoreRoles<TStore>(this IServiceCollection services, TStore store)
-        where TStore : class, IInboxStore, IInboxLeaseStore, IInboxStateWriter, IInboxDeadLetterStore, IInboxRetentionStore, IInboxDiagnosticsStore, IInboxMessageQuery, IInboxPurgeStore
+        where TStore : class, IInboxProcessingStore, IInboxOperationsStore
     {
         services.AddSingleton<IInboxStore>(store);
         services.AddSingleton<IInboxLeaseStore>(store);
@@ -27,6 +27,8 @@ public static class InboxOutboxStoreServiceCollectionExtensions
         services.AddSingleton<IInboxDiagnosticsStore>(store);
         services.AddSingleton<IInboxMessageQuery>(store);
         services.AddSingleton<IInboxPurgeStore>(store);
+        services.AddSingleton<IInboxProcessingStore>(store);
+        services.AddSingleton<IInboxOperationsStore>(store);
         return services;
     }
 
@@ -38,7 +40,7 @@ public static class InboxOutboxStoreServiceCollectionExtensions
     /// <param name="store">The store instance shared by all roles.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddOutboxStoreRoles<TStore>(this IServiceCollection services, TStore store)
-        where TStore : class, IOutboxStore, IOutboxLeaseStore, IOutboxStateWriter, IOutboxDeadLetterStore, IOutboxRetentionStore, IOutboxDiagnosticsStore, IOutboxMessageQuery, IOutboxPurgeStore
+        where TStore : class, IOutboxProcessingStore, IOutboxOperationsStore
     {
         services.AddSingleton<IOutboxStore>(store);
         services.AddSingleton<IOutboxLeaseStore>(store);
@@ -48,6 +50,8 @@ public static class InboxOutboxStoreServiceCollectionExtensions
         services.AddSingleton<IOutboxDiagnosticsStore>(store);
         services.AddSingleton<IOutboxMessageQuery>(store);
         services.AddSingleton<IOutboxPurgeStore>(store);
+        services.AddSingleton<IOutboxProcessingStore>(store);
+        services.AddSingleton<IOutboxOperationsStore>(store);
         return services;
     }
 }

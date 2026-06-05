@@ -2,7 +2,7 @@ using LiteBus.Transport.Amqp;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.Amqp;
+using LiteBus.Inbox.Dispatch.Transport;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -99,11 +99,15 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
                 });
 
                 modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
-                modules.AddInboxAmqpDispatcher(amqp =>
+                modules.AddInboxModule(inbox =>
                 {
-                    amqp.Connection = connectionOptions;
-                    amqp.DefaultExchange = exchangeName;
-                    amqp.ResolveRoutingKey = _ => routingKey;
+                    inbox.UseTransport(
+                        transport =>
+                        {
+                            transport.DefaultDestination = exchangeName;
+                            transport.ResolveRoute = _ => routingKey;
+                        },
+                        new AmqpTransportModule(connectionOptions));
                 });
             })
             .BuildServiceProvider(new ServiceProviderOptions

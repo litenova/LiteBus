@@ -95,6 +95,14 @@ public sealed class PostgreSqlInboxModule : IModule
             typeof(IInboxPurgeStore),
             store));
 
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IInboxProcessingStore),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IInboxOperationsStore),
+            store));
+
         if (moduleBuilder.EnableSchemaInitialization)
         {
             configuration.DependencyRegistry.Register(new DependencyDescriptor(

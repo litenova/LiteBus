@@ -14,6 +14,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\src\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>

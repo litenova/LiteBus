@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Transport.Abstractions;
+using LiteBus.Transport;
 using RabbitMQ.Client;
 
 namespace LiteBus.Transport.Amqp;
@@ -9,7 +11,7 @@ namespace LiteBus.Transport.Amqp;
 /// <summary>
 ///     Publishes AMQP messages through a shared connection manager.
 /// </summary>
-public sealed class AmqpPublisher : IAmqpPublisher
+public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport
 {
     /// <summary>
     ///     Gets the connection manager used to open publish channels.
@@ -19,7 +21,7 @@ public sealed class AmqpPublisher : IAmqpPublisher
     /// <summary>
     ///     Gets the circuit breaker shared with the connection manager when it is a <see cref="AmqpConnectionManager" />.
     /// </summary>
-    private readonly AmqpCircuitBreaker? _circuitBreaker;
+    private readonly ITransportCircuitBreaker? _circuitBreaker;
 
     /// <summary>
     ///     Serializes publish operations on the shared publish channel.
@@ -39,8 +41,30 @@ public sealed class AmqpPublisher : IAmqpPublisher
     {
         _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
         _circuitBreaker = connectionManager is AmqpConnectionManager manager
-            ? manager.CircuitBreaker
+            ? manager.TransportCircuitBreaker
             : null;
+    }
+
+    /// <inheritdoc />
+    public Task PublishAsync(TransportPublishRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PublishAsync(
+            new AmqpPublishRequest
+            {
+                Exchange = request.Destination,
+                RoutingKey = request.Route ?? string.Empty,
+                Body = request.Body,
+                ContentType = request.ContentType,
+                ContentEncoding = request.ContentEncoding,
+                Persistent = request.Persistent,
+                Mandatory = request.Mandatory,
+                MessageId = request.MessageId,
+                CorrelationId = request.CorrelationId,
+                Headers = request.Headers
+            },
+            cancellationToken);
     }
 
     /// <inheritdoc />

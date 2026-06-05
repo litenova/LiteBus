@@ -1,3 +1,4 @@
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
@@ -5,6 +6,7 @@ using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Testing;
 using Microsoft.CodeAnalysis.Testing.Verifiers;
+using NuGet.Versioning;
 using Xunit;
 
 namespace LiteBus.Analyzers.Tests;
@@ -14,6 +16,14 @@ namespace LiteBus.Analyzers.Tests;
 /// </summary>
 internal static class AnalyzerTest
 {
+    /// <summary>
+    ///     Reference assemblies aligned with the net10.0 test target framework.
+    /// </summary>
+    internal static readonly ReferenceAssemblies Net10ReferenceAssemblies = new(
+        "net10.0",
+        new PackageIdentity("Microsoft.NETCore.App.Ref", "10.0.0"),
+        Path.Combine("ref", "net10.0"));
+
     /// <summary>
     ///     Verifies that valid source produces no diagnostics for the supplied analyzer.
     /// </summary>
@@ -89,7 +99,7 @@ internal static class AnalyzerTest
     {
         var test = new CSharpAnalyzerTest<TAnalyzer, DefaultVerifier>
         {
-            ReferenceAssemblies = ReferenceAssemblies.Net.Net80,
+            ReferenceAssemblies = Net10ReferenceAssemblies,
         };
 
         test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(

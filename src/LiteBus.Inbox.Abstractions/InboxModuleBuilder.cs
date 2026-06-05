@@ -34,6 +34,16 @@ public sealed class InboxModuleBuilder
     private readonly List<object> _ingressModules = [];
 
     /// <summary>
+    ///     Saga sub-modules registered for this inbox.
+    /// </summary>
+    private readonly List<object> _sagaModules = [];
+
+    /// <summary>
+    ///     The optional payload encryptor registered through <see cref="UsePayloadEncryption" />.
+    /// </summary>
+    private IPayloadEncryptor? _payloadEncryptor;
+
+    /// <summary>
     ///     Consumer-owned diagnostic probes registered for this inbox.
     /// </summary>
     private readonly List<DiagnosticCheckRegistration> _diagnosticChecks = [];
@@ -161,7 +171,7 @@ public sealed class InboxModuleBuilder
         {
             throw new InvalidOperationException(
                 "Inbox dispatcher is already configured. " +
-                "Call only one of UseInProcessDispatcher or UseAmqpDispatcher.");
+                "Call only one of UseInProcessDispatcher or UseTransport.");
         }
 
         _dispatcherModule = dispatcherModule;
@@ -180,6 +190,40 @@ public sealed class InboxModuleBuilder
         _ingressModules.Add(ingressModule);
         return this;
     }
+
+    /// <summary>
+    ///     Registers a saga sub-module. Called by extension methods such as EnableSagaSupport().
+    /// </summary>
+    /// <param name="sagaModule">The saga module to register as a child of the inbox module.</param>
+    /// <returns>The current builder.</returns>
+    public InboxModuleBuilder RegisterSaga(object sagaModule)
+    {
+        ArgumentNullException.ThrowIfNull(sagaModule);
+        _sagaModules.Add(sagaModule);
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers payload encryption for inbox acceptance and dispatch.
+    /// </summary>
+    /// <param name="encryptor">The encryptor used before store writes and after store reads.</param>
+    /// <returns>The current builder.</returns>
+    public InboxModuleBuilder UsePayloadEncryption(IPayloadEncryptor encryptor)
+    {
+        _payloadEncryptor = encryptor ?? throw new ArgumentNullException(nameof(encryptor));
+        return this;
+    }
+
+    /// <summary>
+    ///     Gets a value indicating whether payload encryption was configured on this builder.
+    /// </summary>
+    public bool IsPayloadEncryptionConfigured => _payloadEncryptor is not null;
+
+    /// <summary>
+    ///     Collects the configured payload encryptor, if any.
+    /// </summary>
+    /// <returns>The encryptor registered on this builder.</returns>
+    internal IPayloadEncryptor? CollectPayloadEncryptor() => _payloadEncryptor;
 
     /// <summary>
     ///     Registers a consumer-owned diagnostic probe for this inbox.
@@ -220,6 +264,7 @@ public sealed class InboxModuleBuilder
         }
 
         modules.AddRange(_ingressModules);
+        modules.AddRange(_sagaModules);
         return modules;
     }
 

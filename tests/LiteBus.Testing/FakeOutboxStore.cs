@@ -11,14 +11,8 @@ namespace LiteBus.Testing;
 ///     Prefer this type over wiring production storage modules when tests only need deterministic outbox behaviour.
 /// </remarks>
 public sealed class FakeOutboxStore :
-    IOutboxStore,
-    IOutboxLeaseStore,
-    IOutboxStateWriter,
-    IOutboxDeadLetterStore,
-    IOutboxRetentionStore,
-    IOutboxDiagnosticsStore,
-    IOutboxMessageQuery,
-    IOutboxPurgeStore
+    IOutboxProcessingStore,
+    IOutboxOperationsStore
 {
     /// <summary>
     ///     Gets the underlying in-memory store that owns envelope state.
@@ -30,10 +24,24 @@ public sealed class FakeOutboxStore :
         _inner.AddAsync(envelope, cancellationToken);
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken = default) =>
+        _inner.AddBatchAsync(envelopes, cancellationToken);
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
         OutboxLeaseRequest request,
         CancellationToken cancellationToken = default) =>
         _inner.LeasePendingAsync(request, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<bool> RenewLeaseAsync(
+        Guid messageId,
+        string leaseOwner,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default) =>
+        _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
 
     /// <inheritdoc />
     public Task PersistAsync(IReadOnlyList<OutboxEnvelope> envelopes, CancellationToken cancellationToken = default) =>

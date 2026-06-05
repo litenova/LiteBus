@@ -1,12 +1,78 @@
+using System;
+using System.Linq;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
+using LiteBus.Runtime.Abstractions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Outbox.UnitTests;
 
 internal static class OutboxTestInfrastructure
 {
+    /// <summary>
+    ///     Resolves the generic-host adapter for <see cref="OutboxProcessorBackgroundService" />.
+    /// </summary>
+    /// <param name="provider">The service provider built with <c>AddLiteBus</c> and an enabled outbox processor.</param>
+    /// <returns>The <see cref="IHostedService" /> that runs the outbox processor loop.</returns>
+    internal static IHostedService GetOutboxProcessorHostedService(IServiceProvider provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+
+        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
+        var processorIndex = manifest.BackgroundServices.ToList().IndexOf(typeof(OutboxProcessorBackgroundService));
+        if (processorIndex < 0)
+        {
+            throw new InvalidOperationException(
+                "Outbox processor background service is not registered in the LiteBus host manifest.");
+        }
+
+        var hostedServices = provider.GetServices<IHostedService>().ToList();
+        var backgroundServiceOffset = manifest.StartupTasks.Count > 0 ? 1 : 0;
+
+        return hostedServices[backgroundServiceOffset + processorIndex];
+    }
+
+    /// <summary>
+    ///     Starts every LiteBus <see cref="IHostedService" /> so startup tasks unblock background loops.
+    /// </summary>
+    /// <param name="provider">The service provider built with <c>AddLiteBus</c>.</param>
+    /// <param name="cancellationToken">A token that cancels host startup.</param>
+    /// <returns>A task that completes after each hosted service has started.</returns>
+    internal static async Task StartLiteBusHostedServicesAsync(
+        IServiceProvider provider,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+
+        foreach (var hostedService in provider.GetServices<IHostedService>())
+        {
+            await hostedService.StartAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Stops every LiteBus <see cref="IHostedService" /> in reverse registration order.
+    /// </summary>
+    /// <param name="provider">The service provider built with <c>AddLiteBus</c>.</param>
+    /// <param name="cancellationToken">A token that cancels host shutdown.</param>
+    /// <returns>A task that completes after each hosted service has stopped.</returns>
+    internal static async Task StopLiteBusHostedServicesAsync(
+        IServiceProvider provider,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+
+        var hostedServices = provider.GetServices<IHostedService>().ToList();
+        for (var index = hostedServices.Count - 1; index >= 0; index--)
+        {
+            await hostedServices[index].StopAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
     internal sealed class ThrowingOutboxLeaseStore : IOutboxLeaseStore
     {
         private readonly int _failuresBeforeSuccess;
@@ -31,6 +97,13 @@ internal static class OutboxTestInfrastructure
 
             return _inner.LeasePendingAsync(request, cancellationToken);
         }
+
+        public Task<bool> RenewLeaseAsync(
+            Guid messageId,
+            string leaseOwner,
+            DateTimeOffset expiresAt,
+            CancellationToken cancellationToken = default) =>
+            _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
     }
 
     /// <summary>

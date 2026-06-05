@@ -6,6 +6,7 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -430,6 +431,7 @@ public sealed class InboxTests : LiteBusTestBase
             .AddSingleton<IInboxStore>(inner)
             .AddSingleton<IInboxLeaseStore>(inner)
             .AddSingleton<IInboxStateWriter>(flakyStateStore)
+            .AddSingleton<IInboxProcessingStore>(InboxTestInfrastructure.CreateProcessingStore(inner, flakyStateStore))
             .AddSingleton<IInboxRetentionStore>(inner)
             .AddSingleton<IInboxDiagnosticsStore>(inner)
             .AddSingleton(recorder)
@@ -450,6 +452,7 @@ public sealed class InboxTests : LiteBusTestBase
                         BatchSize = 10,
                         LeaseOwner = "test-worker",
                         LeaseDuration = TimeSpan.FromSeconds(30),
+                        Architecture = ProcessorArchitecture.Legacy,
                         Retry = new RetryOptions { UseJitter = false }
                     });
                 });
@@ -491,7 +494,6 @@ public sealed class InboxTests : LiteBusTestBase
     public void InboxProcessor_WithInvalidMaxAttempts_ShouldThrow()
     {
         var act = () => new InboxProcessor(
-            new InMemoryInboxStore(),
             new InMemoryInboxStore(),
             new InboxTestFixtures.StubInboxDispatcher(),
             new InboxProcessorOptions

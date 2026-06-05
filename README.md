@@ -102,7 +102,7 @@ LiteBus ships as small packages so you reference only what you run. The full lay
 | Metapackage | `LiteBus` (core modules only; storage and dispatch are opt-in) |
 | Core modules | `modules.Commands`, `modules.Queries`, `modules.Events`, `modules.Inbox`, `modules.Outbox`, `modules.Messaging`, `modules.Runtime` |
 | InProcess dispatch | `modules.Inbox.Dispatch.InProcess`, `modules.Outbox.Dispatch.InProcess` |
-| Transport | `modules.Transport.Amqp`, `modules.Inbox.Dispatch.Amqp`, `modules.Outbox.Dispatch.Amqp`, `modules.Inbox.Ingress.Amqp` |
+| Transport | `modules.Transport`, `modules.Transport.Amqp`, `modules.Inbox.Dispatch.Transport`, `modules.Outbox.Dispatch.Transport`, `modules.Inbox.Ingress.Transport`, `modules.Inbox.Ingress.Amqp` |
 | Abstractions | `modules.Commands.Abstractions`, `modules.Queries.Abstractions`, `modules.Events.Abstractions`, `modules.Inbox.Abstractions`, `modules.Outbox.Abstractions`, `modules.Messaging.Abstractions`, `modules.Runtime.Abstractions` |
 | PostgreSQL | `modules.Inbox.Storage.PostgreSql`, `modules.Outbox.Storage.PostgreSql` |
 | Microsoft DI | `modules.Extensions.Microsoft.DependencyInjection`, `modules.Commands.Extensions.Microsoft.DependencyInjection`, `modules.Queries.Extensions.Microsoft.DependencyInjection`, `modules.Events.Extensions.Microsoft.DependencyInjection`, `modules.Messaging.Extensions.Microsoft.DependencyInjection`, `modules.Runtime.Extensions.Microsoft.DependencyInjection` |

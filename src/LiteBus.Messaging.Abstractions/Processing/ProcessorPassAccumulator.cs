@@ -11,7 +11,7 @@ namespace LiteBus.Messaging.Abstractions.Processing;
 ///     Collects post-transition envelope instances ready for a single store round trip.
 ///     Not thread-safe; one instance per processor pass.
 /// </remarks>
-public sealed class ProcessorPassAccumulator<TEnvelope>
+public sealed class ProcessorPassAccumulator<TEnvelope> : IProcessorPassRecorder<TEnvelope>
 {
     /// <summary>
     ///     The post-transition envelopes to be persisted in one store call.

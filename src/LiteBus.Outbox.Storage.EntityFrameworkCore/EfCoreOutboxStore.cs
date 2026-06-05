@@ -35,14 +35,8 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 ///     </para>
 /// </remarks>
 public sealed class EfCoreOutboxStore :
-    IOutboxStore,
-    IOutboxLeaseStore,
-    IOutboxStateWriter,
-    IOutboxDeadLetterStore,
-    IOutboxRetentionStore,
-    IOutboxDiagnosticsStore,
-    IOutboxMessageQuery,
-    IOutboxPurgeStore,
+    IOutboxProcessingStore,
+    IOutboxOperationsStore,
     ITransactionalOutboxStore,
     IAsyncDisposable
 {
@@ -204,6 +198,124 @@ public sealed class EfCoreOutboxStore :
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelopes);
+
+        if (envelopes.Count == 0)
+        {
+            return Array.Empty<OutboxEnvelope>();
+        }
+
+        return await ExecuteAsync(async (context, token) =>
+        {
+            var results = new OutboxEnvelope[envelopes.Count];
+            var pending = new List<(int Index, OutboxEnvelope Envelope)>();
+
+            for (var index = 0; index < envelopes.Count; index++)
+            {
+                var envelope = envelopes[index];
+                var local = context.OutboxMessages.Local.SingleOrDefault(message => message.Id == envelope.Id);
+                if (local is not null)
+                {
+                    results[index] = ToEnvelope(local);
+                    continue;
+                }
+
+                var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
+                    .ConfigureAwait(false);
+
+                if (existing is not null)
+                {
+                    results[index] = ToEnvelope(existing);
+                    continue;
+                }
+
+                pending.Add((index, envelope));
+            }
+
+            if (pending.Count == 0)
+            {
+                return results;
+            }
+
+            var entities = pending.Select(entry => ToEntity(entry.Envelope)).ToList();
+            context.OutboxMessages.AddRange(entities);
+
+            if (!_saveChangesOnAdd)
+            {
+                for (var index = 0; index < pending.Count; index++)
+                {
+                    results[pending[index].Index] = ToEnvelope(entities[index]);
+                }
+
+                return results;
+            }
+
+            try
+            {
+                await SaveChangesAsync(context, token).ConfigureAwait(false);
+
+                for (var index = 0; index < pending.Count; index++)
+                {
+                    results[pending[index].Index] = ToEnvelope(entities[index]);
+                }
+            }
+            catch (DbUpdateException)
+            {
+                foreach (var entity in entities)
+                {
+                    DetachFailedInsert(context, entity);
+                }
+
+                foreach (var (index, envelope) in pending)
+                {
+                    var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
+                        .ConfigureAwait(false)
+                        ?? throw new InvalidOperationException(
+                            "The outbox batch insert failed and the existing message could not be found.");
+
+                    results[index] = ToEnvelope(stored);
+                }
+            }
+
+            return results;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> RenewLeaseAsync(
+        Guid messageId,
+        string leaseOwner,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(leaseOwner);
+
+        return ExecuteAsync(async (context, token) =>
+        {
+            if (context is not DbContext dbContext)
+            {
+                throw new InvalidOperationException("Lease renewal requires a DbContext-backed outbox database context.");
+            }
+
+            var affected = await dbContext.Set<OutboxMessageEntity>()
+                .Where(message =>
+                    message.Id == messageId &&
+                    message.Status == OutboxStatus.Publishing &&
+                    message.LeaseOwner == leaseOwner)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(message => message.LeaseExpiresAt, expiresAt),
+                    token)
+                .ConfigureAwait(false);
+
+            return affected > 0;
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
         OutboxLeaseRequest request,
         CancellationToken cancellationToken = default)
@@ -309,15 +421,24 @@ public sealed class EfCoreOutboxStore :
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        var updated = false;
+
         foreach (var entity in entities)
         {
             var source = envelopeById[entity.Id];
+
+            if (!CanApplyInFlightTerminalState(entity, source))
+            {
+                continue;
+            }
+
             ApplyMutableState(entity, source.Status == OutboxStatus.Published
                 ? source
                 : source.AsPublished());
+            updated = true;
         }
 
-        return entities.Count > 0;
+        return updated;
     }
 
     /// <summary>
@@ -338,12 +459,22 @@ public sealed class EfCoreOutboxStore :
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        var updated = false;
+
         foreach (var entity in entities)
         {
-            ApplyMutableState(entity, envelopeById[entity.Id]);
+            var source = envelopeById[entity.Id];
+
+            if (!CanApplyInFlightTerminalState(entity, source))
+            {
+                continue;
+            }
+
+            ApplyMutableState(entity, source);
+            updated = true;
         }
 
-        return entities.Count > 0;
+        return updated;
     }
 
     /// <summary>
@@ -364,12 +495,34 @@ public sealed class EfCoreOutboxStore :
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        var updated = false;
+
         foreach (var entity in entities)
         {
-            ApplyMutableState(entity, envelopeById[entity.Id]);
+            var source = envelopeById[entity.Id];
+
+            if (!CanApplyInFlightTerminalState(entity, source))
+            {
+                continue;
+            }
+
+            ApplyMutableState(entity, source);
+            updated = true;
         }
 
-        return entities.Count > 0;
+        return updated;
+    }
+
+    /// <summary>
+    ///     Determines whether a terminal persist can be applied to one tracked in-flight row.
+    /// </summary>
+    /// <param name="entity">The tracked entity loaded from storage.</param>
+    /// <param name="envelope">The post-transition envelope supplied by the processor.</param>
+    /// <returns><see langword="true" /> when the row is still leased by the same owner; otherwise, <see langword="false" />.</returns>
+    private static bool CanApplyInFlightTerminalState(OutboxMessageEntity entity, OutboxEnvelope envelope)
+    {
+        return entity.Status == OutboxStatus.Publishing &&
+               string.Equals(entity.LeaseOwner, envelope.LeaseOwner, StringComparison.Ordinal);
     }
 
     /// <inheritdoc />

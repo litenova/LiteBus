@@ -11,14 +11,8 @@ namespace LiteBus.Testing;
 ///     Prefer this type over wiring production storage modules when tests only need deterministic inbox behaviour.
 /// </remarks>
 public sealed class FakeInboxStore :
-    IInboxStore,
-    IInboxLeaseStore,
-    IInboxStateWriter,
-    IInboxDeadLetterStore,
-    IInboxRetentionStore,
-    IInboxDiagnosticsStore,
-    IInboxMessageQuery,
-    IInboxPurgeStore
+    IInboxProcessingStore,
+    IInboxOperationsStore
 {
     /// <summary>
     ///     Gets the underlying in-memory store that owns envelope state.
@@ -40,10 +34,24 @@ public sealed class FakeInboxStore :
         _inner.AddAsync(envelope, cancellationToken);
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
+        IReadOnlyList<InboxEnvelope> envelopes,
+        CancellationToken cancellationToken = default) =>
+        _inner.AddBatchAsync(envelopes, cancellationToken);
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
         InboxLeaseRequest request,
         CancellationToken cancellationToken = default) =>
         _inner.LeasePendingAsync(request, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<bool> RenewLeaseAsync(
+        Guid messageId,
+        string leaseOwner,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default) =>
+        _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
 
     /// <inheritdoc />
     public Task PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default) =>

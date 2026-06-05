@@ -36,4 +36,13 @@ public sealed record AmqpInboxIngressOptions
     ///     Gets a value indicating whether failed store writes should be requeued by the broker.
     /// </summary>
     public bool RequeueOnFailure { get; init; } = true;
+
+    /// <summary>
+    ///     Gets a value indicating whether the consumer should buffer deliveries and call batch inbox accept.
+    /// </summary>
+    /// <value>
+    ///     Default is <see langword="false" />. When <see langword="true" />, the consumer flushes buffered deliveries
+    ///     after reaching <see cref="PrefetchCount" /> or when the ingress loop stops.
+    /// </value>
+    public bool EnableBatchAccept { get; init; }
 }

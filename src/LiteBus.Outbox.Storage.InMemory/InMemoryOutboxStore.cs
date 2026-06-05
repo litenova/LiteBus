@@ -22,14 +22,8 @@ namespace LiteBus.Outbox.Storage.InMemory;
 ///     </para>
 /// </remarks>
 public sealed class InMemoryOutboxStore :
-    IOutboxStore,
-    IOutboxLeaseStore,
-    IOutboxStateWriter,
-    IOutboxDeadLetterStore,
-    IOutboxRetentionStore,
-    IOutboxDiagnosticsStore,
-    IOutboxMessageQuery,
-    IOutboxPurgeStore
+    IOutboxProcessingStore,
+    IOutboxOperationsStore
 {
     /// <summary>
     ///     The envelopes keyed by message identifier.
@@ -53,26 +47,55 @@ public sealed class InMemoryOutboxStore :
 
         lock (_sync)
         {
-            if (_envelopes.TryGetValue(envelope.Id, out var existingById))
+            return Task.FromResult(AddCore(envelope));
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelopes);
+
+        if (envelopes.Count == 0)
+        {
+            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>(Array.Empty<OutboxEnvelope>());
+        }
+
+        lock (_sync)
+        {
+            var stored = new OutboxEnvelope[envelopes.Count];
+
+            for (var index = 0; index < envelopes.Count; index++)
             {
-                return Task.FromResult(existingById);
+                stored[index] = AddCore(envelopes[index]);
             }
 
-            if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey) &&
-                _idempotencyIndex.TryGetValue(envelope.IdempotencyKey, out var existingId) &&
-                _envelopes.TryGetValue(existingId, out var existingByKey))
+            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>(stored);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<bool> RenewLeaseAsync(
+        Guid messageId,
+        string leaseOwner,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(leaseOwner);
+
+        lock (_sync)
+        {
+            if (!_envelopes.TryGetValue(messageId, out var envelope) ||
+                envelope.Status != OutboxStatus.Publishing ||
+                !string.Equals(envelope.LeaseOwner, leaseOwner, StringComparison.Ordinal))
             {
-                return Task.FromResult(existingByKey);
+                return Task.FromResult(false);
             }
 
-            _envelopes[envelope.Id] = envelope;
-
-            if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
-            {
-                _idempotencyIndex[envelope.IdempotencyKey] = envelope.Id;
-            }
-
-            return Task.FromResult(envelope);
+            _envelopes[messageId] = envelope with { LeaseExpiresAt = expiresAt };
+            return Task.FromResult(true);
         }
     }
 
@@ -88,6 +111,7 @@ public sealed class InMemoryOutboxStore :
             var leaseExpiresAt = request.Now.Add(request.LeaseDuration);
             var staleCutoff = request.Now.Add(-request.LeaseDuration);
             var leased = _envelopes.Values
+                .Where(envelope => request.TenantId is null || envelope.TenantId == request.TenantId)
                 .Where(envelope => IsAvailable(envelope, request.Now, staleCutoff))
                 .OrderBy(envelope => envelope.CreatedAt)
                 .Take(request.BatchSize)
@@ -117,7 +141,10 @@ public sealed class InMemoryOutboxStore :
         {
             foreach (var envelope in envelopes)
             {
-                _envelopes[envelope.Id] = ClearLeaseWhenTerminal(envelope);
+                if (!TryPersistTerminal(envelope))
+                {
+                    continue;
+                }
 
                 if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
                 {
@@ -481,6 +508,60 @@ public sealed class InMemoryOutboxStore :
         {
             throw new ArgumentOutOfRangeException(nameof(pageSize), pageSize, "Page size must be greater than zero.");
         }
+    }
+
+    /// <summary>
+    ///     Inserts one envelope or returns the existing row for duplicate identifiers or idempotency keys.
+    /// </summary>
+    /// <param name="envelope">The envelope to store.</param>
+    /// <returns>The stored envelope.</returns>
+    private OutboxEnvelope AddCore(OutboxEnvelope envelope)
+    {
+        if (_envelopes.TryGetValue(envelope.Id, out var existingById))
+        {
+            return existingById;
+        }
+
+        if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey) &&
+            _idempotencyIndex.TryGetValue(envelope.IdempotencyKey, out var existingId) &&
+            _envelopes.TryGetValue(existingId, out var existingByKey))
+        {
+            return existingByKey;
+        }
+
+        _envelopes[envelope.Id] = envelope;
+
+        if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
+        {
+            _idempotencyIndex[envelope.IdempotencyKey] = envelope.Id;
+        }
+
+        return envelope;
+    }
+
+    /// <summary>
+    ///     Persists one terminal envelope when the stored row is still leased by the same owner.
+    /// </summary>
+    /// <param name="envelope">The post-transition envelope supplied by the processor.</param>
+    /// <returns><see langword="true" /> when the row was updated; otherwise <see langword="false" />.</returns>
+    private bool TryPersistTerminal(OutboxEnvelope envelope)
+    {
+        if (!_envelopes.TryGetValue(envelope.Id, out var existing))
+        {
+            return false;
+        }
+
+        if (envelope.Status is OutboxStatus.Published or OutboxStatus.Failed or OutboxStatus.DeadLettered)
+        {
+            if (existing.Status != OutboxStatus.Publishing ||
+                !string.Equals(existing.LeaseOwner, envelope.LeaseOwner, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        _envelopes[envelope.Id] = ClearLeaseWhenTerminal(envelope);
+        return true;
     }
 
     /// <summary>

@@ -1,0 +1,36 @@
+using System;
+using LiteBus.Outbox;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+
+namespace LiteBus.Outbox.Extensions.OpenTelemetry;
+
+/// <summary>
+///     Registers LiteBus outbox activity sources and meters with OpenTelemetry providers.
+/// </summary>
+public static class LiteBusOutboxOpenTelemetryExtensions
+{
+    /// <summary>
+    ///     Adds the LiteBus outbox activity source to the tracer provider builder.
+    /// </summary>
+    /// <param name="builder">The tracer provider builder receiving LiteBus outbox instrumentation.</param>
+    /// <returns>The tracer provider builder for method chaining.</returns>
+    public static TracerProviderBuilder AddLiteBusOutboxInstrumentation(this TracerProviderBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        return builder.AddSource(LiteBusOutboxTelemetry.ActivitySourceName);
+    }
+
+    /// <summary>
+    ///     Adds the LiteBus outbox meter to the meter provider builder.
+    /// </summary>
+    /// <param name="builder">The meter provider builder receiving LiteBus outbox metrics.</param>
+    /// <returns>The meter provider builder for method chaining.</returns>
+    public static MeterProviderBuilder AddLiteBusOutboxMetrics(this MeterProviderBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        return builder.AddMeter(LiteBusOutboxTelemetry.MeterName);
+    }
+}

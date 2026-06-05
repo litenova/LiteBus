@@ -18,42 +18,17 @@ internal sealed class OutboxManager : IOutboxManager
     private const int DeadLetterRequeuePageSize = 200;
 
     /// <summary>
-    ///     The message query role used for browse operations.
+    ///     The operations store used for browse, replay, purge, and diagnostics.
     /// </summary>
-    private readonly IOutboxMessageQuery _messageQuery;
-
-    /// <summary>
-    ///     The purge role used to delete rows that match operator filters.
-    /// </summary>
-    private readonly IOutboxPurgeStore _purgeStore;
-
-    /// <summary>
-    ///     The dead-letter role used to replay dead-lettered messages.
-    /// </summary>
-    private readonly IOutboxDeadLetterStore _deadLetterStore;
-
-    /// <summary>
-    ///     The diagnostics role used to read aggregate status counts.
-    /// </summary>
-    private readonly IOutboxDiagnosticsStore _diagnosticsStore;
+    private readonly IOutboxOperationsStore _operationsStore;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="OutboxManager" /> class.
     /// </summary>
-    /// <param name="messageQuery">The message query role used for browse operations.</param>
-    /// <param name="purgeStore">The purge role used to delete rows that match operator filters.</param>
-    /// <param name="deadLetterStore">The dead-letter role used to replay dead-lettered messages.</param>
-    /// <param name="diagnosticsStore">The diagnostics role used to read aggregate status counts.</param>
-    public OutboxManager(
-        IOutboxMessageQuery messageQuery,
-        IOutboxPurgeStore purgeStore,
-        IOutboxDeadLetterStore deadLetterStore,
-        IOutboxDiagnosticsStore diagnosticsStore)
+    /// <param name="operationsStore">The operations store used for browse, replay, purge, and diagnostics.</param>
+    public OutboxManager(IOutboxOperationsStore operationsStore)
     {
-        _messageQuery = messageQuery ?? throw new ArgumentNullException(nameof(messageQuery));
-        _purgeStore = purgeStore ?? throw new ArgumentNullException(nameof(purgeStore));
-        _deadLetterStore = deadLetterStore ?? throw new ArgumentNullException(nameof(deadLetterStore));
-        _diagnosticsStore = diagnosticsStore ?? throw new ArgumentNullException(nameof(diagnosticsStore));
+        _operationsStore = operationsStore ?? throw new ArgumentNullException(nameof(operationsStore));
     }
 
     /// <inheritdoc />
@@ -65,7 +40,7 @@ internal sealed class OutboxManager : IOutboxManager
         ArgumentNullException.ThrowIfNull(filter);
         ArgumentNullException.ThrowIfNull(pageRequest);
 
-        return _messageQuery.QueryAsync(filter, pageRequest, cancellationToken);
+        return _operationsStore.QueryAsync(filter, pageRequest, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -76,7 +51,7 @@ internal sealed class OutboxManager : IOutboxManager
 
         while (true)
         {
-            var page = await _messageQuery.QueryAsync(
+            var page = await _operationsStore.QueryAsync(
                 OutboxMessageFilter.DeadLettered,
                 new OutboxMessagePageRequest
                 {
@@ -90,7 +65,7 @@ internal sealed class OutboxManager : IOutboxManager
                 return requeuedCount;
             }
 
-            await _deadLetterStore.RequeueAsync(
+            await _operationsStore.RequeueAsync(
                 page.Items.Select(envelope => envelope.Id).ToArray(),
                 cancellationToken).ConfigureAwait(false);
 
@@ -110,11 +85,11 @@ internal sealed class OutboxManager : IOutboxManager
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        return _purgeStore.PurgeAsync(filter, cancellationToken);
+        return _operationsStore.PurgeAsync(filter, cancellationToken);
     }
 
     /// <inheritdoc />
     public Task<IReadOnlyDictionary<OutboxStatus, int>> GetStatusCountsAsync(
         CancellationToken cancellationToken = default) =>
-        _diagnosticsStore.GetStatusCountsAsync(cancellationToken);
+        _operationsStore.GetStatusCountsAsync(cancellationToken);
 }

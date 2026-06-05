@@ -1,5 +1,6 @@
 using System;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Inbox.Abstractions;
 
@@ -69,4 +70,50 @@ public sealed record InboxProcessorOptions
     ///     Supply a stable name when operators correlate leases in logs or SQL with a known deployment slot or pod name.
     /// </remarks>
     public string? LeaseOwner { get; init; }
+
+    /// <summary>
+    ///     Gets the processor execution model used when the inbox module creates <see cref="IInboxProcessor" />.
+    /// </summary>
+    /// <value>
+    ///     Default is <see cref="ProcessorArchitecture.Pipelined" />. Set
+    ///     <see cref="ProcessorArchitecture.Legacy" /> to restore the original sequential foreach loop.
+    /// </value>
+    public ProcessorArchitecture Architecture { get; init; } = ProcessorArchitecture.Pipelined;
+
+    /// <summary>
+    ///     Gets the number of parallel dispatch workers used when <see cref="Architecture" /> is
+    ///     <see cref="ProcessorArchitecture.Pipelined" />.
+    /// </summary>
+    /// <value>
+    ///     Default is <c>1</c>, which serializes dispatch within a pass. Values less than or equal to zero are rejected
+    ///     at processor construction.
+    /// </value>
+    /// <remarks>
+    ///     Raise this value when handlers are I/O bound and the store supports guarded terminal writes. Keep it at
+    ///     <c>1</c> when handlers must run strictly one at a time per processor instance.
+    /// </remarks>
+    public int DispatcherConcurrency { get; init; } = 1;
+
+    /// <summary>
+    ///     Gets the interval at which active leases are renewed while dispatch is in progress.
+    /// </summary>
+    /// <value>
+    ///     Default is 15 seconds. Unit: <see cref="TimeSpan" /> (wall-clock duration). Set to
+    ///     <see cref="TimeSpan.Zero" /> to disable heartbeat renewal.
+    /// </value>
+    /// <remarks>
+    ///     Heartbeat renewal extends <c>lease_expires_at</c> for envelopes currently being dispatched so another worker
+    ///     does not reclaim them during slow handlers. The interval should be shorter than
+    ///     <see cref="LeaseDuration" />.
+    /// </remarks>
+    public TimeSpan LeaseHeartbeatInterval { get; init; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    ///     Gets the optional tenant identifier that limits leasing to one tenant partition.
+    /// </summary>
+    /// <value>
+    ///     <see langword="null" /> by default, which leases messages for all tenants. Set this when registering a
+    ///     dedicated processor instance per tenant.
+    /// </value>
+    public string? TenantId { get; init; }
 }

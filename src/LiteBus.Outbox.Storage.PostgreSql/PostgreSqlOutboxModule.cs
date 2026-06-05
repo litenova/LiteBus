@@ -95,6 +95,14 @@ public sealed class PostgreSqlOutboxModule : IModule
             typeof(IOutboxPurgeStore),
             store));
 
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxProcessingStore),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxOperationsStore),
+            store));
+
         var workSignal = moduleBuilder.Options.UseListenNotify
             ? (IOutboxWorkSignal)new PostgreSqlOutboxWorkSignal(moduleBuilder.DataSource)
             : new OutboxPollingWorkSignal();

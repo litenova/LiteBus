@@ -1,0 +1,78 @@
+using System;
+using System.Collections.Concurrent;
+using System.Threading;
+using System.Threading.Tasks;
+using Azure.Messaging.ServiceBus;
+using LiteBus.Transport.Abstractions;
+using LiteBus.Transport;
+
+namespace LiteBus.Transport.AzureServiceBus;
+
+/// <summary>
+///     Publishes messages to Azure Service Bus queues or topics.
+/// </summary>
+public sealed class AzureServiceBusPublisher : IMessageTransport, IAsyncDisposable
+{
+    /// <summary>
+    ///     Gets the shared Service Bus client used to create senders.
+    /// </summary>
+    private readonly ServiceBusClient _client;
+
+    /// <summary>
+    ///     Gets the circuit breaker guarding publish operations.
+    /// </summary>
+    private readonly ITransportCircuitBreaker _circuitBreaker;
+
+    /// <summary>
+    ///     Gets the senders cached per destination name.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, ServiceBusSender> _senders =
+        new(StringComparer.Ordinal);
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="AzureServiceBusPublisher" /> class.
+    /// </summary>
+    /// <param name="client">The shared Service Bus client used to create senders.</param>
+    /// <param name="circuitBreaker">The circuit breaker guarding publish operations.</param>
+    public AzureServiceBusPublisher(ServiceBusClient client, ITransportCircuitBreaker circuitBreaker)
+    {
+        _client = client ?? throw new ArgumentNullException(nameof(client));
+        _circuitBreaker = circuitBreaker ?? throw new ArgumentNullException(nameof(circuitBreaker));
+    }
+
+    /// <inheritdoc />
+    public async Task PublishAsync(TransportPublishRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        _circuitBreaker.ThrowIfOpen();
+
+        try
+        {
+            var sender = _senders.GetOrAdd(
+                request.Destination,
+                static (destination, client) => client.CreateSender(destination),
+                _client);
+            var message = AzureServiceBusMessageMapper.ToServiceBusMessage(request);
+            await sender.SendMessageAsync(message, cancellationToken).ConfigureAwait(false);
+            _circuitBreaker.RecordSuccess();
+        }
+        catch (Exception)
+        {
+            _circuitBreaker.RecordFailure();
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        foreach (var sender in _senders.Values)
+        {
+            await sender.DisposeAsync().ConfigureAwait(false);
+        }
+
+        _senders.Clear();
+    }
+}
+

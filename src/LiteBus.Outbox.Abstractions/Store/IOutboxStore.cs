@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -34,4 +35,20 @@ public interface IOutboxStore
     ///     rather than a copy of the rejected input.
     /// </returns>
     Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Adds multiple pending outbox envelopes in one store round trip.
+    /// </summary>
+    /// <param name="envelopes">
+    ///     The serialized envelopes with identifiers, stable contracts, payloads, metadata, and initial status already
+    ///     assigned.
+    /// </param>
+    /// <param name="cancellationToken">A token that cancels the store write before it is committed.</param>
+    /// <returns>
+    ///     The stored envelopes in the same order as <paramref name="envelopes" />. Duplicate message identifiers return
+    ///     the previously accepted row for that slot.
+    /// </returns>
+    Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken = default);
 }

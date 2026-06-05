@@ -1,0 +1,89 @@
+using System;
+using System.Linq;
+using Amazon;
+using Amazon.Runtime;
+using Amazon.SQS;
+using LiteBus.Runtime.Abstractions;
+using LiteBus.Transport;
+
+namespace LiteBus.Transport.Aws;
+
+/// <summary>
+///     Module that registers AWS SQS transport services implementing <see cref="Abstractions.IMessageTransport" />.
+/// </summary>
+public sealed class AwsSqsTransportModule : IModule
+{
+    /// <summary>
+    ///     Gets the connection settings configured by the application.
+    /// </summary>
+    private readonly AwsSqsTransportOptions _options;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="AwsSqsTransportModule" /> class.
+    /// </summary>
+    /// <param name="options">The connection settings configured by the application.</param>
+    public AwsSqsTransportModule(AwsSqsTransportOptions options)
+    {
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+    }
+
+    /// <inheritdoc />
+    public void Build(IModuleConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(Abstractions.IMessageTransport)))
+        {
+            return;
+        }
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(AwsSqsTransportOptions),
+            _options));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IAmazonSQS),
+            static serviceProvider =>
+            {
+                var options = serviceProvider.GetService(typeof(AwsSqsTransportOptions))
+                    as AwsSqsTransportOptions
+                    ?? throw new InvalidOperationException($"{nameof(AwsSqsTransportOptions)} is not registered.");
+
+                var config = new AmazonSQSConfig();
+
+                if (!string.IsNullOrWhiteSpace(options.ServiceUrl))
+                {
+                    config.ServiceURL = options.ServiceUrl;
+                }
+                else if (!string.IsNullOrWhiteSpace(options.Region))
+                {
+                    config.RegionEndpoint = RegionEndpoint.GetBySystemName(options.Region);
+                }
+
+                if (!string.IsNullOrWhiteSpace(options.AccessKey) && !string.IsNullOrWhiteSpace(options.SecretKey))
+                {
+                    var credentials = new BasicAWSCredentials(options.AccessKey, options.SecretKey);
+                    return new AmazonSQSClient(credentials, config);
+                }
+
+                return new AmazonSQSClient(config);
+            },
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(ITransportCircuitBreaker),
+            static _ => new TransportCircuitBreaker(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(Abstractions.IMessageTransport),
+            typeof(SqsPublisher)));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(Abstractions.IMessageConsumer),
+            typeof(SqsConsumer)));
+
+        TransportMetricsRegistration.RegisterIfNeeded(configuration);
+    }
+}
+

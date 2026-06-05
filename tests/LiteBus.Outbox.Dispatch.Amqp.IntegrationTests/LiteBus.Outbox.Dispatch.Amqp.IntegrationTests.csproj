@@ -18,7 +18,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.Amqp\LiteBus.Outbox.Dispatch.Amqp.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.Transport\LiteBus.Outbox.Dispatch.Transport.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.InMemory\LiteBus.Outbox.Storage.InMemory.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.PostgreSql\LiteBus.Outbox.Storage.PostgreSql.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Storage.PostgreSql\LiteBus.Storage.PostgreSql.csproj"/>

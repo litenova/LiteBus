@@ -1,0 +1,107 @@
+using System.Collections.Concurrent;
+using System.Threading.Channels;
+
+namespace LiteBus.Transport.InMemory;
+
+/// <summary>
+///     Channel-backed broker that routes in-memory deliveries to named destinations.
+/// </summary>
+public sealed class InMemoryTransportBroker
+{
+    /// <summary>
+    ///     Gets the destination endpoints keyed by destination name.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, InMemoryDestinationEndpoint> _endpoints =
+        new(StringComparer.Ordinal);
+
+    /// <summary>
+    ///     Gets or creates the endpoint for the supplied destination name.
+    /// </summary>
+    /// <param name="destination">The destination name used by publishers and consumers.</param>
+    /// <returns>The shared endpoint for the destination.</returns>
+    internal InMemoryDestinationEndpoint GetOrCreateEndpoint(string destination)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(destination);
+
+        return _endpoints.GetOrAdd(destination, static _ => new InMemoryDestinationEndpoint());
+    }
+
+    /// <summary>
+    ///     Clears all queued deliveries and resets destination endpoints.
+    /// </summary>
+    internal void Reset()
+    {
+        _endpoints.Clear();
+    }
+}
+
+/// <summary>
+///     One destination endpoint backed by an unbounded channel.
+/// </summary>
+internal sealed class InMemoryDestinationEndpoint
+{
+    /// <summary>
+    ///     Gets the channel carrying pending deliveries for the destination.
+    /// </summary>
+    private readonly Channel<InMemoryPendingDelivery> _channel = Channel.CreateUnbounded<InMemoryPendingDelivery>(
+        new UnboundedChannelOptions
+        {
+            SingleReader = false,
+            SingleWriter = false,
+            AllowSynchronousContinuations = false
+        });
+
+    /// <summary>
+    ///     Gets the writer used by publishers.
+    /// </summary>
+    /// <returns>The channel writer for the destination.</returns>
+    internal ChannelWriter<InMemoryPendingDelivery> Writer => _channel.Writer;
+
+    /// <summary>
+    ///     Gets the reader used by consumers.
+    /// </summary>
+    /// <returns>The channel reader for the destination.</returns>
+    internal ChannelReader<InMemoryPendingDelivery> Reader => _channel.Reader;
+}
+
+/// <summary>
+///     One pending in-memory delivery waiting for a consumer handler.
+/// </summary>
+internal sealed class InMemoryPendingDelivery
+{
+    /// <summary>
+    ///     Gets the delivery body.
+    /// </summary>
+    public required ReadOnlyMemory<byte> Body { get; init; }
+
+    /// <summary>
+    ///     Gets the application headers copied from the publish request.
+    /// </summary>
+    public required IReadOnlyDictionary<string, object?> Headers { get; init; }
+
+    /// <summary>
+    ///     Gets the destination name the delivery was published to.
+    /// </summary>
+    public required string Destination { get; init; }
+
+    /// <summary>
+    ///     Gets the optional route within the destination.
+    /// </summary>
+    public string? Route { get; init; }
+
+    /// <summary>
+    ///     Gets the optional transport message identifier.
+    /// </summary>
+    public string? MessageId { get; init; }
+
+    /// <summary>
+    ///     Gets the optional correlation identifier.
+    /// </summary>
+    public string? CorrelationId { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the delivery is being redelivered.
+    /// </summary>
+    public bool Redelivered { get; init; }
+}
+

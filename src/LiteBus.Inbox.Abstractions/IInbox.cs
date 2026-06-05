@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -56,6 +57,49 @@ public interface IInbox
     Task<InboxReceipt<T>> AcceptAsync<T>(
         T message,
         InboxOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where T : notnull;
+
+    /// <summary>
+    ///     Accepts multiple messages for later execution in one store round trip.
+    /// </summary>
+    /// <param name="messages">The message instances to serialize and store.</param>
+    /// <param name="messageTypes">
+    ///     The runtime message types used for contract lookup. Must contain the same number of entries as
+    ///     <paramref name="messages" />.
+    /// </param>
+    /// <param name="options">
+    ///     Optional per-message metadata aligned with <paramref name="messages" />. When omitted, default metadata is used
+    ///     for every message. When supplied, the list length must match <paramref name="messages" />.
+    /// </param>
+    /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
+    /// <returns>
+    ///     Receipts containing message ids, contract names, versions, acceptance times, and trace metadata in the same
+    ///     order as <paramref name="messages" />.
+    /// </returns>
+    Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
+        IReadOnlyList<object> messages,
+        IReadOnlyList<Type> messageTypes,
+        IReadOnlyList<InboxOptions?>? options = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Accepts multiple messages for later execution in one store round trip.
+    /// </summary>
+    /// <typeparam name="T">The shared message type being stored.</typeparam>
+    /// <param name="messages">The message instances to serialize and store.</param>
+    /// <param name="options">
+    ///     Optional per-message metadata aligned with <paramref name="messages" />. When omitted, default metadata is used
+    ///     for every message.
+    /// </param>
+    /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
+    /// <returns>
+    ///     Receipts containing message ids, contract names, versions, acceptance times, and trace metadata in the same
+    ///     order as <paramref name="messages" />.
+    /// </returns>
+    Task<IReadOnlyList<InboxReceipt<T>>> AcceptBatchAsync<T>(
+        IReadOnlyList<T> messages,
+        IReadOnlyList<InboxOptions?>? options = null,
         CancellationToken cancellationToken = default)
         where T : notnull;
 }

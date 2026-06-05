@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
+using LiteBus.Transport;
 
 namespace LiteBus.Transport.Amqp;
 
@@ -70,8 +71,11 @@ public sealed class AmqpTransportObservableMetrics
     /// <returns>The circuit breaker instance, or <see langword="null" /> when AMQP transport is not registered.</returns>
     private AmqpCircuitBreaker? ResolveCircuitBreaker()
     {
-        return _serviceProvider.GetService(typeof(IAmqpConnectionManager)) is AmqpConnectionManager manager
-            ? manager.CircuitBreaker
-            : null;
+        if (_serviceProvider.GetService(typeof(IAmqpConnectionManager)) is AmqpConnectionManager manager)
+        {
+            return manager.CircuitBreaker;
+        }
+
+        return _serviceProvider.GetService(typeof(ITransportCircuitBreaker)) as AmqpCircuitBreaker;
     }
 }

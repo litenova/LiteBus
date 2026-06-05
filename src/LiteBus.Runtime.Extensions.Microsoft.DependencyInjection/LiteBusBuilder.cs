@@ -11,7 +11,7 @@ namespace LiteBus.Extensions.Microsoft.DependencyInjection;
 ///     and module registrations for the <see cref="ILiteBusBuilder" />-based
 ///     <c>AddLiteBus</c> overload on <see cref="ServiceCollectionExtensions" />.
 /// </summary>
-internal sealed class LiteBusBuilder : ILiteBusBuilder
+public sealed class LiteBusBuilder : ILiteBusBuilder
 {
     /// <summary>
     ///     Deferred contract registrations applied after all modules build.

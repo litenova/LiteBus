@@ -44,4 +44,19 @@ internal static class DiagnosticIds
     ///     Duplicate query handler for the same query type.
     /// </summary>
     internal const string DuplicateQueryHandler = "LB1010";
+
+    /// <summary>
+    ///     Handler tag is not referenced by any publish or send filter in the compilation.
+    /// </summary>
+    internal const string OrphanHandlerTag = "LB1011";
+
+    /// <summary>
+    ///     Handler type name is duplicated across assemblies and may be registered twice.
+    /// </summary>
+    internal const string DuplicateHandlerAcrossAssemblies = "LB1012";
+
+    /// <summary>
+    ///     Type depends on transactional outbox storage without a database context in the same constructor.
+    /// </summary>
+    internal const string TransactionalOutboxWithoutDbContext = "LB1013";
 }

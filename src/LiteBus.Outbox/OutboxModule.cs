@@ -3,8 +3,6 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Outbox;
@@ -69,7 +67,7 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
             throw new LiteBusConfigurationException(
                 "EnableOutboxProcessor requires both storage and dispatcher to be configured. " +
                 "Call UseInMemoryStorage, UsePostgreSqlStorage, or UseEfCoreStorage and " +
-                "UseInProcessDispatcher or UseAmqpDispatcher inside AddOutboxModule(...).");
+                "UseInProcessDispatcher or UseTransport inside AddOutboxModule(...).");
         }
 
         var contractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
@@ -87,8 +85,19 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
             typeof(OutboxProcessorOptions),
             _builder.ProcessorOptions));
 
+        if (_builder.CollectPayloadEncryptor() is { } outboxEncryptor)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(IPayloadEncryptor),
+                outboxEncryptor));
+        }
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutbox),
+            typeof(Outbox)));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxScheduler),
             typeof(Outbox)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -180,23 +189,9 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
     }
 
     /// <summary>
-    ///     Creates an <see cref="OutboxProcessor" /> from the dependency injection container.
+    ///     Creates an <see cref="IOutboxProcessor" /> from the dependency injection container.
     /// </summary>
     /// <param name="services">The service provider used to resolve processor dependencies.</param>
     /// <returns>The configured outbox processor instance.</returns>
-    private static object CreateOutboxProcessor(IServiceProvider services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        var logger = services.GetService(typeof(ILogger<OutboxProcessor>)) as ILogger<OutboxProcessor>
-                     ?? NullLogger<OutboxProcessor>.Instance;
-
-        return new OutboxProcessor(
-            (IOutboxLeaseStore)services.GetService(typeof(IOutboxLeaseStore))!,
-            (IOutboxStateWriter)services.GetService(typeof(IOutboxStateWriter))!,
-            (IOutboxDispatcher)services.GetService(typeof(IOutboxDispatcher))!,
-            (OutboxProcessorOptions)services.GetService(typeof(OutboxProcessorOptions))!,
-            services.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System,
-            logger);
-    }
+    private static object CreateOutboxProcessor(IServiceProvider services) => OutboxProcessorFactory.Create(services);
 }

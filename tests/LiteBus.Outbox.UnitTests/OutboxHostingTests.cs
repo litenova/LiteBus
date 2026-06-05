@@ -20,10 +20,9 @@ public sealed class OutboxHostingTests : LiteBusTestBase
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         await using var provider = BuildProvider(dispatcher, hostOptions => hostOptions.Enabled = false);
-        var hostedService = provider.GetServices<IHostedService>().Single();
-
-        await hostedService.StartAsync(CancellationToken.None);
-        await hostedService.StopAsync(CancellationToken.None);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
+        await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
 
         dispatcher.Instance!.DispatchedMessages.Should().BeEmpty();
     }
@@ -38,15 +37,14 @@ public sealed class OutboxHostingTests : LiteBusTestBase
             configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(50));
 
         var outbox = provider.GetRequiredService<IOutbox>();
-        var hostedService = provider.GetServices<IHostedService>().Single();
 
         var orderId = Guid.NewGuid();
         await outbox.EnqueueAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { Id = Guid.NewGuid() });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await hostedService.StartAsync(cts.Token);
+        await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
         await Task.Delay(TimeSpan.FromMilliseconds(300));
-        await hostedService.StopAsync(CancellationToken.None);
+        await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
 
         dispatcher.Instance!.DispatchedMessages
             .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
@@ -107,19 +105,18 @@ public sealed class OutboxHostingTests : LiteBusTestBase
             });
 
         var outbox = provider.GetRequiredService<IOutbox>();
-        var hostedService = provider.GetServices<IHostedService>().Single();
 
         var orderId = Guid.NewGuid();
         await outbox.EnqueueAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { Id = Guid.NewGuid() });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await hostedService.StartAsync(cts.Token);
+        await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
 
         await Task.Delay(TimeSpan.FromMilliseconds(100));
         dispatcher.Instance!.DispatchedMessages.Should().BeEmpty();
 
         await Task.Delay(TimeSpan.FromMilliseconds(350));
-        await hostedService.StopAsync(CancellationToken.None);
+        await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
 
         dispatcher.Instance.DispatchedMessages
             .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
@@ -151,7 +148,6 @@ public sealed class OutboxHostingTests : LiteBusTestBase
             });
 
         var outbox = provider.GetRequiredService<IOutbox>();
-        var hostedService = provider.GetServices<IHostedService>().Single();
 
         for (var i = 0; i < 4; i++)
         {
@@ -160,9 +156,9 @@ public sealed class OutboxHostingTests : LiteBusTestBase
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var startedAt = DateTimeOffset.UtcNow;
-        await hostedService.StartAsync(cts.Token);
+        await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
         await Task.Delay(TimeSpan.FromMilliseconds(500));
-        await hostedService.StopAsync(CancellationToken.None);
+        await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
 
         var elapsed = DateTimeOffset.UtcNow - startedAt;
         elapsed.Should().BeLessThan(TimeSpan.FromSeconds(1));

@@ -51,6 +51,83 @@ public sealed class LiteBusInboxSaveChangesInterceptorUnitTests
         stored.TraceContext.Should().Be(envelope.TraceContext);
     }
 
+    /// <summary>
+    ///     Confirms parallel saves on different contexts sharing one interceptor isolate pending envelopes per context.
+    /// </summary>
+    [Fact]
+    public async Task SavingChangesAsync_when_multiple_contexts_save_concurrently_should_persist_isolated_envelopes()
+    {
+        const int contextCount = 8;
+        var interceptor = new LiteBusInboxSaveChangesInterceptor();
+        var envelopes = Enumerable.Range(0, contextCount)
+            .Select(index => CreateFullEnvelope() with
+            {
+                Id = Guid.NewGuid(),
+                IdempotencyKey = $"parallel-{index}",
+                Payload = $$"""{"index":{{index}}}"""
+            })
+            .ToArray();
+
+        var storedIds = new System.Collections.Concurrent.ConcurrentBag<Guid>();
+
+        await Task.WhenAll(Enumerable.Range(0, contextCount).Select(async index =>
+        {
+            var options = new DbContextOptionsBuilder<InterceptorInboxDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+                .AddLiteBusInboxInterceptor(interceptor)
+                .Options;
+
+            await using var context = new InterceptorInboxDbContext(options);
+            await context.Database.EnsureCreatedAsync();
+            interceptor.Enqueue(context, envelopes[index]);
+            await context.SaveChangesAsync();
+            storedIds.Add((await context.InboxMessages.SingleAsync()).Id);
+        }));
+
+        storedIds.Should().BeEquivalentTo(envelopes.Select(envelope => envelope.Id));
+    }
+
+    /// <summary>
+    ///     Confirms parallel enqueues on one context accumulate in the interceptor pending list for a single save.
+    /// </summary>
+    [Fact]
+    public async Task SavingChangesAsync_when_same_context_accumulates_parallel_enqueues_should_persist_all_envelopes()
+    {
+        const int envelopeCount = 8;
+        var interceptor = new LiteBusInboxSaveChangesInterceptor();
+        var envelopes = Enumerable.Range(0, envelopeCount)
+            .Select(index => CreateFullEnvelope() with
+            {
+                Id = Guid.NewGuid(),
+                IdempotencyKey = $"same-context-{index}",
+                Payload = $$"""{"index":{{index}}}"""
+            })
+            .ToArray();
+
+        var options = new DbContextOptionsBuilder<InterceptorInboxDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+            .AddLiteBusInboxInterceptor(interceptor)
+            .Options;
+
+        await using var context = new InterceptorInboxDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+
+        var enqueueLock = new object();
+        await Task.WhenAll(envelopes.Select(envelope => Task.Run(() =>
+        {
+            lock (enqueueLock)
+            {
+                interceptor.Enqueue(context, envelope);
+            }
+        })));
+
+        await context.SaveChangesAsync();
+
+        var stored = await context.InboxMessages.AsNoTracking().ToListAsync();
+        stored.Should().HaveCount(envelopeCount);
+        stored.Select(message => message.Id).Should().OnlyHaveUniqueItems();
+    }
+
     private static InboxEnvelope CreateFullEnvelope()
     {
         return new InboxEnvelope

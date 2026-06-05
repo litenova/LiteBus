@@ -4,6 +4,7 @@ using LiteBus.Transport.Amqp;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.Dispatch.Transport;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Testing;
@@ -30,7 +31,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
     /// <summary>
     ///     Gets the registration delegate used to register the AMQP outbox dispatcher.
     /// </summary>
-    protected abstract Action<IModuleRegistry, AmqpConnectionOptions, string> RegisterDispatcher { get; }
+    protected abstract Action<IModuleRegistry, AmqpConnectionOptions, string> RegisterTransportDispatcher { get; }
 
     /// <summary>
     ///     Verifies that the outbox processor publishes a stored envelope to the configured AMQP queue.
@@ -140,7 +141,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
                     });
                 });
 
-                RegisterDispatcher(modules, ConnectionOptions, exchangeName);
+                RegisterTransportDispatcher(modules, ConnectionOptions, exchangeName);
             })
             .BuildServiceProvider();
     }
@@ -292,13 +293,14 @@ public sealed class RabbitMqOutboxDispatchIntegrationTests : AmqpOutboxDispatchI
     protected override string BrokerName => "RabbitMQ";
 
     /// <inheritdoc />
-    protected override Action<IModuleRegistry, AmqpConnectionOptions, string> RegisterDispatcher { get; } =
+    protected override Action<IModuleRegistry, AmqpConnectionOptions, string> RegisterTransportDispatcher { get; } =
         (registry, connection, exchangeName) =>
         {
-            registry.AddOutboxRabbitMqDispatcher(options =>
+            registry.AddOutboxModule(outbox =>
             {
-                options.Connection = connection;
-                options.DefaultExchange = exchangeName;
+                outbox.UseTransport(
+                    options => options.DefaultDestination = exchangeName,
+                    new AmqpTransportModule(connection));
             });
         };
 }
@@ -326,13 +328,14 @@ public sealed class LavinMqOutboxDispatchIntegrationTests : AmqpOutboxDispatchIn
     protected override string BrokerName => "LavinMQ";
 
     /// <inheritdoc />
-    protected override Action<IModuleRegistry, AmqpConnectionOptions, string> RegisterDispatcher { get; } =
+    protected override Action<IModuleRegistry, AmqpConnectionOptions, string> RegisterTransportDispatcher { get; } =
         (registry, connection, exchangeName) =>
         {
-            registry.AddOutboxLavinMqDispatcher(options =>
+            registry.AddOutboxModule(outbox =>
             {
-                options.Connection = connection;
-                options.DefaultExchange = exchangeName;
+                outbox.UseTransport(
+                    options => options.DefaultDestination = exchangeName,
+                    new AmqpTransportModule(connection));
             });
         };
 }
@@ -344,22 +347,23 @@ public sealed class LavinMqOutboxDispatchIntegrationTests : AmqpOutboxDispatchIn
 public sealed class AmqpOutboxDispatchRegistrationTests : LiteBusTestBase
 {
     /// <summary>
-    ///     Verifies that the canonical AMQP registration extension resolves the AMQP dispatcher.
+    ///     Verifies that the canonical AMQP registration extension resolves the transport dispatcher.
     /// </summary>
     [Fact]
-    public void AddOutboxAmqpDispatcher_ShouldRegisterAmqpOutboxDispatcher()
+    public void UseTransport_WithAmqpTransportModule_ShouldRegisterTransportOutboxDispatcher()
     {
         var provider = new ServiceCollection()
             .AddLiteBus(modules =>
             {
-                modules.AddOutboxModule();
-                modules.AddOutboxAmqpDispatcher(options =>
+                modules.AddOutboxModule(outbox =>
                 {
-                    options.Connection.HostName = "localhost";
+                    outbox.UseTransport(
+                        _ => { },
+                        new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
                 });
             })
             .BuildServiceProvider();
 
-        provider.GetRequiredService<IOutboxDispatcher>().Should().BeOfType<AmqpOutboxDispatcher>();
+        provider.GetRequiredService<IOutboxDispatcher>().Should().BeOfType<TransportOutboxDispatcher>();
     }
 }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -29,4 +30,20 @@ public interface IInboxStore
     /// <param name="cancellationToken">A token that cancels the store write before it is committed.</param>
     /// <returns>The stored envelope, or the existing envelope when the store detects a duplicate submission.</returns>
     Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Adds multiple pending inbox envelopes in one store round trip.
+    /// </summary>
+    /// <param name="envelopes">
+    ///     The serialized envelopes with identifiers, stable contracts, payloads, visibility timestamps, idempotency keys,
+    ///     and tracing metadata already assigned.
+    /// </param>
+    /// <param name="cancellationToken">A token that cancels the store write before it is committed.</param>
+    /// <returns>
+    ///     The stored envelopes in the same order as <paramref name="envelopes" />. Duplicate idempotency keys or message
+    ///     identifiers return the previously accepted row for that slot.
+    /// </returns>
+    Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
+        IReadOnlyList<InboxEnvelope> envelopes,
+        CancellationToken cancellationToken = default);
 }

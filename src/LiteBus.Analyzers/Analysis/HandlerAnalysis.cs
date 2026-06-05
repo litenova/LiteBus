@@ -38,6 +38,7 @@ internal static class HandlerAnalysis
         System.Threading.CancellationToken cancellationToken = default)
     {
         var builder = ImmutableArray.CreateBuilder<HandlerRegistration>();
+        var processed = new System.Collections.Generic.HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
 
         foreach (var syntaxTree in compilation.SyntaxTrees)
         {
@@ -45,31 +46,120 @@ internal static class HandlerAnalysis
                          .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax>())
             {
                 var model = compilation.GetSemanticModel(syntaxTree);
-                var symbol = model.GetDeclaredSymbol(typeDeclaration, cancellationToken) as INamedTypeSymbol;
-
-                if (symbol is null || symbol.TypeKind == TypeKind.Interface)
+                if (model.GetDeclaredSymbol(typeDeclaration, cancellationToken) is INamedTypeSymbol symbol)
                 {
-                    continue;
-                }
-
-                var location = symbol.Locations.FirstOrDefault() ?? Location.None;
-
-                foreach (var handlerInterface in symbol.AllInterfaces)
-                {
-                    var pipeline = GetPipeline(compilation, handlerInterface);
-
-                    if (pipeline is null)
-                    {
-                        continue;
-                    }
-
-                    var messageType = handlerInterface.TypeArguments[0];
-                    builder.Add(new HandlerRegistration(symbol, messageType, pipeline, location));
+                    TryAddHandlerRegistration(compilation, symbol, builder, processed);
                 }
             }
         }
 
+        foreach (var reference in compilation.References)
+        {
+            if (compilation.GetAssemblyOrModuleSymbol(reference) is not IAssemblySymbol assemblySymbol ||
+                !ShouldScanReferencedAssembly(assemblySymbol, compilation.Assembly))
+            {
+                continue;
+            }
+
+            foreach (var module in assemblySymbol.Modules)
+            {
+                CollectHandlerRegistrationsFromNamespace(
+                    compilation,
+                    module.GlobalNamespace,
+                    builder,
+                    processed);
+            }
+        }
+
         return builder.ToImmutable();
+    }
+
+    /// <summary>
+    ///     Adds handler registrations declared on one named type symbol when it has not already been processed.
+    /// </summary>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="symbol">The candidate handler type symbol.</param>
+    /// <param name="builder">The registration builder.</param>
+    /// <param name="processed">The set of handler types already processed.</param>
+    private static void TryAddHandlerRegistration(
+        Compilation compilation,
+        INamedTypeSymbol symbol,
+        ImmutableArray<HandlerRegistration>.Builder builder,
+        System.Collections.Generic.HashSet<INamedTypeSymbol> processed)
+    {
+        if (symbol.TypeKind == TypeKind.Interface || !processed.Add(symbol))
+        {
+            return;
+        }
+
+        var location = symbol.Locations.FirstOrDefault(locationCandidate => locationCandidate.IsInSource)
+            ?? symbol.Locations.FirstOrDefault()
+            ?? Location.None;
+
+        foreach (var handlerInterface in symbol.AllInterfaces)
+        {
+            var pipeline = GetPipeline(compilation, handlerInterface);
+
+            if (pipeline is null)
+            {
+                continue;
+            }
+
+            var messageType = handlerInterface.TypeArguments[0];
+            builder.Add(new HandlerRegistration(symbol, messageType, pipeline, location));
+        }
+
+        foreach (var nestedType in symbol.GetTypeMembers())
+        {
+            TryAddHandlerRegistration(compilation, nestedType, builder, processed);
+        }
+    }
+
+    /// <summary>
+    ///     Walks a namespace and registers handler types declared beneath it.
+    /// </summary>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="namespaceSymbol">The namespace to walk.</param>
+    /// <param name="builder">The registration builder.</param>
+    /// <param name="processed">The set of handler types already processed.</param>
+    private static void CollectHandlerRegistrationsFromNamespace(
+        Compilation compilation,
+        INamespaceSymbol namespaceSymbol,
+        ImmutableArray<HandlerRegistration>.Builder builder,
+        System.Collections.Generic.HashSet<INamedTypeSymbol> processed)
+    {
+        foreach (var member in namespaceSymbol.GetMembers())
+        {
+            if (member is INamespaceSymbol nestedNamespace)
+            {
+                CollectHandlerRegistrationsFromNamespace(compilation, nestedNamespace, builder, processed);
+            }
+            else if (member is INamedTypeSymbol namedType)
+            {
+                TryAddHandlerRegistration(compilation, namedType, builder, processed);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether handler registrations should be collected from a referenced assembly.
+    /// </summary>
+    /// <param name="assemblySymbol">The referenced assembly symbol.</param>
+    /// <param name="compilationAssembly">The assembly under analysis.</param>
+    /// <returns><see langword="true" /> when the referenced assembly may contain application handlers.</returns>
+    private static bool ShouldScanReferencedAssembly(IAssemblySymbol assemblySymbol, IAssemblySymbol compilationAssembly)
+    {
+        if (SymbolEqualityComparer.Default.Equals(assemblySymbol, compilationAssembly))
+        {
+            return false;
+        }
+
+        var name = assemblySymbol.Name;
+
+        return !name.StartsWith("System", StringComparison.Ordinal) &&
+               !name.StartsWith("Microsoft", StringComparison.Ordinal) &&
+               !name.StartsWith("netstandard", StringComparison.Ordinal) &&
+               !name.StartsWith("LiteBus", StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -94,6 +184,25 @@ internal static class HandlerAnalysis
         }
 
         return null;
+    }
+
+    /// <summary>
+    ///     Determines whether the type implements any LiteBus handler interface.
+    /// </summary>
+    /// <param name="handlerType">The candidate handler type symbol.</param>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <returns><see langword="true" /> when the type implements a handler interface.</returns>
+    internal static bool IsHandlerType(INamedTypeSymbol handlerType, Compilation compilation)
+    {
+        foreach (var handlerInterface in handlerType.AllInterfaces)
+        {
+            if (GetPipeline(compilation, handlerInterface) is not null)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

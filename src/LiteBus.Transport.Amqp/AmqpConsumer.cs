@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Transport.Abstractions;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
@@ -11,7 +12,7 @@ namespace LiteBus.Transport.Amqp;
 /// <summary>
 ///     Consumes AMQP deliveries from one queue with manual acknowledgement support.
 /// </summary>
-public sealed class AmqpConsumer : IAmqpConsumer
+public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
 {
     /// <summary>
     ///     Gets the connection manager used to open the consumer channel.
@@ -45,6 +46,30 @@ public sealed class AmqpConsumer : IAmqpConsumer
     public AmqpConsumer(IAmqpConnectionManager connectionManager)
     {
         _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
+    }
+
+    /// <inheritdoc />
+    public Task StartAsync(
+        TransportConsumerOptions options,
+        Func<TransportMessage, CancellationToken, Task> handler,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(handler);
+
+        return StartAsync(
+            new AmqpConsumerOptions
+            {
+                QueueName = options.Destination,
+                PrefetchCount = options.PrefetchCount,
+                DeclareQueue = options.DeclareDestination,
+                DurableQueue = options.DurableDestination,
+                Exclusive = options.Exclusive,
+                ConsumerTag = options.ConsumerTag,
+                QueueArguments = options.DestinationArguments
+            },
+            (message, token) => handler(ToTransportMessage(message), token),
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -190,6 +215,25 @@ public sealed class AmqpConsumer : IAmqpConsumer
         await StopAsync().ConfigureAwait(false);
         _lifecycleGate.Dispose();
     }
+
+    /// <summary>
+    ///     Maps an AMQP delivery to the transport-neutral message model.
+    /// </summary>
+    /// <param name="message">The received AMQP delivery.</param>
+    /// <returns>The transport message passed to generic consumer handlers.</returns>
+    private static TransportMessage ToTransportMessage(AmqpReceivedMessage message) =>
+        new()
+        {
+            Body = message.Body,
+            Headers = message.Headers,
+            Destination = message.Exchange,
+            Route = message.RoutingKey,
+            MessageId = message.MessageId,
+            CorrelationId = message.CorrelationId,
+            Redelivered = message.Redelivered,
+            AckAsync = message.AcceptAsync,
+            NackAsync = (requeue, token) => message.NackDelegate(false, requeue, token)
+        };
 
     /// <summary>
     ///     Creates a new task source used to observe consumer shutdown.

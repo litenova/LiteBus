@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Transport;
 using RabbitMQ.Client;
 
 namespace LiteBus.Transport.Amqp;
@@ -34,6 +35,11 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     ///     Gets the circuit breaker shared with publishers and consumers created from this connection manager.
     /// </summary>
     public AmqpCircuitBreaker CircuitBreaker => _circuitBreaker;
+
+    /// <summary>
+    ///     Gets the shared transport circuit breaker instance.
+    /// </summary>
+    public ITransportCircuitBreaker TransportCircuitBreaker => _circuitBreaker;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="AmqpConnectionManager" /> class.

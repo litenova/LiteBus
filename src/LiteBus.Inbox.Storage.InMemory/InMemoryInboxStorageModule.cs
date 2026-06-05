@@ -56,6 +56,8 @@ public sealed class InMemoryInboxStorageModule : IModule
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxDiagnosticsStore), store));
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxMessageQuery), store));
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxPurgeStore), store));
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxProcessingStore), store));
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxOperationsStore), store));
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(InMemoryInboxStore), store));
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxWorkSignal), typeof(InboxPollingWorkSignal)));
     }

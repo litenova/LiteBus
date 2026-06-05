@@ -18,13 +18,12 @@ public sealed class InboxProcessorBulkTerminalStateTests
     public async Task ProcessPendingAsync_when_max_attempts_exceeded_should_persist_per_message_and_in_finally()
     {
         var inner = new InMemoryInboxStore();
-        var stateWriter = new CountingInboxStateWriter(inner);
+        var processingStore = new CountingInboxProcessingStore(inner);
         var clock = new ManualTimeProvider(new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero));
         var dispatcher = new AlwaysFailingInboxDispatcher();
 
         var processor = new InboxProcessor(
-            inner,
-            stateWriter,
+            processingStore,
             dispatcher,
             new InboxProcessorOptions
             {
@@ -52,8 +51,8 @@ public sealed class InboxProcessorBulkTerminalStateTests
         var result = await processor.ProcessPendingAsync();
 
         result.DeadLetteredCount.Should().Be(3);
-        stateWriter.PersistCallCount.Should().Be(4);
-        stateWriter.LastPersistedDeadLetterCount.Should().Be(3);
+        processingStore.PersistCallCount.Should().Be(4);
+        processingStore.LastPersistedDeadLetterCount.Should().Be(3);
     }
 
     /// <summary>
@@ -69,13 +68,13 @@ public sealed class InboxProcessorBulkTerminalStateTests
     }
 
     /// <summary>
-    ///     State writer that counts persist calls and dead-letter batch sizes.
+    ///     Processing store that counts persist calls and dead-letter batch sizes.
     /// </summary>
-    private sealed class CountingInboxStateWriter : IInboxStateWriter
+    private sealed class CountingInboxProcessingStore : IInboxProcessingStore
     {
         private readonly InMemoryInboxStore _inner;
 
-        public CountingInboxStateWriter(InMemoryInboxStore inner)
+        public CountingInboxProcessingStore(InMemoryInboxStore inner)
         {
             _inner = inner;
         }
@@ -83,6 +82,26 @@ public sealed class InboxProcessorBulkTerminalStateTests
         public int PersistCallCount { get; private set; }
 
         public int LastPersistedDeadLetterCount { get; private set; }
+
+        public Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default) =>
+            _inner.AddAsync(envelope, cancellationToken);
+
+        public Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
+            IReadOnlyList<InboxEnvelope> envelopes,
+            CancellationToken cancellationToken = default) =>
+            _inner.AddBatchAsync(envelopes, cancellationToken);
+
+        public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
+            InboxLeaseRequest request,
+            CancellationToken cancellationToken = default) =>
+            _inner.LeasePendingAsync(request, cancellationToken);
+
+        public Task<bool> RenewLeaseAsync(
+            Guid messageId,
+            string leaseOwner,
+            DateTimeOffset expiresAt,
+            CancellationToken cancellationToken = default) =>
+            _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
 
         public Task PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
         {

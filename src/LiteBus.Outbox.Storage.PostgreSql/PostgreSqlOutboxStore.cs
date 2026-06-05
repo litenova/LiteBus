@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Outbox.Abstractions;
@@ -32,14 +33,8 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 ///     </para>
 /// </remarks>
 public sealed class PostgreSqlOutboxStore :
-    IOutboxStore,
-    IOutboxLeaseStore,
-    IOutboxStateWriter,
-    IOutboxDeadLetterStore,
-    IOutboxRetentionStore,
-    IOutboxDiagnosticsStore,
-    IOutboxMessageQuery,
-    IOutboxPurgeStore
+    IOutboxProcessingStore,
+    IOutboxOperationsStore
 {
     /// <summary>
     ///     The PostgreSQL data source used to open commands against the outbox table.
@@ -200,7 +195,8 @@ public sealed class PostgreSqlOutboxStore :
                       SELECT message_id
                       FROM {_tableName}
                       WHERE
-                          ((status IN (@pending_status, @failed_status) AND (visible_after IS NULL OR visible_after <= @now))
+                          (@tenant_id IS NULL OR tenant_id = @tenant_id)
+                          AND ((status IN (@pending_status, @failed_status) AND (visible_after IS NULL OR visible_after <= @now))
                            OR (status = @publishing_status AND lease_expires_at IS NOT NULL AND lease_expires_at <= @now)
                            OR (status = @publishing_status AND lease_expires_at IS NULL AND created_at < @stale_cutoff))
                       ORDER BY created_at ASC
@@ -245,8 +241,134 @@ public sealed class PostgreSqlOutboxStore :
         command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
         command.Parameters.AddWithValue("lease_expires_at", request.Now.Add(request.LeaseDuration));
         command.Parameters.AddWithValue("stale_cutoff", request.Now.Add(-request.LeaseDuration));
+        AddNullableTextParameter(command, "tenant_id", request.TenantId);
 
         return await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> RenewLeaseAsync(
+        Guid messageId,
+        string leaseOwner,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(leaseOwner);
+
+        var sql = $"""
+                  UPDATE {_tableName}
+                  SET lease_expires_at = @lease_expires_at
+                  WHERE message_id = @message_id
+                      AND status = @publishing_status
+                      AND lease_owner = @lease_owner;
+                  """;
+
+        await using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("lease_expires_at", expiresAt);
+        command.Parameters.AddWithValue("message_id", messageId);
+        command.Parameters.AddWithValue("publishing_status", (int)OutboxStatus.Publishing);
+        command.Parameters.AddWithValue("lease_owner", leaseOwner);
+
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affected > 0;
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelopes);
+
+        if (envelopes.Count == 0)
+        {
+            return Array.Empty<OutboxEnvelope>();
+        }
+
+        if (envelopes.Count == 1)
+        {
+            return [await AddAsync(envelopes[0], cancellationToken).ConfigureAwait(false)];
+        }
+
+        var valueClauses = new StringBuilder();
+
+        for (var index = 0; index < envelopes.Count; index++)
+        {
+            if (index > 0)
+            {
+                valueClauses.Append(',');
+            }
+
+            valueClauses.Append(
+                $"(@message_id_{index}, @contract_name_{index}, @contract_version_{index}, @payload_{index}, " +
+                $"@topic_{index}, @created_at_{index}, @visible_after_{index}, @status_{index}, @attempt_count_{index}, " +
+                $"@lease_owner_{index}, @lease_expires_at_{index}, @last_error_{index}, @correlation_id_{index}, " +
+                $"@causation_id_{index}, @tenant_id_{index}, @idempotency_key_{index}, @trace_context_{index})");
+        }
+
+        var sql = $"""
+                  INSERT INTO {_tableName} (
+                      message_id,
+                      contract_name,
+                      contract_version,
+                      payload,
+                      topic,
+                      created_at,
+                      visible_after,
+                      status,
+                      attempt_count,
+                      lease_owner,
+                      lease_expires_at,
+                      last_error,
+                      correlation_id,
+                      causation_id,
+                      tenant_id,
+                      idempotency_key,
+                      trace_context)
+                  VALUES {valueClauses}
+                  ON CONFLICT DO NOTHING
+                  RETURNING
+                      message_id,
+                      contract_name,
+                      contract_version,
+                      payload::text,
+                      topic,
+                      created_at,
+                      visible_after,
+                      status,
+                      attempt_count,
+                      lease_owner,
+                      lease_expires_at,
+                      last_error,
+                      correlation_id,
+                      causation_id,
+                      tenant_id,
+                      idempotency_key,
+                      trace_context::text,
+                      published_at;
+                  """;
+
+        await using var command = CreateCommand(sql);
+
+        for (var index = 0; index < envelopes.Count; index++)
+        {
+            AddEnvelopeParameters(command, envelopes[index], index);
+        }
+
+        var inserted = await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
+        var insertedById = inserted.ToDictionary(envelope => envelope.Id);
+        var stored = new OutboxEnvelope[envelopes.Count];
+
+        for (var index = 0; index < envelopes.Count; index++)
+        {
+            var envelope = envelopes[index];
+
+            stored[index] = insertedById.TryGetValue(envelope.Id, out var accepted)
+                ? accepted
+                : await FindExistingAsync(envelope.Id, envelope.IdempotencyKey, cancellationToken).ConfigureAwait(false);
+        }
+
+        return stored;
     }
 
     /// <inheritdoc />
@@ -801,27 +923,42 @@ public sealed class PostgreSqlOutboxStore :
     /// <param name="envelope">The envelope being inserted.</param>
     private static void AddEnvelopeParameters(NpgsqlCommand command, OutboxEnvelope envelope)
     {
-        command.Parameters.AddWithValue("message_id", envelope.Id);
-        command.Parameters.AddWithValue("contract_name", envelope.ContractName);
-        command.Parameters.AddWithValue("contract_version", envelope.ContractVersion);
+        AddEnvelopeParameters(command, envelope, parameterSuffix: null);
+    }
 
-        var payloadParameter = command.Parameters.Add("payload", NpgsqlDbType.Jsonb);
+    /// <summary>
+    ///     Adds envelope values to an Npgsql command for a single-row or batched insert.
+    /// </summary>
+    /// <param name="command">The command that will insert one or more outbox rows.</param>
+    /// <param name="envelope">The envelope being inserted.</param>
+    /// <param name="parameterSuffix">
+    ///     The optional batch index appended to parameter names; pass <see langword="null" /> for single-row inserts.
+    /// </param>
+    private static void AddEnvelopeParameters(NpgsqlCommand command, OutboxEnvelope envelope, int? parameterSuffix)
+    {
+        var suffix = parameterSuffix is null ? string.Empty : $"_{parameterSuffix}";
+
+        command.Parameters.AddWithValue($"message_id{suffix}", envelope.Id);
+        command.Parameters.AddWithValue($"contract_name{suffix}", envelope.ContractName);
+        command.Parameters.AddWithValue($"contract_version{suffix}", envelope.ContractVersion);
+
+        var payloadParameter = command.Parameters.Add($"payload{suffix}", NpgsqlDbType.Jsonb);
         payloadParameter.Value = envelope.Payload;
 
-        command.Parameters.AddWithValue("topic", (object?)envelope.Topic ?? DBNull.Value);
-        command.Parameters.AddWithValue("created_at", envelope.CreatedAt);
-        command.Parameters.AddWithValue("visible_after", (object?)envelope.VisibleAfter ?? DBNull.Value);
-        command.Parameters.AddWithValue("status", (int)envelope.Status);
-        command.Parameters.AddWithValue("attempt_count", envelope.AttemptCount);
-        command.Parameters.AddWithValue("lease_owner", (object?)envelope.LeaseOwner ?? DBNull.Value);
-        command.Parameters.AddWithValue("lease_expires_at", (object?)envelope.LeaseExpiresAt ?? DBNull.Value);
-        command.Parameters.AddWithValue("last_error", (object?)envelope.LastError ?? DBNull.Value);
-        command.Parameters.AddWithValue("correlation_id", (object?)envelope.CorrelationId ?? DBNull.Value);
-        command.Parameters.AddWithValue("causation_id", (object?)envelope.CausationId ?? DBNull.Value);
-        command.Parameters.AddWithValue("tenant_id", (object?)envelope.TenantId ?? DBNull.Value);
-        command.Parameters.AddWithValue("idempotency_key", (object?)envelope.IdempotencyKey ?? DBNull.Value);
+        command.Parameters.AddWithValue($"topic{suffix}", (object?)envelope.Topic ?? DBNull.Value);
+        command.Parameters.AddWithValue($"created_at{suffix}", envelope.CreatedAt);
+        command.Parameters.AddWithValue($"visible_after{suffix}", (object?)envelope.VisibleAfter ?? DBNull.Value);
+        command.Parameters.AddWithValue($"status{suffix}", (int)envelope.Status);
+        command.Parameters.AddWithValue($"attempt_count{suffix}", envelope.AttemptCount);
+        command.Parameters.AddWithValue($"lease_owner{suffix}", (object?)envelope.LeaseOwner ?? DBNull.Value);
+        command.Parameters.AddWithValue($"lease_expires_at{suffix}", (object?)envelope.LeaseExpiresAt ?? DBNull.Value);
+        command.Parameters.AddWithValue($"last_error{suffix}", (object?)envelope.LastError ?? DBNull.Value);
+        command.Parameters.AddWithValue($"correlation_id{suffix}", (object?)envelope.CorrelationId ?? DBNull.Value);
+        command.Parameters.AddWithValue($"causation_id{suffix}", (object?)envelope.CausationId ?? DBNull.Value);
+        command.Parameters.AddWithValue($"tenant_id{suffix}", (object?)envelope.TenantId ?? DBNull.Value);
+        command.Parameters.AddWithValue($"idempotency_key{suffix}", (object?)envelope.IdempotencyKey ?? DBNull.Value);
 
-        var traceContextParameter = command.Parameters.Add("trace_context", NpgsqlDbType.Jsonb);
+        var traceContextParameter = command.Parameters.Add($"trace_context{suffix}", NpgsqlDbType.Jsonb);
         traceContextParameter.Value = string.IsNullOrWhiteSpace(envelope.TraceContext) ? DBNull.Value : envelope.TraceContext;
     }
 
@@ -975,13 +1112,13 @@ public sealed class PostgreSqlOutboxStore :
 
         command.Parameters.AddWithValue("status_filter", !hasStatusFilter);
         command.Parameters.AddWithValue("statuses", statuses);
-        command.Parameters.AddWithValue("contract_name", (object?)filter.ContractName ?? DBNull.Value);
-        command.Parameters.AddWithValue("topic", (object?)filter.Topic ?? DBNull.Value);
-        command.Parameters.AddWithValue("correlation_id", (object?)filter.CorrelationId ?? DBNull.Value);
-        command.Parameters.AddWithValue("causation_id", (object?)filter.CausationId ?? DBNull.Value);
-        command.Parameters.AddWithValue("tenant_id", (object?)filter.TenantId ?? DBNull.Value);
-        command.Parameters.AddWithValue("created_after", (object?)filter.CreatedAfter ?? DBNull.Value);
-        command.Parameters.AddWithValue("created_before", (object?)filter.CreatedBefore ?? DBNull.Value);
+        AddNullableTextParameter(command, "contract_name", filter.ContractName);
+        AddNullableTextParameter(command, "topic", filter.Topic);
+        AddNullableTextParameter(command, "correlation_id", filter.CorrelationId);
+        AddNullableTextParameter(command, "causation_id", filter.CausationId);
+        AddNullableTextParameter(command, "tenant_id", filter.TenantId);
+        AddNullableTimestampParameter(command, "created_after", filter.CreatedAfter);
+        AddNullableTimestampParameter(command, "created_before", filter.CreatedBefore);
     }
 
     /// <summary>
@@ -993,8 +1130,8 @@ public sealed class PostgreSqlOutboxStore :
     {
         if (string.IsNullOrWhiteSpace(cursor))
         {
-            command.Parameters.AddWithValue("cursor_created_at", DBNull.Value);
-            command.Parameters.AddWithValue("cursor_id", DBNull.Value);
+            AddNullableTimestampParameter(command, "cursor_created_at", null);
+            command.Parameters.Add(new NpgsqlParameter("cursor_id", NpgsqlDbType.Uuid) { Value = DBNull.Value });
             return;
         }
 
@@ -1003,7 +1140,7 @@ public sealed class PostgreSqlOutboxStore :
             throw new ArgumentException("The cursor is invalid.", nameof(cursor));
         }
 
-        command.Parameters.AddWithValue("cursor_created_at", createdAt);
+        AddNullableTimestampParameter(command, "cursor_created_at", createdAt);
         command.Parameters.AddWithValue("cursor_id", messageId);
     }
 
@@ -1034,5 +1171,33 @@ public sealed class PostgreSqlOutboxStore :
         {
             throw new ArgumentOutOfRangeException(nameof(pageSize), pageSize, "Page size must be greater than zero.");
         }
+    }
+
+    /// <summary>
+    ///     Adds a nullable text parameter with an explicit PostgreSQL type so null checks compile in SQL.
+    /// </summary>
+    /// <param name="command">The command receiving the parameter.</param>
+    /// <param name="name">The parameter name.</param>
+    /// <param name="value">The optional text value.</param>
+    private static void AddNullableTextParameter(NpgsqlCommand command, string name, string? value)
+    {
+        command.Parameters.Add(new NpgsqlParameter(name, NpgsqlDbType.Text)
+        {
+            Value = (object?)value ?? DBNull.Value
+        });
+    }
+
+    /// <summary>
+    ///     Adds a nullable timestamp parameter with an explicit PostgreSQL type so null checks compile in SQL.
+    /// </summary>
+    /// <param name="command">The command receiving the parameter.</param>
+    /// <param name="name">The parameter name.</param>
+    /// <param name="value">The optional timestamp value.</param>
+    private static void AddNullableTimestampParameter(NpgsqlCommand command, string name, DateTimeOffset? value)
+    {
+        command.Parameters.Add(new NpgsqlParameter(name, NpgsqlDbType.TimestampTz)
+        {
+            Value = value.HasValue ? value.Value.UtcDateTime : DBNull.Value
+        });
     }
 }

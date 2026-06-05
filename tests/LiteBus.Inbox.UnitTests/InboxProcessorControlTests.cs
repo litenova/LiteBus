@@ -32,7 +32,6 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var control = provider.GetRequiredService<IInboxProcessorControl>();
-        var hostedService = provider.GetServices<IHostedService>().Single();
 
         var firstOrderId = Guid.NewGuid();
         await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
@@ -42,7 +41,7 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
         });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await hostedService.StartAsync(cts.Token);
+        await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
         await Task.Delay(TimeSpan.FromMilliseconds(200));
 
         recorder.Commands.Should().ContainSingle(command => command.OrderId == firstOrderId);
@@ -66,7 +65,7 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
         await Task.Delay(TimeSpan.FromMilliseconds(250));
         recorder.Commands.Should().Contain(command => command.OrderId == pausedOrderId);
 
-        await hostedService.StopAsync(CancellationToken.None);
+        await InboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
     }
 
     /// <summary>
@@ -83,7 +82,6 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var control = provider.GetRequiredService<IInboxProcessorControl>();
-        var hostedService = provider.GetServices<IHostedService>().Single();
 
         var orderId = Guid.NewGuid();
         await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
@@ -93,7 +91,7 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
         });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await hostedService.StartAsync(cts.Token);
+        await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
 
         var drainTask = control.DrainAsync(TimeSpan.FromSeconds(2), CancellationToken.None);
         await drainTask;
@@ -101,7 +99,7 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
         control.State.Should().Be(ProcessorState.Draining);
         recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
 
-        await hostedService.StopAsync(CancellationToken.None);
+        await InboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
     }
 
     /// <summary>

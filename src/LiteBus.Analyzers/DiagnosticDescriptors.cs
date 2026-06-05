@@ -94,4 +94,37 @@ public static class DiagnosticDescriptors
         "LiteBus.Handlers",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    /// <summary>
+    ///     A handler tag is not referenced by any command or event mediation filter in the compilation.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor OrphanHandlerTag = new(
+        DiagnosticIds.OrphanHandlerTag,
+        "Orphan handler tag",
+        "Handler '{0}' is tagged with '{1}', but no command or event mediation filter references that tag in this compilation.",
+        "LiteBus.Handlers",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    ///     The same handler type name appears in multiple assemblies and may be registered twice.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor DuplicateHandlerAcrossAssemblies = new(
+        DiagnosticIds.DuplicateHandlerAcrossAssemblies,
+        "Duplicate handler across assemblies",
+        "Handler name '{0}' is declared in assemblies '{1}' and '{2}'. RegisterFromAssembly may register both handlers for the same message type.",
+        "LiteBus.Handlers",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    ///     A type depends on transactional outbox storage without a database context in the same constructor.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor TransactionalOutboxWithoutDbContext = new(
+        DiagnosticIds.TransactionalOutboxWithoutDbContext,
+        "Transactional outbox without DbContext",
+        "Type '{0}' injects ITransactionalOutboxStore but does not inject a DbContext in the same constructor. Transactional outbox requires an active EF Core unit of work.",
+        "LiteBus.Outbox",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
 }

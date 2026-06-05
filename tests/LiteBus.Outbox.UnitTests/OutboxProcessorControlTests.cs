@@ -30,7 +30,6 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var control = provider.GetRequiredService<IOutboxProcessorControl>();
-        var hostedService = provider.GetServices<IHostedService>().Single();
 
         var firstOrderId = Guid.NewGuid();
         await outbox.EnqueueAsync(
@@ -38,7 +37,7 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
             new OutboxOptions { Id = Guid.NewGuid() });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await hostedService.StartAsync(cts.Token);
+        await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
         await Task.Delay(TimeSpan.FromMilliseconds(200));
 
         dispatcher.Instance!.DispatchedMessages
@@ -69,7 +68,7 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
             .Should()
             .Contain(submitted => submitted.OrderId == pausedOrderId);
 
-        await hostedService.StopAsync(CancellationToken.None);
+        await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
     }
 
     /// <summary>
@@ -86,7 +85,6 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var control = provider.GetRequiredService<IOutboxProcessorControl>();
-        var hostedService = provider.GetServices<IHostedService>().Single();
 
         var orderId = Guid.NewGuid();
         await outbox.EnqueueAsync(
@@ -94,7 +92,7 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
             new OutboxOptions { Id = Guid.NewGuid() });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await hostedService.StartAsync(cts.Token);
+        await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
 
         var drainTask = control.DrainAsync(TimeSpan.FromSeconds(2), CancellationToken.None);
         await drainTask;
@@ -105,7 +103,7 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
             .Should()
             .ContainSingle(submitted => submitted.OrderId == orderId);
 
-        await hostedService.StopAsync(CancellationToken.None);
+        await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
     }
 
     /// <summary>

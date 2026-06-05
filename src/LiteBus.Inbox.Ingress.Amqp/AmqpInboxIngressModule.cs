@@ -1,9 +1,12 @@
 using System;
 using System.Linq;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Ingress.Transport;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Transport.Amqp;
+using LiteBus.Transport.Abstractions;
+using LiteBus.Transport;
 
 namespace LiteBus.Inbox.Ingress.Amqp;
 
@@ -50,9 +53,12 @@ public sealed class AmqpInboxIngressModule : IModule
                 $"{nameof(AmqpInboxIngressOptions.QueueName)} must be configured before registering AMQP inbox ingress.");
         }
 
-        RegisterAmqpServicesIfMissing(configuration, options.Connection);
+        RegisterTransportServicesIfMissing(configuration, options.Connection);
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(AmqpInboxIngressOptions), options));
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(TransportInboxIngressHandler),
+            typeof(TransportInboxIngressHandler)));
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(AmqpInboxIngressHandler),
             typeof(AmqpInboxIngressHandler)));
@@ -70,27 +76,23 @@ public sealed class AmqpInboxIngressModule : IModule
             configuration.RegisterBackgroundService(typeof(AmqpInboxConsumer));
         }
 
-        AmqpTransportMetricsRegistration.RegisterIfNeeded(configuration);
+        TransportMetricsRegistration.RegisterIfNeeded(configuration);
     }
 
     /// <summary>
-    ///     Registers shared AMQP services when another module has not already registered them.
+    ///     Registers shared transport services when another module has not already registered them.
     /// </summary>
     /// <param name="configuration">The module configuration receiving dependency registrations.</param>
     /// <param name="connectionOptions">The broker connection settings for the ingress consumer.</param>
-    private static void RegisterAmqpServicesIfMissing(
+    private static void RegisterTransportServicesIfMissing(
         IModuleConfiguration configuration,
         AmqpConnectionOptions connectionOptions)
     {
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IAmqpConnectionManager)))
+        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageTransport)))
         {
             return;
         }
 
-        var connectionManager = new AmqpConnectionManager(connectionOptions);
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IAmqpConnectionManager), connectionManager));
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IAmqpPublisher), new AmqpPublisher(connectionManager)));
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IAmqpConsumer), new AmqpConsumer(connectionManager)));
+        new AmqpTransportModule(connectionOptions).Build(configuration);
     }
 }

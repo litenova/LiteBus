@@ -114,6 +114,16 @@ public sealed class EfCoreOutboxStorageModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxProcessingStore),
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxOperationsStore),
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ITransactionalOutboxStore),
             serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
             InstanceLifetime.Singleton));

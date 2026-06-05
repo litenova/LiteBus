@@ -43,6 +43,11 @@ public sealed class OutboxModuleBuilder
     private bool _enableCleanup;
 
     /// <summary>
+    ///     The optional payload encryptor registered through <see cref="UsePayloadEncryption" />.
+    /// </summary>
+    private IPayloadEncryptor? _payloadEncryptor;
+
+    /// <summary>
     ///     Gets the deferred contract writer. Registrations are applied to the shared
     ///     <see cref="IMessageContractRegistry" /> when the module builds.
     /// </summary>
@@ -155,12 +160,29 @@ public sealed class OutboxModuleBuilder
         {
             throw new InvalidOperationException(
                 "Outbox dispatcher is already configured. " +
-                "Call only one of UseInProcessDispatcher or UseAmqpDispatcher.");
+                "Call only one of UseInProcessDispatcher or UseTransport.");
         }
 
         _dispatcherModule = dispatcherModule;
         return this;
     }
+
+    /// <summary>
+    ///     Registers payload encryption for outbox acceptance and dispatch.
+    /// </summary>
+    /// <param name="encryptor">The encryptor used before store writes and after store reads.</param>
+    /// <returns>The current builder.</returns>
+    public OutboxModuleBuilder UsePayloadEncryption(IPayloadEncryptor encryptor)
+    {
+        _payloadEncryptor = encryptor ?? throw new ArgumentNullException(nameof(encryptor));
+        return this;
+    }
+
+    /// <summary>
+    ///     Collects the configured payload encryptor, if any.
+    /// </summary>
+    /// <returns>The encryptor registered on this builder.</returns>
+    internal IPayloadEncryptor? CollectPayloadEncryptor() => _payloadEncryptor;
 
     /// <summary>
     ///     Registers a consumer-owned diagnostic probe for this outbox.

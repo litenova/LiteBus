@@ -40,19 +40,27 @@ public sealed class InProcessInboxDispatcher : IInboxDispatcher
     private readonly IMessageSerializer _messageSerializer;
 
     /// <summary>
+    ///     Gets the optional encryptor used to decrypt stored payloads before deserialization.
+    /// </summary>
+    private readonly IPayloadEncryptor? _payloadEncryptor;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="InProcessInboxDispatcher" /> class.
     /// </summary>
     /// <param name="commandMediator">The command mediator used to execute deserialized commands.</param>
     /// <param name="contractRegistry">The registry used to resolve persisted contracts back to CLR types.</param>
     /// <param name="messageSerializer">The serializer used to hydrate envelope payloads.</param>
+    /// <param name="payloadEncryptor">The optional encryptor used to decrypt stored payloads before deserialization.</param>
     public InProcessInboxDispatcher(
         ICommandMediator commandMediator,
         IContractReader contractRegistry,
-        IMessageSerializer messageSerializer)
+        IMessageSerializer messageSerializer,
+        IPayloadEncryptor? payloadEncryptor = null)
     {
         _commandMediator = commandMediator ?? throw new ArgumentNullException(nameof(commandMediator));
         _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
         _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
+        _payloadEncryptor = payloadEncryptor;
     }
 
     /// <inheritdoc />
@@ -61,7 +69,9 @@ public sealed class InProcessInboxDispatcher : IInboxDispatcher
         ArgumentNullException.ThrowIfNull(envelope);
 
         var messageType = _contractRegistry.GetMessageType(envelope.ContractName, envelope.ContractVersion);
-        var message = await _messageSerializer.DeserializeAsync(messageType, envelope.Payload, cancellationToken).ConfigureAwait(false);
+        var payload = await PayloadProtection.UnprotectAsync(envelope.Payload, _payloadEncryptor, cancellationToken)
+            .ConfigureAwait(false);
+        var message = await _messageSerializer.DeserializeAsync(messageType, payload, cancellationToken).ConfigureAwait(false);
 
         if (message is not ICommand command)
         {

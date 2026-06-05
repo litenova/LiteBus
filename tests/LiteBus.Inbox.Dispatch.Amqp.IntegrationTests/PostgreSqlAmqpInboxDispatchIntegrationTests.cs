@@ -1,7 +1,7 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.Amqp;
+using LiteBus.Inbox.Dispatch.Transport;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Storage.PostgreSql;
 using LiteBus.Testing;
@@ -114,11 +114,15 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
                     });
                 });
 
-                modules.AddInboxAmqpDispatcher(amqp =>
+                modules.AddInboxModule(inbox =>
                 {
-                    amqp.Connection = _rabbitMqFixture.ConnectionOptions;
-                    amqp.DefaultExchange = exchangeName;
-                    amqp.ResolveRoutingKey = _ => routingKey;
+                    inbox.UseTransport(
+                        transport =>
+                        {
+                            transport.DefaultDestination = exchangeName;
+                            transport.ResolveRoute = _ => routingKey;
+                        },
+                        new AmqpTransportModule(_rabbitMqFixture.ConnectionOptions));
                 });
             })
             .BuildServiceProvider(new ServiceProviderOptions

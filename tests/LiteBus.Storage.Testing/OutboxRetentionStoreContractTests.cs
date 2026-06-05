@@ -77,6 +77,39 @@ public abstract class OutboxRetentionStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that retention uses <c>published_at</c> when set instead of falling back to <c>created_at</c>.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task DeletePublishedOlderThanAsync_WhenPublishedAtIsRecentButCreatedAtIsOld_ShouldRetainRow()
+    {
+        var store = CreateStore();
+        var messageId = Guid.NewGuid();
+        var createdAt = BaseTime.AddDays(-30);
+        var publishedAt = BaseTime;
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, createdAt));
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-1",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        await store.StateWriter.PersistAsync([leased[0].AsPublished() with { PublishedAt = publishedAt }]);
+
+        var deleted = await store.Retention.DeletePublishedOlderThanAsync(now.AddDays(-1));
+
+        deleted.Should().Be(0);
+
+        var counts = await store.Diagnostics.GetStatusCountsAsync();
+        counts.Should().ContainKey(OutboxStatus.Published).WhoseValue.Should().Be(1);
+    }
+
+    /// <summary>
     ///     Verifies that no rows are deleted when the cutoff is earlier than every published row.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>

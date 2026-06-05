@@ -37,7 +37,7 @@ public sealed class InboxProcessorBackgroundService : IBackgroundService
     /// <summary>
     ///     Gets the logger used for processor loop diagnostics.
     /// </summary>
-    private readonly ILogger<InboxProcessor> _logger;
+    private readonly ILogger<InboxProcessorBackgroundService> _logger;
 
     /// <summary>
     ///     Gets the control surface used to pause, resume, and drain the processor loop.
@@ -59,14 +59,14 @@ public sealed class InboxProcessorBackgroundService : IBackgroundService
         InboxProcessorHostOptions hostOptions,
         IInboxWorkSignal workSignal,
         InboxProcessorControl control,
-        ILogger<InboxProcessor>? logger = null)
+        ILogger<InboxProcessorBackgroundService>? logger = null)
     {
         _processor = processor ?? throw new ArgumentNullException(nameof(processor));
         _processorOptions = processorOptions ?? throw new ArgumentNullException(nameof(processorOptions));
         _hostOptions = hostOptions ?? throw new ArgumentNullException(nameof(hostOptions));
         _workSignal = workSignal ?? throw new ArgumentNullException(nameof(workSignal));
         _control = control ?? throw new ArgumentNullException(nameof(control));
-        _logger = logger ?? NullLogger<InboxProcessor>.Instance;
+        _logger = logger ?? NullLogger<InboxProcessorBackgroundService>.Instance;
     }
 
     /// <inheritdoc />

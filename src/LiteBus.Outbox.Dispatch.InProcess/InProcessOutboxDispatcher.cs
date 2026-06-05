@@ -53,19 +53,27 @@ public sealed class InProcessOutboxDispatcher : IOutboxDispatcher
     private readonly IMessageSerializer _messageSerializer;
 
     /// <summary>
+    ///     Gets the optional encryptor used to decrypt stored payloads before deserialization.
+    /// </summary>
+    private readonly IPayloadEncryptor? _payloadEncryptor;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="InProcessOutboxDispatcher" /> class.
     /// </summary>
     /// <param name="eventPublisher">The LiteBus event publisher used as the dispatch target.</param>
     /// <param name="contractRegistry">The registry used to resolve persisted contracts back to event types.</param>
     /// <param name="messageSerializer">The serializer used to hydrate the persisted payload.</param>
+    /// <param name="payloadEncryptor">The optional encryptor used to decrypt stored payloads before deserialization.</param>
     public InProcessOutboxDispatcher(
         IEventMediator eventPublisher,
         IContractReader contractRegistry,
-        IMessageSerializer messageSerializer)
+        IMessageSerializer messageSerializer,
+        IPayloadEncryptor? payloadEncryptor = null)
     {
         _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
         _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
         _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
+        _payloadEncryptor = payloadEncryptor;
     }
 
     /// <inheritdoc />
@@ -74,7 +82,9 @@ public sealed class InProcessOutboxDispatcher : IOutboxDispatcher
         ArgumentNullException.ThrowIfNull(message);
 
         var eventType = _contractRegistry.GetMessageType(message.ContractName, message.ContractVersion);
-        var @event = await _messageSerializer.DeserializeAsync(eventType, message.Payload, cancellationToken).ConfigureAwait(false);
+        var payload = await PayloadProtection.UnprotectAsync(message.Payload, _payloadEncryptor, cancellationToken)
+            .ConfigureAwait(false);
+        var @event = await _messageSerializer.DeserializeAsync(eventType, payload, cancellationToken).ConfigureAwait(false);
         var mediationSettings = CreateMediationSettings(message);
 
         if (@event is IEvent liteBusEvent)
