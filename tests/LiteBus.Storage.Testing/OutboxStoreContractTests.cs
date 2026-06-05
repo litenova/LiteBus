@@ -44,7 +44,7 @@ public abstract class OutboxStoreContractTests
         leased[0].Status.Should().Be(OutboxStatus.Publishing);
         leased[0].AttemptCount.Should().Be(1);
 
-        await store.State.MarkFailedAsync(new OutboxEnvelopeFailure
+        await store.TerminalState.MarkFailedAsync(new OutboxEnvelopeFailure
         {
             Id = messageId,
             Error = "publisher unavailable",
@@ -72,7 +72,7 @@ public abstract class OutboxStoreContractTests
         visible.Should().ContainSingle();
         visible[0].AttemptCount.Should().Be(2);
 
-        await store.State.MarkPublishedAsync(messageId);
+        await store.TerminalState.MarkPublishedAsync(messageId);
     }
 
     /// <summary>
@@ -236,7 +236,7 @@ public abstract class OutboxStoreContractTests
 
         leased.Should().ContainSingle();
 
-        await store.State.MarkFailedAsync(new OutboxEnvelopeFailure
+        await store.TerminalState.MarkFailedAsync(new OutboxEnvelopeFailure
         {
             Id = messageId,
             Error = "broker down",
@@ -277,7 +277,7 @@ public abstract class OutboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
-        await store.State.MoveToDeadLetterAsync(new OutboxEnvelopeDeadLetter
+        await store.TerminalState.MoveToDeadLetterAsync(new OutboxEnvelopeDeadLetter
         {
             Id = messageId,
             Reason = "poison message"
@@ -366,6 +366,71 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that status counts reflect stored messages grouped by status.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task GetStatusCountsAsync_ShouldGroupByStatus()
+    {
+        var store = CreateStore();
+        var pendingId = Guid.NewGuid();
+        var publishedId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(publishedId, now.AddSeconds(1)));
+
+        await store.TerminalState.MarkPublishedAsync(publishedId);
+
+        var counts = await store.Diagnostics.GetStatusCountsAsync();
+
+        counts[OutboxStatus.Pending].Should().Be(1);
+        counts[OutboxStatus.Published].Should().Be(1);
+    }
+
+    /// <summary>
+    ///     Verifies that dead-letter replay returns messages to the pending queue.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task RequeueDeadLetterAsync_ShouldReturnMessageToPending()
+    {
+        var store = CreateStore();
+        var messageId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
+
+        await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-1",
+            Now = now,
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        await store.TerminalState.MoveToDeadLetterAsync(new OutboxEnvelopeDeadLetter
+        {
+            Id = messageId,
+            Reason = "manual replay"
+        });
+
+        await store.TerminalState.RequeueDeadLetterAsync(messageId);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-2",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        leased.Should().ContainSingle();
+        leased[0].Id.Should().Be(messageId);
+        leased[0].Status.Should().Be(OutboxStatus.Publishing);
+    }
+
+    /// <summary>
     ///     Creates a pending envelope for contract tests.
     /// </summary>
     /// <param name="messageId">The message identifier.</param>
@@ -386,13 +451,17 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
-    ///     Holds the three outbox store roles exercised by contract tests.
+    ///     Holds the outbox store roles exercised by contract tests.
     /// </summary>
     /// <param name="Writer">The writer role.</param>
     /// <param name="Lease">The lease role.</param>
-    /// <param name="State">The state role.</param>
+    /// <param name="TerminalState">The terminal state role.</param>
+    /// <param name="Retention">The retention role.</param>
+    /// <param name="Diagnostics">The diagnostics role.</param>
     public sealed record OutboxStoreContracts(
         IOutboxStore Writer,
         IOutboxLeaseStore Lease,
-        IOutboxStateStore State);
+        IOutboxTerminalStateStore TerminalState,
+        IOutboxRetentionStore Retention,
+        IOutboxDiagnosticsStore Diagnostics);
 }

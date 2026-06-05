@@ -52,7 +52,7 @@ public abstract class AmqpTransportIntegrationTests
         using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var message = await received.Task.WaitAsync(cancellationSource.Token);
         message.Body.ToArray().Should().BeEquivalentTo(body);
-        await message.AckAsync(false, CancellationToken.None);
+        await message.AcceptAsync(CancellationToken.None);
     }
 
     /// <summary>
@@ -79,12 +79,12 @@ public abstract class AmqpTransportIntegrationTests
                 if (count == 1)
                 {
                     firstDelivery.TrySetResult(message);
-                    await message.NackAsync(true, false, token).ConfigureAwait(false);
+                    await message.ReturnToQueueAsync(token).ConfigureAwait(false);
                     return;
                 }
 
                 secondDelivery.TrySetResult(message);
-                await message.AckAsync(false, token).ConfigureAwait(false);
+                await message.AcceptAsync(token).ConfigureAwait(false);
             });
 
         var body = Encoding.UTF8.GetBytes($"retry-{BrokerName}");
@@ -154,7 +154,7 @@ public abstract class AmqpTransportIntegrationTests
         AmqpHeaderValues.GetInt32(message.Headers, AmqpHeaders.ContractVersion).Should().Be(1);
         AmqpHeaderValues.GetString(message.Headers, AmqpHeaders.CausationId).Should().Be("cause-1");
         AmqpHeaderValues.GetString(message.Headers, AmqpHeaders.TenantId).Should().Be("tenant-a");
-        await message.AckAsync(false, CancellationToken.None);
+        await message.AcceptAsync(CancellationToken.None);
     }
 
     /// <summary>
@@ -175,7 +175,7 @@ public abstract class AmqpTransportIntegrationTests
             async (message, token) =>
             {
                 firstDelivery.TrySetResult(message);
-                await message.AckAsync(false, token).ConfigureAwait(false);
+                await message.AcceptAsync(token).ConfigureAwait(false);
             });
 
         var firstBody = Encoding.UTF8.GetBytes($"first-{BrokerName}");

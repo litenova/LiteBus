@@ -26,11 +26,16 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 ///     <para>
 ///         The default store opens its own connection per call. Use
 ///         <see cref="UseExistingConnection(NpgsqlConnection, NpgsqlTransaction)" /> when outbox writes must share the
-///         caller's PostgreSQL transaction. Without that overload, <see cref="IOutbox.AddAsync" /> commits in a separate
+///         caller's PostgreSQL transaction. Without that overload, <see cref="IOutbox.EnqueueAsync" /> commits in a separate
 ///         transaction from manual SQL or ADO.NET work.
 ///     </para>
 /// </remarks>
-public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutboxStateStore
+public sealed class PostgreSqlOutboxStore :
+    IOutboxStore,
+    IOutboxLeaseStore,
+    IOutboxTerminalStateStore,
+    IOutboxRetentionStore,
+    IOutboxDiagnosticsStore
 {
     /// <summary>
     ///     The PostgreSQL data source used to open commands against the outbox table.
@@ -220,6 +225,7 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
                       outbox.correlation_id,
                       outbox.causation_id,
                       outbox.tenant_id,
+                      outbox.idempotency_key,
                       outbox.trace_context::text;
                   """;
 
@@ -301,6 +307,49 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
     }
 
     /// <inheritdoc />
+    public async Task MoveToDeadLetterAsync(IReadOnlyList<OutboxEnvelopeDeadLetter> deadLetters, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(deadLetters);
+
+        if (deadLetters.Count == 0)
+        {
+            return;
+        }
+
+        if (deadLetters.Count == 1)
+        {
+            await MoveToDeadLetterAsync(deadLetters[0], cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var ids = new Guid[deadLetters.Count];
+        var reasons = new string[deadLetters.Count];
+
+        for (var index = 0; index < deadLetters.Count; index++)
+        {
+            ids[index] = deadLetters[index].Id;
+            reasons[index] = deadLetters[index].Reason;
+        }
+
+        var sql = $"""
+                  UPDATE {_tableName} AS outbox
+                  SET
+                      status = @dead_lettered_status,
+                      lease_owner = NULL,
+                      lease_expires_at = NULL,
+                      last_error = batch.last_error
+                  FROM unnest(@message_ids, @last_errors) AS batch(message_id, last_error)
+                  WHERE outbox.message_id = batch.message_id;
+                  """;
+
+        await using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("dead_lettered_status", (int)OutboxStatus.DeadLettered);
+        command.Parameters.AddWithValue("message_ids", ids);
+        command.Parameters.AddWithValue("last_errors", reasons);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task MarkPublishedAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
@@ -374,7 +423,7 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
         await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("failed_status", (int)OutboxStatus.Failed);
         command.Parameters.AddWithValue("message_ids", ids);
-        command.Parameters.AddWithValue("visible_after", visibleAfter);
+        AddVisibleAfterArrayParameter(command, visibleAfter);
         command.Parameters.AddWithValue("last_errors", errors);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -398,6 +447,41 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
         command.Parameters.AddWithValue("pending_status", (int)OutboxStatus.Pending);
         command.Parameters.AddWithValue("dead_lettered_status", (int)OutboxStatus.DeadLettered);
         command.Parameters.AddWithValue("message_id", messageId);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task RequeueDeadLetterAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageIds);
+
+        if (messageIds.Count == 0)
+        {
+            return;
+        }
+
+        if (messageIds.Count == 1)
+        {
+            await RequeueDeadLetterAsync(messageIds[0], cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var sql = $"""
+                  UPDATE {_tableName}
+                  SET
+                      status = @pending_status,
+                      visible_after = NULL,
+                      attempt_count = 0,
+                      lease_owner = NULL,
+                      lease_expires_at = NULL,
+                      last_error = NULL
+                  WHERE message_id = ANY(@message_ids) AND status = @dead_lettered_status;
+                  """;
+
+        await using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("pending_status", (int)OutboxStatus.Pending);
+        command.Parameters.AddWithValue("dead_lettered_status", (int)OutboxStatus.DeadLettered);
+        command.Parameters.AddWithValue("message_ids", messageIds);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -598,6 +682,17 @@ public sealed class PostgreSqlOutboxStore : IOutboxStore, IOutboxLeaseStore, IOu
     private static string? GetNullableString(NpgsqlDataReader reader, int ordinal)
     {
         return reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
+    }
+
+    /// <summary>
+    ///     Adds a nullable timestamptz array parameter for batch failure updates.
+    /// </summary>
+    /// <param name="command">The command receiving the parameter.</param>
+    /// <param name="visibleAfter">The per-message next visibility timestamps.</param>
+    private static void AddVisibleAfterArrayParameter(NpgsqlCommand command, DateTimeOffset?[] visibleAfter)
+    {
+        var parameter = command.Parameters.Add("visible_after", NpgsqlDbType.Array | NpgsqlDbType.TimestampTz);
+        parameter.Value = visibleAfter;
     }
 
     /// <summary>

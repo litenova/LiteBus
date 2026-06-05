@@ -170,11 +170,11 @@ public sealed class AmqpConsumer : IAmqpConsumer
             MessageId = delivery.BasicProperties.MessageId,
             CorrelationId = delivery.BasicProperties.CorrelationId,
             Redelivered = delivery.Redelivered,
-            AckAsync = async (multiple, token) =>
+            AckDelegate = async (multiple, token) =>
             {
                 await channel.BasicAckAsync(delivery.DeliveryTag, multiple, token).ConfigureAwait(false);
             },
-            NackAsync = async (requeue, multiple, token) =>
+            NackDelegate = async (multiple, requeue, token) =>
             {
                 await channel.BasicNackAsync(delivery.DeliveryTag, multiple, requeue, token).ConfigureAwait(false);
             }

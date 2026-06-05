@@ -87,19 +87,20 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
     {
         ArgumentNullException.ThrowIfNull(messageType);
 
+        var attribute = messageType.GetCustomAttribute<MessageContractAttribute>(inherit: false);
+
         lock (_syncRoot)
         {
             if (_contractsByType.TryGetValue(messageType, out var contract))
             {
                 return contract;
             }
-        }
 
-        var attribute = messageType.GetCustomAttribute<MessageContractAttribute>(inherit: false);
-        if (attribute is not null)
-        {
-            Register(messageType, attribute.Name, attribute.Version);
-            return GetContract(messageType);
+            if (attribute is not null)
+            {
+                RegisterLocked(messageType, attribute.Name, attribute.Version);
+                return _contractsByType[messageType];
+            }
         }
 
         throw new MessageContractNotRegisteredException(messageType);
@@ -110,22 +111,58 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
     {
         ArgumentNullException.ThrowIfNull(messageType);
 
+        var attribute = messageType.GetCustomAttribute<MessageContractAttribute>(inherit: false);
+
         lock (_syncRoot)
         {
             if (_contractsByType.TryGetValue(messageType, out var contract))
             {
                 return contract;
             }
-        }
 
-        var attribute = messageType.GetCustomAttribute<MessageContractAttribute>(inherit: false);
-        if (attribute is not null)
-        {
-            Register(messageType, attribute.Name, attribute.Version);
-            return TryGetContract(messageType);
+            if (attribute is not null)
+            {
+                RegisterLocked(messageType, attribute.Name, attribute.Version);
+                return _contractsByType[messageType];
+            }
         }
 
         return null;
+    }
+
+    /// <summary>
+    ///     Registers a contract while <see cref="_syncRoot" /> is held.
+    /// </summary>
+    /// <param name="messageType">The CLR message type being registered.</param>
+    /// <param name="name">The contract name.</param>
+    /// <param name="version">The contract version.</param>
+    private void RegisterLocked(Type messageType, string name, int version)
+    {
+        ValidateAgainstAttribute(messageType, name, version);
+
+        var contract = new MessageContract
+        {
+            Name = name,
+            Version = version,
+            MessageType = messageType
+        };
+
+        if (_contractsByType.TryGetValue(messageType, out var existingContract) && existingContract != contract)
+        {
+            throw new MessageContractAlreadyRegisteredException(
+                $"Message type '{messageType.FullName ?? messageType.Name}' is already registered as '{existingContract.Name}' version {existingContract.Version}.");
+        }
+
+        var contractKey = (name, version);
+
+        if (_typesByContract.TryGetValue(contractKey, out var existingType) && existingType != messageType)
+        {
+            throw new MessageContractAlreadyRegisteredException(
+                $"Message contract '{name}' version {version} is already registered for '{existingType.FullName ?? existingType.Name}'.");
+        }
+
+        _contractsByType[messageType] = contract;
+        _typesByContract[contractKey] = messageType;
     }
 
     /// <summary>

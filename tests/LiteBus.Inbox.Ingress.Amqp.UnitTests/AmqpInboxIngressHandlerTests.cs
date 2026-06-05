@@ -201,8 +201,8 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
                 modules.AddInboxModule(inbox =>
                 {
                     inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
+                    inbox.UseInMemoryStorage();
                 });
-                modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
                 modules.AddInboxAmqpIngress(ingress =>
                 {
                     ingress.DisableIngressConsumer();
@@ -235,8 +235,8 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
             Headers = headers,
             DeliveryTag = 1,
             CorrelationId = correlationId,
-            AckAsync = (_, _) => Task.CompletedTask,
-            NackAsync = (_, _, _) => Task.CompletedTask
+            AckDelegate = (_, _) => Task.CompletedTask,
+            NackDelegate = (_, _, _) => Task.CompletedTask
         };
     }
 

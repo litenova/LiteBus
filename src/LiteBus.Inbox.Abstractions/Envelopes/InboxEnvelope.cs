@@ -91,4 +91,88 @@ public sealed record InboxEnvelope
     ///     Gets the optional distributed trace context stored as JSON text (for example W3C trace context or OpenTelemetry baggage).
     /// </summary>
     public string? TraceContext { get; init; }
+
+    /// <summary>
+    ///     Returns a new envelope in the completed state with lease and error fields cleared.
+    /// </summary>
+    /// <returns>The envelope after successful processing.</returns>
+    public InboxEnvelope AsCompleted() =>
+        this with
+        {
+            Status = InboxStatus.Completed,
+            LeaseOwner = null,
+            LeaseExpiresAt = null,
+            LastError = null
+        };
+
+    /// <summary>
+    ///     Returns a new envelope in the failed state with lease fields cleared and the supplied retry visibility.
+    /// </summary>
+    /// <param name="error">The error captured for this attempt.</param>
+    /// <param name="visibleAfter">The earliest UTC timestamp at which the envelope may be leased again.</param>
+    /// <returns>The envelope scheduled for retry.</returns>
+    public InboxEnvelope AsFailed(string error, DateTimeOffset? visibleAfter = null) =>
+        this with
+        {
+            Status = InboxStatus.Failed,
+            VisibleAfter = visibleAfter,
+            LeaseOwner = null,
+            LeaseExpiresAt = null,
+            LastError = error
+        };
+
+    /// <summary>
+    ///     Returns a new envelope in the dead-lettered state with lease fields cleared.
+    /// </summary>
+    /// <param name="reason">The reason the envelope was moved to the dead-letter state.</param>
+    /// <returns>The dead-lettered envelope.</returns>
+    public InboxEnvelope AsDeadLettered(string reason) =>
+        this with
+        {
+            Status = InboxStatus.DeadLettered,
+            LeaseOwner = null,
+            LeaseExpiresAt = null,
+            LastError = reason
+        };
+
+    /// <summary>
+    ///     Returns a new envelope reset to pending state after dead-letter review.
+    /// </summary>
+    /// <returns>The requeued envelope.</returns>
+    /// <exception cref="InvalidOperationException">
+    ///     The envelope is not currently in the <see cref="InboxStatus.DeadLettered" /> state.
+    /// </exception>
+    public InboxEnvelope AsRequeued()
+    {
+        if (Status != InboxStatus.DeadLettered)
+        {
+            throw new InvalidOperationException(
+                $"Only dead-lettered messages can be requeued. Current status: {Status}.");
+        }
+
+        return this with
+        {
+            Status = InboxStatus.Pending,
+            VisibleAfter = null,
+            AttemptCount = 0,
+            LeaseOwner = null,
+            LeaseExpiresAt = null,
+            LastError = null
+        };
+    }
+
+    /// <summary>
+    ///     Returns a new envelope with an active lease and an incremented attempt count.
+    /// </summary>
+    /// <param name="leaseOwner">The processor instance that claimed the envelope.</param>
+    /// <param name="leaseExpiresAt">The UTC timestamp when the lease expires.</param>
+    /// <returns>The leased envelope returned to the processor.</returns>
+    public InboxEnvelope AsLeased(string leaseOwner, DateTimeOffset leaseExpiresAt) =>
+        this with
+        {
+            Status = InboxStatus.Processing,
+            LeaseOwner = leaseOwner,
+            LeaseExpiresAt = leaseExpiresAt,
+            AttemptCount = AttemptCount + 1
+        };
 }

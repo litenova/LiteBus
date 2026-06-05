@@ -19,7 +19,7 @@ public sealed class AmqpInboxConsumer : IBackgroundService
     private readonly IAmqpConsumer _consumer;
 
     /// <summary>
-    ///     Gets the handler that maps deliveries to <see cref="Abstractions.IInbox.AddAsync" />.
+    ///     Gets the handler that maps deliveries to <see cref="Abstractions.IInbox.AcceptAsync" />.
     /// </summary>
     private readonly AmqpInboxIngressHandler _handler;
 
@@ -99,28 +99,22 @@ public sealed class AmqpInboxConsumer : IBackgroundService
         }
         catch (Exception exception) when (ShouldRequeue(exception))
         {
-            await message.NackAsync(true, false, cancellationToken).ConfigureAwait(false);
+            await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
         catch (Exception)
         {
-            await message.NackAsync(false, false, cancellationToken).ConfigureAwait(false);
+            await message.DiscardAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
 
         try
         {
-            await message.AckAsync(false, cancellationToken).ConfigureAwait(false);
+            await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
         }
         catch
         {
-            try
-            {
-                await message.NackAsync(false, false, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch
-            {
-            }
+            await message.DiscardAsync(CancellationToken.None).ConfigureAwait(false);
         }
     }
 

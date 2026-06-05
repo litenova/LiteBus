@@ -41,7 +41,7 @@ public sealed class MessageModule : IModule
         _builder(moduleBuilder);
 
         // Register core messaging services.
-        RegisterMessagingServices(configuration, messageRegistry, messageContractRegistry);
+        RegisterMessagingServices(configuration, messageRegistry, messageContractRegistry, moduleBuilder.TimeProvider);
         RegisterNewHandlers(configuration, messageRegistry, startIndex);
     }
 
@@ -54,7 +54,8 @@ public sealed class MessageModule : IModule
     private static void RegisterMessagingServices(
         IModuleConfiguration configuration,
         IMessageRegistry messageRegistry,
-        MessageContractRegistry messageContractRegistry)
+        MessageContractRegistry messageContractRegistry,
+        TimeProvider? timeProvider)
     {
         // Register message registry as singleton.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -87,7 +88,7 @@ public sealed class MessageModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(TimeProvider),
-            TimeProvider.System));
+            timeProvider ?? TimeProvider.System));
 
         // Register message mediator as transient.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

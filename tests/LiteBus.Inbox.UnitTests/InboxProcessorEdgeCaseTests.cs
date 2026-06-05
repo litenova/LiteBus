@@ -384,9 +384,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         bool registerFaultyHandler = false)
     {
         var services = new ServiceCollection()
-            .AddSingleton<IInboxStore>(store)
-            .AddSingleton<IInboxLeaseStore>(store)
-            .AddSingleton<IInboxStateStore>(store);
+            .AddInboxStoreRoles(store);
 
         if (recorder is not null)
         {

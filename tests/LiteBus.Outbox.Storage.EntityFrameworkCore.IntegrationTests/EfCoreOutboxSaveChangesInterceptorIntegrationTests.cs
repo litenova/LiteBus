@@ -84,6 +84,56 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
     }
 
     /// <summary>
+    ///     Confirms every <see cref="OutboxEnvelope" /> field round-trips through the interceptor into persistence.
+    /// </summary>
+    [Fact]
+    public async Task SaveChangesAsync_ShouldPersistEveryEnvelopeField_IncludingIdempotencyKeyAndTraceContext()
+    {
+        var storeOptions = await CreateOutboxTableAsync().ConfigureAwait(false);
+        var interceptor = new LiteBusOutboxSaveChangesInterceptor();
+        var envelope = new OutboxEnvelope
+        {
+            Id = Guid.NewGuid(),
+            ContractName = "orders.events.submitted",
+            ContractVersion = 2,
+            Payload = """{"orderId":"456"}""",
+            Topic = "orders",
+            CreatedAt = new DateTimeOffset(2026, 6, 4, 8, 0, 0, TimeSpan.Zero),
+            VisibleAfter = new DateTimeOffset(2026, 6, 4, 8, 30, 0, TimeSpan.Zero),
+            Status = OutboxStatus.Pending,
+            AttemptCount = 0,
+            CorrelationId = "corr-99",
+            CausationId = "cause-99",
+            TenantId = "tenant-99",
+            IdempotencyKey = "idem-99",
+            TraceContext = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+        };
+
+        await using var context = CreateContext(storeOptions, interceptor);
+        interceptor.Enqueue(envelope);
+        await context.SaveChangesAsync().ConfigureAwait(false);
+
+        await using var verificationContext = CreateContext(storeOptions);
+        var storedMessage = await verificationContext.OutboxMessages
+            .SingleAsync(message => message.Id == envelope.Id)
+            .ConfigureAwait(false);
+
+        storedMessage.ContractName.Should().Be(envelope.ContractName);
+        storedMessage.ContractVersion.Should().Be(envelope.ContractVersion);
+        storedMessage.Payload.Should().Be(envelope.Payload);
+        storedMessage.Topic.Should().Be(envelope.Topic);
+        storedMessage.CreatedAt.Should().Be(envelope.CreatedAt);
+        storedMessage.VisibleAfter.Should().Be(envelope.VisibleAfter);
+        storedMessage.Status.Should().Be(envelope.Status);
+        storedMessage.AttemptCount.Should().Be(envelope.AttemptCount);
+        storedMessage.CorrelationId.Should().Be(envelope.CorrelationId);
+        storedMessage.CausationId.Should().Be(envelope.CausationId);
+        storedMessage.TenantId.Should().Be(envelope.TenantId);
+        storedMessage.IdempotencyKey.Should().Be(envelope.IdempotencyKey);
+        storedMessage.TraceContext.Should().Be(envelope.TraceContext);
+    }
+
+    /// <summary>
     ///     Creates an isolated outbox table for one test run.
     /// </summary>
     /// <returns>The store options for the created table.</returns>

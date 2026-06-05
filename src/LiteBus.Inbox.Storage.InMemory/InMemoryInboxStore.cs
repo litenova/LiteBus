@@ -21,7 +21,12 @@ namespace LiteBus.Inbox.Storage.InMemory;
 ///         simulate cross-process database locking.
 ///     </para>
 /// </remarks>
-public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxStateStore
+public sealed class InMemoryInboxStore :
+    IInboxStore,
+    IInboxLeaseStore,
+    IInboxTerminalStateStore,
+    IInboxRetentionStore,
+    IInboxDiagnosticsStore
 {
     /// <summary>
     ///     The envelopes keyed by command identifier.
@@ -122,17 +127,12 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxSt
 
         lock (_sync)
         {
+            var leaseExpiresAt = now.Add(leaseDuration);
             var leased = _envelopes.Values
                 .Where(envelope => IsAvailable(envelope, now))
                 .OrderBy(envelope => envelope.CreatedAt)
                 .Take(request.BatchSize)
-                .Select(envelope => envelope with
-                {
-                    Status = InboxStatus.Processing,
-                    LeaseOwner = request.LeaseOwner,
-                    LeaseExpiresAt = now.Add(leaseDuration),
-                    AttemptCount = envelope.AttemptCount + 1
-                })
+                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt))
                 .ToArray();
 
             foreach (var envelope in leased)
@@ -149,14 +149,7 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxSt
     {
         lock (_sync)
         {
-            var envelope = GetRequired(messageId);
-            _envelopes[messageId] = envelope with
-            {
-                Status = InboxStatus.Completed,
-                LeaseOwner = null,
-                LeaseExpiresAt = null,
-                LastError = null
-            };
+            _envelopes[messageId] = GetRequired(messageId).AsCompleted();
         }
 
         return Task.CompletedTask;
@@ -169,15 +162,7 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxSt
 
         lock (_sync)
         {
-            var envelope = GetRequired(failure.Id);
-            _envelopes[failure.Id] = envelope with
-            {
-                Status = InboxStatus.Failed,
-                LeaseOwner = null,
-                LeaseExpiresAt = null,
-                LastError = failure.Error,
-                VisibleAfter = failure.VisibleAfter
-            };
+            _envelopes[failure.Id] = GetRequired(failure.Id).AsFailed(failure.Error, failure.VisibleAfter);
         }
 
         return Task.CompletedTask;
@@ -190,14 +175,28 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxSt
 
         lock (_sync)
         {
-            var envelope = GetRequired(deadLetter.Id);
-            _envelopes[deadLetter.Id] = envelope with
+            ApplyDeadLetter(deadLetter);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task MoveToDeadLetterAsync(IReadOnlyList<InboxEnvelopeDeadLetter> deadLetters, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(deadLetters);
+
+        if (deadLetters.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        lock (_sync)
+        {
+            foreach (var deadLetter in deadLetters)
             {
-                Status = InboxStatus.DeadLettered,
-                LeaseOwner = null,
-                LeaseExpiresAt = null,
-                LastError = deadLetter.Reason
-            };
+                ApplyDeadLetter(deadLetter);
+            }
         }
 
         return Task.CompletedTask;
@@ -212,14 +211,7 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxSt
         {
             foreach (var messageId in messageIds)
             {
-                var envelope = GetRequired(messageId);
-                _envelopes[messageId] = envelope with
-                {
-                    Status = InboxStatus.Completed,
-                    LeaseOwner = null,
-                    LeaseExpiresAt = null,
-                    LastError = null
-                };
+                _envelopes[messageId] = GetRequired(messageId).AsCompleted();
             }
         }
 
@@ -235,15 +227,7 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxSt
         {
             foreach (var failure in failures)
             {
-                var envelope = GetRequired(failure.Id);
-                _envelopes[failure.Id] = envelope with
-                {
-                    Status = InboxStatus.Failed,
-                    LeaseOwner = null,
-                    LeaseExpiresAt = null,
-                    LastError = failure.Error,
-                    VisibleAfter = failure.VisibleAfter
-                };
+                _envelopes[failure.Id] = GetRequired(failure.Id).AsFailed(failure.Error, failure.VisibleAfter);
             }
         }
 
@@ -255,22 +239,28 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxSt
     {
         lock (_sync)
         {
-            var envelope = GetRequired(messageId);
+            RequeueDeadLetterIfNeeded(messageId);
+        }
 
-            if (envelope.Status != InboxStatus.DeadLettered)
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task RequeueDeadLetterAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageIds);
+
+        if (messageIds.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        lock (_sync)
+        {
+            foreach (var messageId in messageIds)
             {
-                return Task.CompletedTask;
+                RequeueDeadLetterIfNeeded(messageId);
             }
-
-            _envelopes[messageId] = envelope with
-            {
-                Status = InboxStatus.Pending,
-                VisibleAfter = null,
-                AttemptCount = 0,
-                LeaseOwner = null,
-                LeaseExpiresAt = null,
-                LastError = null
-            };
         }
 
         return Task.CompletedTask;
@@ -340,6 +330,52 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxSt
     }
 
     /// <summary>
+    ///     Gets a snapshot of stored envelopes filtered by status.
+    /// </summary>
+    /// <param name="status">The status value to match.</param>
+    /// <returns>All envelopes with the supplied status.</returns>
+    public IReadOnlyList<InboxEnvelope> GetAll(InboxStatus status)
+    {
+        lock (_sync)
+        {
+            return _envelopes.Values.Where(envelope => envelope.Status == status).ToList();
+        }
+    }
+
+    /// <summary>
+    ///     Gets a snapshot of stored envelopes filtered by contract name.
+    /// </summary>
+    /// <param name="contractName">The contract name to match.</param>
+    /// <returns>All envelopes with the supplied contract name.</returns>
+    public IReadOnlyList<InboxEnvelope> GetAll(string contractName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractName);
+
+        lock (_sync)
+        {
+            return _envelopes.Values.Where(envelope => envelope.ContractName == contractName).ToList();
+        }
+    }
+
+    /// <summary>
+    ///     Gets a snapshot of stored envelopes filtered by status and contract name.
+    /// </summary>
+    /// <param name="status">The status value to match.</param>
+    /// <param name="contractName">The contract name to match.</param>
+    /// <returns>All envelopes matching both filters.</returns>
+    public IReadOnlyList<InboxEnvelope> GetAll(InboxStatus status, string contractName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractName);
+
+        lock (_sync)
+        {
+            return _envelopes.Values
+                .Where(envelope => envelope.Status == status && envelope.ContractName == contractName)
+                .ToList();
+        }
+    }
+
+    /// <summary>
     ///     Gets the number of commands currently stored.
     /// </summary>
     /// <returns>The stored command count.</returns>
@@ -384,6 +420,33 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxLeaseStore, IInboxSt
     private InboxEnvelope GetRequired(Guid messageId)
     {
         return _envelopes[messageId];
+    }
+
+    /// <summary>
+    ///     Applies dead-letter state to one stored envelope.
+    /// </summary>
+    /// <param name="deadLetter">The dead-letter details.</param>
+    private void ApplyDeadLetter(InboxEnvelopeDeadLetter deadLetter)
+    {
+        ArgumentNullException.ThrowIfNull(deadLetter);
+
+        _envelopes[deadLetter.Id] = GetRequired(deadLetter.Id).AsDeadLettered(deadLetter.Reason);
+    }
+
+    /// <summary>
+    ///     Requeues one dead-lettered envelope when it is currently in the dead-letter state.
+    /// </summary>
+    /// <param name="messageId">The message identifier.</param>
+    private void RequeueDeadLetterIfNeeded(Guid messageId)
+    {
+        var envelope = GetRequired(messageId);
+
+        if (envelope.Status != InboxStatus.DeadLettered)
+        {
+            return;
+        }
+
+        _envelopes[messageId] = envelope.AsRequeued();
     }
 
     /// <summary>

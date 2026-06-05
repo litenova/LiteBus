@@ -82,9 +82,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
         var store = new InMemoryOutboxStore();
 
         var services = new ServiceCollection()
-            .AddSingleton<IOutboxStore>(store)
-            .AddSingleton<IOutboxLeaseStore>(store)
-            .AddSingleton<IOutboxStateStore>(store)
+            .AddOutboxStoreRoles(store)
             .AddLiteBus(modules =>
             {
                 modules.AddOutboxModule(outbox =>
@@ -192,7 +190,10 @@ public sealed class OutboxHostingTests : LiteBusTestBase
         return new ServiceCollection()
             .AddSingleton<IOutboxStore>(store)
             .AddSingleton<IOutboxLeaseStore>(leaseStore ?? store)
-            .AddSingleton<IOutboxStateStore>(store)
+            .AddSingleton<IOutboxTerminalStateStore>(store)
+            .AddSingleton<IOutboxRetentionStore>(store)
+            .AddSingleton<IOutboxDiagnosticsStore>(store)
+            .AddSingleton<IOutboxWorkSignal, OutboxPollingWorkSignal>()
             .AddSingleton(dispatcherHolder)
             .AddSingleton<OutboxTestInfrastructure.RecordingOutboxDispatcher>(sp =>
             {

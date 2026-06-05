@@ -71,8 +71,22 @@ public sealed class PostgreSqlOutboxModule : IModule
             store));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxStateStore),
+            typeof(IOutboxTerminalStateStore),
             store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxRetentionStore),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxDiagnosticsStore),
+            store));
+
+        var workSignal = moduleBuilder.Options.UseListenNotify
+            ? (IOutboxWorkSignal)new PostgreSqlOutboxWorkSignal(moduleBuilder.DataSource)
+            : new OutboxPollingWorkSignal();
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IOutboxWorkSignal), workSignal));
 
         if (moduleBuilder.EnableSchemaInitialization)
         {

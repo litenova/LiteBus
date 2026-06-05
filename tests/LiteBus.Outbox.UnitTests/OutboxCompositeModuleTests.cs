@@ -42,6 +42,8 @@ public sealed class OutboxCompositeModuleTests
         provider.GetRequiredService<IOutbox>().Should().NotBeNull();
         provider.GetRequiredService<IOutboxStore>().Should().NotBeNull();
         provider.GetRequiredService<IOutboxLeaseStore>().Should().NotBeNull();
-        provider.GetRequiredService<IOutboxStateStore>().Should().NotBeNull();
+        provider.GetRequiredService<IOutboxTerminalStateStore>().Should().NotBeNull();
+        provider.GetRequiredService<IOutboxRetentionStore>().Should().NotBeNull();
+        provider.GetRequiredService<IOutboxDiagnosticsStore>().Should().NotBeNull();
     }
 }

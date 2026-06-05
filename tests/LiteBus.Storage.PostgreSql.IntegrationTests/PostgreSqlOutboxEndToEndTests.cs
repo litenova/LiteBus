@@ -199,12 +199,6 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
 
         services.AddLiteBus(modules =>
         {
-            modules.AddPostgreSqlOutboxStorage(postgres =>
-            {
-                postgres.UseDataSource(fixture.DataSource);
-                postgres.UseOptions(options);
-            });
-
             modules.AddEventModule(builder =>
             {
                 builder.Register<OrderSubmittedEventHandler>();
@@ -212,6 +206,12 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
 
             modules.AddOutboxModule(builder =>
             {
+                builder.UsePostgreSqlStorage(postgres =>
+                {
+                    postgres.UseDataSource(fixture.DataSource);
+                    postgres.UseOptions(options);
+                });
+
                 builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
 
                 builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -225,12 +225,12 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
                         UseJitter = false
                     }
                 });
-            });
 
-            if (!useFailingDispatcher)
-            {
-                modules.AddOutboxInProcessDispatcher();
-            }
+                if (!useFailingDispatcher)
+                {
+                    builder.UseInProcessDispatcher();
+                }
+            });
         });
 
         if (clock is not null)

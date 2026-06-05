@@ -176,7 +176,7 @@ internal static class InboxTestFixtures
         }
     }
 
-    internal sealed class FlakyInboxStateStore : IInboxStateStore
+    internal sealed class FlakyInboxStateStore : IInboxTerminalStateStore
     {
         private readonly InMemoryInboxStore _inner;
         private readonly int _failCompletionsBeforeSuccess;
@@ -213,6 +213,11 @@ internal static class InboxTestFixtures
         /// <inheritdoc />
         public Task MarkCompletedAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
         {
+            if (_completionAttempts++ < _failCompletionsBeforeSuccess)
+            {
+                throw new InvalidOperationException("Simulated completion failure.");
+            }
+
             return _inner.MarkCompletedAsync(messageIds, cancellationToken);
         }
 
@@ -229,15 +234,15 @@ internal static class InboxTestFixtures
         }
 
         /// <inheritdoc />
-        public Task<int> DeleteCompletedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
+        public Task MoveToDeadLetterAsync(IReadOnlyList<InboxEnvelopeDeadLetter> deadLetters, CancellationToken cancellationToken = default)
         {
-            return _inner.DeleteCompletedOlderThanAsync(olderThan, cancellationToken);
+            return _inner.MoveToDeadLetterAsync(deadLetters, cancellationToken);
         }
 
         /// <inheritdoc />
-        public Task<IReadOnlyDictionary<InboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
+        public Task RequeueDeadLetterAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
         {
-            return _inner.GetStatusCountsAsync(cancellationToken);
+            return _inner.RequeueDeadLetterAsync(messageIds, cancellationToken);
         }
     }
 }

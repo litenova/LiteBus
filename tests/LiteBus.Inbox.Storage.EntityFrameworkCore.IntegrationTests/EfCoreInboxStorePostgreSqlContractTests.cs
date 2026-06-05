@@ -34,6 +34,6 @@ public sealed class EfCoreInboxStorePostgreSqlContractTests : InboxStoreContract
             _ => Task.FromResult<IInboxDbContext>(
                 EfCorePostgreSqlTestInfrastructure.CreateInboxContext(_fixture.ConnectionString)),
             options);
-        return new InboxStoreRoles(store, store, store);
+        return new InboxStoreRoles(store, store, store, store, store);
     }
 }

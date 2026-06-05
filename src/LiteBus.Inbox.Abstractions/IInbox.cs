@@ -39,19 +39,4 @@ public interface IInbox
         InboxOptions? options = null,
         CancellationToken cancellationToken = default)
         where T : notnull;
-
-    /// <summary>
-    ///     Obsolete alias for <see cref="AcceptAsync{T}" />.
-    /// </summary>
-    /// <typeparam name="T">The message type being stored.</typeparam>
-    /// <param name="message">The message instance to serialize and store.</param>
-    /// <param name="options">Optional acceptance metadata.</param>
-    /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
-    /// <returns>The acceptance receipt returned by <see cref="AcceptAsync{T}" />.</returns>
-    [Obsolete("Use AcceptAsync instead. AddAsync will be removed in a future major release.")]
-    Task<InboxReceipt<T>> AddAsync<T>(
-        T message,
-        InboxOptions? options = null,
-        CancellationToken cancellationToken = default)
-        where T : notnull => AcceptAsync(message, options, cancellationToken);
 }

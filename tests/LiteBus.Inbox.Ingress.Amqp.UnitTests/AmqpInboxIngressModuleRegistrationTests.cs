@@ -14,7 +14,6 @@ public sealed class AmqpInboxIngressModuleRegistrationTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(modules =>
             {
-                modules.AddInboxModule();
                 modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
                 modules.AddInboxRabbitMqIngress(ingress =>
                 {
@@ -37,7 +36,6 @@ public sealed class AmqpInboxIngressModuleRegistrationTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(modules =>
             {
-                modules.AddInboxModule();
                 modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
                 modules.AddInboxLavinMqIngress(ingress =>
                 {

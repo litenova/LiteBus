@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -72,7 +71,7 @@ internal sealed class MessageRegistry : IMessageRegistry
     /// <summary>
     ///     Tracks CLR types already analyzed to prevent duplicate registration work.
     /// </summary>
-    private readonly ConcurrentDictionary<Type, byte> _processedTypes = new();
+    private readonly HashSet<Type> _processedTypes = [];
 
     /// <inheritdoc />
     public IReadOnlyList<IHandlerDescriptor> Handlers => _handlerDescriptorsInOrder.AsReadOnly();
@@ -128,7 +127,7 @@ internal sealed class MessageRegistry : IMessageRegistry
         lock (_lock)
         {
             // Skip if already processed to avoid duplicate work.
-            if (_processedTypes.ContainsKey(type))
+            if (!_processedTypes.Add(type))
                 return;
 
             // Analyze the type using all available descriptor builders.
@@ -157,9 +156,6 @@ internal sealed class MessageRegistry : IMessageRegistry
 
             // Ensure pending messages are linked with all existing handlers.
             LinkHandlersToPendingMessages();
-
-            // Mark type as processed.
-            _processedTypes[type] = 0;
 
             // Commit any pending message descriptors.
             CommitPendingMessages();

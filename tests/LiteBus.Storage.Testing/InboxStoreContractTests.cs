@@ -1,3 +1,4 @@
+using System.Text.Json;
 using LiteBus.Inbox.Abstractions;
 
 namespace LiteBus.Storage.Testing;
@@ -15,19 +16,23 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Creates a fresh store instance for one test.
     /// </summary>
-    /// <returns>The writer, lease, and state roles backed by the same store instance.</returns>
+    /// <returns>The writer, lease, terminal, retention, and diagnostics roles backed by the same store instance.</returns>
     protected abstract InboxStoreRoles CreateStore();
 
     /// <summary>
-    ///     Holds the three inbox store roles implemented by one persistence backend.
+    ///     Holds the inbox store roles implemented by one persistence backend.
     /// </summary>
     /// <param name="Writer">The append-only writer role.</param>
     /// <param name="LeaseStore">The lease role used by the processor.</param>
-    /// <param name="StateStore">The execution result role used by the processor.</param>
+    /// <param name="TerminalStateStore">The terminal state role used by the processor.</param>
+    /// <param name="RetentionStore">The retention role used by cleanup.</param>
+    /// <param name="DiagnosticsStore">The diagnostics role used by operators.</param>
     public sealed record InboxStoreRoles(
         IInboxStore Writer,
         IInboxLeaseStore LeaseStore,
-        IInboxStateStore StateStore);
+        IInboxTerminalStateStore TerminalStateStore,
+        IInboxRetentionStore RetentionStore,
+        IInboxDiagnosticsStore DiagnosticsStore);
 
     /// <summary>
     ///     Verifies that duplicate idempotency keys return the original stored command.
@@ -109,7 +114,8 @@ public abstract class InboxStoreContractTests
         stored.CorrelationId.Should().Be("correlation-1");
         stored.CausationId.Should().Be("causation-1");
         stored.TenantId.Should().Be("tenant-1");
-        stored.TraceContext.Should().Be("{\"traceparent\":\"00-abc\"}");
+        using var traceDocument = JsonDocument.Parse(stored.TraceContext!);
+        traceDocument.RootElement.GetProperty("traceparent").GetString().Should().Be("00-abc");
     }
 
     /// <summary>
@@ -138,7 +144,7 @@ public abstract class InboxStoreContractTests
         leased[0].AttemptCount.Should().Be(1);
         leased[0].LeaseOwner.Should().Be("worker-1");
 
-        await roles.StateStore.MarkCompletedAsync(commandId);
+        await roles.TerminalStateStore.MarkCompletedAsync(commandId);
 
         var afterCompletion = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -227,7 +233,7 @@ public abstract class InboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
-        await roles.StateStore.MarkFailedAsync(new InboxEnvelopeFailure
+        await roles.TerminalStateStore.MarkFailedAsync(new InboxEnvelopeFailure
         {
             Id = commandId,
             Error = "transient failure",
@@ -277,7 +283,7 @@ public abstract class InboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
-        await roles.StateStore.MarkFailedAsync(new InboxEnvelopeFailure
+        await roles.TerminalStateStore.MarkFailedAsync(new InboxEnvelopeFailure
         {
             Id = commandId,
             Error = "retry me",
@@ -327,7 +333,7 @@ public abstract class InboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
-        await roles.StateStore.MoveToDeadLetterAsync(new InboxEnvelopeDeadLetter
+        await roles.TerminalStateStore.MoveToDeadLetterAsync(new InboxEnvelopeDeadLetter
         {
             Id = commandId,
             Reason = "exhausted retries"
@@ -414,6 +420,107 @@ public abstract class InboxStoreContractTests
         leasedIds.Should().OnlyHaveUniqueItems();
         firstBatch.Should().OnlyContain(command => command.LeaseOwner == "worker-a");
         secondBatch.Should().OnlyContain(command => command.LeaseOwner == "worker-b");
+    }
+
+    /// <summary>
+    ///     Verifies that status counts reflect stored envelopes grouped by status.
+    /// </summary>
+    [Fact]
+    public async Task GetStatusCountsAsync_ShouldGroupByStatus()
+    {
+        var roles = CreateStore();
+        var pendingId = Guid.NewGuid();
+        var completedId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(completedId, now.AddSeconds(1)));
+
+        await roles.TerminalStateStore.MarkCompletedAsync(completedId);
+
+        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync();
+
+        counts[InboxStatus.Pending].Should().Be(1);
+        counts[InboxStatus.Completed].Should().Be(1);
+    }
+
+    /// <summary>
+    ///     Verifies that dead-letter replay returns envelopes to the pending queue.
+    /// </summary>
+    [Fact]
+    public async Task RequeueDeadLetterAsync_ShouldReturnEnvelopeToPending()
+    {
+        var roles = CreateStore();
+        var commandId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+
+        await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "worker-1",
+            Now = now,
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        await roles.TerminalStateStore.MoveToDeadLetterAsync(new InboxEnvelopeDeadLetter
+        {
+            Id = commandId,
+            Reason = "manual replay"
+        });
+
+        await roles.TerminalStateStore.RequeueDeadLetterAsync(commandId);
+
+        var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "worker-2",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        leased.Should().ContainSingle();
+        leased[0].Id.Should().Be(commandId);
+        leased[0].Status.Should().Be(InboxStatus.Processing);
+    }
+
+    /// <summary>
+    ///     Verifies that the string message id overload parses GUID identifiers for bulk replay.
+    /// </summary>
+    [Fact]
+    public async Task RequeueDeadLetterAsync_WithStringIds_ShouldRequeueMatchingRows()
+    {
+        var roles = CreateStore();
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+        var now = BaseTime;
+
+        foreach (var commandId in new[] { firstId, secondId })
+        {
+            await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+
+            await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+            {
+                BatchSize = 1,
+                LeaseOwner = "worker-1",
+                Now = now,
+                LeaseDuration = TimeSpan.FromMinutes(1)
+            });
+
+            await roles.TerminalStateStore.MoveToDeadLetterAsync(new InboxEnvelopeDeadLetter
+            {
+                Id = commandId,
+                Reason = "bulk replay"
+            });
+        }
+
+        await roles.TerminalStateStore.RequeueDeadLetterAsync(
+            new[] { firstId.ToString("D"), secondId.ToString("D") });
+
+        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync();
+        counts.Should().NotContainKey(InboxStatus.DeadLettered);
+        counts[InboxStatus.Pending].Should().Be(2);
     }
 
     /// <summary>

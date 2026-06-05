@@ -66,9 +66,7 @@ public sealed class InboxTests : LiteBusTestBase
         var recorder = new InboxTestFixtures.CommandRecorder();
 
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IInboxStore>(store)
-            .AddSingleton<IInboxLeaseStore>(store)
-            .AddSingleton<IInboxStateStore>(store)
+            .AddInboxStoreRoles(store)
             .AddSingleton(recorder)
             .AddCommandMediatorInboxDispatcher()
             .AddLiteBus(modules =>
@@ -121,9 +119,7 @@ public sealed class InboxTests : LiteBusTestBase
         var recorder = new InboxTestFixtures.GenericCommandRecorder();
 
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IInboxStore>(store)
-            .AddSingleton<IInboxLeaseStore>(store)
-            .AddSingleton<IInboxStateStore>(store)
+            .AddInboxStoreRoles(store)
             .AddSingleton(recorder)
             .AddCommandMediatorInboxDispatcher()
             .AddLiteBus(modules =>
@@ -201,9 +197,7 @@ public sealed class InboxTests : LiteBusTestBase
         var store = new InMemoryInboxStore();
 
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IInboxStore>(store)
-            .AddSingleton<IInboxLeaseStore>(store)
-            .AddSingleton<IInboxStateStore>(store)
+            .AddInboxStoreRoles(store)
             .AddCommandMediatorInboxDispatcher()
             .AddLiteBus(modules =>
             {
@@ -250,9 +244,7 @@ public sealed class InboxTests : LiteBusTestBase
         var store = new InMemoryInboxStore();
 
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IInboxStore>(store)
-            .AddSingleton<IInboxLeaseStore>(store)
-            .AddSingleton<IInboxStateStore>(store)
+            .AddInboxStoreRoles(store)
             .AddCommandMediatorInboxDispatcher()
             .AddLiteBus(modules =>
             {
@@ -300,9 +292,7 @@ public sealed class InboxTests : LiteBusTestBase
         var capture = new InboxTestFixtures.IsInboxCapture();
 
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IInboxStore>(store)
-            .AddSingleton<IInboxLeaseStore>(store)
-            .AddSingleton<IInboxStateStore>(store)
+            .AddInboxStoreRoles(store)
             .AddSingleton(capture)
             .AddCommandMediatorInboxDispatcher()
             .AddLiteBus(modules =>
@@ -342,9 +332,7 @@ public sealed class InboxTests : LiteBusTestBase
         var capture = new InboxTestFixtures.TraceMetadataCapture();
 
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IInboxStore>(store)
-            .AddSingleton<IInboxLeaseStore>(store)
-            .AddSingleton<IInboxStateStore>(store)
+            .AddInboxStoreRoles(store)
             .AddSingleton(capture)
             .AddCommandMediatorInboxDispatcher()
             .AddLiteBus(modules =>
@@ -391,9 +379,7 @@ public sealed class InboxTests : LiteBusTestBase
         var store = new InMemoryInboxStore();
 
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IInboxStore>(store)
-            .AddSingleton<IInboxLeaseStore>(store)
-            .AddSingleton<IInboxStateStore>(store)
+            .AddInboxStoreRoles(store)
             .AddCommandMediatorInboxDispatcher()
             .AddLiteBus(modules =>
             {
@@ -444,7 +430,9 @@ public sealed class InboxTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddSingleton<IInboxStore>(inner)
             .AddSingleton<IInboxLeaseStore>(inner)
-            .AddSingleton<IInboxStateStore>(flakyStateStore)
+            .AddSingleton<IInboxTerminalStateStore>(flakyStateStore)
+            .AddSingleton<IInboxRetentionStore>(inner)
+            .AddSingleton<IInboxDiagnosticsStore>(inner)
             .AddSingleton(recorder)
             .AddCommandMediatorInboxDispatcher()
             .AddLiteBus(modules =>

@@ -43,4 +43,27 @@ public sealed record RetryOptions
     ///     messages fail at the same time.
     /// </summary>
     public bool UseJitter { get; init; } = true;
+
+    /// <summary>
+    ///     Calculates the delay before the next attempt using the configured backoff strategy.
+    /// </summary>
+    /// <param name="attemptCount">The number of attempts already made. The first attempt is 1.</param>
+    /// <returns>The delay to add to the current clock value before the envelope becomes visible again.</returns>
+    public TimeSpan CalculateDelay(int attemptCount)
+    {
+        var initialTicks = InitialDelay.Ticks;
+        var rawTicks = Backoff == RetryBackoff.Fixed
+            ? initialTicks
+            : initialTicks * Math.Pow(2, Math.Max(0, attemptCount - 1));
+
+        var delay = TimeSpan.FromTicks((long)Math.Min(rawTicks, MaxDelay.Ticks));
+
+        if (!UseJitter || delay == TimeSpan.Zero)
+        {
+            return delay;
+        }
+
+        var jitterFactor = 0.8 + Random.Shared.NextDouble() * 0.4;
+        return TimeSpan.FromTicks((long)Math.Min(delay.Ticks * jitterFactor, MaxDelay.Ticks));
+    }
 }

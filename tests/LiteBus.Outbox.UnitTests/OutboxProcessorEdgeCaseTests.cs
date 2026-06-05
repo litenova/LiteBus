@@ -310,9 +310,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
         var store = new InMemoryOutboxStore();
 
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IOutboxStore>(store)
-            .AddSingleton<IOutboxLeaseStore>(store)
-            .AddSingleton<IOutboxStateStore>(store)
+            .AddOutboxStoreRoles(store)
             .AddSingleton<OutboxTestInfrastructure.RecordingOutboxDispatcher>()
             .AddSingleton<IOutboxDispatcher>(sp => sp.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>())
             .AddLiteBus(modules =>
@@ -421,9 +419,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
         Action<OutboxModuleBuilder>? configureOutbox = null)
     {
         var services = new ServiceCollection()
-            .AddSingleton<IOutboxStore>(store)
-            .AddSingleton<IOutboxLeaseStore>(store)
-            .AddSingleton<IOutboxStateStore>(store);
+            .AddOutboxStoreRoles(store);
 
         if (useFailingDispatcher)
         {

@@ -19,7 +19,7 @@ public sealed class InboxCleanupBackgroundService : IBackgroundService
     /// <summary>
     ///     Gets the store used to delete completed rows.
     /// </summary>
-    private readonly IInboxStateStore _stateStore;
+    private readonly IInboxRetentionStore _stateStore;
 
     /// <summary>
     ///     Gets the clock used to calculate retention cutoffs.
@@ -33,7 +33,7 @@ public sealed class InboxCleanupBackgroundService : IBackgroundService
     /// <param name="hostOptions">The loop timing and retention options for cleanup.</param>
     /// <param name="timeProvider">The clock used to calculate retention cutoffs.</param>
     public InboxCleanupBackgroundService(
-        IInboxStateStore stateStore,
+        IInboxRetentionStore stateStore,
         InboxCleanupHostOptions hostOptions,
         TimeProvider timeProvider)
     {

@@ -21,7 +21,12 @@ namespace LiteBus.Outbox.Storage.InMemory;
 ///         simulate cross-process database locking.
 ///     </para>
 /// </remarks>
-public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutboxStateStore
+public sealed class InMemoryOutboxStore :
+    IOutboxStore,
+    IOutboxLeaseStore,
+    IOutboxTerminalStateStore,
+    IOutboxRetentionStore,
+    IOutboxDiagnosticsStore
 {
     /// <summary>
     ///     The envelopes keyed by message identifier.
@@ -77,17 +82,12 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
 
         lock (_sync)
         {
+            var leaseExpiresAt = request.Now.Add(request.LeaseDuration);
             var leased = _envelopes.Values
                 .Where(envelope => IsAvailable(envelope, request.Now))
                 .OrderBy(envelope => envelope.CreatedAt)
                 .Take(request.BatchSize)
-                .Select(envelope => envelope with
-                {
-                    Status = OutboxStatus.Publishing,
-                    LeaseOwner = request.LeaseOwner,
-                    LeaseExpiresAt = request.Now.Add(request.LeaseDuration),
-                    AttemptCount = envelope.AttemptCount + 1
-                })
+                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt))
                 .ToArray();
 
             foreach (var envelope in leased)
@@ -104,14 +104,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
     {
         lock (_sync)
         {
-            var envelope = GetRequired(messageId);
-            _envelopes[messageId] = envelope with
-            {
-                Status = OutboxStatus.Published,
-                LeaseOwner = null,
-                LeaseExpiresAt = null,
-                LastError = null
-            };
+            _envelopes[messageId] = GetRequired(messageId).AsPublished();
         }
 
         return Task.CompletedTask;
@@ -124,15 +117,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
 
         lock (_sync)
         {
-            var envelope = GetRequired(failure.Id);
-            _envelopes[failure.Id] = envelope with
-            {
-                Status = OutboxStatus.Failed,
-                LeaseOwner = null,
-                LeaseExpiresAt = null,
-                LastError = failure.Error,
-                VisibleAfter = failure.VisibleAfter
-            };
+            _envelopes[failure.Id] = GetRequired(failure.Id).AsFailed(failure.Error, failure.VisibleAfter);
         }
 
         return Task.CompletedTask;
@@ -145,14 +130,28 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
 
         lock (_sync)
         {
-            var envelope = GetRequired(deadLetter.Id);
-            _envelopes[deadLetter.Id] = envelope with
+            ApplyDeadLetter(deadLetter);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task MoveToDeadLetterAsync(IReadOnlyList<OutboxEnvelopeDeadLetter> deadLetters, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(deadLetters);
+
+        if (deadLetters.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        lock (_sync)
+        {
+            foreach (var deadLetter in deadLetters)
             {
-                Status = OutboxStatus.DeadLettered,
-                LeaseOwner = null,
-                LeaseExpiresAt = null,
-                LastError = deadLetter.Reason
-            };
+                ApplyDeadLetter(deadLetter);
+            }
         }
 
         return Task.CompletedTask;
@@ -167,14 +166,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
         {
             foreach (var messageId in messageIds)
             {
-                var envelope = GetRequired(messageId);
-                _envelopes[messageId] = envelope with
-                {
-                    Status = OutboxStatus.Published,
-                    LeaseOwner = null,
-                    LeaseExpiresAt = null,
-                    LastError = null
-                };
+                _envelopes[messageId] = GetRequired(messageId).AsPublished();
             }
         }
 
@@ -190,15 +182,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
         {
             foreach (var failure in failures)
             {
-                var envelope = GetRequired(failure.Id);
-                _envelopes[failure.Id] = envelope with
-                {
-                    Status = OutboxStatus.Failed,
-                    LeaseOwner = null,
-                    LeaseExpiresAt = null,
-                    LastError = failure.Error,
-                    VisibleAfter = failure.VisibleAfter
-                };
+                _envelopes[failure.Id] = GetRequired(failure.Id).AsFailed(failure.Error, failure.VisibleAfter);
             }
         }
 
@@ -210,22 +194,28 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
     {
         lock (_sync)
         {
-            var envelope = GetRequired(messageId);
+            RequeueDeadLetterIfNeeded(messageId);
+        }
 
-            if (envelope.Status != OutboxStatus.DeadLettered)
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task RequeueDeadLetterAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageIds);
+
+        if (messageIds.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        lock (_sync)
+        {
+            foreach (var messageId in messageIds)
             {
-                return Task.CompletedTask;
+                RequeueDeadLetterIfNeeded(messageId);
             }
-
-            _envelopes[messageId] = envelope with
-            {
-                Status = OutboxStatus.Pending,
-                VisibleAfter = null,
-                AttemptCount = 0,
-                LeaseOwner = null,
-                LeaseExpiresAt = null,
-                LastError = null
-            };
         }
 
         return Task.CompletedTask;
@@ -243,7 +233,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
 
             foreach (var messageId in toRemove)
             {
-                _envelopes.Remove(messageId);
+                RemoveEnvelope(messageId);
             }
 
             return Task.FromResult(toRemove.Length);
@@ -289,6 +279,52 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
     }
 
     /// <summary>
+    ///     Gets a snapshot of stored envelopes filtered by status.
+    /// </summary>
+    /// <param name="status">The status value to match.</param>
+    /// <returns>All envelopes with the supplied status.</returns>
+    public IReadOnlyList<OutboxEnvelope> GetAll(OutboxStatus status)
+    {
+        lock (_sync)
+        {
+            return _envelopes.Values.Where(envelope => envelope.Status == status).ToList();
+        }
+    }
+
+    /// <summary>
+    ///     Gets a snapshot of stored envelopes filtered by contract name.
+    /// </summary>
+    /// <param name="contractName">The contract name to match.</param>
+    /// <returns>All envelopes with the supplied contract name.</returns>
+    public IReadOnlyList<OutboxEnvelope> GetAll(string contractName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractName);
+
+        lock (_sync)
+        {
+            return _envelopes.Values.Where(envelope => envelope.ContractName == contractName).ToList();
+        }
+    }
+
+    /// <summary>
+    ///     Gets a snapshot of stored envelopes filtered by status and contract name.
+    /// </summary>
+    /// <param name="status">The status value to match.</param>
+    /// <param name="contractName">The contract name to match.</param>
+    /// <returns>All envelopes matching both filters.</returns>
+    public IReadOnlyList<OutboxEnvelope> GetAll(OutboxStatus status, string contractName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractName);
+
+        lock (_sync)
+        {
+            return _envelopes.Values
+                .Where(envelope => envelope.Status == status && envelope.ContractName == contractName)
+                .ToList();
+        }
+    }
+
+    /// <summary>
     ///     Removes every stored envelope so a test can start from an empty store.
     /// </summary>
     public void Clear()
@@ -296,6 +332,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
         lock (_sync)
         {
             _envelopes.Clear();
+            _idempotencyIndex.Clear();
         }
     }
 
@@ -307,6 +344,48 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxLeaseStore, IOutb
     private OutboxEnvelope GetRequired(Guid messageId)
     {
         return _envelopes[messageId];
+    }
+
+    /// <summary>
+    ///     Applies dead-letter state to one stored envelope.
+    /// </summary>
+    /// <param name="deadLetter">The dead-letter details.</param>
+    private void ApplyDeadLetter(OutboxEnvelopeDeadLetter deadLetter)
+    {
+        ArgumentNullException.ThrowIfNull(deadLetter);
+
+        _envelopes[deadLetter.Id] = GetRequired(deadLetter.Id).AsDeadLettered(deadLetter.Reason);
+    }
+
+    /// <summary>
+    ///     Requeues one dead-lettered envelope when it is currently in the dead-letter state.
+    /// </summary>
+    /// <param name="messageId">The message identifier.</param>
+    private void RequeueDeadLetterIfNeeded(Guid messageId)
+    {
+        var envelope = GetRequired(messageId);
+
+        if (envelope.Status != OutboxStatus.DeadLettered)
+        {
+            return;
+        }
+
+        _envelopes[messageId] = envelope.AsRequeued();
+    }
+
+    /// <summary>
+    ///     Removes one envelope and its idempotency index entry when present.
+    /// </summary>
+    /// <param name="messageId">The message identifier.</param>
+    private void RemoveEnvelope(Guid messageId)
+    {
+        if (_envelopes.TryGetValue(messageId, out var envelope) &&
+            !string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
+        {
+            _idempotencyIndex.Remove(envelope.IdempotencyKey);
+        }
+
+        _envelopes.Remove(messageId);
     }
 
     /// <summary>

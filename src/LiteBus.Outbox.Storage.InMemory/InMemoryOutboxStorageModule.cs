@@ -33,11 +33,23 @@ public sealed class InMemoryOutboxStorageModule : IModule
             store));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxStateStore),
+            typeof(IOutboxTerminalStateStore),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxRetentionStore),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxDiagnosticsStore),
             store));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(InMemoryOutboxStore),
             store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxWorkSignal),
+            typeof(OutboxPollingWorkSignal)));
     }
 }

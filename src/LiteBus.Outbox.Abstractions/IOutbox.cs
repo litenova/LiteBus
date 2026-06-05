@@ -38,19 +38,4 @@ public interface IOutbox
         OutboxOptions? options = null,
         CancellationToken cancellationToken = default)
         where TEvent : notnull;
-
-    /// <summary>
-    ///     Obsolete alias for <see cref="EnqueueAsync{TEvent}" />.
-    /// </summary>
-    /// <typeparam name="TEvent">The compile-time event type.</typeparam>
-    /// <param name="event">The event instance to serialize and store.</param>
-    /// <param name="options">Optional enqueue metadata.</param>
-    /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
-    /// <returns>The acceptance receipt returned by <see cref="EnqueueAsync{TEvent}" />.</returns>
-    [Obsolete("Use EnqueueAsync instead. AddAsync will be removed in a future major release.")]
-    Task<OutboxReceipt<TEvent>> AddAsync<TEvent>(
-        TEvent @event,
-        OutboxOptions? options = null,
-        CancellationToken cancellationToken = default)
-        where TEvent : notnull => EnqueueAsync(@event, options, cancellationToken);
 }

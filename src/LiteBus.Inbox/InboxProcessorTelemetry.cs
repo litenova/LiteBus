@@ -40,6 +40,19 @@ internal static class InboxProcessorTelemetry
     private static readonly Counter<long> DeadLetteredCounter = Meter.CreateCounter<long>("litebus.inbox.processor.dead_lettered");
 
     /// <summary>
+    ///     Gets the counter incremented when the background loop catches an unhandled exception.
+    /// </summary>
+    private static readonly Counter<long> LoopErrorCounter = Meter.CreateCounter<long>("litebus.inbox.processor.loop_errors");
+
+    /// <summary>
+    ///     Records that the inbox processor background loop caught an unhandled exception.
+    /// </summary>
+    public static void RecordLoopError()
+    {
+        LoopErrorCounter.Add(1);
+    }
+
+    /// <summary>
     ///     Records pass-level metrics after one processor pass completes.
     /// </summary>
     /// <param name="leasedCount">The number of envelopes leased during the pass.</param>

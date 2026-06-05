@@ -23,7 +23,9 @@ public sealed class EfCoreInboxStorageModuleTests
         var store = provider.GetRequiredService<EfCoreInboxStore>();
         provider.GetRequiredService<IInboxStore>().Should().BeSameAs(store);
         provider.GetRequiredService<IInboxLeaseStore>().Should().BeSameAs(store);
-        provider.GetRequiredService<IInboxStateStore>().Should().BeSameAs(store);
+        provider.GetRequiredService<IInboxTerminalStateStore>().Should().BeSameAs(store);
+        provider.GetRequiredService<IInboxRetentionStore>().Should().BeSameAs(store);
+        provider.GetRequiredService<IInboxDiagnosticsStore>().Should().BeSameAs(store);
     }
 
     /// <summary>

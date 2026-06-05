@@ -17,7 +17,9 @@ public sealed class InMemoryInboxStorageModuleTests
 
         provider.GetRequiredService<IInboxStore>().Should().BeOfType<InMemoryInboxStore>();
         provider.GetRequiredService<IInboxLeaseStore>().Should().BeSameAs(provider.GetRequiredService<IInboxStore>());
-        provider.GetRequiredService<IInboxStateStore>().Should().BeSameAs(provider.GetRequiredService<IInboxStore>());
+        provider.GetRequiredService<IInboxTerminalStateStore>().Should().BeSameAs(provider.GetRequiredService<IInboxStore>());
+        provider.GetRequiredService<IInboxRetentionStore>().Should().BeSameAs(provider.GetRequiredService<IInboxStore>());
+        provider.GetRequiredService<IInboxDiagnosticsStore>().Should().BeSameAs(provider.GetRequiredService<IInboxStore>());
         provider.GetRequiredService<InMemoryInboxStore>().Should().BeSameAs(provider.GetRequiredService<IInboxStore>());
     }
 

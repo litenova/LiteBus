@@ -27,7 +27,13 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 ///         <c>OnModelCreating</c> to align schema with this store.
 ///     </para>
 /// </remarks>
-public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStateStore
+public sealed class EfCoreInboxStore :
+    IInboxStore,
+    IInboxLeaseStore,
+    IInboxTerminalStateStore,
+    IInboxRetentionStore,
+    IInboxDiagnosticsStore,
+    IAsyncDisposable
 {
     /// <summary>
     ///     Serializes in-memory and SQLite inbox leasing when multiple workers run in one process.
@@ -45,9 +51,19 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
     private readonly Type? _dbContextType;
 
     /// <summary>
+    ///     The existing database context used when callers need to participate in an outer transaction.
+    /// </summary>
+    private readonly IInboxDbContext? _existingContext;
+
+    /// <summary>
     ///     Store options that define schema and table names for raw SQL leasing.
     /// </summary>
     private readonly EfCoreInboxStoreOptions _options;
+
+    /// <summary>
+    ///     Gets a value indicating whether add operations call <see cref="DbContext.SaveChangesAsync(System.Threading.CancellationToken)" /> immediately.
+    /// </summary>
+    private readonly bool _saveChangesOnAdd = true;
 
     /// <summary>
     ///     Creates scopes that resolve application database contexts from dependency injection.
@@ -94,6 +110,41 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
         _options = options ?? throw new ArgumentNullException(nameof(options));
     }
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="EfCoreInboxStore" /> class bound to an existing context.
+    /// </summary>
+    /// <param name="context">The existing inbox database context.</param>
+    /// <param name="options">The store options.</param>
+    /// <param name="saveChangesOnAdd">
+    ///     <see langword="true" /> to call <see cref="DbContext.SaveChangesAsync(System.Threading.CancellationToken)" /> inside
+    ///     <see cref="AddAsync(InboxEnvelope, CancellationToken)" />; otherwise, <see langword="false" />.
+    /// </param>
+    private EfCoreInboxStore(
+        IInboxDbContext context,
+        EfCoreInboxStoreOptions options,
+        bool saveChangesOnAdd)
+    {
+        _existingContext = context ?? throw new ArgumentNullException(nameof(context));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+        _saveChangesOnAdd = saveChangesOnAdd;
+    }
+
+    /// <summary>
+    ///     Returns a store instance that writes through an existing application <see cref="DbContext" />.
+    /// </summary>
+    /// <typeparam name="TContext">The concrete context type.</typeparam>
+    /// <param name="context">The existing context that owns the ambient transaction.</param>
+    /// <returns>
+    ///     A store bound to <paramref name="context" /> where <see cref="AddAsync(InboxEnvelope, CancellationToken)" />
+    ///     stages inserts and defers commit to the caller's <c>SaveChanges</c> call.
+    /// </returns>
+    public EfCoreInboxStore UseExistingDbContext<TContext>(TContext context)
+        where TContext : DbContext, IInboxDbContext
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return new EfCoreInboxStore(context, _options, saveChangesOnAdd: false);
+    }
+
     /// <inheritdoc />
     public async Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
     {
@@ -101,6 +152,12 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
 
         return await ExecuteAsync(async (context, token) =>
         {
+            var local = context.InboxMessages.Local.SingleOrDefault(message => message.Id == envelope.Id);
+            if (local is not null)
+            {
+                return ToEnvelope(local);
+            }
+
             var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
                 .ConfigureAwait(false);
 
@@ -111,6 +168,11 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
 
             var entity = ToEntity(envelope);
             context.InboxMessages.Add(entity);
+
+            if (!_saveChangesOnAdd)
+            {
+                return ToEnvelope(entity);
+            }
 
             try
             {
@@ -172,10 +234,7 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
                 return;
             }
 
-            entity.Status = InboxStatus.Completed;
-            entity.LeaseOwner = null;
-            entity.LeaseExpiresAt = null;
-            entity.LastError = null;
+            ApplyMutableState(entity, ToEnvelope(entity).AsCompleted());
             await SaveChangesAsync(context, token).ConfigureAwait(false);
         }, cancellationToken);
     }
@@ -196,11 +255,7 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
                 return;
             }
 
-            entity.Status = InboxStatus.Failed;
-            entity.VisibleAfter = failure.VisibleAfter;
-            entity.LeaseOwner = null;
-            entity.LeaseExpiresAt = null;
-            entity.LastError = failure.Error;
+            ApplyMutableState(entity, ToEnvelope(entity).AsFailed(failure.Error, failure.VisibleAfter));
             await SaveChangesAsync(context, token).ConfigureAwait(false);
         }, cancellationToken);
     }
@@ -221,10 +276,7 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
                 return;
             }
 
-            entity.Status = InboxStatus.DeadLettered;
-            entity.LeaseOwner = null;
-            entity.LeaseExpiresAt = null;
-            entity.LastError = deadLetter.Reason;
+            ApplyMutableState(entity, ToEnvelope(entity).AsDeadLettered(deadLetter.Reason));
             await SaveChangesAsync(context, token).ConfigureAwait(false);
         }, cancellationToken);
     }
@@ -243,10 +295,7 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
 
             foreach (var entity in entities)
             {
-                entity.Status = InboxStatus.Completed;
-                entity.LeaseOwner = null;
-                entity.LeaseExpiresAt = null;
-                entity.LastError = null;
+                ApplyMutableState(entity, ToEnvelope(entity).AsCompleted());
             }
 
             if (entities.Count > 0)
@@ -273,11 +322,39 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
             foreach (var entity in entities)
             {
                 var failure = failureById[entity.Id];
-                entity.Status = InboxStatus.Failed;
-                entity.VisibleAfter = failure.VisibleAfter;
-                entity.LeaseOwner = null;
-                entity.LeaseExpiresAt = null;
-                entity.LastError = failure.Error;
+                ApplyMutableState(entity, ToEnvelope(entity).AsFailed(failure.Error, failure.VisibleAfter));
+            }
+
+            if (entities.Count > 0)
+            {
+                await SaveChangesAsync(context, token).ConfigureAwait(false);
+            }
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task MoveToDeadLetterAsync(IReadOnlyList<InboxEnvelopeDeadLetter> deadLetters, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(deadLetters);
+
+        return ExecuteAsync(async (context, token) =>
+        {
+            if (deadLetters.Count == 0)
+            {
+                return;
+            }
+
+            var deadLetterById = deadLetters.ToDictionary(deadLetter => deadLetter.Id);
+
+            var entities = await context.InboxMessages
+                .Where(message => deadLetterById.Keys.Contains(message.Id))
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+
+            foreach (var entity in entities)
+            {
+                var deadLetter = deadLetterById[entity.Id];
+                ApplyMutableState(entity, ToEnvelope(entity).AsDeadLettered(deadLetter.Reason));
             }
 
             if (entities.Count > 0)
@@ -301,13 +378,37 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
                 return;
             }
 
-            entity.Status = InboxStatus.Pending;
-            entity.VisibleAfter = null;
-            entity.AttemptCount = 0;
-            entity.LeaseOwner = null;
-            entity.LeaseExpiresAt = null;
-            entity.LastError = null;
+            ApplyMutableState(entity, ToEnvelope(entity).AsRequeued());
             await SaveChangesAsync(context, token).ConfigureAwait(false);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task RequeueDeadLetterAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageIds);
+
+        return ExecuteAsync(async (context, token) =>
+        {
+            if (messageIds.Count == 0)
+            {
+                return;
+            }
+
+            var entities = await context.InboxMessages
+                .Where(message => messageIds.Contains(message.Id) && message.Status == InboxStatus.DeadLettered)
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+
+            foreach (var entity in entities)
+            {
+                ApplyMutableState(entity, ToEnvelope(entity).AsRequeued());
+            }
+
+            if (entities.Count > 0)
+            {
+                await SaveChangesAsync(context, token).ConfigureAwait(false);
+            }
         }, cancellationToken);
     }
 
@@ -345,6 +446,13 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
         }, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public ValueTask DisposeAsync()
+    {
+        _inMemoryLeaseLock.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
     /// <summary>
     ///     Runs one store operation against a resolved database context.
     /// </summary>
@@ -356,6 +464,11 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
         Func<IInboxDbContext, CancellationToken, Task<TResult>> action,
         CancellationToken cancellationToken)
     {
+        if (_existingContext is not null)
+        {
+            return await action(_existingContext, cancellationToken).ConfigureAwait(false);
+        }
+
         if (_contextFactory is not null)
         {
             var context = await _contextFactory(cancellationToken).ConfigureAwait(false);
@@ -517,10 +630,7 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
 
         foreach (var message in candidates)
         {
-            message.Status = InboxStatus.Processing;
-            message.LeaseOwner = request.LeaseOwner;
-            message.LeaseExpiresAt = leaseExpiresAt;
-            message.AttemptCount++;
+            ApplyMutableState(message, ToEnvelope(message).AsLeased(request.LeaseOwner, leaseExpiresAt));
         }
 
         if (context is DbContext dbContext)
@@ -672,6 +782,21 @@ public sealed class EfCoreInboxStore : IInboxStore, IInboxLeaseStore, IInboxStat
             TenantId = envelope.TenantId,
             TraceContext = envelope.TraceContext
         };
+    }
+
+    /// <summary>
+    ///     Copies lease, status, and error fields from an envelope transition onto a tracked entity.
+    /// </summary>
+    /// <param name="entity">The entity to update.</param>
+    /// <param name="envelope">The envelope produced by a transition method.</param>
+    private static void ApplyMutableState(InboxMessageEntity entity, InboxEnvelope envelope)
+    {
+        entity.Status = envelope.Status;
+        entity.VisibleAfter = envelope.VisibleAfter;
+        entity.AttemptCount = envelope.AttemptCount;
+        entity.LeaseOwner = envelope.LeaseOwner;
+        entity.LeaseExpiresAt = envelope.LeaseExpiresAt;
+        entity.LastError = envelope.LastError;
     }
 
     /// <summary>

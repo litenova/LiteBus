@@ -39,7 +39,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
         var symbol = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol as IMethodSymbol;
 
         if (symbol is null ||
-            (symbol.Name != "AddAsync" && symbol.Name != "AcceptAsync") ||
+            symbol.Name != "AcceptAsync" ||
             !IsInboxAcceptMethod(symbol))
         {
             return;
@@ -73,7 +73,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
     /// <returns><see langword="true" /> when the method accepts messages into the inbox; otherwise, <see langword="false" />.</returns>
     private static bool IsInboxAcceptMethod(IMethodSymbol method)
     {
-        return (method.Name == "AddAsync" || method.Name == "AcceptAsync") &&
+        return method.Name == "AcceptAsync" &&
                method.ContainingType?.Name == "IInbox" &&
                method.ContainingType.ContainingNamespace?.ToDisplayString() == "LiteBus.Inbox.Abstractions";
     }

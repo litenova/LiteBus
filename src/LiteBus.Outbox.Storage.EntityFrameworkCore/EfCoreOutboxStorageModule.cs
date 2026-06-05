@@ -74,9 +74,35 @@ public sealed class EfCoreOutboxStorageModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxStateStore),
+            typeof(IOutboxTerminalStateStore),
             serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
             InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxRetentionStore),
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxDiagnosticsStore),
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(ITransactionalOutboxStore),
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxWorkSignal),
+            typeof(OutboxPollingWorkSignal)));
+
+        if (moduleBuilder.RegisterSaveChangesInterceptor)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(ITransactionalOutbox),
+                typeof(TransactionalOutbox)));
+        }
     }
 
     /// <summary>

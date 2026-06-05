@@ -6,20 +6,13 @@ using System.Threading.Tasks;
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Records the execution result for a leased inbox envelope.
+///     Records terminal inbox execution outcomes and supports dead-letter replay.
 /// </summary>
 /// <remarks>
-///     <para>
-///         <see cref="IInboxProcessor" /> uses this role after <see cref="IInboxDispatcher.DispatchAsync" /> completes
-///         or throws. Implementations should clear lease metadata when recording completion, failure, or dead-letter
-///         state. Failed envelopes should become visible according to the retry timestamp supplied by the processor.
-///     </para>
-///     <para>
-///         This interface is separate from acceptance and leasing so custom stores can expose only the state transition
-///         capability to processors.
-///     </para>
+///     <see cref="IInboxProcessor" /> depends on this role. Retention and diagnostics are exposed through separate
+///     interfaces so hosts can grant processors only the capabilities they need.
 /// </remarks>
-public interface IInboxStateStore
+public interface IInboxTerminalStateStore
 {
     /// <summary>
     ///     Marks a leased envelope as completed after dispatch succeeds without throwing.
@@ -62,6 +55,14 @@ public interface IInboxStateStore
     Task MarkFailedAsync(IReadOnlyList<InboxEnvelopeFailure> failures, CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     Moves multiple envelopes to the dead-letter state in one store round trip.
+    /// </summary>
+    /// <param name="deadLetters">The dead-letter details for each envelope.</param>
+    /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous batch status update.</returns>
+    Task MoveToDeadLetterAsync(IReadOnlyList<InboxEnvelopeDeadLetter> deadLetters, CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     Moves a dead-lettered envelope back to the pending state for manual replay.
     /// </summary>
     /// <param name="messageId">The envelope identifier to requeue.</param>
@@ -70,17 +71,40 @@ public interface IInboxStateStore
     Task RequeueDeadLetterAsync(Guid messageId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     Deletes completed envelopes whose completion time is older than the supplied cutoff.
+    ///     Moves multiple dead-lettered envelopes back to the pending state for manual replay.
     /// </summary>
-    /// <param name="olderThan">Rows with <c>created_at</c> strictly before this timestamp are eligible for deletion.</param>
-    /// <param name="cancellationToken">A token that cancels the delete operation.</param>
-    /// <returns>The number of rows deleted.</returns>
-    Task<int> DeleteCompletedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default);
+    /// <param name="messageIds">The envelope identifiers to requeue.</param>
+    /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous batch requeue operation.</returns>
+    Task RequeueDeadLetterAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     Returns the number of stored envelopes grouped by <see cref="InboxStatus" />.
+    ///     Moves multiple dead-lettered envelopes back to the pending state for manual replay using string message identifiers.
     /// </summary>
-    /// <param name="cancellationToken">A token that cancels the query.</param>
-    /// <returns>A read-only map of status to row count.</returns>
-    Task<IReadOnlyDictionary<InboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default);
+    /// <param name="messageIds">The envelope identifiers to requeue. Each value must parse as a <see cref="Guid" />.</param>
+    /// <param name="cancellationToken">A token that cancels the status update.</param>
+    /// <returns>A task that represents the asynchronous batch requeue operation.</returns>
+    Task RequeueDeadLetterAsync(IReadOnlyList<string> messageIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageIds);
+
+        if (messageIds.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var parsedIds = new Guid[messageIds.Count];
+
+        for (var index = 0; index < messageIds.Count; index++)
+        {
+            if (!Guid.TryParse(messageIds[index], out parsedIds[index]))
+            {
+                throw new ArgumentException(
+                    $"Message id '{messageIds[index]}' is not a valid GUID.",
+                    nameof(messageIds));
+            }
+        }
+
+        return RequeueDeadLetterAsync(parsedIds, cancellationToken);
+    }
 }

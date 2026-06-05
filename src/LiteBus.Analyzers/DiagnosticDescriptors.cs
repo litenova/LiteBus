@@ -35,7 +35,7 @@ public static class DiagnosticDescriptors
     internal static readonly DiagnosticDescriptor CommandWithResultScheduledToInbox = new(
         DiagnosticIds.CommandWithResultScheduledToInbox,
         "Command with result scheduled to inbox",
-        "Type '{0}' implements ICommand<{1}> and cannot be stored through IInbox.AddAsync. Use a void command for inbox storage or send the command immediately through ICommandMediator.",
+        "Type '{0}' implements ICommand<{1}> and cannot be stored through IInbox.AcceptAsync. Use a void command for inbox storage or send the command immediately through ICommandMediator.",
         "LiteBus.Inbox",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);

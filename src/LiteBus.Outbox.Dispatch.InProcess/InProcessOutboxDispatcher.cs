@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,26 +20,22 @@ namespace LiteBus.Outbox.Dispatch.InProcess;
 ///     </para>
 ///     <para>
 ///         Events that implement <see cref="IEvent" /> are sent through the non-generic publisher overload. POCO events
-///         are published through the generic overload by reflection because the event type is known only after contract
-///         resolution.
+///         are published through a closed generic helper cached per event type.
 ///     </para>
 /// </remarks>
 public sealed class InProcessOutboxDispatcher : IOutboxDispatcher
 {
     /// <summary>
-    ///     Caches the open generic <c>PublishAsync&lt;TEvent&gt;</c> method used for POCO event publication.
+    ///     Caches closed generic publish delegates keyed by event type to avoid repeated reflection overhead.
     /// </summary>
-    private static readonly MethodInfo GenericPublishMethod = typeof(IEventMediator)
-        .GetMethods()
-        .Single(method =>
-            method.Name == nameof(IEventMediator.PublishAsync) &&
-            method.IsGenericMethodDefinition &&
-            method.GetGenericArguments().Length == 1);
+    private static readonly ConcurrentDictionary<Type, Func<IEventMediator, object, EventMediationSettings?, CancellationToken, Task>> PublishDelegateCache = new();
 
     /// <summary>
-    ///     Caches closed generic <c>PublishAsync&lt;TEvent&gt;</c> methods keyed by event type to avoid repeated reflection overhead.
+    ///     The open generic publish helper resolved once at type initialization.
     /// </summary>
-    private static readonly ConcurrentDictionary<Type, MethodInfo> ClosedPublishMethodCache = new();
+    private static readonly MethodInfo PublishTypedAsyncMethod = typeof(InProcessOutboxDispatcher)
+        .GetMethod(nameof(PublishTypedAsync), BindingFlags.NonPublic | BindingFlags.Static)
+        ?? throw new InvalidOperationException($"Could not resolve {nameof(PublishTypedAsync)}.");
 
     /// <summary>
     ///     Gets the registry used to resolve persisted contracts back to event types.
@@ -88,21 +83,40 @@ public sealed class InProcessOutboxDispatcher : IOutboxDispatcher
             return;
         }
 
-        var publishMethod = ClosedPublishMethodCache.GetOrAdd(eventType, t => GenericPublishMethod.MakeGenericMethod(t));
+        var publish = PublishDelegateCache.GetOrAdd(eventType, CreatePublishDelegate);
+        await publish(_eventPublisher, @event, mediationSettings, cancellationToken).ConfigureAwait(false);
+    }
 
-        Task publishTask;
-        try
-        {
-            publishTask = publishMethod.Invoke(_eventPublisher, [@event, mediationSettings, cancellationToken]) as Task
-                          ?? throw new InvalidOperationException(
-                              $"The event publisher did not return a Task for '{eventType.FullName ?? eventType.Name}'.");
-        }
-        catch (TargetInvocationException exception) when (exception.InnerException is Exception inner)
-        {
-            publishTask = Task.FromException(inner);
-        }
+    /// <summary>
+    ///     Publishes a POCO event through the generic <see cref="IEventMediator.PublishAsync{TEvent}" /> overload.
+    /// </summary>
+    /// <typeparam name="TEvent">The compile-time event type closed from the persisted contract.</typeparam>
+    /// <param name="eventPublisher">The event mediator used as the dispatch target.</param>
+    /// <param name="eventInstance">The deserialized event instance.</param>
+    /// <param name="mediationSettings">The mediation settings copied from the outbox envelope.</param>
+    /// <param name="cancellationToken">The token used to cancel publication.</param>
+    /// <returns>A task that completes when publication finishes.</returns>
+    private static Task PublishTypedAsync<TEvent>(
+        IEventMediator eventPublisher,
+        object eventInstance,
+        EventMediationSettings? mediationSettings,
+        CancellationToken cancellationToken)
+        where TEvent : notnull
+    {
+        return eventPublisher.PublishAsync((TEvent)eventInstance, mediationSettings, cancellationToken);
+    }
 
-        await publishTask.ConfigureAwait(false);
+    /// <summary>
+    ///     Creates a closed generic publish delegate for the supplied event type.
+    /// </summary>
+    /// <param name="eventType">The runtime event type resolved from the outbox contract.</param>
+    /// <returns>A delegate that publishes through <see cref="IEventMediator.PublishAsync{TEvent}" />.</returns>
+    private static Func<IEventMediator, object, EventMediationSettings?, CancellationToken, Task> CreatePublishDelegate(Type eventType)
+    {
+        var closedMethod = PublishTypedAsyncMethod.MakeGenericMethod(eventType);
+
+        return (mediator, eventInstance, settings, cancellationToken) =>
+            (Task)closedMethod.Invoke(null, [mediator, eventInstance, settings, cancellationToken])!;
     }
 
     /// <summary>

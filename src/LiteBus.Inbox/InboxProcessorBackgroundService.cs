@@ -81,6 +81,7 @@ public sealed class InboxProcessorBackgroundService : IBackgroundService
             }
             catch (Exception exception)
             {
+                InboxProcessorTelemetry.RecordLoopError();
                 _ = MessageProcessorDiagnostics.FormatError(exception);
                 await _workSignal.WaitForWorkOrDelayAsync(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
             }

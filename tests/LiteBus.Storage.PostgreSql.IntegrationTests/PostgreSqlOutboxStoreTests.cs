@@ -28,6 +28,6 @@ public sealed class PostgreSqlOutboxStoreTests : ContractTests, IClassFixture<Po
         var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
         PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, options).GetAwaiter().GetResult();
         var store = new PostgreSqlOutboxStore(_fixture.DataSource, options);
-        return new ContractTests.OutboxStoreContracts(store, store, store);
+        return new ContractTests.OutboxStoreContracts(store, store, store, store, store);
     }
 }

@@ -31,6 +31,22 @@ public sealed class MessageModuleBuilder
     public IContractWriter Contracts { get; }
 
     /// <summary>
+    ///     Gets the optional time provider registered for messaging and dependent modules.
+    /// </summary>
+    internal TimeProvider? TimeProvider { get; private set; }
+
+    /// <summary>
+    ///     Registers the <see cref="TimeProvider" /> instance exposed through dependency injection.
+    /// </summary>
+    /// <param name="timeProvider">The time provider to register. When omitted at build time, <see cref="TimeProvider.System" /> is used.</param>
+    /// <returns>The current builder.</returns>
+    public MessageModuleBuilder UseTimeProvider(TimeProvider timeProvider)
+    {
+        TimeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        return this;
+    }
+
+    /// <summary>
     ///     Registers a message or handler type with the message registry.
     /// </summary>
     /// <typeparam name="T">The type to register.</typeparam>

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -44,6 +45,24 @@ public static class MessageProcessorDiagnostics
         {
             items[MessageTraceContextKeys.TraceContext] = traceContext;
         }
+    }
+
+    /// <summary>
+    ///     Attempts to parse a stored W3C trace context value into an <see cref="ActivityContext" /> parent.
+    /// </summary>
+    /// <param name="traceContext">The trace context string persisted on an inbox or outbox envelope.</param>
+    /// <param name="parentContext">When parsing succeeds, the W3C parent <see cref="ActivityContext" /> for processor spans.</param>
+    /// <returns><see langword="true" /> when <paramref name="traceContext" /> is a valid W3C trace parent; otherwise, <see langword="false" />.</returns>
+    public static bool TryGetParentActivityContext(string? traceContext, out ActivityContext parentContext)
+    {
+        parentContext = default;
+
+        if (string.IsNullOrWhiteSpace(traceContext))
+        {
+            return false;
+        }
+
+        return ActivityContext.TryParse(traceContext, null, out parentContext);
     }
 
     /// <summary>

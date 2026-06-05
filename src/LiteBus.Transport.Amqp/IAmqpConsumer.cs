@@ -15,7 +15,8 @@ public interface IAmqpConsumer : IAsyncDisposable
     /// <param name="options">The queue and prefetch settings for the subscription.</param>
     /// <param name="handler">
     ///     The handler invoked for each delivery. The handler must call
-    ///     <see cref="AmqpReceivedMessage.AckAsync" /> or <see cref="AmqpReceivedMessage.NackAsync" /> before returning.
+    ///     <see cref="AmqpReceivedMessage.AcceptAsync" />, <see cref="AmqpReceivedMessage.DiscardAsync" />, or
+    ///     <see cref="AmqpReceivedMessage.ReturnToQueueAsync" /> before returning.
     /// </param>
     /// <param name="cancellationToken">The token used to cancel startup.</param>
     /// <returns>A task that completes when the consumer subscription is active.</returns>

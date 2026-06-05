@@ -12,6 +12,6 @@ public sealed class InboxStoreContractTests : global::LiteBus.Storage.Testing.In
     protected override InboxStoreRoles CreateStore()
     {
         var store = new InMemoryInboxStore();
-        return new InboxStoreRoles(store, store, store);
+        return new InboxStoreRoles(store, store, store, store, store);
     }
 }

@@ -33,9 +33,8 @@ public sealed class InProcessInboxDispatcherTests : LiteBusTestBase
                 modules.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<ProcessOrderCommand>("orders.commands.process", 1);
+                    builder.UseInProcessDispatcher();
                 });
-
-                modules.AddInboxModule(inbox => inbox.UseInProcessDispatcher());
             })
             .BuildServiceProvider();
 
@@ -111,9 +110,8 @@ public sealed class InProcessInboxDispatcherTests : LiteBusTestBase
                 modules.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxProbeCommand>("inbox.commands.probe", 1);
+                    builder.UseInProcessDispatcher();
                 });
-
-                modules.AddInboxModule(inbox => inbox.UseInProcessDispatcher());
             })
             .BuildServiceProvider();
 
@@ -161,7 +159,6 @@ public sealed class InProcessInboxDispatcherTests : LiteBusTestBase
             .AddLiteBus(modules =>
             {
                 modules.AddCommandModule(_ => { });
-                modules.AddInboxModule();
                 modules.AddInboxModule(inbox => inbox.UseInProcessDispatcher());
             })
             .BuildServiceProvider();
@@ -178,7 +175,7 @@ public sealed class InProcessInboxDispatcherTests : LiteBusTestBase
                 modules.AddCommandModule(_ => { });
                 modules.AddInboxModule();
                 modules.Register(new PreRegisteredInboxDispatcherModule());
-                modules.AddInboxInProcessDispatcher();
+                modules.AddInboxModule(inbox => inbox.UseInProcessDispatcher());
             })
             .BuildServiceProvider();
 
@@ -211,14 +208,16 @@ public sealed class InProcessInboxDispatcherTests : LiteBusTestBase
             .AddLiteBus(modules =>
             {
                 modules.AddCommandModule(_ => { });
-                modules.AddInboxModule();
-                modules.AddInboxInProcessDispatcher();
-                modules.AddInboxInProcessDispatcher();
+                modules.AddInboxModule(inbox =>
+                {
+                    inbox.UseInProcessDispatcher();
+                    inbox.UseInProcessDispatcher();
+                });
             })
             .BuildServiceProvider();
 
-        act.Should().Throw<LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException>()
-            .WithMessage("*in-process inbox dispatcher module is already registered*");
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Inbox dispatcher is already configured*");
     }
 
     private static InboxEnvelope CreateEnvelope(

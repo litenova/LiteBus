@@ -19,7 +19,7 @@ public sealed class OutboxCleanupBackgroundService : IBackgroundService
     /// <summary>
     ///     Gets the store used to delete published rows.
     /// </summary>
-    private readonly IOutboxStateStore _stateStore;
+    private readonly IOutboxRetentionStore _stateStore;
 
     /// <summary>
     ///     Gets the clock used to calculate retention cutoffs.
@@ -33,7 +33,7 @@ public sealed class OutboxCleanupBackgroundService : IBackgroundService
     /// <param name="hostOptions">The loop timing and retention options for cleanup.</param>
     /// <param name="timeProvider">The clock used to calculate retention cutoffs.</param>
     public OutboxCleanupBackgroundService(
-        IOutboxStateStore stateStore,
+        IOutboxRetentionStore stateStore,
         OutboxCleanupHostOptions hostOptions,
         TimeProvider timeProvider)
     {

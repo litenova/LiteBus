@@ -60,6 +60,9 @@ All notable changes to this project will be documented in this file.
 
 ### Breaking Changes
 
+- Dropped .NET 8 and .NET 9 support. Shipping libraries and test projects target `net10.0` only.
+- Replaced `IInboxStateStore` and `IOutboxStateStore` with terminal, retention, and diagnostics store interfaces (`IInboxTerminalStateStore`, `IInboxRetentionStore`, `IInboxDiagnosticsStore`, and outbox equivalents). Processors and cleanup services depend on the narrow interfaces; storage modules register all three against the same singleton store instance.
+- Removed `IInbox.AddAsync` and `IOutbox.AddAsync`. Use `IInbox.AcceptAsync` and `IOutbox.EnqueueAsync` (or `ITransactionalOutbox.EnqueueAsync` for Entity Framework Core save-changes staging). Analyzer LB1004 and AMQP ingress now target `AcceptAsync` only.
 - Removed `MessageRegistryAccessor`, `IMessageRegistry.Clear()`, and the process-wide singleton `MessageRegistry`. Custom modules must obtain `IMessageRegistry` from `configuration.GetContext<IMessageRegistry>()` after the messaging module runs (or `GetOrCreateContext` when defining a new messaging entry point). Use a new `MessageRegistry` per test or separate `AddLiteBus` hosts for isolation.
 - `IMessageRegistry` now extends `IMessageWriter` and `IMessageReader`; `MessageMediator` and `IMessageResolveStrategy` take the read (and write for on-the-spot registration) surfaces instead of the combined registry.
 
@@ -69,8 +72,13 @@ All notable changes to this project will be documented in this file.
 - Restored the thin `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` and `LiteBus.Extensions.Microsoft.DependencyInjection` dependency graphs. The meta package references only the command, event, messaging, and query DI extension packages; register inbox, outbox, storage, and dispatch through the packages you install and `AddLiteBus(Action<IModuleRegistry>)`.
 - Replaced cross-layer `LiteBusConfigurationException` / `LiteBusTimeoutException` usage in storage and transport with package-specific exception types.
 - Moved `InboxPollingWorkSignal` to `LiteBus.Inbox.Abstractions` so inbox storage packages do not reference `LiteBus.Inbox`.
-- Renamed inbox writer API surface: `IInbox.AcceptAsync` is the preferred acceptance method; `IInbox.AddAsync` is obsolete and forwards to `AcceptAsync`.
-- Renamed outbox writer API surface: `IOutbox.EnqueueAsync` is the preferred enqueue method; `IOutbox.AddAsync` is obsolete and forwards to `EnqueueAsync`.
+- Added `ITransactionalOutbox` and `TransactionalOutbox` (registered with `EnableSaveChangesInterceptor`) for contract-aware enqueue through the EF Core save-changes interceptor. `ITransactionalOutboxStore` is registered from EF Core storage; `EfCoreOutboxStore.UseExistingDbContext<TContext>` returns that interface.
+- Added `IOutboxWorkSignal`, `OutboxPollingWorkSignal`, and optional `PostgreSqlOutboxWorkSignal` when PostgreSQL outbox storage sets `UseListenNotify`. `OutboxProcessorBackgroundService` waits through the work signal instead of raw `Task.Delay` polling.
+- Added `EfCoreInboxStore.UseExistingDbContext<TContext>` and `PostgreSqlInboxStore.UseExistingConnection` for transactional inbox writes aligned with the outbox participation APIs.
+- Added `MessageModuleBuilder.UseTimeProvider` so hosts can register a custom `TimeProvider`; when unset, `TimeProvider.System` is registered.
+- `LiteBus.Runtime.Extensions.Autofac` registers `IServiceProvider` through `Autofac.Extensions.DependencyInjection.AutofacServiceProvider` instead of a private adapter.
+- Added `IInboxTerminalStateStore.RequeueDeadLetterAsync(IReadOnlyList<string>)` and `IOutboxTerminalStateStore.RequeueDeadLetterAsync(IReadOnlyList<string>)` default overloads that parse GUID message ids for bulk replay.
+- LiteBus module configuration now throws `LiteBusConfigurationException` when two modules register the same service type with different bindings instead of relying on container first-wins behavior.
 - Added `OutboxEnvelope.IdempotencyKey`, `OutboxOptions.IdempotencyKey`, PostgreSQL schema version 3 upgrade, and store idempotency handling aligned with the inbox model.
 - Moved `MessageContractAttribute` to `LiteBus.Messaging.Abstractions` with `RegisterFromAssembly` scanning and runtime mismatch validation when both attributes and explicit `Register` calls are used.
 - Removed `IEventPublisher`; use `IEventMediator` for in-process event publication.

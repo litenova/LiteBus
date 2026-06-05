@@ -53,10 +53,46 @@ public sealed class AmqpReceivedMessage
     /// <summary>
     ///     Gets the delegate that acknowledges successful processing of the delivery.
     /// </summary>
-    public required Func<bool, CancellationToken, Task> AckAsync { get; init; }
+    /// <remarks>
+    ///     Prefer <see cref="AcceptAsync" />, <see cref="DiscardAsync" />, and <see cref="ReturnToQueueAsync" /> at call sites.
+    /// </remarks>
+    public required Func<bool, CancellationToken, Task> AckDelegate { get; init; }
 
     /// <summary>
     ///     Gets the delegate that negative-acknowledges the delivery so the broker can requeue or dead-letter it.
     /// </summary>
-    public required Func<bool, bool, CancellationToken, Task> NackAsync { get; init; }
+    /// <remarks>
+    ///     Prefer <see cref="AcceptAsync" />, <see cref="DiscardAsync" />, and <see cref="ReturnToQueueAsync" /> at call sites.
+    /// </remarks>
+    public required Func<bool, bool, CancellationToken, Task> NackDelegate { get; init; }
+
+    /// <summary>
+    ///     Acknowledges the message, signalling the broker that processing succeeded.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the acknowledgement.</param>
+    /// <returns>A task that completes when the broker has accepted the acknowledgement.</returns>
+    public Task AcceptAsync(CancellationToken cancellationToken = default) =>
+        AckDelegate(false, cancellationToken);
+
+    /// <summary>
+    ///     Rejects the message and discards it from the queue.
+    /// </summary>
+    /// <remarks>
+    ///     Use this when the message is malformed and will never succeed.
+    /// </remarks>
+    /// <param name="cancellationToken">A token that cancels the rejection.</param>
+    /// <returns>A task that completes when the broker has accepted the rejection.</returns>
+    public Task DiscardAsync(CancellationToken cancellationToken = default) =>
+        NackDelegate(false, false, cancellationToken);
+
+    /// <summary>
+    ///     Rejects the message and returns it to the queue for redelivery.
+    /// </summary>
+    /// <remarks>
+    ///     Use this for transient failures where the message is expected to succeed on retry.
+    /// </remarks>
+    /// <param name="cancellationToken">A token that cancels the rejection.</param>
+    /// <returns>A task that completes when the broker has accepted the rejection.</returns>
+    public Task ReturnToQueueAsync(CancellationToken cancellationToken = default) =>
+        NackDelegate(false, true, cancellationToken);
 }

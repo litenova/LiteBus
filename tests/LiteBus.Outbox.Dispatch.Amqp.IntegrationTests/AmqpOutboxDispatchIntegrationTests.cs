@@ -126,9 +126,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
     {
         return new ServiceCollection()
             .AddSingleton(store)
-            .AddSingleton<IOutboxStore>(store)
-            .AddSingleton<IOutboxLeaseStore>(store)
-            .AddSingleton<IOutboxStateStore>(store)
+            .AddOutboxStoreRoles(store)
             .AddLiteBus(modules =>
             {
                 modules.AddOutboxModule(builder =>
@@ -215,7 +213,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
             async (message, cancellationToken) =>
             {
                 var bodyCopy = message.Body.ToArray();
-                await message.AckAsync(false, cancellationToken).ConfigureAwait(false);
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
                 received.TrySetResult(new ConsumedAmqpMessage(message, bodyCopy));
             });
 

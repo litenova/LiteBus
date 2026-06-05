@@ -12,7 +12,7 @@ using LiteBus.Inbox.Abstractions.Exceptions;
 namespace LiteBus.Inbox.Ingress.Amqp;
 
 /// <summary>
-///     Maps AMQP deliveries into <see cref="IInbox.AddAsync" /> acceptance calls.
+///     Maps AMQP deliveries into <see cref="IInbox.AcceptAsync" /> acceptance calls.
 /// </summary>
 public sealed class AmqpInboxIngressHandler
 {
@@ -27,10 +27,10 @@ public sealed class AmqpInboxIngressHandler
     private const string VisibleAfterHeader = "litebus-visible-after";
 
     /// <summary>
-    ///     Gets the cached open generic <see cref="IInbox.AddAsync" /> method definition.
+    ///     Gets the cached open generic <see cref="IInbox.AcceptAsync" /> method definition.
     /// </summary>
-    private static readonly MethodInfo AddAsyncMethodDefinition =
-        typeof(IInbox).GetMethod(nameof(IInbox.AddAsync), BindingFlags.Public | BindingFlags.Instance)
+    private static readonly MethodInfo AcceptAsyncMethodDefinition =
+        typeof(IInbox).GetMethod(nameof(IInbox.AcceptAsync), BindingFlags.Public | BindingFlags.Instance)
         ?? throw new Exceptions.AmqpInboxIngressConfigurationException($"Could not resolve {nameof(IInbox.AcceptAsync)}.");
 
     /// <summary>
@@ -83,20 +83,20 @@ public sealed class AmqpInboxIngressHandler
             .ConfigureAwait(false);
 
         var options = BuildInboxOptions(message);
-        await InvokeAddAsync(deserialized, options, cancellationToken).ConfigureAwait(false);
+        await InvokeAcceptAsync(deserialized, options, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    ///     Invokes <see cref="IInbox.AddAsync" /> for a runtime message type.
+    ///     Invokes <see cref="IInbox.AcceptAsync" /> for a runtime message type.
     /// </summary>
     /// <param name="message">The deserialized message instance.</param>
     /// <param name="options">The inbox metadata mapped from AMQP headers.</param>
     /// <param name="cancellationToken">The token used to cancel the store write.</param>
     /// <returns>A task that completes when the inbox accepts the message.</returns>
-    private async Task InvokeAddAsync(object message, InboxOptions options, CancellationToken cancellationToken)
+    private async Task InvokeAcceptAsync(object message, InboxOptions options, CancellationToken cancellationToken)
     {
-        var addAsync = AddAsyncMethodDefinition.MakeGenericMethod(message.GetType());
-        var task = (Task)addAsync.Invoke(_inbox, [message, options, cancellationToken])!;
+        var acceptAsync = AcceptAsyncMethodDefinition.MakeGenericMethod(message.GetType());
+        var task = (Task)acceptAsync.Invoke(_inbox, [message, options, cancellationToken])!;
         await task.ConfigureAwait(false);
     }
 
@@ -104,7 +104,7 @@ public sealed class AmqpInboxIngressHandler
     ///     Builds inbox metadata from LiteBus AMQP headers and message properties.
     /// </summary>
     /// <param name="message">The received AMQP delivery.</param>
-    /// <returns>The inbox options passed to <see cref="IInbox.AddAsync" />.</returns>
+    /// <returns>The inbox options passed to <see cref="IInbox.AcceptAsync" />.</returns>
     private static InboxOptions BuildInboxOptions(AmqpReceivedMessage message)
     {
         var options = new InboxOptions

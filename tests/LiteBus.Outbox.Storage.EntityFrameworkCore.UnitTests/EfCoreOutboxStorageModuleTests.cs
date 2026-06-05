@@ -23,7 +23,9 @@ public sealed class EfCoreOutboxStorageModuleTests
         var store = provider.GetRequiredService<EfCoreOutboxStore>();
         provider.GetRequiredService<IOutboxStore>().Should().BeSameAs(store);
         provider.GetRequiredService<IOutboxLeaseStore>().Should().BeSameAs(store);
-        provider.GetRequiredService<IOutboxStateStore>().Should().BeSameAs(store);
+        provider.GetRequiredService<IOutboxTerminalStateStore>().Should().BeSameAs(store);
+        provider.GetRequiredService<IOutboxRetentionStore>().Should().BeSameAs(store);
+        provider.GetRequiredService<IOutboxDiagnosticsStore>().Should().BeSameAs(store);
     }
 
     /// <summary>

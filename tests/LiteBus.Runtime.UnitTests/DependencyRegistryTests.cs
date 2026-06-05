@@ -1,4 +1,5 @@
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Dependencies;
 using LiteBus.Runtime.Modules;
 
@@ -19,14 +20,16 @@ public sealed class DependencyRegistryTests
     }
 
     [Fact]
-    public void Register_WithDifferentInstancesForSameServiceType_ShouldKeepBoth()
+    public void Register_WithConflictingBindingForSameServiceType_ShouldThrowLiteBusConfigurationException()
     {
         var registry = new DependencyRegistry();
 
-        registry.Register(new DependencyDescriptor(typeof(ITestService), new TestServiceA()));
-        registry.Register(new DependencyDescriptor(typeof(ITestService), new TestServiceB()));
+        registry.Register(new DependencyDescriptor(typeof(ITestService), typeof(TestServiceA)));
 
-        registry.Count.Should().Be(2);
+        var act = () => registry.Register(new DependencyDescriptor(typeof(ITestService), typeof(TestServiceB)));
+
+        act.Should().Throw<LiteBusConfigurationException>()
+            .WithMessage("*ITestService*");
     }
 
     [Fact]

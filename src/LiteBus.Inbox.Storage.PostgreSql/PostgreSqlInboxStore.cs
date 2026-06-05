@@ -24,7 +24,12 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 ///         failure.
 ///     </para>
 /// </remarks>
-public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInboxStateStore
+public sealed class PostgreSqlInboxStore :
+    IInboxStore,
+    IInboxLeaseStore,
+    IInboxTerminalStateStore,
+    IInboxRetentionStore,
+    IInboxDiagnosticsStore
 {
     /// <summary>
     ///     The PostgreSQL data source used to open commands against the inbox table.
@@ -35,6 +40,16 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
     ///     The quoted qualified inbox table name built from store options at construction time.
     /// </summary>
     private readonly string _tableName;
+
+    /// <summary>
+    ///     The existing open PostgreSQL connection used when callers provide an external transaction boundary.
+    /// </summary>
+    private readonly NpgsqlConnection? _transactionConnection;
+
+    /// <summary>
+    ///     The existing PostgreSQL transaction used for command execution when provided by the caller.
+    /// </summary>
+    private readonly NpgsqlTransaction? _transaction;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="PostgreSqlInboxStore" /> class.
@@ -49,6 +64,49 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
 
         _dataSource = dataSource;
         _tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
+    }
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="PostgreSqlInboxStore" /> class bound to an existing transaction.
+    /// </summary>
+    /// <param name="dataSource">The PostgreSQL data source.</param>
+    /// <param name="tableName">The fully qualified inbox table name.</param>
+    /// <param name="transactionConnection">The existing open PostgreSQL connection.</param>
+    /// <param name="transaction">The existing PostgreSQL transaction.</param>
+    private PostgreSqlInboxStore(
+        NpgsqlDataSource dataSource,
+        string tableName,
+        NpgsqlConnection? transactionConnection,
+        NpgsqlTransaction? transaction)
+    {
+        _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+        _tableName = tableName ?? throw new ArgumentNullException(nameof(tableName));
+        _transactionConnection = transactionConnection;
+        _transaction = transaction;
+    }
+
+    /// <summary>
+    ///     Returns a store that executes commands on an existing PostgreSQL connection and transaction.
+    /// </summary>
+    /// <param name="connection">The existing open connection owned by the caller.</param>
+    /// <param name="transaction">The transaction that should contain inbox writes.</param>
+    /// <returns>A store instance bound to the supplied connection and transaction.</returns>
+    public PostgreSqlInboxStore UseExistingConnection(NpgsqlConnection connection, NpgsqlTransaction transaction)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
+
+        if (!ReferenceEquals(transaction.Connection, connection))
+        {
+            throw new ArgumentException("The supplied transaction must belong to the supplied connection.", nameof(transaction));
+        }
+
+        if (connection.State != System.Data.ConnectionState.Open)
+        {
+            throw new InvalidOperationException("The supplied connection must already be open.");
+        }
+
+        return new PostgreSqlInboxStore(_dataSource, _tableName, connection, transaction);
     }
 
     /// <inheritdoc />
@@ -113,7 +171,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                       trace_context::text;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         AddEnvelopeParameters(command, envelope);
 
         var storedEnvelope = await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false);
@@ -164,7 +222,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                       inbox.trace_context::text;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("pending_status", (int)InboxStatus.Pending);
         command.Parameters.AddWithValue("failed_status", (int)InboxStatus.Failed);
         command.Parameters.AddWithValue("processing_status", (int)InboxStatus.Processing);
@@ -189,7 +247,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                   WHERE message_id = @message_id;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("completed_status", (int)InboxStatus.Completed);
         command.Parameters.AddWithValue("message_id", messageId);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -211,7 +269,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                   WHERE message_id = @message_id;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("failed_status", (int)InboxStatus.Failed);
         command.Parameters.AddWithValue("visible_after", (object?)failure.VisibleAfter ?? DBNull.Value);
         command.Parameters.AddWithValue("last_error", failure.Error);
@@ -234,10 +292,53 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                   WHERE message_id = @message_id;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("dead_lettered_status", (int)InboxStatus.DeadLettered);
         command.Parameters.AddWithValue("last_error", deadLetter.Reason);
         command.Parameters.AddWithValue("message_id", deadLetter.Id);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task MoveToDeadLetterAsync(IReadOnlyList<InboxEnvelopeDeadLetter> deadLetters, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(deadLetters);
+
+        if (deadLetters.Count == 0)
+        {
+            return;
+        }
+
+        if (deadLetters.Count == 1)
+        {
+            await MoveToDeadLetterAsync(deadLetters[0], cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var ids = new Guid[deadLetters.Count];
+        var reasons = new string[deadLetters.Count];
+
+        for (var index = 0; index < deadLetters.Count; index++)
+        {
+            ids[index] = deadLetters[index].Id;
+            reasons[index] = deadLetters[index].Reason;
+        }
+
+        var sql = $"""
+                  UPDATE {_tableName} AS inbox
+                  SET
+                      status = @dead_lettered_status,
+                      lease_owner = NULL,
+                      lease_expires_at = NULL,
+                      last_error = batch.last_error
+                  FROM unnest(@message_ids, @last_errors) AS batch(message_id, last_error)
+                  WHERE inbox.message_id = batch.message_id;
+                  """;
+
+        await using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("dead_lettered_status", (int)InboxStatus.DeadLettered);
+        command.Parameters.AddWithValue("message_ids", ids);
+        command.Parameters.AddWithValue("last_errors", reasons);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -267,7 +368,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                   WHERE message_id = ANY(@message_ids);
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("completed_status", (int)InboxStatus.Completed);
         command.Parameters.AddWithValue("message_ids", messageIds);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -312,10 +413,10 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                   WHERE inbox.message_id = batch.message_id;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("failed_status", (int)InboxStatus.Failed);
         command.Parameters.AddWithValue("message_ids", ids);
-        command.Parameters.AddWithValue("visible_after", visibleAfter);
+        AddVisibleAfterArrayParameter(command, visibleAfter);
         command.Parameters.AddWithValue("last_errors", errors);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -335,10 +436,45 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                   WHERE message_id = @message_id AND status = @dead_lettered_status;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("pending_status", (int)InboxStatus.Pending);
         command.Parameters.AddWithValue("dead_lettered_status", (int)InboxStatus.DeadLettered);
         command.Parameters.AddWithValue("message_id", messageId);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task RequeueDeadLetterAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageIds);
+
+        if (messageIds.Count == 0)
+        {
+            return;
+        }
+
+        if (messageIds.Count == 1)
+        {
+            await RequeueDeadLetterAsync(messageIds[0], cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var sql = $"""
+                  UPDATE {_tableName}
+                  SET
+                      status = @pending_status,
+                      visible_after = NULL,
+                      attempt_count = 0,
+                      lease_owner = NULL,
+                      lease_expires_at = NULL,
+                      last_error = NULL
+                  WHERE message_id = ANY(@message_ids) AND status = @dead_lettered_status;
+                  """;
+
+        await using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("pending_status", (int)InboxStatus.Pending);
+        command.Parameters.AddWithValue("dead_lettered_status", (int)InboxStatus.DeadLettered);
+        command.Parameters.AddWithValue("message_ids", messageIds);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -350,7 +486,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                   WHERE status = @completed_status AND created_at < @older_than;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("completed_status", (int)InboxStatus.Completed);
         command.Parameters.AddWithValue("older_than", olderThan);
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -365,7 +501,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
                   GROUP BY status;
                   """;
 
-        await using var command = _dataSource.CreateCommand(sql);
+        await using var command = CreateCommand(sql);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         var counts = new Dictionary<InboxStatus, int>();
 
@@ -387,7 +523,7 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
     private async Task<InboxEnvelope> FindExistingAsync(Guid messageId, string? idempotencyKey, CancellationToken cancellationToken)
     {
         string sql;
-        await using var command = _dataSource.CreateCommand();
+        await using var command = CreateCommand();
         command.Parameters.AddWithValue("message_id", messageId);
 
         if (string.IsNullOrWhiteSpace(idempotencyKey))
@@ -449,6 +585,45 @@ public sealed class PostgreSqlInboxStore : IInboxStore, IInboxLeaseStore, IInbox
 
         return await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false)
                ?? throw new InvalidOperationException("The inbox insert was skipped but the existing message could not be found.");
+    }
+
+    /// <summary>
+    ///     Creates a command against the configured data source or caller-supplied transaction.
+    /// </summary>
+    /// <param name="sql">The SQL command text.</param>
+    /// <returns>The initialized PostgreSQL command.</returns>
+    private NpgsqlCommand CreateCommand(string sql)
+    {
+        var command = CreateCommand();
+        command.CommandText = sql;
+        return command;
+    }
+
+    /// <summary>
+    ///     Creates a command object for the current execution mode.
+    /// </summary>
+    /// <returns>The initialized PostgreSQL command.</returns>
+    private NpgsqlCommand CreateCommand()
+    {
+        if (_transactionConnection is null || _transaction is null)
+        {
+            return _dataSource.CreateCommand();
+        }
+
+        var command = _transactionConnection.CreateCommand();
+        command.Transaction = _transaction;
+        return command;
+    }
+
+    /// <summary>
+    ///     Adds a nullable timestamptz array parameter for batch failure updates.
+    /// </summary>
+    /// <param name="command">The command receiving the parameter.</param>
+    /// <param name="visibleAfter">The per-message next visibility timestamps.</param>
+    private static void AddVisibleAfterArrayParameter(NpgsqlCommand command, DateTimeOffset?[] visibleAfter)
+    {
+        var parameter = command.Parameters.Add("visible_after", NpgsqlDbType.Array | NpgsqlDbType.TimestampTz);
+        parameter.Value = visibleAfter;
     }
 
     /// <summary>

@@ -86,9 +86,7 @@ public sealed class InboxHostingTests : LiteBusTestBase
         var store = new InMemoryInboxStore();
 
         var services = new ServiceCollection()
-            .AddSingleton<IInboxStore>(store)
-            .AddSingleton<IInboxLeaseStore>(store)
-            .AddSingleton<IInboxStateStore>(store)
+            .AddInboxStoreRoles(store)
             .AddLiteBus(modules =>
             {
                 modules.AddInboxModule(inbox =>
@@ -226,7 +224,9 @@ public sealed class InboxHostingTests : LiteBusTestBase
         return new ServiceCollection()
             .AddSingleton<IInboxStore>(store)
             .AddSingleton<IInboxLeaseStore>(leaseStore ?? store)
-            .AddSingleton<IInboxStateStore>(store)
+            .AddSingleton<IInboxTerminalStateStore>(store)
+            .AddSingleton<IInboxRetentionStore>(store)
+            .AddSingleton<IInboxDiagnosticsStore>(store)
             .AddSingleton<IInboxWorkSignal, InboxPollingWorkSignal>()
             .AddSingleton(recorder)
             .AddCommandMediatorInboxDispatcher()

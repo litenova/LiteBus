@@ -142,7 +142,7 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
             async (message, cancellationToken) =>
             {
                 var bodyCopy = message.Body.ToArray();
-                await message.AckAsync(false, cancellationToken).ConfigureAwait(false);
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
                 received.TrySetResult(new ConsumedAmqpMessage(message, bodyCopy));
             });
 

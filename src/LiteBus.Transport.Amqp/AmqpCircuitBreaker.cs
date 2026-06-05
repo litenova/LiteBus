@@ -24,6 +24,31 @@ public sealed class AmqpCircuitBreaker
     private long _openUntilTicks;
 
     /// <summary>
+    ///     Gets a value indicating whether the circuit is currently open and rejecting operations.
+    /// </summary>
+    /// <value><see langword="true" /> when new operations should be rejected; otherwise, <see langword="false" />.</value>
+    public bool IsOpen
+    {
+        get
+        {
+            if (!IsEnabled())
+            {
+                return false;
+            }
+
+            var openUntilTicks = Volatile.Read(ref _openUntilTicks);
+
+            return openUntilTicks != 0 && Environment.TickCount64 < openUntilTicks;
+        }
+    }
+
+    /// <summary>
+    ///     Gets the number of consecutive failures recorded while the circuit is closed.
+    /// </summary>
+    /// <value>The current consecutive failure count.</value>
+    public int FailureCount => Volatile.Read(ref _consecutiveFailures);
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="AmqpCircuitBreaker" /> class.
     /// </summary>
     /// <param name="options">The circuit breaker settings.</param>
@@ -83,6 +108,7 @@ public sealed class AmqpCircuitBreaker
         }
 
         var failures = Interlocked.Increment(ref _consecutiveFailures);
+        AmqpCircuitBreakerTelemetry.RecordFailureObserved(failures);
 
         if (failures < _options.FailureThreshold)
         {
@@ -93,6 +119,7 @@ public sealed class AmqpCircuitBreaker
             ref _openUntilTicks,
             Environment.TickCount64 + (long)_options.BreakDuration.TotalMilliseconds);
         Interlocked.Exchange(ref _consecutiveFailures, 0);
+        AmqpCircuitBreakerTelemetry.RecordCircuitOpened();
     }
 
     /// <summary>

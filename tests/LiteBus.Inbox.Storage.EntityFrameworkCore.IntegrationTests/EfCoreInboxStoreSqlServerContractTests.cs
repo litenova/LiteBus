@@ -34,6 +34,6 @@ public sealed class EfCoreInboxStoreSqlServerContractTests : InboxStoreContractT
             _ => Task.FromResult<IInboxDbContext>(
                 EfCoreSqlServerTestInfrastructure.CreateInboxContext(_fixture.ConnectionString)),
             options);
-        return new InboxStoreRoles(store, store, store);
+        return new InboxStoreRoles(store, store, store, store, store);
     }
 }

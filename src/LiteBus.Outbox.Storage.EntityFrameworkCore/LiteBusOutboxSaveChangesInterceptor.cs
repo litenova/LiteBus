@@ -85,13 +85,13 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
             return;
         }
 
+        PendingEnvelopes.Value = null;
+
         if (context is not IOutboxDbContext outboxDbContext)
         {
             throw new InvalidOperationException(
                 $"Pending outbox envelopes were queued, but the active context does not implement {nameof(IOutboxDbContext)}.");
         }
-
-        PendingEnvelopes.Value = null;
 
         var trackedIds = outboxDbContext.OutboxMessages.Local
             .Select(message => message.Id)
@@ -132,7 +132,9 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
             LastError = envelope.LastError,
             CorrelationId = envelope.CorrelationId,
             CausationId = envelope.CausationId,
-            TenantId = envelope.TenantId
+            TenantId = envelope.TenantId,
+            IdempotencyKey = envelope.IdempotencyKey,
+            TraceContext = envelope.TraceContext
         };
     }
 }
