@@ -38,7 +38,7 @@ public sealed class AmqpInboxDispatchModule : IModule
 
         if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 $"{nameof(AmqpInboxDispatchModule)} requires InboxModule core services " +
                 "to be registered first. Configure the dispatcher inside AddInboxModule(...) " +
                 "using UseAmqpDispatcher().");

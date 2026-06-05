@@ -1,6 +1,7 @@
 using System;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Inbox.Storage.InMemory;
 
@@ -30,7 +31,7 @@ public sealed class InMemoryInboxStorageModule : IModule
 
         if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 $"{nameof(InMemoryInboxStorageModule)} requires InboxModule core services " +
                 "to be registered first. Configure storage inside AddInboxModule(...) " +
                 "using UseInMemoryStorage().");
@@ -49,9 +50,12 @@ public sealed class InMemoryInboxStorageModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxStore), store));
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxLeaseStore), store));
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxTerminalStateStore), store));
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxStateWriter), store));
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxDeadLetterStore), store));
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxRetentionStore), store));
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxDiagnosticsStore), store));
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxMessageQuery), store));
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxPurgeStore), store));
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(InMemoryInboxStore), store));
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxWorkSignal), typeof(InboxPollingWorkSignal)));
     }

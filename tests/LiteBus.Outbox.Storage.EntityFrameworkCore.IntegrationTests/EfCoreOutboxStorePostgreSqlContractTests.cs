@@ -34,6 +34,6 @@ public sealed class EfCoreOutboxStorePostgreSqlContractTests : OutboxStoreContra
             _ => Task.FromResult<IOutboxDbContext>(
                 EfCorePostgreSqlTestInfrastructure.CreateOutboxContext(_fixture.ConnectionString)),
             options);
-        return new OutboxStoreContracts(store, store, store, store, store);
+        return new OutboxStoreContracts(store, store, store, store, store, store, store, store);
     }
 }

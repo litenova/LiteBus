@@ -11,7 +11,7 @@ namespace LiteBus.Events;
 ///     Module for configuring event handling infrastructure.
 ///     Depends on the messaging module for core messaging functionality.
 /// </summary>
-public sealed class EventModule : IModule
+public sealed class EventModule : IModule, IRequires<MessageModule>
 {
     /// <summary>
     ///     Gets the configuration action invoked when the module is built.
@@ -78,7 +78,8 @@ public sealed class EventModule : IModule
             {
                 configuration.DependencyRegistry.Register(new DependencyDescriptor(
                     handlerType,
-                    handlerType));
+                    handlerType,
+                    InstanceLifetime.Scoped));
             }
         }
     }

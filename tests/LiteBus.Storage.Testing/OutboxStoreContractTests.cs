@@ -44,12 +44,7 @@ public abstract class OutboxStoreContractTests
         leased[0].Status.Should().Be(OutboxStatus.Publishing);
         leased[0].AttemptCount.Should().Be(1);
 
-        await store.TerminalState.MarkFailedAsync(new OutboxEnvelopeFailure
-        {
-            Id = messageId,
-            Error = "publisher unavailable",
-            VisibleAfter = now.AddMinutes(5)
-        });
+        await store.StateWriter.PersistAsync([leased[0].AsFailed("publisher unavailable", now.AddMinutes(5))]);
 
         var hidden = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -72,7 +67,7 @@ public abstract class OutboxStoreContractTests
         visible.Should().ContainSingle();
         visible[0].AttemptCount.Should().Be(2);
 
-        await store.TerminalState.MarkPublishedAsync(messageId);
+        await store.StateWriter.PersistAsync([visible[0].AsPublished()]);
     }
 
     /// <summary>
@@ -236,12 +231,7 @@ public abstract class OutboxStoreContractTests
 
         leased.Should().ContainSingle();
 
-        await store.TerminalState.MarkFailedAsync(new OutboxEnvelopeFailure
-        {
-            Id = messageId,
-            Error = "broker down",
-            VisibleAfter = visibleAfter
-        });
+        await store.StateWriter.PersistAsync([leased[0].AsFailed("broker down", visibleAfter)]);
 
         var visible = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -269,7 +259,7 @@ public abstract class OutboxStoreContractTests
 
         await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
 
-        await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
             BatchSize = 1,
             LeaseOwner = "publisher-1",
@@ -277,13 +267,9 @@ public abstract class OutboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
-        await store.TerminalState.MoveToDeadLetterAsync(new OutboxEnvelopeDeadLetter
-        {
-            Id = messageId,
-            Reason = "poison message"
-        });
+        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered("poison message")]);
 
-        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        var afterDeadLetter = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
             BatchSize = 5,
             LeaseOwner = "publisher-2",
@@ -291,7 +277,7 @@ public abstract class OutboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
-        leased.Should().BeEmpty();
+        afterDeadLetter.Should().BeEmpty();
     }
 
     /// <summary>
@@ -380,7 +366,15 @@ public abstract class OutboxStoreContractTests
         await store.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now));
         await store.Writer.EnqueueAsync(CreatePendingEnvelope(publishedId, now.AddSeconds(1)));
 
-        await store.TerminalState.MarkPublishedAsync(publishedId);
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-1",
+            Now = now.AddSeconds(2),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        await store.StateWriter.PersistAsync([leased[0].AsPublished()]);
 
         var counts = await store.Diagnostics.GetStatusCountsAsync();
 
@@ -401,7 +395,7 @@ public abstract class OutboxStoreContractTests
 
         await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
 
-        await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
             BatchSize = 1,
             LeaseOwner = "publisher-1",
@@ -409,15 +403,11 @@ public abstract class OutboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
-        await store.TerminalState.MoveToDeadLetterAsync(new OutboxEnvelopeDeadLetter
-        {
-            Id = messageId,
-            Reason = "manual replay"
-        });
+        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered("manual replay")]);
 
-        await store.TerminalState.RequeueDeadLetterAsync(messageId);
+        await store.DeadLetterStore.RequeueAsync(messageId);
 
-        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        var requeued = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
             BatchSize = 1,
             LeaseOwner = "publisher-2",
@@ -425,9 +415,9 @@ public abstract class OutboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
-        leased.Should().ContainSingle();
-        leased[0].Id.Should().Be(messageId);
-        leased[0].Status.Should().Be(OutboxStatus.Publishing);
+        requeued.Should().ContainSingle();
+        requeued[0].Id.Should().Be(messageId);
+        requeued[0].Status.Should().Be(OutboxStatus.Publishing);
     }
 
     /// <summary>
@@ -455,13 +445,100 @@ public abstract class OutboxStoreContractTests
     /// </summary>
     /// <param name="Writer">The writer role.</param>
     /// <param name="Lease">The lease role.</param>
-    /// <param name="TerminalState">The terminal state role.</param>
+    /// <param name="StateWriter">The state writer role.</param>
+    /// <param name="DeadLetterStore">The dead-letter replay role.</param>
     /// <param name="Retention">The retention role.</param>
     /// <param name="Diagnostics">The diagnostics role.</param>
+    /// <param name="MessageQuery">The message query role used by browse APIs.</param>
+    /// <param name="PurgeStore">The purge role used by operator cleanup.</param>
     public sealed record OutboxStoreContracts(
         IOutboxStore Writer,
         IOutboxLeaseStore Lease,
-        IOutboxTerminalStateStore TerminalState,
+        IOutboxStateWriter StateWriter,
+        IOutboxDeadLetterStore DeadLetterStore,
         IOutboxRetentionStore Retention,
-        IOutboxDiagnosticsStore Diagnostics);
+        IOutboxDiagnosticsStore Diagnostics,
+        IOutboxMessageQuery MessageQuery,
+        IOutboxPurgeStore PurgeStore);
+
+    /// <summary>
+    ///     Verifies that message queries filter by status and support keyset pagination.
+    /// </summary>
+    [Fact]
+    public async Task QueryAsync_ShouldFilterAndPageByCreatedAt()
+    {
+        var store = CreateStore();
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+        var thirdId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(firstId, now) with { ContractName = "tests.events.a", Topic = "topic.a" });
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1)) with { ContractName = "tests.events.b", Topic = "topic.b" });
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-1",
+            Now = now.AddSeconds(2),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        await store.StateWriter.PersistAsync([leased[0].AsPublished()]);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(thirdId, now.AddSeconds(3)) with { ContractName = "tests.events.a", Topic = "topic.a" });
+
+        var pendingPage = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { Statuses = [OutboxStatus.Pending] },
+            new OutboxMessagePageRequest { PageSize = 1 });
+
+        pendingPage.Items.Should().ContainSingle();
+        pendingPage.Items[0].Id.Should().Be(secondId);
+        pendingPage.HasMore.Should().BeTrue();
+
+        var topicPage = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { Topic = "topic.a" },
+            new OutboxMessagePageRequest { PageSize = 10 });
+
+        topicPage.Items.Should().HaveCount(2);
+        topicPage.Items.Select(envelope => envelope.Id).Should().BeEquivalentTo([firstId, thirdId]);
+    }
+
+    /// <summary>
+    ///     Verifies that purge deletes only rows that match the supplied filter.
+    /// </summary>
+    [Fact]
+    public async Task PurgeAsync_ShouldDeleteMatchingRows()
+    {
+        var store = CreateStore();
+        var pendingId = Guid.NewGuid();
+        var publishedId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(publishedId, now.AddSeconds(1)));
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-1",
+            Now = now.AddSeconds(2),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        await store.StateWriter.PersistAsync([leased[0].AsPublished()]);
+
+        var deleted = await store.PurgeStore.PurgeAsync(new OutboxMessageFilter
+        {
+            Statuses = [OutboxStatus.Published]
+        });
+
+        deleted.Should().Be(1);
+
+        var remaining = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter(),
+            new OutboxMessagePageRequest { PageSize = 10 });
+
+        remaining.Items.Should().ContainSingle();
+        remaining.Items[0].Id.Should().Be(publishedId);
+    }
 }

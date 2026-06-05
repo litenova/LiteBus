@@ -21,10 +21,20 @@ public sealed class InMemoryInboxGetAllFilterTests
         var pendingOtherContractId = Guid.NewGuid();
         var completedMatchId = Guid.NewGuid();
 
+        await store.EnqueueAsync(CreateEnvelope(completedMatchId, "contract.a", InboxStatus.Pending, now));
+
+        var completedLease = await store.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "test",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        await store.PersistAsync([completedLease[0].AsCompleted()]);
+
         await store.EnqueueAsync(CreateEnvelope(pendingMatchId, "contract.a", InboxStatus.Pending, now));
         await store.EnqueueAsync(CreateEnvelope(pendingOtherContractId, "contract.b", InboxStatus.Pending, now));
-        await store.EnqueueAsync(CreateEnvelope(completedMatchId, "contract.a", InboxStatus.Pending, now));
-        await store.MarkCompletedAsync(completedMatchId);
 
         store.GetAll(InboxStatus.Pending, "contract.a")
             .Should()

@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
+using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 
@@ -54,11 +55,21 @@ public sealed class TransactionalOutbox : ITransactionalOutbox
 
     /// <inheritdoc />
     public async Task<OutboxReceipt<TEvent>> EnqueueAsync<TEvent>(
+        object dbContext,
         TEvent @event,
         OutboxOptions? options = null,
         CancellationToken cancellationToken = default)
         where TEvent : notnull
     {
+        ArgumentNullException.ThrowIfNull(dbContext);
+
+        if (dbContext is not DbContext context)
+        {
+            throw new ArgumentException(
+                $"The supplied context must inherit from {nameof(DbContext)}.",
+                nameof(dbContext));
+        }
+
         ArgumentNullException.ThrowIfNull(@event);
 
         options ??= new OutboxOptions();
@@ -87,7 +98,7 @@ public sealed class TransactionalOutbox : ITransactionalOutbox
             TraceContext = options.TraceContext
         };
 
-        _interceptor.Enqueue(envelope);
+        _interceptor.Enqueue(context, envelope);
 
         return new OutboxReceipt<TEvent>
         {

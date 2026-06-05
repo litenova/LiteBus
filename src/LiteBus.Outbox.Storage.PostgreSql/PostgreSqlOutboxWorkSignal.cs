@@ -1,4 +1,5 @@
 using System;
+using System.Data;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Outbox.Abstractions;
@@ -57,10 +58,13 @@ public sealed class PostgreSqlOutboxWorkSignal : IOutboxWorkSignal, IAsyncDispos
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_listenerConnection is not null)
+        var connection = _listenerConnection;
+        _listenerConnection = null;
+
+        if (connection is not null)
         {
-            await _listenerConnection.DisposeAsync().ConfigureAwait(false);
-            _listenerConnection = null;
+            DetachListenerConnection(connection);
+            await connection.DisposeAsync().ConfigureAwait(false);
         }
 
         _signal.Dispose();
@@ -89,7 +93,8 @@ public sealed class PostgreSqlOutboxWorkSignal : IOutboxWorkSignal, IAsyncDispos
             }
 
             var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-            connection.Notification += (_, _) => _signal.Release();
+            connection.Notification += OnNotification;
+            connection.StateChange += OnListenerConnectionStateChange;
             await using var command = connection.CreateCommand();
             command.CommandText = $"LISTEN {PostgreSqlOutboxNotifyChannel.ChannelName}";
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -99,5 +104,59 @@ public sealed class PostgreSqlOutboxWorkSignal : IOutboxWorkSignal, IAsyncDispos
         {
             _listenerGate.Release();
         }
+    }
+
+    /// <summary>
+    ///     Releases the work signal when PostgreSQL delivers an outbox notification.
+    /// </summary>
+    /// <param name="sender">The connection that raised the event.</param>
+    /// <param name="e">The notification payload.</param>
+    private void OnNotification(object? sender, NpgsqlNotificationEventArgs e)
+    {
+        _signal.Release();
+    }
+
+    /// <summary>
+    ///     Clears the listener reference and wakes waiters when the dedicated connection closes or breaks.
+    /// </summary>
+    /// <param name="sender">The connection that raised the event.</param>
+    /// <param name="e">The connection state transition details.</param>
+    private void OnListenerConnectionStateChange(object? sender, StateChangeEventArgs e)
+    {
+        if (e.CurrentState is not (ConnectionState.Closed or ConnectionState.Broken))
+        {
+            return;
+        }
+
+        if (ReferenceEquals(sender, _listenerConnection))
+        {
+            InvalidateListenerConnection();
+        }
+    }
+
+    /// <summary>
+    ///     Detaches event handlers and clears the listener so the next wait cycle can reconnect.
+    /// </summary>
+    private void InvalidateListenerConnection()
+    {
+        var connection = _listenerConnection;
+        if (connection is null)
+        {
+            return;
+        }
+
+        _listenerConnection = null;
+        DetachListenerConnection(connection);
+        _signal.Release();
+    }
+
+    /// <summary>
+    ///     Unsubscribes notification and state handlers from a listener connection.
+    /// </summary>
+    /// <param name="connection">The listener connection to detach.</param>
+    private void DetachListenerConnection(NpgsqlConnection connection)
+    {
+        connection.Notification -= OnNotification;
+        connection.StateChange -= OnListenerConnectionStateChange;
     }
 }

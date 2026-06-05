@@ -52,7 +52,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
     [Fact]
     public async Task ProcessPendingAsync_WhenDispatcherFails_ShouldMarkFailedWithVisibleAfter()
     {
-        var clock = new PostgreSqlTestInfrastructure.ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
+        var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
         var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, options);
 
@@ -112,7 +112,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
     [Fact]
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimAndPublishMessage()
     {
-        var clock = new PostgreSqlTestInfrastructure.ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
+        var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
         var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, options);
         var recorder = new EventRecorder();
@@ -150,7 +150,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
     [Fact]
     public async Task AddAsync_WithVisibleAfter_ShouldDeferPublishingUntilDue()
     {
-        var clock = new PostgreSqlTestInfrastructure.ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
+        var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
         var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, options);
         var recorder = new EventRecorder();

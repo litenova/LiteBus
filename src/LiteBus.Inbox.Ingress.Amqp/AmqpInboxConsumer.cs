@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using LiteBus.Transport.Amqp;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LiteBus.Inbox.Ingress.Amqp;
 
@@ -17,6 +19,11 @@ public sealed class AmqpInboxConsumer : IBackgroundService
     ///     Gets the AMQP consumer used to subscribe to the ingress queue.
     /// </summary>
     private readonly IAmqpConsumer _consumer;
+
+    /// <summary>
+    ///     Gets the optional circuit breaker shared with the AMQP connection manager.
+    /// </summary>
+    private readonly AmqpCircuitBreaker? _circuitBreaker;
 
     /// <summary>
     ///     Gets the handler that maps deliveries to <see cref="Abstractions.IInbox.AcceptAsync" />.
@@ -34,22 +41,33 @@ public sealed class AmqpInboxConsumer : IBackgroundService
     private readonly AmqpInboxIngressOptions _options;
 
     /// <summary>
+    ///     Gets the logger used for ingress restart diagnostics.
+    /// </summary>
+    private readonly ILogger<AmqpInboxConsumer> _logger;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="AmqpInboxConsumer" /> class.
     /// </summary>
     /// <param name="consumer">The AMQP consumer used to subscribe to the ingress queue.</param>
     /// <param name="handler">The handler that maps deliveries to inbox acceptance.</param>
     /// <param name="options">The ingress queue and broker settings.</param>
     /// <param name="hostOptions">The hosting options that control whether the ingress loop is enabled.</param>
+    /// <param name="connectionManager">The optional connection manager used to resolve the shared circuit breaker.</param>
+    /// <param name="logger">The optional logger for ingress restart diagnostics.</param>
     public AmqpInboxConsumer(
         IAmqpConsumer consumer,
         AmqpInboxIngressHandler handler,
         AmqpInboxIngressOptions options,
-        AmqpInboxIngressHostOptions hostOptions)
+        AmqpInboxIngressHostOptions hostOptions,
+        IAmqpConnectionManager? connectionManager = null,
+        ILogger<AmqpInboxConsumer>? logger = null)
     {
         _consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _hostOptions = hostOptions ?? throw new ArgumentNullException(nameof(hostOptions));
+        _circuitBreaker = connectionManager is AmqpConnectionManager manager ? manager.CircuitBreaker : null;
+        _logger = logger ?? NullLogger<AmqpInboxConsumer>.Instance;
     }
 
     /// <inheritdoc />
@@ -68,20 +86,38 @@ public sealed class AmqpInboxConsumer : IBackgroundService
             DurableQueue = _options.DurableQueue
         };
 
-        await _consumer
-            .StartAsync(consumerOptions, HandleDeliveryAsync, stoppingToken)
-            .ConfigureAwait(false);
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                _circuitBreaker?.ThrowIfOpen();
+                await _consumer.StartAsync(consumerOptions, HandleDeliveryAsync, stoppingToken).ConfigureAwait(false);
+                await _consumer.WaitUntilStoppedAsync(stoppingToken).ConfigureAwait(false);
+                _circuitBreaker?.RecordSuccess();
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception)
+            {
+                _circuitBreaker?.RecordFailure();
+                _logger.LogError(exception, "AMQP inbox ingress consumer stopped unexpectedly; retrying after the poll interval.");
+            }
+            finally
+            {
+                await _consumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            }
 
-        try
-        {
-            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            await _consumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            if (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            if (_hostOptions.RetryPollInterval > TimeSpan.Zero)
+            {
+                await Task.Delay(_hostOptions.RetryPollInterval, stoppingToken).ConfigureAwait(false);
+            }
         }
     }
 
@@ -93,6 +129,8 @@ public sealed class AmqpInboxConsumer : IBackgroundService
     /// <returns>A task that completes when the delivery has been acknowledged.</returns>
     private async Task HandleDeliveryAsync(AmqpReceivedMessage message, CancellationToken cancellationToken)
     {
+        _circuitBreaker?.ThrowIfOpen();
+
         try
         {
             await _handler.AcceptAsync(message, cancellationToken).ConfigureAwait(false);
@@ -111,9 +149,11 @@ public sealed class AmqpInboxConsumer : IBackgroundService
         try
         {
             await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+            _circuitBreaker?.RecordSuccess();
         }
         catch
         {
+            _circuitBreaker?.RecordFailure();
             await message.DiscardAsync(CancellationToken.None).ConfigureAwait(false);
         }
     }

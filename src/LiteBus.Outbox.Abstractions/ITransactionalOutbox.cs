@@ -16,14 +16,19 @@ namespace LiteBus.Outbox.Abstractions;
 public interface ITransactionalOutbox
 {
     /// <summary>
-    ///     Enqueues an event for persistence when the active <c>DbContext</c> saves changes.
+    ///     Enqueues an event for persistence when the supplied <c>DbContext</c> saves changes.
     /// </summary>
     /// <typeparam name="TEvent">The compile-time event type. The runtime type is used for contract lookup.</typeparam>
+    /// <param name="dbContext">
+    ///     The active Entity Framework Core context that will invoke <c>SaveChanges</c>. Must be the same instance
+    ///     registered with the save-changes interceptor.
+    /// </param>
     /// <param name="event">The event instance to serialize and stage.</param>
     /// <param name="options">Optional enqueue metadata.</param>
     /// <param name="cancellationToken">A token used to cancel serialization.</param>
     /// <returns>A receipt describing the staged outbox message.</returns>
     Task<OutboxReceipt<TEvent>> EnqueueAsync<TEvent>(
+        object dbContext,
         TEvent @event,
         OutboxOptions? options = null,
         CancellationToken cancellationToken = default)

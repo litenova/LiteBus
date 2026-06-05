@@ -3,6 +3,8 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
+using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -15,10 +17,9 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessorBackgroundService_WhenDisabled_ShouldCompleteWithoutPublishing()
     {
-        var store = new InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
-        await using var provider = BuildProvider(store, dispatcher, hostOptions => hostOptions.Enabled = false);
+        await using var provider = BuildProvider(dispatcher, hostOptions => hostOptions.Enabled = false);
         var hostedService = provider.GetServices<IHostedService>().Single();
 
         await hostedService.StartAsync(CancellationToken.None);
@@ -30,11 +31,9 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessorBackgroundService_ShouldPublishScheduledMessages()
     {
-        var store = new InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         await using var provider = BuildProvider(
-            store,
             dispatcher,
             configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(50));
 
@@ -56,58 +55,50 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorBackgroundService_WhenMissingDependency_ShouldThrowOnResolve()
+    public void ProcessorBackgroundService_WhenMissingDependency_ShouldThrowOnBuild()
     {
-        var services = new ServiceCollection()
-            .AddLiteBus(modules =>
-            {
-                modules.AddOutboxModule(outbox =>
+        var act = () =>
+            new ServiceCollection()
+                .AddLiteBus(modules =>
                 {
-                    outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
-                    outbox.EnableOutboxProcessor();
-                });
-            });
+                    modules.AddOutboxModule(outbox =>
+                    {
+                        outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                        outbox.EnableOutboxProcessor();
+                    });
+                })
+                .BuildServiceProvider();
 
-        await using var provider = services.BuildServiceProvider();
-
-        var act = () => provider.GetServices<IHostedService>().ToList();
-
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*IOutboxLeaseStore*");
+        act.Should().Throw<LiteBusConfigurationException>()
+            .WithMessage("*EnableOutboxProcessor*storage*dispatcher*");
     }
 
     [Fact]
-    public async Task ProcessorBackgroundService_WhenMissingDispatcher_ShouldThrowOnResolve()
+    public void ProcessorBackgroundService_WhenMissingDispatcher_ShouldThrowOnBuild()
     {
-        var store = new InMemoryOutboxStore();
-
-        var services = new ServiceCollection()
-            .AddOutboxStoreRoles(store)
-            .AddLiteBus(modules =>
-            {
-                modules.AddOutboxModule(outbox =>
+        var act = () =>
+            new ServiceCollection()
+                .AddOutboxStoreRoles(new InMemoryOutboxStore())
+                .AddLiteBus(modules =>
                 {
-                    outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
-                    outbox.EnableOutboxProcessor();
-                });
-            });
+                    modules.AddOutboxModule(outbox =>
+                    {
+                        outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                        outbox.EnableOutboxProcessor();
+                    });
+                })
+                .BuildServiceProvider();
 
-        await using var provider = services.BuildServiceProvider();
-
-        var act = () => provider.GetServices<IHostedService>().ToList();
-
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*IOutboxDispatcher*");
+        act.Should().Throw<LiteBusConfigurationException>()
+            .WithMessage("*EnableOutboxProcessor*storage*dispatcher*");
     }
 
     [Fact]
     public async Task ProcessorBackgroundService_ShouldRespectStartupDelay()
     {
-        var store = new InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         await using var provider = BuildProvider(
-            store,
             dispatcher,
             configureHost: options =>
             {
@@ -139,11 +130,9 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessorBackgroundService_WithAdaptivePollingAndFullBatch_ShouldPublishMultipleMessagesQuickly()
     {
-        var store = new InMemoryOutboxStore();
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         await using var provider = BuildProvider(
-            store,
             dispatcher,
             configureOutbox: outbox =>
             {
@@ -181,30 +170,12 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     }
 
     private static ServiceProvider BuildProvider(
-        InMemoryOutboxStore store,
         OutboxTestInfrastructure.RecordingOutboxDispatcherHolder dispatcherHolder,
         Action<OutboxProcessorHostOptions>? configureHost = null,
-        Action<OutboxModuleBuilder>? configureOutbox = null,
-        IOutboxLeaseStore? leaseStore = null)
+        Action<OutboxModuleBuilder>? configureOutbox = null)
     {
         return new ServiceCollection()
-            .AddSingleton<IOutboxStore>(store)
-            .AddSingleton<IOutboxLeaseStore>(leaseStore ?? store)
-            .AddSingleton<IOutboxTerminalStateStore>(store)
-            .AddSingleton<IOutboxRetentionStore>(store)
-            .AddSingleton<IOutboxDiagnosticsStore>(store)
-            .AddSingleton<IOutboxWorkSignal, OutboxPollingWorkSignal>()
             .AddSingleton(dispatcherHolder)
-            .AddSingleton<OutboxTestInfrastructure.RecordingOutboxDispatcher>(sp =>
-            {
-                var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcher(
-                    sp.GetRequiredService<IMessageContractRegistry>(),
-                    sp.GetRequiredService<IMessageSerializer>());
-
-                dispatcherHolder.Instance = dispatcher;
-                return dispatcher;
-            })
-            .AddSingleton<IOutboxDispatcher>(sp => sp.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>())
             .AddLiteBus(modules =>
             {
                 modules.AddOutboxModule(outbox =>
@@ -224,9 +195,48 @@ public sealed class OutboxHostingTests : LiteBusTestBase
                         });
                     }
 
+                    outbox.UseInMemoryStorage();
+                    outbox.RegisterDispatcher(new RecordingOutboxDispatchModule(dispatcherHolder));
                     outbox.EnableOutboxProcessor(configureHost);
                 });
             })
             .BuildServiceProvider();
+    }
+
+    /// <summary>
+    ///     Registers the test recording dispatcher as an outbox child module.
+    /// </summary>
+    private sealed class RecordingOutboxDispatchModule : IModule
+    {
+        /// <summary>
+        ///     Captures the dispatcher instance resolved during tests.
+        /// </summary>
+        private readonly OutboxTestInfrastructure.RecordingOutboxDispatcherHolder _dispatcherHolder;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="RecordingOutboxDispatchModule" /> class.
+        /// </summary>
+        /// <param name="dispatcherHolder">The holder that receives the resolved dispatcher instance.</param>
+        public RecordingOutboxDispatchModule(OutboxTestInfrastructure.RecordingOutboxDispatcherHolder dispatcherHolder)
+        {
+            _dispatcherHolder = dispatcherHolder;
+        }
+
+        /// <inheritdoc />
+        public void Build(IModuleConfiguration configuration)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(IOutboxDispatcher),
+                serviceProvider =>
+                {
+                    var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcher(
+                        serviceProvider.GetRequiredService<IMessageContractRegistry>(),
+                        serviceProvider.GetRequiredService<IMessageSerializer>());
+
+                    _dispatcherHolder.Instance = dispatcher;
+                    return dispatcher;
+                },
+                InstanceLifetime.Singleton));
+        }
     }
 }

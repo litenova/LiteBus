@@ -165,7 +165,7 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
                 modules.AddEventModule();
                 modules.AddOutboxModule();
                 modules.Register(new PreRegisteredOutboxDispatcherModule());
-                modules.AddOutboxModule(outbox => outbox.UseInProcessDispatcher());
+                modules.Register(new InProcessOutboxDispatchModule());
             })
             .BuildServiceProvider();
 

@@ -12,12 +12,12 @@ internal static class OutboxProcessorTelemetry
     /// <summary>
     ///     Gets the activity source used for outbox processor spans.
     /// </summary>
-    public static readonly ActivitySource ActivitySource = new("LiteBus.Outbox");
+    public static readonly ActivitySource ActivitySource = new(LiteBusOutboxTelemetry.ActivitySourceName);
 
     /// <summary>
     ///     Gets the meter used for outbox processor counters.
     /// </summary>
-    private static readonly Meter Meter = new("LiteBus.Outbox");
+    private static readonly Meter Meter = new(LiteBusOutboxTelemetry.MeterName);
 
     /// <summary>
     ///     Gets the counter incremented once per processor pass.

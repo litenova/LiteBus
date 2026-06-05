@@ -39,17 +39,4 @@ internal static class PostgreSqlTestInfrastructure
         await PostgreSqlOutboxSchema.EnsureAsync(dataSource, options);
     }
 
-    internal sealed class ManualTimeProvider : TimeProvider
-    {
-        private DateTimeOffset _utcNow;
-
-        public ManualTimeProvider(DateTimeOffset initial)
-        {
-            _utcNow = initial;
-        }
-
-        public override DateTimeOffset GetUtcNow() => _utcNow;
-
-        public void Advance(TimeSpan amount) => _utcNow += amount;
-    }
 }

@@ -1,26 +1,27 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-    <ItemGroup>
-        <PackageReference Include="Autofac"/>
-        <PackageReference Include="AwesomeAssertions"/>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
-        <PackageReference Include="Microsoft.Extensions.Hosting"/>
-        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
-        <PackageReference Include="xunit"/>
-        <PackageReference Include="xunit.runner.visualstudio">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
-    </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\..\src\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Runtime\LiteBus.Runtime.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Autofac\LiteBus.Runtime.Extensions.Autofac.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Autofac.Hosting\LiteBus.Runtime.Extensions.Autofac.Hosting.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Microsoft.Hosting\LiteBus.Runtime.Extensions.Microsoft.Hosting.csproj"/>
-    </ItemGroup>
-
-</Project>
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <PackageReference Include="Autofac"/>
+        <PackageReference Include="AwesomeAssertions"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <PackageReference Include="xunit"/>
+        <PackageReference Include="xunit.runner.visualstudio">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime\LiteBus.Runtime.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Autofac\LiteBus.Runtime.Extensions.Autofac.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Autofac.Hosting\LiteBus.Runtime.Extensions.Autofac.Hosting.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Microsoft.Hosting\LiteBus.Runtime.Extensions.Microsoft.Hosting.csproj"/>
+    </ItemGroup>
+
+</Project>

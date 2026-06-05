@@ -34,4 +34,14 @@ public static class PostgreSqlOutboxSchemaSqlPaths
     ///     Shared version 3 upgrade that adds <c>idempotency_key</c> and its unique partial index.
     /// </summary>
     public const string V3Upgrade = "src/LiteBus.Storage.PostgreSql/Sql/shared/add_idempotency_key_column.sql";
+
+    /// <summary>
+    ///     Upgrades the outbox table from version 3 to version 4 (insert notify trigger).
+    /// </summary>
+    public const string V4Upgrade = Root + "outbox/v4/add_insert_notify.sql";
+
+    /// <summary>
+    ///     Upgrades the outbox table from version 4 to version 5 (published_at column).
+    /// </summary>
+    public const string V5Upgrade = Root + "outbox/v5/add_published_at.sql";
 }

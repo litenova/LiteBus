@@ -18,8 +18,6 @@ public sealed class LiteBusOutboxSaveChangesInterceptorUnitTests
         var interceptor = new LiteBusOutboxSaveChangesInterceptor();
         var envelope = CreateFullEnvelope();
 
-        interceptor.Enqueue(envelope);
-
         var options = new DbContextOptionsBuilder<NonOutboxDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
             .AddLiteBusOutboxInterceptor(interceptor)
@@ -27,12 +25,12 @@ public sealed class LiteBusOutboxSaveChangesInterceptorUnitTests
 
         await using var context = new NonOutboxDbContext(options);
         await context.Database.EnsureCreatedAsync();
+        interceptor.Enqueue(context, envelope);
 
         var act = () => context.SaveChangesAsync();
         await act.Should().ThrowAsync<InvalidOperationException>();
 
         var replayedEnvelope = envelope with { Id = Guid.NewGuid(), Payload = """{"replayed":false}""" };
-        interceptor.Enqueue(replayedEnvelope);
 
         var outboxOptions = new DbContextOptionsBuilder<InterceptorOutboxDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
@@ -41,6 +39,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptorUnitTests
 
         await using var outboxContext = new InterceptorOutboxDbContext(outboxOptions);
         await outboxContext.Database.EnsureCreatedAsync();
+        interceptor.Enqueue(outboxContext, replayedEnvelope);
 
         await outboxContext.SaveChangesAsync();
 

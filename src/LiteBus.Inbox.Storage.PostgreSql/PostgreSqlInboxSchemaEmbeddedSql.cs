@@ -29,4 +29,9 @@ internal static class PostgreSqlInboxSchemaEmbeddedSql
     ///     Embedded resource path for version 4 insert notify trigger SQL.
     /// </summary>
     internal const string V4Upgrade = "inbox/v4/add_insert_notify.sql";
+
+    /// <summary>
+    ///     Embedded resource path for version 5 completed timestamp SQL.
+    /// </summary>
+    internal const string V5Upgrade = "inbox/v5/add_completed_at.sql";
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Outbox.Abstractions;
@@ -18,8 +19,8 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 ///         Entity Framework Core transaction.
 ///     </para>
 ///     <para>
-///         Call <see cref="Enqueue(OutboxEnvelope)" /> before <c>SaveChanges</c>. The interceptor copies pending envelopes
-///         into the current <see cref="IOutboxDbContext" /> so the provider writes them in the caller's transaction.
+///         Call <see cref="Enqueue(DbContext, OutboxEnvelope)" /> before <c>SaveChanges</c>. The interceptor copies pending
+///         envelopes into the matching <see cref="IOutboxDbContext" /> so the provider writes them in the caller's transaction.
 ///     </para>
 ///     <para>
 ///         Register the interceptor on the application <see cref="DbContext" /> through
@@ -31,23 +32,25 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
 {
     /// <summary>
-    ///     Holds pending envelopes for the current asynchronous flow.
+    ///     Holds pending envelopes keyed by the <see cref="DbContext" /> that will flush them.
     /// </summary>
-    private static readonly AsyncLocal<List<OutboxEnvelope>?> PendingEnvelopes = new();
+    private static readonly ConditionalWeakTable<DbContext, List<OutboxEnvelope>> PendingEnvelopes = new();
 
     /// <summary>
-    ///     Adds an outbox envelope to the pending list flushed by the next <c>SaveChanges</c> call.
+    ///     Adds an outbox envelope to the pending list flushed by the next <c>SaveChanges</c> call on
+    ///     <paramref name="context" />.
     /// </summary>
+    /// <param name="context">The context that owns the ambient transaction and will invoke <c>SaveChanges</c>.</param>
     /// <param name="envelope">The envelope to append in the same transaction as <c>SaveChanges</c>.</param>
-    public void Enqueue(OutboxEnvelope envelope)
+    public void Enqueue(DbContext context, OutboxEnvelope envelope)
     {
+        ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(envelope);
 
-        var pending = PendingEnvelopes.Value;
-        if (pending is null)
+        if (!PendingEnvelopes.TryGetValue(context, out var pending))
         {
             pending = [];
-            PendingEnvelopes.Value = pending;
+            PendingEnvelopes.Add(context, pending);
         }
 
         pending.Add(envelope);
@@ -79,13 +82,14 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
     /// <param name="context">The context currently saving changes.</param>
     private static void FlushPendingEnvelopes(DbContext? context)
     {
-        var pending = PendingEnvelopes.Value;
-        if (pending is null || pending.Count == 0)
+        if (context is null
+            || !PendingEnvelopes.TryGetValue(context, out var pending)
+            || pending.Count == 0)
         {
             return;
         }
 
-        PendingEnvelopes.Value = null;
+        PendingEnvelopes.Remove(context);
 
         if (context is not IOutboxDbContext outboxDbContext)
         {

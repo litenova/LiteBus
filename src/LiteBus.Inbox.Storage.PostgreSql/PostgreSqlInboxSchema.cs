@@ -47,7 +47,7 @@ public static class PostgreSqlInboxSchema
     /// <summary>
     ///     Gets the inbox table schema version implemented by this package release.
     /// </summary>
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
 
     /// <summary>
     ///     Gets the canonical SQL files shipped with the inbox PostgreSQL package.

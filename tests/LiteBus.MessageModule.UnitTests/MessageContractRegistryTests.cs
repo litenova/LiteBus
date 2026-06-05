@@ -60,7 +60,44 @@ public sealed class MessageContractRegistryTests
         registry.GetMessageType("orders.commands.ship", 2).Should().Be(typeof(AttributedCommand));
     }
 
+    [Fact]
+    public void Register_WhenSameTypeAndContractRegisteredTwice_ShouldBeIdempotent()
+    {
+        var registry = new MessageContractRegistry();
+
+        registry.Register<OrderCreated>("order-created", 1);
+
+        var act = () => registry.Register<OrderCreated>("order-created", 1);
+
+        act.Should().NotThrow();
+        registry.GetContract(typeof(OrderCreated)).Name.Should().Be("order-created");
+        registry.GetMessageType("order-created", 1).Should().Be(typeof(OrderCreated));
+    }
+
+    [Fact]
+    public void ApplyContracts_FromInboxAndOutboxBuilders_ShouldNotThrowForSameContract()
+    {
+        var inboxContracts = new MessageContractBuilder();
+        var outboxContracts = new MessageContractBuilder();
+
+        inboxContracts.Register<OrderCreated>("order-created", 1);
+        outboxContracts.Register<OrderCreated>("order-created", 1);
+
+        var registry = new MessageContractRegistry();
+
+        var act = () =>
+        {
+            inboxContracts.ApplyTo(registry);
+            outboxContracts.ApplyTo(registry);
+        };
+
+        act.Should().NotThrow();
+        registry.GetContract(typeof(OrderCreated)).Version.Should().Be(1);
+    }
+
     private sealed record UnregisteredCommand;
 
     private sealed record ReplayCommand;
+
+    private sealed record OrderCreated(Guid OrderId);
 }

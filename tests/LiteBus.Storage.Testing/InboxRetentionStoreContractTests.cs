@@ -5,8 +5,34 @@ namespace LiteBus.Storage.Testing;
 /// <summary>
 ///     Shared retention contract tests for stores that support bulk delete of completed rows.
 /// </summary>
-public abstract class InboxRetentionStoreContractTests : InboxStoreContractTests
+public abstract class InboxRetentionStoreContractTests
 {
+    /// <summary>
+    ///     Gets a fixed UTC timestamp used as the baseline for retention cutoff assertions.
+    /// </summary>
+    protected static DateTimeOffset BaseTime { get; } = new(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);
+
+    /// <summary>
+    ///     Creates a fresh store instance for one retention test.
+    /// </summary>
+    /// <returns>The writer, lease, state, retention, and diagnostics roles backed by the same store instance.</returns>
+    protected abstract InboxStoreRoles CreateStore();
+
+    /// <summary>
+    ///     Holds the inbox store roles exercised by retention contract tests.
+    /// </summary>
+    /// <param name="Writer">The append-only writer role.</param>
+    /// <param name="LeaseStore">The lease role used by the processor.</param>
+    /// <param name="StateWriter">The state writer role used by the processor.</param>
+    /// <param name="RetentionStore">The retention role used by cleanup.</param>
+    /// <param name="DiagnosticsStore">The diagnostics role used by operators.</param>
+    public sealed record InboxStoreRoles(
+        IInboxStore Writer,
+        IInboxLeaseStore LeaseStore,
+        IInboxStateWriter StateWriter,
+        IInboxRetentionStore RetentionStore,
+        IInboxDiagnosticsStore DiagnosticsStore);
+
     /// <summary>
     ///     Verifies that completed rows older than the retention cutoff are deleted.
     /// </summary>
@@ -21,8 +47,25 @@ public abstract class InboxRetentionStoreContractTests : InboxStoreContractTests
         await roles.Writer.EnqueueAsync(CreatePendingEnvelope(retainedId, now));
         await roles.Writer.EnqueueAsync(CreatePendingEnvelope(deletedId, now.AddHours(-2)));
 
-        await roles.TerminalStateStore.MarkCompletedAsync(retainedId);
-        await roles.TerminalStateStore.MarkCompletedAsync(deletedId);
+        var retainedLease = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "worker-1",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        await roles.StateWriter.PersistAsync([retainedLease[0].AsCompleted() with { CompletedAt = now }]);
+
+        var deletedLease = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "worker-2",
+            Now = now.AddSeconds(2),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        await roles.StateWriter.PersistAsync([deletedLease[0].AsCompleted() with { CompletedAt = now.AddHours(-2) }]);
 
         var deleted = await roles.RetentionStore.DeleteCompletedOlderThanAsync(now.AddHours(-1));
 
@@ -30,5 +73,56 @@ public abstract class InboxRetentionStoreContractTests : InboxStoreContractTests
 
         var counts = await roles.DiagnosticsStore.GetStatusCountsAsync();
         counts.Should().ContainKey(InboxStatus.Completed).WhoseValue.Should().Be(1);
+    }
+
+    /// <summary>
+    ///     Verifies that no rows are deleted when the cutoff is earlier than every completed row.
+    /// </summary>
+    [Fact]
+    public async Task DeleteCompletedOlderThanAsync_WhenCutoffIsBeforeAllRows_ShouldDeleteNothing()
+    {
+        var roles = CreateStore();
+        var commandId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+
+        var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "worker-1",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        await roles.StateWriter.PersistAsync([leased[0].AsCompleted()]);
+
+        var deleted = await roles.RetentionStore.DeleteCompletedOlderThanAsync(now.AddHours(-2));
+
+        deleted.Should().Be(0);
+
+        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync();
+        counts.Should().ContainKey(InboxStatus.Completed).WhoseValue.Should().Be(1);
+    }
+
+    /// <summary>
+    ///     Creates a pending envelope for retention contract tests.
+    /// </summary>
+    /// <param name="commandId">The command identifier.</param>
+    /// <param name="createdAt">The storage timestamp.</param>
+    /// <returns>A pending envelope ready for append.</returns>
+    protected static InboxEnvelope CreatePendingEnvelope(Guid commandId, DateTimeOffset createdAt)
+    {
+        return new InboxEnvelope
+        {
+            Id = commandId,
+            ContractName = "tests.commands.ship",
+            ContractVersion = 1,
+            Payload = "{\"orderId\":\"1\"}",
+            CreatedAt = createdAt,
+            AttemptCount = 0,
+            Status = InboxStatus.Pending,
+            IdempotencyKey = $"ship:{commandId:N}"
+        };
     }
 }

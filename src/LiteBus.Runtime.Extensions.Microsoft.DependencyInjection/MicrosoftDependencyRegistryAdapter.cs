@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
 namespace LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 
@@ -15,6 +16,11 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     ///     Tracks descriptors already translated into Microsoft DI service registrations.
     /// </summary>
     private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
+
+    /// <summary>
+    ///     Tracks the first descriptor registered for each service type so conflicting module registrations fail early.
+    /// </summary>
+    private readonly Dictionary<Type, DependencyDescriptor> _descriptorsByServiceType = [];
 
     /// <summary>
     ///     The service collection receiving LiteBus dependency registrations.
@@ -41,21 +47,30 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     /// </summary>
     /// <param name="descriptor">The dependency descriptor to register.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     Thrown when another module already registered <see cref="DependencyDescriptor.DependencyType" /> with a different binding.
+    /// </exception>
     /// <remarks>
-    ///     Duplicate descriptors are silently ignored based on the descriptor's equality implementation.
-    ///     This prevents duplicate service registrations when multiple modules attempt to register the same services.
+    ///     Duplicate registrations with equal descriptors are ignored; see <see cref="DependencyDescriptor.Equals(DependencyDescriptor?)" />.
     /// </remarks>
     public void Register(DependencyDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        // Use HashSet.Add, which uses IEquatable<DependencyDescriptor>
-        // Returns false if the descriptor is already present.
-        if (!_registeredDescriptors.Add(descriptor))
+        if (_descriptorsByServiceType.TryGetValue(descriptor.DependencyType, out var existing))
         {
-            // Descriptor already registered, skip silently.
-            return;
+            if (existing.Equals(descriptor))
+            {
+                return;
+            }
+
+            throw new LiteBusConfigurationException(
+                $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' is already registered. " +
+                "Each LiteBus module may register a given service type only once. Remove the duplicate registration or consolidate modules.");
         }
+
+        _descriptorsByServiceType[descriptor.DependencyType] = descriptor;
+        _registeredDescriptors.Add(descriptor);
 
         var serviceDescriptor = ConvertToServiceDescriptor(descriptor);
         _services.Add(serviceDescriptor);
@@ -125,6 +140,7 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
         {
             InstanceLifetime.Transient => ServiceLifetime.Transient,
             InstanceLifetime.Singleton => ServiceLifetime.Singleton,
+            InstanceLifetime.Scoped    => ServiceLifetime.Scoped,
             _                          => throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, "Unknown instance lifetime.")
         };
     }

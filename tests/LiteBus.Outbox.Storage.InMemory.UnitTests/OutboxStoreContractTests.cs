@@ -11,6 +11,6 @@ public sealed class OutboxStoreContractTests : LiteBus.Storage.Testing.OutboxSto
     protected override OutboxStoreContracts CreateStore()
     {
         var store = new InMemoryOutboxStore();
-        return new OutboxStoreContracts(store, store, store, store, store);
+        return new OutboxStoreContracts(store, store, store, store, store, store, store, store);
     }
 }

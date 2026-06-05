@@ -62,17 +62,24 @@ public sealed class Inbox : IInbox
     }
 
     /// <inheritdoc />
-    public async Task<InboxReceipt<T>> AcceptAsync<T>(
-        T message,
+    public async Task<InboxReceipt> AcceptAsync(
+        object message,
+        Type messageType,
         InboxOptions? options = null,
         CancellationToken cancellationToken = default)
-        where T : notnull
     {
         ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(messageType);
+
+        if (!messageType.IsInstanceOfType(message))
+        {
+            throw new ArgumentException(
+                $"The supplied message instance is not assignable to '{messageType.FullName}'.",
+                nameof(message));
+        }
 
         options ??= new InboxOptions();
 
-        var messageType = message.GetType();
         var contract = _contractRegistry.GetContract(messageType);
         var acceptedAt = _clock.GetUtcNow();
         var id = options.Id ?? Guid.NewGuid();
@@ -97,7 +104,7 @@ public sealed class Inbox : IInbox
 
         var storedEnvelope = await _store.AddAsync(envelope, cancellationToken).ConfigureAwait(false);
 
-        return new InboxReceipt<T>
+        return new InboxReceipt
         {
             Id = storedEnvelope.Id,
             MessageType = messageType,
@@ -107,6 +114,28 @@ public sealed class Inbox : IInbox
             CorrelationId = storedEnvelope.CorrelationId,
             CausationId = storedEnvelope.CausationId,
             TenantId = storedEnvelope.TenantId
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<InboxReceipt<T>> AcceptAsync<T>(
+        T message,
+        InboxOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where T : notnull
+    {
+        var receipt = await AcceptAsync(message, message.GetType(), options, cancellationToken).ConfigureAwait(false);
+
+        return new InboxReceipt<T>
+        {
+            Id = receipt.Id,
+            MessageType = receipt.MessageType,
+            ContractName = receipt.ContractName,
+            ContractVersion = receipt.ContractVersion,
+            AcceptedAt = receipt.AcceptedAt,
+            CorrelationId = receipt.CorrelationId,
+            CausationId = receipt.CausationId,
+            TenantId = receipt.TenantId
         };
     }
 }

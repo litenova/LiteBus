@@ -3,13 +3,16 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Outbox;
 
 /// <summary>
 ///     Module for configuring durable outbox orchestration.
 /// </summary>
-public sealed class OutboxModule : ICompositeModule
+public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
 {
     /// <summary>
     ///     The module builder callback invoked during <see cref="DeclareChildren" />.
@@ -38,7 +41,13 @@ public sealed class OutboxModule : ICompositeModule
 
         foreach (var subModule in _builder.CollectSubModules())
         {
-            registerChild(subModule);
+            if (subModule is not IModule module)
+            {
+                throw new LiteBusConfigurationException(
+                    $"Outbox sub-module '{subModule.GetType().FullName}' must implement {nameof(IModule)}.");
+            }
+
+            registerChild(module);
         }
     }
 
@@ -49,9 +58,18 @@ public sealed class OutboxModule : ICompositeModule
 
         if (_builder is null)
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 "OutboxModule.Build was called without a prior DeclareChildren call. " +
                 "Register the module through IModuleRegistry.");
+        }
+
+        if (_builder.IsOutboxProcessorEnabled &&
+            (!_builder.IsStorageConfigured || !_builder.IsDispatcherConfigured))
+        {
+            throw new LiteBusConfigurationException(
+                "EnableOutboxProcessor requires both storage and dispatcher to be configured. " +
+                "Call UseInMemoryStorage, UsePostgreSqlStorage, or UseEfCoreStorage and " +
+                "UseInProcessDispatcher or UseAmqpDispatcher inside AddOutboxModule(...).");
         }
 
         var contractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
@@ -74,11 +92,26 @@ public sealed class OutboxModule : ICompositeModule
             typeof(Outbox)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxManager),
+            typeof(OutboxManager)));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxProcessor),
-            typeof(OutboxProcessor)));
+            CreateOutboxProcessor,
+            InstanceLifetime.Transient));
 
         if (_builder.IsOutboxProcessorEnabled)
         {
+            var processorControl = new OutboxProcessorControl();
+
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(OutboxProcessorControl),
+                processorControl));
+
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(IOutboxProcessorControl),
+                processorControl));
+
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
                 typeof(OutboxProcessorHostOptions),
                 _builder.ProcessorHostOptions));
@@ -104,5 +137,26 @@ public sealed class OutboxModule : ICompositeModule
         }
 
         configuration.SetContext(new OutboxCoreRegisteredMarker());
+    }
+
+    /// <summary>
+    ///     Creates an <see cref="OutboxProcessor" /> from the dependency injection container.
+    /// </summary>
+    /// <param name="services">The service provider used to resolve processor dependencies.</param>
+    /// <returns>The configured outbox processor instance.</returns>
+    private static object CreateOutboxProcessor(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        var logger = services.GetService(typeof(ILogger<OutboxProcessor>)) as ILogger<OutboxProcessor>
+                     ?? NullLogger<OutboxProcessor>.Instance;
+
+        return new OutboxProcessor(
+            (IOutboxLeaseStore)services.GetService(typeof(IOutboxLeaseStore))!,
+            (IOutboxStateWriter)services.GetService(typeof(IOutboxStateWriter))!,
+            (IOutboxDispatcher)services.GetService(typeof(IOutboxDispatcher))!,
+            (OutboxProcessorOptions)services.GetService(typeof(OutboxProcessorOptions))!,
+            services.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System,
+            logger);
     }
 }

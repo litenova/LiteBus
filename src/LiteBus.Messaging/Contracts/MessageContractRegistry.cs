@@ -61,22 +61,7 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
 
         lock (_syncRoot)
         {
-            if (_contractsByType.TryGetValue(messageType, out var existingContract) && existingContract != contract)
-            {
-                throw new MessageContractAlreadyRegisteredException(
-                    $"Message type '{messageType.FullName ?? messageType.Name}' is already registered as '{existingContract.Name}' version {existingContract.Version}.");
-            }
-
-            var contractKey = (name, version);
-
-            if (_typesByContract.TryGetValue(contractKey, out var existingType) && existingType != messageType)
-            {
-                throw new MessageContractAlreadyRegisteredException(
-                    $"Message contract '{name}' version {version} is already registered for '{existingType.FullName ?? existingType.Name}'.");
-            }
-
-            _contractsByType[messageType] = contract;
-            _typesByContract[contractKey] = messageType;
+            RegisterLocked(messageType, contract);
         }
 
         return this;
@@ -147,18 +132,39 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
             MessageType = messageType
         };
 
-        if (_contractsByType.TryGetValue(messageType, out var existingContract) && existingContract != contract)
+        RegisterLocked(messageType, contract);
+    }
+
+    /// <summary>
+    ///     Registers a contract while <see cref="_syncRoot" /> is held.
+    /// </summary>
+    /// <param name="messageType">The CLR message type being registered.</param>
+    /// <param name="contract">The contract metadata to register.</param>
+    private void RegisterLocked(Type messageType, MessageContract contract)
+    {
+        if (_contractsByType.TryGetValue(messageType, out var existingContract))
         {
+            if (existingContract == contract)
+            {
+                return;
+            }
+
             throw new MessageContractAlreadyRegisteredException(
                 $"Message type '{messageType.FullName ?? messageType.Name}' is already registered as '{existingContract.Name}' version {existingContract.Version}.");
         }
 
-        var contractKey = (name, version);
+        var contractKey = (contract.Name, contract.Version);
 
-        if (_typesByContract.TryGetValue(contractKey, out var existingType) && existingType != messageType)
+        if (_typesByContract.TryGetValue(contractKey, out var existingType))
         {
+            if (existingType == messageType)
+            {
+                _contractsByType[messageType] = contract;
+                return;
+            }
+
             throw new MessageContractAlreadyRegisteredException(
-                $"Message contract '{name}' version {version} is already registered for '{existingType.FullName ?? existingType.Name}'.");
+                $"Message contract '{contract.Name}' version {contract.Version} is already registered for '{existingType.FullName ?? existingType.Name}'.");
         }
 
         _contractsByType[messageType] = contract;

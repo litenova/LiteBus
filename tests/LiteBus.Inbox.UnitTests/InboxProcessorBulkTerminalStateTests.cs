@@ -11,19 +11,20 @@ namespace LiteBus.Inbox.UnitTests;
 public sealed class InboxProcessorBulkTerminalStateTests
 {
     /// <summary>
-    ///     Confirms multiple dead-letter transitions are persisted through one bulk store call per pass.
+    ///     Confirms each dead-letter transition is persisted per message and the pass <c>finally</c> block persists the
+    ///     accumulated batch.
     /// </summary>
     [Fact]
-    public async Task ProcessPendingAsync_when_max_attempts_exceeded_should_call_bulk_move_to_dead_letter_once()
+    public async Task ProcessPendingAsync_when_max_attempts_exceeded_should_persist_per_message_and_in_finally()
     {
         var inner = new InMemoryInboxStore();
-        var terminal = new CountingInboxTerminalStateStore(inner);
-        var clock = new InboxTestFixtures.FixedTimeProvider(new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero));
+        var stateWriter = new CountingInboxStateWriter(inner);
+        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero));
         var dispatcher = new AlwaysFailingInboxDispatcher();
 
         var processor = new InboxProcessor(
             inner,
-            terminal,
+            stateWriter,
             dispatcher,
             new InboxProcessorOptions
             {
@@ -51,9 +52,8 @@ public sealed class InboxProcessorBulkTerminalStateTests
         var result = await processor.ProcessPendingAsync();
 
         result.DeadLetteredCount.Should().Be(3);
-        terminal.BulkMoveToDeadLetterCallCount.Should().Be(1);
-        terminal.SingleMoveToDeadLetterCallCount.Should().Be(0);
-        terminal.LastBulkDeadLetterCount.Should().Be(3);
+        stateWriter.PersistCallCount.Should().Be(4);
+        stateWriter.LastPersistedDeadLetterCount.Should().Be(3);
     }
 
     /// <summary>
@@ -69,64 +69,26 @@ public sealed class InboxProcessorBulkTerminalStateTests
     }
 
     /// <summary>
-    ///     Terminal state store that counts bulk versus single dead-letter calls.
+    ///     State writer that counts persist calls and dead-letter batch sizes.
     /// </summary>
-    private sealed class CountingInboxTerminalStateStore : IInboxTerminalStateStore
+    private sealed class CountingInboxStateWriter : IInboxStateWriter
     {
         private readonly InMemoryInboxStore _inner;
 
-        public CountingInboxTerminalStateStore(InMemoryInboxStore inner)
+        public CountingInboxStateWriter(InMemoryInboxStore inner)
         {
             _inner = inner;
         }
 
-        public int BulkMoveToDeadLetterCallCount { get; private set; }
+        public int PersistCallCount { get; private set; }
 
-        public int SingleMoveToDeadLetterCallCount { get; private set; }
+        public int LastPersistedDeadLetterCount { get; private set; }
 
-        public int LastBulkDeadLetterCount { get; private set; }
-
-        public Task MarkCompletedAsync(Guid messageId, CancellationToken cancellationToken = default)
+        public Task PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
         {
-            return _inner.MarkCompletedAsync(messageId, cancellationToken);
-        }
-
-        public Task MarkFailedAsync(InboxEnvelopeFailure failure, CancellationToken cancellationToken = default)
-        {
-            return _inner.MarkFailedAsync(failure, cancellationToken);
-        }
-
-        public Task MoveToDeadLetterAsync(InboxEnvelopeDeadLetter deadLetter, CancellationToken cancellationToken = default)
-        {
-            SingleMoveToDeadLetterCallCount++;
-            return _inner.MoveToDeadLetterAsync(deadLetter, cancellationToken);
-        }
-
-        public Task MarkCompletedAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
-        {
-            return _inner.MarkCompletedAsync(messageIds, cancellationToken);
-        }
-
-        public Task MarkFailedAsync(IReadOnlyList<InboxEnvelopeFailure> failures, CancellationToken cancellationToken = default)
-        {
-            return _inner.MarkFailedAsync(failures, cancellationToken);
-        }
-
-        public Task MoveToDeadLetterAsync(IReadOnlyList<InboxEnvelopeDeadLetter> deadLetters, CancellationToken cancellationToken = default)
-        {
-            BulkMoveToDeadLetterCallCount++;
-            LastBulkDeadLetterCount = deadLetters.Count;
-            return _inner.MoveToDeadLetterAsync(deadLetters, cancellationToken);
-        }
-
-        public Task RequeueDeadLetterAsync(Guid messageId, CancellationToken cancellationToken = default)
-        {
-            return _inner.RequeueDeadLetterAsync(messageId, cancellationToken);
-        }
-
-        public Task RequeueDeadLetterAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
-        {
-            return _inner.RequeueDeadLetterAsync(messageIds, cancellationToken);
+            PersistCallCount++;
+            LastPersistedDeadLetterCount = envelopes.Count(envelope => envelope.Status == InboxStatus.DeadLettered);
+            return _inner.PersistAsync(envelopes, cancellationToken);
         }
     }
 }

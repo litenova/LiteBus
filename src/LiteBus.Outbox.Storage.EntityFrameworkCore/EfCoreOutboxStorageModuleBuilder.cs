@@ -24,6 +24,21 @@ public sealed class EfCoreOutboxStorageModuleBuilder
     public bool RegisterSaveChangesInterceptor { get; private set; }
 
     /// <summary>
+    ///     Gets a value indicating whether <see cref="EnforceTransactionalSetup" /> was called and Build() must fail when the save-changes interceptor is not enabled.
+    /// </summary>
+    public bool RequireTransactionalSetup { get; private set; }
+
+    /// <summary>
+    ///     Requires <see cref="EnableSaveChangesInterceptor" /> to be called before the module builds; otherwise Build() throws <see cref="LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException" />.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    public EfCoreOutboxStorageModuleBuilder EnforceTransactionalSetup()
+    {
+        RequireTransactionalSetup = true;
+        return this;
+    }
+
+    /// <summary>
     ///     Registers <see cref="LiteBusOutboxSaveChangesInterceptor" /> as a singleton for use with application <see cref="DbContext" /> configuration.
     /// </summary>
     /// <returns>The current builder.</returns>

@@ -7,7 +7,10 @@
         <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.4"/>
         <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.4"/>
         <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8"/>
+        <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.0"/>
         <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8"/>
+        <PackageVersion Include="OpenTelemetry" Version="1.12.0"/>
         <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.300" PrivateAssets="All"/>
         <PackageVersion Include="Npgsql" Version="9.0.4"/>
         <PackageVersion Include="RabbitMQ.Client" Version="7.1.2"/>

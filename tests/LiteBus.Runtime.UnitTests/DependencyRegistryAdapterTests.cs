@@ -1,7 +1,9 @@
 using Autofac;
+using Autofac.Extensions.DependencyInjection;
 using LiteBus.Extensions.Autofac;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Dependencies;
 using LiteBus.Runtime.Modules;
 using LiteBus.Runtime.Extensions.Autofac;
@@ -28,16 +30,43 @@ public sealed class DependencyRegistryAdapterTests
     }
 
     [Fact]
-    public void MicrosoftAdapter_RegisterDifferentInstancesForSameServiceType_ShouldRegisterBoth()
+    public void MicrosoftAdapter_RegisterConflictingBindingForSameServiceType_ShouldThrowLiteBusConfigurationException()
+    {
+        var services = new ServiceCollection();
+        var adapter = new MicrosoftDependencyRegistryAdapter(services);
+
+        adapter.Register(new DependencyDescriptor(typeof(ITestService), typeof(TestServiceA)));
+
+        var act = () => adapter.Register(new DependencyDescriptor(typeof(ITestService), typeof(TestServiceB)));
+
+        act.Should().Throw<LiteBusConfigurationException>()
+            .WithMessage("*ITestService*");
+    }
+
+    [Fact]
+    public void MicrosoftAdapter_RegisterDifferentInstancesForSameServiceType_ShouldThrowLiteBusConfigurationException()
     {
         var services = new ServiceCollection();
         var adapter = new MicrosoftDependencyRegistryAdapter(services);
 
         adapter.Register(new DependencyDescriptor(typeof(ITestService), new TestServiceA()));
-        adapter.Register(new DependencyDescriptor(typeof(ITestService), new TestServiceB()));
 
-        adapter.Count.Should().Be(2);
-        services.Count(service => service.ServiceType == typeof(ITestService)).Should().Be(2);
+        var act = () => adapter.Register(new DependencyDescriptor(typeof(ITestService), new TestServiceB()));
+
+        act.Should().Throw<LiteBusConfigurationException>()
+            .WithMessage("*ITestService*");
+    }
+
+    [Fact]
+    public void MicrosoftAdapter_RegisterScopedFactory_ShouldRegisterWithScopedLifetime()
+    {
+        var services = new ServiceCollection();
+        var adapter = new MicrosoftDependencyRegistryAdapter(services);
+
+        adapter.Register(new DependencyDescriptor(typeof(ITestService), _ => new TestServiceA(), InstanceLifetime.Scoped));
+
+        var registration = services.Should().ContainSingle(service => service.ServiceType == typeof(ITestService)).Subject;
+        registration.Lifetime.Should().Be(ServiceLifetime.Scoped);
     }
 
     [Fact]
@@ -90,6 +119,44 @@ public sealed class DependencyRegistryAdapterTests
         adapter.Register(new DependencyDescriptor(typeof(ITestService), typeof(TestServiceA)));
 
         adapter.Count.Should().Be(1);
+    }
+
+    [Fact]
+    public void AutofacAdapter_RegisterConflictingBindingForSameServiceType_ShouldThrowLiteBusConfigurationException()
+    {
+        var builder = new ContainerBuilder();
+        var adapter = new AutofacDependencyRegistryAdapter(builder);
+
+        adapter.Register(new DependencyDescriptor(typeof(ITestService), typeof(TestServiceA)));
+
+        var act = () => adapter.Register(new DependencyDescriptor(typeof(ITestService), typeof(TestServiceB)));
+
+        act.Should().Throw<LiteBusConfigurationException>()
+            .WithMessage("*ITestService*");
+    }
+
+    [Fact]
+    public void AutofacAdapter_RegisterScopedFactory_ShouldResolveOncePerLifetimeScope()
+    {
+        var builder = new ContainerBuilder();
+        var adapter = new AutofacDependencyRegistryAdapter(builder);
+
+        adapter.Register(new DependencyDescriptor(typeof(ITestService), _ => new TestServiceA(), InstanceLifetime.Scoped));
+
+        builder.Register(c => new AutofacServiceProvider(c.Resolve<ILifetimeScope>()))
+            .As<IServiceProvider>()
+            .InstancePerLifetimeScope();
+
+        using var container = builder.Build();
+        using var outerScope = container.BeginLifetimeScope();
+        using var innerScope = container.BeginLifetimeScope();
+
+        var outerFirst = outerScope.Resolve<ITestService>();
+        var outerSecond = outerScope.Resolve<ITestService>();
+        var inner = innerScope.Resolve<ITestService>();
+
+        outerFirst.Should().BeSameAs(outerSecond);
+        inner.Should().NotBeSameAs(outerFirst);
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using System;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Outbox.Storage.PostgreSql.Exceptions;
 using Npgsql;
 
@@ -32,7 +33,7 @@ public sealed class PostgreSqlOutboxModule : IModule
 
         if (!configuration.TryGetContext<OutboxCoreRegisteredMarker>(out _))
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 $"{nameof(PostgreSqlOutboxModule)} requires OutboxModule core services " +
                 "to be registered first. Configure storage inside AddOutboxModule(...) " +
                 "using UsePostgreSqlStorage().");
@@ -71,7 +72,11 @@ public sealed class PostgreSqlOutboxModule : IModule
             store));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxTerminalStateStore),
+            typeof(IOutboxStateWriter),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxDeadLetterStore),
             store));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -80,6 +85,14 @@ public sealed class PostgreSqlOutboxModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxDiagnosticsStore),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxMessageQuery),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxPurgeStore),
             store));
 
         var workSignal = moduleBuilder.Options.UseListenNotify

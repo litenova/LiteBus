@@ -149,7 +149,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenVisibleAfterInFuture_ShouldNotLeaseMessage()
     {
-        var clock = new OutboxTestInfrastructure.ManualTimeProvider(BaseTime);
+        var clock = new ManualTimeProvider(BaseTime);
         var store = new InMemoryOutboxStore();
         await using var provider = BuildProcessorProvider(store, batchSize: 10, clock: clock);
 
@@ -173,7 +173,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenVisibleAfterReached_ShouldPublishMessage()
     {
-        var clock = new OutboxTestInfrastructure.ManualTimeProvider(BaseTime);
+        var clock = new ManualTimeProvider(BaseTime);
         var store = new InMemoryOutboxStore();
         await using var provider = BuildProcessorProvider(store, batchSize: 10, clock: clock);
 
@@ -198,7 +198,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenFixedBackoffConfigured_ShouldSetVisibleAfterToInitialDelay()
     {
-        var clock = new OutboxTestInfrastructure.ManualTimeProvider(BaseTime);
+        var clock = new ManualTimeProvider(BaseTime);
         var store = new InMemoryOutboxStore();
         await using var provider = BuildProcessorProvider(
             store,
@@ -235,7 +235,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimStuckMessage()
     {
-        var clock = new OutboxTestInfrastructure.ManualTimeProvider(BaseTime);
+        var clock = new ManualTimeProvider(BaseTime);
         var store = new InMemoryOutboxStore();
         await using var provider = BuildProcessorProvider(store, batchSize: 10, clock: clock);
 

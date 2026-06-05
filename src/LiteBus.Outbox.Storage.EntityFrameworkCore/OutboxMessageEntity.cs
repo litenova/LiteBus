@@ -97,4 +97,9 @@ public sealed class OutboxMessageEntity
     ///     Gets or sets the optional distributed trace context stored as JSON text.
     /// </summary>
     public string? TraceContext { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the optional UTC timestamp when the message reached the published state.
+    /// </summary>
+    public DateTimeOffset? PublishedAt { get; set; }
 }

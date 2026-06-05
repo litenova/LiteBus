@@ -11,7 +11,7 @@ namespace LiteBus.Queries;
 ///     Module for configuring query handling infrastructure.
 ///     Depends on the messaging module for core messaging functionality.
 /// </summary>
-public sealed class QueryModule : IModule
+public sealed class QueryModule : IModule, IRequires<MessageModule>
 {
     /// <summary>
     ///     Gets the configuration action invoked when the module is built.
@@ -77,7 +77,8 @@ public sealed class QueryModule : IModule
             {
                 configuration.DependencyRegistry.Register(new DependencyDescriptor(
                     handlerType,
-                    handlerType));
+                    handlerType,
+                    InstanceLifetime.Scoped));
             }
         }
     }

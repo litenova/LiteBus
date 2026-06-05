@@ -1,6 +1,7 @@
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Inbox.Storage.InMemory.Exceptions;
+using LiteBus.Testing;
 
 namespace LiteBus.Inbox.Storage.InMemory.UnitTests;
 
@@ -125,35 +126,4 @@ public sealed class InMemoryInboxStoreOptionsTests
         };
     }
 
-    /// <summary>
-    ///     A controllable UTC clock for lease expiry tests.
-    /// </summary>
-    private sealed class ManualTimeProvider : TimeProvider
-    {
-        private DateTimeOffset _utcNow;
-
-        /// <summary>
-        ///     Initializes a new instance of the <see cref="ManualTimeProvider" /> class.
-        /// </summary>
-        /// <param name="initial">The initial UTC timestamp.</param>
-        public ManualTimeProvider(DateTimeOffset initial)
-        {
-            _utcNow = initial;
-        }
-
-        /// <summary>
-        ///     Advances the clock by the supplied duration.
-        /// </summary>
-        /// <param name="amount">The duration to add.</param>
-        public void Advance(TimeSpan amount)
-        {
-            _utcNow = _utcNow.Add(amount);
-        }
-
-        /// <inheritdoc />
-        public override DateTimeOffset GetUtcNow()
-        {
-            return _utcNow;
-        }
-    }
 }

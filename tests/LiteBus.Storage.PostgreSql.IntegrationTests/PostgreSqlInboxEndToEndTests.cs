@@ -53,7 +53,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task ProcessPendingAsync_WhenHandlerFails_ShouldMarkFailedWithVisibleAfter()
     {
-        var clock = new PostgreSqlTestInfrastructure.ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
+        var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
 
@@ -105,7 +105,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimAndCompleteCommand()
     {
-        var clock = new PostgreSqlTestInfrastructure.ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
+        var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
         var recorder = new CommandRecorder();
 
@@ -142,7 +142,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task ScheduleAsync_WithVisibleAfter_ShouldDeferProcessingUntilDue()
     {
-        var clock = new PostgreSqlTestInfrastructure.ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
+        var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
         var recorder = new CommandRecorder();
         var visibleAfter = PostgreSqlTestInfrastructure.BaseTime.AddMinutes(30);

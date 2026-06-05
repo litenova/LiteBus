@@ -3,9 +3,11 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,10 +20,9 @@ public sealed class InboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessorBackgroundService_WhenDisabled_ShouldCompleteWithoutProcessing()
     {
-        var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
 
-        await using var provider = BuildProvider(store, recorder, hostOptions => hostOptions.Enabled = false);
+        await using var provider = BuildProvider(recorder, hostOptions => hostOptions.Enabled = false);
         var hostedService = provider.GetServices<IHostedService>().Single();
 
         await hostedService.StartAsync(CancellationToken.None);
@@ -33,11 +34,9 @@ public sealed class InboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessorBackgroundService_ShouldProcessScheduledCommands()
     {
-        var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
 
         await using var provider = BuildProvider(
-            store,
             recorder,
             configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(50));
 
@@ -60,58 +59,50 @@ public sealed class InboxHostingTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task ProcessorBackgroundService_WhenMissingDependency_ShouldThrowOnResolve()
+    public void ProcessorBackgroundService_WhenMissingDependency_ShouldThrowOnBuild()
     {
-        var services = new ServiceCollection()
-            .AddLiteBus(modules =>
-            {
-                modules.AddInboxModule(inbox =>
+        var act = () =>
+            new ServiceCollection()
+                .AddLiteBus(modules =>
                 {
-                    inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
-                    inbox.EnableInboxProcessor();
-                });
-            });
+                    modules.AddInboxModule(inbox =>
+                    {
+                        inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
+                        inbox.EnableInboxProcessor();
+                    });
+                })
+                .BuildServiceProvider();
 
-        await using var provider = services.BuildServiceProvider();
-
-        var act = () => provider.GetServices<IHostedService>().ToList();
-
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*IInboxLeaseStore*");
+        act.Should().Throw<LiteBusConfigurationException>()
+            .WithMessage("*EnableInboxProcessor*storage*dispatcher*");
     }
 
     [Fact]
-    public void ProcessorBackgroundService_WhenDispatcherMissing_ShouldThrowOnResolve()
+    public void ProcessorBackgroundService_WhenDispatcherMissing_ShouldThrowOnBuild()
     {
-        var store = new InMemoryInboxStore();
-
-        var services = new ServiceCollection()
-            .AddInboxStoreRoles(store)
-            .AddLiteBus(modules =>
-            {
-                modules.AddInboxModule(inbox =>
+        var act = () =>
+            new ServiceCollection()
+                .AddInboxStoreRoles(new InMemoryInboxStore())
+                .AddLiteBus(modules =>
                 {
-                    inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
-                    inbox.EnableInboxProcessor();
-                });
-            });
+                    modules.AddInboxModule(inbox =>
+                    {
+                        inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
+                        inbox.EnableInboxProcessor();
+                    });
+                })
+                .BuildServiceProvider();
 
-        using var provider = services.BuildServiceProvider();
-
-        var act = () => provider.GetServices<IHostedService>().ToList();
-
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*IInboxDispatcher*");
+        act.Should().Throw<LiteBusConfigurationException>()
+            .WithMessage("*EnableInboxProcessor*storage*dispatcher*");
     }
 
     [Fact]
     public async Task ProcessorBackgroundService_ShouldRespectStartupDelay()
     {
-        var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
 
         await using var provider = BuildProvider(
-            store,
             recorder,
             configureHost: options =>
             {
@@ -144,11 +135,9 @@ public sealed class InboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessorBackgroundService_WithAdaptivePollingAndFullBatch_ShouldProcessMultipleCommandsQuickly()
     {
-        var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
 
         await using var provider = BuildProvider(
-            store,
             recorder,
             configureInbox: inbox =>
             {
@@ -193,10 +182,9 @@ public sealed class InboxHostingTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldReturnLeasedCount()
     {
-        var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
 
-        await using var provider = BuildProvider(store, recorder);
+        await using var provider = BuildProvider(recorder);
         var processor = provider.GetRequiredService<IInboxProcessor>();
         var scheduler = provider.GetRequiredService<IInbox>();
 
@@ -215,21 +203,12 @@ public sealed class InboxHostingTests : LiteBusTestBase
     }
 
     private static ServiceProvider BuildProvider(
-        InMemoryInboxStore store,
         InboxTestFixtures.CommandRecorder recorder,
         Action<InboxProcessorHostOptions>? configureHost = null,
-        Action<InboxModuleBuilder>? configureInbox = null,
-        IInboxLeaseStore? leaseStore = null)
+        Action<InboxModuleBuilder>? configureInbox = null)
     {
         return new ServiceCollection()
-            .AddSingleton<IInboxStore>(store)
-            .AddSingleton<IInboxLeaseStore>(leaseStore ?? store)
-            .AddSingleton<IInboxTerminalStateStore>(store)
-            .AddSingleton<IInboxRetentionStore>(store)
-            .AddSingleton<IInboxDiagnosticsStore>(store)
-            .AddSingleton<IInboxWorkSignal, InboxPollingWorkSignal>()
             .AddSingleton(recorder)
-            .AddCommandMediatorInboxDispatcher()
             .AddLiteBus(modules =>
             {
                 modules.AddCommandModule(builder =>
@@ -255,6 +234,8 @@ public sealed class InboxHostingTests : LiteBusTestBase
                         });
                     }
 
+                    inbox.UseInMemoryStorage();
+                    inbox.UseInProcessDispatcher();
                     inbox.EnableInboxProcessor(configureHost);
                 });
             })

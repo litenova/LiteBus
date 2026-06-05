@@ -24,9 +24,12 @@ namespace LiteBus.Outbox.Storage.InMemory;
 public sealed class InMemoryOutboxStore :
     IOutboxStore,
     IOutboxLeaseStore,
-    IOutboxTerminalStateStore,
+    IOutboxStateWriter,
+    IOutboxDeadLetterStore,
     IOutboxRetentionStore,
-    IOutboxDiagnosticsStore
+    IOutboxDiagnosticsStore,
+    IOutboxMessageQuery,
+    IOutboxPurgeStore
 {
     /// <summary>
     ///     The envelopes keyed by message identifier.
@@ -83,8 +86,9 @@ public sealed class InMemoryOutboxStore :
         lock (_sync)
         {
             var leaseExpiresAt = request.Now.Add(request.LeaseDuration);
+            var staleCutoff = request.Now.Add(-request.LeaseDuration);
             var leased = _envelopes.Values
-                .Where(envelope => IsAvailable(envelope, request.Now))
+                .Where(envelope => IsAvailable(envelope, request.Now, staleCutoff))
                 .OrderBy(envelope => envelope.CreatedAt)
                 .Take(request.BatchSize)
                 .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt))
@@ -100,57 +104,25 @@ public sealed class InMemoryOutboxStore :
     }
 
     /// <inheritdoc />
-    public Task MarkPublishedAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public Task PersistAsync(IReadOnlyList<OutboxEnvelope> envelopes, CancellationToken cancellationToken = default)
     {
-        lock (_sync)
-        {
-            _envelopes[messageId] = GetRequired(messageId).AsPublished();
-        }
+        ArgumentNullException.ThrowIfNull(envelopes);
 
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    public Task MarkFailedAsync(OutboxEnvelopeFailure failure, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(failure);
-
-        lock (_sync)
-        {
-            _envelopes[failure.Id] = GetRequired(failure.Id).AsFailed(failure.Error, failure.VisibleAfter);
-        }
-
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    public Task MoveToDeadLetterAsync(OutboxEnvelopeDeadLetter deadLetter, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(deadLetter);
-
-        lock (_sync)
-        {
-            ApplyDeadLetter(deadLetter);
-        }
-
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    public Task MoveToDeadLetterAsync(IReadOnlyList<OutboxEnvelopeDeadLetter> deadLetters, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(deadLetters);
-
-        if (deadLetters.Count == 0)
+        if (envelopes.Count == 0)
         {
             return Task.CompletedTask;
         }
 
         lock (_sync)
         {
-            foreach (var deadLetter in deadLetters)
+            foreach (var envelope in envelopes)
             {
-                ApplyDeadLetter(deadLetter);
+                _envelopes[envelope.Id] = ClearLeaseWhenTerminal(envelope);
+
+                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
+                {
+                    _idempotencyIndex[envelope.IdempotencyKey] = envelope.Id;
+                }
             }
         }
 
@@ -158,50 +130,7 @@ public sealed class InMemoryOutboxStore :
     }
 
     /// <inheritdoc />
-    public Task MarkPublishedAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(messageIds);
-
-        lock (_sync)
-        {
-            foreach (var messageId in messageIds)
-            {
-                _envelopes[messageId] = GetRequired(messageId).AsPublished();
-            }
-        }
-
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    public Task MarkFailedAsync(IReadOnlyList<OutboxEnvelopeFailure> failures, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(failures);
-
-        lock (_sync)
-        {
-            foreach (var failure in failures)
-            {
-                _envelopes[failure.Id] = GetRequired(failure.Id).AsFailed(failure.Error, failure.VisibleAfter);
-            }
-        }
-
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    public Task RequeueDeadLetterAsync(Guid messageId, CancellationToken cancellationToken = default)
-    {
-        lock (_sync)
-        {
-            RequeueDeadLetterIfNeeded(messageId);
-        }
-
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    public Task RequeueDeadLetterAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    public Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
 
@@ -227,7 +156,8 @@ public sealed class InMemoryOutboxStore :
         lock (_sync)
         {
             var toRemove = _envelopes.Values
-                .Where(envelope => envelope.Status == OutboxStatus.Published && envelope.CreatedAt < olderThan)
+                .Where(envelope => envelope.Status == OutboxStatus.Published &&
+                                   (envelope.PublishedAt ?? envelope.CreatedAt) < olderThan)
                 .Select(envelope => envelope.Id)
                 .ToArray();
 
@@ -250,6 +180,57 @@ public sealed class InMemoryOutboxStore :
                 .ToDictionary(group => group.Key, group => group.Count());
 
             return Task.FromResult<IReadOnlyDictionary<OutboxStatus, int>>(counts);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<OutboxMessagePage> QueryAsync(
+        OutboxMessageFilter filter,
+        OutboxMessagePageRequest pageRequest,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(pageRequest);
+        ValidatePageSize(pageRequest.PageSize);
+
+        lock (_sync)
+        {
+            var query = ApplyFilter(_envelopes.Values, filter);
+            query = ApplyCursor(query, pageRequest.Cursor);
+
+            var ordered = query
+                .OrderBy(envelope => envelope.CreatedAt)
+                .ThenBy(envelope => envelope.Id)
+                .Take(pageRequest.PageSize + 1)
+                .ToList();
+
+            return Task.FromResult(BuildPage(ordered, pageRequest.PageSize));
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<int> PurgeAsync(OutboxMessageFilter filter, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+
+        lock (_sync)
+        {
+            var toRemove = ApplyFilter(_envelopes.Values, filter)
+                .Select(envelope => envelope.Id)
+                .ToArray();
+
+            foreach (var messageId in toRemove)
+            {
+                if (_envelopes.TryGetValue(messageId, out var envelope) &&
+                    !string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
+                {
+                    _idempotencyIndex.Remove(envelope.IdempotencyKey);
+                }
+
+                _envelopes.Remove(messageId);
+            }
+
+            return Task.FromResult(toRemove.Length);
         }
     }
 
@@ -347,17 +328,6 @@ public sealed class InMemoryOutboxStore :
     }
 
     /// <summary>
-    ///     Applies dead-letter state to one stored envelope.
-    /// </summary>
-    /// <param name="deadLetter">The dead-letter details.</param>
-    private void ApplyDeadLetter(OutboxEnvelopeDeadLetter deadLetter)
-    {
-        ArgumentNullException.ThrowIfNull(deadLetter);
-
-        _envelopes[deadLetter.Id] = GetRequired(deadLetter.Id).AsDeadLettered(deadLetter.Reason);
-    }
-
-    /// <summary>
     ///     Requeues one dead-lettered envelope when it is currently in the dead-letter state.
     /// </summary>
     /// <param name="messageId">The message identifier.</param>
@@ -393,13 +363,145 @@ public sealed class InMemoryOutboxStore :
     /// </summary>
     /// <param name="envelope">The candidate envelope.</param>
     /// <param name="now">The current time used for visibility and lease expiry checks.</param>
+    /// <param name="staleCutoff">The earliest created timestamp eligible for stale in-flight reclaim.</param>
     /// <returns><see langword="true" /> when the envelope is eligible for leasing; otherwise, <see langword="false" />.</returns>
-    private static bool IsAvailable(OutboxEnvelope envelope, DateTimeOffset now)
+    private static bool IsAvailable(OutboxEnvelope envelope, DateTimeOffset now, DateTimeOffset staleCutoff)
     {
         return ((envelope.Status is OutboxStatus.Pending or OutboxStatus.Failed) &&
                 (envelope.VisibleAfter is null || envelope.VisibleAfter <= now)) ||
                (envelope.Status == OutboxStatus.Publishing
                 && envelope.LeaseExpiresAt is not null
-                && envelope.LeaseExpiresAt <= now);
+                && envelope.LeaseExpiresAt <= now) ||
+               (envelope.Status == OutboxStatus.Publishing
+                && envelope.LeaseExpiresAt is null
+                && envelope.CreatedAt < staleCutoff);
+    }
+
+    /// <summary>
+    ///     Applies optional outbox message filters to an in-memory sequence.
+    /// </summary>
+    /// <param name="source">The envelopes to filter.</param>
+    /// <param name="filter">The optional predicates applied to stored rows.</param>
+    /// <returns>The filtered sequence.</returns>
+    private static IEnumerable<OutboxEnvelope> ApplyFilter(
+        IEnumerable<OutboxEnvelope> source,
+        OutboxMessageFilter filter)
+    {
+        if (filter.Statuses is { Count: > 0 })
+        {
+            var statuses = filter.Statuses.ToHashSet();
+            source = source.Where(envelope => statuses.Contains(envelope.Status));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.ContractName))
+        {
+            source = source.Where(envelope => envelope.ContractName == filter.ContractName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Topic))
+        {
+            source = source.Where(envelope => envelope.Topic == filter.Topic);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.CorrelationId))
+        {
+            source = source.Where(envelope => envelope.CorrelationId == filter.CorrelationId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.CausationId))
+        {
+            source = source.Where(envelope => envelope.CausationId == filter.CausationId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.TenantId))
+        {
+            source = source.Where(envelope => envelope.TenantId == filter.TenantId);
+        }
+
+        if (filter.CreatedAfter is not null)
+        {
+            source = source.Where(envelope => envelope.CreatedAt >= filter.CreatedAfter);
+        }
+
+        if (filter.CreatedBefore is not null)
+        {
+            source = source.Where(envelope => envelope.CreatedAt <= filter.CreatedBefore);
+        }
+
+        return source;
+    }
+
+    /// <summary>
+    ///     Applies keyset pagination to an in-memory sequence.
+    /// </summary>
+    /// <param name="source">The envelopes to page.</param>
+    /// <param name="cursor">The opaque cursor from a previous page.</param>
+    /// <returns>The sequence positioned after the supplied cursor.</returns>
+    private static IEnumerable<OutboxEnvelope> ApplyCursor(IEnumerable<OutboxEnvelope> source, string? cursor)
+    {
+        if (string.IsNullOrWhiteSpace(cursor))
+        {
+            return source;
+        }
+
+        if (!OutboxMessagePageCursor.TryDecode(cursor, out var cursorCreatedAt, out var cursorMessageId))
+        {
+            throw new ArgumentException("The cursor is invalid.", nameof(cursor));
+        }
+
+        return source.Where(envelope =>
+            envelope.CreatedAt > cursorCreatedAt ||
+            (envelope.CreatedAt == cursorCreatedAt && envelope.Id.CompareTo(cursorMessageId) > 0));
+    }
+
+    /// <summary>
+    ///     Builds a page result from one over-fetched query batch.
+    /// </summary>
+    /// <param name="ordered">The ordered envelopes including one optional lookahead row.</param>
+    /// <param name="pageSize">The requested page size.</param>
+    /// <returns>The page returned to callers.</returns>
+    private static OutboxMessagePage BuildPage(IReadOnlyList<OutboxEnvelope> ordered, int pageSize)
+    {
+        var hasMore = ordered.Count > pageSize;
+        var items = hasMore ? ordered.Take(pageSize).ToList() : ordered;
+        var nextCursor = hasMore
+            ? OutboxMessagePageCursor.Encode(items[^1].CreatedAt, items[^1].Id)
+            : null;
+
+        return new OutboxMessagePage(items, hasMore, nextCursor);
+    }
+
+    /// <summary>
+    ///     Validates that the requested page size is positive.
+    /// </summary>
+    /// <param name="pageSize">The requested page size.</param>
+    private static void ValidatePageSize(int pageSize)
+    {
+        if (pageSize <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pageSize), pageSize, "Page size must be greater than zero.");
+        }
+    }
+
+    /// <summary>
+    ///     Clears lease metadata on terminal envelopes before they are stored in memory.
+    /// </summary>
+    /// <param name="envelope">The post-transition envelope supplied by the processor.</param>
+    /// <returns>The envelope with lease fields cleared when the status is terminal.</returns>
+    private static OutboxEnvelope ClearLeaseWhenTerminal(OutboxEnvelope envelope)
+    {
+        if (envelope.Status is OutboxStatus.Published or OutboxStatus.Failed or OutboxStatus.DeadLettered)
+        {
+            return envelope with
+            {
+                LeaseOwner = null,
+                LeaseExpiresAt = null,
+                PublishedAt = envelope.Status == OutboxStatus.Published
+                    ? envelope.PublishedAt ?? DateTimeOffset.UtcNow
+                    : envelope.PublishedAt
+            };
+        }
+
+        return envelope;
     }
 }

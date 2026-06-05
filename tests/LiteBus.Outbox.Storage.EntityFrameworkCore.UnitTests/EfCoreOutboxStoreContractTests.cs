@@ -33,7 +33,7 @@ public sealed class EfCoreOutboxStoreContractTests : OutboxStoreContractTests, I
     {
         var context = CreateContext();
         _store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), new EfCoreOutboxStoreOptions());
-        return new OutboxStoreContracts(_store, _store, _store, _store, _store);
+        return new OutboxStoreContracts(_store, _store, _store, _store, _store, _store, _store, _store);
     }
 
     /// <summary>

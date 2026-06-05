@@ -1,5 +1,6 @@
 using System.Diagnostics.Metrics;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 
 namespace LiteBus.Outbox.UnitTests;
@@ -41,7 +42,8 @@ public sealed class OutboxProcessorLoopErrorTelemetryTests
             new ThrowingOutboxProcessor(),
             new OutboxProcessorOptions { BatchSize = 1, LeaseOwner = "loop-error", LeaseDuration = TimeSpan.FromMinutes(1) },
             new OutboxProcessorHostOptions { PollInterval = TimeSpan.FromMilliseconds(10), StartupDelay = TimeSpan.Zero },
-            new OutboxPollingWorkSignal());
+            new OutboxPollingWorkSignal(),
+            new OutboxProcessorControl());
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
 

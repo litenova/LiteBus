@@ -33,7 +33,7 @@ public sealed class AmqpInboxIngressModule : IModule
 
         if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 $"{nameof(AmqpInboxIngressModule)} requires InboxModule core services " +
                 "to be registered first. Configure ingress inside AddInboxModule(...) " +
                 "using UseAmqpIngress().");

@@ -1,6 +1,7 @@
 using System;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
@@ -31,7 +32,7 @@ public sealed class EfCoreOutboxStorageModule : IModule
 
         if (!configuration.TryGetContext<OutboxCoreRegisteredMarker>(out _))
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 $"{nameof(EfCoreOutboxStorageModule)} requires OutboxModule core services " +
                 "to be registered first. Configure storage inside AddOutboxModule(...) " +
                 "using UseEfCoreStorage().");
@@ -42,8 +43,17 @@ public sealed class EfCoreOutboxStorageModule : IModule
 
         if (moduleBuilder.DbContextType is null)
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 "An outbox database context must be configured. Call UseDbContext<TContext>() on the EF Core outbox storage builder.");
+        }
+
+        if (moduleBuilder.RequireTransactionalSetup && !moduleBuilder.RegisterSaveChangesInterceptor)
+        {
+            throw new LiteBusConfigurationException(
+                "EnforceTransactionalSetup() is enabled but EnableSaveChangesInterceptor() was not called. " +
+                "Call EnableSaveChangesInterceptor() on the EF Core outbox storage builder and add " +
+                "optionsBuilder.AddLiteBusOutboxInterceptor(interceptor) to your DbContext configuration. " +
+                "See docs/Outbox.md for the complete transactional setup.");
         }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -74,7 +84,12 @@ public sealed class EfCoreOutboxStorageModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxTerminalStateStore),
+            typeof(IOutboxStateWriter),
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxDeadLetterStore),
             serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
             InstanceLifetime.Singleton));
 
@@ -85,6 +100,16 @@ public sealed class EfCoreOutboxStorageModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxDiagnosticsStore),
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxMessageQuery),
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxPurgeStore),
             serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
             InstanceLifetime.Singleton));
 

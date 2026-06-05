@@ -21,10 +21,20 @@ public sealed class InMemoryOutboxGetAllFilterTests
         var pendingOtherContractId = Guid.NewGuid();
         var publishedMatchId = Guid.NewGuid();
 
+        await store.EnqueueAsync(CreateEnvelope(publishedMatchId, "contract.a", OutboxStatus.Pending, now));
+
+        var publishedLease = await store.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "test",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        await store.PersistAsync([publishedLease[0].AsPublished()]);
+
         await store.EnqueueAsync(CreateEnvelope(pendingMatchId, "contract.a", OutboxStatus.Pending, now));
         await store.EnqueueAsync(CreateEnvelope(pendingOtherContractId, "contract.b", OutboxStatus.Pending, now));
-        await store.EnqueueAsync(CreateEnvelope(publishedMatchId, "contract.a", OutboxStatus.Pending, now));
-        await store.MarkPublishedAsync(publishedMatchId);
 
         store.GetAll(OutboxStatus.Pending, "contract.a")
             .Should()

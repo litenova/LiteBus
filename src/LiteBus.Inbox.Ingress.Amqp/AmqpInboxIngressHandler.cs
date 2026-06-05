@@ -1,7 +1,5 @@
 using System;
 using System.Globalization;
-using System.Reflection;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Transport.Amqp;
@@ -25,13 +23,6 @@ public sealed class AmqpInboxIngressHandler
     ///     Gets the AMQP header name for an optional visible-after timestamp.
     /// </summary>
     private const string VisibleAfterHeader = "litebus-visible-after";
-
-    /// <summary>
-    ///     Gets the cached open generic <see cref="IInbox.AcceptAsync" /> method definition.
-    /// </summary>
-    private static readonly MethodInfo AcceptAsyncMethodDefinition =
-        typeof(IInbox).GetMethod(nameof(IInbox.AcceptAsync), BindingFlags.Public | BindingFlags.Instance)
-        ?? throw new Exceptions.AmqpInboxIngressConfigurationException($"Could not resolve {nameof(IInbox.AcceptAsync)}.");
 
     /// <summary>
     ///     Gets the registry used to resolve persisted contracts back to CLR types.
@@ -77,27 +68,13 @@ public sealed class AmqpInboxIngressHandler
         var contractName = GetRequiredHeader(message, AmqpHeaders.ContractName);
         var contractVersion = GetRequiredContractVersion(message);
         var messageType = _contractRegistry.GetMessageType(contractName, contractVersion);
-        var payload = Encoding.UTF8.GetString(message.Body.Span);
+        var payload = System.Text.Encoding.UTF8.GetString(message.Body.Span);
         var deserialized = await _messageSerializer
             .DeserializeAsync(messageType, payload, cancellationToken)
             .ConfigureAwait(false);
 
         var options = BuildInboxOptions(message);
-        await InvokeAcceptAsync(deserialized, options, cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    ///     Invokes <see cref="IInbox.AcceptAsync" /> for a runtime message type.
-    /// </summary>
-    /// <param name="message">The deserialized message instance.</param>
-    /// <param name="options">The inbox metadata mapped from AMQP headers.</param>
-    /// <param name="cancellationToken">The token used to cancel the store write.</param>
-    /// <returns>A task that completes when the inbox accepts the message.</returns>
-    private async Task InvokeAcceptAsync(object message, InboxOptions options, CancellationToken cancellationToken)
-    {
-        var acceptAsync = AcceptAsyncMethodDefinition.MakeGenericMethod(message.GetType());
-        var task = (Task)acceptAsync.Invoke(_inbox, [message, options, cancellationToken])!;
-        await task.ConfigureAwait(false);
+        await _inbox.AcceptAsync(deserialized, messageType, options, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -184,9 +161,9 @@ public sealed class AmqpInboxIngressHandler
         {
             null => null,
             string text => text,
-            byte[] bytes => Encoding.UTF8.GetString(bytes),
-            ReadOnlyMemory<byte> memory => Encoding.UTF8.GetString(memory.Span),
-            Memory<byte> memory => Encoding.UTF8.GetString(memory.Span),
+            byte[] bytes => System.Text.Encoding.UTF8.GetString(bytes),
+            ReadOnlyMemory<byte> memory => System.Text.Encoding.UTF8.GetString(memory.Span),
+            Memory<byte> memory => System.Text.Encoding.UTF8.GetString(memory.Span),
             _ => Convert.ToString(value, CultureInfo.InvariantCulture)
         };
     }

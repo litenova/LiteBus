@@ -175,7 +175,7 @@ public sealed class InProcessInboxDispatcherTests : LiteBusTestBase
                 modules.AddCommandModule(_ => { });
                 modules.AddInboxModule();
                 modules.Register(new PreRegisteredInboxDispatcherModule());
-                modules.AddInboxModule(inbox => inbox.UseInProcessDispatcher());
+                modules.Register(new InProcessInboxDispatchModule());
             })
             .BuildServiceProvider();
 

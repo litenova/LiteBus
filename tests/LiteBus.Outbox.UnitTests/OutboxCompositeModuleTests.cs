@@ -1,6 +1,7 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Outbox.UnitTests;
@@ -18,7 +19,7 @@ public sealed class OutboxCompositeModuleTests
         };
 
         act.Should()
-            .Throw<InvalidOperationException>()
+            .Throw<LiteBusConfigurationException>()
             .WithMessage("*OutboxModule*UseInMemoryStorage*");
     }
 
@@ -42,7 +43,8 @@ public sealed class OutboxCompositeModuleTests
         provider.GetRequiredService<IOutbox>().Should().NotBeNull();
         provider.GetRequiredService<IOutboxStore>().Should().NotBeNull();
         provider.GetRequiredService<IOutboxLeaseStore>().Should().NotBeNull();
-        provider.GetRequiredService<IOutboxTerminalStateStore>().Should().NotBeNull();
+        provider.GetRequiredService<IOutboxStateWriter>().Should().NotBeNull();
+        provider.GetRequiredService<IOutboxDeadLetterStore>().Should().NotBeNull();
         provider.GetRequiredService<IOutboxRetentionStore>().Should().NotBeNull();
         provider.GetRequiredService<IOutboxDiagnosticsStore>().Should().NotBeNull();
     }

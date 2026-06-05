@@ -17,7 +17,8 @@ public sealed class InMemoryOutboxStorageModuleTests
 
         provider.GetRequiredService<IOutboxStore>().Should().BeOfType<InMemoryOutboxStore>();
         provider.GetRequiredService<IOutboxLeaseStore>().Should().BeSameAs(provider.GetRequiredService<IOutboxStore>());
-        provider.GetRequiredService<IOutboxTerminalStateStore>().Should().BeSameAs(provider.GetRequiredService<IOutboxStore>());
+        provider.GetRequiredService<IOutboxStateWriter>().Should().BeSameAs(provider.GetRequiredService<IOutboxStore>());
+        provider.GetRequiredService<IOutboxDeadLetterStore>().Should().BeSameAs(provider.GetRequiredService<IOutboxStore>());
         provider.GetRequiredService<IOutboxRetentionStore>().Should().BeSameAs(provider.GetRequiredService<IOutboxStore>());
         provider.GetRequiredService<IOutboxDiagnosticsStore>().Should().BeSameAs(provider.GetRequiredService<IOutboxStore>());
         provider.GetRequiredService<InMemoryOutboxStore>().Should().BeSameAs(provider.GetRequiredService<IOutboxStore>());

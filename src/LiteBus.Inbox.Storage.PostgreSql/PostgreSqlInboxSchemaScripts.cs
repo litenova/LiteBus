@@ -60,10 +60,18 @@ internal static class PostgreSqlInboxSchemaScripts
     ];
 
     /// <summary>
-    ///     The schema objects introduced by inbox schema version 4 (insert notify trigger).
+    ///     The column names introduced by inbox schema version 4 (insert notify trigger).
     /// </summary>
     internal static readonly IReadOnlyList<string> Version4Columns =
     [
+    ];
+
+    /// <summary>
+    ///     The column names introduced by inbox schema version 5.
+    /// </summary>
+    internal static readonly IReadOnlyList<string> Version5Columns =
+    [
+        "completed_at"
     ];
 
     /// <summary>
@@ -74,7 +82,8 @@ internal static class PostgreSqlInboxSchemaScripts
         Version1Columns,
         Version2Columns,
         Version3Columns,
-        Version4Columns
+        Version4Columns,
+        Version5Columns
     ];
 
     /// <summary>
@@ -96,7 +105,10 @@ internal static class PostgreSqlInboxSchemaScripts
             "Upgrades the inbox table from version 2 to version 3 (message_id and default table rename)."),
         new PostgreSqlSchemaSqlFile(
             PostgreSqlInboxSchemaSqlPaths.V4Upgrade,
-            "Upgrades the inbox table from version 3 to version 4 (insert notify trigger).")
+            "Upgrades the inbox table from version 3 to version 4 (insert notify trigger)."),
+        new PostgreSqlSchemaSqlFile(
+            PostgreSqlInboxSchemaSqlPaths.V5Upgrade,
+            "Upgrades the inbox table from version 4 to version 5 (completed_at column).")
     ];
 
     /// <summary>
@@ -180,6 +192,10 @@ internal static class PostgreSqlInboxSchemaScripts
             4 => PostgreSqlSqlScriptLoader.LoadAndRender(
                 Assembly,
                 PostgreSqlInboxSchemaEmbeddedSql.V4Upgrade,
+                CreateStoreTokens(options)),
+            5 => PostgreSqlSqlScriptLoader.LoadAndRender(
+                Assembly,
+                PostgreSqlInboxSchemaEmbeddedSql.V5Upgrade,
                 CreateStoreTokens(options)),
             _ => throw new ArgumentOutOfRangeException(nameof(toVersion), toVersion, "Unsupported inbox schema version.")
         };

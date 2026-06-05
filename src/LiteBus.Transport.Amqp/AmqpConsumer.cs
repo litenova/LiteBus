@@ -24,6 +24,11 @@ public sealed class AmqpConsumer : IAmqpConsumer
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
 
     /// <summary>
+    ///     Signals when the active consume loop stops because of shutdown, cancellation, or channel failure.
+    /// </summary>
+    private TaskCompletionSource _stoppedTcs = CreateStoppedTaskSource();
+
+    /// <summary>
     ///     Gets the active consumer channel, if the consume loop has started.
     /// </summary>
     private IChannel? _consumerChannel;
@@ -60,7 +65,9 @@ public sealed class AmqpConsumer : IAmqpConsumer
                 throw new Exceptions.AmqpTransportConfigurationException("The AMQP consumer is already started.");
             }
 
+            _stoppedTcs = CreateStoppedTaskSource();
             _consumerChannel = await _connectionManager.CreateChannelAsync(cancellationToken).ConfigureAwait(false);
+            _consumerChannel.ChannelShutdownAsync += OnChannelShutdownAsync;
 
             if (options.DeclareQueue)
             {
@@ -85,8 +92,32 @@ public sealed class AmqpConsumer : IAmqpConsumer
             var consumer = new AsyncEventingBasicConsumer(_consumerChannel);
             consumer.ReceivedAsync += async (_, delivery) =>
             {
-                var message = CreateReceivedMessage(_consumerChannel, delivery);
-                await handler(message, cancellationToken).ConfigureAwait(false);
+                if (_consumerChannel is null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    var message = CreateReceivedMessage(_consumerChannel, delivery);
+                    await handler(message, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    if (_consumerChannel.IsOpen)
+                    {
+                        try
+                        {
+                            await _consumerChannel
+                                .BasicNackAsync(delivery.DeliveryTag, multiple: false, requeue: true, cancellationToken)
+                                .ConfigureAwait(false);
+                        }
+                        catch (AlreadyClosedException)
+                        {
+                            SignalStopped();
+                        }
+                    }
+                }
             };
 
             _consumerTag = await _consumerChannel
@@ -116,8 +147,11 @@ public sealed class AmqpConsumer : IAmqpConsumer
         {
             if (_consumerChannel is null)
             {
+                SignalStopped();
                 return;
             }
+
+            _consumerChannel.ChannelShutdownAsync -= OnChannelShutdownAsync;
 
             if (!string.IsNullOrWhiteSpace(_consumerTag))
             {
@@ -138,6 +172,7 @@ public sealed class AmqpConsumer : IAmqpConsumer
 
             await _consumerChannel.DisposeAsync().ConfigureAwait(false);
             _consumerChannel = null;
+            SignalStopped();
         }
         finally
         {
@@ -146,10 +181,38 @@ public sealed class AmqpConsumer : IAmqpConsumer
     }
 
     /// <inheritdoc />
+    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default) =>
+        _stoppedTcs.Task.WaitAsync(cancellationToken);
+
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         await StopAsync().ConfigureAwait(false);
         _lifecycleGate.Dispose();
+    }
+
+    /// <summary>
+    ///     Creates a new task source used to observe consumer shutdown.
+    /// </summary>
+    /// <returns>The task source for the current consume session.</returns>
+    private static TaskCompletionSource CreateStoppedTaskSource() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    ///     Marks the current consume session as stopped.
+    /// </summary>
+    private void SignalStopped() => _stoppedTcs.TrySetResult();
+
+    /// <summary>
+    ///     Handles broker-initiated channel shutdown so callers can restart the consumer.
+    /// </summary>
+    /// <param name="sender">The channel that shut down.</param>
+    /// <param name="args">The shutdown details supplied by the broker.</param>
+    /// <returns>A completed task.</returns>
+    private Task OnChannelShutdownAsync(object? sender, ShutdownEventArgs args)
+    {
+        SignalStopped();
+        return Task.CompletedTask;
     }
 
     /// <summary>

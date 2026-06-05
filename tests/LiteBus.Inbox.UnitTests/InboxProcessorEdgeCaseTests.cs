@@ -28,7 +28,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
-            new InboxTestInfrastructure.ManualTimeProvider(BaseTime));
+            new ManualTimeProvider(BaseTime));
 
         await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
         {
@@ -140,7 +140,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenVisibleAfterInFuture_ShouldNotLeaseCommand()
     {
-        var clock = new InboxTestInfrastructure.ManualTimeProvider(BaseTime);
+        var clock = new ManualTimeProvider(BaseTime);
         var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
         await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10, clock: clock);
@@ -163,7 +163,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenVisibleAfterReached_ShouldProcessCommand()
     {
-        var clock = new InboxTestInfrastructure.ManualTimeProvider(BaseTime);
+        var clock = new ManualTimeProvider(BaseTime);
         var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
         await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10, clock: clock);
@@ -187,7 +187,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenFixedBackoffConfigured_ShouldSetVisibleAfterToInitialDelay()
     {
-        var clock = new InboxTestInfrastructure.ManualTimeProvider(BaseTime);
+        var clock = new ManualTimeProvider(BaseTime);
         var store = new InMemoryInboxStore();
         await using var provider = BuildProcessorProvider(
             store,
@@ -224,7 +224,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenExponentialBackoffConfigured_ShouldDoubleDelayPerAttempt()
     {
-        var clock = new InboxTestInfrastructure.ManualTimeProvider(BaseTime);
+        var clock = new ManualTimeProvider(BaseTime);
         var store = new InMemoryInboxStore();
         await using var provider = BuildProcessorProvider(
             store,
@@ -262,7 +262,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimStuckCommand()
     {
-        var clock = new InboxTestInfrastructure.ManualTimeProvider(BaseTime);
+        var clock = new ManualTimeProvider(BaseTime);
         var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
         await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10, clock: clock);

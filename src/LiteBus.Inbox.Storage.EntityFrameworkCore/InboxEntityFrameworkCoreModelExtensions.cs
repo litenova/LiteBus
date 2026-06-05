@@ -107,6 +107,9 @@ public static class InboxEntityFrameworkCoreModelExtensions
             .HasColumnName("trace_context")
             .ConfigureJsonTraceContextColumn<InboxMessageEntity>(provider);
 
+        entity.Property(message => message.CompletedAt)
+            .HasColumnName("completed_at");
+
         entity.HasIndex(message => message.IdempotencyKey)
             .IsUnique()
             .HasFilter("idempotency_key IS NOT NULL");

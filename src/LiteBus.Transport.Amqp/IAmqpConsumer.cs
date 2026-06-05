@@ -31,4 +31,11 @@ public interface IAmqpConsumer : IAsyncDisposable
     /// <param name="cancellationToken">The token used to cancel shutdown.</param>
     /// <returns>A task that completes when the consumer has stopped.</returns>
     Task StopAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Waits until the active consume loop stops because of shutdown, cancellation, or channel failure.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the wait.</param>
+    /// <returns>A task that completes when the consumer is no longer active.</returns>
+    Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default);
 }

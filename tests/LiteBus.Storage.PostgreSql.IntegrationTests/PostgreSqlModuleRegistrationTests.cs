@@ -9,6 +9,7 @@ using LiteBus.Inbox;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -44,7 +45,8 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         provider.GetRequiredService<IInboxStore>().Should().BeOfType<PostgreSqlInboxStore>();
         provider.GetRequiredService<IInboxLeaseStore>().Should().BeOfType<PostgreSqlInboxStore>();
-        provider.GetRequiredService<IInboxTerminalStateStore>().Should().BeOfType<PostgreSqlInboxStore>();
+        provider.GetRequiredService<IInboxStateWriter>().Should().BeOfType<PostgreSqlInboxStore>();
+        provider.GetRequiredService<IInboxDeadLetterStore>().Should().BeOfType<PostgreSqlInboxStore>();
         provider.GetRequiredService<IInboxRetentionStore>().Should().BeSameAs(provider.GetRequiredService<IInboxStore>());
         provider.GetRequiredService<IInboxDiagnosticsStore>().Should().BeSameAs(provider.GetRequiredService<IInboxStore>());
         provider.GetRequiredService<PostgreSqlInboxStoreRegistration>().Options.TableName.Should().Be(options.TableName);
@@ -70,7 +72,8 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         provider.GetRequiredService<IOutboxStore>().Should().BeOfType<PostgreSqlOutboxStore>();
         provider.GetRequiredService<IOutboxLeaseStore>().Should().BeOfType<PostgreSqlOutboxStore>();
-        provider.GetRequiredService<IOutboxTerminalStateStore>().Should().BeOfType<PostgreSqlOutboxStore>();
+        provider.GetRequiredService<IOutboxStateWriter>().Should().BeOfType<PostgreSqlOutboxStore>();
+        provider.GetRequiredService<IOutboxDeadLetterStore>().Should().BeOfType<PostgreSqlOutboxStore>();
         provider.GetRequiredService<IOutboxRetentionStore>().Should().BeSameAs(provider.GetRequiredService<IOutboxStore>());
         provider.GetRequiredService<IOutboxDiagnosticsStore>().Should().BeSameAs(provider.GetRequiredService<IOutboxStore>());
         provider.GetRequiredService<PostgreSqlOutboxStoreRegistration>().Options.TableName.Should().Be(options.TableName);
@@ -142,7 +145,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         };
 
         act.Should()
-            .Throw<InvalidOperationException>()
+            .Throw<LiteBusConfigurationException>()
             .WithMessage("*IInboxDispatcher*");
     }
 
@@ -166,7 +169,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         };
 
         act.Should()
-            .Throw<InvalidOperationException>()
+            .Throw<LiteBusConfigurationException>()
             .WithMessage("*AddInboxAmqpIngress only once*");
     }
 

@@ -2,6 +2,7 @@ using System;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.PostgreSql.Exceptions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using Npgsql;
 
 namespace LiteBus.Inbox.Storage.PostgreSql;
@@ -32,7 +33,7 @@ public sealed class PostgreSqlInboxModule : IModule
 
         if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 $"{nameof(PostgreSqlInboxModule)} requires InboxModule core services " +
                 "to be registered first. Configure storage inside AddInboxModule(...) " +
                 "using UsePostgreSqlStorage().");
@@ -71,7 +72,11 @@ public sealed class PostgreSqlInboxModule : IModule
             store));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IInboxTerminalStateStore),
+            typeof(IInboxStateWriter),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IInboxDeadLetterStore),
             store));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -80,6 +85,14 @@ public sealed class PostgreSqlInboxModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IInboxDiagnosticsStore),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IInboxMessageQuery),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IInboxPurgeStore),
             store));
 
         if (moduleBuilder.EnableSchemaInitialization)

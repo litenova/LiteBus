@@ -8,7 +8,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// <remarks>
 ///     <para>
 ///         Processors read these values after a handler or dispatcher failure. Stores receive only the final next-visible
-///         timestamp, which keeps retry policy outside the storage layer.
+///         timestamp on the transitioned envelope, which keeps retry policy outside the storage layer.
 ///     </para>
 ///     <para>
 ///         Choose values according to the side effect being retried. Short delays work for transient local dependencies;
@@ -18,18 +18,18 @@ namespace LiteBus.Messaging.Abstractions;
 public sealed record RetryOptions
 {
     /// <summary>
-    ///     Gets the maximum number of attempts before dead-lettering. The leasing operation increments attempt count
-    ///     before execution or dispatch, so a value of 5 allows five observed attempts.
+    ///     Gets the maximum number of dispatch attempts before a message is dead-lettered.
     /// </summary>
+    /// <value>Must be greater than zero.</value>
     public int MaxAttempts { get; init; } = 5;
 
     /// <summary>
-    ///     Gets the initial retry delay used after the first failed attempt.
+    ///     Gets the delay before the first retry. Subsequent delays scale with <see cref="Backoff" />.
     /// </summary>
     public TimeSpan InitialDelay { get; init; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    ///     Gets the maximum retry delay. Exponential backoff and jitter are capped at this value.
+    ///     Gets the upper bound on the calculated delay regardless of backoff and attempt count.
     /// </summary>
     public TimeSpan MaxDelay { get; init; } = TimeSpan.FromMinutes(5);
 
@@ -39,15 +39,21 @@ public sealed record RetryOptions
     public RetryBackoff Backoff { get; init; } = RetryBackoff.Exponential;
 
     /// <summary>
-    ///     Gets a value indicating whether retry delays include jitter. Jitter reduces repeated collisions when many
-    ///     messages fail at the same time.
+    ///     Gets a value indicating whether retry delays include jitter.
     /// </summary>
+    /// <value>
+    ///     When <see langword="true" />, applies a random ±20% jitter factor to the calculated delay to reduce retry
+    ///     storms under concurrent load.
+    /// </value>
     public bool UseJitter { get; init; } = true;
 
     /// <summary>
-    ///     Calculates the delay before the next attempt using the configured backoff strategy.
+    ///     Calculates the visibility delay before the next dispatch attempt.
     /// </summary>
-    /// <param name="attemptCount">The number of attempts already made. The first attempt is 1.</param>
+    /// <param name="attemptCount">
+    ///     The number of attempts already made. Pass the leased envelope attempt count directly; the lease store
+    ///     increments it before the processor sees the envelope, so a value of <c>1</c> represents the first attempt.
+    /// </param>
     /// <returns>The delay to add to the current clock value before the envelope becomes visible again.</returns>
     public TimeSpan CalculateDelay(int attemptCount)
     {

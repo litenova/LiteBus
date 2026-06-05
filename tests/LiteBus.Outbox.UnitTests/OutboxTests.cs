@@ -24,7 +24,7 @@ public sealed class OutboxTests : LiteBusTestBase
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
-            new FixedTimeProvider(now));
+            new ManualTimeProvider(now));
 
         var eventId = Guid.NewGuid();
 
@@ -270,7 +270,7 @@ public sealed class OutboxTests : LiteBusTestBase
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
-            new FixedTimeProvider(now));
+            new ManualTimeProvider(now));
 
         var messageId = Guid.NewGuid();
 
@@ -326,21 +326,6 @@ public sealed class OutboxTests : LiteBusTestBase
         envelope.CorrelationId.Should().Be("correlation-99");
         envelope.CausationId.Should().Be("causation-99");
         envelope.TenantId.Should().Be("tenant-99");
-    }
-
-    private sealed class FixedTimeProvider : TimeProvider
-    {
-        private readonly DateTimeOffset _now;
-
-        public FixedTimeProvider(DateTimeOffset now)
-        {
-            _now = now;
-        }
-
-        public override DateTimeOffset GetUtcNow()
-        {
-            return _now;
-        }
     }
 
     public sealed record OrderSubmittedIntegrationEvent

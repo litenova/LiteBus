@@ -37,7 +37,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
         var envelope = CreateEnvelope();
 
         await using var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
-        interceptor.Enqueue(envelope);
+        interceptor.Enqueue(context, envelope);
 
         var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
         savedCount.Should().Be(1);
@@ -65,7 +65,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
         var envelope = CreateEnvelope();
 
         await using var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
-        interceptor.Enqueue(envelope);
+        interceptor.Enqueue(context, envelope);
 
         var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
         savedCount.Should().Be(1);
@@ -110,7 +110,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
         };
 
         await using var context = CreateContext(storeOptions, interceptor);
-        interceptor.Enqueue(envelope);
+        interceptor.Enqueue(context, envelope);
         await context.SaveChangesAsync().ConfigureAwait(false);
 
         await using var verificationContext = CreateContext(storeOptions);

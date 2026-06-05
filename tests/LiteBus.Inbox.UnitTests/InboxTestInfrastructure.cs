@@ -22,31 +22,6 @@ internal static class InboxTestInfrastructure
         return services.AddSingleton<IInboxDispatcher, CommandMediatorInboxDispatcher>();
     }
 
-    internal sealed class ManualTimeProvider : TimeProvider
-    {
-        private DateTimeOffset _utcNow;
-
-        public ManualTimeProvider(DateTimeOffset initial)
-        {
-            _utcNow = initial;
-        }
-
-        public void Advance(TimeSpan amount)
-        {
-            _utcNow = _utcNow.Add(amount);
-        }
-
-        public void SetUtcNow(DateTimeOffset value)
-        {
-            _utcNow = value;
-        }
-
-        public override DateTimeOffset GetUtcNow()
-        {
-            return _utcNow;
-        }
-    }
-
     internal sealed class ThrowingInboxLeaseStore : IInboxLeaseStore
     {
         private readonly int _failuresBeforeSuccess;

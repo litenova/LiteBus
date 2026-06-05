@@ -31,7 +31,15 @@ public sealed class InMemoryOutboxIdempotencyIndexTests
             IdempotencyKey = idempotencyKey
         });
 
-        await store.MarkPublishedAsync(firstId);
+        var leased = await store.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "test",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        await store.PersistAsync([leased[0].AsPublished() with { PublishedAt = now.AddHours(-2) }]);
 
         var deleted = await store.DeletePublishedOlderThanAsync(now.AddHours(1));
         deleted.Should().Be(1);

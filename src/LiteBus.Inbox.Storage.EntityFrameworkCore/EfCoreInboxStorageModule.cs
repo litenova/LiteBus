@@ -1,6 +1,9 @@
 using System;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
@@ -31,7 +34,7 @@ public sealed class EfCoreInboxStorageModule : IModule
 
         if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 $"{nameof(EfCoreInboxStorageModule)} requires InboxModule core services " +
                 "to be registered first. Configure storage inside AddInboxModule(...) " +
                 "using UseEfCoreStorage().");
@@ -42,13 +45,30 @@ public sealed class EfCoreInboxStorageModule : IModule
 
         if (moduleBuilder.DbContextType is null)
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 "An inbox database context must be configured. Call UseDbContext<TContext>() on the EF Core inbox storage builder.");
+        }
+
+        if (moduleBuilder.RequireTransactionalSetup && !moduleBuilder.RegisterSaveChangesInterceptor)
+        {
+            throw new LiteBusConfigurationException(
+                "EnforceTransactionalSetup() is enabled but EnableSaveChangesInterceptor() was not called. " +
+                "Call EnableSaveChangesInterceptor() on the EF Core inbox storage builder and add " +
+                "optionsBuilder.AddLiteBusInboxInterceptor(interceptor) to your DbContext configuration. " +
+                "See docs/Command-Inbox.md for the complete transactional setup.");
         }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(EfCoreInboxStoreOptions),
             moduleBuilder.Options));
+
+        if (moduleBuilder.RegisterSaveChangesInterceptor)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(LiteBusInboxSaveChangesInterceptor),
+                _ => new LiteBusInboxSaveChangesInterceptor(),
+                InstanceLifetime.Singleton));
+        }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(EfCoreInboxStore),
@@ -66,7 +86,12 @@ public sealed class EfCoreInboxStorageModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IInboxTerminalStateStore),
+            typeof(IInboxStateWriter),
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreInboxStore>(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IInboxDeadLetterStore),
             serviceProvider => serviceProvider.GetRequiredService<EfCoreInboxStore>(),
             InstanceLifetime.Singleton));
 
@@ -81,8 +106,50 @@ public sealed class EfCoreInboxStorageModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IInboxMessageQuery),
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreInboxStore>(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IInboxPurgeStore),
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreInboxStore>(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(ITransactionalInboxStore),
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreInboxStore>(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IInboxWorkSignal),
             typeof(InboxPollingWorkSignal)));
+
+        if (moduleBuilder.RegisterSaveChangesInterceptor)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(ITransactionalInbox),
+                serviceProvider => CreateTransactionalInbox(serviceProvider, moduleBuilder),
+                InstanceLifetime.Scoped));
+        }
+    }
+
+    /// <summary>
+    ///     Creates a transactional inbox bound to the configured application database context.
+    /// </summary>
+    /// <param name="serviceProvider">The application service provider.</param>
+    /// <param name="moduleBuilder">The configured module builder.</param>
+    /// <returns>The transactional inbox instance.</returns>
+    private static TransactionalInbox CreateTransactionalInbox(
+        IServiceProvider serviceProvider,
+        EfCoreInboxStorageModuleBuilder moduleBuilder)
+    {
+        var dbContext = (DbContext)serviceProvider.GetRequiredService(moduleBuilder.DbContextType!);
+        return new TransactionalInbox(
+            serviceProvider.GetRequiredService<LiteBusInboxSaveChangesInterceptor>(),
+            dbContext,
+            serviceProvider.GetRequiredService<IContractReader>(),
+            serviceProvider.GetRequiredService<IMessageSerializer>(),
+            serviceProvider.GetRequiredService<TimeProvider>());
     }
 
     /// <summary>

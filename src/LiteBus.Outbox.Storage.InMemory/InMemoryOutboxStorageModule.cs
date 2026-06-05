@@ -1,6 +1,7 @@
 using System;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Outbox.Storage.InMemory;
 
@@ -16,7 +17,7 @@ public sealed class InMemoryOutboxStorageModule : IModule
 
         if (!configuration.TryGetContext<OutboxCoreRegisteredMarker>(out _))
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 $"{nameof(InMemoryOutboxStorageModule)} requires OutboxModule core services " +
                 "to be registered first. Configure storage inside AddOutboxModule(...) " +
                 "using UseInMemoryStorage().");
@@ -33,7 +34,11 @@ public sealed class InMemoryOutboxStorageModule : IModule
             store));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxTerminalStateStore),
+            typeof(IOutboxStateWriter),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxDeadLetterStore),
             store));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -42,6 +47,14 @@ public sealed class InMemoryOutboxStorageModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxDiagnosticsStore),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxMessageQuery),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxPurgeStore),
             store));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

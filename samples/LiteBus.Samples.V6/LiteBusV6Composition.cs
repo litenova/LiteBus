@@ -45,17 +45,17 @@ public static class LiteBusV6Composition
                     LeaseDuration = TimeSpan.FromMinutes(1)
                 });
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
+                inbox.UseInMemoryStorage();
+                inbox.UseInProcessDispatcher();
             });
-            modules.AddInMemoryInboxStorage();
-            modules.AddInboxInProcessDispatcher();
 
             modules.AddOutboxModule(outbox =>
             {
                 outbox.Contracts.Register<PaymentProcessed>("payments.payment-processed", 1);
                 outbox.EnableOutboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
+                outbox.UseInMemoryStorage();
+                outbox.UseInProcessDispatcher();
             });
-            modules.AddInMemoryOutboxStorage();
-            modules.AddOutboxInProcessDispatcher();
         });
 
         return services;

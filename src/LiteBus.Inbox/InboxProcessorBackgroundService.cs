@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LiteBus.Inbox;
 
@@ -33,22 +35,38 @@ public sealed class InboxProcessorBackgroundService : IBackgroundService
     private readonly IInboxWorkSignal _workSignal;
 
     /// <summary>
+    ///     Gets the logger used for processor loop diagnostics.
+    /// </summary>
+    private readonly ILogger<InboxProcessor> _logger;
+
+    /// <summary>
+    ///     Gets the control surface used to pause, resume, and drain the processor loop.
+    /// </summary>
+    private readonly InboxProcessorControl _control;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="InboxProcessorBackgroundService" /> class.
     /// </summary>
     /// <param name="processor">The inbox processor that performs each pass.</param>
     /// <param name="processorOptions">The batch and lease options used to interpret adaptive polling.</param>
     /// <param name="hostOptions">The loop timing and adaptive polling options.</param>
     /// <param name="workSignal">The signal used to wait for work notifications or polling delays.</param>
+    /// <param name="control">The control surface used to pause, resume, and drain the processor loop.</param>
+    /// <param name="logger">The optional logger for processor loop diagnostics.</param>
     public InboxProcessorBackgroundService(
         IInboxProcessor processor,
         InboxProcessorOptions processorOptions,
         InboxProcessorHostOptions hostOptions,
-        IInboxWorkSignal workSignal)
+        IInboxWorkSignal workSignal,
+        InboxProcessorControl control,
+        ILogger<InboxProcessor>? logger = null)
     {
         _processor = processor ?? throw new ArgumentNullException(nameof(processor));
         _processorOptions = processorOptions ?? throw new ArgumentNullException(nameof(processorOptions));
         _hostOptions = hostOptions ?? throw new ArgumentNullException(nameof(hostOptions));
         _workSignal = workSignal ?? throw new ArgumentNullException(nameof(workSignal));
+        _control = control ?? throw new ArgumentNullException(nameof(control));
+        _logger = logger ?? NullLogger<InboxProcessor>.Instance;
     }
 
     /// <inheritdoc />
@@ -66,6 +84,22 @@ public sealed class InboxProcessorBackgroundService : IBackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            await _control.WaitIfPausedAsync(stoppingToken).ConfigureAwait(false);
+
+            if (_control.IsDraining)
+            {
+                try
+                {
+                    await _processor.ProcessPendingAsync(stoppingToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                }
+
+                _control.SignalDrainComplete();
+                return;
+            }
+
             try
             {
                 var passResult = await _processor.ProcessPendingAsync(stoppingToken).ConfigureAwait(false);
@@ -82,7 +116,7 @@ public sealed class InboxProcessorBackgroundService : IBackgroundService
             catch (Exception exception)
             {
                 InboxProcessorTelemetry.RecordLoopError();
-                _ = MessageProcessorDiagnostics.FormatError(exception);
+                _logger.LogError(exception, "Inbox processor loop failed; waiting before the next pass.");
                 await _workSignal.WaitForWorkOrDelayAsync(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
             }
         }

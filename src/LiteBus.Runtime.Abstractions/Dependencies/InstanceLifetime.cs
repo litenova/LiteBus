@@ -13,5 +13,10 @@ public enum InstanceLifetime
     /// <summary>
     ///     A single instance is created and shared for the entire application lifetime.
     /// </summary>
-    Singleton
+    Singleton = 1,
+
+    /// <summary>
+    ///     A single instance is created and shared within each dependency injection scope.
+    /// </summary>
+    Scoped = 2
 }

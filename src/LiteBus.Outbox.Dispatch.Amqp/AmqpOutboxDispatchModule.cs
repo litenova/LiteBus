@@ -38,7 +38,7 @@ public sealed class AmqpOutboxDispatchModule : IModule
 
         if (!configuration.TryGetContext<OutboxCoreRegisteredMarker>(out _))
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 $"{nameof(AmqpOutboxDispatchModule)} requires OutboxModule core services " +
                 "to be registered first. Configure the dispatcher inside AddOutboxModule(...) " +
                 "using UseAmqpDispatcher().");

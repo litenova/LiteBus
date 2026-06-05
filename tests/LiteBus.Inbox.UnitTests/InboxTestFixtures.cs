@@ -16,21 +16,6 @@ internal static class InboxTestFixtures
         }
     }
 
-    internal sealed class FixedTimeProvider : TimeProvider
-    {
-        private readonly DateTimeOffset _now;
-
-        public FixedTimeProvider(DateTimeOffset now)
-        {
-            _now = now;
-        }
-
-        public override DateTimeOffset GetUtcNow()
-        {
-            return _now;
-        }
-    }
-
     internal sealed record ShipOrderCommand : ICommand
     {
         public Guid OrderId { get; init; }
@@ -176,7 +161,7 @@ internal static class InboxTestFixtures
         }
     }
 
-    internal sealed class FlakyInboxStateStore : IInboxTerminalStateStore
+    internal sealed class FlakyInboxStateStore : IInboxStateWriter
     {
         private readonly InMemoryInboxStore _inner;
         private readonly int _failCompletionsBeforeSuccess;
@@ -190,59 +175,15 @@ internal static class InboxTestFixtures
             _failCompletionsBeforeSuccess = failCompletionsBeforeSuccess;
         }
 
-        public Task MarkCompletedAsync(Guid messageId, CancellationToken cancellationToken = default)
+        public Task PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
         {
-            if (_completionAttempts++ < _failCompletionsBeforeSuccess)
+            if (envelopes.Any(envelope => envelope.Status == InboxStatus.Completed)
+                && _completionAttempts++ < _failCompletionsBeforeSuccess)
             {
                 throw new InvalidOperationException("Simulated completion failure.");
             }
 
-            return _inner.MarkCompletedAsync(messageId, cancellationToken);
-        }
-
-        public Task MarkFailedAsync(InboxEnvelopeFailure failure, CancellationToken cancellationToken = default)
-        {
-            return _inner.MarkFailedAsync(failure, cancellationToken);
-        }
-
-        public Task MoveToDeadLetterAsync(InboxEnvelopeDeadLetter deadLetter, CancellationToken cancellationToken = default)
-        {
-            return _inner.MoveToDeadLetterAsync(deadLetter, cancellationToken);
-        }
-
-        /// <inheritdoc />
-        public Task MarkCompletedAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
-        {
-            if (_completionAttempts++ < _failCompletionsBeforeSuccess)
-            {
-                throw new InvalidOperationException("Simulated completion failure.");
-            }
-
-            return _inner.MarkCompletedAsync(messageIds, cancellationToken);
-        }
-
-        /// <inheritdoc />
-        public Task MarkFailedAsync(IReadOnlyList<InboxEnvelopeFailure> failures, CancellationToken cancellationToken = default)
-        {
-            return _inner.MarkFailedAsync(failures, cancellationToken);
-        }
-
-        /// <inheritdoc />
-        public Task RequeueDeadLetterAsync(Guid messageId, CancellationToken cancellationToken = default)
-        {
-            return _inner.RequeueDeadLetterAsync(messageId, cancellationToken);
-        }
-
-        /// <inheritdoc />
-        public Task MoveToDeadLetterAsync(IReadOnlyList<InboxEnvelopeDeadLetter> deadLetters, CancellationToken cancellationToken = default)
-        {
-            return _inner.MoveToDeadLetterAsync(deadLetters, cancellationToken);
-        }
-
-        /// <inheritdoc />
-        public Task RequeueDeadLetterAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
-        {
-            return _inner.RequeueDeadLetterAsync(messageIds, cancellationToken);
+            return _inner.PersistAsync(envelopes, cancellationToken);
         }
     }
 }

@@ -1,26 +1,30 @@
-using LiteBus.Inbox.Storage.PostgreSql;
-using ContractTests = LiteBus.Storage.Testing.InboxStoreContractTests;
-
-namespace LiteBus.Storage.PostgreSql.IntegrationTests;
-
-/// <summary>
-///     Runs inbox retention contract tests against <see cref="PostgreSqlInboxStore" />.
-/// </summary>
-public sealed class PostgreSqlInboxRetentionStoreTests : ContractTests, IClassFixture<PostgreSqlFixture>
-{
-    private readonly PostgreSqlFixture _fixture;
-
-    public PostgreSqlInboxRetentionStoreTests(PostgreSqlFixture fixture)
-    {
-        _fixture = fixture;
-    }
-
-    /// <inheritdoc />
-    protected override ContractTests.InboxStoreRoles CreateStore()
-    {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
-        PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).GetAwaiter().GetResult();
-        var store = new PostgreSqlInboxStore(_fixture.DataSource, options);
-        return new ContractTests.InboxStoreRoles(store, store, store, store, store);
-    }
-}
+using LiteBus.Inbox.Storage.PostgreSql;
+using ContractTests = LiteBus.Storage.Testing.InboxRetentionStoreContractTests;
+
+namespace LiteBus.Storage.PostgreSql.IntegrationTests;
+
+/// <summary>
+///     Runs inbox retention contract tests against <see cref="PostgreSqlInboxStore" />.
+/// </summary>
+public sealed class PostgreSqlInboxRetentionStoreTests : ContractTests, IClassFixture<PostgreSqlFixture>
+{
+    private readonly PostgreSqlFixture _fixture;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="PostgreSqlInboxRetentionStoreTests" /> class.
+    /// </summary>
+    /// <param name="fixture">The PostgreSQL test fixture.</param>
+    public PostgreSqlInboxRetentionStoreTests(PostgreSqlFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    /// <inheritdoc />
+    protected override ContractTests.InboxStoreRoles CreateStore()
+    {
+        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).GetAwaiter().GetResult();
+        var store = new PostgreSqlInboxStore(_fixture.DataSource, options);
+        return new ContractTests.InboxStoreRoles(store, store, store, store, store);
+    }
+}

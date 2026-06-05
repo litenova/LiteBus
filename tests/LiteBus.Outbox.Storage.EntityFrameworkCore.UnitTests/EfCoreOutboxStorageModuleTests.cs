@@ -2,6 +2,7 @@ using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -23,9 +24,26 @@ public sealed class EfCoreOutboxStorageModuleTests
         var store = provider.GetRequiredService<EfCoreOutboxStore>();
         provider.GetRequiredService<IOutboxStore>().Should().BeSameAs(store);
         provider.GetRequiredService<IOutboxLeaseStore>().Should().BeSameAs(store);
-        provider.GetRequiredService<IOutboxTerminalStateStore>().Should().BeSameAs(store);
+        provider.GetRequiredService<IOutboxStateWriter>().Should().BeSameAs(store);
+        provider.GetRequiredService<IOutboxDeadLetterStore>().Should().BeSameAs(store);
         provider.GetRequiredService<IOutboxRetentionStore>().Should().BeSameAs(store);
         provider.GetRequiredService<IOutboxDiagnosticsStore>().Should().BeSameAs(store);
+    }
+
+    [Fact]
+    public void AddEfCoreOutboxStorage_WithEnforceTransactionalSetupWithoutInterceptor_ShouldThrowOnBuild()
+    {
+        var act = () =>
+            new ServiceCollection()
+                .AddDbContext<ModuleTestOutboxDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString("N")))
+                .AddLiteBus(modules => modules.AddOutboxModule(outbox => outbox.UseEfCoreStorage(builder =>
+                    builder
+                        .UseDbContext<ModuleTestOutboxDbContext>()
+                        .EnforceTransactionalSetup())))
+                .BuildServiceProvider();
+
+        act.Should().Throw<LiteBusConfigurationException>()
+            .WithMessage("*EnforceTransactionalSetup*EnableSaveChangesInterceptor*AddLiteBusOutboxInterceptor*");
     }
 
     /// <summary>

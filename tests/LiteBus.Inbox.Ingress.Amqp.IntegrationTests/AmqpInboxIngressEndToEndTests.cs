@@ -83,9 +83,8 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
                     Retry = new RetryOptions { UseJitter = false }
                 });
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
+                inbox.UseInMemoryStorage();
             });
-
-            modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
             modules.AddInboxInProcessDispatcher();
 
             modules.AddInboxAmqpIngress(ingress =>

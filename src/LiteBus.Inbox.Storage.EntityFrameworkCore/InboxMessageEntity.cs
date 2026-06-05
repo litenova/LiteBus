@@ -92,4 +92,9 @@ public sealed class InboxMessageEntity
     ///     Gets or sets the optional distributed trace context stored as JSON text.
     /// </summary>
     public string? TraceContext { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the optional UTC timestamp when the command reached the completed state.
+    /// </summary>
+    public DateTimeOffset? CompletedAt { get; set; }
 }

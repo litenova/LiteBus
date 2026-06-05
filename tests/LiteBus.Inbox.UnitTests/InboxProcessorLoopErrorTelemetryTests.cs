@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
 
@@ -41,7 +42,8 @@ public sealed class InboxProcessorLoopErrorTelemetryTests
             new ThrowingInboxProcessor(),
             new InboxProcessorOptions { BatchSize = 1, LeaseOwner = "loop-error", LeaseDuration = TimeSpan.FromMinutes(1) },
             new InboxProcessorHostOptions { PollInterval = TimeSpan.FromMilliseconds(10), StartupDelay = TimeSpan.Zero },
-            new InboxPollingWorkSignal());
+            new InboxPollingWorkSignal(),
+            new InboxProcessorControl());
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
 

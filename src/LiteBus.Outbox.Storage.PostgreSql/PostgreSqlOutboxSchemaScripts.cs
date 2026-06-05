@@ -56,13 +56,30 @@ internal static class PostgreSqlOutboxSchemaScripts
     ];
 
     /// <summary>
+    ///     The schema objects introduced by outbox schema version 4 (insert notify trigger).
+    /// </summary>
+    internal static readonly IReadOnlyList<string> Version4Columns =
+    [
+    ];
+
+    /// <summary>
+    ///     The column names introduced by outbox schema version 5.
+    /// </summary>
+    internal static readonly IReadOnlyList<string> Version5Columns =
+    [
+        "published_at"
+    ];
+
+    /// <summary>
     ///     The ordered column groups introduced by each outbox schema version.
     /// </summary>
     internal static readonly IReadOnlyList<IReadOnlyList<string>> VersionColumnSets =
     [
         Version1Columns,
         Version2Columns,
-        Version3Columns
+        Version3Columns,
+        Version4Columns,
+        Version5Columns
     ];
 
     /// <summary>
@@ -78,7 +95,16 @@ internal static class PostgreSqlOutboxSchemaScripts
             "Ensures outbox indexes exist for the current schema version."),
         new PostgreSqlSchemaSqlFile(
             PostgreSqlOutboxSchemaSqlPaths.V2Upgrade,
-            "Upgrades the outbox table from version 1 to version 2.")
+            "Upgrades the outbox table from version 1 to version 2."),
+        new PostgreSqlSchemaSqlFile(
+            PostgreSqlOutboxSchemaSqlPaths.V3Upgrade,
+            "Upgrades the outbox table from version 2 to version 3 (idempotency_key)."),
+        new PostgreSqlSchemaSqlFile(
+            PostgreSqlOutboxSchemaSqlPaths.V4Upgrade,
+            "Upgrades the outbox table from version 3 to version 4 (insert notify trigger)."),
+        new PostgreSqlSchemaSqlFile(
+            PostgreSqlOutboxSchemaSqlPaths.V5Upgrade,
+            "Upgrades the outbox table from version 4 to version 5 (published_at column).")
     ];
 
     /// <summary>
@@ -156,6 +182,14 @@ internal static class PostgreSqlOutboxSchemaScripts
         {
             2 => PostgreSqlSchemaExecutor.LoadSharedAddTraceContextColumnScript(options),
             3 => PostgreSqlSchemaExecutor.LoadSharedAddIdempotencyKeyColumnScript(options),
+            4 => PostgreSqlSqlScriptLoader.LoadAndRender(
+                Assembly,
+                PostgreSqlOutboxSchemaEmbeddedSql.V4Upgrade,
+                CreateStoreTokens(options)),
+            5 => PostgreSqlSqlScriptLoader.LoadAndRender(
+                Assembly,
+                PostgreSqlOutboxSchemaEmbeddedSql.V5Upgrade,
+                CreateStoreTokens(options)),
             _ => throw new ArgumentOutOfRangeException(nameof(toVersion), toVersion, "Unsupported outbox schema version.")
         };
     }
@@ -208,6 +242,9 @@ internal static class PostgreSqlOutboxSchemaScripts
         tokens["LeaseIndexName"] = PostgreSqlIdentifier.IndexName(options.TableName, "lease_idx");
         tokens["TopicIndexName"] = PostgreSqlIdentifier.IndexName(options.TableName, "topic_idx");
         tokens["IdempotencyIndexName"] = PostgreSqlIdentifier.IndexName(options.TableName, "idempotency_idx");
+        tokens["NotifyChannelName"] = PostgreSqlOutboxNotifyChannel.ChannelName;
+        tokens["NotifyFunctionName"] = PostgreSqlIdentifier.UnquotedIndexName(options.TableName, "insert_notify_fn");
+        tokens["NotifyTriggerName"] = PostgreSqlIdentifier.UnquotedIndexName(options.TableName, "insert_notify_trg");
         return tokens;
     }
 }

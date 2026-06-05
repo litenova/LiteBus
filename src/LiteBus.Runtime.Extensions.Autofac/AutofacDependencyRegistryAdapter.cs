@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Autofac;
 using Autofac.Builder;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 namespace LiteBus.Runtime.Extensions.Autofac;
 
 /// <summary>
@@ -21,6 +22,11 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     ///     Tracks descriptors already translated into Autofac registrations.
     /// </summary>
     private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
+
+    /// <summary>
+    ///     Tracks the first descriptor registered for each service type so conflicting module registrations fail early.
+    /// </summary>
+    private readonly Dictionary<Type, DependencyDescriptor> _descriptorsByServiceType = [];
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="AutofacDependencyRegistryAdapter" /> class.
@@ -42,21 +48,30 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     /// </summary>
     /// <param name="descriptor">The dependency descriptor to register.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     Thrown when another module already registered <see cref="DependencyDescriptor.DependencyType" /> with a different binding.
+    /// </exception>
     /// <remarks>
-    ///     Duplicate descriptors are silently ignored based on the descriptor's equality implementation.
-    ///     This prevents duplicate service registrations when multiple modules attempt to register the same services.
+    ///     Duplicate registrations with equal descriptors are ignored; see <see cref="DependencyDescriptor.Equals(DependencyDescriptor?)" />.
     /// </remarks>
     public void Register(DependencyDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        // Use HashSet.Add, which uses IEquatable<DependencyDescriptor>
-        // Returns false if the descriptor is already present.
-        if (!_registeredDescriptors.Add(descriptor))
+        if (_descriptorsByServiceType.TryGetValue(descriptor.DependencyType, out var existing))
         {
-            // Descriptor already registered, skip silently.
-            return;
+            if (existing.Equals(descriptor))
+            {
+                return;
+            }
+
+            throw new LiteBusConfigurationException(
+                $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' is already registered. " +
+                "Each LiteBus module may register a given service type only once. Remove the duplicate registration or consolidate modules.");
         }
+
+        _descriptorsByServiceType[descriptor.DependencyType] = descriptor;
+        _registeredDescriptors.Add(descriptor);
 
         ConvertToAutofacRegistration(descriptor);
     }
@@ -120,6 +135,9 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
                 break;
             case InstanceLifetime.Transient:
                 registration.InstancePerDependency();
+                break;
+            case InstanceLifetime.Scoped:
+                registration.InstancePerLifetimeScope();
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(descriptor.Lifetime), descriptor.Lifetime, "Unknown instance lifetime.");

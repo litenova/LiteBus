@@ -28,6 +28,6 @@ public sealed class PostgreSqlInboxStoreTests : ContractTests, IClassFixture<Pos
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
         PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).GetAwaiter().GetResult();
         var store = new PostgreSqlInboxStore(_fixture.DataSource, options);
-        return new ContractTests.InboxStoreRoles(store, store, store, store, store);
+        return new ContractTests.InboxStoreRoles(store, store, store, store, store, store, store, store);
     }
 }

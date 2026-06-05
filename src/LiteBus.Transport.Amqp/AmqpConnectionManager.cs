@@ -31,9 +31,9 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     private readonly AmqpCircuitBreaker _circuitBreaker;
 
     /// <summary>
-    ///     Gets the circuit breaker shared with publishers created from this connection manager.
+    ///     Gets the circuit breaker shared with publishers and consumers created from this connection manager.
     /// </summary>
-    internal AmqpCircuitBreaker CircuitBreaker => _circuitBreaker;
+    public AmqpCircuitBreaker CircuitBreaker => _circuitBreaker;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="AmqpConnectionManager" /> class.

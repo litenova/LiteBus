@@ -34,6 +34,6 @@ public sealed class EfCoreOutboxStoreSqlServerContractTests : OutboxStoreContrac
             _ => Task.FromResult<IOutboxDbContext>(
                 EfCoreSqlServerTestInfrastructure.CreateOutboxContext(_fixture.ConnectionString)),
             options);
-        return new OutboxStoreContracts(store, store, store, store, store);
+        return new OutboxStoreContracts(store, store, store, store, store, store, store, store);
     }
 }

@@ -16,11 +16,10 @@ public sealed class PostgreSqlInboxStoreBatchMarkFailedTests : IClassFixture<Pos
     }
 
     /// <summary>
-    ///     Confirms batch <see cref="IInboxTerminalStateStore.MarkFailedAsync(IReadOnlyList{InboxEnvelopeFailure})" />
-    ///     accepts all-null visible_after timestamps.
+    ///     Confirms batch <see cref="IInboxStateWriter.PersistAsync" /> accepts all-null visible-after timestamps.
     /// </summary>
     [Fact]
-    public async Task MarkFailedAsync_batch_with_null_visible_after_should_persist_failed_status()
+    public async Task PersistAsync_batch_with_null_visible_after_should_persist_failed_status()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
@@ -33,7 +32,7 @@ public sealed class PostgreSqlInboxStoreBatchMarkFailedTests : IClassFixture<Pos
         await store.EnqueueAsync(CreatePending(firstId, now));
         await store.EnqueueAsync(CreatePending(secondId, now.AddSeconds(1)));
 
-        await store.LeasePendingAsync(new InboxLeaseRequest
+        var leased = await store.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 2,
             LeaseOwner = "batch-fail",
@@ -41,11 +40,11 @@ public sealed class PostgreSqlInboxStoreBatchMarkFailedTests : IClassFixture<Pos
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
-        await store.MarkFailedAsync(new[]
-        {
-            new InboxEnvelopeFailure { Id = firstId, Error = "e1", VisibleAfter = null },
-            new InboxEnvelopeFailure { Id = secondId, Error = "e2", VisibleAfter = null }
-        });
+        await store.PersistAsync(
+        [
+            leased.Single(envelope => envelope.Id == firstId).AsFailed("e1"),
+            leased.Single(envelope => envelope.Id == secondId).AsFailed("e2")
+        ]);
 
         var firstRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, firstId);
         var secondRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, secondId);

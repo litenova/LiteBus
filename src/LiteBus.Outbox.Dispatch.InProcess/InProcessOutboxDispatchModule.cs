@@ -23,7 +23,7 @@ public sealed class InProcessOutboxDispatchModule : IModule
 
         if (!configuration.TryGetContext<OutboxCoreRegisteredMarker>(out _))
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 $"{nameof(InProcessOutboxDispatchModule)} requires OutboxModule core services " +
                 "to be registered first. Configure the dispatcher inside AddOutboxModule(...) " +
                 "using UseInProcessDispatcher().");

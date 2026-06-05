@@ -26,7 +26,7 @@ public sealed class InboxTests : LiteBusTestBase
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
-            new InboxTestFixtures.FixedTimeProvider(now));
+            new ManualTimeProvider(now));
 
         var commandId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
@@ -421,16 +421,15 @@ public sealed class InboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenMarkCompletedFailsAfterSuccessfulDispatch_ShouldNotMarkFailed()
     {
-        var clock = new InboxTestInfrastructure.ManualTimeProvider(
-            new DateTimeOffset(2026, 5, 30, 12, 0, 0, TimeSpan.Zero));
+        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 5, 30, 12, 0, 0, TimeSpan.Zero));
         var inner = new InMemoryInboxStore();
-        var flakyStateStore = new InboxTestFixtures.FlakyInboxStateStore(inner, failCompletionsBeforeSuccess: 1);
+        var flakyStateStore = new InboxTestFixtures.FlakyInboxStateStore(inner, failCompletionsBeforeSuccess: 2);
         var recorder = new InboxTestFixtures.CommandRecorder();
 
         var serviceProvider = new ServiceCollection()
             .AddSingleton<IInboxStore>(inner)
             .AddSingleton<IInboxLeaseStore>(inner)
-            .AddSingleton<IInboxTerminalStateStore>(flakyStateStore)
+            .AddSingleton<IInboxStateWriter>(flakyStateStore)
             .AddSingleton<IInboxRetentionStore>(inner)
             .AddSingleton<IInboxDiagnosticsStore>(inner)
             .AddSingleton(recorder)

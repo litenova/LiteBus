@@ -39,4 +39,9 @@ public static class PostgreSqlInboxSchemaSqlPaths
     ///     Upgrades the inbox table from version 3 to version 4 (insert notify trigger).
     /// </summary>
     public const string V4Upgrade = Root + "inbox/v4/add_insert_notify.sql";
+
+    /// <summary>
+    ///     Upgrades the inbox table from version 4 to version 5 (completed_at column).
+    /// </summary>
+    public const string V5Upgrade = Root + "inbox/v5/add_completed_at.sql";
 }

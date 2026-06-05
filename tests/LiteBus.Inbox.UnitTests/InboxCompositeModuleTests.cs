@@ -6,6 +6,7 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Inbox.UnitTests;
@@ -23,7 +24,7 @@ public sealed class InboxCompositeModuleTests
         };
 
         act.Should()
-            .Throw<InvalidOperationException>()
+            .Throw<LiteBusConfigurationException>()
             .WithMessage("*InboxModule*UseInMemoryStorage*");
     }
 

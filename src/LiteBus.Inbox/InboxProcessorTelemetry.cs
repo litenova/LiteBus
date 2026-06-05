@@ -12,12 +12,12 @@ internal static class InboxProcessorTelemetry
     /// <summary>
     ///     Gets the activity source used for inbox processor spans.
     /// </summary>
-    public static readonly ActivitySource ActivitySource = new("LiteBus.Inbox");
+    public static readonly ActivitySource ActivitySource = new(LiteBusInboxTelemetry.ActivitySourceName);
 
     /// <summary>
     ///     Gets the meter used for inbox processor counters.
     /// </summary>
-    private static readonly Meter Meter = new("LiteBus.Inbox");
+    private static readonly Meter Meter = new(LiteBusInboxTelemetry.MeterName);
 
     /// <summary>
     ///     Gets the counter incremented once per processor pass.

@@ -18,10 +18,24 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     ///     Thrown when <paramref name="dependencyType" /> or <paramref name="implementationType" /> is <see langword="null" />.
     /// </exception>
     public DependencyDescriptor(Type dependencyType, Type implementationType)
+        : this(dependencyType, implementationType, InstanceLifetime.Transient)
+    {
+    }
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="DependencyDescriptor" /> class for type registration with an explicit lifetime.
+    /// </summary>
+    /// <param name="dependencyType">The dependency type to register.</param>
+    /// <param name="implementationType">The implementation type for the dependency.</param>
+    /// <param name="lifetime">The instance lifetime for resolved instances.</param>
+    /// <exception cref="System.ArgumentNullException">
+    ///     Thrown when <paramref name="dependencyType" /> or <paramref name="implementationType" /> is <see langword="null" />.
+    /// </exception>
+    public DependencyDescriptor(Type dependencyType, Type implementationType, InstanceLifetime lifetime)
     {
         DependencyType = dependencyType ?? throw new ArgumentNullException(nameof(dependencyType));
         ImplementationType = implementationType ?? throw new ArgumentNullException(nameof(implementationType));
-        Lifetime = InstanceLifetime.Transient;
+        Lifetime = lifetime;
     }
 
     /// <summary>

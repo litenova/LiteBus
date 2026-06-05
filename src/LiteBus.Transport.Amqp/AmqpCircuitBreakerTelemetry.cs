@@ -11,7 +11,7 @@ internal static class AmqpCircuitBreakerTelemetry
     /// <summary>
     ///     Gets the meter used for circuit breaker counters.
     /// </summary>
-    private static readonly Meter Meter = new("LiteBus.Transport.Amqp");
+    private static readonly Meter Meter = new(LiteBusAmqpTelemetry.MeterName);
 
     /// <summary>
     ///     Gets the counter incremented when a failure is recorded while the circuit is closed.

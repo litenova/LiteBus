@@ -3,13 +3,16 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Inbox;
 
 /// <summary>
 ///     Module for configuring inbox acceptance and processing orchestration.
 /// </summary>
-public sealed class InboxModule : ICompositeModule
+public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
 {
     /// <summary>
     ///     The module builder callback invoked during <see cref="DeclareChildren" />.
@@ -38,7 +41,13 @@ public sealed class InboxModule : ICompositeModule
 
         foreach (var subModule in _builder.CollectSubModules())
         {
-            registerChild(subModule);
+            if (subModule is not IModule module)
+            {
+                throw new LiteBusConfigurationException(
+                    $"Inbox sub-module '{subModule.GetType().FullName}' must implement {nameof(IModule)}.");
+            }
+
+            registerChild(module);
         }
     }
 
@@ -49,9 +58,18 @@ public sealed class InboxModule : ICompositeModule
 
         if (_builder is null)
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 "InboxModule.Build was called without a prior DeclareChildren call. " +
                 "Register the module through IModuleRegistry.");
+        }
+
+        if (_builder.IsInboxProcessorEnabled &&
+            (!_builder.IsStorageConfigured || !_builder.IsDispatcherConfigured))
+        {
+            throw new LiteBusConfigurationException(
+                "EnableInboxProcessor requires both storage and dispatcher to be configured. " +
+                "Call UseInMemoryStorage, UsePostgreSqlStorage, or UseEfCoreStorage and " +
+                "UseInProcessDispatcher or UseAmqpDispatcher inside AddInboxModule(...).");
         }
 
         var contractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
@@ -74,11 +92,26 @@ public sealed class InboxModule : ICompositeModule
             typeof(Inbox)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IInboxManager),
+            typeof(InboxManager)));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(Abstractions.IInboxProcessor),
-            typeof(InboxProcessor)));
+            CreateInboxProcessor,
+            InstanceLifetime.Transient));
 
         if (_builder.IsInboxProcessorEnabled)
         {
+            var processorControl = new InboxProcessorControl();
+
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(InboxProcessorControl),
+                processorControl));
+
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(IInboxProcessorControl),
+                processorControl));
+
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
                 typeof(InboxProcessorHostOptions),
                 _builder.ProcessorHostOptions));
@@ -104,5 +137,26 @@ public sealed class InboxModule : ICompositeModule
         }
 
         configuration.SetContext(new InboxCoreRegisteredMarker());
+    }
+
+    /// <summary>
+    ///     Creates an <see cref="InboxProcessor" /> from the dependency injection container.
+    /// </summary>
+    /// <param name="services">The service provider used to resolve processor dependencies.</param>
+    /// <returns>The configured inbox processor instance.</returns>
+    private static object CreateInboxProcessor(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        var logger = services.GetService(typeof(ILogger<InboxProcessor>)) as ILogger<InboxProcessor>
+                     ?? NullLogger<InboxProcessor>.Instance;
+
+        return new InboxProcessor(
+            (IInboxLeaseStore)services.GetService(typeof(IInboxLeaseStore))!,
+            (IInboxStateWriter)services.GetService(typeof(IInboxStateWriter))!,
+            (IInboxDispatcher)services.GetService(typeof(IInboxDispatcher))!,
+            (InboxProcessorOptions)services.GetService(typeof(InboxProcessorOptions))!,
+            services.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System,
+            logger);
     }
 }

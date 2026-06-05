@@ -38,6 +38,7 @@ public sealed class TransactionalOutboxEnqueueTests
 
         var orderId = Guid.NewGuid();
         var receipt = await transactionalOutbox.EnqueueAsync(
+            context,
             new OrderSubmittedEvent { OrderId = orderId },
             new OutboxOptions
             {
@@ -77,7 +78,7 @@ public sealed class TransactionalOutboxEnqueueTests
     }
 
     /// <summary>
-    ///     Serializes synchronously so <see cref="AsyncLocal{T}" /> pending state remains on the test execution flow.
+    ///     Serializes synchronously so enqueue and save run on the same test execution flow.
     /// </summary>
     private sealed class SynchronousMessageSerializer : IMessageSerializer
     {

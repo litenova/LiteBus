@@ -113,6 +113,9 @@ public static class OutboxEntityFrameworkCoreModelExtensions
             .HasColumnName("trace_context")
             .ConfigureJsonTraceContextColumn<OutboxMessageEntity>(provider);
 
+        entity.Property(message => message.PublishedAt)
+            .HasColumnName("published_at");
+
         entity.HasIndex(message => new { message.Status, message.VisibleAfter, message.LeaseExpiresAt, message.CreatedAt });
 
         entity.HasIndex(message => message.Topic)

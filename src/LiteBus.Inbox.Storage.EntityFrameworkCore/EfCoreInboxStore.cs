@@ -26,13 +26,24 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 ///         <see cref="InboxEntityFrameworkCoreModelExtensions.GetModelBuilderConfiguration" /> from
 ///         <c>OnModelCreating</c> to align schema with this store.
 ///     </para>
+///     <para>
+///         The default <see cref="IInboxStore" /> registration resolves a scoped <see cref="DbContext" /> per store call
+///         and commits inbox rows immediately inside <see cref="AddAsync(InboxEnvelope, CancellationToken)" />. To
+///         participate in the caller's unit of work, call
+///         <see cref="UseExistingDbContext{TContext}(TContext)" /> or stage envelopes with
+///         <see cref="LiteBusInboxSaveChangesInterceptor" /> before <c>SaveChanges</c>.
+///     </para>
 /// </remarks>
 public sealed class EfCoreInboxStore :
     IInboxStore,
     IInboxLeaseStore,
-    IInboxTerminalStateStore,
+    IInboxStateWriter,
+    IInboxDeadLetterStore,
     IInboxRetentionStore,
     IInboxDiagnosticsStore,
+    IInboxMessageQuery,
+    IInboxPurgeStore,
+    ITransactionalInboxStore,
     IAsyncDisposable
 {
     /// <summary>
@@ -138,7 +149,7 @@ public sealed class EfCoreInboxStore :
     ///     A store bound to <paramref name="context" /> where <see cref="AddAsync(InboxEnvelope, CancellationToken)" />
     ///     stages inserts and defers commit to the caller's <c>SaveChanges</c> call.
     /// </returns>
-    public EfCoreInboxStore UseExistingDbContext<TContext>(TContext context)
+    public ITransactionalInboxStore UseExistingDbContext<TContext>(TContext context)
         where TContext : DbContext, IInboxDbContext
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -221,170 +232,151 @@ public sealed class EfCoreInboxStore :
     }
 
     /// <inheritdoc />
-    public Task MarkCompletedAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public Task PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
     {
-        return ExecuteAsync(async (context, token) =>
+        ArgumentNullException.ThrowIfNull(envelopes);
+
+        if (envelopes.Count == 0)
         {
-            var entity = await context.InboxMessages
-                .SingleOrDefaultAsync(message => message.Id == messageId, token)
-                .ConfigureAwait(false);
-
-            if (entity is null)
-            {
-                return;
-            }
-
-            ApplyMutableState(entity, ToEnvelope(entity).AsCompleted());
-            await SaveChangesAsync(context, token).ConfigureAwait(false);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task MarkFailedAsync(InboxEnvelopeFailure failure, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(failure);
+            return Task.CompletedTask;
+        }
 
         return ExecuteAsync(async (context, token) =>
         {
-            var entity = await context.InboxMessages
-                .SingleOrDefaultAsync(message => message.Id == failure.Id, token)
-                .ConfigureAwait(false);
+            List<InboxEnvelope>? completed = null;
+            List<InboxEnvelope>? failed = null;
+            List<InboxEnvelope>? deadLettered = null;
 
-            if (entity is null)
+            foreach (var envelope in envelopes)
             {
-                return;
+                switch (envelope.Status)
+                {
+                    case InboxStatus.Completed:
+                        (completed ??= []).Add(envelope);
+                        break;
+
+                    case InboxStatus.Failed:
+                        (failed ??= []).Add(envelope);
+                        break;
+
+                    case InboxStatus.DeadLettered:
+                        (deadLettered ??= []).Add(envelope);
+                        break;
+
+                    default:
+                        throw new InvalidOperationException(
+                            $"Envelope '{envelope.Id}' has unexpected status '{envelope.Status}' in PersistAsync. " +
+                            "Only Completed, Failed, and DeadLettered are valid outcomes.");
+                }
             }
 
-            ApplyMutableState(entity, ToEnvelope(entity).AsFailed(failure.Error, failure.VisibleAfter));
-            await SaveChangesAsync(context, token).ConfigureAwait(false);
-        }, cancellationToken);
-    }
+            var changed = false;
 
-    /// <inheritdoc />
-    public Task MoveToDeadLetterAsync(InboxEnvelopeDeadLetter deadLetter, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(deadLetter);
-
-        return ExecuteAsync(async (context, token) =>
-        {
-            var entity = await context.InboxMessages
-                .SingleOrDefaultAsync(message => message.Id == deadLetter.Id, token)
-                .ConfigureAwait(false);
-
-            if (entity is null)
+            if (completed is not null)
             {
-                return;
+                changed |= await ApplyCompletedAsync(context, completed, token).ConfigureAwait(false);
             }
 
-            ApplyMutableState(entity, ToEnvelope(entity).AsDeadLettered(deadLetter.Reason));
-            await SaveChangesAsync(context, token).ConfigureAwait(false);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task MarkCompletedAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(messageIds);
-
-        return ExecuteAsync(async (context, token) =>
-        {
-            var entities = await context.InboxMessages
-                .Where(message => messageIds.Contains(message.Id))
-                .ToListAsync(token)
-                .ConfigureAwait(false);
-
-            foreach (var entity in entities)
+            if (failed is not null)
             {
-                ApplyMutableState(entity, ToEnvelope(entity).AsCompleted());
+                changed |= await ApplyFailedAsync(context, failed, token).ConfigureAwait(false);
             }
 
-            if (entities.Count > 0)
+            if (deadLettered is not null)
+            {
+                changed |= await ApplyDeadLetteredAsync(context, deadLettered, token).ConfigureAwait(false);
+            }
+
+            if (changed)
             {
                 await SaveChangesAsync(context, token).ConfigureAwait(false);
             }
         }, cancellationToken);
     }
 
-    /// <inheritdoc />
-    public Task MarkFailedAsync(IReadOnlyList<InboxEnvelopeFailure> failures, CancellationToken cancellationToken = default)
+    /// <summary>
+    ///     Applies completed status for one or more envelopes.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="envelopes">The completed envelopes to persist.</param>
+    /// <param name="cancellationToken">A token that cancels the update.</param>
+    /// <returns><see langword="true" /> when at least one entity was updated.</returns>
+    private static async Task<bool> ApplyCompletedAsync(
+        IInboxDbContext context,
+        IReadOnlyList<InboxEnvelope> envelopes,
+        CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(failures);
+        var envelopeById = envelopes.ToDictionary(envelope => envelope.Id);
+        var entities = await context.InboxMessages
+            .Where(message => envelopeById.Keys.Contains(message.Id))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        return ExecuteAsync(async (context, token) =>
+        foreach (var entity in entities)
         {
-            var failureById = failures.ToDictionary(failure => failure.Id);
+            var source = envelopeById[entity.Id];
+            ApplyMutableState(entity, source.Status == InboxStatus.Completed
+                ? source
+                : source.AsCompleted());
+        }
 
-            var entities = await context.InboxMessages
-                .Where(message => failureById.Keys.Contains(message.Id))
-                .ToListAsync(token)
-                .ConfigureAwait(false);
+        return entities.Count > 0;
+    }
 
-            foreach (var entity in entities)
-            {
-                var failure = failureById[entity.Id];
-                ApplyMutableState(entity, ToEnvelope(entity).AsFailed(failure.Error, failure.VisibleAfter));
-            }
+    /// <summary>
+    ///     Applies failed status and retry metadata for one or more envelopes.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="envelopes">The failed envelopes to persist.</param>
+    /// <param name="cancellationToken">A token that cancels the update.</param>
+    /// <returns><see langword="true" /> when at least one entity was updated.</returns>
+    private static async Task<bool> ApplyFailedAsync(
+        IInboxDbContext context,
+        IReadOnlyList<InboxEnvelope> envelopes,
+        CancellationToken cancellationToken)
+    {
+        var envelopeById = envelopes.ToDictionary(envelope => envelope.Id);
+        var entities = await context.InboxMessages
+            .Where(message => envelopeById.Keys.Contains(message.Id))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-            if (entities.Count > 0)
-            {
-                await SaveChangesAsync(context, token).ConfigureAwait(false);
-            }
-        }, cancellationToken);
+        foreach (var entity in entities)
+        {
+            ApplyMutableState(entity, envelopeById[entity.Id]);
+        }
+
+        return entities.Count > 0;
+    }
+
+    /// <summary>
+    ///     Applies dead-letter status for one or more envelopes.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="envelopes">The dead-lettered envelopes to persist.</param>
+    /// <param name="cancellationToken">A token that cancels the update.</param>
+    /// <returns><see langword="true" /> when at least one entity was updated.</returns>
+    private static async Task<bool> ApplyDeadLetteredAsync(
+        IInboxDbContext context,
+        IReadOnlyList<InboxEnvelope> envelopes,
+        CancellationToken cancellationToken)
+    {
+        var envelopeById = envelopes.ToDictionary(envelope => envelope.Id);
+        var entities = await context.InboxMessages
+            .Where(message => envelopeById.Keys.Contains(message.Id))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var entity in entities)
+        {
+            ApplyMutableState(entity, envelopeById[entity.Id]);
+        }
+
+        return entities.Count > 0;
     }
 
     /// <inheritdoc />
-    public Task MoveToDeadLetterAsync(IReadOnlyList<InboxEnvelopeDeadLetter> deadLetters, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(deadLetters);
-
-        return ExecuteAsync(async (context, token) =>
-        {
-            if (deadLetters.Count == 0)
-            {
-                return;
-            }
-
-            var deadLetterById = deadLetters.ToDictionary(deadLetter => deadLetter.Id);
-
-            var entities = await context.InboxMessages
-                .Where(message => deadLetterById.Keys.Contains(message.Id))
-                .ToListAsync(token)
-                .ConfigureAwait(false);
-
-            foreach (var entity in entities)
-            {
-                var deadLetter = deadLetterById[entity.Id];
-                ApplyMutableState(entity, ToEnvelope(entity).AsDeadLettered(deadLetter.Reason));
-            }
-
-            if (entities.Count > 0)
-            {
-                await SaveChangesAsync(context, token).ConfigureAwait(false);
-            }
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task RequeueDeadLetterAsync(Guid messageId, CancellationToken cancellationToken = default)
-    {
-        return ExecuteAsync(async (context, token) =>
-        {
-            var entity = await context.InboxMessages
-                .SingleOrDefaultAsync(message => message.Id == messageId, token)
-                .ConfigureAwait(false);
-
-            if (entity is null || entity.Status != InboxStatus.DeadLettered)
-            {
-                return;
-            }
-
-            ApplyMutableState(entity, ToEnvelope(entity).AsRequeued());
-            await SaveChangesAsync(context, token).ConfigureAwait(false);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task RequeueDeadLetterAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    public Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
 
@@ -423,7 +415,8 @@ public sealed class EfCoreInboxStore :
             }
 
             return await dbContext.Set<InboxMessageEntity>()
-                .Where(message => message.Status == InboxStatus.Completed && message.CreatedAt < olderThan)
+                .Where(message => message.Status == InboxStatus.Completed &&
+                                  (message.CompletedAt ?? message.CreatedAt) < olderThan)
                 .ExecuteDeleteAsync(token)
                 .ConfigureAwait(false);
         }, cancellationToken);
@@ -443,6 +436,49 @@ public sealed class EfCoreInboxStore :
             return (IReadOnlyDictionary<InboxStatus, int>)counts.ToDictionary(
                 entry => entry.Status,
                 entry => entry.Count);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<InboxMessagePage> QueryAsync(
+        InboxMessageFilter filter,
+        InboxMessagePageRequest pageRequest,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(pageRequest);
+        ValidatePageSize(pageRequest.PageSize);
+
+        return ExecuteAsync(async (context, token) =>
+        {
+            var query = ApplyFilter(context.InboxMessages.AsQueryable(), filter);
+            query = ApplyCursor(query, pageRequest.Cursor);
+
+            var entities = await query
+                .OrderBy(message => message.CreatedAt)
+                .ThenBy(message => message.Id)
+                .Take(pageRequest.PageSize + 1)
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+
+            return BuildPage(entities.Select(ToEnvelope).ToList(), pageRequest.PageSize);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<int> PurgeAsync(InboxMessageFilter filter, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+
+        return ExecuteAsync(async (context, token) =>
+        {
+            if (context is not DbContext dbContext)
+            {
+                throw new InvalidOperationException("Purge requires a DbContext-backed inbox database context.");
+            }
+
+            var query = ApplyFilter(context.InboxMessages.AsQueryable(), filter);
+            return await DeleteMatchingAsync(dbContext, query, token).ConfigureAwait(false);
         }, cancellationToken);
     }
 
@@ -724,7 +760,8 @@ public sealed class EfCoreInboxStore :
             CorrelationId = entity.CorrelationId,
             CausationId = entity.CausationId,
             TenantId = entity.TenantId,
-            TraceContext = entity.TraceContext
+            TraceContext = entity.TraceContext,
+            CompletedAt = entity.CompletedAt
         };
     }
 
@@ -794,9 +831,175 @@ public sealed class EfCoreInboxStore :
         entity.Status = envelope.Status;
         entity.VisibleAfter = envelope.VisibleAfter;
         entity.AttemptCount = envelope.AttemptCount;
-        entity.LeaseOwner = envelope.LeaseOwner;
-        entity.LeaseExpiresAt = envelope.LeaseExpiresAt;
+        entity.LeaseOwner = envelope.Status is InboxStatus.Completed or InboxStatus.Failed or InboxStatus.DeadLettered
+            ? null
+            : envelope.LeaseOwner;
+        entity.LeaseExpiresAt = envelope.Status is InboxStatus.Completed or InboxStatus.Failed or InboxStatus.DeadLettered
+            ? null
+            : envelope.LeaseExpiresAt;
         entity.LastError = envelope.LastError;
+
+        if (envelope.Status == InboxStatus.Completed)
+        {
+            entity.CompletedAt = envelope.CompletedAt ?? DateTimeOffset.UtcNow;
+        }
+    }
+
+    /// <summary>
+    ///     Applies optional inbox message filters to an Entity Framework query.
+    /// </summary>
+    /// <param name="query">The inbox messages to filter.</param>
+    /// <param name="filter">The optional predicates applied to stored rows.</param>
+    /// <returns>The filtered query.</returns>
+    private static IQueryable<InboxMessageEntity> ApplyFilter(
+        IQueryable<InboxMessageEntity> query,
+        InboxMessageFilter filter)
+    {
+        var statusValues = MaterializeStatusFilter(filter.Statuses);
+
+        if (statusValues is not null)
+        {
+            query = query.Where(message => statusValues.Contains((int)message.Status));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.ContractName))
+        {
+            query = query.Where(message => message.ContractName == filter.ContractName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.CorrelationId))
+        {
+            query = query.Where(message => message.CorrelationId == filter.CorrelationId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.CausationId))
+        {
+            query = query.Where(message => message.CausationId == filter.CausationId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.TenantId))
+        {
+            query = query.Where(message => message.TenantId == filter.TenantId);
+        }
+
+        if (filter.CreatedAfter is not null)
+        {
+            query = query.Where(message => message.CreatedAt >= filter.CreatedAfter);
+        }
+
+        if (filter.CreatedBefore is not null)
+        {
+            query = query.Where(message => message.CreatedAt <= filter.CreatedBefore);
+        }
+
+        return query;
+    }
+
+    /// <summary>
+    ///     Applies keyset pagination to an Entity Framework query.
+    /// </summary>
+    /// <param name="query">The inbox messages to page.</param>
+    /// <param name="cursor">The opaque cursor from a previous page.</param>
+    /// <returns>The query positioned after the supplied cursor.</returns>
+    private static IQueryable<InboxMessageEntity> ApplyCursor(
+        IQueryable<InboxMessageEntity> query,
+        string? cursor)
+    {
+        if (string.IsNullOrWhiteSpace(cursor))
+        {
+            return query;
+        }
+
+        if (!InboxMessagePageCursor.TryDecode(cursor, out var cursorCreatedAt, out var cursorMessageId))
+        {
+            throw new ArgumentException("The cursor is invalid.", nameof(cursor));
+        }
+
+        return query.Where(message =>
+            message.CreatedAt > cursorCreatedAt ||
+            (message.CreatedAt == cursorCreatedAt && message.Id > cursorMessageId));
+    }
+
+    /// <summary>
+    ///     Builds a page result from one over-fetched query batch.
+    /// </summary>
+    /// <param name="envelopes">The ordered envelopes including one optional lookahead row.</param>
+    /// <param name="pageSize">The requested page size.</param>
+    /// <returns>The page returned to callers.</returns>
+    private static InboxMessagePage BuildPage(IReadOnlyList<InboxEnvelope> envelopes, int pageSize)
+    {
+        var hasMore = envelopes.Count > pageSize;
+        var items = hasMore ? envelopes.Take(pageSize).ToList() : envelopes;
+        var nextCursor = hasMore
+            ? InboxMessagePageCursor.Encode(items[^1].CreatedAt, items[^1].Id)
+            : null;
+
+        return new InboxMessagePage(items, hasMore, nextCursor);
+    }
+
+    /// <summary>
+    ///     Validates that the requested page size is positive.
+    /// </summary>
+    /// <param name="pageSize">The requested page size.</param>
+    private static void ValidatePageSize(int pageSize)
+    {
+        if (pageSize <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pageSize), pageSize, "Page size must be greater than zero.");
+        }
+    }
+
+    /// <summary>
+    ///     Deletes rows matched by a filtered query, using bulk delete when the provider supports it.
+    /// </summary>
+    /// <typeparam name="TEntity">The inbox entity type.</typeparam>
+    /// <param name="dbContext">The database context executing the delete.</param>
+    /// <param name="query">The filtered entity query.</param>
+    /// <param name="cancellationToken">A token that cancels the delete operation.</param>
+    /// <returns>The number of deleted rows.</returns>
+    private static async Task<int> DeleteMatchingAsync<TEntity>(
+        DbContext dbContext,
+        IQueryable<TEntity> query,
+        CancellationToken cancellationToken)
+        where TEntity : class
+    {
+        if (dbContext.Database.ProviderName?.Contains("InMemory", StringComparison.Ordinal) == true)
+        {
+            var matches = await query.ToListAsync(cancellationToken).ConfigureAwait(false);
+
+            if (matches.Count == 0)
+            {
+                return 0;
+            }
+
+            dbContext.Set<TEntity>().RemoveRange(matches);
+            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return matches.Count;
+        }
+
+        return await query.ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Copies status filters into a primitive array that Entity Framework can translate.
+    /// </summary>
+    /// <param name="statuses">The optional status filter values.</param>
+    /// <returns>The copied status values, or <see langword="null" /> when status is not filtered.</returns>
+    private static int[]? MaterializeStatusFilter(IReadOnlyList<InboxStatus>? statuses)
+    {
+        if (statuses is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        var values = new int[statuses.Count];
+
+        for (var index = 0; index < statuses.Count; index++)
+        {
+            values[index] = (int)statuses[index];
+        }
+
+        return values;
     }
 
     /// <summary>
