@@ -1,5 +1,7 @@
 using System;
+using System.Linq;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Runtime.Extensions.Microsoft.Hosting;
 using LiteBus.Runtime.Modules;
@@ -51,6 +53,7 @@ public static class ServiceCollectionExtensions
             moduleDescriptor.Module.Build(moduleConfiguration);
         }
 
+        RegisterHostManifest(services, moduleConfiguration);
         services.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
 
         return services;
@@ -98,8 +101,24 @@ public static class ServiceCollectionExtensions
 
         builder.ApplySharedContracts(moduleConfiguration);
 
+        RegisterHostManifest(services, moduleConfiguration);
         services.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
 
         return services;
+    }
+
+    /// <summary>
+    ///     Registers the host manifest describing startup tasks, background services, and diagnostic probes.
+    /// </summary>
+    /// <param name="services">The service collection receiving the manifest.</param>
+    /// <param name="moduleConfiguration">The module configuration that collected host registrations.</param>
+    private static void RegisterHostManifest(IServiceCollection services, ModuleConfiguration moduleConfiguration)
+    {
+        var manifest = new LiteBusHostManifest(
+            moduleConfiguration.StartupTasks.ToList(),
+            moduleConfiguration.BackgroundServices.ToList(),
+            moduleConfiguration.DiagnosticChecks.ToList());
+
+        services.AddSingleton(manifest);
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LiteBus.Runtime.Abstractions.Diagnostics;
 
 namespace LiteBus.Runtime.Abstractions;
 
@@ -24,6 +25,11 @@ public interface IModuleConfiguration
     IReadOnlyList<Type> BackgroundServices { get; }
 
     /// <summary>
+    ///     Gets the diagnostic probe descriptors registered by modules for host execution.
+    /// </summary>
+    IReadOnlyList<DiagnosticCheckDescriptor> DiagnosticChecks { get; }
+
+    /// <summary>
     ///     Registers a startup task implementation type for host execution after dependency registration is applied.
     /// </summary>
     /// <param name="implementationType">The concrete type that implements <see cref="IStartupTask" />.</param>
@@ -42,6 +48,19 @@ public interface IModuleConfiguration
     ///     Thrown when <paramref name="implementationType" /> does not implement <see cref="IBackgroundService" />.
     /// </exception>
     void RegisterBackgroundService(Type implementationType);
+
+    /// <summary>
+    ///     Registers a diagnostic probe implementation type for host execution after dependency registration is applied.
+    /// </summary>
+    /// <param name="implementationType">The concrete type that implements <see cref="IDiagnosticCheck" />.</param>
+    /// <param name="name">The probe name reported to operators and health hosts.</param>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="implementationType" /> or <paramref name="name" /> is <see langword="null" />.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="implementationType" /> does not implement <see cref="IDiagnosticCheck" />.
+    /// </exception>
+    void RegisterDiagnosticCheck(Type implementationType, string name);
 
     /// <summary>
     ///     Gets a context object of the specified type.

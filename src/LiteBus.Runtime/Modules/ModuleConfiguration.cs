@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
-using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Runtime.Modules;
@@ -37,6 +38,16 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
     private readonly HashSet<Type> _backgroundServiceTypes = [];
 
     /// <summary>
+    ///     Diagnostic probe descriptors registered for host execution in first-registration order.
+    /// </summary>
+    private readonly List<DiagnosticCheckDescriptor> _diagnosticChecks = [];
+
+    /// <summary>
+    ///     Tracks diagnostic probe types already registered so duplicates are ignored without reordering.
+    /// </summary>
+    private readonly HashSet<Type> _diagnosticCheckTypes = [];
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="ModuleConfiguration" /> class.
     /// </summary>
     /// <param name="dependencyRegistry">The dependency registry for service registration.</param>
@@ -54,6 +65,9 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
 
     /// <inheritdoc />
     public IReadOnlyList<Type> BackgroundServices => [.. _backgroundServices];
+
+    /// <inheritdoc />
+    public IReadOnlyList<DiagnosticCheckDescriptor> DiagnosticChecks => [.. _diagnosticChecks];
 
     /// <inheritdoc />
     public void RegisterStartupTask(Type implementationType)
@@ -96,6 +110,25 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
         if (_backgroundServiceTypes.Add(implementationType))
         {
             _backgroundServices.Add(implementationType);
+        }
+    }
+
+    /// <inheritdoc />
+    public void RegisterDiagnosticCheck(Type implementationType, string name)
+    {
+        ArgumentNullException.ThrowIfNull(implementationType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        if (!typeof(IDiagnosticCheck).IsAssignableFrom(implementationType))
+        {
+            throw new ArgumentException(
+                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(IDiagnosticCheck)}.",
+                nameof(implementationType));
+        }
+
+        if (_diagnosticCheckTypes.Add(implementationType))
+        {
+            _diagnosticChecks.Add(new DiagnosticCheckDescriptor(implementationType, name));
         }
     }
 

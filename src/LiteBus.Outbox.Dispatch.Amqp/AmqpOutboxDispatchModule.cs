@@ -60,7 +60,10 @@ public sealed class AmqpOutboxDispatchModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IAmqpConnectionManager),
-            typeof(AmqpConnectionManager)));
+            typeof(AmqpConnectionManager),
+            InstanceLifetime.Singleton));
+
+        AmqpTransportMetricsRegistration.RegisterIfNeeded(configuration);
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IAmqpPublisher),

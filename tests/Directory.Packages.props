@@ -5,7 +5,6 @@
         <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2"/>
         <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.4"/>
         <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.4"/>
-        <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.0"/>
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0"/>
         <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0"/>
         <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8"/>

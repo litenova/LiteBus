@@ -41,7 +41,6 @@
     <Project Path="src/LiteBus.Events.Extensions.Microsoft.DependencyInjection/LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj" />
     <Project Path="src/LiteBus.Events/LiteBus.Events.csproj" />
     <Project Path="src/LiteBus.Extensions.Microsoft.DependencyInjection/LiteBus.Extensions.Microsoft.DependencyInjection.csproj" />
-    <Project Path="src/LiteBus.Extensions.Microsoft.HealthChecks/LiteBus.Extensions.Microsoft.HealthChecks.csproj" />
     <Project Path="src/LiteBus.Extensions.OpenTelemetry/LiteBus.Extensions.OpenTelemetry.csproj" />
     <Project Path="src/LiteBus.Inbox.Abstractions/LiteBus.Inbox.Abstractions.csproj" />
     <Project Path="src/LiteBus.Inbox.Dispatch.Amqp/LiteBus.Inbox.Dispatch.Amqp.csproj" />

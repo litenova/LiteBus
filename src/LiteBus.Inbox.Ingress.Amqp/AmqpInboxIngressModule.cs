@@ -69,6 +69,8 @@ public sealed class AmqpInboxIngressModule : IModule
 
             configuration.RegisterBackgroundService(typeof(AmqpInboxConsumer));
         }
+
+        AmqpTransportMetricsRegistration.RegisterIfNeeded(configuration);
     }
 
     /// <summary>

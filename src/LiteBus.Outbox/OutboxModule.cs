@@ -136,7 +136,47 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
             configuration.RegisterBackgroundService(typeof(OutboxCleanupBackgroundService));
         }
 
+        RegisterObservableMetrics(configuration);
+        RegisterDiagnosticChecks(configuration);
+
         configuration.SetContext(new OutboxCoreRegisteredMarker());
+    }
+
+    /// <summary>
+    ///     Registers outbox observable OpenTelemetry gauges when they have not already been configured.
+    /// </summary>
+    /// <param name="configuration">The module configuration receiving the metrics registration.</param>
+    private static void RegisterObservableMetrics(IModuleConfiguration configuration)
+    {
+        if (configuration.TryGetContext<OutboxObservableMetricsRegisteredMarker>(out _))
+        {
+            return;
+        }
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(OutboxObservableMetrics),
+            static serviceProvider => new OutboxObservableMetrics(serviceProvider),
+            InstanceLifetime.Singleton));
+
+        configuration.RegisterStartupTask(typeof(OutboxObservableMetricsInitializer));
+        configuration.SetContext(new OutboxObservableMetricsRegisteredMarker());
+    }
+
+    /// <summary>
+    ///     Registers consumer-owned diagnostic probes collected by the outbox module builder.
+    /// </summary>
+    /// <param name="configuration">The module configuration receiving probe registrations.</param>
+    private void RegisterDiagnosticChecks(IModuleConfiguration configuration)
+    {
+        foreach (var registration in _builder!.CollectDiagnosticChecks())
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                registration.ImplementationType,
+                registration.ImplementationType,
+                InstanceLifetime.Singleton));
+
+            configuration.RegisterDiagnosticCheck(registration.ImplementationType, registration.Name);
+        }
     }
 
     /// <summary>

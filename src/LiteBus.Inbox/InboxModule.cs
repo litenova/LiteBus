@@ -136,7 +136,47 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
             configuration.RegisterBackgroundService(typeof(InboxCleanupBackgroundService));
         }
 
+        RegisterObservableMetrics(configuration);
+        RegisterDiagnosticChecks(configuration);
+
         configuration.SetContext(new InboxCoreRegisteredMarker());
+    }
+
+    /// <summary>
+    ///     Registers inbox observable OpenTelemetry gauges when they have not already been configured.
+    /// </summary>
+    /// <param name="configuration">The module configuration receiving the metrics registration.</param>
+    private static void RegisterObservableMetrics(IModuleConfiguration configuration)
+    {
+        if (configuration.TryGetContext<InboxObservableMetricsRegisteredMarker>(out _))
+        {
+            return;
+        }
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(InboxObservableMetrics),
+            static serviceProvider => new InboxObservableMetrics(serviceProvider),
+            InstanceLifetime.Singleton));
+
+        configuration.RegisterStartupTask(typeof(InboxObservableMetricsInitializer));
+        configuration.SetContext(new InboxObservableMetricsRegisteredMarker());
+    }
+
+    /// <summary>
+    ///     Registers consumer-owned diagnostic probes collected by the inbox module builder.
+    /// </summary>
+    /// <param name="configuration">The module configuration receiving probe registrations.</param>
+    private void RegisterDiagnosticChecks(IModuleConfiguration configuration)
+    {
+        foreach (var registration in _builder!.CollectDiagnosticChecks())
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                registration.ImplementationType,
+                registration.ImplementationType,
+                InstanceLifetime.Singleton));
+
+            configuration.RegisterDiagnosticCheck(registration.ImplementationType, registration.Name);
+        }
     }
 
     /// <summary>
