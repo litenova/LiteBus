@@ -51,3 +51,10 @@ coverage-*/
 
 # Key Pair File
 LiteBus.snk
+
+# Local build logs
+build-output.txt
+build2.txt
+
+# Cursor agent plans (local only)
+.cursor/plans/

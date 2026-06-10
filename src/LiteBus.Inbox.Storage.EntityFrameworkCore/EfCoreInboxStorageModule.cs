@@ -11,7 +11,7 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 /// <summary>
 ///     Registers the Entity Framework Core inbox store with LiteBus dependency injection.
 /// </summary>
-public sealed class EfCoreInboxStorageModule : IModule
+public sealed class EfCoreInboxStorageModule : IInboxStorageModule
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -31,14 +31,6 @@ public sealed class EfCoreInboxStorageModule : IModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
-        {
-            throw new LiteBusConfigurationException(
-                $"{nameof(EfCoreInboxStorageModule)} requires InboxModule core services " +
-                "to be registered first. Configure storage inside AddInboxModule(...) " +
-                "using UseEfCoreStorage().");
-        }
 
         var moduleBuilder = new EfCoreInboxStorageModuleBuilder();
         _builder(moduleBuilder);
@@ -136,8 +128,10 @@ public sealed class EfCoreInboxStorageModule : IModule
 
         if (moduleBuilder.RegisterSaveChangesInterceptor)
         {
+            var transactionalInboxType = typeof(ITransactionalInbox<>).MakeGenericType(moduleBuilder.DbContextType);
+
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(ITransactionalInbox),
+                transactionalInboxType,
                 serviceProvider => CreateTransactionalInbox(serviceProvider, moduleBuilder),
                 InstanceLifetime.Scoped));
         }
@@ -149,17 +143,21 @@ public sealed class EfCoreInboxStorageModule : IModule
     /// <param name="serviceProvider">The application service provider.</param>
     /// <param name="moduleBuilder">The configured module builder.</param>
     /// <returns>The transactional inbox instance.</returns>
-    private static TransactionalInbox CreateTransactionalInbox(
+    private static object CreateTransactionalInbox(
         IServiceProvider serviceProvider,
         EfCoreInboxStorageModuleBuilder moduleBuilder)
     {
-        var dbContext = (DbContext)serviceProvider.GetRequiredService(moduleBuilder.DbContextType!);
-        return new TransactionalInbox(
+        var dbContext = serviceProvider.GetRequiredService(moduleBuilder.DbContextType!);
+        var transactionalInboxType = typeof(TransactionalInbox<>).MakeGenericType(moduleBuilder.DbContextType!);
+
+        return Activator.CreateInstance(
+            transactionalInboxType,
             serviceProvider.GetRequiredService<LiteBusInboxSaveChangesInterceptor>(),
             dbContext,
             serviceProvider.GetRequiredService<IContractReader>(),
             serviceProvider.GetRequiredService<IMessageSerializer>(),
-            serviceProvider.GetRequiredService<TimeProvider>());
+            serviceProvider.GetRequiredService<TimeProvider>(),
+            serviceProvider.GetService(typeof(IInboxPayloadProtector)))!;
     }
 
     /// <summary>

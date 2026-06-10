@@ -1,6 +1,7 @@
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,9 +19,10 @@ public sealed class ContextPropagationTests : LiteBusTestBase
     public async Task Send_Command_ShouldPropagateContextItemsToAllHandlers()
     {
         // ARRANGE
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddCommandModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
             {
                 builder.Register<ContextPropagationPreHandler>();
                 builder.Register<ContextPropagationCommandHandler>();

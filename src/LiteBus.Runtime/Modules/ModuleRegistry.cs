@@ -19,7 +19,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
     private readonly List<IModule> _orderedModules = [];
 
     /// <summary>
-    ///     Module types already registered; duplicate top-level registrations are ignored.
+    ///     Module types already registered; duplicate registrations throw at configuration time.
     /// </summary>
     private readonly HashSet<Type> _registeredTypes = [];
 
@@ -36,7 +36,10 @@ internal sealed class ModuleRegistry : IModuleRegistry
         var moduleType = module.GetType();
         if (!_registeredTypes.Add(moduleType))
         {
-            return this;
+            throw new LiteBusConfigurationException(
+                $"Module '{moduleType.FullName ?? moduleType.Name}' is already registered. " +
+                "Remove the duplicate registration or consolidate configuration into a single module instance. " +
+                "For MessageModule, call AddMessageModule() once before semantic modules such as AddCommandModule().");
         }
 
         _orderedModules.Add(module);

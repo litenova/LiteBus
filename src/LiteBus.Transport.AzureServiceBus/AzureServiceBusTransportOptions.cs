@@ -1,18 +1,27 @@
-namespace LiteBus.Transport.AzureServiceBus;
-
-/// <summary>
-///     Connection settings for Azure Service Bus transport adapters.
-/// </summary>
-public sealed class AzureServiceBusTransportOptions
-{
-    /// <summary>
-    ///     Gets the Service Bus connection string used to create the shared client.
-    /// </summary>
-    public required string ConnectionString { get; init; }
-
-    /// <summary>
-    ///     Gets the optional client identifier passed to the Service Bus client.
-    /// </summary>
-    public string? ClientId { get; init; }
-}
-
+namespace LiteBus.Transport.AzureServiceBus;
+
+/// <summary>
+///     Connection settings for Azure Service Bus transport adapters.
+/// </summary>
+public sealed class AzureServiceBusTransportOptions
+{
+    /// <summary>
+    ///     Gets the Service Bus connection string used to create the shared client.
+    /// </summary>
+    public required string ConnectionString { get; init; }
+
+    /// <summary>
+    ///     Gets the optional client identifier passed to the Service Bus client.
+    /// </summary>
+    public string? ClientId { get; init; }
+
+    /// <summary>
+    ///     Gets the delay applied before restarting the processor after a recoverable processing error.
+    /// </summary>
+    public TimeSpan ConsumerErrorRetryInterval { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    ///     Gets the maximum delay between processor restart attempts after repeated failures.
+    /// </summary>
+    public TimeSpan ConsumerErrorRetryMaxInterval { get; init; } = TimeSpan.FromMinutes(1);
+}

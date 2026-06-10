@@ -23,6 +23,10 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 ///         envelopes into the current <see cref="IInboxDbContext" /> so the provider writes them in the caller's transaction.
 ///     </para>
 ///     <para>
+///         Duplicate <c>message_id</c> or <c>idempotency_key</c> conflicts are not resolved idempotently on this path.
+///         The provider raises on <c>SaveChanges</c>, which aborts the caller's unit of work (GPT-23).
+///     </para>
+///     <para>
 ///         Register the interceptor on the application <see cref="DbContext" /> through
 ///         <see cref="InboxDbContextExtensions.AddLiteBusInboxInterceptor(DbContextOptionsBuilder, LiteBusInboxSaveChangesInterceptor)" />
 ///         and enable module registration with
@@ -87,7 +91,10 @@ public sealed class LiteBusInboxSaveChangesInterceptor : SaveChangesInterceptor
             return;
         }
 
-        var envelopes = pending.ToList();
+        var envelopes = pending
+            .GroupBy(envelope => envelope.Id)
+            .Select(group => group.First())
+            .ToList();
         PendingEnvelopesByContext.Remove(context);
 
         if (context is not IInboxDbContext inboxDbContext)

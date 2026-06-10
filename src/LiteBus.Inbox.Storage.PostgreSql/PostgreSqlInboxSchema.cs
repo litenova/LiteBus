@@ -8,8 +8,7 @@ using Npgsql;
 namespace LiteBus.Inbox.Storage.PostgreSql;
 
 /// <summary>
-///     Creates, upgrades, and validates the PostgreSQL inbox schema used by
-///     <see cref="PostgreSqlInboxStore" />.
+///     Creates and validates the PostgreSQL inbox schema used by <see cref="PostgreSqlInboxStore" />.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -19,13 +18,14 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 ///         <item>
 ///             <description>
 ///                 <strong>Migration-owned (recommended for production).</strong> Copy the SQL files listed in
-///                 <see cref="SqlFiles" /> or call <see cref="GetCreateScript(PostgreSqlInboxStoreOptions?)" /> /
-///                 <see cref="GetUpgradeScript(int, int, PostgreSqlInboxStoreOptions?)" /> in your migration pipeline.
+///                 <see cref="SqlFiles" /> or call <see cref="GetCreateScript(PostgreSqlInboxStoreOptions?)" /> in your
+///                 migration pipeline.
 ///             </description>
 ///         </item>
 ///         <item>
 ///             <description>
-///                 <strong>Explicit bootstrap.</strong> Call <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlInboxStoreOptions?, CancellationToken)" />
+///                 <strong>Explicit bootstrap.</strong> Call
+///                 <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlInboxStoreOptions?, CancellationToken)" />
 ///                 during application startup or a deploy job.
 ///             </description>
 ///         </item>
@@ -41,13 +41,18 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 ///         Physical table schema version is tracked separately from message contract version stored on each row. Contract
 ///         version describes payload shape; table schema version describes columns and indexes managed by LiteBus.
 ///     </para>
+///     <para>
+///         Schema version 1 includes the full inbox column set, required indexes, and an optional insert notify trigger for
+///         LISTEN/NOTIFY wake-up. Existing databases are not upgraded; recreate tables or apply
+///         <see cref="GetCreateScript(PostgreSqlInboxStoreOptions?)" /> through your migration pipeline.
+///     </para>
 /// </remarks>
 public static class PostgreSqlInboxSchema
 {
     /// <summary>
     ///     Gets the inbox table schema version implemented by this package release.
     /// </summary>
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 1;
 
     /// <summary>
     ///     Gets the canonical SQL files shipped with the inbox PostgreSQL package.
@@ -61,7 +66,7 @@ public static class PostgreSqlInboxSchema
     public static IReadOnlyList<PostgreSqlSchemaSqlFile> SqlFiles => PostgreSqlInboxSchemaScripts.SqlFiles;
 
     /// <summary>
-    ///     Returns the SQL script that creates the current inbox schema, indexes, and metadata table.
+    ///     Returns the SQL script that creates the inbox schema version 1 table, indexes, metadata table, and notify trigger.
     /// </summary>
     /// <param name="options">The schema and table options. Defaults create <c>public.litebus_inbox_messages</c>.</param>
     /// <returns>The canonical create script for <see cref="CurrentSchemaVersion" />.</returns>
@@ -78,43 +83,11 @@ public static class PostgreSqlInboxSchema
     public static string GetCreateScript(PostgreSqlInboxStoreOptions? options = null)
     {
         options ??= new PostgreSqlInboxStoreOptions();
-        return PostgreSqlInboxSchemaScripts.BuildCreateScript(options, CurrentSchemaVersion);
+        return PostgreSqlInboxSchemaScripts.BuildCreateScript(options);
     }
 
     /// <summary>
-    ///     Returns the SQL script that upgrades the inbox schema from one version to the next.
-    /// </summary>
-    /// <param name="fromVersion">The source schema version.</param>
-    /// <param name="toVersion">The target schema version.</param>
-    /// <param name="options">The schema and table options.</param>
-    /// <returns>The upgrade script.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    ///     Thrown when the requested version range is unsupported.
-    /// </exception>
-    public static string GetUpgradeScript(int fromVersion, int toVersion, PostgreSqlInboxStoreOptions? options = null)
-    {
-        options ??= new PostgreSqlInboxStoreOptions();
-
-        if (fromVersion <= 0 || toVersion <= 0 || fromVersion >= toVersion || toVersion > CurrentSchemaVersion)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(toVersion),
-                toVersion,
-                $"Inbox schema upgrades must advance from a positive version to at most {CurrentSchemaVersion}.");
-        }
-
-        var builder = new System.Text.StringBuilder();
-
-        for (var version = fromVersion + 1; version <= toVersion; version++)
-        {
-            builder.AppendLine(PostgreSqlInboxSchemaScripts.BuildUpgradeScript(options, version - 1, version));
-        }
-
-        return builder.ToString().TrimEnd();
-    }
-
-    /// <summary>
-    ///     Creates or upgrades the inbox schema to <see cref="CurrentSchemaVersion" /> when required.
+    ///     Creates the inbox schema when required.
     /// </summary>
     /// <param name="dataSource">The PostgreSQL data source.</param>
     /// <param name="options">The schema and table options.</param>
@@ -122,7 +95,7 @@ public static class PostgreSqlInboxSchema
     /// <returns>A task that completes when the schema reaches the expected version.</returns>
     /// <remarks>
     ///     The operation is idempotent and safe to run from multiple application instances. One instance acquires a
-    ///     PostgreSQL advisory lock while applying upgrades; the others wait until the schema reaches the expected version.
+    ///     PostgreSQL advisory lock while creating the schema; the others wait until the schema reaches the expected version.
     /// </remarks>
     /// <example>
     ///     <code>

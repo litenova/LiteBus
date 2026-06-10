@@ -43,7 +43,7 @@ internal static class PostgreSqlSagaSchemaScripts
     {
         var qualifiedTableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
         var quotedSchemaName = PostgreSqlIdentifier.Quote(options.SchemaName);
-        var completedIndexName = PostgreSqlIdentifier.Qualify(options.SchemaName, $"{options.TableName}_completed_idx");
+        var completedIndexName = PostgreSqlIdentifier.IndexName(options.TableName, "completed_idx");
 
         return new Dictionary<string, string>(StringComparer.Ordinal)
         {

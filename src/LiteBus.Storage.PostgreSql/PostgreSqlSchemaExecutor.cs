@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Npgsql;
@@ -11,11 +10,6 @@ namespace LiteBus.Storage.PostgreSql;
 /// </summary>
 internal static class PostgreSqlSchemaExecutor
 {
-    /// <summary>
-    ///     The assembly that embeds shared PostgreSQL schema SQL resources.
-    /// </summary>
-    private static readonly Assembly Assembly = typeof(PostgreSqlSchemaExecutor).Assembly;
-
     /// <summary>
     ///     Executes one schema SQL batch against an open PostgreSQL connection.
     /// </summary>
@@ -57,34 +51,5 @@ internal static class PostgreSqlSchemaExecutor
     {
         return await PostgreSqlSchemaInspector.TableExistsAsync(connection, schemaName, tableName, cancellationToken)
             .ConfigureAwait(false);
-    }
-
-    /// <summary>
-    ///     Loads and renders the shared version 2 upgrade script that adds <c>trace_context</c>.
-    /// </summary>
-    /// <param name="options">The store table options used to replace SQL placeholders.</param>
-    /// <returns>The rendered upgrade SQL batch.</returns>
-    internal static string LoadSharedAddTraceContextColumnScript(IPostgreSqlStoreTableOptions options)
-    {
-        return PostgreSqlSqlScriptLoader.LoadAndRender(
-            Assembly,
-            PostgreSqlSchemaEmbeddedSql.SharedAddTraceContextColumn,
-            PostgreSqlSchemaSqlTokens.ForStoreTable(options));
-    }
-
-    /// <summary>
-    ///     Loads and renders the shared version 3 upgrade script that adds <c>idempotency_key</c>.
-    /// </summary>
-    /// <param name="options">The store table options used to replace SQL placeholders.</param>
-    /// <returns>The rendered upgrade SQL batch.</returns>
-    internal static string LoadSharedAddIdempotencyKeyColumnScript(IPostgreSqlStoreTableOptions options)
-    {
-        var tokens = PostgreSqlSchemaSqlTokens.ForStoreTable(options);
-        tokens["IdempotencyIndexName"] = PostgreSqlIdentifier.IndexName(options.TableName, "idempotency_idx");
-
-        return PostgreSqlSqlScriptLoader.LoadAndRender(
-            Assembly,
-            PostgreSqlSchemaEmbeddedSql.SharedAddIdempotencyKeyColumn,
-            tokens);
     }
 }

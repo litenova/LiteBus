@@ -2,9 +2,12 @@ using System.Text;
 using System.Text.Json;
 using LiteBus.Transport.Amqp;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Dispatch.Transport;
+using LiteBus.Outbox.Dispatch;
+using LiteBus.Outbox.Dispatch.Amqp;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Testing;
@@ -29,11 +32,6 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
     protected abstract string BrokerName { get; }
 
     /// <summary>
-    ///     Gets the registration delegate used to register the AMQP outbox dispatcher.
-    /// </summary>
-    protected abstract Action<IModuleRegistry, AmqpConnectionOptions, string> RegisterTransportDispatcher { get; }
-
-    /// <summary>
     ///     Verifies that the outbox processor publishes a stored envelope to the configured AMQP queue.
     /// </summary>
     /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
@@ -43,11 +41,11 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         var queueName = CreateUniqueName("dispatch");
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
-        var store = new InMemoryOutboxStore();
 
         await DeclareDirectQueueAsync(queueName);
 
-        await using var provider = BuildProvider(store, string.Empty);
+        await using var provider = BuildProvider(string.Empty);
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
@@ -97,11 +95,11 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         var exchangeName = CreateUniqueName("exchange");
         var queueName = CreateUniqueName("contract-route");
         var messageId = Guid.NewGuid();
-        var store = new InMemoryOutboxStore();
 
         await DeclareTopicBindingAsync(exchangeName, queueName, routingKey);
 
-        await using var provider = BuildProvider(store, exchangeName);
+        await using var provider = BuildProvider(exchangeName);
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
@@ -120,18 +118,17 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
     /// <summary>
     ///     Builds the LiteBus service provider used by the end-to-end tests.
     /// </summary>
-    /// <param name="store">The in-memory outbox store shared by storage and assertions.</param>
     /// <param name="exchangeName">The exchange name passed to the dispatcher options.</param>
     /// <returns>The configured service provider.</returns>
-    private ServiceProvider BuildProvider(InMemoryOutboxStore store, string exchangeName)
+    private ServiceProvider BuildProvider(string exchangeName)
     {
         return new ServiceCollection()
-            .AddSingleton(store)
-            .AddOutboxStoreRoles(store)
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddOutboxModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddOutboxModule(builder =>
                 {
+                    builder.UseInMemoryStorage();
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
                     {
@@ -139,9 +136,9 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
                         LeaseOwner = $"outbox-amqp-{BrokerName}",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+                    builder.UseAmqpDispatch(
+                        transport => transport.DefaultDestination = exchangeName, ConnectionOptions);
                 });
-
-                RegisterTransportDispatcher(modules, ConnectionOptions, exchangeName);
             })
             .BuildServiceProvider();
     }
@@ -291,18 +288,6 @@ public sealed class RabbitMqOutboxDispatchIntegrationTests : AmqpOutboxDispatchI
 
     /// <inheritdoc />
     protected override string BrokerName => "RabbitMQ";
-
-    /// <inheritdoc />
-    protected override Action<IModuleRegistry, AmqpConnectionOptions, string> RegisterTransportDispatcher { get; } =
-        (registry, connection, exchangeName) =>
-        {
-            registry.AddOutboxModule(outbox =>
-            {
-                outbox.UseTransport(
-                    options => options.DefaultDestination = exchangeName,
-                    new AmqpTransportModule(connection));
-            });
-        };
 }
 
 /// <summary>
@@ -326,18 +311,6 @@ public sealed class LavinMqOutboxDispatchIntegrationTests : AmqpOutboxDispatchIn
 
     /// <inheritdoc />
     protected override string BrokerName => "LavinMQ";
-
-    /// <inheritdoc />
-    protected override Action<IModuleRegistry, AmqpConnectionOptions, string> RegisterTransportDispatcher { get; } =
-        (registry, connection, exchangeName) =>
-        {
-            registry.AddOutboxModule(outbox =>
-            {
-                outbox.UseTransport(
-                    options => options.DefaultDestination = exchangeName,
-                    new AmqpTransportModule(connection));
-            });
-        };
 }
 
 /// <summary>
@@ -350,16 +323,17 @@ public sealed class AmqpOutboxDispatchRegistrationTests : LiteBusTestBase
     ///     Verifies that the canonical AMQP registration extension resolves the transport dispatcher.
     /// </summary>
     [Fact]
-    public void UseTransport_WithAmqpTransportModule_ShouldRegisterTransportOutboxDispatcher()
+    public void UseAmqpDispatch_WithAmqpTransportModule_ShouldRegisterTransportOutboxDispatcher()
     {
         var provider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddOutboxModule(outbox =>
+                registry.AddMessageModule(_ => { });
+                registry.AddOutboxModule(outbox =>
                 {
-                    outbox.UseTransport(
-                        _ => { },
-                        new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
+                    outbox.UseInMemoryStorage();
+                    outbox.UseAmqpDispatch(
+                        _ => { }, new AmqpConnectionOptions { HostName = "localhost" });
                 });
             })
             .BuildServiceProvider();

@@ -28,6 +28,11 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
 
     public NpgsqlDataSource DataSource { get; private set; } = null!;
 
+    /// <summary>
+    ///     Gets the connection string used to create <see cref="DataSource" />.
+    /// </summary>
+    public string ConnectionString { get; private set; } = null!;
+
     public async Task InitializeAsync()
     {
         ConfigureDockerHostForCurrentPlatform();
@@ -35,6 +40,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         var connectionString = Environment.GetEnvironmentVariable(ConnectionStringEnvironmentVariable);
         if (!string.IsNullOrWhiteSpace(connectionString))
         {
+            ConnectionString = connectionString;
             DataSource = NpgsqlDataSource.Create(connectionString);
             return;
         }
@@ -52,7 +58,8 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
                     .Build();
 
                 await _container.StartAsync();
-                DataSource = NpgsqlDataSource.Create(_container.GetConnectionString());
+                ConnectionString = _container.GetConnectionString();
+                DataSource = NpgsqlDataSource.Create(ConnectionString);
                 return;
             }
             catch (Exception exception) when (IsDockerUnavailable(exception))

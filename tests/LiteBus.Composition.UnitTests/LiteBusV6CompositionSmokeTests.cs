@@ -28,8 +28,8 @@ public sealed class LiteBusV6CompositionSmokeTests : LiteBusTestBase
 
         provider.GetRequiredService<IInbox>().Should().NotBeNull();
         provider.GetRequiredService<IOutbox>().Should().NotBeNull();
-        provider.GetRequiredService<IInboxDispatcher>().Should().BeOfType<InProcessInboxDispatcher>();
-        provider.GetRequiredService<IOutboxDispatcher>().Should().BeOfType<InProcessOutboxDispatcher>();
+        provider.GetRequiredService<IInboxDispatcher>().Should().BeOfType<CommandInboxDispatcher>();
+        provider.GetRequiredService<IOutboxDispatcher>().Should().BeOfType<EventOutboxDispatcher>();
 
         provider.GetServices<IHostedService>().Should().HaveCountGreaterThanOrEqualTo(2);
     }

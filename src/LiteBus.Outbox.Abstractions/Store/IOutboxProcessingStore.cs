@@ -1,12 +1,12 @@
 namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
-///     Composite outbox store role used by processors to accept, lease, and persist envelope state transitions.
+///     Composite outbox store role used by processors to lease and persist envelope state transitions.
 /// </summary>
 /// <remarks>
-///     Combines <see cref="IOutboxStore" />, <see cref="IOutboxLeaseStore" />, and <see cref="IOutboxStateWriter" />.
-///     Fine-grained interfaces remain available for callers that depend on a single concern.
+///     Combines <see cref="IOutboxLeaseStore" /> and <see cref="IOutboxStateWriter" /> only. Acceptance code uses
+///     <see cref="IOutboxStore" /> directly.
 /// </remarks>
-public interface IOutboxProcessingStore : IOutboxStore, IOutboxLeaseStore, IOutboxStateWriter
+public interface IOutboxProcessingStore : IOutboxLeaseStore, IOutboxStateWriter
 {
 }

@@ -4,6 +4,9 @@ using System.Linq;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Orchestration.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -18,37 +21,31 @@ internal static class InboxProcessorFactory
     ///     Creates an <see cref="Abstractions.IInboxProcessor" /> from the dependency injection container.
     /// </summary>
     /// <param name="services">The service provider used to resolve processor dependencies.</param>
-    /// <returns>The configured inbox processor instance.</returns>
+    /// <returns>The configured pipelined inbox processor instance.</returns>
     public static Abstractions.IInboxProcessor Create(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        var options = (InboxProcessorOptions)services.GetService(typeof(InboxProcessorOptions))!;
+        var options = GetRequiredService<InboxProcessorOptions>(services);
         var clock = services.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System;
-        var processingStore = (IInboxProcessingStore)services.GetService(typeof(IInboxProcessingStore))!;
-        var dispatcher = (IInboxDispatcher)services.GetService(typeof(IInboxDispatcher))!;
+        var leaseStore = GetRequiredService<IInboxLeaseStore>(services);
+        var stateWriter = GetRequiredService<IInboxStateWriter>(services);
+        var dispatcher = GetRequiredService<IInboxDispatcher>(services);
         var hooks = ResolveHooks(services);
+        var dispatchScopeFactory = services.GetService(typeof(IServiceScopeFactory)) is IServiceScopeFactory scopeFactory
+            ? new MessageDispatchScopeFactory(scopeFactory)
+            : null;
 
-        return options.Architecture switch
-        {
-            ProcessorArchitecture.Legacy => new LegacySequentialInboxProcessor(
-                processingStore,
-                dispatcher,
-                options,
-                clock,
-                hooks,
-                services.GetService(typeof(ILogger<LegacySequentialInboxProcessor>)) as ILogger<LegacySequentialInboxProcessor>
-                ?? NullLogger<LegacySequentialInboxProcessor>.Instance),
-            ProcessorArchitecture.Pipelined => new PipelinedInboxProcessor(
-                processingStore,
-                dispatcher,
-                options,
-                clock,
-                hooks,
-                services.GetService(typeof(ILogger<PipelinedInboxProcessor>)) as ILogger<PipelinedInboxProcessor>
-                ?? NullLogger<PipelinedInboxProcessor>.Instance),
-            _ => throw new ArgumentOutOfRangeException(nameof(options), options.Architecture, "Unsupported processor architecture.")
-        };
+        return new PipelinedInboxProcessor(
+            leaseStore,
+            stateWriter,
+            dispatcher,
+            options,
+            clock,
+            hooks,
+            services.GetService(typeof(ILogger<PipelinedInboxProcessor>)) as ILogger<PipelinedInboxProcessor>
+            ?? NullLogger<PipelinedInboxProcessor>.Instance,
+            dispatchScopeFactory);
     }
 
     /// <summary>
@@ -99,6 +96,15 @@ internal static class InboxProcessorFactory
                 "Lease heartbeat interval cannot be negative.");
         }
 
+        if (options.LeaseHeartbeatInterval > TimeSpan.Zero &&
+            options.LeaseHeartbeatInterval > options.LeaseDuration / 2)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                options.LeaseHeartbeatInterval,
+                "Lease heartbeat interval must be less than or equal to half of the lease duration.");
+        }
+
         MessageProcessorDiagnostics.ValidateRetryOptions(options.Retry, nameof(options));
     }
 
@@ -107,18 +113,37 @@ internal static class InboxProcessorFactory
     /// </summary>
     /// <param name="services">The service provider.</param>
     /// <returns>The registered hooks in registration order.</returns>
-    private static IReadOnlyList<IInboxProcessorEnvelopeHook> ResolveHooks(IServiceProvider services)
+    private static IReadOnlyList<IProcessorEnvelopeHook> ResolveHooks(IServiceProvider services)
     {
-        if (services.GetService(typeof(IEnumerable<IInboxProcessorEnvelopeHook>)) is IEnumerable<IInboxProcessorEnvelopeHook> hooks)
+        if (services.GetService(typeof(IEnumerable<IProcessorEnvelopeHook>)) is IEnumerable<IProcessorEnvelopeHook> hooks)
         {
             return hooks.ToArray();
         }
 
-        if (services.GetService(typeof(IInboxProcessorEnvelopeHook)) is IInboxProcessorEnvelopeHook hook)
+        if (services.GetService(typeof(IProcessorEnvelopeHook)) is IProcessorEnvelopeHook hook)
         {
             return [hook];
         }
 
-        return Array.Empty<IInboxProcessorEnvelopeHook>();
+        return Array.Empty<IProcessorEnvelopeHook>();
+    }
+
+    /// <summary>
+    ///     Resolves a required processor dependency or throws a configuration exception.
+    /// </summary>
+    /// <typeparam name="T">The dependency type to resolve.</typeparam>
+    /// <param name="services">The service provider.</param>
+    /// <returns>The resolved dependency instance.</returns>
+    private static T GetRequiredService<T>(IServiceProvider services)
+        where T : class
+    {
+        if (services.GetService(typeof(T)) is T service)
+        {
+            return service;
+        }
+
+        throw new LiteBusConfigurationException(
+            $"Inbox processor requires {typeof(T).FullName} to be registered. " +
+            "Configure inbox storage and dispatcher inside AddInboxModule(...).");
     }
 }

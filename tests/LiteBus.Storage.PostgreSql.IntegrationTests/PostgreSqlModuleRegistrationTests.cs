@@ -1,17 +1,22 @@
+using LiteBus.Commands;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.Transport;
-using LiteBus.Transport.Amqp;
 using LiteBus.Inbox.Dispatch.InProcess;
+using LiteBus.Inbox.Dispatch;
+using LiteBus.Inbox.Dispatch.Amqp;
+using LiteBus.Inbox.Ingress;
 using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Inbox.Storage.PostgreSql;
-using LiteBus.Inbox;
+using LiteBus.Messaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Runtime.Abstractions.Exceptions;
+using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
+using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -32,14 +37,14 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
 
         var services = new ServiceCollection();
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(registry =>
         {
-            modules.AddInboxModule();
-            modules.AddPostgreSqlInboxStorage(postgres =>
+            registry.AddMessageModule(_ => { });
+            registry.AddInboxModule(inbox => inbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
-            });
+            }));
         });
 
         using var provider = services.BuildServiceProvider();
@@ -59,14 +64,14 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
 
         var services = new ServiceCollection();
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(registry =>
         {
-            modules.AddOutboxModule();
-            modules.AddPostgreSqlOutboxStorage(postgres =>
+            registry.AddMessageModule(_ => { });
+            registry.AddOutboxModule(outbox => outbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
-            });
+            }));
         });
 
         using var provider = services.BuildServiceProvider();
@@ -86,15 +91,15 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
 
         var services = new ServiceCollection();
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(registry =>
         {
-            modules.AddInboxModule();
-            modules.AddPostgreSqlInboxStorage(postgres =>
+            registry.AddMessageModule(_ => { });
+            registry.AddInboxModule(inbox => inbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
                 postgres.DisableSchemaInitialization();
-            });
+            }));
         });
 
         using var provider = services.BuildServiceProvider();
@@ -102,7 +107,12 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         var resolve = () => provider.GetRequiredService<PostgreSqlInboxSchemaInitializer>();
         resolve.Should().Throw<InvalidOperationException>();
 
-        provider.GetServices<IHostedService>().Should().BeEmpty();
+        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
+        manifest.StartupTasks.Should().NotContain(typeof(PostgreSqlInboxSchemaInitializer));
+        manifest.StartupTasks.Should().ContainSingle()
+            .Which.Name.Should().Be("InboxObservableMetricsInitializer");
+        manifest.BackgroundServices.Should().BeEmpty();
+        provider.GetServices<IHostedService>().Should().HaveCount(1);
     }
 
     [Fact]
@@ -111,15 +121,15 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
 
         var services = new ServiceCollection();
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(registry =>
         {
-            modules.AddOutboxModule();
-            modules.AddPostgreSqlOutboxStorage(postgres =>
+            registry.AddMessageModule(_ => { });
+            registry.AddOutboxModule(outbox => outbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
                 postgres.DisableSchemaInitialization();
-            });
+            }));
         });
 
         using var provider = services.BuildServiceProvider();
@@ -127,23 +137,29 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         var resolve = () => provider.GetRequiredService<PostgreSqlOutboxSchemaInitializer>();
         resolve.Should().Throw<InvalidOperationException>();
 
-        provider.GetServices<IHostedService>().Should().BeEmpty();
+        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
+        manifest.StartupTasks.Should().NotContain(typeof(PostgreSqlOutboxSchemaInitializer));
+        manifest.StartupTasks.Should().ContainSingle()
+            .Which.Name.Should().Be("OutboxObservableMetricsInitializer");
+        manifest.BackgroundServices.Should().BeEmpty();
+        provider.GetServices<IHostedService>().Should().HaveCount(1);
     }
 
     [Fact]
-    public void AddInboxInProcessDispatcher_ThenUseTransport_ShouldThrow()
+    public void AddInboxInProcessDispatcher_ThenUseAmqpDispatch_ShouldThrow()
     {
         var act = () =>
         {
             new ServiceCollection()
-                .AddLiteBus(modules =>
+                .AddLiteBus(registry =>
                 {
-                    modules.AddInboxModule(inbox =>
+                    registry.AddMessageModule(_ => { });
+                    registry.AddInboxModule(inbox =>
                     {
-                        inbox.UseInProcessDispatcher();
-                        inbox.UseTransport(
-                            _ => { },
-                            new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
+                        inbox.UseInMemoryStorage();
+                        inbox.UseCommandInboxDispatcher();
+                        inbox.UseAmqpDispatch(
+                            _ => { }, new AmqpConnectionOptions { HostName = "localhost" });
                     });
                 })
                 .BuildServiceProvider();
@@ -151,55 +167,87 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         act.Should()
             .Throw<LiteBusConfigurationException>()
-            .WithMessage("*IInboxDispatcher*");
+            .WithMessage("*Inbox dispatcher is already configured*");
     }
 
     [Fact]
-    public void AddInboxAmqpIngress_WhenCalledTwice_ShouldThrow()
+    public void UseInMemoryStorage_WhenCalledTwiceOnBuilder_ShouldThrow()
     {
         var act = () =>
         {
-            new ServiceCollection().AddLiteBus(modules =>
-            {
-                modules.AddInboxModule();
-                modules.AddInboxAmqpIngress(ingress =>
+            new ServiceCollection()
+                .AddLiteBus(registry =>
                 {
-                    ingress.UseOptions(new AmqpInboxIngressOptions { QueueName = "queue.one" });
-                });
-                modules.AddInboxAmqpIngress(ingress =>
-                {
-                    ingress.UseOptions(new AmqpInboxIngressOptions { QueueName = "queue.two" });
-                });
-            });
+                    registry.AddMessageModule(_ => { });
+                    registry.AddInboxModule(inbox =>
+                    {
+                        inbox.UseInMemoryStorage();
+                        inbox.UseInMemoryStorage();
+                    });
+                })
+                .BuildServiceProvider();
         };
 
         act.Should()
             .Throw<LiteBusConfigurationException>()
-            .WithMessage("*AddInboxAmqpIngress only once*");
+            .WithMessage("*Inbox storage is already configured*");
     }
 
     [Fact]
     public void DisableIngressConsumer_ShouldNotRegisterIngressHostedService()
     {
         var services = new ServiceCollection();
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(registry =>
         {
-            modules.AddInboxModule();
-            modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
-            modules.AddInboxAmqpIngress(ingress =>
+            registry.AddMessageModule(_ => { });
+            registry.AddInboxModule(inbox =>
             {
-                ingress.DisableIngressConsumer();
-                ingress.UseOptions(new AmqpInboxIngressOptions
+                inbox.UseInMemoryStorage();
+                inbox.UseAmqpDispatch(
+                    _ => { }, new AmqpConnectionOptions { HostName = "localhost" });
+                inbox.UseAmqpIngress(ingress =>
                 {
-                    QueueName = "litebus.inbox.ingress.disabled",
-                    Connection = new LiteBus.Transport.Amqp.AmqpConnectionOptions { HostName = "localhost" }
+                    ingress.DisableIngressConsumer();
+                    ingress.UseOptions(new AmqpInboxIngressOptions
+                    {
+                        QueueName = "litebus.inbox.ingress.disabled",
+                        Connection = new AmqpConnectionOptions { HostName = "localhost" }
+                    });
                 });
             });
         });
 
         using var provider = services.BuildServiceProvider();
 
-        provider.GetServices<IHostedService>().Should().BeEmpty();
-        provider.GetServices<AmqpInboxConsumer>().Should().BeEmpty();
+        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
+        manifest.BackgroundServices.Should().BeEmpty();
+        provider.GetServices<IHostedService>().Should().HaveCount(1);
+        provider.GetServices<TransportInboxIngressConsumer>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void EnableInboxProcessor_WithStorageAndDispatcher_ShouldRegisterProcessorBackgroundService()
+    {
+        var services = new ServiceCollection();
+        services.AddLiteBus(registry =>
+        {
+            registry.AddMessageModule(_ => { });
+            registry.AddCommandModule(_ => { });
+            registry.AddInboxModule(inbox =>
+            {
+                inbox.UseInMemoryStorage();
+                inbox.UseCommandInboxDispatcher();
+                inbox.EnableInboxProcessor();
+            });
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
+
+        manifest.BackgroundServices.Should().ContainSingle()
+            .Which.Should().Be(typeof(InboxProcessorBackgroundService));
+        manifest.StartupTasks.Should().NotContain(typeof(PostgreSqlInboxSchemaInitializer));
+        manifest.StartupTasks.Should().ContainSingle()
+            .Which.Name.Should().Be("InboxObservableMetricsInitializer");
     }
 }

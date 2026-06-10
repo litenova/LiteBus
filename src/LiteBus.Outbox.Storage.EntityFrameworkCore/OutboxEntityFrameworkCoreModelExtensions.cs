@@ -116,6 +116,21 @@ public static class OutboxEntityFrameworkCoreModelExtensions
         entity.Property(message => message.PublishedAt)
             .HasColumnName("published_at");
 
+        entity.Property(message => message.LastAttemptedAt)
+            .HasColumnName("last_attempted_at");
+
+        entity.Property(message => message.FirstFailedAt)
+            .HasColumnName("first_failed_at");
+
+        entity.Property(message => message.DeadLetteredAt)
+            .HasColumnName("dead_lettered_at");
+
+        entity.Property(message => message.LastLeaseOwner)
+            .HasColumnName("last_lease_owner");
+
+        entity.Property(message => message.ErrorType)
+            .HasColumnName("error_type");
+
         entity.HasIndex(message => new { message.Status, message.VisibleAfter, message.LeaseExpiresAt, message.CreatedAt });
 
         entity.HasIndex(message => message.Topic)

@@ -1,13 +1,13 @@
-using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Orchestration.Abstractions;
 using LiteBus.Saga.Abstractions;
 
 namespace LiteBus.Saga;
 
 /// <summary>
-///     Loads and persists saga state around inbox envelope dispatch.
+///     Loads and persists saga state around durable message dispatch.
 /// </summary>
-public sealed class SagaProcessorHook : IInboxProcessorEnvelopeHook
+public sealed class SagaProcessorHook : IProcessorEnvelopeHook
 {
     /// <summary>
     ///     Gets the durable saga store.
@@ -49,7 +49,7 @@ public sealed class SagaProcessorHook : IInboxProcessorEnvelopeHook
     }
 
     /// <inheritdoc />
-    public async Task BeforeDispatchAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
+    public async Task BeforeDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelope);
 
@@ -88,7 +88,7 @@ public sealed class SagaProcessorHook : IInboxProcessorEnvelopeHook
     }
 
     /// <inheritdoc />
-    public async Task AfterDispatchAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
+    public async Task AfterDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelope);
 

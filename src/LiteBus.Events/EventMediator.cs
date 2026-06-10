@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 using LiteBus.Events.MediationStrategies;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Events;

@@ -1,6 +1,6 @@
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
-using LiteBus.Inbox.Storage.InMemory.Exceptions;
+using LiteBus.Inbox.Abstractions.Exceptions;
 using LiteBus.Testing;
 
 namespace LiteBus.Inbox.Storage.InMemory.UnitTests;

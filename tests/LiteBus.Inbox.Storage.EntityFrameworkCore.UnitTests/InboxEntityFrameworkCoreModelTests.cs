@@ -10,6 +10,45 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests;
 public sealed class InboxEntityFrameworkCoreModelTests
 {
     [Fact]
+    public void GetModelBuilderConfiguration_ShouldMapVersion1Columns()
+    {
+        var modelBuilder = new ModelBuilder();
+        modelBuilder.GetModelBuilderConfiguration();
+
+        var entity = modelBuilder.Model.FindEntityType(typeof(InboxMessageEntity));
+        entity.Should().NotBeNull();
+
+        string[] expectedColumns =
+        [
+            "message_id",
+            "contract_name",
+            "contract_version",
+            "payload",
+            "created_at",
+            "visible_after",
+            "attempt_count",
+            "status",
+            "idempotency_key",
+            "lease_owner",
+            "lease_expires_at",
+            "last_error",
+            "correlation_id",
+            "causation_id",
+            "tenant_id",
+            "trace_context",
+            "completed_at",
+            "last_attempted_at",
+            "first_failed_at",
+            "dead_lettered_at",
+            "last_lease_owner",
+            "error_type"
+        ];
+
+        var mappedColumns = entity!.GetProperties().Select(property => property.GetColumnName());
+        mappedColumns.Should().BeEquivalentTo(expectedColumns);
+    }
+
+    [Fact]
     public void GetModelBuilderConfiguration_ShouldUsePostgreSqlCanonicalDefaults()
     {
         var modelBuilder = new ModelBuilder();

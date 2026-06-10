@@ -8,7 +8,8 @@ using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Runtime.Abstractions.Hosting;
+using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -36,7 +37,7 @@ internal static class InboxTestInfrastructure
     internal static IInboxProcessingStore CreateProcessingStore(
         IInboxLeaseStore leaseStore,
         IInboxStateWriter stateWriter) =>
-        new SplitInboxProcessingStore(leaseStore, stateWriter);
+        new CompositeInboxProcessingStore(leaseStore, stateWriter);
 
     /// <summary>
     ///     Starts every LiteBus <see cref="IHostedService" /> so startup tasks unblock background loops.
@@ -44,17 +45,10 @@ internal static class InboxTestInfrastructure
     /// <param name="provider">The service provider built with <c>AddLiteBus</c>.</param>
     /// <param name="cancellationToken">A token that cancels host startup.</param>
     /// <returns>A task that completes after each hosted service has started.</returns>
-    internal static async Task StartLiteBusHostedServicesAsync(
+    internal static Task StartLiteBusHostedServicesAsync(
         IServiceProvider provider,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(provider);
-
-        foreach (var hostedService in provider.GetServices<IHostedService>())
-        {
-            await hostedService.StartAsync(cancellationToken).ConfigureAwait(false);
-        }
-    }
+        CancellationToken cancellationToken) =>
+        LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, cancellationToken);
 
     /// <summary>
     ///     Stops every LiteBus <see cref="IHostedService" /> in reverse registration order.
@@ -62,50 +56,18 @@ internal static class InboxTestInfrastructure
     /// <param name="provider">The service provider built with <c>AddLiteBus</c>.</param>
     /// <param name="cancellationToken">A token that cancels host shutdown.</param>
     /// <returns>A task that completes after each hosted service has stopped.</returns>
-    internal static async Task StopLiteBusHostedServicesAsync(
+    internal static Task StopLiteBusHostedServicesAsync(
         IServiceProvider provider,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(provider);
-
-        var hostedServices = provider.GetServices<IHostedService>().ToList();
-        for (var index = hostedServices.Count - 1; index >= 0; index--)
-        {
-            await hostedServices[index].StopAsync(cancellationToken).ConfigureAwait(false);
-        }
-    }
+        CancellationToken cancellationToken) =>
+        LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, cancellationToken);
 
     /// <summary>
     ///     Resolves the generic-host adapter for <see cref="InboxProcessorBackgroundService" />.
     /// </summary>
     /// <param name="provider">The service provider built with <c>AddLiteBus</c> and an enabled inbox processor.</param>
     /// <returns>The <see cref="IHostedService" /> that runs the inbox processor loop.</returns>
-    internal static IHostedService GetInboxProcessorHostedService(IServiceProvider provider)
-    {
-        ArgumentNullException.ThrowIfNull(provider);
-
-        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
-        var processorIndex = -1;
-        for (var index = 0; index < manifest.BackgroundServices.Count; index++)
-        {
-            if (manifest.BackgroundServices[index] == typeof(InboxProcessorBackgroundService))
-            {
-                processorIndex = index;
-                break;
-            }
-        }
-
-        if (processorIndex < 0)
-        {
-            throw new InvalidOperationException(
-                "Inbox processor background service is not registered in the LiteBus host manifest.");
-        }
-
-        var hostedServices = provider.GetServices<IHostedService>().ToList();
-        var backgroundServiceOffset = manifest.StartupTasks.Count > 0 ? 1 : 0;
-
-        return hostedServices[backgroundServiceOffset + processorIndex];
-    }
+    internal static IHostedService GetInboxProcessorHostedService(IServiceProvider provider) =>
+        LiteBusHostedServiceExtensions.GetInboxProcessorHostedService(provider);
 
     internal sealed class ThrowingInboxLeaseStore : IInboxLeaseStore
     {
@@ -234,13 +196,8 @@ internal static class InboxTestInfrastructure
     /// <summary>
     ///     Adapts separate lease and state writer roles to <see cref="IInboxProcessingStore" />.
     /// </summary>
-    private sealed class SplitInboxProcessingStore : IInboxProcessingStore
+    private sealed class CompositeInboxProcessingStore : IInboxProcessingStore
     {
-        /// <summary>
-        ///     The store role used to accept new envelopes.
-        /// </summary>
-        private readonly IInboxStore _store;
-
         /// <summary>
         ///     The store role used to lease due envelopes.
         /// </summary>
@@ -252,30 +209,15 @@ internal static class InboxTestInfrastructure
         private readonly IInboxStateWriter _stateWriter;
 
         /// <summary>
-        ///     Initializes a new instance of the <see cref="SplitInboxProcessingStore" /> class.
+        ///     Initializes a new instance of the <see cref="CompositeInboxProcessingStore" /> class.
         /// </summary>
         /// <param name="leaseStore">The store role used to lease due envelopes.</param>
         /// <param name="stateWriter">The store role used to persist post-transition envelopes.</param>
-        public SplitInboxProcessingStore(IInboxLeaseStore leaseStore, IInboxStateWriter stateWriter)
+        public CompositeInboxProcessingStore(IInboxLeaseStore leaseStore, IInboxStateWriter stateWriter)
         {
             _leaseStore = leaseStore ?? throw new ArgumentNullException(nameof(leaseStore));
             _stateWriter = stateWriter ?? throw new ArgumentNullException(nameof(stateWriter));
-            _store = leaseStore as IInboxStore
-                ?? stateWriter as IInboxStore
-                ?? throw new ArgumentException(
-                    "At least one store role must implement IInboxStore.",
-                    nameof(leaseStore));
         }
-
-        /// <inheritdoc />
-        public Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default) =>
-            _store.AddAsync(envelope, cancellationToken);
-
-        /// <inheritdoc />
-        public Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
-            IReadOnlyList<InboxEnvelope> envelopes,
-            CancellationToken cancellationToken = default) =>
-            _store.AddBatchAsync(envelopes, cancellationToken);
 
         /// <inheritdoc />
         public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
@@ -292,7 +234,7 @@ internal static class InboxTestInfrastructure
             _leaseStore.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
 
         /// <inheritdoc />
-        public Task PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default) =>
+        public Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default) =>
             _stateWriter.PersistAsync(envelopes, cancellationToken);
     }
 }

@@ -1,3 +1,4 @@
+using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -10,7 +11,7 @@ namespace LiteBus.Saga.Storage.PostgreSql;
 /// <summary>
 ///     Module for registering the PostgreSQL saga store.
 /// </summary>
-public sealed class PostgreSqlSagaModule : IModule
+public sealed class PostgreSqlSagaModule : ISagaStoreModule, IRequires<InboxModule>
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -30,14 +31,6 @@ public sealed class PostgreSqlSagaModule : IModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
-        {
-            throw new LiteBusConfigurationException(
-                $"{nameof(PostgreSqlSagaModule)} requires InboxModule core services " +
-                "to be registered first. Configure saga storage inside AddInboxModule(...) " +
-                "using UsePostgreSqlSagaStorage().");
-        }
 
         var moduleBuilder = new PostgreSqlSagaModuleBuilder();
         _builder(moduleBuilder);

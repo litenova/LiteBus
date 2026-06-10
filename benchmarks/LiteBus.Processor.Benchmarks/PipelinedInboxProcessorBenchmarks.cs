@@ -3,7 +3,7 @@ using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Orchestration.Abstractions;
 
 namespace LiteBus.Processor.Benchmarks;
 
@@ -47,7 +47,7 @@ public class PipelinedInboxProcessorBenchmarks
     public int DispatcherConcurrency { get; set; }
 
     /// <summary>
-    ///     Seeds the store and processor before each benchmark iteration.
+    ///     Seeds the store and processor before each iteration.
     /// </summary>
     [GlobalSetup]
     public void Setup()
@@ -57,6 +57,7 @@ public class PipelinedInboxProcessorBenchmarks
 
         _processor = new PipelinedInboxProcessor(
             _store,
+            _store,
             dispatcher,
             new InboxProcessorOptions
             {
@@ -65,11 +66,10 @@ public class PipelinedInboxProcessorBenchmarks
                 LeaseDuration = TimeSpan.FromMinutes(5),
                 DispatcherConcurrency = DispatcherConcurrency,
                 LeaseHeartbeatInterval = TimeSpan.FromSeconds(15),
-                Architecture = ProcessorArchitecture.Pipelined,
                 Retry = new RetryOptions { MaxAttempts = 3, UseJitter = false }
             },
             TimeProvider.System,
-            Array.Empty<IInboxProcessorEnvelopeHook>());
+            Array.Empty<IProcessorEnvelopeHook>());
 
         for (var index = 0; index < BatchSize; index++)
         {

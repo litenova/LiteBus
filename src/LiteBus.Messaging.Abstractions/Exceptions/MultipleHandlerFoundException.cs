@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -16,16 +18,44 @@ public class MultipleHandlerFoundException : Exception
 {
     /// <summary>
     ///     Initializes a new instance of the <see cref="MultipleHandlerFoundException" /> class with a message
-    ///     that includes the name of the message type and the number of handlers found.
+    ///     that includes the message type and the handler implementation types that were found.
     /// </summary>
     /// <param name="messageType">The type of the message for which multiple handlers were found.</param>
-    /// <param name="numberOfHandlers">The number of handlers found for the message type.</param>
+    /// <param name="handlerTypes">The handler implementation types registered for the message.</param>
     /// <remarks>
-    ///     The exception message includes the name of the message type and the number of handlers
-    ///     to help diagnose the issue.
+    ///     The exception message includes the message type and handler type names to help diagnose the issue.
     /// </remarks>
-    public MultipleHandlerFoundException(Type messageType, int numberOfHandlers)
-        : base($"{messageType.Name} has {numberOfHandlers} handlers registered.")
+    public MultipleHandlerFoundException(Type messageType, IReadOnlyList<Type> handlerTypes)
+        : base(BuildMessage(messageType, handlerTypes))
     {
+        MessageType = messageType;
+        HandlerTypes = handlerTypes;
+    }
+
+    /// <summary>
+    ///     Gets the message type for which multiple handlers were found.
+    /// </summary>
+    public Type MessageType { get; }
+
+    /// <summary>
+    ///     Gets the handler implementation types registered for the message.
+    /// </summary>
+    public IReadOnlyList<Type> HandlerTypes { get; }
+
+    /// <summary>
+    ///     Builds the exception message from the message type and handler implementation types.
+    /// </summary>
+    /// <param name="messageType">The message type.</param>
+    /// <param name="handlerTypes">The handler implementation types.</param>
+    /// <returns>The formatted exception message.</returns>
+    private static string BuildMessage(Type messageType, IReadOnlyList<Type> handlerTypes)
+    {
+        var handlerNames = handlerTypes.Count == 0
+            ? "(none)"
+            : string.Join(", ", handlerTypes.Select(t => t.FullName ?? t.Name));
+
+        return
+            $"Message type '{messageType.FullName ?? messageType.Name}' has {handlerTypes.Count} handlers registered: {handlerNames}. " +
+            "Single-handler mediation requires exactly one handler.";
     }
 }

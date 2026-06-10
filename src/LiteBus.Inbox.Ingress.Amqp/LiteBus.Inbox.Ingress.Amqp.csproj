@@ -1,11 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+    <PropertyGroup>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
     <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Inbox.Ingress.Transport\LiteBus.Inbox.Ingress.Transport.csproj"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Inbox.Ingress\LiteBus.Inbox.Ingress.csproj"/>
         <ProjectReference Include="..\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>
         <ProjectReference Include="..\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
-        <ProjectReference Include="..\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
-        <ProjectReference Include="..\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
     </ItemGroup>
 

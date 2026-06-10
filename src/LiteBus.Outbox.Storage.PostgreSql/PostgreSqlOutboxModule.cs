@@ -1,6 +1,8 @@
 using System;
+using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Outbox.Storage.PostgreSql.Exceptions;
 using Npgsql;
@@ -10,7 +12,7 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 /// <summary>
 ///     Module for registering the PostgreSQL outbox store.
 /// </summary>
-public sealed class PostgreSqlOutboxModule : IModule
+public sealed class PostgreSqlOutboxModule : IOutboxStorageModule, IRequires<OutboxModule>
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -30,14 +32,6 @@ public sealed class PostgreSqlOutboxModule : IModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        if (!configuration.TryGetContext<OutboxCoreRegisteredMarker>(out _))
-        {
-            throw new LiteBusConfigurationException(
-                $"{nameof(PostgreSqlOutboxModule)} requires OutboxModule core services " +
-                "to be registered first. Configure storage inside AddOutboxModule(...) " +
-                "using UsePostgreSqlStorage().");
-        }
 
         var moduleBuilder = new PostgreSqlOutboxModuleBuilder();
         _builder(moduleBuilder);
@@ -117,5 +111,12 @@ public sealed class PostgreSqlOutboxModule : IModule
 
             configuration.RegisterStartupTask(typeof(PostgreSqlOutboxSchemaInitializer));
         }
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(PostgreSqlOutboxSchemaDiagnosticCheck),
+            typeof(PostgreSqlOutboxSchemaDiagnosticCheck),
+            InstanceLifetime.Singleton));
+
+        configuration.RegisterDiagnosticCheck(typeof(PostgreSqlOutboxSchemaDiagnosticCheck), "outbox.postgresql.schema");
     }
 }

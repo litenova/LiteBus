@@ -1,6 +1,7 @@
 using LiteBus.Events;
 using LiteBus.Events.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -50,9 +51,10 @@ public sealed class ParallelExecutionContextTests : LiteBusTestBase
     public async Task PublishAsync_WithParallelHandlers_PropagatesExecutionContextToEachHandler()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddEventModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
                 {
                     builder.Register<ParallelContextEventHandler1>();
                     builder.Register<ParallelContextEventHandler2>();

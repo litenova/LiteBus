@@ -42,7 +42,42 @@ public sealed class DependencyRegistry : IDependencyRegistry
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        if (_descriptorsByServiceType.TryGetValue(descriptor.DependencyType, out var existing))
+        if (descriptor.IsCollectionRegistration)
+        {
+            throw new LiteBusConfigurationException(
+                $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' was registered with collection metadata. " +
+                $"Use {nameof(RegisterCollection)} for multi-registration services such as IEnumerable<T> hooks.");
+        }
+
+        RegisterCore(descriptor, enforceSingleRegistration: true);
+    }
+
+    /// <inheritdoc />
+    public void RegisterCollection(DependencyDescriptor descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+
+        if (!descriptor.IsCollectionRegistration)
+        {
+            throw new LiteBusConfigurationException(
+                $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' must be created with " +
+                $"{nameof(DependencyDescriptor.ForCollection)} before calling {nameof(RegisterCollection)}.");
+        }
+
+        RegisterCore(descriptor, enforceSingleRegistration: false);
+    }
+
+    /// <summary>
+    ///     Adds a descriptor to the registry and applies single-registration conflict rules when required.
+    /// </summary>
+    /// <param name="descriptor">The dependency descriptor to register.</param>
+    /// <param name="enforceSingleRegistration">
+    ///     When <see langword="true" />, rejects a second binding for the same <see cref="DependencyDescriptor.DependencyType" />.
+    /// </param>
+    private void RegisterCore(DependencyDescriptor descriptor, bool enforceSingleRegistration)
+    {
+        if (enforceSingleRegistration &&
+            _descriptorsByServiceType.TryGetValue(descriptor.DependencyType, out var existing))
         {
             if (existing.Equals(descriptor))
             {
@@ -54,8 +89,15 @@ public sealed class DependencyRegistry : IDependencyRegistry
                 "Each LiteBus module may register a given service type only once. Remove the duplicate registration or consolidate modules.");
         }
 
-        _descriptorsByServiceType[descriptor.DependencyType] = descriptor;
-        _descriptors.Add(descriptor);
+        if (enforceSingleRegistration)
+        {
+            _descriptorsByServiceType[descriptor.DependencyType] = descriptor;
+        }
+
+        if (!_descriptors.Add(descriptor))
+        {
+            return;
+        }
     }
 
     /// <summary>

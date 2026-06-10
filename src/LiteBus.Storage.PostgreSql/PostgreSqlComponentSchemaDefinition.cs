@@ -34,19 +34,14 @@ internal sealed class PostgreSqlComponentSchemaDefinition
     public required Func<IPostgreSqlStoreTableOptions, string> BuildVersion1CreateScript { get; init; }
 
     /// <summary>
-    ///     Gets the function that builds an incremental upgrade script.
-    /// </summary>
-    public required Func<IPostgreSqlStoreTableOptions, int, int, string> BuildUpgradeScript { get; init; }
-
-    /// <summary>
     ///     Gets the function that ensures indexes exist for the current schema version.
     /// </summary>
     public required Func<IPostgreSqlStoreTableOptions, string> BuildEnsureIndexesScript { get; init; }
 
     /// <summary>
-    ///     Gets the function that builds the full create script for one schema version.
+    ///     Gets the function that builds the full create script for schema version 1.
     /// </summary>
-    public required Func<IPostgreSqlStoreTableOptions, int, string> BuildCreateScript { get; init; }
+    public required Func<IPostgreSqlStoreTableOptions, string> BuildCreateScript { get; init; }
 
     /// <summary>
     ///     Gets the function that creates the advisory lock key for one store table.

@@ -1,10 +1,13 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Inbox;
 using LiteBus.Inbox.Storage.PostgreSql;
+using LiteBus.Messaging;
+using LiteBus.Outbox;
 using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Storage.PostgreSql;
 using LiteBus.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 
@@ -159,13 +162,14 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     private ServiceProvider BuildInboxProvider(PostgreSqlInboxStoreOptions options)
     {
         var services = new ServiceCollection();
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(registry =>
         {
-            modules.AddPostgreSqlInboxStorage(postgres =>
+            registry.AddMessageModule(_ => { });
+            registry.AddInboxModule(inbox => inbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
-            });
+            }));
         });
 
         return services.BuildServiceProvider();
@@ -174,13 +178,14 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     private ServiceProvider BuildOutboxProvider(PostgreSqlOutboxStoreOptions options)
     {
         var services = new ServiceCollection();
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(registry =>
         {
-            modules.AddPostgreSqlOutboxStorage(postgres =>
+            registry.AddMessageModule(_ => { });
+            registry.AddOutboxModule(outbox => outbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
-            });
+            }));
         });
 
         return services.BuildServiceProvider();

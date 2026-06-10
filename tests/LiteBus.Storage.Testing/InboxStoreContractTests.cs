@@ -343,6 +343,98 @@ public abstract class InboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that attempt count increments when a message is leased.
+    /// </summary>
+    [Fact]
+    public async Task LeasePendingAsync_ShouldIncrementAttemptCountAtLeaseTime()
+    {
+        var roles = CreateStore();
+        var commandId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+
+        var firstLease = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "worker-1",
+            Now = now,
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        firstLease.Should().ContainSingle();
+        firstLease[0].AttemptCount.Should().Be(1);
+        firstLease[0].LeaseExpiresAt.Should().NotBeNull();
+
+        await roles.StateWriter.PersistAsync([firstLease[0].AsFailed("retry", now.AddMinutes(5))]);
+
+        var secondLease = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "worker-2",
+            Now = now.AddMinutes(6),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        secondLease.Should().ContainSingle();
+        secondLease[0].AttemptCount.Should().Be(2);
+    }
+
+    /// <summary>
+    ///     Verifies that leased processing rows always carry a non-null lease expiry timestamp.
+    /// </summary>
+    [Fact]
+    public async Task LeasePendingAsync_ShouldSetLeaseExpiresAtWhenProcessing()
+    {
+        var roles = CreateStore();
+        var commandId = Guid.NewGuid();
+        var now = BaseTime;
+        var leaseDuration = TimeSpan.FromMinutes(2);
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+
+        var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "worker-1",
+            Now = now,
+            LeaseDuration = leaseDuration
+        });
+
+        leased.Should().ContainSingle();
+        leased[0].LeaseExpiresAt.Should().NotBeNull();
+        leased[0].LeaseExpiresAt.Should().BeOnOrAfter(now.Add(leaseDuration));
+    }
+
+    /// <summary>
+    ///     Verifies that trace context written on accept is returned on leased envelopes.
+    /// </summary>
+    [Fact]
+    public async Task LeasePendingAsync_ShouldRoundTripTraceContext()
+    {
+        var roles = CreateStore();
+        var commandId = Guid.NewGuid();
+        var now = BaseTime;
+        const string traceContext = """{"traceparent":"00-abc-def"}""";
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now) with
+        {
+            TraceContext = traceContext
+        });
+
+        var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "worker-1",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        leased.Should().ContainSingle();
+        leased[0].TraceContext.Should().Be(traceContext);
+    }
+
+    /// <summary>
     ///     Verifies that expired processing leases can be reclaimed by another worker.
     /// </summary>
     [Fact]

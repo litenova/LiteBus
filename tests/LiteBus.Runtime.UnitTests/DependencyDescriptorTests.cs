@@ -61,6 +61,15 @@ public sealed class DependencyDescriptorTests
     }
 
     [Fact]
+    public void Equals_WithSameTypesButDifferentLifetime_ShouldNotBeEqual()
+    {
+        var transient = new DependencyDescriptor(typeof(ITestService), typeof(TestServiceA), InstanceLifetime.Transient);
+        var singleton = new DependencyDescriptor(typeof(ITestService), typeof(TestServiceA), InstanceLifetime.Singleton);
+
+        transient.Should().NotBe(singleton);
+    }
+
+    [Fact]
     public void FactoryConstructor_WithSingletonLifetime_ShouldRetainLifetime()
     {
         var descriptor = new DependencyDescriptor(typeof(ITestService), _ => new TestServiceA(), InstanceLifetime.Singleton);

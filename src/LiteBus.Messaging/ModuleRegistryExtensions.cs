@@ -24,14 +24,14 @@ public static class ModuleRegistryExtensions
     /// </remarks>
     /// <example>
     ///     <code>
-    /// services.AddLiteBus(modules =>
+    /// services.AddLiteBus(registry =>
     /// {
-    ///     modules.AddMessageModule(msg => 
+    ///     registry.AddMessageModule(msg => 
     ///     {
     ///         msg.RegisterFromAssembly(typeof(MyHandler).Assembly);
     ///     });
-    ///     modules.AddCommandModule(cmd => { /* ... */ });
-    ///     modules.AddEventModule(evt => { /* ... */ });
+    ///     registry.AddCommandModule(cmd => { /* ... */ });
+    ///     registry.AddEventModule(evt => { /* ... */ });
     /// });
     /// </code>
     /// </example>
@@ -40,12 +40,12 @@ public static class ModuleRegistryExtensions
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
 
-        // Check if MessageModule is already registered.
         if (moduleRegistry.IsModuleRegistered<MessageModule>())
         {
             throw new LiteBusConfigurationException(
-                "The messaging core is already registered. When custom message module configuration is required, " +
-                "call AddMessageModule() before AddCommandModule(), AddEventModule(), or AddQueryModule().");
+                "MessageModule is already registered. Call AddMessageModule() exactly once, before AddCommandModule(), " +
+                "AddEventModule(), or AddQueryModule(). Registration order matters: semantic modules require an explicit " +
+                "AddMessageModule() call and do not register the messaging core automatically.");
         }
 
         moduleRegistry.Register(new MessageModule(builderAction));

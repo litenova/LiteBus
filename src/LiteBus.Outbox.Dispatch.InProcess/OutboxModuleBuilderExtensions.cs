@@ -4,18 +4,18 @@ using LiteBus.Outbox.Abstractions;
 namespace LiteBus.Outbox.Dispatch.InProcess;
 
 /// <summary>
-///     Registers the in-process outbox dispatcher through <see cref="OutboxModuleBuilder" />.
+///     Registers the event outbox dispatcher through <see cref="OutboxModuleBuilder" />.
 /// </summary>
-public static class OutboxModuleBuilderInProcessExtensions
+public static class OutboxModuleBuilderEventDispatchExtensions
 {
     /// <summary>
-    ///     Registers the in-process outbox dispatcher as an outbox child module.
+    ///     Registers the in-process event outbox dispatcher as an outbox child module.
     /// </summary>
     /// <param name="builder">The outbox module builder.</param>
     /// <returns>The outbox module builder for chaining.</returns>
-    public static OutboxModuleBuilder UseInProcessDispatcher(this OutboxModuleBuilder builder)
+    public static OutboxModuleBuilder UseEventOutboxDispatcher(this OutboxModuleBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        return builder.RegisterDispatcher(new InProcessOutboxDispatchModule());
+        return builder.RegisterDispatcher(new EventOutboxDispatchModule());
     }
 }

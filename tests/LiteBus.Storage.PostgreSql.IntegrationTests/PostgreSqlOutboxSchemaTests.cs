@@ -24,26 +24,6 @@ public sealed class PostgreSqlOutboxSchemaTests : IClassFixture<PostgreSqlFixtur
     }
 
     [Fact]
-    public async Task EnsureAsync_ShouldUpgradeLegacyVersion1Table()
-    {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
-        var legacyOptions = options with { TableName = $"{options.TableName}_legacy" };
-
-        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, legacyOptions);
-
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
-        await using var dropColumn = connection.CreateCommand();
-        dropColumn.CommandText = $"""
-                                  ALTER TABLE "{legacyOptions.SchemaName}"."{legacyOptions.TableName}"
-                                      DROP COLUMN IF EXISTS trace_context;
-                                  """;
-        await dropColumn.ExecuteNonQueryAsync();
-
-        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, legacyOptions);
-        await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, legacyOptions);
-    }
-
-    [Fact]
     public async Task EnsureAsync_ShouldHandleConcurrentBootstrap()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();

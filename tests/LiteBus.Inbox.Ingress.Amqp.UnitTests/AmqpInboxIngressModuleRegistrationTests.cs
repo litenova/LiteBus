@@ -1,27 +1,44 @@
+using AwesomeAssertions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Inbox;
+using LiteBus.Inbox.Dispatch;
+using LiteBus.Inbox.Dispatch.InMemory;
 using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
+using LiteBus.Messaging;
 using LiteBus.Testing;
+using LiteBus.Transport.InMemory;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Inbox.Ingress.Amqp.UnitTests;
 
+/// <summary>
+///     Verifies AMQP ingress module registration requirements.
+/// </summary>
 public sealed class AmqpInboxIngressModuleRegistrationTests : LiteBusTestBase
 {
+    /// <summary>
+    ///     Verifies ingress registers when a transport module supplies <see cref="LiteBus.Transport.Abstractions.IMessageConsumer" />.
+    /// </summary>
     [Fact]
-    public void AddInboxRabbitMqIngress_ShouldRegisterIngressHandler()
+    public void UseAmqpIngress_WithTransportModule_ShouldRegisterIngressHandler()
     {
         var provider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
-                modules.AddInboxRabbitMqIngress(ingress =>
+                registry.AddMessageModule(_ => { });
+                registry.AddInboxModule(inbox =>
                 {
-                    ingress.DisableIngressConsumer();
-                    ingress.UseOptions(new AmqpInboxIngressOptions
+                    inbox.UseInMemoryStorage();
+                    inbox.UseInMemoryDispatch();
+                    inbox.UseAmqpIngress(ingress =>
                     {
-                        QueueName = "litebus.inbox.ingress.rabbit",
-                        Connection = new LiteBus.Transport.Amqp.AmqpConnectionOptions { HostName = "localhost" }
+                        ingress.DisableIngressConsumer();
+                        ingress.UseOptions(new AmqpInboxIngressOptions
+                        {
+                            QueueName = "litebus.inbox.ingress.rabbit",
+                            Connection = new LiteBus.Transport.Amqp.AmqpConnectionOptions { HostName = "localhost" }
+                        });
                     });
                 });
             })
@@ -30,25 +47,33 @@ public sealed class AmqpInboxIngressModuleRegistrationTests : LiteBusTestBase
         provider.GetRequiredService<AmqpInboxIngressHandler>().Should().NotBeNull();
     }
 
+    /// <summary>
+    ///     Verifies ingress bootstraps AMQP transport from connection options when no consumer is pre-registered.
+    /// </summary>
     [Fact]
-    public void AddInboxLavinMqIngress_ShouldRegisterIngressHandler()
+    public void UseAmqpIngress_WithConnectionOptions_ShouldBootstrapAmqpTransport()
     {
         var provider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
-                modules.AddInboxLavinMqIngress(ingress =>
+                registry.AddMessageModule(_ => { });
+                registry.AddInboxModule(inbox =>
                 {
-                    ingress.DisableIngressConsumer();
-                    ingress.UseOptions(new AmqpInboxIngressOptions
+                    inbox.UseInMemoryStorage();
+                    inbox.UseAmqpIngress(ingress =>
                     {
-                        QueueName = "litebus.inbox.ingress.lavin",
-                        Connection = new LiteBus.Transport.Amqp.AmqpConnectionOptions { HostName = "localhost" }
+                        ingress.DisableIngressConsumer();
+                        ingress.UseOptions(new AmqpInboxIngressOptions
+                        {
+                            QueueName = "litebus.inbox.ingress.auto-transport",
+                            Connection = new LiteBus.Transport.Amqp.AmqpConnectionOptions { HostName = "localhost" }
+                        });
                     });
                 });
             })
             .BuildServiceProvider();
 
         provider.GetRequiredService<AmqpInboxIngressHandler>().Should().NotBeNull();
+        provider.GetRequiredService<LiteBus.Transport.Abstractions.IMessageConsumer>().Should().NotBeNull();
     }
 }

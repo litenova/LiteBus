@@ -1,7 +1,9 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.Transport;
+using LiteBus.Inbox.Dispatch;
+using LiteBus.Inbox.Dispatch.Amqp;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Storage.PostgreSql;
 using LiteBus.Testing;
@@ -94,17 +96,18 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
         string routingKey)
     {
         return new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddPostgreSqlInboxStorage(postgres =>
+                registry.AddMessageModule(_ => { });
+                registry.AddInboxModule(inbox =>
                 {
-                    postgres.UseDataSource(_postgresFixture.DataSource);
-                    postgres.UseOptions(storeOptions);
-                    postgres.DisableSchemaInitialization();
-                });
+                    inbox.UsePostgreSqlStorage(postgres =>
+                    {
+                        postgres.UseDataSource(_postgresFixture.DataSource);
+                        postgres.UseOptions(storeOptions);
+                        postgres.DisableSchemaInitialization();
+                    });
 
-                modules.AddInboxModule(inbox =>
-                {
                     inbox.Contracts.Register<RemoteWorkCommand>(ContractName, ContractVersion);
                     inbox.UseProcessorOptions(new InboxProcessorOptions
                     {
@@ -112,17 +115,13 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
                         LeaseOwner = "pg-amqp-dispatch-test",
                         Retry = new RetryOptions { UseJitter = false }
                     });
-                });
 
-                modules.AddInboxModule(inbox =>
-                {
-                    inbox.UseTransport(
+                    inbox.UseAmqpDispatch(
                         transport =>
                         {
                             transport.DefaultDestination = exchangeName;
                             transport.ResolveRoute = _ => routingKey;
-                        },
-                        new AmqpTransportModule(_rabbitMqFixture.ConnectionOptions));
+                        }, _rabbitMqFixture.ConnectionOptions);
                 });
             })
             .BuildServiceProvider(new ServiceProviderOptions

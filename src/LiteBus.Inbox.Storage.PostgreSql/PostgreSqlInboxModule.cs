@@ -1,7 +1,9 @@
 using System;
+using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.PostgreSql.Exceptions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Npgsql;
 
@@ -10,7 +12,7 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 /// <summary>
 ///     Module for registering the PostgreSQL inbox store.
 /// </summary>
-public sealed class PostgreSqlInboxModule : IModule
+public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<InboxModule>
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -30,14 +32,6 @@ public sealed class PostgreSqlInboxModule : IModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
-        {
-            throw new LiteBusConfigurationException(
-                $"{nameof(PostgreSqlInboxModule)} requires InboxModule core services " +
-                "to be registered first. Configure storage inside AddInboxModule(...) " +
-                "using UsePostgreSqlStorage().");
-        }
 
         var moduleBuilder = new PostgreSqlInboxModuleBuilder();
         _builder(moduleBuilder);
@@ -117,5 +111,12 @@ public sealed class PostgreSqlInboxModule : IModule
             : new InboxPollingWorkSignal();
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxWorkSignal), workSignal));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(PostgreSqlInboxSchemaDiagnosticCheck),
+            typeof(PostgreSqlInboxSchemaDiagnosticCheck),
+            InstanceLifetime.Singleton));
+
+        configuration.RegisterDiagnosticCheck(typeof(PostgreSqlInboxSchemaDiagnosticCheck), "inbox.postgresql.schema");
     }
 }

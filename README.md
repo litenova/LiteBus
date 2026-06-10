@@ -15,8 +15,8 @@
   <a href="https://codecov.io/gh/litenova/LiteBus">
     <img src="https://codecov.io/gh/litenova/LiteBus/graph/badge.svg?token=XBNYITSV5A" alt="Code Coverage" />
   </a>
-  <a href="https://www.nuget.org/packages/modules.Commands.Extensions.Microsoft.DependencyInjection">
-    <img src="https://img.shields.io/nuget/vpre/modules.Commands.Extensions.Microsoft.DependencyInjection.svg" alt="NuGet Version" />
+  <a href="https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.DependencyInjection">
+    <img src="https://img.shields.io/nuget/vpre/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.svg" alt="NuGet Version" />
   </a>
   <a href="https://github.com/litenova/LiteBus/wiki">
     <img src="https://img.shields.io/badge/documentation-wiki-blue.svg" alt="Wiki" />
@@ -33,9 +33,9 @@ LiteBus is an in-process mediator that keeps commands, queries, and events as se
 ## Install
 
 ```bash
-dotnet add package modules.Commands.Extensions.Microsoft.DependencyInjection
-dotnet add package modules.Queries.Extensions.Microsoft.DependencyInjection
-dotnet add package modules.Events.Extensions.Microsoft.DependencyInjection
+dotnet add package LiteBus.Commands.Extensions.Microsoft.DependencyInjection
+dotnet add package LiteBus.Queries.Extensions.Microsoft.DependencyInjection
+dotnet add package LiteBus.Events.Extensions.Microsoft.DependencyInjection
 ```
 
 The core messaging runtime is pulled in automatically. Install only the modules you use.
@@ -60,12 +60,12 @@ public sealed class CreateProductCommandHandler : ICommandHandler<CreateProductC
 Register the modules and send the command:
 
 ```csharp
-builder.Services.AddLiteBus(modules =>
+builder.Services.AddLiteBus(registry =>
 {
     var assembly = typeof(Program).Assembly;
-    modules.AddCommandModule(module => module.RegisterFromAssembly(assembly));
-    modules.AddQueryModule(module => module.RegisterFromAssembly(assembly));
-    modules.AddEventModule(module => module.RegisterFromAssembly(assembly));
+    registry.AddCommandModule(module => module.RegisterFromAssembly(assembly));
+    registry.AddQueryModule(module => module.RegisterFromAssembly(assembly));
+    registry.AddEventModule(module => module.RegisterFromAssembly(assembly));
 });
 
 // Inject ICommandMediator, IQueryMediator, IEventMediator where you need them
@@ -100,14 +100,15 @@ LiteBus ships as small packages so you reference only what you run. The full lay
 | Category | Package |
 | --- | --- |
 | Metapackage | `LiteBus` (core modules only; storage and dispatch are opt-in) |
-| Core modules | `modules.Commands`, `modules.Queries`, `modules.Events`, `modules.Inbox`, `modules.Outbox`, `modules.Messaging`, `modules.Runtime` |
-| InProcess dispatch | `modules.Inbox.Dispatch.InProcess`, `modules.Outbox.Dispatch.InProcess` |
-| Transport | `modules.Transport`, `modules.Transport.Amqp`, `modules.Inbox.Dispatch.Transport`, `modules.Outbox.Dispatch.Transport`, `modules.Inbox.Ingress.Transport`, `modules.Inbox.Ingress.Amqp` |
-| Abstractions | `modules.Commands.Abstractions`, `modules.Queries.Abstractions`, `modules.Events.Abstractions`, `modules.Inbox.Abstractions`, `modules.Outbox.Abstractions`, `modules.Messaging.Abstractions`, `modules.Runtime.Abstractions` |
-| PostgreSQL | `modules.Inbox.Storage.PostgreSql`, `modules.Outbox.Storage.PostgreSql` |
-| Microsoft DI | `modules.Extensions.Microsoft.DependencyInjection`, `modules.Commands.Extensions.Microsoft.DependencyInjection`, `modules.Queries.Extensions.Microsoft.DependencyInjection`, `modules.Events.Extensions.Microsoft.DependencyInjection`, `modules.Messaging.Extensions.Microsoft.DependencyInjection`, `modules.Runtime.Extensions.Microsoft.DependencyInjection` |
-| Hosted services | `IBackgroundService` via `IModuleConfiguration.RegisterBackgroundService`; `AddLiteBus` registers them as generic host `IHostedService` through `modules.Runtime.Extensions.Microsoft.Hosting` / `Autofac.Hosting` |
-| Autofac | `modules.Commands.Extensions.Autofac`, `modules.Queries.Extensions.Autofac`, `modules.Events.Extensions.Autofac`, `modules.Messaging.Extensions.Autofac`, `modules.Runtime.Extensions.Autofac` |
+| Core modules | `LiteBus.Commands`, `LiteBus.Queries`, `LiteBus.Events`, `LiteBus.Inbox`, `LiteBus.Outbox`, `LiteBus.Messaging`, `LiteBus.Runtime` |
+| InProcess dispatch | `LiteBus.Inbox.Dispatch.InProcess`, `LiteBus.Outbox.Dispatch.InProcess` |
+| Transport dispatch | `LiteBus.Inbox.Dispatch`, `LiteBus.Inbox.Dispatch.*`, `LiteBus.Outbox.Dispatch`, `LiteBus.Outbox.Dispatch.*` (Amqp, AzureServiceBus, Aws, Kafka, InMemory) |
+| Transport platform | `LiteBus.Transport`, `LiteBus.Transport.*`, `LiteBus.Inbox.Ingress`, `LiteBus.Inbox.Ingress.*` |
+| Abstractions | `LiteBus.Commands.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` |
+| PostgreSQL | `LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.Storage.PostgreSql` |
+| Microsoft DI | `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Commands.Extensions.Microsoft.DependencyInjection`, `LiteBus.Queries.Extensions.Microsoft.DependencyInjection`, `LiteBus.Events.Extensions.Microsoft.DependencyInjection`, `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` |
+| Hosted services | `IBackgroundService` via `IModuleConfiguration.RegisterBackgroundService`; `AddLiteBus` registers them as generic host `IHostedService` through `LiteBus.Runtime.Extensions.Microsoft.Hosting` / `Autofac.Hosting` |
+| Autofac | `LiteBus.Commands.Extensions.Autofac`, `LiteBus.Queries.Extensions.Autofac`, `LiteBus.Events.Extensions.Autofac`, `LiteBus.Messaging.Extensions.Autofac`, `LiteBus.Runtime.Extensions.Autofac` |
 
 </details>
 

@@ -8,6 +8,7 @@ using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Orchestration.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -71,6 +72,7 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
         var processors = Enumerable.Range(0, WorkerCount)
             .Select(workerIndex => new PipelinedInboxProcessor(
                 processingStore,
+                processingStore,
                 dispatcher,
                 processorOptions with
                 {
@@ -79,7 +81,7 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
                     LeaseHeartbeatInterval = TimeSpan.FromMilliseconds(25)
                 },
                 clock,
-                Array.Empty<IInboxProcessorEnvelopeHook>()))
+                Array.Empty<IProcessorEnvelopeHook>()))
             .ToArray();
 
         var workerTasks = processors.Select(processor => RunUntilIdleAsync(processor)).ToArray();
@@ -121,15 +123,16 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
         var services = new ServiceCollection();
         services.AddSingleton(tracker);
 
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(registry =>
         {
-            modules.AddCommandModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
             {
                 builder.Register<ShipOrderCommand>();
                 builder.Register<SlowShipOrderCommandHandler>();
             });
 
-            modules.AddInboxModule(builder =>
+            registry.AddInboxModule(builder =>
             {
                 builder.UsePostgreSqlStorage(postgres =>
                 {
@@ -149,7 +152,7 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
                         InitialDelay = TimeSpan.FromMilliseconds(10)
                     }
                 });
-                builder.UseInProcessDispatcher();
+                builder.UseCommandInboxDispatcher();
             });
         });
 

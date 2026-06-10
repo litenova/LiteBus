@@ -3,6 +3,7 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Inbox.UnitTests;
 
@@ -175,7 +176,7 @@ internal static class InboxTestFixtures
             _failCompletionsBeforeSuccess = failCompletionsBeforeSuccess;
         }
 
-        public Task PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
+        public Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
         {
             if (envelopes.Any(envelope => envelope.Status == InboxStatus.Completed)
                 && _completionAttempts++ < _failCompletionsBeforeSuccess)

@@ -6,6 +6,7 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests;
 /// <summary>
 ///     Runs shared outbox store contract tests against Entity Framework Core with PostgreSQL.
 /// </summary>
+[Collection(PostgreSqlCollection.Name)]
 public sealed class EfCoreOutboxStorePostgreSqlContractTests : OutboxStoreContractTests, IClassFixture<PostgreSqlFixture>
 {
     /// <summary>

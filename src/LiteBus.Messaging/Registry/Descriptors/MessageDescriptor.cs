@@ -143,5 +143,49 @@ internal sealed class MessageDescriptor : IMessageDescriptor
                     break;
             }
         }
+        else if (ImplementsOpenGeneric(descriptor.MessageType, MessageType))
+        {
+            switch (descriptor)
+            {
+                case IErrorHandlerDescriptor errorHandlerDescriptor:
+                    _indirectErrorHandlers.Add(errorHandlerDescriptor);
+                    break;
+                case IMainHandlerDescriptor mainHandlerDescriptor:
+                    _indirectHandlers.Add(mainHandlerDescriptor);
+                    break;
+                case IPostHandlerDescriptor postHandlerDescriptor:
+                    _indirectPostHandlers.Add(postHandlerDescriptor);
+                    break;
+                case IPreHandlerDescriptor preHandlerDescriptor:
+                    _indirectPreHandlers.Add(preHandlerDescriptor);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether <paramref name="messageType" /> implements a constructed instance of
+    ///     <paramref name="openGenericType" />.
+    /// </summary>
+    /// <param name="openGenericType">The open generic handler message type.</param>
+    /// <param name="messageType">The concrete message type.</param>
+    /// <returns><see langword="true" /> when the message implements the open generic contract.</returns>
+    private static bool ImplementsOpenGeneric(Type openGenericType, Type messageType)
+    {
+        if (!openGenericType.IsGenericTypeDefinition)
+        {
+            return false;
+        }
+
+        foreach (var implementedInterface in messageType.GetInterfaces())
+        {
+            if (implementedInterface.IsGenericType &&
+                implementedInterface.GetGenericTypeDefinition() == openGenericType)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

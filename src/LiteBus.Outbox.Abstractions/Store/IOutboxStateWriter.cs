@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Outbox.Abstractions;
 
@@ -19,6 +20,9 @@ public interface IOutboxStateWriter
     /// </summary>
     /// <param name="envelopes">The envelopes to persist.</param>
     /// <param name="cancellationToken">A token that cancels the persistence operation.</param>
-    /// <returns>A task that represents the asynchronous persistence operation.</returns>
-    Task PersistAsync(IReadOnlyList<OutboxEnvelope> envelopes, CancellationToken cancellationToken = default);
+    /// <returns>
+    ///     A task that returns applied and skipped counts indicating whether each lease guard matched or the update
+    ///     was skipped because another worker reclaimed the message.
+    /// </returns>
+    Task<PersistResult> PersistAsync(IReadOnlyList<OutboxEnvelope> envelopes, CancellationToken cancellationToken = default);
 }

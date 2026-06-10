@@ -15,13 +15,13 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddLiteBusExample(this IServiceCollection services)
     {
         // Register LiteBus with all modules
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(registry =>
         {
             var exampleAssembly = typeof(PlaceOrderCommandHandler).Assembly;
 
-            modules.AddCommandModule(module => module.RegisterFromAssembly(exampleAssembly));
-            modules.AddQueryModule(module => module.RegisterFromAssembly(exampleAssembly));
-            modules.AddEventModule(module => module.RegisterFromAssembly(exampleAssembly));
+            registry.AddCommandModule(module => module.RegisterFromAssembly(exampleAssembly));
+            registry.AddQueryModule(module => module.RegisterFromAssembly(exampleAssembly));
+            registry.AddEventModule(module => module.RegisterFromAssembly(exampleAssembly));
         });
 
         return services;

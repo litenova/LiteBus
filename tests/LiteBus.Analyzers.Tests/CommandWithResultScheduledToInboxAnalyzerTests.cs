@@ -116,4 +116,38 @@ public sealed class CommandWithResultScheduledToInboxAnalyzerTests
             "CreateUserCommand",
             "int");
     }
+
+    /// <summary>
+    ///     Verifies that inbox acceptance through a class implementing <see cref="IInbox" /> is detected semantically.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandWithResultStoredThroughInboxImplementation_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Inbox.Abstractions;
+
+                              public interface IOrderInbox : IInbox
+                              {
+                              }
+
+                              public sealed record CreateUserCommand(string Name) : ICommand<int>;
+
+                              public sealed class UserService
+                              {
+                                  public Task ScheduleAsync(IOrderInbox inbox, CreateUserCommand command, CancellationToken cancellationToken)
+                                      => {|#0:inbox.AcceptAsync(command, cancellationToken: cancellationToken)|};
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<CommandWithResultScheduledToInboxAnalyzer>(
+            source,
+            DiagnosticDescriptors.CommandWithResultScheduledToInbox,
+            0,
+            "CreateUserCommand",
+            "int");
+    }
 }

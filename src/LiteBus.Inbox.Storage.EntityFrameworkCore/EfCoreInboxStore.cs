@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Storage.EntityFrameworkCore;
 using LiteBus.Storage.EntityFrameworkCore.Leasing;
 using Microsoft.EntityFrameworkCore;
@@ -157,7 +159,7 @@ public sealed class EfCoreInboxStore :
 
         return await ExecuteAsync(async (context, token) =>
         {
-            var local = context.InboxMessages.Local.SingleOrDefault(message => message.Id == envelope.Id);
+            var local = FindLocalEntity(context, envelope.Id, envelope.IdempotencyKey);
             if (local is not null)
             {
                 return ToEnvelope(local);
@@ -217,14 +219,33 @@ public sealed class EfCoreInboxStore :
         {
             var results = new InboxEnvelope[envelopes.Count];
             var pending = new List<(int Index, InboxEnvelope Envelope)>();
+            var seenIds = new Dictionary<Guid, InboxEnvelope>();
+            var seenIdempotencyKeys = new Dictionary<string, InboxEnvelope>(StringComparer.Ordinal);
+            var pendingIdempotencyKeys = new Dictionary<string, int>(StringComparer.Ordinal);
+            var pendingAliases = new Dictionary<int, int>();
 
             for (var index = 0; index < envelopes.Count; index++)
             {
                 var envelope = envelopes[index];
-                var local = context.InboxMessages.Local.SingleOrDefault(message => message.Id == envelope.Id);
+
+                if (seenIds.TryGetValue(envelope.Id, out var duplicateById))
+                {
+                    results[index] = duplicateById;
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey)
+                    && seenIdempotencyKeys.TryGetValue(envelope.IdempotencyKey, out var duplicateByKey))
+                {
+                    results[index] = duplicateByKey;
+                    continue;
+                }
+
+                var local = FindLocalEntity(context, envelope.Id, envelope.IdempotencyKey);
                 if (local is not null)
                 {
                     results[index] = ToEnvelope(local);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
                     continue;
                 }
 
@@ -234,7 +255,20 @@ public sealed class EfCoreInboxStore :
                 if (existing is not null)
                 {
                     results[index] = ToEnvelope(existing);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
                     continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey)
+                    && pendingIdempotencyKeys.TryGetValue(envelope.IdempotencyKey, out var sourceIndex))
+                {
+                    pendingAliases[index] = sourceIndex;
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
+                {
+                    pendingIdempotencyKeys[envelope.IdempotencyKey] = index;
                 }
 
                 pending.Add((index, envelope));
@@ -248,13 +282,24 @@ public sealed class EfCoreInboxStore :
             var entities = pending.Select(entry => ToEntity(entry.Envelope)).ToList();
             context.InboxMessages.AddRange(entities);
 
-            if (!_saveChangesOnAdd)
+            void ApplyPendingResults()
             {
                 for (var index = 0; index < pending.Count; index++)
                 {
-                    results[pending[index].Index] = ToEnvelope(entities[index]);
+                    var stored = ToEnvelope(entities[index]);
+                    results[pending[index].Index] = stored;
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, pending[index].Envelope, stored);
                 }
 
+                foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
+                {
+                    results[duplicateIndex] = results[sourceIndex];
+                }
+            }
+
+            if (!_saveChangesOnAdd)
+            {
+                ApplyPendingResults();
                 return results;
             }
 
@@ -265,8 +310,9 @@ public sealed class EfCoreInboxStore :
                 for (var index = 0; index < pending.Count; index++)
                 {
                     await ReloadEntityAsync(context, entities[index], token).ConfigureAwait(false);
-                    results[pending[index].Index] = ToEnvelope(entities[index]);
                 }
+
+                ApplyPendingResults();
             }
             catch (DbUpdateException)
             {
@@ -283,6 +329,12 @@ public sealed class EfCoreInboxStore :
                             "The inbox batch insert failed and the existing message could not be found.");
 
                     results[index] = ToEnvelope(stored);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
+                }
+
+                foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
+                {
+                    results[duplicateIndex] = results[sourceIndex];
                 }
             }
 
@@ -346,13 +398,13 @@ public sealed class EfCoreInboxStore :
     }
 
     /// <inheritdoc />
-    public Task PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
+    public Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelopes);
 
         if (envelopes.Count == 0)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(PersistResult.Empty);
         }
 
         return ExecuteAsync(async (context, token) =>
@@ -384,27 +436,32 @@ public sealed class EfCoreInboxStore :
                 }
             }
 
-            var changed = false;
+            var persistedMessageIds = new HashSet<Guid>();
 
             if (completed is not null)
             {
-                changed |= await ApplyCompletedAsync(context, completed, token).ConfigureAwait(false);
+                persistedMessageIds.UnionWith(await ApplyCompletedAsync(context, completed, token).ConfigureAwait(false));
             }
 
             if (failed is not null)
             {
-                changed |= await ApplyFailedAsync(context, failed, token).ConfigureAwait(false);
+                persistedMessageIds.UnionWith(await ApplyFailedAsync(context, failed, token).ConfigureAwait(false));
             }
 
             if (deadLettered is not null)
             {
-                changed |= await ApplyDeadLetteredAsync(context, deadLettered, token).ConfigureAwait(false);
+                persistedMessageIds.UnionWith(
+                    await ApplyDeadLetteredAsync(context, deadLettered, token).ConfigureAwait(false));
             }
 
-            if (changed)
+            if (persistedMessageIds.Count > 0)
             {
                 await SaveChangesAsync(context, token).ConfigureAwait(false);
             }
+
+            var messageIds = envelopes.Select(envelope => envelope.Id).ToArray();
+            var appliedCount = messageIds.Count(persistedMessageIds.Contains);
+            return PersistResult.FromOutcome(appliedCount, messageIds.Length - appliedCount);
         }, cancellationToken);
     }
 
@@ -414,8 +471,8 @@ public sealed class EfCoreInboxStore :
     /// <param name="context">The database context.</param>
     /// <param name="envelopes">The completed envelopes to persist.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
-    /// <returns><see langword="true" /> when at least one entity was updated.</returns>
-    private static async Task<bool> ApplyCompletedAsync(
+    /// <returns>The message identifiers updated under the lease guard.</returns>
+    private static async Task<HashSet<Guid>> ApplyCompletedAsync(
         IInboxDbContext context,
         IReadOnlyList<InboxEnvelope> envelopes,
         CancellationToken cancellationToken)
@@ -426,7 +483,7 @@ public sealed class EfCoreInboxStore :
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var updated = false;
+        var persistedMessageIds = new HashSet<Guid>();
 
         foreach (var entity in entities)
         {
@@ -440,10 +497,10 @@ public sealed class EfCoreInboxStore :
             ApplyMutableState(entity, source.Status == InboxStatus.Completed
                 ? source
                 : source.AsCompleted());
-            updated = true;
+            persistedMessageIds.Add(entity.Id);
         }
 
-        return updated;
+        return persistedMessageIds;
     }
 
     /// <summary>
@@ -452,8 +509,8 @@ public sealed class EfCoreInboxStore :
     /// <param name="context">The database context.</param>
     /// <param name="envelopes">The failed envelopes to persist.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
-    /// <returns><see langword="true" /> when at least one entity was updated.</returns>
-    private static async Task<bool> ApplyFailedAsync(
+    /// <returns>The message identifiers updated under the lease guard.</returns>
+    private static async Task<HashSet<Guid>> ApplyFailedAsync(
         IInboxDbContext context,
         IReadOnlyList<InboxEnvelope> envelopes,
         CancellationToken cancellationToken)
@@ -464,7 +521,7 @@ public sealed class EfCoreInboxStore :
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var updated = false;
+        var persistedMessageIds = new HashSet<Guid>();
 
         foreach (var entity in entities)
         {
@@ -476,10 +533,10 @@ public sealed class EfCoreInboxStore :
             }
 
             ApplyMutableState(entity, source);
-            updated = true;
+            persistedMessageIds.Add(entity.Id);
         }
 
-        return updated;
+        return persistedMessageIds;
     }
 
     /// <summary>
@@ -488,8 +545,8 @@ public sealed class EfCoreInboxStore :
     /// <param name="context">The database context.</param>
     /// <param name="envelopes">The dead-lettered envelopes to persist.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
-    /// <returns><see langword="true" /> when at least one entity was updated.</returns>
-    private static async Task<bool> ApplyDeadLetteredAsync(
+    /// <returns>The message identifiers updated under the lease guard.</returns>
+    private static async Task<HashSet<Guid>> ApplyDeadLetteredAsync(
         IInboxDbContext context,
         IReadOnlyList<InboxEnvelope> envelopes,
         CancellationToken cancellationToken)
@@ -500,7 +557,7 @@ public sealed class EfCoreInboxStore :
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var updated = false;
+        var persistedMessageIds = new HashSet<Guid>();
 
         foreach (var entity in entities)
         {
@@ -512,10 +569,10 @@ public sealed class EfCoreInboxStore :
             }
 
             ApplyMutableState(entity, source);
-            updated = true;
+            persistedMessageIds.Add(entity.Id);
         }
 
-        return updated;
+        return persistedMessageIds;
     }
 
     /// <summary>
@@ -592,6 +649,13 @@ public sealed class EfCoreInboxStore :
                 entry => entry.Status,
                 entry => entry.Count);
         }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
+    {
+        _ = cancellationToken;
+        return Task.FromResult(StoreSchemaInfo.ForLogicalStore("inbox", 1));
     }
 
     /// <inheritdoc />
@@ -708,6 +772,7 @@ public sealed class EfCoreInboxStore :
         CancellationToken cancellationToken)
     {
         var leaseExpiresAt = request.Now.Add(request.LeaseDuration);
+        var staleCutoff = request.Now.Add(-request.LeaseDuration);
         List<InboxMessageLeaseRow> rows = provider switch
         {
             EfCoreStorageProvider.PostgreSql => await EfCoreRelationalLeaseExecutor
@@ -724,6 +789,8 @@ public sealed class EfCoreInboxStore :
                     request.BatchSize,
                     request.LeaseOwner,
                     leaseExpiresAt,
+                    request.TenantId,
+                    staleCutoff,
                     cancellationToken)
                 .ConfigureAwait(false),
             EfCoreStorageProvider.SqlServer => await EfCoreRelationalLeaseExecutor
@@ -740,6 +807,8 @@ public sealed class EfCoreInboxStore :
                     request.BatchSize,
                     request.LeaseOwner,
                     leaseExpiresAt,
+                    request.TenantId,
+                    staleCutoff,
                     cancellationToken)
                 .ConfigureAwait(false),
             EfCoreStorageProvider.MySql => await EfCoreRelationalLeaseExecutor
@@ -756,6 +825,8 @@ public sealed class EfCoreInboxStore :
                     request.BatchSize,
                     request.LeaseOwner,
                     leaseExpiresAt,
+                    request.TenantId,
+                    staleCutoff,
                     cancellationToken)
                 .ConfigureAwait(false),
             _ => throw new NotSupportedException(
@@ -803,17 +874,23 @@ public sealed class EfCoreInboxStore :
     {
         var now = request.Now;
         var leaseExpiresAt = request.Now.Add(request.LeaseDuration);
+        var staleCutoff = request.Now.Add(-request.LeaseDuration);
         var pendingStatus = InboxStatus.Pending;
         var failedStatus = InboxStatus.Failed;
         var processingStatus = InboxStatus.Processing;
+        var tenantId = request.TenantId;
 
         var candidates = await context.InboxMessages
             .Where(message =>
-                (message.Status == pendingStatus || message.Status == failedStatus)
-                && (message.VisibleAfter == null || message.VisibleAfter <= now)
-                || message.Status == processingStatus
-                && message.LeaseExpiresAt != null
-                && message.LeaseExpiresAt <= now)
+                (tenantId == null || message.TenantId == tenantId)
+                && (((message.Status == pendingStatus || message.Status == failedStatus)
+                     && (message.VisibleAfter == null || message.VisibleAfter <= now))
+                    || (message.Status == processingStatus
+                        && message.LeaseExpiresAt != null
+                        && message.LeaseExpiresAt <= now)
+                    || (message.Status == processingStatus
+                        && message.LeaseExpiresAt == null
+                        && message.CreatedAt < staleCutoff)))
             .OrderBy(message => message.CreatedAt)
             .Take(request.BatchSize)
             .ToListAsync(cancellationToken)
@@ -830,6 +907,44 @@ public sealed class EfCoreInboxStore :
         }
 
         return candidates.Select(ToEnvelope).ToArray();
+    }
+
+    /// <summary>
+    ///     Finds a tracked inbox row matching the message identifier or idempotency key.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="messageId">The message identifier.</param>
+    /// <param name="idempotencyKey">The optional idempotency key.</param>
+    /// <returns>The tracked entity when found; otherwise, <see langword="null" />.</returns>
+    private static InboxMessageEntity? FindLocalEntity(
+        IInboxDbContext context,
+        Guid messageId,
+        string? idempotencyKey)
+    {
+        return context.InboxMessages.Local.FirstOrDefault(message =>
+            message.Id == messageId
+            || (!string.IsNullOrWhiteSpace(idempotencyKey) && message.IdempotencyKey == idempotencyKey));
+    }
+
+    /// <summary>
+    ///     Records one batch result so later duplicate identifiers resolve to the same envelope.
+    /// </summary>
+    /// <param name="seenIds">The message identifiers already resolved in the batch.</param>
+    /// <param name="seenIdempotencyKeys">The idempotency keys already resolved in the batch.</param>
+    /// <param name="envelope">The source envelope from the batch request.</param>
+    /// <param name="result">The resolved envelope returned for the batch slot.</param>
+    private static void RememberBatchResult(
+        Dictionary<Guid, InboxEnvelope> seenIds,
+        Dictionary<string, InboxEnvelope> seenIdempotencyKeys,
+        InboxEnvelope envelope,
+        InboxEnvelope result)
+    {
+        seenIds[envelope.Id] = result;
+
+        if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
+        {
+            seenIdempotencyKeys[envelope.IdempotencyKey] = result;
+        }
     }
 
     /// <summary>
@@ -932,7 +1047,7 @@ public sealed class EfCoreInboxStore :
             CorrelationId = entity.CorrelationId,
             CausationId = entity.CausationId,
             TenantId = entity.TenantId,
-            TraceContext = entity.TraceContext,
+            TraceContext = EfCoreJsonTextNormalizer.Normalize(entity.TraceContext),
             CompletedAt = entity.CompletedAt
         };
     }
@@ -961,7 +1076,7 @@ public sealed class EfCoreInboxStore :
             CorrelationId = row.CorrelationId,
             CausationId = row.CausationId,
             TenantId = row.TenantId,
-            TraceContext = row.TraceContext
+            TraceContext = EfCoreJsonTextNormalizer.Normalize(row.TraceContext)
         };
     }
 
@@ -1027,6 +1142,16 @@ public sealed class EfCoreInboxStore :
         IQueryable<InboxMessageEntity> query,
         InboxMessageFilter filter)
     {
+        if (filter.MessageId is not null)
+        {
+            query = query.Where(message => message.Id == filter.MessageId);
+        }
+
+        if (filter.MessageIds is { Count: > 0 })
+        {
+            query = query.Where(message => filter.MessageIds.Contains(message.Id));
+        }
+
         var statusValues = MaterializeStatusFilter(filter.Statuses);
 
         if (statusValues is not null)

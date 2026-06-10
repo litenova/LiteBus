@@ -1,3 +1,4 @@
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Mediator;
 using LiteBus.Messaging.Registry;

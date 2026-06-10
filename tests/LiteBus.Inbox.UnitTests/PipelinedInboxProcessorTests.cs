@@ -3,10 +3,12 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Orchestration.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,32 +20,19 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
     private static readonly DateTimeOffset BaseTime = new(2026, 6, 5, 8, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task PipelinedProcessor_WithConcurrencyOne_ShouldMatchLegacyOutcomes()
+    public async Task PipelinedProcessor_WithConcurrencyOne_ShouldProcessAllCommands()
     {
-        var store = new InMemoryInboxStore();
-        var legacyRecorder = new InboxTestFixtures.CommandRecorder();
-        var pipelinedRecorder = new InboxTestFixtures.CommandRecorder();
+        var recorder = new InboxTestFixtures.CommandRecorder();
 
-        await using var legacyProvider = BuildProcessorProvider(
-            new InMemoryInboxStore(),
-            legacyRecorder,
-            ProcessorArchitecture.Legacy,
-            dispatcherConcurrency: 1);
-        await using var pipelinedProvider = BuildProcessorProvider(
-            store,
-            pipelinedRecorder,
-            ProcessorArchitecture.Pipelined,
-            dispatcherConcurrency: 1);
+        await using var provider = BuildProcessorProvider(recorder, dispatcherConcurrency: 1);
 
-        await SeedCommandsAsync(legacyProvider.GetRequiredService<IInbox>());
-        await SeedCommandsAsync(pipelinedProvider.GetRequiredService<IInbox>());
+        var store = provider.GetRequiredService<InMemoryInboxStore>();
+        await SeedCommandsAsync(provider.GetRequiredService<IInbox>());
 
-        var legacyResult = await legacyProvider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync();
-        var pipelinedResult = await pipelinedProvider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync();
+        var result = await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync();
 
-        legacyResult.SucceededCount.Should().Be(3);
-        pipelinedResult.SucceededCount.Should().Be(legacyResult.SucceededCount);
-        pipelinedRecorder.Commands.Should().HaveCount(3);
+        result.SucceededCount.Should().Be(3);
+        recorder.Commands.Should().HaveCount(3);
         store.GetAll(InboxStatus.Completed).Should().HaveCount(3);
     }
 
@@ -57,6 +46,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
 
         var processor = new PipelinedInboxProcessor(
             leaseStore,
+            leaseStore,
             slowDispatcher,
             new InboxProcessorOptions
             {
@@ -68,7 +58,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
                 Retry = new RetryOptions { UseJitter = false }
             },
             clock,
-            Array.Empty<IInboxProcessorEnvelopeHook>());
+            Array.Empty<IProcessorEnvelopeHook>());
 
         var commandId = Guid.NewGuid();
         await store.AddAsync(new InboxEnvelope
@@ -97,6 +87,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
         var store = new InMemoryInboxStore();
         var processor = new PipelinedInboxProcessor(
             store,
+            store,
             dispatcher,
             new InboxProcessorOptions
             {
@@ -107,7 +98,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
                 Retry = new RetryOptions { UseJitter = false }
             },
             TimeProvider.System,
-            Array.Empty<IInboxProcessorEnvelopeHook>());
+            Array.Empty<IProcessorEnvelopeHook>());
 
         for (var index = 0; index < 6; index++)
         {
@@ -146,41 +137,38 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
     }
 
     private static ServiceProvider BuildProcessorProvider(
-        InMemoryInboxStore store,
         InboxTestFixtures.CommandRecorder recorder,
-        ProcessorArchitecture architecture,
         int dispatcherConcurrency)
     {
-        var services = new ServiceCollection()
-            .AddInboxStoreRoles(store)
+        return new ServiceCollection()
             .AddSingleton(recorder)
-            .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
                     builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                 });
 
-                modules.AddInboxModule(inbox =>
+                registry.AddInboxModule(inbox =>
                 {
                     inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
                     inbox.UseProcessorOptions(new InboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "test-worker",
-                        Architecture = architecture,
                         DispatcherConcurrency = dispatcherConcurrency,
                         Retry = new RetryOptions { UseJitter = false }
                     });
+                    inbox.UseInMemoryStorage();
+                    inbox.UseCommandInboxDispatcher();
                 });
-            });
-
-        return services.BuildServiceProvider();
+            })
+            .BuildServiceProvider();
     }
 
-    private sealed class RenewalCountingLeaseStore : IInboxProcessingStore
+    private sealed class RenewalCountingLeaseStore : IInboxLeaseStore, IInboxStateWriter
     {
         private readonly InMemoryInboxStore _inner;
 
@@ -190,14 +178,6 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
         }
 
         public int RenewalCount { get; private set; }
-
-        public Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default) =>
-            _inner.AddAsync(envelope, cancellationToken);
-
-        public Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
-            IReadOnlyList<InboxEnvelope> envelopes,
-            CancellationToken cancellationToken = default) =>
-            _inner.AddBatchAsync(envelopes, cancellationToken);
 
         public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
             InboxLeaseRequest request,
@@ -215,7 +195,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
                 .ConfigureAwait(false);
         }
 
-        public Task PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default) =>
+        public Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default) =>
             _inner.PersistAsync(envelopes, cancellationToken);
     }
 

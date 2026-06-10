@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Transport.Abstractions;
+using LiteBus.Transport;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
@@ -68,7 +69,12 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
                 ConsumerTag = options.ConsumerTag,
                 QueueArguments = options.DestinationArguments
             },
-            (message, token) => handler(ToTransportMessage(message), token),
+            (message, token) =>
+            {
+                var transportMessage = ToTransportMessage(message);
+                using var activity = TransportTracing.StartConsumeActivity(transportMessage);
+                return handler(transportMessage, token);
+            },
             cancellationToken);
     }
 

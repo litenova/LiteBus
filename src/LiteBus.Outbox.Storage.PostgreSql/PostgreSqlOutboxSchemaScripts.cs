@@ -18,7 +18,7 @@ internal static class PostgreSqlOutboxSchemaScripts
     private static readonly Assembly Assembly = typeof(PostgreSqlOutboxSchemaScripts).Assembly;
 
     /// <summary>
-    ///     The column names introduced by outbox schema version 1.
+    ///     The column names required by outbox schema version 1.
     /// </summary>
     internal static readonly IReadOnlyList<string> Version1Columns =
     [
@@ -36,38 +36,15 @@ internal static class PostgreSqlOutboxSchemaScripts
         "last_error",
         "correlation_id",
         "causation_id",
-        "tenant_id"
-    ];
-
-    /// <summary>
-    ///     The column names introduced by outbox schema version 2.
-    /// </summary>
-    internal static readonly IReadOnlyList<string> Version2Columns =
-    [
-        "trace_context"
-    ];
-
-    /// <summary>
-    ///     The column names introduced by outbox schema version 3.
-    /// </summary>
-    internal static readonly IReadOnlyList<string> Version3Columns =
-    [
-        "idempotency_key"
-    ];
-
-    /// <summary>
-    ///     The schema objects introduced by outbox schema version 4 (insert notify trigger).
-    /// </summary>
-    internal static readonly IReadOnlyList<string> Version4Columns =
-    [
-    ];
-
-    /// <summary>
-    ///     The column names introduced by outbox schema version 5.
-    /// </summary>
-    internal static readonly IReadOnlyList<string> Version5Columns =
-    [
-        "published_at"
+        "tenant_id",
+        "idempotency_key",
+        "trace_context",
+        "published_at",
+        "last_attempted_at",
+        "first_failed_at",
+        "dead_lettered_at",
+        "last_lease_owner",
+        "error_type"
     ];
 
     /// <summary>
@@ -75,11 +52,7 @@ internal static class PostgreSqlOutboxSchemaScripts
     /// </summary>
     internal static readonly IReadOnlyList<IReadOnlyList<string>> VersionColumnSets =
     [
-        Version1Columns,
-        Version2Columns,
-        Version3Columns,
-        Version4Columns,
-        Version5Columns
+        Version1Columns
     ];
 
     /// <summary>
@@ -89,22 +62,10 @@ internal static class PostgreSqlOutboxSchemaScripts
     [
         new PostgreSqlSchemaSqlFile(
             PostgreSqlOutboxSchemaSqlPaths.V1Create,
-            "Creates the version 1 outbox table and indexes."),
+            "Creates the version 1 outbox table, indexes, and optional insert notify trigger."),
         new PostgreSqlSchemaSqlFile(
             PostgreSqlOutboxSchemaSqlPaths.V1EnsureIndexes,
-            "Ensures outbox indexes exist for the current schema version."),
-        new PostgreSqlSchemaSqlFile(
-            PostgreSqlOutboxSchemaSqlPaths.V2Upgrade,
-            "Upgrades the outbox table from version 1 to version 2."),
-        new PostgreSqlSchemaSqlFile(
-            PostgreSqlOutboxSchemaSqlPaths.V3Upgrade,
-            "Upgrades the outbox table from version 2 to version 3 (idempotency_key)."),
-        new PostgreSqlSchemaSqlFile(
-            PostgreSqlOutboxSchemaSqlPaths.V4Upgrade,
-            "Upgrades the outbox table from version 3 to version 4 (insert notify trigger)."),
-        new PostgreSqlSchemaSqlFile(
-            PostgreSqlOutboxSchemaSqlPaths.V5Upgrade,
-            "Upgrades the outbox table from version 4 to version 5 (published_at column).")
+            "Ensures outbox indexes exist for schema version 1.")
     ];
 
     /// <summary>
@@ -117,7 +78,6 @@ internal static class PostgreSqlOutboxSchemaScripts
         VersionColumnSets = VersionColumnSets,
         SqlFiles = SqlFiles,
         BuildVersion1CreateScript = BuildVersion1CreateScript,
-        BuildUpgradeScript = BuildUpgradeScript,
         BuildEnsureIndexesScript = BuildEnsureIndexesScript,
         BuildCreateScript = BuildCreateScript,
         CreateLockKey = CreateLockKey,
@@ -125,29 +85,18 @@ internal static class PostgreSqlOutboxSchemaScripts
     };
 
     /// <summary>
-    ///     Builds the full create script for one outbox schema version, including metadata DDL.
+    ///     Builds the full create script for outbox schema version 1, including metadata DDL.
     /// </summary>
     /// <param name="options">The store table and metadata options.</param>
-    /// <param name="version">The target schema version.</param>
     /// <returns>The rendered create SQL batch.</returns>
-    internal static string BuildCreateScript(IPostgreSqlStoreTableOptions options, int version)
+    internal static string BuildCreateScript(IPostgreSqlStoreTableOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-
-        if (version <= 0 || version > PostgreSqlOutboxSchema.CurrentSchemaVersion)
-        {
-            throw new ArgumentOutOfRangeException(nameof(version));
-        }
 
         var builder = new StringBuilder();
         builder.AppendLine(PostgreSqlSchemaVersionStore.GetMetadataCreateScript(options));
         builder.AppendLine(BuildVersion1CreateScript(options));
-
-        for (var currentVersion = 2; currentVersion <= version; currentVersion++)
-        {
-            builder.AppendLine(BuildUpgradeScript(options, currentVersion - 1, currentVersion));
-        }
-
+        builder.AppendLine(BuildEnsureIndexesScript(options));
         return builder.ToString().TrimEnd();
     }
 
@@ -165,37 +114,7 @@ internal static class PostgreSqlOutboxSchemaScripts
     }
 
     /// <summary>
-    ///     Builds the incremental upgrade script between two adjacent outbox schema versions.
-    /// </summary>
-    /// <param name="options">The store table and metadata options.</param>
-    /// <param name="fromVersion">The source schema version.</param>
-    /// <param name="toVersion">The target schema version.</param>
-    /// <returns>The rendered upgrade SQL batch.</returns>
-    internal static string BuildUpgradeScript(IPostgreSqlStoreTableOptions options, int fromVersion, int toVersion)
-    {
-        if (fromVersion + 1 != toVersion)
-        {
-            throw new ArgumentException("Upgrade scripts must advance exactly one schema version.", nameof(toVersion));
-        }
-
-        return toVersion switch
-        {
-            2 => PostgreSqlSchemaExecutor.LoadSharedAddTraceContextColumnScript(options),
-            3 => PostgreSqlSchemaExecutor.LoadSharedAddIdempotencyKeyColumnScript(options),
-            4 => PostgreSqlSqlScriptLoader.LoadAndRender(
-                Assembly,
-                PostgreSqlOutboxSchemaEmbeddedSql.V4Upgrade,
-                CreateStoreTokens(options)),
-            5 => PostgreSqlSqlScriptLoader.LoadAndRender(
-                Assembly,
-                PostgreSqlOutboxSchemaEmbeddedSql.V5Upgrade,
-                CreateStoreTokens(options)),
-            _ => throw new ArgumentOutOfRangeException(nameof(toVersion), toVersion, "Unsupported outbox schema version.")
-        };
-    }
-
-    /// <summary>
-    ///     Builds the script that ensures outbox indexes exist for the current schema version.
+    ///     Builds the script that ensures outbox indexes exist for schema version 1.
     /// </summary>
     /// <param name="options">The store table and metadata options.</param>
     /// <returns>The rendered index ensure SQL batch.</returns>
@@ -208,7 +127,7 @@ internal static class PostgreSqlOutboxSchemaScripts
     }
 
     /// <summary>
-    ///     Returns the index names required for the current outbox schema version.
+    ///     Returns the index names required for outbox schema version 1.
     /// </summary>
     /// <param name="options">The store table and metadata options.</param>
     /// <returns>The required index names for validation.</returns>
@@ -216,6 +135,7 @@ internal static class PostgreSqlOutboxSchemaScripts
     {
         return
         [
+            PostgreSqlIdentifier.UnquotedIndexName(options.TableName, "idempotency_idx"),
             PostgreSqlIdentifier.UnquotedIndexName(options.TableName, "lease_idx"),
             PostgreSqlIdentifier.UnquotedIndexName(options.TableName, "topic_idx")
         ];

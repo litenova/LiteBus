@@ -1,4 +1,5 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -14,22 +15,23 @@ public sealed class OutboxCompositeModuleTests
         var act = () =>
         {
             new ServiceCollection()
-                .AddLiteBus(modules => modules.Register(new InMemoryOutboxStorageModule()))
+                .AddLiteBus(registry => registry.Register(new InMemoryOutboxStorageModule(_ => { })))
                 .BuildServiceProvider();
         };
 
         act.Should()
             .Throw<LiteBusConfigurationException>()
-            .WithMessage("*OutboxModule*UseInMemoryStorage*");
+            .WithMessage("*requires*OutboxModule*not registered*");
     }
 
     [Fact]
     public void AddOutboxModule_WithNestedStorageAndDispatcher_ShouldResolveOutboxServices()
     {
         var services = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddOutboxModule(outbox =>
+                registry.AddMessageModule(_ => { });
+                registry.AddOutboxModule(outbox =>
                 {
                     outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>(
                         "orders.events.submitted",

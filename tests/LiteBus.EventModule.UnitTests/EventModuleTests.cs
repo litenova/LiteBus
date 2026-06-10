@@ -8,6 +8,7 @@ using LiteBus.EventModule.UnitTests.UseCases.ProductViewed;
 using LiteBus.Events;
 using LiteBus.Events.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,9 +22,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_event_with_priority_handlers_executes_in_correct_order()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductUpdatedEvent).Assembly);
             });
@@ -50,9 +52,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_simple_event_goes_through_registered_handlers_correctly()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
             });
@@ -77,9 +80,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_generic_event_goes_through_registered_handlers_correctly()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductViewedEvent<>).Assembly);
             });
@@ -112,9 +116,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_event_with_sequential_priority_groups_sequential_handlers_maintains_strict_order()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
             });
@@ -149,9 +154,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_event_with_sequential_priority_groups_parallel_handlers_executes_same_priority_concurrently()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
             });
@@ -186,9 +192,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_event_with_parallel_priority_groups_executes_all_handlers_concurrently()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
             });
@@ -223,9 +230,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_event_with_all_parallel_executes_all_handlers_concurrently()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
             });
@@ -264,9 +272,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_event_with_specified_tag_goes_through_handlers_with_that_tag_and_handlers_without_any_tag_correctly()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(EventWithTag).Assembly);
             });
@@ -298,9 +307,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_event_with_multiple_tags_executes_handlers_matching_any_tag()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(EventWithTag).Assembly);
             });
@@ -335,9 +345,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_event_with_handler_predicate_filter_executes_only_matching_handlers()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
             });
@@ -373,9 +384,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_event_with_no_handlers_should_not_throw_exception_when_ThrowIfNoHandlerFound_is_false()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(EventWithNoHandlers).Assembly);
             });
@@ -393,9 +405,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_event_with_no_handlers_should_throw_exception_when_ThrowIfNoHandlerFound_is_true()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(EventWithNoHandlers).Assembly);
             });
@@ -413,9 +426,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_event_with_filtered_out_handlers_should_throw_exception_when_ThrowIfNoHandlerFound_is_true()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
             });
@@ -445,9 +459,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_event_with_exception_in_pre_handler_goes_through_error_handlers()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProblematicEventPreHandler).Assembly);
             });
@@ -469,9 +484,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     [Fact]
     public async Task mediating_event_with_exception_in_main_handler_goes_through_error_handlers()
     {
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProblematicEventPreHandler).Assembly);
             });
@@ -555,9 +571,10 @@ public sealed class EventModuleTests : LiteBusTestBase
     public async Task mediating_event_with_items_in_settings_propagates_context_correctly()
     {
         // ARRANGE
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.Register<ContextPropagationEventPreHandler>();
                 builder.Register<ContextPropagationEventHandler>();

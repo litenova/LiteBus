@@ -1,8 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-    <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
-        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
-    </ItemGroup>
-
-</Project>
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+    </ItemGroup>
+
+</Project>

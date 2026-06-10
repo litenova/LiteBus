@@ -1,11 +1,12 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-    <PropertyGroup>
-        <ImplicitUsings>enable</ImplicitUsings>
-    </PropertyGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Transport.Abstractions\LiteBus.Transport.Abstractions.csproj"/>
-    </ItemGroup>
-
-</Project>
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Transport.Abstractions\LiteBus.Transport.Abstractions.csproj"/>
+    </ItemGroup>
+
+</Project>

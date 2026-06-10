@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Outbox.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace LiteBus.Outbox;
 
@@ -18,10 +19,12 @@ internal static class ProcessorLeaseHeartbeat
     /// <param name="leaseOwner">The publisher name that currently owns the lease.</param>
     /// <param name="leaseStore">The lease store used to extend ownership.</param>
     /// <param name="leaseDuration">The duration applied on each renewal from the current UTC time.</param>
-    /// <param name="heartbeatInterval">The delay between renewal attempts.</param>
+    /// <param name="heartbeatInterval">The delay between renewal attempts after the initial renewal.</param>
     /// <param name="clock">The time provider used to compute renewal expirations.</param>
     /// <param name="operation">The publication work executed while renewals continue.</param>
     /// <param name="cancellationToken">A token used to cancel dispatch.</param>
+    /// <param name="onLeaseLost">An optional callback invoked when lease renewal fails.</param>
+    /// <param name="logger">The optional logger used for lease-lost diagnostics.</param>
     /// <returns>The value returned by <paramref name="operation" />.</returns>
     public static async Task<T> RunWithHeartbeatAsync<T>(
         Guid messageId,
@@ -31,7 +34,9 @@ internal static class ProcessorLeaseHeartbeat
         TimeSpan heartbeatInterval,
         TimeProvider clock,
         Func<CancellationToken, Task<T>> operation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action? onLeaseLost = null,
+        ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(leaseStore);
         ArgumentNullException.ThrowIfNull(clock);
@@ -42,7 +47,21 @@ internal static class ProcessorLeaseHeartbeat
             return await operation(cancellationToken).ConfigureAwait(false);
         }
 
-        using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var operationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        if (!await TryRenewLeaseAsync(
+                messageId,
+                leaseOwner,
+                leaseStore,
+                leaseDuration,
+                clock,
+                onLeaseLost,
+                logger,
+                operationCts).ConfigureAwait(false))
+        {
+            throw new OperationCanceledException(operationCts.Token);
+        }
+
         var heartbeatTask = RenewLoopAsync(
             messageId,
             leaseOwner,
@@ -50,15 +69,18 @@ internal static class ProcessorLeaseHeartbeat
             leaseDuration,
             heartbeatInterval,
             clock,
-            heartbeatCts.Token);
+            operationCts,
+            onLeaseLost,
+            logger,
+            cancellationToken);
 
         try
         {
-            return await operation(cancellationToken).ConfigureAwait(false);
+            return await operation(operationCts.Token).ConfigureAwait(false);
         }
         finally
         {
-            await heartbeatCts.CancelAsync().ConfigureAwait(false);
+            await operationCts.CancelAsync().ConfigureAwait(false);
 
             try
             {
@@ -71,6 +93,47 @@ internal static class ProcessorLeaseHeartbeat
     }
 
     /// <summary>
+    ///     Extends the lease once and cancels dispatch when renewal fails.
+    /// </summary>
+    /// <param name="messageId">The identifier of the leased message.</param>
+    /// <param name="leaseOwner">The publisher name that currently owns the lease.</param>
+    /// <param name="leaseStore">The lease store used to extend ownership.</param>
+    /// <param name="leaseDuration">The duration applied on each renewal from the current UTC time.</param>
+    /// <param name="clock">The time provider used to compute renewal expirations.</param>
+    /// <param name="onLeaseLost">An optional callback invoked when lease renewal fails.</param>
+    /// <param name="logger">The optional logger used for lease-lost diagnostics.</param>
+    /// <param name="operationCts">The linked token source used to cancel dispatch when the lease is lost.</param>
+    /// <returns><see langword="true" /> when the lease was renewed; otherwise <see langword="false" />.</returns>
+    private static async Task<bool> TryRenewLeaseAsync(
+        Guid messageId,
+        string leaseOwner,
+        IOutboxLeaseStore leaseStore,
+        TimeSpan leaseDuration,
+        TimeProvider clock,
+        Action? onLeaseLost,
+        ILogger? logger,
+        CancellationTokenSource operationCts)
+    {
+        var expiresAt = clock.GetUtcNow().Add(leaseDuration);
+        var renewed = await leaseStore.RenewLeaseAsync(messageId, leaseOwner, expiresAt, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        if (renewed)
+        {
+            return true;
+        }
+
+        logger?.LogWarning(
+            "Outbox lease renewal failed for message {MessageId} owned by {LeaseOwner}; canceling dispatch.",
+            messageId,
+            leaseOwner);
+
+        onLeaseLost?.Invoke();
+        await operationCts.CancelAsync().ConfigureAwait(false);
+        return false;
+    }
+
+    /// <summary>
     ///     Extends the lease on a fixed interval until cancellation is requested.
     /// </summary>
     /// <param name="messageId">The identifier of the leased message.</param>
@@ -79,6 +142,9 @@ internal static class ProcessorLeaseHeartbeat
     /// <param name="leaseDuration">The duration applied on each renewal from the current UTC time.</param>
     /// <param name="heartbeatInterval">The delay between renewal attempts.</param>
     /// <param name="clock">The time provider used to compute renewal expirations.</param>
+    /// <param name="operationCts">The linked token source used to cancel dispatch when the lease is lost.</param>
+    /// <param name="onLeaseLost">An optional callback invoked when lease renewal fails.</param>
+    /// <param name="logger">The optional logger used for lease-lost diagnostics.</param>
     /// <param name="cancellationToken">A token that stops the renewal loop.</param>
     /// <returns>A task that completes when the loop is canceled.</returns>
     private static async Task RenewLoopAsync(
@@ -88,15 +154,34 @@ internal static class ProcessorLeaseHeartbeat
         TimeSpan leaseDuration,
         TimeSpan heartbeatInterval,
         TimeProvider clock,
+        CancellationTokenSource operationCts,
+        Action? onLeaseLost,
+        ILogger? logger,
         CancellationToken cancellationToken)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        while (!cancellationToken.IsCancellationRequested && !operationCts.IsCancellationRequested)
         {
-            await Task.Delay(heartbeatInterval, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await Task.Delay(heartbeatInterval, operationCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (operationCts.IsCancellationRequested || cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
 
-            var expiresAt = clock.GetUtcNow().Add(leaseDuration);
-            await leaseStore.RenewLeaseAsync(messageId, leaseOwner, expiresAt, CancellationToken.None)
-                .ConfigureAwait(false);
+            if (!await TryRenewLeaseAsync(
+                    messageId,
+                    leaseOwner,
+                    leaseStore,
+                    leaseDuration,
+                    clock,
+                    onLeaseLost,
+                    logger,
+                    operationCts).ConfigureAwait(false))
+            {
+                return;
+            }
         }
     }
 }

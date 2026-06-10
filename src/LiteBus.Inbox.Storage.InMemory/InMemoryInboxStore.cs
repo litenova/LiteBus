@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Runtime.Abstractions.Diagnostics;
 
 namespace LiteBus.Inbox.Storage.InMemory;
 
@@ -22,6 +24,7 @@ namespace LiteBus.Inbox.Storage.InMemory;
 ///     </para>
 /// </remarks>
 public sealed class InMemoryInboxStore :
+    IInboxStore,
     IInboxProcessingStore,
     IInboxOperationsStore
 {
@@ -150,7 +153,7 @@ public sealed class InMemoryInboxStore :
             var leaseExpiresAt = now.Add(leaseDuration);
             var staleCutoff = now.Add(-leaseDuration);
             var leased = _envelopes.Values
-                .Where(envelope => request.TenantId is null || envelope.TenantId == request.TenantId)
+                .Where(envelope => MatchesTenantFilter(request.TenantId, envelope.TenantId))
                 .Where(envelope => IsAvailable(envelope, now, staleCutoff))
                 .OrderBy(envelope => envelope.CreatedAt)
                 .Take(request.BatchSize)
@@ -167,23 +170,29 @@ public sealed class InMemoryInboxStore :
     }
 
     /// <inheritdoc />
-    public Task PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
+    public Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelopes);
 
         if (envelopes.Count == 0)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(PersistResult.Empty);
         }
+
+        HashSet<Guid> persistedMessageIds;
 
         lock (_sync)
         {
+            persistedMessageIds = new HashSet<Guid>();
+
             foreach (var envelope in envelopes)
             {
                 if (!TryPersistTerminal(envelope))
                 {
                     continue;
                 }
+
+                persistedMessageIds.Add(envelope.Id);
 
                 if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
                 {
@@ -192,7 +201,8 @@ public sealed class InMemoryInboxStore :
             }
         }
 
-        return Task.CompletedTask;
+        var messageIds = envelopes.Select(envelope => envelope.Id).ToArray();
+        return Task.FromResult(PersistResult.FromMessageIds(messageIds, persistedMessageIds));
     }
 
     /// <inheritdoc />
@@ -253,6 +263,13 @@ public sealed class InMemoryInboxStore :
 
             return Task.FromResult<IReadOnlyDictionary<InboxStatus, int>>(counts);
         }
+    }
+
+    /// <inheritdoc />
+    public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
+    {
+        _ = cancellationToken;
+        return Task.FromResult(StoreSchemaInfo.ForLogicalStore("inbox", 1));
     }
 
     /// <inheritdoc />
@@ -430,14 +447,24 @@ public sealed class InMemoryInboxStore :
     /// <param name="messageId">The message identifier.</param>
     private void RequeueDeadLetterIfNeeded(Guid messageId)
     {
-        var envelope = GetRequired(messageId);
-
-        if (envelope.Status != InboxStatus.DeadLettered)
+        if (!_envelopes.TryGetValue(messageId, out var envelope) || envelope.Status != InboxStatus.DeadLettered)
         {
             return;
         }
 
         _envelopes[messageId] = envelope.AsRequeued();
+    }
+
+    /// <summary>
+    ///     Determines whether one stored row matches the tenant scope on a lease request.
+    /// </summary>
+    /// <param name="requestedTenantId">The tenant filter from the lease request, if any.</param>
+    /// <param name="storedTenantId">The tenant stored on the candidate row.</param>
+    /// <returns><see langword="true" /> when the row is visible to the lease request.</returns>
+    private static bool MatchesTenantFilter(string? requestedTenantId, string? storedTenantId)
+    {
+        return requestedTenantId is null
+            || string.Equals(storedTenantId, requestedTenantId, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -469,6 +496,17 @@ public sealed class InMemoryInboxStore :
         IEnumerable<InboxEnvelope> source,
         InboxMessageFilter filter)
     {
+        if (filter.MessageId is not null)
+        {
+            source = source.Where(envelope => envelope.Id == filter.MessageId);
+        }
+
+        if (filter.MessageIds is { Count: > 0 })
+        {
+            var messageIds = filter.MessageIds.ToHashSet();
+            source = source.Where(envelope => messageIds.Contains(envelope.Id));
+        }
+
         if (filter.Statuses is { Count: > 0 })
         {
             var statuses = filter.Statuses.ToHashSet();
@@ -581,7 +619,7 @@ public sealed class InMemoryInboxStore :
 
         if (_options.Capacity > 0 && _envelopes.Count >= _options.Capacity)
         {
-            throw new Exceptions.InboxStorageException(
+            throw new Abstractions.Exceptions.InboxStorageException(
                 $"The in-memory inbox store reached its capacity of {_options.Capacity} commands.");
         }
 

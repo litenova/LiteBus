@@ -5,6 +5,7 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
+using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -178,5 +179,100 @@ internal static class OutboxTestInfrastructure
         ///     Gets or sets the recording dispatcher assigned when the service provider is built.
         /// </summary>
         public RecordingOutboxDispatcher? Instance { get; set; }
+    }
+
+    /// <summary>
+    ///     Registers the test recording dispatcher through the outbox module builder.
+    /// </summary>
+    /// <param name="builder">The outbox module builder under test.</param>
+    /// <param name="dispatcherHolder">The holder that receives the resolved dispatcher instance.</param>
+    /// <returns>The outbox module builder for chaining.</returns>
+    internal static OutboxModuleBuilder UseRecordingOutboxDispatcher(
+        this OutboxModuleBuilder builder,
+        RecordingOutboxDispatcherHolder dispatcherHolder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(dispatcherHolder);
+        return builder.RegisterDispatcher(new RecordingOutboxDispatchModule(dispatcherHolder));
+    }
+
+    /// <summary>
+    ///     Registers a fixed dispatcher instance through the outbox module builder.
+    /// </summary>
+    /// <param name="builder">The outbox module builder under test.</param>
+    /// <param name="dispatcher">The dispatcher instance used for every dispatch call.</param>
+    /// <returns>The outbox module builder for chaining.</returns>
+    internal static OutboxModuleBuilder UseFixedOutboxDispatcher(
+        this OutboxModuleBuilder builder,
+        IOutboxDispatcher dispatcher)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(dispatcher);
+        return builder.RegisterDispatcher(new FixedOutboxDispatchModule(dispatcher));
+    }
+
+    /// <summary>
+    ///     Registers the shared recording dispatcher as an outbox child module.
+    /// </summary>
+    internal sealed class RecordingOutboxDispatchModule : IOutboxDispatcherModule
+    {
+        /// <summary>
+        ///     Captures the dispatcher instance resolved during tests.
+        /// </summary>
+        private readonly RecordingOutboxDispatcherHolder _dispatcherHolder;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="RecordingOutboxDispatchModule" /> class.
+        /// </summary>
+        /// <param name="dispatcherHolder">The holder that receives the resolved dispatcher instance.</param>
+        public RecordingOutboxDispatchModule(RecordingOutboxDispatcherHolder dispatcherHolder)
+        {
+            _dispatcherHolder = dispatcherHolder ?? throw new ArgumentNullException(nameof(dispatcherHolder));
+        }
+
+        /// <inheritdoc />
+        public void Build(IModuleConfiguration configuration)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(IOutboxDispatcher),
+                serviceProvider =>
+                {
+                    var dispatcher = new RecordingOutboxDispatcher(
+                        serviceProvider.GetRequiredService<IMessageContractRegistry>(),
+                        serviceProvider.GetRequiredService<IMessageSerializer>());
+
+                    _dispatcherHolder.Instance = dispatcher;
+                    return dispatcher;
+                },
+                InstanceLifetime.Singleton));
+        }
+    }
+
+    /// <summary>
+    ///     Registers a fixed dispatcher instance as an outbox child module.
+    /// </summary>
+    internal sealed class FixedOutboxDispatchModule : IOutboxDispatcherModule
+    {
+        /// <summary>
+        ///     The dispatcher instance returned for every dispatch call.
+        /// </summary>
+        private readonly IOutboxDispatcher _dispatcher;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="FixedOutboxDispatchModule" /> class.
+        /// </summary>
+        /// <param name="dispatcher">The dispatcher instance used for every dispatch call.</param>
+        public FixedOutboxDispatchModule(IOutboxDispatcher dispatcher)
+        {
+            _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+        }
+
+        /// <inheritdoc />
+        public void Build(IModuleConfiguration configuration)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(IOutboxDispatcher),
+                _dispatcher));
+        }
     }
 }

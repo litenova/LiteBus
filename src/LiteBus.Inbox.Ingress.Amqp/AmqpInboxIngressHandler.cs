@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Inbox.Ingress.Transport;
+using LiteBus.Inbox.Ingress;
 using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Amqp;
 

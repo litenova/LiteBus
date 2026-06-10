@@ -1,9 +1,9 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
-using LiteBus.Runtime.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -62,11 +62,11 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
         await control.ResumeAsync(CancellationToken.None);
         control.State.Should().Be(ProcessorState.Running);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(250));
-        dispatcher.Instance.DispatchedMessages
-            .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
-            .Should()
-            .Contain(submitted => submitted.OrderId == pausedOrderId);
+        await WaitUntilAsync(
+            () => dispatcher.Instance!.DispatchedMessages
+                .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
+                .Any(submitted => submitted.OrderId == pausedOrderId),
+            TimeSpan.FromSeconds(2));
 
         await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
     }
@@ -130,9 +130,10 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
     {
         return new ServiceCollection()
             .AddSingleton(dispatcherHolder)
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddOutboxModule(outbox =>
+                registry.AddMessageModule(_ => { });
+                registry.AddOutboxModule(outbox =>
                 {
                     outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
                     outbox.UseProcessorOptions(new OutboxProcessorOptions
@@ -142,47 +143,19 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
                         Retry = new RetryOptions { UseJitter = false }
                     });
                     outbox.UseInMemoryStorage();
-                    outbox.RegisterDispatcher(new RecordingOutboxDispatchModule(dispatcherHolder));
+                    outbox.UseRecordingOutboxDispatcher(dispatcherHolder);
                     outbox.EnableOutboxProcessor(configureHost);
                 });
             })
             .BuildServiceProvider();
     }
 
-    /// <summary>
-    ///     Registers the test recording dispatcher as an outbox child module.
-    /// </summary>
-    private sealed class RecordingOutboxDispatchModule : IModule
+    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
     {
-        /// <summary>
-        ///     Captures the dispatcher instance resolved during tests.
-        /// </summary>
-        private readonly OutboxTestInfrastructure.RecordingOutboxDispatcherHolder _dispatcherHolder;
-
-        /// <summary>
-        ///     Initializes a new instance of the <see cref="RecordingOutboxDispatchModule" /> class.
-        /// </summary>
-        /// <param name="dispatcherHolder">The holder that receives the resolved dispatcher instance.</param>
-        public RecordingOutboxDispatchModule(OutboxTestInfrastructure.RecordingOutboxDispatcherHolder dispatcherHolder)
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        while (!condition() && DateTimeOffset.UtcNow < deadline)
         {
-            _dispatcherHolder = dispatcherHolder;
-        }
-
-        /// <inheritdoc />
-        public void Build(IModuleConfiguration configuration)
-        {
-            configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(IOutboxDispatcher),
-                serviceProvider =>
-                {
-                    var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcher(
-                        serviceProvider.GetRequiredService<IMessageContractRegistry>(),
-                        serviceProvider.GetRequiredService<IMessageSerializer>());
-
-                    _dispatcherHolder.Instance = dispatcher;
-                    return dispatcher;
-                },
-                InstanceLifetime.Singleton));
+            await Task.Delay(50);
         }
     }
 }

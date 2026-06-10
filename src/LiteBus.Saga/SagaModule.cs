@@ -1,4 +1,4 @@
-using LiteBus.Inbox.Abstractions;
+using LiteBus.Orchestration.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Saga.Abstractions;
 
@@ -54,7 +54,7 @@ public sealed class SagaModule : IModule
         }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IInboxProcessorEnvelopeHook),
+            typeof(IProcessorEnvelopeHook),
             typeof(SagaProcessorHook),
             InstanceLifetime.Singleton));
     }

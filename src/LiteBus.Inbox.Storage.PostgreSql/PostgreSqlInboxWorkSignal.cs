@@ -13,6 +13,11 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 public sealed class PostgreSqlInboxWorkSignal : IInboxWorkSignal, IAsyncDisposable
 {
     /// <summary>
+    ///     The delay applied before reconnecting a broken listener connection.
+    /// </summary>
+    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(1);
+
+    /// <summary>
     ///     Signals that a notification arrived or the polling timeout elapsed.
     /// </summary>
     private readonly SemaphoreSlim _signal = new(0, int.MaxValue);
@@ -23,14 +28,29 @@ public sealed class PostgreSqlInboxWorkSignal : IInboxWorkSignal, IAsyncDisposab
     private readonly NpgsqlDataSource _dataSource;
 
     /// <summary>
-    ///     Serializes listener startup.
+    ///     Serializes listener startup and loop creation.
     /// </summary>
     private readonly SemaphoreSlim _listenerGate = new(1, 1);
+
+    /// <summary>
+    ///     Serializes listener loop startup.
+    /// </summary>
+    private readonly object _listenerLoopSync = new();
 
     /// <summary>
     ///     Gets the dedicated listener connection, if one has been opened.
     /// </summary>
     private NpgsqlConnection? _listenerConnection;
+
+    /// <summary>
+    ///     Cancels the background <see cref="NpgsqlConnection.WaitAsync" /> loop.
+    /// </summary>
+    private CancellationTokenSource? _listenerLoopCts;
+
+    /// <summary>
+    ///     The background task that blocks on <see cref="NpgsqlConnection.WaitAsync" /> until notifications arrive.
+    /// </summary>
+    private Task? _listenerLoopTask;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="PostgreSqlInboxWorkSignal" /> class.
@@ -44,6 +64,7 @@ public sealed class PostgreSqlInboxWorkSignal : IInboxWorkSignal, IAsyncDisposab
     /// <inheritdoc />
     public async Task WaitForWorkOrDelayAsync(TimeSpan pollInterval, CancellationToken cancellationToken = default)
     {
+        EnsureListenerLoopStarted();
         await EnsureListenerStartedAsync(cancellationToken).ConfigureAwait(false);
 
         if (pollInterval <= TimeSpan.Zero)
@@ -58,6 +79,36 @@ public sealed class PostgreSqlInboxWorkSignal : IInboxWorkSignal, IAsyncDisposab
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        CancellationTokenSource? listenerLoopCts;
+        Task? listenerLoopTask;
+
+        lock (_listenerLoopSync)
+        {
+            listenerLoopCts = _listenerLoopCts;
+            listenerLoopTask = _listenerLoopTask;
+            _listenerLoopCts = null;
+            _listenerLoopTask = null;
+        }
+
+        if (listenerLoopCts is not null)
+        {
+            await listenerLoopCts.CancelAsync().ConfigureAwait(false);
+        }
+
+        if (listenerLoopTask is not null)
+        {
+            try
+            {
+                await listenerLoopTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when the listener loop is cancelled during disposal.
+            }
+        }
+
+        listenerLoopCts?.Dispose();
+
         var connection = _listenerConnection;
         _listenerConnection = null;
 
@@ -72,13 +123,76 @@ public sealed class PostgreSqlInboxWorkSignal : IInboxWorkSignal, IAsyncDisposab
     }
 
     /// <summary>
+    ///     Starts the dedicated background loop that calls <see cref="NpgsqlConnection.WaitAsync" />.
+    /// </summary>
+    private void EnsureListenerLoopStarted()
+    {
+        lock (_listenerLoopSync)
+        {
+            if (_listenerLoopTask is not null)
+            {
+                return;
+            }
+
+            _listenerLoopCts = new CancellationTokenSource();
+            _listenerLoopTask = RunListenerLoopAsync(_listenerLoopCts.Token);
+        }
+    }
+
+    /// <summary>
+    ///     Blocks on <see cref="NpgsqlConnection.WaitAsync" /> and reconnects when the listener connection breaks.
+    /// </summary>
+    /// <param name="cancellationToken">A token that stops the background loop.</param>
+    /// <returns>A task that represents the listener loop.</returns>
+    private async Task RunListenerLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await EnsureListenerStartedAsync(cancellationToken).ConfigureAwait(false);
+
+                var connection = _listenerConnection;
+                if (connection is null)
+                {
+                    continue;
+                }
+
+                await connection.WaitAsync(cancellationToken).ConfigureAwait(false);
+                ReleaseSignal();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                InvalidateListenerConnection();
+
+                try
+                {
+                    await Task.Delay(ReconnectDelay, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    /// <summary>
     ///     Opens the listener connection and subscribes to inbox work notifications.
     /// </summary>
     /// <param name="cancellationToken">A token used to cancel listener startup.</param>
     /// <returns>A task that completes when the listener is ready.</returns>
     private async Task EnsureListenerStartedAsync(CancellationToken cancellationToken)
     {
-        if (_listenerConnection is not null)
+        if (_listenerConnection is { State: ConnectionState.Open })
         {
             return;
         }
@@ -87,9 +201,16 @@ public sealed class PostgreSqlInboxWorkSignal : IInboxWorkSignal, IAsyncDisposab
 
         try
         {
-            if (_listenerConnection is not null)
+            if (_listenerConnection is { State: ConnectionState.Open })
             {
                 return;
+            }
+
+            if (_listenerConnection is not null)
+            {
+                DetachListenerConnection(_listenerConnection);
+                await _listenerConnection.DisposeAsync().ConfigureAwait(false);
+                _listenerConnection = null;
             }
 
             var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -113,7 +234,7 @@ public sealed class PostgreSqlInboxWorkSignal : IInboxWorkSignal, IAsyncDisposab
     /// <param name="e">The notification payload.</param>
     private void OnNotification(object? sender, NpgsqlNotificationEventArgs e)
     {
-        _signal.Release();
+        ReleaseSignal();
     }
 
     /// <summary>
@@ -147,7 +268,7 @@ public sealed class PostgreSqlInboxWorkSignal : IInboxWorkSignal, IAsyncDisposab
 
         _listenerConnection = null;
         DetachListenerConnection(connection);
-        _signal.Release();
+        ReleaseSignal();
     }
 
     /// <summary>
@@ -158,5 +279,20 @@ public sealed class PostgreSqlInboxWorkSignal : IInboxWorkSignal, IAsyncDisposab
     {
         connection.Notification -= OnNotification;
         connection.StateChange -= OnListenerConnectionStateChange;
+    }
+
+    /// <summary>
+    ///     Releases one waiter without throwing when the semaphore has already been disposed.
+    /// </summary>
+    private void ReleaseSignal()
+    {
+        try
+        {
+            _signal.Release();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The work signal is shutting down.
+        }
     }
 }

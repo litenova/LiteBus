@@ -29,6 +29,8 @@ internal static class EfCoreRelationalLeaseExecutor
     /// <param name="batchSize">The lease batch size.</param>
     /// <param name="leaseOwner">The lease owner.</param>
     /// <param name="leaseExpiresAt">The lease expiration timestamp.</param>
+    /// <param name="tenantId">The optional tenant filter applied to candidate rows.</param>
+    /// <param name="staleCutoff">The earliest created timestamp eligible for stale in-flight reclaim.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The leased rows.</returns>
     internal static Task<List<TRow>> LeasePostgreSqlAsync<TRow>(
@@ -44,6 +46,8 @@ internal static class EfCoreRelationalLeaseExecutor
         int batchSize,
         string leaseOwner,
         DateTimeOffset leaseExpiresAt,
+        string? tenantId,
+        DateTimeOffset staleCutoff,
         CancellationToken cancellationToken)
         where TRow : class
     {
@@ -59,7 +63,9 @@ internal static class EfCoreRelationalLeaseExecutor
                 processingStatus,
                 batchSize,
                 leaseOwner,
-                leaseExpiresAt)
+                leaseExpiresAt,
+                (object?)tenantId ?? DBNull.Value,
+                staleCutoff)
             .ToListAsync(cancellationToken);
     }
 
@@ -79,6 +85,8 @@ internal static class EfCoreRelationalLeaseExecutor
     /// <param name="batchSize">The lease batch size.</param>
     /// <param name="leaseOwner">The lease owner.</param>
     /// <param name="leaseExpiresAt">The lease expiration timestamp.</param>
+    /// <param name="tenantId">The optional tenant filter applied to candidate rows.</param>
+    /// <param name="staleCutoff">The earliest created timestamp eligible for stale in-flight reclaim.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The leased rows.</returns>
     internal static Task<List<TRow>> LeaseSqlServerAsync<TRow>(
@@ -94,6 +102,8 @@ internal static class EfCoreRelationalLeaseExecutor
         int batchSize,
         string leaseOwner,
         DateTimeOffset leaseExpiresAt,
+        string? tenantId,
+        DateTimeOffset staleCutoff,
         CancellationToken cancellationToken)
         where TRow : class
     {
@@ -109,7 +119,9 @@ internal static class EfCoreRelationalLeaseExecutor
                 processingStatus,
                 batchSize,
                 leaseOwner,
-                leaseExpiresAt)
+                leaseExpiresAt,
+                (object?)tenantId ?? DBNull.Value,
+                staleCutoff)
             .ToListAsync(cancellationToken);
     }
 
@@ -129,6 +141,8 @@ internal static class EfCoreRelationalLeaseExecutor
     /// <param name="batchSize">The lease batch size.</param>
     /// <param name="leaseOwner">The lease owner.</param>
     /// <param name="leaseExpiresAt">The lease expiration timestamp.</param>
+    /// <param name="tenantId">The optional tenant filter applied to candidate rows.</param>
+    /// <param name="staleCutoff">The earliest created timestamp eligible for stale in-flight reclaim.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The leased rows.</returns>
     internal static async Task<List<TRow>> LeaseMySqlAsync<TRow>(
@@ -144,6 +158,8 @@ internal static class EfCoreRelationalLeaseExecutor
         int batchSize,
         string leaseOwner,
         DateTimeOffset leaseExpiresAt,
+        string? tenantId,
+        DateTimeOffset staleCutoff,
         CancellationToken cancellationToken)
         where TRow : class
     {
@@ -164,7 +180,9 @@ internal static class EfCoreRelationalLeaseExecutor
                     failedStatus,
                     now,
                     processingStatus,
-                    batchSize)
+                    batchSize,
+                    (object?)tenantId ?? DBNull.Value,
+                    staleCutoff)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -175,7 +193,7 @@ internal static class EfCoreRelationalLeaseExecutor
             }
 
             var candidateIds = candidateRows.ConvertAll(row => row.Value);
-            var updateInClause = BuildInClause(candidateIds.Count, startingIndex: 7);
+            var updateInClause = BuildInClause(candidateIds.Count, startingIndex: 9);
             var updateSql = updateSqlTemplate.Replace(EfCoreMySqlLeaseSql.InClauseToken, updateInClause, StringComparison.Ordinal);
             var updateParameters = BuildLeaseParameters(
                 pendingStatus,
@@ -185,6 +203,8 @@ internal static class EfCoreRelationalLeaseExecutor
                 batchSize,
                 leaseOwner,
                 leaseExpiresAt,
+                tenantId,
+                staleCutoff,
                 candidateIds);
 
             await dbContext.Database.ExecuteSqlRawAsync(updateSql, updateParameters, cancellationToken)
@@ -235,6 +255,8 @@ internal static class EfCoreRelationalLeaseExecutor
     /// <param name="batchSize">The lease batch size.</param>
     /// <param name="leaseOwner">The lease owner.</param>
     /// <param name="leaseExpiresAt">The lease expiration timestamp.</param>
+    /// <param name="tenantId">The optional tenant filter applied to candidate rows.</param>
+    /// <param name="staleCutoff">The earliest created timestamp eligible for stale in-flight reclaim.</param>
     /// <param name="candidateIds">The candidate identifiers.</param>
     /// <returns>The parameter array.</returns>
     private static object[] BuildLeaseParameters(
@@ -245,9 +267,11 @@ internal static class EfCoreRelationalLeaseExecutor
         int batchSize,
         string leaseOwner,
         DateTimeOffset leaseExpiresAt,
+        string? tenantId,
+        DateTimeOffset staleCutoff,
         IReadOnlyList<Guid> candidateIds)
     {
-        var parameters = new object[7 + candidateIds.Count];
+        var parameters = new object[9 + candidateIds.Count];
         parameters[0] = pendingStatus;
         parameters[1] = failedStatus;
         parameters[2] = now;
@@ -255,10 +279,12 @@ internal static class EfCoreRelationalLeaseExecutor
         parameters[4] = batchSize;
         parameters[5] = leaseOwner;
         parameters[6] = leaseExpiresAt;
+        parameters[7] = (object?)tenantId ?? DBNull.Value;
+        parameters[8] = staleCutoff;
 
         for (var index = 0; index < candidateIds.Count; index++)
         {
-            parameters[7 + index] = candidateIds[index];
+            parameters[9 + index] = candidateIds[index];
         }
 
         return parameters;

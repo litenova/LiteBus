@@ -26,9 +26,9 @@ internal static class EfCorePostgreSqlTestInfrastructure
     private static readonly SemaphoreSlim InboxSchemaLock = new(1, 1);
 
     /// <summary>
-    ///     Tracks whether the shared inbox table has been created.
+    ///     Tracks connection strings whose shared inbox schema has been created.
     /// </summary>
-    private static bool _inboxSchemaInitialized;
+    private static readonly HashSet<string> InitializedConnectionStrings = new(StringComparer.Ordinal);
 
     /// <summary>
     ///     Gets the store options used by inbox contract tests.
@@ -59,10 +59,41 @@ internal static class EfCorePostgreSqlTestInfrastructure
     /// <returns>The database context.</returns>
     internal static IntegrationInboxDbContext CreateInboxContext(string connectionString)
     {
-        var builder = new DbContextOptionsBuilder<IntegrationInboxDbContext>()
-            .UseNpgsql(connectionString);
+        return CreateInboxContext(connectionString, InboxOptions);
+    }
 
-        return new IntegrationInboxDbContext(builder.Options, InboxOptions);
+    /// <summary>
+    ///     Creates a PostgreSQL-backed inbox database context for the supplied store options.
+    /// </summary>
+    /// <param name="connectionString">The PostgreSQL connection string.</param>
+    /// <param name="storeOptions">The inbox store options.</param>
+    /// <returns>The database context.</returns>
+    internal static IntegrationInboxDbContext CreateInboxContext(
+        string connectionString,
+        EfCoreInboxStoreOptions storeOptions)
+    {
+        var builder = new DbContextOptionsBuilder<IntegrationInboxDbContext>()
+            .UseNpgsql(CreateScopedConnectionString(connectionString, storeOptions));
+
+        return new IntegrationInboxDbContext(builder.Options, storeOptions);
+    }
+
+    /// <summary>
+    ///     Builds a connection string scoped to one inbox table so EF model caching stays isolated per test table.
+    /// </summary>
+    /// <param name="connectionString">The base PostgreSQL connection string.</param>
+    /// <param name="storeOptions">The inbox store options.</param>
+    /// <returns>The scoped connection string.</returns>
+    internal static string CreateScopedConnectionString(
+        string connectionString,
+        EfCoreInboxStoreOptions storeOptions)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            ApplicationName = $"litebus_ef_{storeOptions.SchemaName}_{storeOptions.TableName}"
+        };
+
+        return builder.ConnectionString;
     }
 
     /// <summary>
@@ -71,7 +102,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
     /// <param name="connectionString">The PostgreSQL connection string.</param>
     private static async Task EnsureInboxSchemaOnceAsync(string connectionString)
     {
-        if (_inboxSchemaInitialized)
+        if (InitializedConnectionStrings.Contains(connectionString))
         {
             return;
         }
@@ -79,7 +110,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
         await InboxSchemaLock.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (_inboxSchemaInitialized)
+            if (!InitializedConnectionStrings.Add(connectionString))
             {
                 return;
             }
@@ -93,8 +124,6 @@ internal static class EfCorePostgreSqlTestInfrastructure
                     TableName = InboxTableName,
                     ValidateSchemaCreationOnStartup = false
                 }).ConfigureAwait(false);
-
-            _inboxSchemaInitialized = true;
         }
         finally
         {

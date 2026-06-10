@@ -16,32 +16,12 @@ public static class PostgreSqlInboxSchemaSqlPaths
     private const string Root = "src/LiteBus.Inbox.Storage.PostgreSql/Sql/";
 
     /// <summary>
-    ///     Creates the version 1 inbox table and indexes.
+    ///     Creates the version 1 inbox table, indexes, and insert notify trigger.
     /// </summary>
     public const string V1Create = Root + "inbox/v1/create.sql";
 
     /// <summary>
-    ///     Ensures inbox indexes exist for the current schema version.
+    ///     Ensures inbox indexes exist for schema version 1.
     /// </summary>
     public const string V1EnsureIndexes = Root + "inbox/v1/ensure_indexes.sql";
-
-    /// <summary>
-    ///     Shared version 2 upgrade that adds <c>trace_context</c>.
-    /// </summary>
-    public const string V2Upgrade = "src/LiteBus.Storage.PostgreSql/Sql/shared/add_trace_context_column.sql";
-
-    /// <summary>
-    ///     Upgrades the inbox table from version 2 to version 3 (message-neutral <c>message_id</c> and default table name).
-    /// </summary>
-    public const string V3Upgrade = Root + "inbox/v3/rename_message_identity.sql";
-
-    /// <summary>
-    ///     Upgrades the inbox table from version 3 to version 4 (insert notify trigger).
-    /// </summary>
-    public const string V4Upgrade = Root + "inbox/v4/add_insert_notify.sql";
-
-    /// <summary>
-    ///     Upgrades the inbox table from version 4 to version 5 (completed_at column).
-    /// </summary>
-    public const string V5Upgrade = Root + "inbox/v5/add_completed_at.sql";
 }

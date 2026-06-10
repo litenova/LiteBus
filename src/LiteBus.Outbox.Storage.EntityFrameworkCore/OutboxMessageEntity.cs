@@ -102,4 +102,29 @@ public sealed class OutboxMessageEntity
     ///     Gets or sets the optional UTC timestamp when the message reached the published state.
     /// </summary>
     public DateTimeOffset? PublishedAt { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the optional UTC timestamp of the most recent publication attempt.
+    /// </summary>
+    public DateTimeOffset? LastAttemptedAt { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the optional UTC timestamp when the message first entered a failed state.
+    /// </summary>
+    public DateTimeOffset? FirstFailedAt { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the optional UTC timestamp when the message was dead-lettered.
+    /// </summary>
+    public DateTimeOffset? DeadLetteredAt { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the optional lease owner recorded from the most recent publication attempt.
+    /// </summary>
+    public string? LastLeaseOwner { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the optional error classification from the most recent failure.
+    /// </summary>
+    public string? ErrorType { get; set; }
 }

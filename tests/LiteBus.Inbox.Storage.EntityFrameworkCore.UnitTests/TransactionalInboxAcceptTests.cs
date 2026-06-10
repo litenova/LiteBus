@@ -30,7 +30,7 @@ public sealed class TransactionalInboxAcceptTests
         var registry = new MessageContractRegistry();
         registry.Register<SubmitOrderCommand>("orders.commands.submit", 2);
 
-        var transactionalInbox = new TransactionalInbox(
+        var transactionalInbox = new TransactionalInbox<TransactionalInboxDbContext>(
             interceptor,
             context,
             registry,
@@ -70,6 +70,40 @@ public sealed class TransactionalInboxAcceptTests
         stored.Status.Should().Be(InboxStatus.Pending);
     }
 
+    /// <summary>
+    ///     Confirms transactional accept encrypts payloads the same way as <see cref="IInbox" />.
+    /// </summary>
+    [Fact]
+    public async Task AcceptAsync_should_encrypt_payload_when_protector_configured()
+    {
+        var databaseName = Guid.NewGuid().ToString("N");
+        var interceptor = new LiteBusInboxSaveChangesInterceptor();
+        var options = new DbContextOptionsBuilder<TransactionalInboxDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .AddLiteBusInboxInterceptor(interceptor)
+            .Options;
+
+        await using var context = new TransactionalInboxDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+        var registry = new MessageContractRegistry();
+        registry.Register<SubmitOrderCommand>("orders.commands.submit", 1);
+        IInboxPayloadProtector protector = new PrefixPayloadProtector("tx-inbox:");
+
+        var transactionalInbox = new TransactionalInbox<TransactionalInboxDbContext>(
+            interceptor,
+            context,
+            registry,
+            new SynchronousMessageSerializer(),
+            TimeProvider.System,
+            protector);
+
+        await transactionalInbox.AcceptAsync(new SubmitOrderCommand { OrderId = Guid.NewGuid() });
+        await context.SaveChangesAsync();
+
+        var stored = await context.InboxMessages.SingleAsync();
+        stored.Payload.Should().StartWith("tx-inbox:");
+    }
+
     private sealed record SubmitOrderCommand
     {
         public Guid OrderId { get; init; }
@@ -78,6 +112,31 @@ public sealed class TransactionalInboxAcceptTests
     /// <summary>
     ///     Serializes synchronously for deterministic unit test execution.
     /// </summary>
+    /// <summary>
+    ///     Prefix-based test encryptor for transactional inbox tests.
+    /// </summary>
+    private sealed class PrefixPayloadProtector : IInboxPayloadProtector
+    {
+        /// <summary>
+        ///     Gets the ciphertext prefix.
+        /// </summary>
+        private readonly string _prefix;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="PrefixPayloadProtector" /> class.
+        /// </summary>
+        /// <param name="prefix">The ciphertext prefix.</param>
+        public PrefixPayloadProtector(string prefix) => _prefix = prefix;
+
+        /// <inheritdoc />
+        public Task<string> EncryptAsync(string plaintext, CancellationToken cancellationToken = default)
+            => Task.FromResult(_prefix + plaintext);
+
+        /// <inheritdoc />
+        public Task<string> DecryptAsync(string ciphertext, CancellationToken cancellationToken = default)
+            => Task.FromResult(ciphertext[_prefix.Length..]);
+    }
+
     private sealed class SynchronousMessageSerializer : IMessageSerializer
     {
         /// <inheritdoc />

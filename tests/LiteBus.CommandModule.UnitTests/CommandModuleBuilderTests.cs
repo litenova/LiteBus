@@ -1,6 +1,7 @@
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,8 +15,11 @@ public sealed class CommandModuleBuilderTests : LiteBusTestBase
     {
         var act = () =>
         {
-            new ServiceCollection().AddLiteBus(modules =>
-                modules.AddCommandModule(module => module.RegisterFromAssembly(null!)));
+            new ServiceCollection().AddLiteBus(registry =>
+            {
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(module => module.RegisterFromAssembly(null!));
+            });
         };
 
         act.Should().Throw<ArgumentNullException>();
@@ -25,9 +29,10 @@ public sealed class CommandModuleBuilderTests : LiteBusTestBase
     public void RegisterFromAssembly_DoesNotRegisterMarkerInterfaces()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(module => module.RegisterFromAssembly(typeof(ICommand).Assembly));
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(module => module.RegisterFromAssembly(typeof(ICommand).Assembly));
             })
             .BuildServiceProvider();
 

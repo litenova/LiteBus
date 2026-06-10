@@ -1,0 +1,125 @@
+using LiteBus.Events;
+using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions;
+using LiteBus.Outbox;
+using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.Dispatch.InProcess;
+using LiteBus.Outbox.Storage.EntityFrameworkCore;
+using LiteBus.Outbox.Storage.PostgreSql;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
+
+namespace LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests;
+
+internal static class EfCoreOutboxE2eSupport
+{
+    internal static readonly DateTimeOffset BaseTime = new(2026, 5, 29, 12, 0, 0, TimeSpan.Zero);
+
+    internal static EfCoreOutboxStoreOptions CreateStoreOptions(string tableName)
+    {
+        return new EfCoreOutboxStoreOptions
+        {
+            SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
+            TableName = tableName
+        };
+    }
+
+    internal static async Task EnsureOutboxTableAsync(string connectionString, EfCoreOutboxStoreOptions storeOptions)
+    {
+        await using var dataSource = NpgsqlDataSource.Create(connectionString);
+        await PostgreSqlOutboxSchema.EnsureAsync(
+            dataSource,
+            new PostgreSqlOutboxStoreOptions
+            {
+                SchemaName = storeOptions.SchemaName,
+                TableName = storeOptions.TableName,
+                ValidateSchemaCreationOnStartup = false
+            });
+    }
+
+    internal static ServiceProvider BuildProvider<TDbContext>(
+        string connectionString,
+        EfCoreOutboxStoreOptions storeOptions,
+        OutboxE2eComposition composition)
+        where TDbContext : EfCoreOutboxE2eDbContext
+    {
+        var services = new ServiceCollection();
+
+        if (composition.Recorder is not null)
+        {
+            services.AddSingleton(composition.Recorder);
+        }
+
+        if (composition.UseFailingDispatcher)
+        {
+            services.AddSingleton<IOutboxDispatcher, AlwaysFailingOutboxDispatcher>();
+        }
+
+        services.AddScoped<TDbContext>(_ =>
+        {
+            var builder = new DbContextOptionsBuilder<TDbContext>()
+                .UseNpgsql(EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(connectionString, storeOptions));
+            return (TDbContext)Activator.CreateInstance(typeof(TDbContext), builder.Options, storeOptions)!;
+        });
+
+        services.AddLiteBus(registry =>
+        {
+            registry.AddMessageModule(_ => { });
+            registry.AddEventModule(module =>
+            {
+                module.Register<OrderSubmittedEventHandler>();
+            });
+
+            registry.AddOutboxModule(outbox =>
+            {
+                outbox.UseEfCoreStorage(builder =>
+                {
+                    builder.UseDbContext<TDbContext>();
+                    builder.UseOptions(storeOptions);
+                });
+
+                outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                outbox.UseProcessorOptions(new OutboxProcessorOptions
+                {
+                    BatchSize = 10,
+                    LeaseOwner = composition.LeaseOwner,
+                    Retry = new RetryOptions
+                    {
+                        MaxAttempts = composition.MaxAttempts,
+                        InitialDelay = composition.InitialDelay ?? TimeSpan.Zero,
+                        UseJitter = false
+                    }
+                });
+
+                if (!composition.UseFailingDispatcher)
+                {
+                    outbox.UseEventOutboxDispatcher();
+                }
+            });
+        });
+
+        if (composition.Clock is not null)
+        {
+            services.AddSingleton<TimeProvider>(composition.Clock);
+        }
+
+        return services.BuildServiceProvider();
+    }
+}
+
+internal sealed class OutboxE2eComposition
+{
+    public EventRecorder? Recorder { get; init; }
+
+    public TimeProvider? Clock { get; init; }
+
+    public bool UseFailingDispatcher { get; init; }
+
+    public int MaxAttempts { get; init; } = 5;
+
+    public TimeSpan? InitialDelay { get; init; }
+
+    public string LeaseOwner { get; init; } = "efcore-outbox-e2e";
+}

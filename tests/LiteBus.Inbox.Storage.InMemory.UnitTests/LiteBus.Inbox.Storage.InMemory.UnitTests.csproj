@@ -20,7 +20,7 @@
         <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>
         <ProjectReference Include="..\LiteBus.Storage.Testing\LiteBus.Storage.Testing.csproj"/>
-        <ProjectReference Include="..\LiteBus.Testing\LiteBus.Testing.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
     </ItemGroup>
 
 </Project>

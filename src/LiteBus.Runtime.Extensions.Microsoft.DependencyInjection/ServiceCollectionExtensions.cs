@@ -20,31 +20,31 @@ public static class ServiceCollectionExtensions
     ///     Adds LiteBus to the service collection with the specified module configuration.
     /// </summary>
     /// <param name="services">The service collection to add LiteBus to.</param>
-    /// <param name="configureModules">Action to configure LiteBus modules through <see cref="IModuleRegistry" />.</param>
+    /// <param name="configureRegistry">Action to configure LiteBus through <see cref="IModuleRegistry" />.</param>
     /// <returns>The service collection for method chaining.</returns>
     /// <exception cref="ArgumentNullException">
-    ///     Thrown when <paramref name="services" /> or <paramref name="configureModules" /> is <see langword="null" />.
+    ///     Thrown when <paramref name="services" /> or <paramref name="configureRegistry" /> is <see langword="null" />.
     /// </exception>
     /// <example>
     ///     <code>
-    /// services.AddLiteBus(modules =>
+    /// services.AddLiteBus(registry =>
     /// {
-    ///     modules.AddMessageModule(messaging => messaging.RegisterFromAssembly(assembly));
-    ///     modules.AddCommandModule(commands => commands.RegisterFromAssembly(assembly));
+    ///     registry.AddMessageModule(messaging => messaging.RegisterFromAssembly(assembly));
+    ///     registry.AddCommandModule(commands => commands.RegisterFromAssembly(assembly));
     /// });
     /// </code>
     /// </example>
     public static IServiceCollection AddLiteBus(
         this IServiceCollection services,
-        Action<IModuleRegistry> configureModules)
+        Action<IModuleRegistry> configureRegistry)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configureModules);
+        ArgumentNullException.ThrowIfNull(configureRegistry);
 
         var dependencyRegistryAdapter = new MicrosoftDependencyRegistryAdapter(services);
         var moduleRegistry = new ModuleRegistry();
 
-        configureModules(moduleRegistry);
+        configureRegistry(moduleRegistry);
 
         var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
 

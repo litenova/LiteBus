@@ -24,8 +24,10 @@ internal static class EfCoreSqlServerLeaseSql
                    SELECT TOP ({4}) [__ID_COLUMN__]
                    FROM __TABLE__ WITH (UPDLOCK, READPAST, ROWLOCK)
                    WHERE
-                       (([status] IN ({0}, {1}) AND ([visible_after] IS NULL OR [visible_after] <= {2}))
-                        OR ([status] = {3} AND [lease_expires_at] IS NOT NULL AND [lease_expires_at] <= {2}))
+                       ({7} IS NULL OR [tenant_id] = {7})
+                       AND (([status] IN ({0}, {1}) AND ([visible_after] IS NULL OR [visible_after] <= {2}))
+                        OR ([status] = {3} AND [lease_expires_at] IS NOT NULL AND [lease_expires_at] <= {2})
+                        OR ([status] = {3} AND [lease_expires_at] IS NULL AND [created_at] < {8}))
                    ORDER BY [created_at] ASC
                )
                UPDATE [__ALIAS__]

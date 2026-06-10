@@ -7,7 +7,7 @@ using Npgsql;
 namespace LiteBus.Storage.PostgreSql;
 
 /// <summary>
-///     Creates, upgrades, and validates LiteBus PostgreSQL store schemas.
+///     Creates and validates LiteBus PostgreSQL store schemas at schema version 1.
 /// </summary>
 internal static class PostgreSqlSchemaManager
 {
@@ -22,7 +22,7 @@ internal static class PostgreSqlSchemaManager
     private static readonly TimeSpan DefaultLockPollInterval = TimeSpan.FromMilliseconds(200);
 
     /// <summary>
-    ///     Creates or upgrades one LiteBus PostgreSQL store schema to the current package version.
+    ///     Creates one LiteBus PostgreSQL store schema when required.
     /// </summary>
     /// <param name="dataSource">The PostgreSQL data source.</param>
     /// <param name="options">The store table and metadata options.</param>
@@ -143,7 +143,7 @@ internal static class PostgreSqlSchemaManager
     }
 
     /// <summary>
-    ///     Creates, upgrades, indexes, and records the schema version while holding the advisory lock.
+    ///     Creates the schema when missing, ensures indexes, and records version metadata while holding the advisory lock.
     /// </summary>
     /// <param name="connection">The open PostgreSQL connection.</param>
     /// <param name="options">The store table and metadata options.</param>
@@ -161,15 +161,6 @@ internal static class PostgreSqlSchemaManager
         await PostgreSqlSchemaVersionStore.EnsureMetadataTableAsync(connection, options, logger, cancellationToken)
             .ConfigureAwait(false);
 
-        var recordedVersion = await PostgreSqlSchemaVersionStore.GetVersionAsync(
-                connection,
-                options,
-                definition.Component,
-                options.SchemaName,
-                options.TableName,
-                cancellationToken)
-            .ConfigureAwait(false);
-
         var tableExists = await PostgreSqlSchemaInspector.TableExistsAsync(
                 connection,
                 options.SchemaName,
@@ -177,36 +168,7 @@ internal static class PostgreSqlSchemaManager
                 cancellationToken)
             .ConfigureAwait(false);
 
-        var currentVersion = recordedVersion;
-
-        if (tableExists)
-        {
-            var columns = await PostgreSqlSchemaInspector.GetColumnNamesAsync(
-                    connection,
-                    options.SchemaName,
-                    options.TableName,
-                    cancellationToken)
-                .ConfigureAwait(false);
-
-            var inferredVersion = PostgreSqlSchemaInspector.InferVersionFromColumns(
-                columns,
-                definition.VersionColumnSets);
-
-            if (inferredVersion < currentVersion)
-            {
-                // Do not downgrade a recorded version to zero when inference cannot see renamed columns (inbox schema v3).
-                if (inferredVersion > 0 || currentVersion == 0)
-                {
-                    currentVersion = inferredVersion;
-                }
-            }
-            else if (currentVersion == 0 || inferredVersion > currentVersion)
-            {
-                currentVersion = inferredVersion;
-            }
-        }
-
-        if (currentVersion == 0 && !tableExists)
+        if (!tableExists)
         {
             logger.Log(
                 PostgreSqlSchemaLogLevel.Information,
@@ -218,25 +180,31 @@ internal static class PostgreSqlSchemaManager
                     logger,
                     cancellationToken)
                 .ConfigureAwait(false);
-            currentVersion = 1;
         }
 
-        while (currentVersion < definition.CurrentSchemaVersion)
+        var columns = await PostgreSqlSchemaInspector.GetColumnNamesAsync(
+                connection,
+                options.SchemaName,
+                options.TableName,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var inferredVersion = PostgreSqlSchemaInspector.InferVersionFromColumns(
+            columns,
+            definition.VersionColumnSets);
+
+        if (inferredVersion < definition.CurrentSchemaVersion)
         {
-            var nextVersion = currentVersion + 1;
+            if (tableExists)
+            {
+                logger.Log(
+                    PostgreSqlSchemaLogLevel.Warning,
+                    $"{definition.Component} table '{options.SchemaName}.{options.TableName}' exists but does not " +
+                    $"match schema version {definition.CurrentSchemaVersion}. Recreate the table or apply " +
+                    "GetCreateScript() through your migration pipeline.");
+            }
 
-            logger.Log(
-                PostgreSqlSchemaLogLevel.Information,
-                $"Upgrading {definition.Component} schema from version {currentVersion} to {nextVersion} " +
-                $"for '{options.SchemaName}.{options.TableName}'.");
-
-            await PostgreSqlSchemaExecutor.ExecuteScriptAsync(
-                    connection,
-                    definition.BuildUpgradeScript(options, currentVersion, nextVersion),
-                    logger,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            currentVersion = nextVersion;
+            return;
         }
 
         await PostgreSqlSchemaExecutor.ExecuteScriptAsync(
@@ -362,7 +330,7 @@ internal static class PostgreSqlSchemaManager
                 options.TableName,
                 definition.CurrentSchemaVersion,
                 recordedVersion,
-                "Run EnsureAsync or apply the published upgrade scripts before starting the application.");
+                "Run EnsureAsync or apply GetCreateScript() before starting the application.");
 
             logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
             throw exception;

@@ -17,7 +17,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\LiteBus.Events.Extensions.Microsoft.DependencyInjection\LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj"/>
-        <ProjectReference Include="..\LiteBus.Testing\LiteBus.Testing.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
     </ItemGroup>
 
 </Project>

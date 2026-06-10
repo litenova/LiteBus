@@ -17,6 +17,16 @@ public sealed record OutboxMessageFilter
     };
 
     /// <summary>
+    ///     Gets the message identifier that must match when set.
+    /// </summary>
+    public Guid? MessageId { get; init; }
+
+    /// <summary>
+    ///     Gets the message identifiers that must match when set.
+    /// </summary>
+    public IReadOnlyList<Guid>? MessageIds { get; init; }
+
+    /// <summary>
     ///     Gets the statuses that must match when set. When <see langword="null" /> or empty, status is not filtered.
     /// </summary>
     public IReadOnlyList<OutboxStatus>? Statuses { get; init; }

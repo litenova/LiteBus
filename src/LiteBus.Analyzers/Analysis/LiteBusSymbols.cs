@@ -14,9 +14,14 @@ internal static class LiteBusSymbols
     internal static readonly ImmutableArray<string> ImpureDependencyMetadataNames = ImmutableArray.Create(
         "LiteBus.Commands.Abstractions.ICommandMediator",
         "LiteBus.Events.Abstractions.IEventMediator",
-        "LiteBus.Events.Abstractions.IEventMediator",
         "LiteBus.Inbox.Abstractions.IInbox",
-        "LiteBus.Outbox.Abstractions.IOutbox");
+        "LiteBus.Inbox.Abstractions.ITransactionalInbox`1",
+        "LiteBus.Inbox.Abstractions.IInboxStore",
+        "LiteBus.Inbox.Abstractions.ITransactionalInboxStore",
+        "LiteBus.Outbox.Abstractions.IOutbox",
+        "LiteBus.Outbox.Abstractions.IOutboxStore",
+        "LiteBus.Outbox.Abstractions.ITransactionalOutboxStore",
+        "LiteBus.Transport.Abstractions.IMessageTransport");
 
     /// <summary>
     ///     Resolves a type symbol from the compilation using its metadata name.

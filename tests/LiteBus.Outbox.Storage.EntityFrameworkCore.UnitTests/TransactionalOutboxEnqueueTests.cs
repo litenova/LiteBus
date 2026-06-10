@@ -30,15 +30,15 @@ public sealed class TransactionalOutboxEnqueueTests
         var registry = new MessageContractRegistry();
         registry.Register<OrderSubmittedEvent>("orders.events.submitted", 2);
 
-        var transactionalOutbox = new TransactionalOutbox(
+        var transactionalOutbox = new TransactionalOutbox<TransactionalOutboxDbContext>(
             interceptor,
+            context,
             registry,
             new SynchronousMessageSerializer(),
             TimeProvider.System);
 
         var orderId = Guid.NewGuid();
         var receipt = await transactionalOutbox.EnqueueAsync(
-            context,
             new OrderSubmittedEvent { OrderId = orderId },
             new OutboxOptions
             {
@@ -72,6 +72,40 @@ public sealed class TransactionalOutboxEnqueueTests
         stored.Status.Should().Be(OutboxStatus.Pending);
     }
 
+    /// <summary>
+    ///     Confirms transactional enqueue encrypts payloads the same way as <see cref="IOutbox" />.
+    /// </summary>
+    [Fact]
+    public async Task EnqueueAsync_should_encrypt_payload_when_protector_configured()
+    {
+        var databaseName = Guid.NewGuid().ToString("N");
+        var interceptor = new LiteBusOutboxSaveChangesInterceptor();
+        var options = new DbContextOptionsBuilder<TransactionalOutboxDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .AddLiteBusOutboxInterceptor(interceptor)
+            .Options;
+
+        await using var context = new TransactionalOutboxDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+        var registry = new MessageContractRegistry();
+        registry.Register<OrderSubmittedEvent>("orders.events.submitted", 1);
+        IOutboxPayloadProtector protector = new PrefixPayloadProtector("tx-outbox:");
+
+        var transactionalOutbox = new TransactionalOutbox<TransactionalOutboxDbContext>(
+            interceptor,
+            context,
+            registry,
+            new SynchronousMessageSerializer(),
+            TimeProvider.System,
+            protector);
+
+        await transactionalOutbox.EnqueueAsync(new OrderSubmittedEvent { OrderId = Guid.NewGuid() });
+        await context.SaveChangesAsync();
+
+        var stored = await context.OutboxMessages.SingleAsync();
+        stored.Payload.Should().StartWith("tx-outbox:");
+    }
+
     private sealed record OrderSubmittedEvent
     {
         public Guid OrderId { get; init; }
@@ -80,6 +114,31 @@ public sealed class TransactionalOutboxEnqueueTests
     /// <summary>
     ///     Serializes synchronously so enqueue and save run on the same test execution flow.
     /// </summary>
+    /// <summary>
+    ///     Prefix-based test encryptor for transactional outbox tests.
+    /// </summary>
+    private sealed class PrefixPayloadProtector : IOutboxPayloadProtector
+    {
+        /// <summary>
+        ///     Gets the ciphertext prefix.
+        /// </summary>
+        private readonly string _prefix;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="PrefixPayloadProtector" /> class.
+        /// </summary>
+        /// <param name="prefix">The ciphertext prefix.</param>
+        public PrefixPayloadProtector(string prefix) => _prefix = prefix;
+
+        /// <inheritdoc />
+        public Task<string> EncryptAsync(string plaintext, CancellationToken cancellationToken = default)
+            => Task.FromResult(_prefix + plaintext);
+
+        /// <inheritdoc />
+        public Task<string> DecryptAsync(string ciphertext, CancellationToken cancellationToken = default)
+            => Task.FromResult(ciphertext[_prefix.Length..]);
+    }
+
     private sealed class SynchronousMessageSerializer : IMessageSerializer
     {
         /// <inheritdoc />

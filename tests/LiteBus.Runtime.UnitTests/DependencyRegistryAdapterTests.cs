@@ -160,6 +160,39 @@ public sealed class DependencyRegistryAdapterTests
     }
 
     [Fact]
+    public void MicrosoftAdapter_RegisterCollection_ShouldAllowMultipleImplementations()
+    {
+        var services = new ServiceCollection();
+        var adapter = new MicrosoftDependencyRegistryAdapter(services);
+
+        adapter.RegisterCollection(DependencyDescriptor.ForCollection(typeof(ITestService), typeof(TestServiceA)));
+        adapter.RegisterCollection(DependencyDescriptor.ForCollection(typeof(ITestService), typeof(TestServiceB)));
+
+        adapter.Count.Should().Be(2);
+        services.Count(service => service.ServiceType == typeof(ITestService)).Should().Be(2);
+
+        using var provider = services.BuildServiceProvider();
+        provider.GetServices<ITestService>().Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void AutofacAdapter_RegisterCollection_ShouldAllowMultipleImplementations()
+    {
+        var builder = new ContainerBuilder();
+        var adapter = new AutofacDependencyRegistryAdapter(builder);
+
+        adapter.RegisterCollection(DependencyDescriptor.ForCollection(typeof(ITestService), typeof(TestServiceA)));
+        adapter.RegisterCollection(DependencyDescriptor.ForCollection(typeof(ITestService), typeof(TestServiceB)));
+
+        RegisterServiceProviderAdapterForTests(builder);
+
+        adapter.Count.Should().Be(2);
+
+        using var container = builder.Build();
+        container.Resolve<IEnumerable<ITestService>>().Should().HaveCount(2);
+    }
+
+    [Fact]
     public void AutofacAddLiteBus_RegisterBackgroundServiceTwice_ShouldResolveSingleHostedService()
     {
         var builder = new ContainerBuilder();
@@ -175,5 +208,16 @@ public sealed class DependencyRegistryAdapterTests
 
         using var container = builder.Build();
         container.Resolve<IEnumerable<IHostedService>>().Should().HaveCount(1);
+    }
+
+    /// <summary>
+    ///     Registers the Autofac service provider adapter used by production <c>AddLiteBus</c> configuration.
+    /// </summary>
+    /// <param name="builder">The Autofac container builder receiving the adapter registration.</param>
+    private static void RegisterServiceProviderAdapterForTests(ContainerBuilder builder)
+    {
+        builder.Register(c => (IServiceProvider)new AutofacServiceProviderAdapter(c.Resolve<ILifetimeScope>()))
+            .As<IServiceProvider>()
+            .InstancePerLifetimeScope();
     }
 }

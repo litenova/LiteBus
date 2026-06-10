@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Inbox.Abstractions;
 
@@ -21,22 +24,22 @@ public sealed class InboxModuleBuilder
     /// <summary>
     ///     The configured storage sub-module, if any.
     /// </summary>
-    private object? _storageModule;
+    private IInboxStorageModule? _storageModule;
 
     /// <summary>
     ///     The configured dispatcher sub-module, if any.
     /// </summary>
-    private object? _dispatcherModule;
+    private IInboxDispatcherModule? _dispatcherModule;
 
     /// <summary>
     ///     Ingress sub-modules registered for this inbox.
     /// </summary>
-    private readonly List<object> _ingressModules = [];
+    private readonly List<IInboxIngressModule> _ingressModules = [];
 
     /// <summary>
     ///     Saga sub-modules registered for this inbox.
     /// </summary>
-    private readonly List<object> _sagaModules = [];
+    private readonly List<IModule> _sagaModules = [];
 
     /// <summary>
     ///     The optional payload encryptor registered through <see cref="UsePayloadEncryption" />.
@@ -141,13 +144,13 @@ public sealed class InboxModuleBuilder
     /// </summary>
     /// <param name="storageModule">The storage module to register as a child of the inbox module.</param>
     /// <returns>The current builder.</returns>
-    public InboxModuleBuilder RegisterStorage(object storageModule)
+    public InboxModuleBuilder RegisterStorage(IInboxStorageModule storageModule)
     {
         ArgumentNullException.ThrowIfNull(storageModule);
 
         if (_storageModule is not null)
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 "Inbox storage is already configured. " +
                 "Call only one of UsePostgreSqlStorage, UseEfCoreStorage, " +
                 "or UseInMemoryStorage.");
@@ -159,19 +162,19 @@ public sealed class InboxModuleBuilder
 
     /// <summary>
     ///     Registers the dispatcher sub-module. Exactly one dispatcher must be
-    ///     registered. Called by extension methods such as UseInProcessDispatcher().
+    ///     registered. Called by extension methods such as UseCommandInboxDispatcher().
     /// </summary>
     /// <param name="dispatcherModule">The dispatcher module to register as a child of the inbox module.</param>
     /// <returns>The current builder.</returns>
-    public InboxModuleBuilder RegisterDispatcher(object dispatcherModule)
+    public InboxModuleBuilder RegisterDispatcher(IInboxDispatcherModule dispatcherModule)
     {
         ArgumentNullException.ThrowIfNull(dispatcherModule);
 
         if (_dispatcherModule is not null)
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 "Inbox dispatcher is already configured. " +
-                "Call only one of UseInProcessDispatcher or UseTransport.");
+                "Call only one inbox dispatcher registration method such as UseCommandInboxDispatcher or a broker-specific Use*Dispatch extension.");
         }
 
         _dispatcherModule = dispatcherModule;
@@ -184,7 +187,7 @@ public sealed class InboxModuleBuilder
     /// </summary>
     /// <param name="ingressModule">The ingress module to register as a child of the inbox module.</param>
     /// <returns>The current builder.</returns>
-    public InboxModuleBuilder RegisterIngress(object ingressModule)
+    public InboxModuleBuilder RegisterIngress(IInboxIngressModule ingressModule)
     {
         ArgumentNullException.ThrowIfNull(ingressModule);
         _ingressModules.Add(ingressModule);
@@ -192,11 +195,11 @@ public sealed class InboxModuleBuilder
     }
 
     /// <summary>
-    ///     Registers a saga sub-module. Called by extension methods such as EnableSagaSupport().
+    ///     Registers a saga sub-module. Called by extension methods such as <c>EnableSaga()</c>.
     /// </summary>
     /// <param name="sagaModule">The saga module to register as a child of the inbox module.</param>
     /// <returns>The current builder.</returns>
-    public InboxModuleBuilder RegisterSaga(object sagaModule)
+    public InboxModuleBuilder RegisterSaga(IModule sagaModule)
     {
         ArgumentNullException.ThrowIfNull(sagaModule);
         _sagaModules.Add(sagaModule);
@@ -250,9 +253,9 @@ public sealed class InboxModuleBuilder
     ///     Collects configured sub-modules in storage, dispatcher, then ingress order.
     /// </summary>
     /// <returns>The sub-modules declared on this builder.</returns>
-    public IReadOnlyList<object> CollectSubModules()
+    public IReadOnlyList<IModule> CollectSubModules()
     {
-        var modules = new List<object>();
+        var modules = new List<IModule>();
         if (_storageModule is not null)
         {
             modules.Add(_storageModule);
@@ -264,7 +267,8 @@ public sealed class InboxModuleBuilder
         }
 
         modules.AddRange(_ingressModules);
-        modules.AddRange(_sagaModules);
+        modules.AddRange(_sagaModules.Where(static module => module is ISagaStoreModule));
+        modules.AddRange(_sagaModules.Where(static module => module is not ISagaStoreModule));
         return modules;
     }
 

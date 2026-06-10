@@ -24,7 +24,7 @@ public sealed class PayloadEncryptionTests
     public async Task Inbox_RoundTripsEncryptedPayloadThroughDispatch()
     {
         var store = new InMemoryInboxStore();
-        var encryptor = new PrefixPayloadEncryptor("enc:");
+        IInboxPayloadProtector encryptor = new PrefixPayloadEncryptor("enc:");
         var registry = new MessageContractRegistry();
         registry.Register<TestCommand>("test-command");
         var serializer = new SystemTextJsonMessageSerializer();
@@ -44,7 +44,7 @@ public sealed class PayloadEncryptionTests
     /// <summary>
     ///     Prefix-based test encryptor.
     /// </summary>
-    private sealed class PrefixPayloadEncryptor : IPayloadEncryptor
+    private sealed class PrefixPayloadEncryptor : IInboxPayloadProtector
     {
         /// <summary>
         ///     The ciphertext prefix.
@@ -95,14 +95,14 @@ public sealed class PayloadEncryptionTests
         /// <summary>
         ///     Gets the encryptor used to decrypt stored payloads.
         /// </summary>
-        private readonly IPayloadEncryptor _encryptor;
+        private readonly IInboxPayloadProtector _encryptor;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="CapturingInboxDispatcher" /> class.
         /// </summary>
         /// <param name="serializer">The serializer used to hydrate payloads.</param>
         /// <param name="encryptor">The encryptor used to decrypt stored payloads.</param>
-        public CapturingInboxDispatcher(IMessageSerializer serializer, IPayloadEncryptor encryptor)
+        public CapturingInboxDispatcher(IMessageSerializer serializer, IInboxPayloadProtector encryptor)
         {
             _serializer = serializer;
             _encryptor = encryptor;

@@ -15,7 +15,14 @@ CREATE TABLE IF NOT EXISTS {{QualifiedTableName}} (
     last_error text NULL,
     correlation_id text NULL,
     causation_id text NULL,
-    tenant_id text NULL
+    tenant_id text NULL,
+    trace_context jsonb NULL,
+    completed_at timestamptz NULL,
+    last_attempted_at timestamptz NULL,
+    first_failed_at timestamptz NULL,
+    dead_lettered_at timestamptz NULL,
+    last_lease_owner text NULL,
+    error_type text NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS {{IdempotencyIndexName}}
@@ -24,3 +31,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS {{IdempotencyIndexName}}
 
 CREATE INDEX IF NOT EXISTS {{LeaseIndexName}}
     ON {{QualifiedTableName}} (status, visible_after, lease_expires_at, created_at);
+
+CREATE OR REPLACE FUNCTION {{QuotedSchemaName}}.{{NotifyFunctionName}}()
+RETURNS trigger AS $$
+BEGIN
+    PERFORM pg_notify('{{NotifyChannelName}}', '');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS {{NotifyTriggerName}} ON {{QualifiedTableName}};
+
+CREATE TRIGGER {{NotifyTriggerName}}
+    AFTER INSERT ON {{QualifiedTableName}}
+    FOR EACH ROW
+    EXECUTE FUNCTION {{QuotedSchemaName}}.{{NotifyFunctionName}}();

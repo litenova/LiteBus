@@ -1,23 +1,33 @@
 using System.Collections.Generic;
 using System.Text.Json;
-using LiteBus.Transport.Amqp;
 using LiteBus.Commands;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.InProcess;
+using LiteBus.Inbox.Dispatch;
+using LiteBus.Inbox.Dispatch.Amqp;
+using LiteBus.Inbox.Ingress;
 using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
-using LiteBus.Testing;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Runtime.Abstractions.Hosting;
+using LiteBus.Testing;
+using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Inbox.Ingress.Amqp.IntegrationTests;
 
+/// <summary>
+///     End-to-end AMQP ingress tests that verify store, processor, and transport dispatch.
+/// </summary>
 public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
 {
+    /// <summary>
+    ///     Verifies the RabbitMQ ingress, processor, and transport dispatch flow.
+    /// </summary>
+    /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
     [Fact]
     public async Task PublishThroughRabbitMq_ShouldAcceptProcessAndDispatchCommand()
     {
@@ -34,6 +44,10 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
         }
     }
 
+    /// <summary>
+    ///     Verifies the LavinMQ ingress, processor, and transport dispatch flow.
+    /// </summary>
+    /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
     [Fact]
     public async Task PublishThroughLavinMq_ShouldAcceptProcessAndDispatchCommand()
     {
@@ -51,31 +65,28 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
     }
 
     /// <summary>
-    ///     Runs the publish, ingress, store, processor, and command dispatch flow against one broker.
+    ///     Runs the publish, ingress, store, processor, and transport dispatch flow against one broker.
     /// </summary>
     /// <param name="connectionOptions">The broker connection options.</param>
     /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
     private static async Task RunEndToEndAsync(AmqpConnectionOptions connectionOptions)
     {
-        const string queueNamePrefix = "litebus.inbox.ingress.tests";
-        var queueName = $"{queueNamePrefix}.{Guid.NewGuid():N}";
-        var recorder = new CommandRecorder();
+        const string contractName = "orders.commands.ship";
+        var ingressQueue = $"litebus.inbox.ingress.{Guid.NewGuid():N}";
+        var dispatchQueue = $"litebus.inbox.dispatch.{Guid.NewGuid():N}";
         var orderId = Guid.NewGuid();
+        var messageId = Guid.NewGuid();
+
+        await AmqpTestInfrastructure.DeclareQueueAsync(connectionOptions, ingressQueue);
+        await AmqpTestInfrastructure.DeclareQueueAsync(connectionOptions, dispatchQueue);
 
         var services = new ServiceCollection();
-        services.AddSingleton(recorder);
-
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(registry =>
         {
-            modules.AddCommandModule(module =>
+            registry.AddMessageModule(_ => { });
+            registry.AddInboxModule(inbox =>
             {
-                module.Register<ShipOrderCommand>();
-                module.Register<ShipOrderCommandHandler>();
-            });
-
-            modules.AddInboxModule(inbox =>
-            {
-                inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
+                inbox.Contracts.Register<ShipOrderCommand>(contractName, 1);
                 inbox.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 10,
@@ -84,29 +95,32 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
                 });
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
                 inbox.UseInMemoryStorage();
-            });
-            modules.AddInboxInProcessDispatcher();
-
-            modules.AddInboxAmqpIngress(ingress =>
-            {
-                ingress.UseOptions(new AmqpInboxIngressOptions
+                inbox.UseAmqpDispatch(
+                    transport =>
+                    {
+                        transport.DefaultDestination = string.Empty;
+                        transport.ResolveRoute = _ => dispatchQueue;
+                    }, connectionOptions);
+                inbox.UseAmqpIngress(ingress =>
                 {
-                    QueueName = queueName,
-                    PrefetchCount = 1,
-                    Connection = connectionOptions
+                    ingress.UseOptions(new AmqpInboxIngressOptions
+                    {
+                        QueueName = ingressQueue,
+                        PrefetchCount = 1,
+                        Connection = connectionOptions
+                    });
                 });
             });
         });
 
         await using var provider = services.BuildServiceProvider();
-        var hostedServices = provider.GetServices<IHostedService>().ToList();
-        hostedServices.Should().HaveCount(2);
+        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
+        manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
+        manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
 
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        foreach (var hostedService in hostedServices)
-        {
-            await hostedService.StartAsync(runCts.Token);
-        }
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
+        var hostedServices = provider.GetServices<IHostedService>().ToList();
 
         await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
 
@@ -119,35 +133,31 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
             await publisher.PublishAsync(new AmqpPublishRequest
             {
                 Exchange = string.Empty,
-                RoutingKey = queueName,
+                RoutingKey = ingressQueue,
                 Body = payload,
                 Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
-                    [AmqpHeaders.MessageId] = Guid.NewGuid().ToString(),
-                    [AmqpHeaders.ContractName] = "orders.commands.ship",
+                    [AmqpHeaders.MessageId] = messageId.ToString("D"),
+                    [AmqpHeaders.ContractName] = contractName,
                     [AmqpHeaders.ContractVersion] = "1"
                 }
             });
 
-            var deadline = DateTime.UtcNow.AddSeconds(30);
-            while (DateTime.UtcNow < deadline)
-            {
-                if (recorder.Commands.Any(recorded => recorded.OrderId == orderId))
-                {
-                    break;
-                }
+            var (body, headers) = await AmqpTestInfrastructure.ReceiveOneAsync(
+                connectionOptions,
+                dispatchQueue,
+                TimeSpan.FromSeconds(30));
 
-                await Task.Delay(100);
-            }
+            body.Should().Contain(orderId.ToString());
+            AmqpHeaderValues.GetString(headers, AmqpHeaders.MessageId).Should().Be(messageId.ToString("D"));
+            AmqpHeaderValues.GetString(headers, AmqpHeaders.ContractName).Should().Be(contractName);
 
-            recorder.Commands.Should().ContainSingle(recorded => recorded.OrderId == orderId);
+            var store = provider.GetRequiredService<InMemoryInboxStore>();
+            store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
         }
         finally
         {
-            foreach (var hostedService in hostedServices)
-            {
-                await hostedService.StopAsync(CancellationToken.None);
-            }
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
         }
     }
 }

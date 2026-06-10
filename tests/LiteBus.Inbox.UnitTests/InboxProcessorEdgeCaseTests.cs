@@ -3,9 +3,11 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Orchestration.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -85,9 +87,9 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldProcessMultipleCommandsInSinglePass()
     {
-        var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
-        await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10);
+        await using var provider = BuildProcessorProvider(recorder, batchSize: 10);
+        var store = provider.GetRequiredService<InMemoryInboxStore>();
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -111,9 +113,9 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldRespectBatchSize()
     {
-        var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
-        await using var provider = BuildProcessorProvider(store, recorder, batchSize: 2);
+        await using var provider = BuildProcessorProvider(recorder, batchSize: 2);
+        var store = provider.GetRequiredService<InMemoryInboxStore>();
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -141,9 +143,9 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenVisibleAfterInFuture_ShouldNotLeaseCommand()
     {
         var clock = new ManualTimeProvider(BaseTime);
-        var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
-        await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10, clock: clock);
+        await using var provider = BuildProcessorProvider(recorder, batchSize: 10, clock: clock);
+        var store = provider.GetRequiredService<InMemoryInboxStore>();
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -164,9 +166,9 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenVisibleAfterReached_ShouldProcessCommand()
     {
         var clock = new ManualTimeProvider(BaseTime);
-        var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
-        await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10, clock: clock);
+        await using var provider = BuildProcessorProvider(recorder, batchSize: 10, clock: clock);
+        var store = provider.GetRequiredService<InMemoryInboxStore>();
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -188,9 +190,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenFixedBackoffConfigured_ShouldSetVisibleAfterToInitialDelay()
     {
         var clock = new ManualTimeProvider(BaseTime);
-        var store = new InMemoryInboxStore();
         await using var provider = BuildProcessorProvider(
-            store,
             recorder: null,
             batchSize: 10,
             clock: clock,
@@ -211,6 +211,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
                 });
             },
             registerFaultyHandler: true);
+        var store = provider.GetRequiredService<InMemoryInboxStore>();
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -225,9 +226,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenExponentialBackoffConfigured_ShouldDoubleDelayPerAttempt()
     {
         var clock = new ManualTimeProvider(BaseTime);
-        var store = new InMemoryInboxStore();
         await using var provider = BuildProcessorProvider(
-            store,
             recorder: null,
             batchSize: 10,
             clock: clock,
@@ -249,6 +248,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
                 });
             },
             registerFaultyHandler: true);
+        var store = provider.GetRequiredService<InMemoryInboxStore>();
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -263,9 +263,9 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimStuckCommand()
     {
         var clock = new ManualTimeProvider(BaseTime);
-        var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
-        await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10, clock: clock);
+        await using var provider = BuildProcessorProvider(recorder, batchSize: 10, clock: clock);
+        var store = provider.GetRequiredService<InMemoryInboxStore>();
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -298,8 +298,8 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenContractNameUnknown_ShouldMarkFailed()
     {
-        var store = new InMemoryInboxStore();
-        await using var provider = BuildProcessorProvider(store, new InboxTestFixtures.CommandRecorder(), batchSize: 10);
+        await using var provider = BuildProcessorProvider(new InboxTestFixtures.CommandRecorder(), batchSize: 10);
+        var store = provider.GetRequiredService<InMemoryInboxStore>();
 
         var processor = provider.GetRequiredService<IInboxProcessor>();
         var commandId = Guid.NewGuid();
@@ -324,11 +324,14 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public void InboxProcessor_WithInvalidBatchSize_ShouldThrow()
     {
-        var act = () => new InboxProcessor(
-            new InMemoryInboxStore(),
+        var store = new InMemoryInboxStore();
+        var act = () => new PipelinedInboxProcessor(
+            store,
+            store,
             new InboxTestFixtures.StubInboxDispatcher(),
             new InboxProcessorOptions { BatchSize = 0 },
-            TimeProvider.System);
+            TimeProvider.System,
+            Array.Empty<IProcessorEnvelopeHook>());
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -336,11 +339,14 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public void InboxProcessor_WithInvalidLeaseDuration_ShouldThrow()
     {
-        var act = () => new InboxProcessor(
-            new InMemoryInboxStore(),
+        var store = new InMemoryInboxStore();
+        var act = () => new PipelinedInboxProcessor(
+            store,
+            store,
             new InboxTestFixtures.StubInboxDispatcher(),
             new InboxProcessorOptions { LeaseDuration = TimeSpan.Zero },
-            TimeProvider.System);
+            TimeProvider.System,
+            Array.Empty<IProcessorEnvelopeHook>());
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -348,9 +354,9 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenCancellationRequested_ShouldPropagateOperationCanceledException()
     {
-        var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
-        await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10);
+        await using var provider = BuildProcessorProvider(recorder, batchSize: 10);
+        var store = provider.GetRequiredService<InMemoryInboxStore>();
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -374,26 +380,29 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     }
 
     private static ServiceProvider BuildProcessorProvider(
-        InMemoryInboxStore store,
         InboxTestFixtures.CommandRecorder? recorder,
         int batchSize,
         TimeProvider? clock = null,
         Action<InboxModuleBuilder>? configureInbox = null,
         bool registerFaultyHandler = false)
     {
-        var services = new ServiceCollection()
-            .AddInboxStoreRoles(store);
+        var services = new ServiceCollection();
 
         if (recorder is not null)
         {
             services.AddSingleton(recorder);
         }
 
-        services.AddCommandMediatorInboxDispatcher();
-
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(message =>
+                {
+                    if (clock is not null)
+                    {
+                        message.UseTimeProvider(clock);
+                    }
+                });
+                registry.AddCommandModule(builder =>
                 {
                     if (registerFaultyHandler)
                     {
@@ -407,7 +416,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
                     }
                 });
 
-                modules.AddInboxModule(inbox =>
+                registry.AddInboxModule(inbox =>
                 {
                     if (configureInbox is not null)
                     {
@@ -423,13 +432,11 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
                             Retry = new RetryOptions { UseJitter = false }
                         });
                     }
+
+                    inbox.UseInMemoryStorage();
+                    inbox.UseCommandInboxDispatcher();
                 });
             });
-
-        if (clock is not null)
-        {
-            services.AddSingleton(clock);
-        }
 
         return services.BuildServiceProvider();
     }

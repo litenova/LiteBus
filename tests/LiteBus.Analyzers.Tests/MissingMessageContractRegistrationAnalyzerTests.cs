@@ -64,7 +64,80 @@ public sealed class MissingMessageContractRegistrationAnalyzerTests
             DiagnosticDescriptors.MissingMessageContractRegistration,
             0,
             "ProcessPaymentCommand",
-            "ProcessPaymentCommandHandler");
+            "ProcessPaymentCommandHandler",
+            "ProcessPaymentCommand");
+    }
+
+    /// <summary>
+    ///     Verifies that <c>Contracts.Register(typeof(Foo), ...)</c> satisfies durable contract registration.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task MessageRegisteredThroughTypeOfRegister_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System;
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record ProcessPaymentCommand(int PaymentId) : ICommand;
+
+                              public sealed class ProcessPaymentCommandHandler : ICommandHandler<ProcessPaymentCommand>
+                              {
+                                  public Task HandleAsync(ProcessPaymentCommand command, CancellationToken cancellationToken = default)
+                                      => Task.CompletedTask;
+                              }
+
+                              public static class InboxModuleConfiguration
+                              {
+                                  public static void Configure(ContractsRegistry contracts)
+                                  {
+                                      contracts.Register(typeof(ProcessPaymentCommand), "payments.process-payment", 1);
+                                  }
+                              }
+
+                              public sealed class ContractsRegistry
+                              {
+                                  public void Register(Type messageType, string name, int version)
+                                  {
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<MissingMessageContractRegistrationAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies that closed generic contract registration suggestions use the constructed type name.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task ClosedGenericHandledMessage_ProducesClosedTypeRegistrationSuggestion()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record Payload(int Value);
+
+                              public sealed record ProcessPayloadCommand<T>(T Value) : ICommand;
+
+                              public sealed class {|#0:ProcessPayloadCommandHandler|} : ICommandHandler<ProcessPayloadCommand<Payload>>
+                              {
+                                  public Task HandleAsync(ProcessPayloadCommand<Payload> command, CancellationToken cancellationToken = default)
+                                      => Task.CompletedTask;
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<MissingMessageContractRegistrationAnalyzer>(
+            source,
+            DiagnosticDescriptors.MissingMessageContractRegistration,
+            0,
+            "ProcessPayloadCommand<Payload>",
+            "ProcessPayloadCommandHandler",
+            "ProcessPayloadCommand<Payload>");
     }
 
     /// <summary>
@@ -132,7 +205,8 @@ public sealed class MissingMessageContractRegistrationAnalyzerTests
             DiagnosticDescriptors.MissingMessageContractRegistration,
             0,
             "OrderSubmittedEvent",
-            "OrderSubmittedEventHandler");
+            "OrderSubmittedEventHandler",
+            "OrderSubmittedEvent");
     }
 
     /// <summary>

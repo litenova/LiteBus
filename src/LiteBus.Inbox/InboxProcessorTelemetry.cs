@@ -46,11 +46,79 @@ internal static class InboxProcessorTelemetry
     private static readonly Counter<long> LoopErrorCounter = Meter.CreateCounter<long>("litebus.inbox.processor.loop_errors");
 
     /// <summary>
+    ///     Gets the counter incremented when lease renewal fails during dispatch.
+    /// </summary>
+    private static readonly Counter<long> LeaseLostCounter =
+        Meter.CreateCounter<long>(LiteBusInboxTelemetry.ProcessorLeaseLostInstrumentName);
+
+    /// <summary>
+    ///     Gets the counter incremented when terminal persist skips an envelope because the lease was lost.
+    /// </summary>
+    private static readonly Counter<long> PersistSkippedCounter =
+        Meter.CreateCounter<long>(LiteBusInboxTelemetry.ProcessorPersistSkippedInstrumentName);
+
+    /// <summary>
+    ///     Gets the counter incremented when inbox envelopes are leased during a pass.
+    /// </summary>
+    private static readonly Counter<long> LeasesAcquiredCounter =
+        Meter.CreateCounter<long>(LiteBusInboxTelemetry.ProcessorLeasesAcquiredInstrumentName);
+
+    /// <summary>
+    ///     Gets the counter incremented when terminal persist rejects an update because the lease was lost.
+    /// </summary>
+    private static readonly Counter<long> PersistRejectedCounter =
+        Meter.CreateCounter<long>(LiteBusInboxTelemetry.ProcessorPersistRejectedInstrumentName);
+
+    /// <summary>
+    ///     Gets the histogram recording inbox dispatch duration in milliseconds.
+    /// </summary>
+    private static readonly Histogram<double> DispatchDurationHistogram =
+        Meter.CreateHistogram<double>(LiteBusInboxTelemetry.ProcessorDispatchDurationInstrumentName, unit: "ms");
+
+    /// <summary>
     ///     Records that the inbox processor background loop caught an unhandled exception.
     /// </summary>
     public static void RecordLoopError()
     {
         LoopErrorCounter.Add(1);
+    }
+
+    /// <summary>
+    ///     Records that inbox lease renewal failed and dispatch was canceled.
+    /// </summary>
+    public static void RecordLeaseLost()
+    {
+        LeaseLostCounter.Add(1);
+    }
+
+    /// <summary>
+    ///     Records that terminal persist skipped an envelope because the active lease no longer matched.
+    /// </summary>
+    public static void RecordPersistSkipped()
+    {
+        PersistSkippedCounter.Add(1);
+        PersistRejectedCounter.Add(1);
+    }
+
+    /// <summary>
+    ///     Records the number of inbox envelopes leased during one processor pass.
+    /// </summary>
+    /// <param name="leasedCount">The number of envelopes leased.</param>
+    public static void RecordLeasesAcquired(int leasedCount)
+    {
+        if (leasedCount > 0)
+        {
+            LeasesAcquiredCounter.Add(leasedCount);
+        }
+    }
+
+    /// <summary>
+    ///     Records inbox dispatch duration for one envelope.
+    /// </summary>
+    /// <param name="duration">The dispatch duration.</param>
+    public static void RecordDispatchDuration(TimeSpan duration)
+    {
+        DispatchDurationHistogram.Record(duration.TotalMilliseconds);
     }
 
     /// <summary>

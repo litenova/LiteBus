@@ -6,6 +6,21 @@ namespace LiteBus.Transport;
 public static class LiteBusTransportTelemetry
 {
     /// <summary>
+    ///     Gets the activity source name used for transport publish and consume spans.
+    /// </summary>
+    public const string ActivitySourceName = "LiteBus.Transport";
+
+    /// <summary>
+    ///     Gets the stable activity name recorded when a transport publisher sends a message.
+    /// </summary>
+    public const string PublishActivityName = "transport.publish";
+
+    /// <summary>
+    ///     Gets the stable activity name recorded when a transport consumer receives a message.
+    /// </summary>
+    public const string ConsumeActivityName = "transport.consume";
+
+    /// <summary>
     ///     Gets the meter name used for transport circuit breaker metrics.
     /// </summary>
     public const string MeterName = "LiteBus.Transport";

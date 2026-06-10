@@ -1,4 +1,5 @@
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Modules;
 
 namespace LiteBus.Runtime.UnitTests;
@@ -20,26 +21,25 @@ public sealed class CompositeModuleRegistryTests
     }
 
     [Fact]
-    public void Register_SameModuleTypeTwice_ShouldIgnoreSecondRegistration()
+    public void Register_SameModuleTypeTwice_ShouldThrowConfigurationException()
     {
         var registry = new ModuleRegistry();
         registry.Register(new ChildModuleA());
-        registry.Register(new ChildModuleA());
 
-        registry.Select(descriptor => descriptor.ModuleType).Should().HaveCount(1);
+        var act = () => registry.Register(new ChildModuleA());
+
+        act.Should().Throw<LiteBusConfigurationException>();
     }
 
     [Fact]
-    public void Register_CompositeChildAlsoRegisteredAtTopLevel_ShouldNotDuplicateChild()
+    public void Register_CompositeChildAlsoRegisteredAtTopLevel_ShouldThrowConfigurationException()
     {
         var registry = new ModuleRegistry();
         registry.Register(new ParentCompositeModule());
-        registry.Register(new ChildModuleA());
 
-        registry.Select(descriptor => descriptor.ModuleType)
-            .Count(type => type == typeof(ChildModuleA))
-            .Should()
-            .Be(1);
+        var act = () => registry.Register(new ChildModuleA());
+
+        act.Should().Throw<LiteBusConfigurationException>();
     }
 
     private sealed class ParentCompositeModule : ICompositeModule

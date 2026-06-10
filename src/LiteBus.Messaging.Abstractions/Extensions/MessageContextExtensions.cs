@@ -54,7 +54,7 @@ public static class MessageContextExtensions
 
         foreach (var errorHandler in messageDependencies.ErrorHandlers)
         {
-            await (Task) errorHandler.Handler.Value.HandleError(message, exceptionDispatchInfo.SourceException, exceptionDispatchInfo);
+            await (Task) errorHandler.Handler.Value.HandleError(message, exceptionDispatchInfo.SourceException, messageResult);
         }
     }
 

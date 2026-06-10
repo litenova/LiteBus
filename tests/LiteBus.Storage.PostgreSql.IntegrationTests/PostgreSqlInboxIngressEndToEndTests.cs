@@ -4,11 +4,14 @@ using LiteBus.Commands;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.InProcess;
+using LiteBus.Inbox.Dispatch;
+using LiteBus.Inbox.Dispatch.Amqp;
+using LiteBus.Inbox.Ingress;
 using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
 using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +20,7 @@ using Microsoft.Extensions.Hosting;
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 
 /// <summary>
-///     End-to-end tests for PostgreSQL inbox storage with AMQP ingress and in-process dispatch.
+///     End-to-end tests for PostgreSQL inbox storage with AMQP ingress and transport dispatch.
 /// </summary>
 public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClassFixture<PostgreSqlFixture>
 {
@@ -27,13 +30,13 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
     ///     Initializes a new instance of the <see cref="PostgreSqlInboxIngressEndToEndTests" /> class.
     /// </summary>
     /// <param name="postgresFixture">The shared PostgreSQL container fixture.</param>
-    public PostgreSqlInboxIngressEndToEndTests(PostgreSqlFixture postgresFixture)
+    public PostgreSqlInboxIngressEndToEndTests(PostgreSqlFixture fixture)
     {
-        _postgresFixture = postgresFixture;
+        _postgresFixture = fixture;
     }
 
     /// <summary>
-    ///     Verifies that publishing through RabbitMQ stores the command in PostgreSQL and dispatches it in-process.
+    ///     Verifies that publishing through RabbitMQ stores the command in PostgreSQL and dispatches it through transport.
     /// </summary>
     /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
     [Fact]
@@ -54,26 +57,28 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
 
     private async Task RunEndToEndAsync(AmqpConnectionOptions connectionOptions)
     {
+        const string contractName = "orders.commands.ship";
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, options);
 
-        var queueName = $"litebus.inbox.pg.ingress.{Guid.NewGuid():N}";
-        var recorder = new CommandRecorder();
+        var ingressQueue = $"litebus.inbox.pg.ingress.{Guid.NewGuid():N}";
+        var dispatchQueue = $"litebus.inbox.pg.dispatch.{Guid.NewGuid():N}";
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
 
-        var services = new ServiceCollection();
-        services.AddSingleton(recorder);
+        await DeclareQueueAsync(connectionOptions, ingressQueue);
+        await DeclareQueueAsync(connectionOptions, dispatchQueue);
 
-        services.AddLiteBus(modules =>
+        var services = new ServiceCollection();
+        services.AddLiteBus(registry =>
         {
-            modules.AddCommandModule(module =>
+            registry.AddMessageModule(_ => { });
+            registry.AddCommandModule(module =>
             {
                 module.Register<ShipOrderCommand>();
-                module.Register<ShipOrderCommandHandler>();
             });
 
-            modules.AddInboxModule(inbox =>
+            registry.AddInboxModule(inbox =>
             {
                 inbox.UsePostgreSqlStorage(postgres =>
                 {
@@ -82,7 +87,7 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
                     postgres.DisableSchemaInitialization();
                 });
 
-                inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
+                inbox.Contracts.Register<ShipOrderCommand>(contractName, 1);
                 inbox.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 10,
@@ -90,29 +95,32 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
                     Retry = new RetryOptions { UseJitter = false }
                 });
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
-                inbox.UseInProcessDispatcher();
-            });
-
-            modules.AddInboxAmqpIngress(ingress =>
-            {
-                ingress.UseOptions(new AmqpInboxIngressOptions
+                inbox.UseAmqpDispatch(
+                    transport =>
+                    {
+                        transport.DefaultDestination = string.Empty;
+                        transport.ResolveRoute = _ => dispatchQueue;
+                    }, connectionOptions);
+                inbox.UseAmqpIngress(ingress =>
                 {
-                    QueueName = queueName,
-                    PrefetchCount = 1,
-                    Connection = connectionOptions
+                    ingress.UseOptions(new AmqpInboxIngressOptions
+                    {
+                        QueueName = ingressQueue,
+                        PrefetchCount = 1,
+                        Connection = connectionOptions
+                    });
                 });
             });
         });
 
         await using var provider = services.BuildServiceProvider();
-        var hostedServices = provider.GetServices<IHostedService>().ToList();
-        hostedServices.Should().HaveCount(2);
+        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
+        manifest.StartupTasks.Select(task => task.Name).Should().Contain("InboxObservableMetricsInitializer");
+        manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
+        manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
 
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        foreach (var hostedService in hostedServices)
-        {
-            await hostedService.StartAsync(runCts.Token);
-        }
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
 
         await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
 
@@ -125,28 +133,18 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
             await publisher.PublishAsync(new AmqpPublishRequest
             {
                 Exchange = string.Empty,
-                RoutingKey = queueName,
+                RoutingKey = ingressQueue,
                 Body = payload,
                 Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
                     [AmqpHeaders.MessageId] = messageId.ToString("D"),
-                    [AmqpHeaders.ContractName] = "orders.commands.ship",
+                    [AmqpHeaders.ContractName] = contractName,
                     [AmqpHeaders.ContractVersion] = "1"
                 }
             });
 
-            var deadline = DateTime.UtcNow.AddSeconds(30);
-            while (DateTime.UtcNow < deadline)
-            {
-                if (recorder.Commands.Any(recorded => recorded.OrderId == orderId))
-                {
-                    break;
-                }
-
-                await Task.Delay(100);
-            }
-
-            recorder.Commands.Should().ContainSingle(recorded => recorded.OrderId == orderId);
+            var body = await ReceiveOneAsync(connectionOptions, dispatchQueue, TimeSpan.FromSeconds(30));
+            body.Should().Contain(orderId.ToString());
 
             var row = await PostgreSqlTableReaders.ReadInboxAsync(_postgresFixture.DataSource, options, messageId);
             row.Should().NotBeNull();
@@ -155,10 +153,46 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
         }
         finally
         {
-            foreach (var hostedService in hostedServices)
-            {
-                await hostedService.StopAsync(CancellationToken.None);
-            }
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
         }
+    }
+
+    private static async Task DeclareQueueAsync(AmqpConnectionOptions connectionOptions, string queueName)
+    {
+        await using var manager = new AmqpConnectionManager(connectionOptions);
+        await using var channel = await manager.CreateChannelAsync();
+        await channel.QueueDeclareAsync(
+            queue: queueName,
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            arguments: null);
+    }
+
+    private static async Task<string> ReceiveOneAsync(
+        AmqpConnectionOptions connectionOptions,
+        string queue,
+        TimeSpan timeout)
+    {
+        var uri = connectionOptions.Uri ?? new Uri(
+            $"amqp://{Uri.EscapeDataString(connectionOptions.UserName)}:{Uri.EscapeDataString(connectionOptions.Password)}@{connectionOptions.HostName}:{connectionOptions.Port}{connectionOptions.VirtualHost}");
+
+        var factory = new RabbitMQ.Client.ConnectionFactory { Uri = uri };
+        await using var connection = await factory.CreateConnectionAsync();
+        await using var channel = await connection.CreateChannelAsync();
+
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            var result = await channel.BasicGetAsync(queue, autoAck: true);
+            if (result is not null)
+            {
+                return System.Text.Encoding.UTF8.GetString(result.Body.ToArray());
+            }
+
+            await Task.Delay(100);
+        }
+
+        throw new TimeoutException($"No message received on queue '{queue}' within {timeout}.");
     }
 }

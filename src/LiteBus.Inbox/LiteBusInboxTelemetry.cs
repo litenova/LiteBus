@@ -29,4 +29,34 @@ public static class LiteBusInboxTelemetry
     ///     Gets the OpenTelemetry attribute key applied to inbox queue depth measurements.
     /// </summary>
     public const string QueueStatusAttributeName = "litebus.inbox.status";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when inbox lease renewal fails during dispatch.
+    /// </summary>
+    public const string ProcessorLeaseLostInstrumentName = "litebus.inbox.processor.lease_lost";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when terminal persist skips an envelope because the lease was lost.
+    /// </summary>
+    public const string ProcessorPersistSkippedInstrumentName = "litebus.inbox.processor.persist_skipped";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when inbox retention cleanup fails.
+    /// </summary>
+    public const string CleanupErrorInstrumentName = "litebus.inbox.cleanup.errors";
+
+    /// <summary>
+    ///     Gets the histogram instrument name for inbox dispatch duration in milliseconds.
+    /// </summary>
+    public const string ProcessorDispatchDurationInstrumentName = "litebus.inbox.processor.dispatch_duration";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when inbox envelopes are leased during a pass.
+    /// </summary>
+    public const string ProcessorLeasesAcquiredInstrumentName = "litebus.inbox.processor.leases_acquired";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when terminal persist rejects an update because the lease was lost.
+    /// </summary>
+    public const string ProcessorPersistRejectedInstrumentName = "litebus.inbox.processor.persist_rejected";
 }

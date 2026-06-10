@@ -49,16 +49,6 @@ public static class PostgreSqlSchemaSqlPaths
     public const string InspectorIndexExists = Root + "inspector/index_exists.sql";
 
     /// <summary>
-    ///     Adds the shared version 2 <c>trace_context</c> column.
-    /// </summary>
-    public const string SharedAddTraceContextColumn = Root + "shared/add_trace_context_column.sql";
-
-    /// <summary>
-    ///     Adds the shared version 3 <c>idempotency_key</c> column and unique partial index.
-    /// </summary>
-    public const string SharedAddIdempotencyKeyColumn = Root + "shared/add_idempotency_key_column.sql";
-
-    /// <summary>
     ///     Gets the canonical SQL files shipped in this package.
     /// </summary>
     public static IReadOnlyList<PostgreSqlSchemaSqlFile> Files { get; } =
@@ -68,13 +58,7 @@ public static class PostgreSqlSchemaSqlPaths
         new PostgreSqlSchemaSqlFile(MetadataUpsertVersion, "Writes one schema version row. Used internally at runtime."),
         new PostgreSqlSchemaSqlFile(InspectorTableExists, "Checks whether a table exists. Used internally at runtime."),
         new PostgreSqlSchemaSqlFile(InspectorListColumns, "Lists table columns. Used internally at runtime."),
-        new PostgreSqlSchemaSqlFile(InspectorIndexExists, "Checks whether one index exists. Used internally at runtime."),
-        new PostgreSqlSchemaSqlFile(
-            SharedAddTraceContextColumn,
-            "Version 2 upgrade that adds nullable trace_context jsonb to inbox or outbox tables."),
-        new PostgreSqlSchemaSqlFile(
-            SharedAddIdempotencyKeyColumn,
-            "Version 3 upgrade that adds nullable idempotency_key and a unique partial index to inbox or outbox tables.")
+        new PostgreSqlSchemaSqlFile(InspectorIndexExists, "Checks whether one index exists. Used internally at runtime.")
     ];
 }
 
@@ -112,14 +96,4 @@ internal static class PostgreSqlSchemaEmbeddedSql
     ///     Embedded resource path for index existence inspection SQL.
     /// </summary>
     internal const string InspectorIndexExists = "inspector/index_exists.sql";
-
-    /// <summary>
-    ///     Embedded resource path for the shared trace context column upgrade SQL.
-    /// </summary>
-    internal const string SharedAddTraceContextColumn = "shared/add_trace_context_column.sql";
-
-    /// <summary>
-    ///     Embedded resource path for the shared idempotency key column upgrade SQL.
-    /// </summary>
-    internal const string SharedAddIdempotencyKeyColumn = "shared/add_idempotency_key_column.sql";
 }

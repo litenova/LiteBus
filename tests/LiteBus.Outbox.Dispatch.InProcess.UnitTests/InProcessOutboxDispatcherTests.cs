@@ -1,6 +1,7 @@
 using LiteBus.Events;
 using LiteBus.Events.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
@@ -17,20 +18,19 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldPublishThroughInProcessOutboxDispatcherAndMarkPublished()
     {
-        var store = new InMemoryOutboxStore();
         var recorder = new EventRecorder();
 
         var serviceProvider = new ServiceCollection()
-            .AddOutboxStoreRoles(store)
             .AddSingleton(recorder)
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddEventModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
                 {
                     builder.Register<OrderSubmittedEventHandler>();
                 });
 
-                modules.AddOutboxModule(builder =>
+                registry.AddOutboxModule(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -39,7 +39,8 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
                         LeaseOwner = "test-publisher",
                         Retry = new RetryOptions { UseJitter = false }
                     });
-                    builder.UseInProcessDispatcher();
+                    builder.UseInMemoryStorage();
+                    builder.UseEventOutboxDispatcher();
                 });
             })
             .BuildServiceProvider();
@@ -54,6 +55,7 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
 
         recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
 
+        var store = serviceProvider.GetRequiredService<InMemoryOutboxStore>();
         var envelope = store.Get(eventId);
         envelope.Status.Should().Be(OutboxStatus.Published);
         envelope.AttemptCount.Should().Be(1);
@@ -63,16 +65,15 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
     [Fact]
     public async Task InProcessOutboxDispatcher_ShouldPublishPocoEvent()
     {
-        var store = new InMemoryOutboxStore();
         var recorder = new PocoEventRecorder();
 
         var serviceProvider = new ServiceCollection()
-            .AddOutboxStoreRoles(store)
             .AddSingleton(recorder)
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddEventModule(builder => builder.Register<PocoEventHandler>());
-                modules.AddOutboxModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder => builder.Register<PocoEventHandler>());
+                registry.AddOutboxModule(builder =>
                 {
                     builder.Contracts.Register<PocoIntegrationEvent>("poco.events.sample", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -81,7 +82,8 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
                         LeaseOwner = "poco-publisher",
                         Retry = new RetryOptions { UseJitter = false }
                     });
-                    builder.UseInProcessDispatcher();
+                    builder.UseInMemoryStorage();
+                    builder.UseEventOutboxDispatcher();
                 });
             })
             .BuildServiceProvider();
@@ -99,16 +101,15 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
     [Fact]
     public async Task InProcessOutboxDispatcher_ShouldCopyTraceMetadataIntoMediationSettings()
     {
-        var store = new InMemoryOutboxStore();
         var capture = new TraceMetadataCapture();
 
         var serviceProvider = new ServiceCollection()
-            .AddOutboxStoreRoles(store)
             .AddSingleton(capture)
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddEventModule(builder => builder.Register<TraceMetadataEventHandler>());
-                modules.AddOutboxModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder => builder.Register<TraceMetadataEventHandler>());
+                registry.AddOutboxModule(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -117,7 +118,8 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
                         LeaseOwner = "trace-publisher",
                         Retry = new RetryOptions { UseJitter = false }
                     });
-                    builder.UseInProcessDispatcher();
+                    builder.UseInMemoryStorage();
+                    builder.UseEventOutboxDispatcher();
                 });
             })
             .BuildServiceProvider();
@@ -146,26 +148,32 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
     public void AddOutboxInProcessDispatcher_ShouldRegisterInProcessOutboxDispatcher()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddEventModule();
-                modules.AddOutboxModule(outbox => outbox.UseInProcessDispatcher());
+                registry.AddMessageModule(_ => { });
+                registry.AddEventModule();
+                registry.AddOutboxModule(outbox =>
+                {
+                    outbox.UseInMemoryStorage();
+                    outbox.UseEventOutboxDispatcher();
+                });
             })
             .BuildServiceProvider();
 
-        serviceProvider.GetRequiredService<IOutboxDispatcher>().Should().BeOfType<InProcessOutboxDispatcher>();
+        serviceProvider.GetRequiredService<IOutboxDispatcher>().Should().BeOfType<EventOutboxDispatcher>();
     }
 
     [Fact]
     public void AddOutboxInProcessDispatcher_WhenAnotherDispatcherRegistered_ShouldThrow()
     {
         var act = () => new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddEventModule();
-                modules.AddOutboxModule();
-                modules.Register(new PreRegisteredOutboxDispatcherModule());
-                modules.Register(new InProcessOutboxDispatchModule());
+                registry.AddMessageModule(_ => { });
+                registry.AddEventModule();
+                registry.AddOutboxModule(outbox => outbox.UseInMemoryStorage());
+                registry.Register(new PreRegisteredOutboxDispatcherModule());
+                registry.Register(new EventOutboxDispatchModule());
             })
             .BuildServiceProvider();
 
@@ -179,18 +187,20 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
         var act = () =>
         {
             new ServiceCollection()
-                .AddLiteBus(modules =>
+                .AddLiteBus(registry =>
                 {
-                    modules.AddEventModule();
-                    modules.AddOutboxModule(outbox =>
+                    registry.AddMessageModule(_ => { });
+                registry.AddEventModule();
+                    registry.AddOutboxModule(outbox =>
                     {
-                        outbox.UseInProcessDispatcher();
-                        outbox.UseInProcessDispatcher();
+                        outbox.UseInMemoryStorage();
+                        outbox.UseEventOutboxDispatcher();
+                        outbox.UseEventOutboxDispatcher();
                     });
                 });
         };
 
-        act.Should().Throw<InvalidOperationException>()
+        act.Should().Throw<LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException>()
             .WithMessage("*Outbox dispatcher is already configured*");
     }
 

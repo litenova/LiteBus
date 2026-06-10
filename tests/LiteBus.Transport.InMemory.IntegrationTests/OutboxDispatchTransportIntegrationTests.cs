@@ -1,0 +1,147 @@
+using System.Text.Json;
+using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
+using LiteBus.Outbox;
+using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.Dispatch;
+using LiteBus.Outbox.Dispatch.InMemory;
+using LiteBus.Outbox.Storage.InMemory;
+using LiteBus.Testing;
+using LiteBus.Transport.Abstractions;
+using LiteBus.Transport.InMemory;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace LiteBus.Transport.InMemory.IntegrationTests;
+
+/// <summary>
+///     End-to-end outbox transport dispatch tests using the in-memory transport adapter.
+/// </summary>
+public sealed class OutboxDispatchTransportIntegrationTests : LiteBusTestBase
+{
+    /// <summary>
+    ///     Verifies that the outbox processor publishes a stored envelope to the configured in-memory destination.
+    /// </summary>
+    /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
+    [Fact]
+    public async Task ProcessPendingAsync_ShouldPublishEnvelopeToInMemoryDestination()
+    {
+        var destination = InMemoryTransportTestInfrastructure.CreateDestination("outbox-dispatch");
+        var messageId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var received = new TaskCompletionSource<TransportMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var provider = BuildProvider(destination);
+        var broker = provider.GetRequiredService<InMemoryTransportBroker>();
+        await using var consumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(
+            broker,
+            destination,
+            received);
+
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
+        var outbox = provider.GetRequiredService<IOutbox>();
+        var processor = provider.GetRequiredService<IOutboxProcessor>();
+
+        await outbox.EnqueueAsync(
+            new OrderSubmittedIntegrationEvent { OrderId = orderId },
+            new OutboxOptions
+            {
+                Id = messageId,
+                Topic = destination,
+                CorrelationId = "corr-outbox-inmemory",
+                CausationId = "cause-outbox-inmemory",
+                TenantId = "tenant-east"
+            });
+
+        await processor.ProcessPendingAsync();
+
+        store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
+        store.Get(messageId).AttemptCount.Should().Be(1);
+
+        using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var transportMessage = await received.Task.WaitAsync(cancellationSource.Token);
+
+        var storedPayload = store.Get(messageId).Payload;
+        var json = InMemoryTransportTestInfrastructure.ReadBody(transportMessage);
+        json.Should().Be(storedPayload);
+
+        var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
+            json,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        payload!.OrderId.Should().Be(orderId);
+        InMemoryTransportTestInfrastructure.GetHeader(transportMessage, TransportHeaders.MessageId)
+            .Should().Be(messageId.ToString("D"));
+        InMemoryTransportTestInfrastructure.GetHeader(transportMessage, TransportHeaders.CorrelationId)
+            .Should().Be("corr-outbox-inmemory");
+        InMemoryTransportTestInfrastructure.GetHeader(transportMessage, TransportHeaders.ContractName)
+            .Should().Be("orders.order-submitted");
+        InMemoryTransportTestInfrastructure.GetHeader(transportMessage, TransportHeaders.ContractVersion)
+            .Should().Be("1");
+        InMemoryTransportTestInfrastructure.GetHeader(transportMessage, TransportHeaders.CausationId)
+            .Should().Be("cause-outbox-inmemory");
+        InMemoryTransportTestInfrastructure.GetHeader(transportMessage, TransportHeaders.TenantId)
+            .Should().Be("tenant-east");
+    }
+
+    /// <summary>
+    ///     Verifies that contract-name routing is used when no topic is stored on the envelope.
+    /// </summary>
+    /// <returns>A task that completes when contract-name routing succeeds.</returns>
+    [Fact]
+    public async Task ProcessPendingAsync_WhenTopicMissing_ShouldUseContractNameAsRoute()
+    {
+        const string contractRoute = "orders.order-submitted";
+        var destination = InMemoryTransportTestInfrastructure.CreateDestination("outbox-route");
+        var messageId = Guid.NewGuid();
+        var received = new TaskCompletionSource<TransportMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var provider = BuildProvider(destination);
+        var broker = provider.GetRequiredService<InMemoryTransportBroker>();
+        await using var consumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(
+            broker,
+            destination,
+            received);
+
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
+        var outbox = provider.GetRequiredService<IOutbox>();
+        var processor = provider.GetRequiredService<IOutboxProcessor>();
+
+        await outbox.EnqueueAsync(
+            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            new OutboxOptions { Id = messageId });
+
+        await processor.ProcessPendingAsync();
+
+        store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
+
+        using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var transportMessage = await received.Task.WaitAsync(cancellationSource.Token);
+        transportMessage.Route.Should().Be(contractRoute);
+    }
+
+    /// <summary>
+    ///     Builds the LiteBus service provider used by the end-to-end tests.
+    /// </summary>
+    /// <param name="destination">The in-memory destination passed to the dispatcher options.</param>
+    /// <returns>The configured service provider.</returns>
+    private static ServiceProvider BuildProvider(string destination)
+    {
+        return new ServiceCollection()
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessageModule(_ => { });
+                registry.AddOutboxModule(builder =>
+                {
+                    builder.UseInMemoryStorage();
+                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted", 1);
+                    builder.UseProcessorOptions(new OutboxProcessorOptions
+                    {
+                        BatchSize = 10,
+                        LeaseOwner = "outbox-inmemory-test",
+                        Retry = new RetryOptions { UseJitter = false }
+                    });
+                    builder.UseInMemoryDispatch(transport => transport.DefaultDestination = destination);
+                });
+            })
+            .BuildServiceProvider();
+    }
+}

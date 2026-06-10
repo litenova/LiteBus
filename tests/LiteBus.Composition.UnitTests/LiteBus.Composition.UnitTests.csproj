@@ -17,7 +17,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\samples\LiteBus.Samples.V6\LiteBus.Samples.V6.csproj"/>
-        <ProjectReference Include="..\LiteBus.Testing\LiteBus.Testing.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
     </ItemGroup>
 
 </Project>

@@ -45,11 +45,79 @@ internal static class OutboxProcessorTelemetry
     private static readonly Counter<long> LoopErrorCounter = Meter.CreateCounter<long>("litebus.outbox.processor.loop_errors");
 
     /// <summary>
+    ///     Gets the counter incremented when lease renewal fails during publication.
+    /// </summary>
+    private static readonly Counter<long> LeaseLostCounter =
+        Meter.CreateCounter<long>(LiteBusOutboxTelemetry.ProcessorLeaseLostInstrumentName);
+
+    /// <summary>
+    ///     Gets the counter incremented when terminal persist skips a message because the lease was lost.
+    /// </summary>
+    private static readonly Counter<long> PersistSkippedCounter =
+        Meter.CreateCounter<long>(LiteBusOutboxTelemetry.ProcessorPersistSkippedInstrumentName);
+
+    /// <summary>
+    ///     Gets the counter incremented when outbox messages are leased during a pass.
+    /// </summary>
+    private static readonly Counter<long> LeasesAcquiredCounter =
+        Meter.CreateCounter<long>(LiteBusOutboxTelemetry.ProcessorLeasesAcquiredInstrumentName);
+
+    /// <summary>
+    ///     Gets the counter incremented when terminal persist rejects an update because the lease was lost.
+    /// </summary>
+    private static readonly Counter<long> PersistRejectedCounter =
+        Meter.CreateCounter<long>(LiteBusOutboxTelemetry.ProcessorPersistRejectedInstrumentName);
+
+    /// <summary>
+    ///     Gets the histogram recording outbox publication duration in milliseconds.
+    /// </summary>
+    private static readonly Histogram<double> DispatchDurationHistogram =
+        Meter.CreateHistogram<double>(LiteBusOutboxTelemetry.ProcessorDispatchDurationInstrumentName, unit: "ms");
+
+    /// <summary>
     ///     Records that the outbox processor background loop caught an unhandled exception.
     /// </summary>
     public static void RecordLoopError()
     {
         LoopErrorCounter.Add(1);
+    }
+
+    /// <summary>
+    ///     Records that outbox lease renewal failed and publication was canceled.
+    /// </summary>
+    public static void RecordLeaseLost()
+    {
+        LeaseLostCounter.Add(1);
+    }
+
+    /// <summary>
+    ///     Records that terminal persist skipped a message because the active lease no longer matched.
+    /// </summary>
+    public static void RecordPersistSkipped()
+    {
+        PersistSkippedCounter.Add(1);
+        PersistRejectedCounter.Add(1);
+    }
+
+    /// <summary>
+    ///     Records the number of outbox messages leased during one processor pass.
+    /// </summary>
+    /// <param name="leasedCount">The number of messages leased.</param>
+    public static void RecordLeasesAcquired(int leasedCount)
+    {
+        if (leasedCount > 0)
+        {
+            LeasesAcquiredCounter.Add(leasedCount);
+        }
+    }
+
+    /// <summary>
+    ///     Records outbox publication duration for one message.
+    /// </summary>
+    /// <param name="duration">The publication duration.</param>
+    public static void RecordDispatchDuration(TimeSpan duration)
+    {
+        DispatchDurationHistogram.Record(duration.TotalMilliseconds);
     }
 
     /// <summary>

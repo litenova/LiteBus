@@ -2,6 +2,7 @@ using LiteBus.EventModule.UnitTests.UseCases.ProductCreated;
 using LiteBus.Events;
 using LiteBus.Events.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,9 +14,10 @@ public sealed class EventMediatorValidationTests : LiteBusTestBase
     public async Task PublishAsync_WithNullEvent_ThrowsArgumentNullException()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddEventModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
                 });
@@ -33,9 +35,10 @@ public sealed class EventMediatorValidationTests : LiteBusTestBase
     public async Task PublishAsync_WithNullGenericEvent_ThrowsArgumentNullException()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddEventModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
                 });

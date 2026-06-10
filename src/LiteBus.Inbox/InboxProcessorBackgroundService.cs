@@ -116,7 +116,7 @@ public sealed class InboxProcessorBackgroundService : IBackgroundService
             catch (Exception exception)
             {
                 InboxProcessorTelemetry.RecordLoopError();
-                _logger.LogError(exception, "Inbox processor loop failed; waiting before the next pass.");
+                InboxProcessorLogMessages.LoopFailed(_logger, exception);
                 await _workSignal.WaitForWorkOrDelayAsync(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
             }
         }

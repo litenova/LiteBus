@@ -24,7 +24,7 @@
         <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.PostgreSql\LiteBus.Outbox.Storage.PostgreSql.csproj"/>
         <ProjectReference Include="..\LiteBus.Storage.Testing\LiteBus.Storage.Testing.csproj"/>
-        <ProjectReference Include="..\LiteBus.Testing\LiteBus.Testing.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
     </ItemGroup>
 
 </Project>

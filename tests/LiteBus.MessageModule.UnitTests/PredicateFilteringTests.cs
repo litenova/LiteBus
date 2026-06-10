@@ -1,6 +1,7 @@
 using LiteBus.Events;
 using LiteBus.Events.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,9 +18,10 @@ public sealed class PredicateFilteringTests : LiteBusTestBase
     public async Task Publish_Event_WithPredicate_ShouldExecuteOnlyMatchingHandlers()
     {
         // ARRANGE
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.Register<FilterableEventHandler>();
                 builder.Register<AnotherFilterableEventHandler>();
@@ -53,9 +55,10 @@ public sealed class PredicateFilteringTests : LiteBusTestBase
     public async Task Publish_IEvent_WithPredicate_ShouldExecuteOnlyMatchingHandlers()
     {
         // ARRANGE
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.Register<FilterableEventHandler>();
                 builder.Register<AnotherFilterableEventHandler>();

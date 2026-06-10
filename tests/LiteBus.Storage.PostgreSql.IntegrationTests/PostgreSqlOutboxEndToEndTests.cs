@@ -197,14 +197,15 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
             services.AddSingleton<IOutboxDispatcher, AlwaysFailingOutboxDispatcher>();
         }
 
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(registry =>
         {
-            modules.AddEventModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddEventModule(builder =>
             {
                 builder.Register<OrderSubmittedEventHandler>();
             });
 
-            modules.AddOutboxModule(builder =>
+            registry.AddOutboxModule(builder =>
             {
                 builder.UsePostgreSqlStorage(postgres =>
                 {
@@ -228,7 +229,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
 
                 if (!useFailingDispatcher)
                 {
-                    builder.UseInProcessDispatcher();
+                    builder.UseEventOutboxDispatcher();
                 }
             });
         });

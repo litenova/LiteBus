@@ -70,7 +70,8 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                   LIMIT 1;
                   """;
 
-        await using var command = await CreateCommandAsync(sql, cancellationToken).ConfigureAwait(false);
+        await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = CreateCommand(connection, sql);
         command.Parameters.AddWithValue("correlation_id", correlation.CorrelationId);
         command.Parameters.AddWithValue("saga_type", correlation.SagaType);
 
@@ -108,6 +109,8 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         var now = _clock.GetUtcNow();
         var stateJson = await _serializer.SerializeAsync(state, cancellationToken).ConfigureAwait(false);
 
+        await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
         if (expectedVersion == 0)
         {
             var insertSql = $"""
@@ -130,7 +133,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                               ON CONFLICT (correlation_id, saga_type) DO NOTHING;
                               """;
 
-            await using var insertCommand = await CreateCommandAsync(insertSql, cancellationToken).ConfigureAwait(false);
+            await using var insertCommand = CreateCommand(connection, insertSql);
             AddCorrelationParameters(insertCommand, correlation, stateJson, now);
             var inserted = await insertCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
@@ -154,7 +157,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                              AND is_completed = false;
                          """;
 
-        await using var updateCommand = await CreateCommandAsync(updateSql, cancellationToken).ConfigureAwait(false);
+        await using var updateCommand = CreateCommand(connection, updateSql);
         AddCorrelationParameters(updateCommand, correlation, stateJson, now);
         updateCommand.Parameters.AddWithValue("expected_version", expectedVersion);
 
@@ -180,7 +183,8 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                       AND saga_type = @saga_type;
                   """;
 
-        await using var command = await CreateCommandAsync(sql, cancellationToken).ConfigureAwait(false);
+        await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = CreateCommand(connection, sql);
         command.Parameters.AddWithValue("correlation_id", correlation.CorrelationId);
         command.Parameters.AddWithValue("saga_type", correlation.SagaType);
         command.Parameters.AddWithValue("now", now);
@@ -188,14 +192,23 @@ public sealed class PostgreSqlSagaStore : ISagaStore
     }
 
     /// <summary>
-    ///     Creates a command against the saga table.
+    ///     Opens one PostgreSQL connection for a single store operation.
     /// </summary>
-    /// <param name="sql">The SQL text.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>The open command.</returns>
-    private async Task<NpgsqlCommand> CreateCommandAsync(string sql, CancellationToken cancellationToken)
+    /// <returns>The open connection disposed by the caller.</returns>
+    private async Task<NpgsqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
-        var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        return await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Creates a command bound to a caller-owned connection.
+    /// </summary>
+    /// <param name="connection">The open connection that owns the command lifetime.</param>
+    /// <param name="sql">The SQL text.</param>
+    /// <returns>The initialized command.</returns>
+    private static NpgsqlCommand CreateCommand(NpgsqlConnection connection, string sql)
+    {
         return new NpgsqlCommand(sql, connection);
     }
 

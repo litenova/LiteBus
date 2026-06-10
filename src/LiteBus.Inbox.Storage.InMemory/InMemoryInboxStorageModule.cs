@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -8,7 +9,7 @@ namespace LiteBus.Inbox.Storage.InMemory;
 /// <summary>
 ///     Module for registering the in-memory inbox store.
 /// </summary>
-public sealed class InMemoryInboxStorageModule : IModule
+public sealed class InMemoryInboxStorageModule : IInboxStorageModule, IRequires<InboxModule>
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -28,14 +29,6 @@ public sealed class InMemoryInboxStorageModule : IModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
-        {
-            throw new LiteBusConfigurationException(
-                $"{nameof(InMemoryInboxStorageModule)} requires InboxModule core services " +
-                "to be registered first. Configure storage inside AddInboxModule(...) " +
-                "using UseInMemoryStorage().");
-        }
 
         var moduleBuilder = new InMemoryInboxStorageModuleBuilder();
         _builder(moduleBuilder);

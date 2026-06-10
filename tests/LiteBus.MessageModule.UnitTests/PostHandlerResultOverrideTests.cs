@@ -1,6 +1,7 @@
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries;
 using LiteBus.Queries.Abstractions;
@@ -21,9 +22,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     {
         // ARRANGE
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<OverrideResultCommandHandler>();
                     builder.Register<OverrideResultCommandPostHandler>();
@@ -46,9 +48,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     {
         // ARRANGE
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<NoOverrideCommandHandler>();
                     builder.Register<NoOverrideCommandPostHandler>();
@@ -71,9 +74,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     {
         // ARRANGE
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<MultiOverrideCommandHandler>();
                     builder.Register<MultiOverrideCommandFirstPostHandler>();
@@ -97,9 +101,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     {
         // ARRANGE
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddQueryModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddQueryModule(builder =>
                 {
                     builder.Register<OverrideResultQueryHandler>();
                     builder.Register<OverrideResultQueryPostHandler>();
@@ -122,9 +127,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     {
         // ARRANGE
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<ImmutableResultCommandHandler>();
                     builder.Register<ImmutableResultCommandPostHandler>();
@@ -148,9 +154,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     {
         // ARRANGE
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<VoidCommandHandler>();
                     builder.Register<VoidCommandPostHandler>();
@@ -173,9 +180,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     {
         // ARRANGE
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<FirstSequentialCommandHandler>();
                     builder.Register<FirstSequentialCommandPostHandler>();

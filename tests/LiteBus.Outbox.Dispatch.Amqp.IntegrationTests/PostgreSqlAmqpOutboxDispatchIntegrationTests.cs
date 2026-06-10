@@ -1,9 +1,11 @@
 using System.Text;
 using System.Text.Json;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Dispatch.Transport;
+using LiteBus.Outbox.Dispatch;
+using LiteBus.Outbox.Dispatch.Amqp;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Storage.PostgreSql;
@@ -86,31 +88,28 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
     private ServiceProvider BuildProvider(PostgreSqlOutboxStoreOptions storeOptions, string exchangeName)
     {
         return new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddPostgreSqlOutboxStorage(postgres =>
+                registry.AddMessageModule(_ => { });
+                registry.AddOutboxModule(outbox =>
                 {
-                    postgres.UseDataSource(_postgresFixture.DataSource);
-                    postgres.UseOptions(storeOptions);
-                    postgres.DisableSchemaInitialization();
-                });
+                    outbox.UsePostgreSqlStorage(postgres =>
+                    {
+                        postgres.UseDataSource(_postgresFixture.DataSource);
+                        postgres.UseOptions(storeOptions);
+                        postgres.DisableSchemaInitialization();
+                    });
 
-                modules.AddOutboxModule(builder =>
-                {
-                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted", 1);
-                    builder.UseProcessorOptions(new OutboxProcessorOptions
+                    outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted", 1);
+                    outbox.UseProcessorOptions(new OutboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "pg-outbox-amqp-test",
                         Retry = new RetryOptions { UseJitter = false }
                     });
-                });
 
-                modules.AddOutboxModule(outbox =>
-                {
-                    outbox.UseTransport(
-                        transport => transport.DefaultDestination = exchangeName,
-                        new AmqpTransportModule(_rabbitMqFixture.ConnectionOptions));
+                    outbox.UseAmqpDispatch(
+                        transport => transport.DefaultDestination = exchangeName, _rabbitMqFixture.ConnectionOptions);
                 });
             })
             .BuildServiceProvider();

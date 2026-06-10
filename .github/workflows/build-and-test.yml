@@ -53,9 +53,20 @@ jobs:
       - name: Unit Tests
         run: dotnet test LiteBus.slnx --no-restore --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName!~IntegrationTests"
 
+      - name: Transport Fast Integration Tests
+        run: dotnet test tests/LiteBus.DurableTransport.IntegrationTests/LiteBus.DurableTransport.IntegrationTests.csproj --no-restore --verbosity normal --filter "Category=TransportFast"
+
+      - name: Transport Docker Integration Tests
+        if: steps.docker.outputs.available == 'true'
+        run: dotnet test tests/LiteBus.DurableTransport.IntegrationTests/LiteBus.DurableTransport.IntegrationTests.csproj --no-restore --verbosity normal --filter "Category=TransportDocker"
+
+      - name: Transport Azure Integration Tests
+        if: steps.docker.outputs.available == 'true'
+        run: dotnet test tests/LiteBus.DurableTransport.IntegrationTests/LiteBus.DurableTransport.IntegrationTests.csproj --no-restore --verbosity normal --filter "Category=TransportAzure"
+
       - name: Integration Tests
         if: steps.docker.outputs.available == 'true'
-        run: dotnet test LiteBus.slnx --no-restore --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName~IntegrationTests"
+        run: dotnet test LiteBus.slnx --no-restore --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName~IntegrationTests&FullyQualifiedName!~DurableTransport.IntegrationTests"
 
       - name: Upload Test Results
         if: always()

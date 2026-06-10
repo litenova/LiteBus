@@ -5,6 +5,7 @@ using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Abstractions.Exceptions;
 using LiteBus.Inbox.Dispatch.InProcess;
+using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
@@ -13,7 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace LiteBus.Inbox.Dispatch.InProcess.UnitTests;
 
 [Collection("Sequential")]
-public sealed class InProcessInboxDispatcherTests : LiteBusTestBase
+public sealed class CommandInboxDispatcherTests : LiteBusTestBase
 {
     [Fact]
     public async Task DispatchAsync_ShouldExecuteCommandThroughMediator()
@@ -27,13 +28,15 @@ public sealed class InProcessInboxDispatcherTests : LiteBusTestBase
 
         await using var provider = new ServiceCollection()
             .AddSingleton(recorder)
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder => builder.Register<ProcessOrderCommandHandler>());
-                modules.AddInboxModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder => builder.Register<ProcessOrderCommandHandler>());
+                registry.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<ProcessOrderCommand>("orders.commands.process", 1);
-                    builder.UseInProcessDispatcher();
+                    builder.UseInMemoryStorage();
+                    builder.UseCommandInboxDispatcher();
                 });
             })
             .BuildServiceProvider();
@@ -66,7 +69,7 @@ public sealed class InProcessInboxDispatcherTests : LiteBusTestBase
             payload,
             DateTimeOffset.UtcNow);
 
-        var dispatcher = new InProcessInboxDispatcher(
+        var dispatcher = new CommandInboxDispatcher(
             new NoOpCommandMediator(),
             contractRegistry,
             serializer);
@@ -100,17 +103,19 @@ public sealed class InProcessInboxDispatcherTests : LiteBusTestBase
         await using var provider = new ServiceCollection()
             .AddSingleton(inboxCapture)
             .AddSingleton(traceCapture)
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxProbeCommandHandler>();
                 });
 
-                modules.AddInboxModule(builder =>
+                registry.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxProbeCommand>("inbox.commands.probe", 1);
-                    builder.UseInProcessDispatcher();
+                    builder.UseInMemoryStorage();
+                    builder.UseCommandInboxDispatcher();
                 });
             })
             .BuildServiceProvider();
@@ -141,7 +146,7 @@ public sealed class InProcessInboxDispatcherTests : LiteBusTestBase
 
         var recordingSerializer = new CancellationRecordingSerializer(serializer);
         var mediator = new CancellationRecordingMediator();
-        var dispatcher = new InProcessInboxDispatcher(mediator, contractRegistry, recordingSerializer);
+        var dispatcher = new CommandInboxDispatcher(mediator, contractRegistry, recordingSerializer);
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
@@ -153,29 +158,35 @@ public sealed class InProcessInboxDispatcherTests : LiteBusTestBase
     }
 
     [Fact]
-    public void AddInboxInProcessDispatcher_ShouldRegisterInProcessInboxDispatcher()
+    public void AddInboxInProcessDispatcher_ShouldRegisterCommandInboxDispatcher()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(_ => { });
-                modules.AddInboxModule(inbox => inbox.UseInProcessDispatcher());
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(_ => { });
+                registry.AddInboxModule(inbox =>
+                {
+                    inbox.UseInMemoryStorage();
+                    inbox.UseCommandInboxDispatcher();
+                });
             })
             .BuildServiceProvider();
 
-        serviceProvider.GetRequiredService<IInboxDispatcher>().Should().BeOfType<InProcessInboxDispatcher>();
+        serviceProvider.GetRequiredService<IInboxDispatcher>().Should().BeOfType<CommandInboxDispatcher>();
     }
 
     [Fact]
     public void AddInboxInProcessDispatcher_WhenAnotherDispatcherRegistered_ShouldThrow()
     {
         var act = () => new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(_ => { });
-                modules.AddInboxModule();
-                modules.Register(new PreRegisteredInboxDispatcherModule());
-                modules.Register(new InProcessInboxDispatchModule());
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(_ => { });
+                registry.AddInboxModule(inbox => inbox.UseInMemoryStorage());
+                registry.Register(new PreRegisteredInboxDispatcherModule());
+                registry.Register(new CommandInboxDispatchModule());
             })
             .BuildServiceProvider();
 
@@ -205,18 +216,20 @@ public sealed class InProcessInboxDispatcherTests : LiteBusTestBase
     public void AddInboxInProcessDispatcher_WhenCalledTwice_ShouldThrow()
     {
         var act = () => new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(_ => { });
-                modules.AddInboxModule(inbox =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(_ => { });
+                registry.AddInboxModule(inbox =>
                 {
-                    inbox.UseInProcessDispatcher();
-                    inbox.UseInProcessDispatcher();
+                    inbox.UseInMemoryStorage();
+                    inbox.UseCommandInboxDispatcher();
+                    inbox.UseCommandInboxDispatcher();
                 });
             })
             .BuildServiceProvider();
 
-        act.Should().Throw<InvalidOperationException>()
+        act.Should().Throw<LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException>()
             .WithMessage("*Inbox dispatcher is already configured*");
     }
 

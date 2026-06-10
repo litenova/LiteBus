@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Messaging.Processing;
 using Microsoft.Extensions.Logging;
 
 namespace LiteBus.Inbox;

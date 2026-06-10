@@ -1,3 +1,4 @@
+using System.Text.Json;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using LiteBus.Outbox.Storage.PostgreSql;
@@ -8,6 +9,7 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests;
 /// <summary>
 ///     Verifies <see cref="LiteBusOutboxSaveChangesInterceptor" /> commits and rolls back with the caller transaction.
 /// </summary>
+[Collection(PostgreSqlCollection.Name)]
 public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassFixture<PostgreSqlFixture>
 {
     /// <summary>
@@ -106,7 +108,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
             CausationId = "cause-99",
             TenantId = "tenant-99",
             IdempotencyKey = "idem-99",
-            TraceContext = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+            TraceContext = """{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}"""
         };
 
         await using var context = CreateContext(storeOptions, interceptor);
@@ -120,7 +122,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
 
         storedMessage.ContractName.Should().Be(envelope.ContractName);
         storedMessage.ContractVersion.Should().Be(envelope.ContractVersion);
-        storedMessage.Payload.Should().Be(envelope.Payload);
+        NormalizeJson(storedMessage.Payload).Should().Be(NormalizeJson(envelope.Payload));
         storedMessage.Topic.Should().Be(envelope.Topic);
         storedMessage.CreatedAt.Should().Be(envelope.CreatedAt);
         storedMessage.VisibleAfter.Should().Be(envelope.VisibleAfter);
@@ -130,7 +132,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
         storedMessage.CausationId.Should().Be(envelope.CausationId);
         storedMessage.TenantId.Should().Be(envelope.TenantId);
         storedMessage.IdempotencyKey.Should().Be(envelope.IdempotencyKey);
-        storedMessage.TraceContext.Should().Be(envelope.TraceContext);
+        NormalizeJson(storedMessage.TraceContext!).Should().Be(NormalizeJson(envelope.TraceContext!));
     }
 
     /// <summary>
@@ -164,25 +166,31 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
     /// <param name="storeOptions">The outbox store options.</param>
     /// <param name="interceptor">The optional save-changes interceptor.</param>
     /// <returns>The configured context.</returns>
-    private IntegrationOutboxDbContext CreateContext(
+    private InterceptorOutboxDbContext CreateContext(
         EfCoreOutboxStoreOptions storeOptions,
         LiteBusOutboxSaveChangesInterceptor? interceptor = null)
     {
-        var builder = new DbContextOptionsBuilder<IntegrationOutboxDbContext>()
-            .UseNpgsql(_fixture.ConnectionString);
+        var builder = new DbContextOptionsBuilder<InterceptorOutboxDbContext>()
+            .UseNpgsql(EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(_fixture.ConnectionString, storeOptions));
 
         if (interceptor is not null)
         {
             builder.AddLiteBusOutboxInterceptor(interceptor);
         }
 
-        return new IntegrationOutboxDbContext(builder.Options, storeOptions);
+        return new InterceptorOutboxDbContext(builder.Options, storeOptions);
     }
 
     /// <summary>
     ///     Creates a sample outbox envelope.
     /// </summary>
     /// <returns>The envelope used by tests.</returns>
+    private static string NormalizeJson(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return JsonSerializer.Serialize(document.RootElement);
+    }
+
     private static OutboxEnvelope CreateEnvelope()
     {
         return new OutboxEnvelope

@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.MediationStrategies;
 using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.Queries;

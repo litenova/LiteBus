@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Messaging.Processing;
+using LiteBus.Orchestration.Abstractions;
 using LiteBus.Outbox.Abstractions;
 using Microsoft.Extensions.Logging;
 
@@ -36,49 +39,20 @@ internal static class OutboxProcessorEnvelopeHandler
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        MessageProcessorDiagnostics.TryGetParentActivityContext(envelope.TraceContext, out var parentContext);
-        using var messageActivity = OutboxProcessorTelemetry.ActivitySource.StartActivity(
-            "outbox.processor.message",
-            System.Diagnostics.ActivityKind.Internal,
-            parentContext);
-        messageActivity?.SetTag("litebus.message_id", envelope.Id);
+        var updated = await DispatchAsync(envelope, dispatcher, options, clock, logger, Array.Empty<IProcessorEnvelopeHook>(), cancellationToken)
+            .ConfigureAwait(false);
 
-        try
+        if (updated is null)
         {
-            await dispatcher.DispatchAsync(envelope, cancellationToken).ConfigureAwait(false);
-            var updated = envelope.AsPublished();
-            accumulator.RecordSucceeded(updated);
-            return updated;
+            return null;
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            var error = MessageProcessorDiagnostics.FormatError(exception);
 
-            logger.LogWarning(
-                exception,
-                "Outbox dispatch failed for message {MessageId} on attempt {AttemptCount}.",
-                envelope.Id,
-                envelope.AttemptCount);
-
-            OutboxEnvelope updated;
-            if (envelope.AttemptCount >= options.Retry.MaxAttempts)
-            {
-                updated = envelope.AsDeadLettered(error);
-                accumulator.RecordDeadLettered(updated);
-            }
-            else
-            {
-                var visibleAfter = clock.GetUtcNow().Add(options.Retry.CalculateDelay(envelope.AttemptCount));
-                updated = envelope.AsFailed(error, visibleAfter);
-                accumulator.RecordFailed(updated);
-            }
-
-            return updated;
-        }
+        RecordTerminalOutcome(updated, accumulator);
+        return updated;
     }
 
     /// <summary>
-    ///     Publishes one leased message envelope and records its terminal state for a pipelined pass.
+    ///     Publishes one leased message envelope and returns its terminal state for a pipelined pass.
     /// </summary>
     /// <param name="envelope">The leased outbox message returned by the store.</param>
     /// <param name="dispatcher">The dispatcher used to publish the message.</param>
@@ -91,13 +65,37 @@ internal static class OutboxProcessorEnvelopeHandler
     ///     The post-transition envelope when dispatch finished with a terminal outcome for this attempt; otherwise
     ///     <see langword="null" /> when dispatch was canceled.
     /// </returns>
-    public static async Task<OutboxEnvelope?> ProcessAsync(
+    public static Task<OutboxEnvelope?> ProcessAsync(
         OutboxEnvelope envelope,
         IOutboxDispatcher dispatcher,
         OutboxProcessorOptions options,
         TimeProvider clock,
         ConcurrentProcessorPassAccumulator<OutboxEnvelope> accumulator,
         ILogger logger,
+        CancellationToken cancellationToken) =>
+        DispatchAsync(envelope, dispatcher, options, clock, logger, Array.Empty<IProcessorEnvelopeHook>(), cancellationToken);
+
+    /// <summary>
+    ///     Executes publication and maps failures to terminal retry or dead-letter transitions.
+    /// </summary>
+    /// <param name="envelope">The leased outbox message returned by the store.</param>
+    /// <param name="dispatcher">The dispatcher used to publish the message.</param>
+    /// <param name="options">The retry settings applied after publication failures.</param>
+    /// <param name="clock">The time provider used for retry visibility timestamps.</param>
+    /// <param name="logger">The logger used for publication failure diagnostics.</param>
+    /// <param name="hooks">The orchestration processor envelope hooks invoked before dispatch.</param>
+    /// <param name="cancellationToken">A token used to cancel dispatch.</param>
+    /// <returns>
+    ///     The post-transition envelope when dispatch finished with a terminal outcome for this attempt; otherwise
+    ///     <see langword="null" /> when dispatch was canceled.
+    /// </returns>
+    internal static async Task<OutboxEnvelope?> DispatchAsync(
+        OutboxEnvelope envelope,
+        IOutboxDispatcher dispatcher,
+        OutboxProcessorOptions options,
+        TimeProvider clock,
+        ILogger logger,
+        IReadOnlyList<IProcessorEnvelopeHook> hooks,
         CancellationToken cancellationToken)
     {
         MessageProcessorDiagnostics.TryGetParentActivityContext(envelope.TraceContext, out var parentContext);
@@ -109,10 +107,17 @@ internal static class OutboxProcessorEnvelopeHandler
 
         try
         {
+            await OutboxProcessorHookRunner.RunBeforeDispatchAsync(hooks, envelope, cancellationToken)
+                .ConfigureAwait(false);
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             await dispatcher.DispatchAsync(envelope, cancellationToken).ConfigureAwait(false);
-            var updated = envelope.AsPublished();
-            accumulator.RecordSucceeded(updated);
-            return updated;
+            stopwatch.Stop();
+            OutboxProcessorTelemetry.RecordDispatchDuration(stopwatch.Elapsed);
+            return envelope.AsPublished();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return null;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -124,20 +129,63 @@ internal static class OutboxProcessorEnvelopeHandler
                 envelope.Id,
                 envelope.AttemptCount);
 
-            OutboxEnvelope updated;
             if (envelope.AttemptCount >= options.Retry.MaxAttempts)
             {
-                updated = envelope.AsDeadLettered(error);
-                accumulator.RecordDeadLettered(updated);
-            }
-            else
-            {
-                var visibleAfter = clock.GetUtcNow().Add(options.Retry.CalculateDelay(envelope.AttemptCount));
-                updated = envelope.AsFailed(error, visibleAfter);
-                accumulator.RecordFailed(updated);
+                return envelope.AsDeadLettered(error);
             }
 
-            return updated;
+            var visibleAfter = clock.GetUtcNow().Add(options.Retry.CalculateDelay(envelope.AttemptCount));
+            return envelope.AsFailed(error, visibleAfter);
+        }
+    }
+
+    /// <summary>
+    ///     Records a terminal envelope in the pass accumulator.
+    /// </summary>
+    /// <param name="updated">The post-transition envelope.</param>
+    /// <param name="accumulator">The pass accumulator that collects post-transition envelopes.</param>
+    private static void RecordTerminalOutcome(
+        OutboxEnvelope updated,
+        IProcessorPassRecorder<OutboxEnvelope> accumulator)
+    {
+        switch (updated.Status)
+        {
+            case OutboxStatus.Published:
+                accumulator.RecordSucceeded(updated);
+                break;
+
+            case OutboxStatus.Failed:
+                accumulator.RecordFailed(updated);
+                break;
+
+            case OutboxStatus.DeadLettered:
+                accumulator.RecordDeadLettered(updated);
+                break;
+        }
+    }
+
+    /// <summary>
+    ///     Records a terminal envelope in the concurrent pass accumulator after persist succeeds.
+    /// </summary>
+    /// <param name="updated">The post-transition envelope.</param>
+    /// <param name="accumulator">The concurrent pass accumulator that collects post-transition envelopes.</param>
+    internal static void RecordTerminalOutcome(
+        OutboxEnvelope updated,
+        ConcurrentProcessorPassAccumulator<OutboxEnvelope> accumulator)
+    {
+        switch (updated.Status)
+        {
+            case OutboxStatus.Published:
+                accumulator.RecordSucceeded(updated);
+                break;
+
+            case OutboxStatus.Failed:
+                accumulator.RecordFailed(updated);
+                break;
+
+            case OutboxStatus.DeadLettered:
+                accumulator.RecordDeadLettered(updated);
+                break;
         }
     }
 }

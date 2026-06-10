@@ -1,4 +1,5 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
@@ -17,8 +18,12 @@ public sealed class EfCoreOutboxStorageModuleTests
 
         var provider = new ServiceCollection()
             .AddDbContext<ModuleTestOutboxDbContext>(options => options.UseInMemoryDatabase(databaseName))
-            .AddLiteBus(modules => modules.AddOutboxModule(outbox => outbox.UseEfCoreStorage(builder =>
-                builder.UseDbContext<ModuleTestOutboxDbContext>())))
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessageModule(_ => { });
+                registry.AddOutboxModule(outbox => outbox.UseEfCoreStorage(builder =>
+                    builder.UseDbContext<ModuleTestOutboxDbContext>()));
+            })
             .BuildServiceProvider();
 
         var store = provider.GetRequiredService<EfCoreOutboxStore>();
@@ -36,10 +41,14 @@ public sealed class EfCoreOutboxStorageModuleTests
         var act = () =>
             new ServiceCollection()
                 .AddDbContext<ModuleTestOutboxDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString("N")))
-                .AddLiteBus(modules => modules.AddOutboxModule(outbox => outbox.UseEfCoreStorage(builder =>
-                    builder
-                        .UseDbContext<ModuleTestOutboxDbContext>()
-                        .EnforceTransactionalSetup())))
+                .AddLiteBus(registry =>
+                {
+                    registry.AddMessageModule(_ => { });
+                    registry.AddOutboxModule(outbox => outbox.UseEfCoreStorage(builder =>
+                        builder
+                            .UseDbContext<ModuleTestOutboxDbContext>()
+                            .EnforceTransactionalSetup()));
+                })
                 .BuildServiceProvider();
 
         act.Should().Throw<LiteBusConfigurationException>()

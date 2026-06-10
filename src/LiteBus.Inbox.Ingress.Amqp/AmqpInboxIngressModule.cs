@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Ingress.Transport;
+using LiteBus.Inbox.Ingress;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Transport.Amqp;
@@ -13,7 +13,7 @@ namespace LiteBus.Inbox.Ingress.Amqp;
 /// <summary>
 ///     Module that registers AMQP inbox ingress services.
 /// </summary>
-public sealed class AmqpInboxIngressModule : IModule
+public sealed class AmqpInboxIngressModule : IInboxIngressModule
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -34,14 +34,6 @@ public sealed class AmqpInboxIngressModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (!configuration.TryGetContext<InboxCoreRegisteredMarker>(out _))
-        {
-            throw new LiteBusConfigurationException(
-                $"{nameof(AmqpInboxIngressModule)} requires InboxModule core services " +
-                "to be registered first. Configure ingress inside AddInboxModule(...) " +
-                "using UseAmqpIngress().");
-        }
-
         var moduleBuilder = new AmqpInboxIngressModuleBuilder();
         _builder(moduleBuilder);
 
@@ -53,9 +45,21 @@ public sealed class AmqpInboxIngressModule : IModule
                 $"{nameof(AmqpInboxIngressOptions.QueueName)} must be configured before registering AMQP inbox ingress.");
         }
 
-        RegisterTransportServicesIfMissing(configuration, options.Connection);
+        EnsureTransportRegistered(configuration, options);
+
+        var ingressOptions = new TransportInboxIngressOptions
+        {
+            Destination = options.QueueName,
+            PrefetchCount = options.PrefetchCount,
+            DeclareDestination = options.DeclareQueue,
+            DurableDestination = options.DurableQueue,
+            RequeueOnFailure = options.RequeueOnFailure,
+            EnableBatchAccept = options.EnableBatchAccept,
+            BatchMaxWait = options.BatchMaxWait
+        };
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(AmqpInboxIngressOptions), options));
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(TransportInboxIngressOptions), ingressOptions));
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(TransportInboxIngressHandler),
             typeof(TransportInboxIngressHandler)));
@@ -66,33 +70,40 @@ public sealed class AmqpInboxIngressModule : IModule
         if (moduleBuilder.EnableIngressConsumer)
         {
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(AmqpInboxIngressHostOptions),
+                typeof(TransportInboxIngressHostOptions),
                 moduleBuilder.HostOptions));
 
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(AmqpInboxConsumer),
-                typeof(AmqpInboxConsumer)));
+                typeof(TransportInboxIngressConsumer),
+                typeof(TransportInboxIngressConsumer)));
 
-            configuration.RegisterBackgroundService(typeof(AmqpInboxConsumer));
+            configuration.RegisterBackgroundService(typeof(TransportInboxIngressConsumer));
         }
 
         TransportMetricsRegistration.RegisterIfNeeded(configuration);
     }
 
     /// <summary>
-    ///     Registers shared transport services when another module has not already registered them.
+    ///     Ensures <see cref="IMessageConsumer" /> is registered, bootstrapping AMQP transport from ingress options when needed.
     /// </summary>
     /// <param name="configuration">The module configuration receiving dependency registrations.</param>
-    /// <param name="connectionOptions">The broker connection settings for the ingress consumer.</param>
-    private static void RegisterTransportServicesIfMissing(
-        IModuleConfiguration configuration,
-        AmqpConnectionOptions connectionOptions)
+    /// <param name="options">The AMQP ingress options supplying connection settings when transport is not pre-registered.</param>
+    private static void EnsureTransportRegistered(IModuleConfiguration configuration, AmqpInboxIngressOptions options)
     {
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageTransport)))
+        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageConsumer)))
         {
             return;
         }
 
-        new AmqpTransportModule(connectionOptions).Build(configuration);
+        new AmqpTransportModule(options.Connection).Build(configuration);
+
+        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageConsumer)))
+        {
+            return;
+        }
+
+        throw new LiteBusConfigurationException(
+            "AMQP inbox ingress requires IMessageConsumer to be registered. " +
+            "Configure AmqpInboxIngressOptions.Connection or register AmqpTransportModule before calling UseAmqpIngress().");
     }
 }

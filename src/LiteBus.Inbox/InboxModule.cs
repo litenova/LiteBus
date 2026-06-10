@@ -42,13 +42,7 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
 
         foreach (var subModule in _builder.CollectSubModules())
         {
-            if (subModule is not IModule module)
-            {
-                throw new LiteBusConfigurationException(
-                    $"Inbox sub-module '{subModule.GetType().FullName}' must implement {nameof(IModule)}.");
-            }
-
-            registerChild(module);
+            registerChild(subModule);
         }
     }
 
@@ -64,13 +58,18 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
                 "Register the module through IModuleRegistry.");
         }
 
-        if (_builder.IsInboxProcessorEnabled &&
-            (!_builder.IsStorageConfigured || !_builder.IsDispatcherConfigured))
+        if (!_builder.IsStorageConfigured)
         {
             throw new LiteBusConfigurationException(
-                "EnableInboxProcessor requires both storage and dispatcher to be configured. " +
-                "Call UseInMemoryStorage, UsePostgreSqlStorage, or UseEfCoreStorage and " +
-                "UseInProcessDispatcher or UseTransport inside AddInboxModule(...).");
+                "Inbox storage is required because AddInboxModule registers IInbox and related writer services. " +
+                "Call UseInMemoryStorage, UsePostgreSqlStorage, or UseEfCoreStorage inside AddInboxModule(...).");
+        }
+
+        if (_builder.IsInboxProcessorEnabled && !_builder.IsDispatcherConfigured)
+        {
+            throw new LiteBusConfigurationException(
+                "EnableInboxProcessor requires an inbox dispatcher. " +
+                "Call UseCommandInboxDispatcher, a broker-specific Use*Dispatch extension, or RegisterDispatcher inside AddInboxModule(...).");
         }
 
         var contractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
@@ -91,8 +90,8 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
         if (_builder.CollectPayloadEncryptor() is { } inboxEncryptor)
         {
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(IPayloadEncryptor),
-                inboxEncryptor));
+                typeof(IInboxPayloadProtector),
+                new InboxPayloadProtector(inboxEncryptor)));
         }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -102,6 +101,16 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IInboxScheduler),
             typeof(Inbox)));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(InboxCleanupHostOptions),
+            _builder.CleanupHostOptions));
+
+        var retentionCoordinator = new InboxRetentionCoordinator(_builder.CleanupHostOptions);
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(InboxRetentionCoordinator),
+            retentionCoordinator));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IInboxManager),
@@ -137,10 +146,6 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
 
         if (_builder.IsCleanupEnabled)
         {
-            configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(InboxCleanupHostOptions),
-                _builder.CleanupHostOptions));
-
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
                 typeof(InboxCleanupBackgroundService),
                 typeof(InboxCleanupBackgroundService)));

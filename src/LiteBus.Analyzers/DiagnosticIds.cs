@@ -59,4 +59,24 @@ internal static class DiagnosticIds
     ///     Type depends on transactional outbox storage without a database context in the same constructor.
     /// </summary>
     internal const string TransactionalOutboxWithoutDbContext = "LB1013";
+
+    /// <summary>
+    ///     Inbox or outbox processor is enabled without a dispatcher registration.
+    /// </summary>
+    internal const string ProcessorEnabledWithoutDispatcher = "LB1014";
+
+    /// <summary>
+    ///     Transactional EF storage setup omits the save-changes interceptor.
+    /// </summary>
+    internal const string TransactionalStorageWithoutInterceptor = "LB1015";
+
+    /// <summary>
+    ///     Type depends on transactional inbox storage without a database context in the same constructor.
+    /// </summary>
+    internal const string TransactionalInboxWithoutDbContext = "LB1016";
+
+    /// <summary>
+    ///     Message type declares <c>[MessageContract]</c> but lacks explicit contract registration.
+    /// </summary>
+    internal const string ExplicitMessageContractRegistration = "LB1017";
 }

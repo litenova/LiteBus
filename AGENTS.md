@@ -112,6 +112,51 @@ The current package-to-layer map is maintained in [Dependency Graph](docs/Depend
 
 Name new packages to match an existing role before inventing a new shape. The aggregate `LiteBus` meta-package is the only kitchen-sink reference; all other integrations stay opt-in.
 
+### Granular opt-in packages (intentional)
+
+LiteBus splits NuGet packages along **concern boundaries** so consumers reference only what they run. Many packages look small (for example a single `UseAmqpDispatch` registration file); that thin surface is deliberate wiring, not an invitation to merge assemblies for fewer package IDs.
+
+**Default rule:** preserve one installable package per orthogonal concern. Do not collapse, combine, or meta-bundle adapters unless the user or a maintainer explicitly approves a breaking packaging change.
+
+| Split | Why it stays separate |
+|---|---|
+| Inbox vs outbox | Different durable semantics (accept/execute vs enqueue/publish), processors, store roles, and operational paths. Services often need one axis only; they scale and evolve on different timelines. |
+| Dispatch vs ingress vs storage | Storage is persistence; dispatch is outbound execution after lease; ingress is broker intake into accept. A read-only publisher may use outbox dispatch without inbox ingress or storage on the same host. |
+| Inbox.Dispatch.* vs Outbox.Dispatch.* | Same broker, different envelope contracts and mediators (`ICommandMediator` vs `IEventMediator`). Installing `Inbox.Dispatch.Amqp` must not imply `Outbox.Dispatch.Amqp` or its transitive graph. |
+| Per broker (`*.Dispatch.Amqp`, `*.Ingress.Kafka`, `Transport.Amqp`) | Each broker pulls its own SDK. A Kafka-only service must not transitively reference RabbitMQ, Azure Service Bus, or AWS clients. |
+| Per store (`*.Storage.PostgreSql`, `*.Storage.EntityFrameworkCore`, `*.Storage.InMemory`) | Same rule for ORM and database drivers. |
+| Shared core vs broker glue (`Inbox.Dispatch` + `Inbox.Dispatch.Amqp`) | Shared dispatch logic stays broker-neutral; glue packages register one `IModule` pair without referencing sibling brokers or the other durable axis. |
+
+**Consumer composition** follows need, not defaults:
+
+```text
+Inbox only, AMQP dispatch, PostgreSQL storage
+  -> Inbox (+ abstractions via module)
+  -> Inbox.Storage.PostgreSql
+  -> Inbox.Dispatch.Amqp          (not Outbox.Dispatch.Amqp)
+  -> optional Inbox.Ingress.Amqp  (only when consuming from a broker)
+
+Outbox only, in-process dispatch
+  -> Outbox
+  -> Outbox.Storage.*
+  -> Outbox.Dispatch.InProcess    (no inbox packages)
+```
+
+**What agents should not propose by default**
+
+- Merging inbox and outbox adapters into one package because they share similar file names.
+- A single `UseTransport(TransportKind, …)` API backed by one assembly that references every `Transport.*` broker (forces unused SDKs onto consumers).
+- “Durable” or “Transport” meta-packages that bundle both axes and multiple brokers for convenience (duplicates the forbidden kitchen-sink pattern outside the documented `LiteBus` / `Extensions.*` entry points).
+- Treating high package count in `docs/Dependency-Graph.md` as technical debt; treat **unwanted transitive dependencies** as the debt signal instead.
+
+**When consolidation is in scope**
+
+- The user explicitly asks to reduce package count and accepts breaking reference changes.
+- Two packages always ship together, share identical versioning constraints, and never appear independently in samples or consumer apps (rare; needs evidence).
+- Extracting **shared implementation** into a lower-layer package without changing which packages consumers must install (refactor, not merge).
+
+Ergonomic aliases belong in **documentation and samples**, not in wider default dependency graphs. See [Dependency Graph](docs/Dependency-Graph.md) for the living inventory.
+
 ### Feature axes
 
 - **Vertical** domain packages (durable messaging, saga, semantic mediators) must not reference each other or broker or ORM SDKs unless the dependency rule table in `docs/Dependency-Graph.md` explicitly allows it.
@@ -132,9 +177,9 @@ Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs du
 
 ### Composition rules
 
-- Applications reference only packages they compose.
+- Applications reference only packages they compose. See **Granular opt-in packages** above; never widen a package reference graph because another integration exists in the same repo.
 - Do not add convenience APIs on shared builders that pull storage, transport, or other adapters into generic DI packages.
-- Defer ergonomic shortcuts to `docs/Roadmap.md` when they would violate layer boundaries.
+- Defer ergonomic shortcuts to `docs/Roadmap.md` when they would violate layer boundaries or opt-in packaging.
 
 ### Adapter rules
 

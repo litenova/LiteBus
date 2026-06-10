@@ -6,9 +6,12 @@ using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Abstractions.Exceptions;
+using LiteBus.Inbox.Dispatch;
+using LiteBus.Inbox.Dispatch.InMemory;
 using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
+using LiteBus.Transport.InMemory;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using LiteBus.Transport.Amqp;
@@ -195,21 +198,23 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
     private static ServiceProvider BuildProvider()
     {
         return new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(module => module.Register<ShipOrderCommandHandler>());
-                modules.AddInboxModule(inbox =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(module => module.Register<ShipOrderCommandHandler>());
+                registry.AddInboxModule(inbox =>
                 {
                     inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
                     inbox.UseInMemoryStorage();
-                });
-                modules.AddInboxAmqpIngress(ingress =>
-                {
-                    ingress.DisableIngressConsumer();
-                    ingress.UseOptions(new AmqpInboxIngressOptions
+                    inbox.UseInMemoryDispatch();
+                    inbox.UseAmqpIngress(ingress =>
                     {
-                        QueueName = "litebus.inbox.ingress.unit-tests",
-                        Connection = new AmqpConnectionOptions { HostName = "localhost" }
+                        ingress.DisableIngressConsumer();
+                        ingress.UseOptions(new AmqpInboxIngressOptions
+                        {
+                            QueueName = "litebus.inbox.ingress.unit-tests",
+                            Connection = new AmqpConnectionOptions { HostName = "localhost" }
+                        });
                     });
                 });
             })

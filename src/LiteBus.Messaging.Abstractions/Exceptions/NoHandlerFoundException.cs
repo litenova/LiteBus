@@ -23,7 +23,15 @@ public sealed class NoHandlerFoundException : Exception
     ///     The exception message includes the name of the message type to help diagnose the issue.
     /// </remarks>
     public NoHandlerFoundException(Type messageType)
-        : base($"No handler found for message type '{messageType.Name}'")
+        : base(
+            $"No handler found for message type '{messageType.FullName ?? messageType.Name}'. " +
+            "Register handlers with RegisterFromAssembly or builder.Register<THandler>().")
     {
+        MessageType = messageType;
     }
+
+    /// <summary>
+    ///     Gets the message type for which no handler was found.
+    /// </summary>
+    public Type MessageType { get; }
 }

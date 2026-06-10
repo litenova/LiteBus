@@ -36,6 +36,7 @@
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj" />
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj" />
         <ProjectReference Include="..\..\src\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj" />
+        <ProjectReference Include="..\..\src\LiteBus.Transport.Abstractions\LiteBus.Transport.Abstractions.csproj" />
     </ItemGroup>
 
 </Project>

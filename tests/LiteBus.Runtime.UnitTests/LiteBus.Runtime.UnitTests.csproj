@@ -23,6 +23,9 @@
         <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Autofac.Hosting\LiteBus.Runtime.Extensions.Autofac.Hosting.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Messaging.Extensions.Microsoft.DependencyInjection\LiteBus.Messaging.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Microsoft.Hosting\LiteBus.Runtime.Extensions.Microsoft.Hosting.csproj"/>
     </ItemGroup>

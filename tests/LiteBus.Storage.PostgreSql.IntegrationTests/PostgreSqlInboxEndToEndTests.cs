@@ -214,9 +214,10 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
             services.AddSingleton(recorder);
         }
 
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(registry =>
         {
-            modules.AddCommandModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
             {
                 if (registerShipHandler)
                 {
@@ -231,7 +232,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
                 }
             });
 
-            modules.AddInboxModule(builder =>
+            registry.AddInboxModule(builder =>
             {
                 builder.UsePostgreSqlStorage(postgres =>
                 {
@@ -261,7 +262,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
                     }
                 });
 
-                builder.UseInProcessDispatcher();
+                builder.UseCommandInboxDispatcher();
             });
         });
 

@@ -98,12 +98,12 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldProcessMultipleMessagesInSinglePass()
     {
-        var store = new InMemoryOutboxStore();
-        await using var provider = BuildProcessorProvider(store, batchSize: 10);
+        await using var provider = BuildProcessorProvider(batchSize: 10);
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>();
+        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
 
         for (var i = 0; i < 3; i++)
         {
@@ -122,12 +122,12 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldRespectBatchSize()
     {
-        var store = new InMemoryOutboxStore();
-        await using var provider = BuildProcessorProvider(store, batchSize: 2);
+        await using var provider = BuildProcessorProvider(batchSize: 2);
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>();
+        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
 
         for (var i = 0; i < 5; i++)
         {
@@ -150,12 +150,12 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenVisibleAfterInFuture_ShouldNotLeaseMessage()
     {
         var clock = new ManualTimeProvider(BaseTime);
-        var store = new InMemoryOutboxStore();
-        await using var provider = BuildProcessorProvider(store, batchSize: 10, clock: clock);
+        await using var provider = BuildProcessorProvider(batchSize: 10, clock: clock);
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>();
+        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
         var messageId = Guid.NewGuid();
 
         await outbox.EnqueueAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
@@ -174,12 +174,12 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenVisibleAfterReached_ShouldPublishMessage()
     {
         var clock = new ManualTimeProvider(BaseTime);
-        var store = new InMemoryOutboxStore();
-        await using var provider = BuildProcessorProvider(store, batchSize: 10, clock: clock);
+        await using var provider = BuildProcessorProvider(batchSize: 10, clock: clock);
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>();
+        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
         var messageId = Guid.NewGuid();
 
         await outbox.EnqueueAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
@@ -199,9 +199,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenFixedBackoffConfigured_ShouldSetVisibleAfterToInitialDelay()
     {
         var clock = new ManualTimeProvider(BaseTime);
-        var store = new InMemoryOutboxStore();
         await using var provider = BuildProcessorProvider(
-            store,
             batchSize: 10,
             clock: clock,
             useFailingDispatcher: true,
@@ -221,6 +219,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
                     }
                 });
             });
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
@@ -236,12 +235,12 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimStuckMessage()
     {
         var clock = new ManualTimeProvider(BaseTime);
-        var store = new InMemoryOutboxStore();
-        await using var provider = BuildProcessorProvider(store, batchSize: 10, clock: clock);
+        await using var provider = BuildProcessorProvider(batchSize: 10, clock: clock);
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>();
+        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
         var messageId = Guid.NewGuid();
 
         await outbox.EnqueueAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions { Id = messageId });
@@ -268,11 +267,10 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenDispatcherThrows_ShouldStoreErrorWithoutStackTrace()
     {
-        var store = new InMemoryOutboxStore();
         await using var provider = BuildProcessorProvider(
-            store,
             batchSize: 10,
             useFailingDispatcher: true);
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
@@ -289,8 +287,8 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldReturnLeasedCount()
     {
-        var store = new InMemoryOutboxStore();
-        await using var provider = BuildProcessorProvider(store, batchSize: 10);
+        await using var provider = BuildProcessorProvider(batchSize: 10);
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
@@ -307,15 +305,14 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldDispatchPocoMessageThroughMockDispatcher()
     {
-        var store = new InMemoryOutboxStore();
+        var dispatcherHolder = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         var serviceProvider = new ServiceCollection()
-            .AddOutboxStoreRoles(store)
-            .AddSingleton<OutboxTestInfrastructure.RecordingOutboxDispatcher>()
-            .AddSingleton<IOutboxDispatcher>(sp => sp.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>())
-            .AddLiteBus(modules =>
+            .AddSingleton(dispatcherHolder)
+            .AddLiteBus(registry =>
             {
-                modules.AddOutboxModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddOutboxModule(builder =>
                 {
                     builder.Contracts.Register<PocoIntegrationEvent>("poco.events.sample", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -324,13 +321,15 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
                         LeaseOwner = "poco-publisher",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+                    builder.UseInMemoryStorage();
+                    builder.UseRecordingOutboxDispatcher(dispatcherHolder);
                 });
             })
             .BuildServiceProvider();
 
         var writer = serviceProvider.GetRequiredService<IOutbox>();
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
-        var dispatcher = serviceProvider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>();
+        var dispatcher = dispatcherHolder.Instance!;
         var messageId = Guid.NewGuid();
 
         await writer.EnqueueAsync(new PocoIntegrationEvent { Value = "poco-test" }, new OutboxOptions { Id = messageId });
@@ -345,11 +344,14 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public void OutboxProcessor_WithInvalidBatchSize_ShouldThrow()
     {
-        var act = () => new OutboxProcessor(
-            new InMemoryOutboxStore(),
+        var store = new InMemoryOutboxStore();
+        var act = () => new PipelinedOutboxProcessor(
+            store,
+            store,
             new OutboxTests.AlwaysFailingOutboxDispatcher(),
             new OutboxProcessorOptions { BatchSize = 0 },
-            TimeProvider.System);
+            TimeProvider.System,
+            Array.Empty<LiteBus.Orchestration.Abstractions.IProcessorEnvelopeHook>());
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -357,11 +359,14 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public void OutboxProcessor_WithInvalidLeaseDuration_ShouldThrow()
     {
-        var act = () => new OutboxProcessor(
-            new InMemoryOutboxStore(),
+        var store = new InMemoryOutboxStore();
+        var act = () => new PipelinedOutboxProcessor(
+            store,
+            store,
             new OutboxTests.AlwaysFailingOutboxDispatcher(),
             new OutboxProcessorOptions { LeaseDuration = TimeSpan.Zero },
-            TimeProvider.System);
+            TimeProvider.System,
+            Array.Empty<LiteBus.Orchestration.Abstractions.IProcessorEnvelopeHook>());
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -369,11 +374,14 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public void OutboxProcessor_WithInvalidMaxAttempts_ShouldThrow()
     {
-        var act = () => new OutboxProcessor(
-            new InMemoryOutboxStore(),
+        var store = new InMemoryOutboxStore();
+        var act = () => new PipelinedOutboxProcessor(
+            store,
+            store,
             new OutboxTests.AlwaysFailingOutboxDispatcher(),
             new OutboxProcessorOptions { Retry = new RetryOptions { MaxAttempts = 0 } },
-            TimeProvider.System);
+            TimeProvider.System,
+            Array.Empty<LiteBus.Orchestration.Abstractions.IProcessorEnvelopeHook>());
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -381,8 +389,8 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenCancellationRequested_ShouldPropagateOperationCanceledException()
     {
-        var store = new InMemoryOutboxStore();
-        await using var provider = BuildProcessorProvider(store, batchSize: 10);
+        await using var provider = BuildProcessorProvider(batchSize: 10);
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
@@ -409,28 +417,24 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     }
 
     private static ServiceProvider BuildProcessorProvider(
-        InMemoryOutboxStore store,
         int batchSize,
         TimeProvider? clock = null,
         bool useFailingDispatcher = false,
         Action<OutboxModuleBuilder>? configureOutbox = null)
     {
-        var services = new ServiceCollection()
-            .AddOutboxStoreRoles(store);
+        var dispatcherHolder = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
+        var services = new ServiceCollection().AddSingleton(dispatcherHolder);
 
-        if (useFailingDispatcher)
+        services.AddLiteBus(registry =>
         {
-            services.AddSingleton<IOutboxDispatcher>(new OutboxTests.AlwaysFailingOutboxDispatcher());
-        }
-        else
-        {
-            services.AddSingleton<OutboxTestInfrastructure.RecordingOutboxDispatcher>();
-            services.AddSingleton<IOutboxDispatcher>(sp => sp.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>());
-        }
-
-        services.AddLiteBus(modules =>
-        {
-            modules.AddOutboxModule(outbox =>
+            registry.AddMessageModule(message =>
+            {
+                if (clock is not null)
+                {
+                    message.UseTimeProvider(clock);
+                }
+            });
+            registry.AddOutboxModule(outbox =>
             {
                 if (configureOutbox is not null)
                 {
@@ -446,13 +450,19 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
                         Retry = new RetryOptions { UseJitter = false }
                     });
                 }
+
+                outbox.UseInMemoryStorage();
+
+                if (useFailingDispatcher)
+                {
+                    outbox.UseFixedOutboxDispatcher(new OutboxTests.AlwaysFailingOutboxDispatcher());
+                }
+                else
+                {
+                    outbox.UseRecordingOutboxDispatcher(dispatcherHolder);
+                }
             });
         });
-
-        if (clock is not null)
-        {
-            services.AddSingleton(clock);
-        }
 
         return services.BuildServiceProvider();
     }

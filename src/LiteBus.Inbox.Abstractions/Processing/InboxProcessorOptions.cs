@@ -1,6 +1,5 @@
 using System;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Inbox.Abstractions;
 
@@ -72,17 +71,7 @@ public sealed record InboxProcessorOptions
     public string? LeaseOwner { get; init; }
 
     /// <summary>
-    ///     Gets the processor execution model used when the inbox module creates <see cref="IInboxProcessor" />.
-    /// </summary>
-    /// <value>
-    ///     Default is <see cref="ProcessorArchitecture.Pipelined" />. Set
-    ///     <see cref="ProcessorArchitecture.Legacy" /> to restore the original sequential foreach loop.
-    /// </value>
-    public ProcessorArchitecture Architecture { get; init; } = ProcessorArchitecture.Pipelined;
-
-    /// <summary>
-    ///     Gets the number of parallel dispatch workers used when <see cref="Architecture" /> is
-    ///     <see cref="ProcessorArchitecture.Pipelined" />.
+    ///     Gets the number of parallel dispatch workers used by the pipelined inbox processor.
     /// </summary>
     /// <value>
     ///     Default is <c>1</c>, which serializes dispatch within a pass. Values less than or equal to zero are rejected
@@ -116,4 +105,15 @@ public sealed record InboxProcessorOptions
     ///     dedicated processor instance per tenant.
     /// </value>
     public string? TenantId { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether terminal <c>PersistAsync</c> calls observe the shutdown or dispatch cancellation token.
+    /// </summary>
+    /// <value>
+    ///     <see langword="false" /> by default. When <see langword="false" />, processors pass
+    ///     <c>CancellationToken.None</c> so a reclaimed lease cannot abort an in-flight terminal write.
+    ///     When <see langword="true" />, the active cancellation token is passed for faster drain at the risk of
+    ///     duplicate dispatch if shutdown cancels persist after handler execution.
+    /// </value>
+    public bool HonorShutdownTokenOnPersist { get; init; }
 }

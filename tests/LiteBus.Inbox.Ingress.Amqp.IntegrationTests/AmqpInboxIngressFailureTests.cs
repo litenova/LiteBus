@@ -3,9 +3,12 @@ using System.Text;
 using System.Text.Json;
 using LiteBus.Commands;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
+using LiteBus.Inbox.Dispatch;
+using LiteBus.Inbox.Dispatch.Amqp;
 using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging.Abstractions;
@@ -117,6 +120,9 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
                 contractVersion: "1");
 
             await WaitForQueueDepthAsync(fixture.ConnectionOptions, queueName, expectedCount: 0, TimeSpan.FromSeconds(15));
+
+            var pending = await CountPendingInboxRowsAsync(provider);
+            pending.Should().Be(1);
         }
         finally
         {
@@ -132,22 +138,23 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
         var services = new ServiceCollection();
         services.AddSingleton(new CommandRecorder());
 
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(registry =>
         {
-            modules.AddCommandModule(module =>
+            registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(module =>
             {
                 module.Register<ShipOrderCommand>();
                 module.Register<ShipOrderCommandHandler>();
             });
 
-            modules.AddInboxModule(inbox =>
+            registry.AddInboxModule(inbox =>
             {
                 inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
                 inbox.UseInMemoryStorage(builder => builder.UseOptions(new InMemoryInboxStoreOptions
                 {
                     Capacity = inboxCapacity
                 }));
-                inbox.UseInProcessDispatcher();
+                inbox.UseAmqpDispatch(_ => { }, connectionOptions);
                 inbox.UseAmqpIngress(ingress =>
                 {
                     ingress.UseOptions(new AmqpInboxIngressOptions
@@ -166,11 +173,8 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
 
     private static async Task StartIngressAsync(ServiceProvider provider)
     {
-        var hostedServices = provider.GetServices<IHostedService>().ToList();
-        hostedServices.Should().ContainSingle();
-
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await hostedServices[0].StartAsync(runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
         await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
     }
 

@@ -2,9 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Storage.PostgreSql;
 using Npgsql;
 using NpgsqlTypes;
@@ -33,6 +36,7 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 ///     </para>
 /// </remarks>
 public sealed class PostgreSqlOutboxStore :
+    IOutboxStore,
     IOutboxProcessingStore,
     IOutboxOperationsStore
 {
@@ -40,6 +44,11 @@ public sealed class PostgreSqlOutboxStore :
     ///     The PostgreSQL data source used to open commands against the outbox table.
     /// </summary>
     private readonly NpgsqlDataSource _dataSource;
+
+    /// <summary>
+    ///     The store table and metadata options.
+    /// </summary>
+    private readonly PostgreSqlOutboxStoreOptions _options;
 
     /// <summary>
     ///     The quoted qualified outbox table name built from store options at construction time.
@@ -67,6 +76,7 @@ public sealed class PostgreSqlOutboxStore :
 
         options ??= new PostgreSqlOutboxStoreOptions();
         _dataSource = dataSource;
+        _options = options;
         _tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
     }
 
@@ -372,7 +382,7 @@ public sealed class PostgreSqlOutboxStore :
     }
 
     /// <inheritdoc />
-    public async Task PersistAsync(
+    public async Task<PersistResult> PersistAsync(
         IReadOnlyList<OutboxEnvelope> envelopes,
         CancellationToken cancellationToken = default)
     {
@@ -380,7 +390,7 @@ public sealed class PostgreSqlOutboxStore :
 
         if (envelopes.Count == 0)
         {
-            return;
+            return PersistResult.Empty;
         }
 
         List<OutboxEnvelope>? published = null;
@@ -410,7 +420,8 @@ public sealed class PostgreSqlOutboxStore :
             }
         }
 
-        await PersistTerminalGroupsAsync(published, failed, deadLettered, cancellationToken).ConfigureAwait(false);
+        return await PersistTerminalGroupsAsync(published, failed, deadLettered, envelopes, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -419,12 +430,14 @@ public sealed class PostgreSqlOutboxStore :
     /// <param name="published">The published envelopes to persist, if any.</param>
     /// <param name="failed">The failed envelopes to persist, if any.</param>
     /// <param name="deadLettered">The dead-lettered envelopes to persist, if any.</param>
+    /// <param name="requestedEnvelopes">The original persist request used to preserve outcome order.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
-    /// <returns>A task that represents the asynchronous update.</returns>
-    private async Task PersistTerminalGroupsAsync(
+    /// <returns>A task that returns one outcome per requested envelope.</returns>
+    private async Task<PersistResult> PersistTerminalGroupsAsync(
         IReadOnlyList<OutboxEnvelope>? published,
         IReadOnlyList<OutboxEnvelope>? failed,
         IReadOnlyList<OutboxEnvelope>? deadLettered,
+        IReadOnlyList<OutboxEnvelope> requestedEnvelopes,
         CancellationToken cancellationToken)
     {
         if (_transactionConnection is null || _transaction is null)
@@ -433,25 +446,37 @@ public sealed class PostgreSqlOutboxStore :
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
             var scopedStore = new PostgreSqlOutboxStore(_dataSource, _tableName, connection, transaction);
-            await scopedStore.PersistTerminalGroupsAsync(published, failed, deadLettered, cancellationToken).ConfigureAwait(false);
+            var result = await scopedStore.PersistTerminalGroupsAsync(
+                    published,
+                    failed,
+                    deadLettered,
+                    requestedEnvelopes,
+                    cancellationToken)
+                .ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            return;
+            return result;
         }
+
+        var persistedMessageIds = new HashSet<Guid>();
 
         if (published is not null)
         {
-            await PersistPublishedAsync(published, cancellationToken).ConfigureAwait(false);
+            persistedMessageIds.UnionWith(await PersistPublishedAsync(published, cancellationToken).ConfigureAwait(false));
         }
 
         if (failed is not null)
         {
-            await PersistFailedAsync(failed, cancellationToken).ConfigureAwait(false);
+            persistedMessageIds.UnionWith(await PersistFailedAsync(failed, cancellationToken).ConfigureAwait(false));
         }
 
         if (deadLettered is not null)
         {
-            await PersistDeadLetteredAsync(deadLettered, cancellationToken).ConfigureAwait(false);
+            persistedMessageIds.UnionWith(
+                await PersistDeadLetteredAsync(deadLettered, cancellationToken).ConfigureAwait(false));
         }
+
+        var messageIds = requestedEnvelopes.Select(envelope => envelope.Id).ToArray();
+        return PersistResult.FromMessageIds(messageIds, persistedMessageIds);
     }
 
     /// <summary>
@@ -459,8 +484,10 @@ public sealed class PostgreSqlOutboxStore :
     /// </summary>
     /// <param name="envelopes">The published envelopes to persist.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
-    /// <returns>A task that represents the asynchronous update.</returns>
-    private async Task PersistPublishedAsync(IReadOnlyList<OutboxEnvelope> envelopes, CancellationToken cancellationToken)
+    /// <returns>A task that returns the message identifiers updated under the lease guard.</returns>
+    private async Task<HashSet<Guid>> PersistPublishedAsync(
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken)
     {
         if (envelopes.Count == 1)
         {
@@ -475,7 +502,8 @@ public sealed class PostgreSqlOutboxStore :
                           published_at = @published_at
                       WHERE message_id = @message_id
                           AND status = @in_flight_status
-                          AND lease_owner = @owner;
+                          AND lease_owner = @owner
+                      RETURNING message_id;
                       """;
 
             await using var command = CreateCommand(sql);
@@ -484,17 +512,18 @@ public sealed class PostgreSqlOutboxStore :
             command.Parameters.AddWithValue("message_id", envelope.Id);
             command.Parameters.AddWithValue("owner", envelope.LeaseOwner!);
             command.Parameters.AddWithValue("published_at", ResolvePublishedAt(envelope));
-            await ExecuteTerminalUpdateAsync(command, cancellationToken).ConfigureAwait(false);
-            return;
+            return await ExecuteTerminalUpdateWithReturningAsync(command, cancellationToken).ConfigureAwait(false);
         }
 
         var ids = new Guid[envelopes.Count];
         var owners = new string[envelopes.Count];
+        var publishedAt = new DateTimeOffset[envelopes.Count];
 
         for (var index = 0; index < envelopes.Count; index++)
         {
             ids[index] = envelopes[index].Id;
             owners[index] = envelopes[index].LeaseOwner!;
+            publishedAt[index] = ResolvePublishedAt(envelopes[index]);
         }
 
         var batchSql = $"""
@@ -504,11 +533,13 @@ public sealed class PostgreSqlOutboxStore :
                            lease_owner = NULL,
                            lease_expires_at = NULL,
                            last_error = NULL,
-                           published_at = NOW()
-                       FROM unnest(@message_ids, @lease_owners) AS batch(message_id, lease_owner)
+                           published_at = batch.published_at
+                       FROM unnest(@message_ids, @lease_owners, @published_at)
+                           AS batch(message_id, lease_owner, published_at)
                        WHERE outbox.message_id = batch.message_id
                            AND outbox.status = @in_flight_status
-                           AND outbox.lease_owner = batch.lease_owner;
+                           AND outbox.lease_owner = batch.lease_owner
+                       RETURNING outbox.message_id;
                        """;
 
         await using var batchCommand = CreateCommand(batchSql);
@@ -516,7 +547,8 @@ public sealed class PostgreSqlOutboxStore :
         batchCommand.Parameters.AddWithValue("in_flight_status", (int)OutboxStatus.Publishing);
         batchCommand.Parameters.AddWithValue("message_ids", ids);
         batchCommand.Parameters.AddWithValue("lease_owners", owners);
-        await ExecuteTerminalUpdateAsync(batchCommand, cancellationToken).ConfigureAwait(false);
+        AddTimestampArrayParameter(batchCommand, "published_at", publishedAt);
+        return await ExecuteTerminalUpdateWithReturningAsync(batchCommand, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -524,8 +556,10 @@ public sealed class PostgreSqlOutboxStore :
     /// </summary>
     /// <param name="envelopes">The failed envelopes to persist.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
-    /// <returns>A task that represents the asynchronous update.</returns>
-    private async Task PersistFailedAsync(IReadOnlyList<OutboxEnvelope> envelopes, CancellationToken cancellationToken)
+    /// <returns>A task that returns the message identifiers updated under the lease guard.</returns>
+    private async Task<HashSet<Guid>> PersistFailedAsync(
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken)
     {
         if (envelopes.Count == 1)
         {
@@ -540,7 +574,8 @@ public sealed class PostgreSqlOutboxStore :
                           last_error = @last_error
                       WHERE message_id = @message_id
                           AND status = @in_flight_status
-                          AND lease_owner = @owner;
+                          AND lease_owner = @owner
+                      RETURNING message_id;
                       """;
 
             await using var command = CreateCommand(sql);
@@ -550,8 +585,7 @@ public sealed class PostgreSqlOutboxStore :
             command.Parameters.AddWithValue("last_error", envelope.LastError!);
             command.Parameters.AddWithValue("message_id", envelope.Id);
             command.Parameters.AddWithValue("owner", envelope.LeaseOwner!);
-            await ExecuteTerminalUpdateAsync(command, cancellationToken).ConfigureAwait(false);
-            return;
+            return await ExecuteTerminalUpdateWithReturningAsync(command, cancellationToken).ConfigureAwait(false);
         }
 
         var ids = new Guid[envelopes.Count];
@@ -579,7 +613,8 @@ public sealed class PostgreSqlOutboxStore :
                            AS batch(message_id, lease_owner, visible_after, last_error)
                        WHERE outbox.message_id = batch.message_id
                            AND outbox.status = @in_flight_status
-                           AND outbox.lease_owner = batch.lease_owner;
+                           AND outbox.lease_owner = batch.lease_owner
+                       RETURNING outbox.message_id;
                        """;
 
         await using var batchCommand = CreateCommand(batchSql);
@@ -589,7 +624,7 @@ public sealed class PostgreSqlOutboxStore :
         batchCommand.Parameters.AddWithValue("lease_owners", owners);
         AddVisibleAfterArrayParameter(batchCommand, visibleAfter);
         batchCommand.Parameters.AddWithValue("last_errors", errors);
-        await ExecuteTerminalUpdateAsync(batchCommand, cancellationToken).ConfigureAwait(false);
+        return await ExecuteTerminalUpdateWithReturningAsync(batchCommand, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -597,8 +632,10 @@ public sealed class PostgreSqlOutboxStore :
     /// </summary>
     /// <param name="envelopes">The dead-lettered envelopes to persist.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
-    /// <returns>A task that represents the asynchronous update.</returns>
-    private async Task PersistDeadLetteredAsync(IReadOnlyList<OutboxEnvelope> envelopes, CancellationToken cancellationToken)
+    /// <returns>A task that returns the message identifiers updated under the lease guard.</returns>
+    private async Task<HashSet<Guid>> PersistDeadLetteredAsync(
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken)
     {
         if (envelopes.Count == 1)
         {
@@ -612,7 +649,8 @@ public sealed class PostgreSqlOutboxStore :
                           last_error = @last_error
                       WHERE message_id = @message_id
                           AND status = @in_flight_status
-                          AND lease_owner = @owner;
+                          AND lease_owner = @owner
+                      RETURNING message_id;
                       """;
 
             await using var command = CreateCommand(sql);
@@ -621,8 +659,7 @@ public sealed class PostgreSqlOutboxStore :
             command.Parameters.AddWithValue("last_error", envelope.LastError!);
             command.Parameters.AddWithValue("message_id", envelope.Id);
             command.Parameters.AddWithValue("owner", envelope.LeaseOwner!);
-            await ExecuteTerminalUpdateAsync(command, cancellationToken).ConfigureAwait(false);
-            return;
+            return await ExecuteTerminalUpdateWithReturningAsync(command, cancellationToken).ConfigureAwait(false);
         }
 
         var ids = new Guid[envelopes.Count];
@@ -647,7 +684,8 @@ public sealed class PostgreSqlOutboxStore :
                            AS batch(message_id, lease_owner, last_error)
                        WHERE outbox.message_id = batch.message_id
                            AND outbox.status = @in_flight_status
-                           AND outbox.lease_owner = batch.lease_owner;
+                           AND outbox.lease_owner = batch.lease_owner
+                       RETURNING outbox.message_id;
                        """;
 
         await using var batchCommand = CreateCommand(batchSql);
@@ -656,18 +694,29 @@ public sealed class PostgreSqlOutboxStore :
         batchCommand.Parameters.AddWithValue("message_ids", ids);
         batchCommand.Parameters.AddWithValue("lease_owners", owners);
         batchCommand.Parameters.AddWithValue("last_errors", reasons);
-        await ExecuteTerminalUpdateAsync(batchCommand, cancellationToken).ConfigureAwait(false);
+        return await ExecuteTerminalUpdateWithReturningAsync(batchCommand, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    ///     Executes a guarded terminal update and ignores zero-row results when the lease was reclaimed.
+    ///     Executes a guarded terminal update and returns the message identifiers that matched the lease guard.
     /// </summary>
     /// <param name="command">The update command with terminal guard parameters already bound.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
-    /// <returns>A task that represents the asynchronous update.</returns>
-    private static async Task ExecuteTerminalUpdateAsync(NpgsqlCommand command, CancellationToken cancellationToken)
+    /// <returns>The message identifiers updated by the command.</returns>
+    private static async Task<HashSet<Guid>> ExecuteTerminalUpdateWithReturningAsync(
+        NpgsqlCommand command,
+        CancellationToken cancellationToken)
     {
-        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        var persistedMessageIds = new HashSet<Guid>();
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            persistedMessageIds.Add(reader.GetGuid(0));
+        }
+
+        return persistedMessageIds;
     }
 
     /// <inheritdoc />
@@ -758,6 +807,31 @@ public sealed class PostgreSqlOutboxStore :
     }
 
     /// <inheritdoc />
+    public async Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var recordedVersion = await PostgreSqlSchemaVersionStore.GetVersionAsync(
+                connection,
+                _options,
+                PostgreSqlSchemaComponents.Outbox,
+                _options.SchemaName,
+                _options.TableName,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var recorded = recordedVersion == 0
+            ? PostgreSqlOutboxSchema.CurrentSchemaVersion
+            : recordedVersion;
+
+        return new StoreSchemaInfo(
+            PostgreSqlSchemaComponents.Outbox,
+            PostgreSqlOutboxSchema.CurrentSchemaVersion,
+            recorded,
+            _options.SchemaName,
+            _options.TableName);
+    }
+
+    /// <inheritdoc />
     public async Task<OutboxMessagePage> QueryAsync(
         OutboxMessageFilter filter,
         OutboxMessagePageRequest pageRequest,
@@ -789,6 +863,8 @@ public sealed class PostgreSqlOutboxStore :
                       published_at
                   FROM {_tableName}
                   WHERE (@status_filter OR status = ANY(@statuses))
+                      AND (@message_id IS NULL OR message_id = @message_id)
+                      AND (@message_ids IS NULL OR message_id = ANY(@message_ids))
                       AND (@contract_name IS NULL OR contract_name = @contract_name)
                       AND (@topic IS NULL OR topic = @topic)
                       AND (@correlation_id IS NULL OR correlation_id = @correlation_id)
@@ -821,6 +897,8 @@ public sealed class PostgreSqlOutboxStore :
         var sql = $"""
                   DELETE FROM {_tableName}
                   WHERE (@status_filter OR status = ANY(@statuses))
+                      AND (@message_id IS NULL OR message_id = @message_id)
+                      AND (@message_ids IS NULL OR message_id = ANY(@message_ids))
                       AND (@contract_name IS NULL OR contract_name = @contract_name)
                       AND (@topic IS NULL OR topic = @topic)
                       AND (@correlation_id IS NULL OR correlation_id = @correlation_id)
@@ -1022,9 +1100,25 @@ public sealed class PostgreSqlOutboxStore :
             CausationId = GetNullableString(reader, 13),
             TenantId = GetNullableString(reader, 14),
             IdempotencyKey = GetNullableString(reader, 15),
-            TraceContext = GetNullableString(reader, 16),
+            TraceContext = NormalizeJsonText(GetNullableString(reader, 16)),
             PublishedAt = GetNullable<DateTimeOffset>(reader, 17)
         };
+    }
+
+    /// <summary>
+    ///     Normalizes JSON text read from <c>jsonb</c> columns to a compact round-trip form.
+    /// </summary>
+    /// <param name="json">The JSON text returned by PostgreSQL.</param>
+    /// <returns>The normalized JSON text, or <see langword="null" /> when the input is empty.</returns>
+    private static string? NormalizeJsonText(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return json;
+        }
+
+        using var document = JsonDocument.Parse(json);
+        return JsonSerializer.Serialize(document.RootElement);
     }
 
     /// <summary>
@@ -1071,6 +1165,18 @@ public sealed class PostgreSqlOutboxStore :
     }
 
     /// <summary>
+    ///     Adds a timestamptz array parameter for batch terminal timestamp updates.
+    /// </summary>
+    /// <param name="command">The command receiving the parameter.</param>
+    /// <param name="name">The parameter name.</param>
+    /// <param name="timestamps">The per-message terminal timestamps.</param>
+    private static void AddTimestampArrayParameter(NpgsqlCommand command, string name, DateTimeOffset[] timestamps)
+    {
+        var parameter = command.Parameters.Add(name, NpgsqlDbType.Array | NpgsqlDbType.TimestampTz);
+        parameter.Value = timestamps;
+    }
+
+    /// <summary>
     ///     Creates a command against the configured data source or caller-supplied transaction.
     /// </summary>
     /// <param name="sql">The SQL command text.</param>
@@ -1112,6 +1218,14 @@ public sealed class PostgreSqlOutboxStore :
 
         command.Parameters.AddWithValue("status_filter", !hasStatusFilter);
         command.Parameters.AddWithValue("statuses", statuses);
+        command.Parameters.Add(new NpgsqlParameter("message_id", NpgsqlDbType.Uuid)
+        {
+            Value = filter.MessageId is null ? DBNull.Value : filter.MessageId.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("message_ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid)
+        {
+            Value = filter.MessageIds is { Count: > 0 } ? filter.MessageIds.ToArray() : DBNull.Value
+        });
         AddNullableTextParameter(command, "contract_name", filter.ContractName);
         AddNullableTextParameter(command, "topic", filter.Topic);
         AddNullableTextParameter(command, "correlation_id", filter.CorrelationId);

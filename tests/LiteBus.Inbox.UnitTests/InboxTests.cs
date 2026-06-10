@@ -3,10 +3,12 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Orchestration.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -63,22 +65,20 @@ public sealed class InboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldExecuteCommandThroughMediatorAndMarkCompleted()
     {
-        var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.CommandRecorder();
 
         var serviceProvider = new ServiceCollection()
-            .AddInboxStoreRoles(store)
             .AddSingleton(recorder)
-            .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
                     builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                 });
 
-                modules.AddInboxModule(builder =>
+                registry.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -90,9 +90,13 @@ public sealed class InboxTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
+                    builder.UseInMemoryStorage();
+                    builder.UseCommandInboxDispatcher();
                 });
             })
             .BuildServiceProvider();
+
+        var store = serviceProvider.GetRequiredService<InMemoryInboxStore>();
 
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
@@ -116,22 +120,20 @@ public sealed class InboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldSupportClosedGenericCommands()
     {
-        var store = new InMemoryInboxStore();
         var recorder = new InboxTestFixtures.GenericCommandRecorder();
 
         var serviceProvider = new ServiceCollection()
-            .AddInboxStoreRoles(store)
             .AddSingleton(recorder)
-            .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.ArchiveCommand<string>>();
                     builder.Register<InboxTestFixtures.ArchiveStringCommandHandler>();
                 });
 
-                modules.AddInboxModule(builder =>
+                registry.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.ArchiveCommand<string>>("archive.commands.string", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -143,9 +145,13 @@ public sealed class InboxTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
+                    builder.UseInMemoryStorage();
+                    builder.UseCommandInboxDispatcher();
                 });
             })
             .BuildServiceProvider();
+
+        var store = serviceProvider.GetRequiredService<InMemoryInboxStore>();
 
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
@@ -195,20 +201,17 @@ public sealed class InboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenHandlerThrows_ShouldMarkFailedAndSetVisibleAfter()
     {
-        var store = new InMemoryInboxStore();
-
         var serviceProvider = new ServiceCollection()
-            .AddInboxStoreRoles(store)
-            .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.FaultyCommand>();
                     builder.Register<InboxTestFixtures.FaultyCommandHandler>();
                 });
 
-                modules.AddInboxModule(builder =>
+                registry.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.FaultyCommand>("orders.commands.faulty", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -222,9 +225,13 @@ public sealed class InboxTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
+                    builder.UseInMemoryStorage();
+                    builder.UseCommandInboxDispatcher();
                 });
             })
             .BuildServiceProvider();
+
+        var store = serviceProvider.GetRequiredService<InMemoryInboxStore>();
 
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
@@ -242,20 +249,17 @@ public sealed class InboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenHandlerExceedsMaxAttempts_ShouldMoveToDeadLetter()
     {
-        var store = new InMemoryInboxStore();
-
         var serviceProvider = new ServiceCollection()
-            .AddInboxStoreRoles(store)
-            .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.FaultyCommand>();
                     builder.Register<InboxTestFixtures.FaultyCommandHandler>();
                 });
 
-                modules.AddInboxModule(builder =>
+                registry.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.FaultyCommand>("orders.commands.faulty", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -269,9 +273,13 @@ public sealed class InboxTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
+                    builder.UseInMemoryStorage();
+                    builder.UseCommandInboxDispatcher();
                 });
             })
             .BuildServiceProvider();
+
+        var store = serviceProvider.GetRequiredService<InMemoryInboxStore>();
 
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
@@ -289,22 +297,20 @@ public sealed class InboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldSetIsInboxExecutionContextKey()
     {
-        var store = new InMemoryInboxStore();
         var capture = new InboxTestFixtures.IsInboxCapture();
 
         var serviceProvider = new ServiceCollection()
-            .AddInboxStoreRoles(store)
             .AddSingleton(capture)
-            .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.InboxCheckCommand>();
                     builder.Register<InboxTestFixtures.InboxCheckCommandHandler>();
                 });
 
-                modules.AddInboxModule(builder =>
+                registry.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.InboxCheckCommand>("test.commands.inbox-check", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -313,6 +319,8 @@ public sealed class InboxTests : LiteBusTestBase
                         LeaseOwner = "test-worker",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+                    builder.UseInMemoryStorage();
+                    builder.UseCommandInboxDispatcher();
                 });
             })
             .BuildServiceProvider();
@@ -329,22 +337,20 @@ public sealed class InboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldPropagateTraceMetadataToExecutionContext()
     {
-        var store = new InMemoryInboxStore();
         var capture = new InboxTestFixtures.TraceMetadataCapture();
 
         var serviceProvider = new ServiceCollection()
-            .AddInboxStoreRoles(store)
             .AddSingleton(capture)
-            .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.InboxCheckCommand>();
                     builder.Register<InboxTestFixtures.TraceMetadataCommandHandler>();
                 });
 
-                modules.AddInboxModule(builder =>
+                registry.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.InboxCheckCommand>("test.commands.inbox-check", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -353,6 +359,8 @@ public sealed class InboxTests : LiteBusTestBase
                         LeaseOwner = "test-worker",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+                    builder.UseInMemoryStorage();
+                    builder.UseCommandInboxDispatcher();
                 });
             })
             .BuildServiceProvider();
@@ -377,20 +385,17 @@ public sealed class InboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenHandlerThrows_ShouldStoreTypeAndMessageOnlyInLastError()
     {
-        var store = new InMemoryInboxStore();
-
         var serviceProvider = new ServiceCollection()
-            .AddInboxStoreRoles(store)
-            .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.FaultyCommand>();
                     builder.Register<InboxTestFixtures.FaultyCommandHandler>();
                 });
 
-                modules.AddInboxModule(builder =>
+                registry.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.FaultyCommand>("orders.commands.faulty", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -404,9 +409,13 @@ public sealed class InboxTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
+                    builder.UseInMemoryStorage();
+                    builder.UseCommandInboxDispatcher();
                 });
             })
             .BuildServiceProvider();
+
+        var store = serviceProvider.GetRequiredService<InMemoryInboxStore>();
 
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
@@ -423,28 +432,20 @@ public sealed class InboxTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenMarkCompletedFailsAfterSuccessfulDispatch_ShouldNotMarkFailed()
     {
         var clock = new ManualTimeProvider(new DateTimeOffset(2026, 5, 30, 12, 0, 0, TimeSpan.Zero));
-        var inner = new InMemoryInboxStore();
-        var flakyStateStore = new InboxTestFixtures.FlakyInboxStateStore(inner, failCompletionsBeforeSuccess: 2);
         var recorder = new InboxTestFixtures.CommandRecorder();
 
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IInboxStore>(inner)
-            .AddSingleton<IInboxLeaseStore>(inner)
-            .AddSingleton<IInboxStateWriter>(flakyStateStore)
-            .AddSingleton<IInboxProcessingStore>(InboxTestInfrastructure.CreateProcessingStore(inner, flakyStateStore))
-            .AddSingleton<IInboxRetentionStore>(inner)
-            .AddSingleton<IInboxDiagnosticsStore>(inner)
             .AddSingleton(recorder)
-            .AddCommandMediatorInboxDispatcher()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(message => message.UseTimeProvider(clock));
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
                     builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                 });
 
-                modules.AddInboxModule(builder =>
+                registry.AddInboxModule(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
                     builder.UseProcessorOptions(new InboxProcessorOptions
@@ -452,13 +453,17 @@ public sealed class InboxTests : LiteBusTestBase
                         BatchSize = 10,
                         LeaseOwner = "test-worker",
                         LeaseDuration = TimeSpan.FromSeconds(30),
-                        Architecture = ProcessorArchitecture.Legacy,
                         Retry = new RetryOptions { UseJitter = false }
                     });
+                    builder.UseInMemoryStorage();
+                    builder.UseCommandInboxDispatcher();
                 });
             })
-            .AddSingleton<TimeProvider>(clock)
+            .AddSingleton<IInboxStateWriter>(sp =>
+                new InboxTestFixtures.FlakyInboxStateStore(sp.GetRequiredService<InMemoryInboxStore>(), failCompletionsBeforeSuccess: 1))
             .BuildServiceProvider();
+
+        var inner = serviceProvider.GetRequiredService<InMemoryInboxStore>();
 
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
@@ -491,17 +496,51 @@ public sealed class InboxTests : LiteBusTestBase
     }
 
     [Fact]
+    public async Task AcceptBatchAsync_ShouldUseRuntimeTypeNotDeclaredGenericParameter()
+    {
+        var store = new InMemoryInboxStore();
+        var contractRegistry = new MessageContractRegistry();
+        contractRegistry.Register<BaseInboxCommand>("orders.commands.base", 1);
+        contractRegistry.Register<DerivedInboxCommand>("orders.commands.derived", 1);
+
+        var inbox = new Inbox(
+            store,
+            contractRegistry,
+            new SystemTextJsonMessageSerializer(),
+            TimeProvider.System);
+
+        var receipts = await inbox.AcceptBatchAsync<BaseInboxCommand>(
+        [
+            new DerivedInboxCommand { Marker = "derived" }
+        ]);
+
+        receipts.Should().ContainSingle();
+        receipts[0].ContractName.Should().Be("orders.commands.derived");
+        store.Get(receipts[0].Id).ContractName.Should().Be("orders.commands.derived");
+    }
+
+    [Fact]
     public void InboxProcessor_WithInvalidMaxAttempts_ShouldThrow()
     {
-        var act = () => new InboxProcessor(
-            new InMemoryInboxStore(),
+        var store = new InMemoryInboxStore();
+        var act = () => new PipelinedInboxProcessor(
+            store,
+            store,
             new InboxTestFixtures.StubInboxDispatcher(),
             new InboxProcessorOptions
             {
                 Retry = new RetryOptions { MaxAttempts = 0 }
             },
-            TimeProvider.System);
+            TimeProvider.System,
+            Array.Empty<IProcessorEnvelopeHook>());
 
         act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    private abstract record BaseInboxCommand;
+
+    private sealed record DerivedInboxCommand : BaseInboxCommand
+    {
+        public string Marker { get; init; } = string.Empty;
     }
 }

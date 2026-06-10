@@ -1,3 +1,5 @@
+using LiteBus.Messaging;
+
 using Autofac;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
@@ -20,9 +22,10 @@ public sealed class AutofacIntegrationTests : LiteBusTestBase
         var builder = new ContainerBuilder();
 
         // Configure LiteBus using the Autofac extension
-        builder.AddLiteBus(modules =>
+        builder.AddLiteBus(registry =>
         {
-            modules.AddCommandModule(commandModuleBuilder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(commandModuleBuilder =>
             {
                 commandModuleBuilder.Register<RegisterComponentCommand>();
                 commandModuleBuilder.Register<RegisterComponentCommandPreHandler>();

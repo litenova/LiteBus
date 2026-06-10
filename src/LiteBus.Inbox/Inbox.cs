@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Inbox;
@@ -13,7 +14,7 @@ namespace LiteBus.Inbox;
 /// <remarks>
 ///     <para>
 ///         Performs acceptance work only: contract lookup, serialization, metadata mapping, and write to the configured
-///         <see cref="IInboxStore" />. Execution belongs to <see cref="InboxProcessor" /> and the configured
+///         <see cref="IInboxStore" />. Execution belongs to <see cref="PipelinedInboxProcessor" /> and the configured
 ///         <see cref="IInboxDispatcher" /> registered separately from the core inbox module.
 ///     </para>
 ///     <para>
@@ -44,31 +45,51 @@ public sealed class Inbox : IInbox, IInboxScheduler
     private readonly IInboxStore _store;
 
     /// <summary>
-    ///     Gets the optional encryptor applied before payloads are written to storage.
+    ///     Gets the optional inbox protector applied before payloads are written to storage.
     /// </summary>
-    private readonly IPayloadEncryptor? _payloadEncryptor;
+    private readonly IInboxPayloadProtector? _payloadProtector;
+
+    /// <summary>
+    ///     Gets the optional resolver that selects the CLR type used for contract lookup.
+    /// </summary>
+    private readonly IMessageContractResolver? _contractTypeResolver;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="Inbox" /> class.
     /// </summary>
     /// <param name="store">The inbox store used to persist newly accepted envelopes.</param>
-    /// <param name="contractRegistry">The registry used to map the runtime message type to a stable contract.</param>
+    /// <param name="contractRegistry">The registry used to map message types to stable contracts.</param>
     /// <param name="messageSerializer">The serializer used to create the serialized payload.</param>
     /// <param name="clock">The time provider used to stamp acceptance time.</param>
-    /// <param name="payloadEncryptor">The optional encryptor applied before payloads are written to storage.</param>
+    /// <param name="payloadProtector">The optional inbox protector applied before payloads are written to storage.</param>
+    /// <param name="contractTypeResolver">
+    ///     The optional resolver that overrides contract lookup type selection. When omitted, the runtime message type is
+    ///     used.
+    /// </param>
     public Inbox(
         IInboxStore store,
         IContractReader contractRegistry,
         IMessageSerializer messageSerializer,
         TimeProvider clock,
-        IPayloadEncryptor? payloadEncryptor = null)
+        IInboxPayloadProtector? payloadProtector = null,
+        IMessageContractResolver? contractTypeResolver = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
         _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-        _payloadEncryptor = payloadEncryptor;
+        _payloadProtector = payloadProtector;
+        _contractTypeResolver = contractTypeResolver;
     }
+
+    /// <summary>
+    ///     Resolves the CLR type passed to <see cref="IContractReader.GetContract" /> for one acceptance call.
+    /// </summary>
+    /// <param name="declaredType">The declared message type supplied by the caller.</param>
+    /// <param name="message">The message instance being accepted.</param>
+    /// <returns>The CLR type used for contract lookup.</returns>
+    private Type ResolveContractType(Type declaredType, object message) =>
+        _contractTypeResolver?.ResolveContractType(declaredType, message) ?? message.GetType();
 
     /// <inheritdoc />
     public async Task<InboxReceipt> AcceptAsync(
@@ -89,11 +110,11 @@ public sealed class Inbox : IInbox, IInboxScheduler
 
         options ??= new InboxOptions();
 
-        var contract = _contractRegistry.GetContract(messageType);
+        var contract = _contractRegistry.GetContract(ResolveContractType(messageType, message));
         var acceptedAt = _clock.GetUtcNow();
         var id = options.Id ?? Guid.NewGuid();
         var payload = await _messageSerializer.SerializeAsync(message, cancellationToken).ConfigureAwait(false);
-        payload = await PayloadProtection.ProtectAsync(payload, _payloadEncryptor, cancellationToken).ConfigureAwait(false);
+        payload = await PayloadProtection.ProtectAsync(payload, _payloadProtector, cancellationToken).ConfigureAwait(false);
 
         var envelope = new InboxEnvelope
         {
@@ -192,11 +213,11 @@ public sealed class Inbox : IInbox, IInboxScheduler
                     nameof(messages));
             }
 
-            var contract = _contractRegistry.GetContract(messageType);
+            var contract = _contractRegistry.GetContract(ResolveContractType(messageType, message));
             var acceptedAt = _clock.GetUtcNow();
             var id = itemOptions.Id ?? Guid.NewGuid();
             var payload = await _messageSerializer.SerializeAsync(message, cancellationToken).ConfigureAwait(false);
-            payload = await PayloadProtection.ProtectAsync(payload, _payloadEncryptor, cancellationToken).ConfigureAwait(false);
+            payload = await PayloadProtection.ProtectAsync(payload, _payloadProtector, cancellationToken).ConfigureAwait(false);
 
             envelopes[index] = new InboxEnvelope
             {
@@ -258,17 +279,16 @@ public sealed class Inbox : IInbox, IInboxScheduler
         }
 
         var envelopes = new InboxEnvelope[messages.Count];
-        var messageType = typeof(T);
 
         for (var index = 0; index < messages.Count; index++)
         {
             var message = messages[index];
             var itemOptions = options?[index] ?? new InboxOptions();
-            var contract = _contractRegistry.GetContract(messageType);
+            var contract = _contractRegistry.GetContract(ResolveContractType(typeof(T), message));
             var acceptedAt = _clock.GetUtcNow();
             var id = itemOptions.Id ?? Guid.NewGuid();
             var payload = await _messageSerializer.SerializeAsync(message, cancellationToken).ConfigureAwait(false);
-            payload = await PayloadProtection.ProtectAsync(payload, _payloadEncryptor, cancellationToken).ConfigureAwait(false);
+            payload = await PayloadProtection.ProtectAsync(payload, _payloadProtector, cancellationToken).ConfigureAwait(false);
 
             envelopes[index] = new InboxEnvelope
             {
@@ -297,7 +317,7 @@ public sealed class Inbox : IInbox, IInboxScheduler
             receipts[index] = new InboxReceipt<T>
             {
                 Id = storedEnvelope.Id,
-                MessageType = messageType,
+                MessageType = messages[index].GetType(),
                 ContractName = storedEnvelope.ContractName,
                 ContractVersion = storedEnvelope.ContractVersion,
                 AcceptedAt = storedEnvelope.CreatedAt,

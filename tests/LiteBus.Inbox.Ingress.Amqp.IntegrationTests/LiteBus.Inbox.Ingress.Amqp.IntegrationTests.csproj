@@ -20,11 +20,12 @@
         <ProjectReference Include="..\..\src\LiteBus.Commands\LiteBus.Commands.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.InProcess\LiteBus.Inbox.Dispatch.InProcess.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.Amqp\LiteBus.Inbox.Dispatch.Amqp.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.Amqp\LiteBus.Inbox.Ingress.Amqp.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
-        <ProjectReference Include="..\LiteBus.Testing\LiteBus.Testing.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
     </ItemGroup>
 
 </Project>

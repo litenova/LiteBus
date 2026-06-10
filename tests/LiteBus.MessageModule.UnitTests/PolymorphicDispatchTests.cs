@@ -1,6 +1,7 @@
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,9 +18,10 @@ public sealed class PolymorphicDispatchTests : LiteBusTestBase
     public async Task Send_SpecializedCommand_ShouldBeHandledByBaseCommandHandler()
     {
         // ARRANGE
-        var serviceProvider = new ServiceCollection().AddLiteBus(modules =>
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            modules.AddCommandModule(builder =>
+            registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
             {
                 // Register only the handler for the BASE command.
                 // LiteBus should be smart enough to route the specialized command to it.

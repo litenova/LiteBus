@@ -20,15 +20,6 @@ public sealed class PostgreSqlSchemaScriptTests
     }
 
     [Fact]
-    public void InboxGetUpgradeScript_ShouldReturnVersion2Changes()
-    {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions("inbox_upgrade_script");
-        var script = PostgreSqlInboxSchema.GetUpgradeScript(1, 2, options);
-
-        script.Should().Contain("trace_context");
-    }
-
-    [Fact]
     public void OutboxGetCreateScript_ShouldIncludeCurrentVersionObjects()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxOptions("outbox_script_check");
@@ -39,12 +30,4 @@ public sealed class PostgreSqlSchemaScriptTests
         script.Should().Contain(options.MetadataTableName);
     }
 
-    [Fact]
-    public void OutboxGetUpgradeScript_ShouldReturnVersion2Changes()
-    {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions("outbox_upgrade_script");
-        var script = PostgreSqlOutboxSchema.GetUpgradeScript(1, 2, options);
-
-        script.Should().Contain("trace_context");
-    }
 }

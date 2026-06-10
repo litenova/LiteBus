@@ -1,4 +1,5 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Queries;
 using LiteBus.Queries.Abstractions;
 using LiteBus.QueryModule.UnitTests.UseCases.GetProduct;
@@ -13,9 +14,10 @@ public sealed class QueryMediatorValidationTests : LiteBusTestBase
     public async Task QueryAsync_WithNullQuery_ThrowsArgumentNullException()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddQueryModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddQueryModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(GetProductQuery).Assembly);
                 });
@@ -33,9 +35,10 @@ public sealed class QueryMediatorValidationTests : LiteBusTestBase
     public async Task StreamAsync_WithNullQuery_ThrowsArgumentNullException()
     {
         var serviceProvider = new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddQueryModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddQueryModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(GetProductQuery).Assembly);
                 });

@@ -2,6 +2,7 @@ using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
+using LiteBus.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Inbox.Storage.InMemory.UnitTests;
@@ -12,7 +13,11 @@ public sealed class InMemoryInboxStorageModuleTests
     public void UseInMemoryStorage_ShouldRegisterAllStoreRoles()
     {
         var provider = new ServiceCollection()
-            .AddLiteBus(modules => modules.AddInboxModule(inbox => inbox.UseInMemoryStorage()))
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessageModule(_ => { });
+                registry.AddInboxModule(inbox => inbox.UseInMemoryStorage());
+            })
             .BuildServiceProvider();
 
         provider.GetRequiredService<IInboxStore>().Should().BeOfType<InMemoryInboxStore>();
@@ -30,24 +35,33 @@ public sealed class InMemoryInboxStorageModuleTests
         var timeProvider = TimeProvider.System;
 
         var provider = new ServiceCollection()
-            .AddLiteBus(modules => modules.AddInboxModule(inbox =>
-                inbox.UseInMemoryStorage(builder => builder.UseTimeProvider(timeProvider))))
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessageModule(_ => { });
+                registry.AddInboxModule(inbox =>
+                    inbox.UseInMemoryStorage(builder => builder.UseTimeProvider(timeProvider)));
+            })
             .BuildServiceProvider();
 
         provider.GetRequiredService<TimeProvider>().Should().BeSameAs(timeProvider);
     }
 
     [Fact]
-    public void AddInMemoryInboxStorage_AfterAddInboxModule_ShouldRegisterAllStoreRoles()
+    public void UseInMemoryStorage_WhenCalledTwiceOnBuilder_ShouldThrow()
     {
-        var provider = new ServiceCollection()
-            .AddLiteBus(modules =>
+        var act = () => new ServiceCollection()
+            .AddLiteBus(registry =>
             {
-                modules.AddInboxModule();
-                modules.AddInMemoryInboxStorage();
+                registry.AddMessageModule(_ => { });
+                registry.AddInboxModule(inbox =>
+                {
+                    inbox.UseInMemoryStorage();
+                    inbox.UseInMemoryStorage();
+                });
             })
             .BuildServiceProvider();
 
-        provider.GetRequiredService<IInboxStore>().Should().BeOfType<InMemoryInboxStore>();
+        act.Should().Throw<LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException>()
+            .WithMessage("*Inbox storage is already configured*");
     }
 }

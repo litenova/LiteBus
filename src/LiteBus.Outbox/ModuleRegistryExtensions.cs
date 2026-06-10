@@ -2,6 +2,7 @@ using System;
 using LiteBus.Messaging;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Outbox;
 
@@ -16,6 +17,9 @@ public static class ModuleRegistryExtensions
     /// <param name="moduleRegistry">The module registry.</param>
     /// <param name="builderAction">The outbox module configuration action.</param>
     /// <returns>The current module registry.</returns>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     Thrown when <see cref="MessageModule" /> has not been registered.
+    /// </exception>
     public static IModuleRegistry AddOutboxModule(this IModuleRegistry moduleRegistry, Action<OutboxModuleBuilder> builderAction)
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);
@@ -23,9 +27,9 @@ public static class ModuleRegistryExtensions
 
         if (!moduleRegistry.IsModuleRegistered<MessageModule>())
         {
-            moduleRegistry.Register(new MessageModule(_ =>
-            {
-            }));
+            throw new LiteBusConfigurationException(
+                "MessageModule must be registered before AddOutboxModule(). " +
+                "Call AddMessageModule() first, or register a command, event, or query module after AddMessageModule().");
         }
 
         moduleRegistry.Register(new OutboxModule(builderAction));
@@ -37,6 +41,9 @@ public static class ModuleRegistryExtensions
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
     /// <returns>The current module registry.</returns>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     Thrown when <see cref="MessageModule" /> has not been registered.
+    /// </exception>
     public static IModuleRegistry AddOutboxModule(this IModuleRegistry moduleRegistry)
     {
         return AddOutboxModule(moduleRegistry, _ =>

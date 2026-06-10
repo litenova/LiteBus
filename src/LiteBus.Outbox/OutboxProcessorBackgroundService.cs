@@ -37,7 +37,7 @@ public sealed class OutboxProcessorBackgroundService : IBackgroundService
     /// <summary>
     ///     Gets the logger used for processor loop diagnostics.
     /// </summary>
-    private readonly ILogger<OutboxProcessor> _logger;
+    private readonly ILogger<OutboxProcessorBackgroundService> _logger;
 
     /// <summary>
     ///     Gets the control surface used to pause, resume, and drain the processor loop.
@@ -59,14 +59,14 @@ public sealed class OutboxProcessorBackgroundService : IBackgroundService
         OutboxProcessorHostOptions hostOptions,
         IOutboxWorkSignal workSignal,
         OutboxProcessorControl control,
-        ILogger<OutboxProcessor>? logger = null)
+        ILogger<OutboxProcessorBackgroundService>? logger = null)
     {
         _processor = processor ?? throw new ArgumentNullException(nameof(processor));
         _processorOptions = processorOptions ?? throw new ArgumentNullException(nameof(processorOptions));
         _hostOptions = hostOptions ?? throw new ArgumentNullException(nameof(hostOptions));
         _workSignal = workSignal ?? throw new ArgumentNullException(nameof(workSignal));
         _control = control ?? throw new ArgumentNullException(nameof(control));
-        _logger = logger ?? NullLogger<OutboxProcessor>.Instance;
+        _logger = logger ?? NullLogger<OutboxProcessorBackgroundService>.Instance;
     }
 
     /// <inheritdoc />
@@ -116,7 +116,7 @@ public sealed class OutboxProcessorBackgroundService : IBackgroundService
             catch (Exception exception)
             {
                 OutboxProcessorTelemetry.RecordLoopError();
-                _logger.LogError(exception, "Outbox processor loop failed; waiting before the next pass.");
+                OutboxProcessorLogMessages.LoopFailed(_logger, exception);
                 await _workSignal.WaitForWorkOrDelayAsync(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
             }
         }

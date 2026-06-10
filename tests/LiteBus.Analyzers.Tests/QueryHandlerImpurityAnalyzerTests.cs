@@ -105,4 +105,72 @@ public sealed class QueryHandlerImpurityAnalyzerTests
             "GetUserQueryHandler",
             "LiteBus.Inbox.Abstractions.IInbox");
     }
+
+    /// <summary>
+    ///     Verifies that a query handler depending on <c>ITransactionalInbox</c> produces LB1003.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task QueryHandlerWithTransactionalInbox_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Inbox.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+
+                              public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
+                              {
+                                  public GetUserQueryHandler(IInboxStore {|#0:store|})
+                                  {
+                                  }
+
+                                  public Task<string> HandleAsync(GetUserQuery query, CancellationToken cancellationToken = default)
+                                      => Task.FromResult("user");
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<QueryHandlerImpurityAnalyzer>(
+            source,
+            DiagnosticDescriptors.QueryHandlerImpurity,
+            0,
+            "GetUserQueryHandler",
+            "LiteBus.Inbox.Abstractions.IInboxStore");
+    }
+
+    /// <summary>
+    ///     Verifies that a query handler depending on <c>IMessageTransport</c> produces LB1003.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task QueryHandlerWithMessageTransport_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Queries.Abstractions;
+                              using LiteBus.Transport.Abstractions;
+
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+
+                              public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
+                              {
+                                  public GetUserQueryHandler(IMessageTransport {|#0:transport|})
+                                  {
+                                  }
+
+                                  public Task<string> HandleAsync(GetUserQuery query, CancellationToken cancellationToken = default)
+                                      => Task.FromResult("user");
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<QueryHandlerImpurityAnalyzer>(
+            source,
+            DiagnosticDescriptors.QueryHandlerImpurity,
+            0,
+            "GetUserQueryHandler",
+            "LiteBus.Transport.Abstractions.IMessageTransport");
+    }
 }

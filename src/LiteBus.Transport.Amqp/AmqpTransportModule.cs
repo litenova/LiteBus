@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Transport;
 
 namespace LiteBus.Transport.Amqp;
@@ -71,5 +72,12 @@ public sealed class AmqpTransportModule : IModule
 
         TransportMetricsRegistration.RegisterIfNeeded(configuration);
         AmqpTransportMetricsRegistration.RegisterIfNeeded(configuration);
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(AmqpConnectivityDiagnosticCheck),
+            typeof(AmqpConnectivityDiagnosticCheck),
+            InstanceLifetime.Singleton));
+
+        configuration.RegisterDiagnosticCheck(typeof(AmqpConnectivityDiagnosticCheck), "transport.amqp.connectivity");
     }
 }

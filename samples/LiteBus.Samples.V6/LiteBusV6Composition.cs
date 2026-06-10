@@ -5,6 +5,7 @@ using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
+using LiteBus.Messaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Dispatch.InProcess;
 using LiteBus.Outbox.Storage.InMemory;
@@ -29,14 +30,15 @@ public static class LiteBusV6Composition
     {
         _ = configuration;
 
-        services.AddLiteBus(modules =>
+        services.AddLiteBus(builder =>
         {
             var assembly = typeof(ProcessPaymentCommand).Assembly;
 
-            modules.AddCommandModule(c => c.RegisterFromAssembly(assembly));
-            modules.AddEventModule(e => e.RegisterFromAssembly(assembly));
+            builder.Modules.AddMessageModule(_ => { });
+            builder.Modules.AddCommandModule(c => c.RegisterFromAssembly(assembly));
+            builder.Modules.AddEventModule(e => e.RegisterFromAssembly(assembly));
 
-            modules.AddInboxModule(inbox =>
+            builder.Modules.AddInboxModule(inbox =>
             {
                 inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
                 inbox.UseProcessorOptions(new InboxProcessorOptions
@@ -46,15 +48,15 @@ public static class LiteBusV6Composition
                 });
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
                 inbox.UseInMemoryStorage();
-                inbox.UseInProcessDispatcher();
+                inbox.UseCommandInboxDispatcher();
             });
 
-            modules.AddOutboxModule(outbox =>
+            builder.Modules.AddOutboxModule(outbox =>
             {
                 outbox.Contracts.Register<PaymentProcessed>("payments.payment-processed", 1);
                 outbox.EnableOutboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
                 outbox.UseInMemoryStorage();
-                outbox.UseInProcessDispatcher();
+                outbox.UseEventOutboxDispatcher();
             });
         });
 

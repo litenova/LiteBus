@@ -44,7 +44,7 @@ public interface IInbox
     /// <summary>
     ///     Accepts a message for later execution by an inbox processor.
     /// </summary>
-    /// <typeparam name="T">The message type being stored. The runtime type is used for contract lookup.</typeparam>
+    /// <typeparam name="T">The compile-time message type. <c>message.GetType()</c> is always used for contract lookup.</typeparam>
     /// <param name="message">The message instance to serialize and store.</param>
     /// <param name="options">
     ///     Optional message metadata such as a caller-supplied id, idempotency key, first visible timestamp,
@@ -86,7 +86,7 @@ public interface IInbox
     /// <summary>
     ///     Accepts multiple messages for later execution in one store round trip.
     /// </summary>
-    /// <typeparam name="T">The shared message type being stored.</typeparam>
+    /// <typeparam name="T">The shared compile-time message type. Each instance's runtime type is used for contract lookup.</typeparam>
     /// <param name="messages">The message instances to serialize and store.</param>
     /// <param name="options">
     ///     Optional per-message metadata aligned with <paramref name="messages" />. When omitted, default metadata is used

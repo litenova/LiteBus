@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <PackageReference Include="AwesomeAssertions"/>
+        <PackageReference Include="AWSSDK.SQS"/>
+        <PackageReference Include="Confluent.Kafka"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <PackageReference Include="Testcontainers"/>
+        <PackageReference Include="Testcontainers.Kafka"/>
+        <PackageReference Include="Testcontainers.LocalStack"/>
+        <PackageReference Include="Testcontainers.ServiceBus"/>
+        <PackageReference Include="Azure.Messaging.ServiceBus"/>
+        <PackageReference Include="Xunit.SkippableFact"/>
+        <PackageReference Include="xunit"/>
+        <PackageReference Include="xunit.runner.visualstudio">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="Azure\servicebus-emulator-config.json" CopyToOutputDirectory="PreserveNewest" Link="Azure\servicebus-emulator-config.json"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.DurableTransport.IntegrationTesting\LiteBus.DurableTransport.IntegrationTesting.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.Amqp\LiteBus.Inbox.Dispatch.Amqp.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.Aws\LiteBus.Inbox.Dispatch.Aws.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.AzureServiceBus\LiteBus.Inbox.Dispatch.AzureServiceBus.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.AzureServiceBus\LiteBus.Transport.AzureServiceBus.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.InMemory\LiteBus.Inbox.Dispatch.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.Kafka\LiteBus.Inbox.Dispatch.Kafka.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.Amqp\LiteBus.Inbox.Ingress.Amqp.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.Aws\LiteBus.Inbox.Ingress.Aws.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.AzureServiceBus\LiteBus.Inbox.Ingress.AzureServiceBus.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.InMemory\LiteBus.Inbox.Ingress.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.Kafka\LiteBus.Inbox.Ingress.Kafka.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.Amqp\LiteBus.Outbox.Dispatch.Amqp.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.Aws\LiteBus.Outbox.Dispatch.Aws.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.AzureServiceBus\LiteBus.Outbox.Dispatch.AzureServiceBus.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.InMemory\LiteBus.Outbox.Dispatch.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.Kafka\LiteBus.Outbox.Dispatch.Kafka.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.InMemory\LiteBus.Outbox.Storage.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport\LiteBus.Transport.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.InMemory\LiteBus.Transport.InMemory.csproj"/>
+    </ItemGroup>
+
+</Project>

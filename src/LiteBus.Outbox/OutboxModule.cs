@@ -39,13 +39,7 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
 
         foreach (var subModule in _builder.CollectSubModules())
         {
-            if (subModule is not IModule module)
-            {
-                throw new LiteBusConfigurationException(
-                    $"Outbox sub-module '{subModule.GetType().FullName}' must implement {nameof(IModule)}.");
-            }
-
-            registerChild(module);
+            registerChild(subModule);
         }
     }
 
@@ -61,13 +55,18 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
                 "Register the module through IModuleRegistry.");
         }
 
-        if (_builder.IsOutboxProcessorEnabled &&
-            (!_builder.IsStorageConfigured || !_builder.IsDispatcherConfigured))
+        if (!_builder.IsStorageConfigured)
         {
             throw new LiteBusConfigurationException(
-                "EnableOutboxProcessor requires both storage and dispatcher to be configured. " +
-                "Call UseInMemoryStorage, UsePostgreSqlStorage, or UseEfCoreStorage and " +
-                "UseInProcessDispatcher or UseTransport inside AddOutboxModule(...).");
+                "Outbox storage is required because AddOutboxModule registers IOutbox and related writer services. " +
+                "Call UseInMemoryStorage, UsePostgreSqlStorage, or UseEfCoreStorage inside AddOutboxModule(...).");
+        }
+
+        if (_builder.IsOutboxProcessorEnabled && !_builder.IsDispatcherConfigured)
+        {
+            throw new LiteBusConfigurationException(
+                "EnableOutboxProcessor requires an outbox dispatcher. " +
+                "Call UseEventOutboxDispatcher, a broker-specific Use*Dispatch extension, or RegisterDispatcher inside AddOutboxModule(...).");
         }
 
         var contractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
@@ -88,8 +87,8 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
         if (_builder.CollectPayloadEncryptor() is { } outboxEncryptor)
         {
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(IPayloadEncryptor),
-                outboxEncryptor));
+                typeof(IOutboxPayloadProtector),
+                new OutboxPayloadProtector(outboxEncryptor)));
         }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -99,6 +98,16 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxScheduler),
             typeof(Outbox)));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(OutboxCleanupHostOptions),
+            _builder.CleanupHostOptions));
+
+        var retentionCoordinator = new OutboxRetentionCoordinator(_builder.CleanupHostOptions);
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(OutboxRetentionCoordinator),
+            retentionCoordinator));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxManager),

@@ -8,6 +8,7 @@ using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Orchestration.Abstractions;
 using LiteBus.Saga;
 using LiteBus.Saga.Abstractions;
 using LiteBus.Testing;
@@ -43,7 +44,7 @@ public sealed class SagaProcessorHookTests
         services.AddSingleton<ISagaStateTypeRegistry>(registry);
         services.AddSingleton(new SagaExecutionContext());
         services.AddSingleton<ISagaContext>(sp => sp.GetRequiredService<SagaExecutionContext>());
-        services.AddSingleton<IInboxProcessorEnvelopeHook, SagaProcessorHook>();
+        services.AddSingleton<IProcessorEnvelopeHook, SagaProcessorHook>();
         services.AddSingleton<IContractReader>(contractRegistry);
         services.AddSingleton<IMessageSerializer>(serializer);
         services.AddSingleton<TimeProvider>(TimeProvider.System);
@@ -51,11 +52,12 @@ public sealed class SagaProcessorHookTests
         var options = new InboxProcessorOptions { BatchSize = 10, DispatcherConcurrency = 1 };
         services.AddSingleton(options);
         services.AddSingleton<IInboxProcessor>(sp => new PipelinedInboxProcessor(
-            sp.GetRequiredService<IInboxProcessingStore>(),
+            sp.GetRequiredService<IInboxLeaseStore>(),
+            sp.GetRequiredService<IInboxStateWriter>(),
             sp.GetRequiredService<IInboxDispatcher>(),
             options,
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetServices<IInboxProcessorEnvelopeHook>().ToArray()));
+            sp.GetServices<IProcessorEnvelopeHook>().ToArray()));
 
         var provider = services.BuildServiceProvider();
         var inbox = new global::LiteBus.Inbox.Inbox(

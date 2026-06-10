@@ -2,6 +2,7 @@ using System;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Queries;
 
@@ -21,46 +22,34 @@ public static class ModuleRegistryExtensions
     ///     Thrown when <paramref name="moduleRegistry" /> or <paramref name="builderAction" /> is <see langword="null" />.
     /// </exception>
     /// <remarks>
-    ///     This method automatically registers a <see cref="MessageModule" /> with default configuration
-    ///     if one has not already been registered. This ensures that the core messaging services
-    ///     (such as <see cref="IMessageMediator" /> and <see cref="IMessageRegistry" />) are available
-    ///     for query processing.
-    ///     If you need custom configuration for the <see cref="MessageModule" />, register it explicitly
-    ///     before calling this method.
+    ///     Register <see cref="MessageModule" /> before calling this method. The message module provides core messaging
+    ///     services (such as <see cref="IMessageMediator" /> and <see cref="IMessageRegistry" />) required for query
+    ///     processing.
     /// </remarks>
     /// <example>
     ///     <code>
-    /// // Automatic MessageModule registration with default configuration
-    /// services.AddLiteBus(modules =>
+    /// services.AddLiteBus(registry =>
     /// {
-    ///     modules.AddQueryModule(qry => 
-    ///     {
-    ///         qry.RegisterFromAssembly(typeof(MyQuery).Assembly);
-    ///     });
-    /// });
-    /// 
-    /// // Explicit MessageModule configuration
-    /// services.AddLiteBus(modules =>
-    /// {
-    ///     modules.AddMessageModule(msg => { /* custom config */ });
-    ///     modules.AddQueryModule(qry => 
+    ///     registry.AddMessageModule(msg => { /* optional core config */ });
+    ///     registry.AddQueryModule(qry => 
     ///     {
     ///         qry.RegisterFromAssembly(typeof(MyQuery).Assembly);
     ///     });
     /// });
     /// </code>
     /// </example>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     Thrown when <see cref="MessageModule" /> has not been registered.
+    /// </exception>
     public static IModuleRegistry AddQueryModule(this IModuleRegistry moduleRegistry, Action<QueryModuleBuilder> builderAction)
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
 
-        // Ensure MessageModule is registered first with default configuration.
         if (!moduleRegistry.IsModuleRegistered<MessageModule>())
         {
-            moduleRegistry.Register(new MessageModule(_ =>
-            {
-            }));
+            throw new LiteBusConfigurationException(
+                "MessageModule must be registered before AddQueryModule(). Call AddMessageModule() first.");
         }
 
         moduleRegistry.Register(new QueryModule(builderAction));

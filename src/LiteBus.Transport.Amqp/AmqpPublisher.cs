@@ -74,6 +74,11 @@ public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport
 
         _circuitBreaker?.ThrowIfOpen();
 
+        using var activity = TransportTracing.StartPublishActivity(
+            request.Exchange,
+            request.RoutingKey,
+            request.MessageId);
+
         await _publishGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try

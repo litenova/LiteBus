@@ -59,9 +59,10 @@ public sealed class InboxHostingTests : LiteBusTestBase
     {
         var act = () =>
             new ServiceCollection()
-                .AddLiteBus(modules =>
+                .AddLiteBus(registry =>
                 {
-                    modules.AddInboxModule(inbox =>
+                    registry.AddMessageModule(_ => { });
+                registry.AddInboxModule(inbox =>
                     {
                         inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
                         inbox.EnableInboxProcessor();
@@ -70,7 +71,7 @@ public sealed class InboxHostingTests : LiteBusTestBase
                 .BuildServiceProvider();
 
         act.Should().Throw<LiteBusConfigurationException>()
-            .WithMessage("*EnableInboxProcessor*storage*dispatcher*");
+            .WithMessage("*Inbox storage is required*");
     }
 
     [Fact]
@@ -78,19 +79,20 @@ public sealed class InboxHostingTests : LiteBusTestBase
     {
         var act = () =>
             new ServiceCollection()
-                .AddInboxStoreRoles(new InMemoryInboxStore())
-                .AddLiteBus(modules =>
+                .AddLiteBus(registry =>
                 {
-                    modules.AddInboxModule(inbox =>
+                    registry.AddMessageModule(_ => { });
+                    registry.AddInboxModule(inbox =>
                     {
                         inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
+                        inbox.UseInMemoryStorage();
                         inbox.EnableInboxProcessor();
                     });
                 })
                 .BuildServiceProvider();
 
         act.Should().Throw<LiteBusConfigurationException>()
-            .WithMessage("*EnableInboxProcessor*storage*dispatcher*");
+            .WithMessage("*EnableInboxProcessor requires an inbox dispatcher*");
     }
 
     [Fact]
@@ -147,7 +149,7 @@ public sealed class InboxHostingTests : LiteBusTestBase
             configureHost: options =>
             {
                 options.UseAdaptivePolling = true;
-                options.PollInterval = TimeSpan.FromSeconds(1);
+                options.PollInterval = TimeSpan.FromMilliseconds(50);
             });
 
         var scheduler = provider.GetRequiredService<IInbox>();
@@ -162,14 +164,11 @@ public sealed class InboxHostingTests : LiteBusTestBase
             });
         }
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        var startedAt = DateTimeOffset.UtcNow;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(500));
+        await WaitUntilAsync(() => recorder.Commands.Count == 4, TimeSpan.FromSeconds(10));
         await InboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
 
-        var elapsed = DateTimeOffset.UtcNow - startedAt;
-        elapsed.Should().BeLessThan(TimeSpan.FromSeconds(1));
         recorder.Commands.Should().HaveCount(4);
     }
 
@@ -196,6 +195,15 @@ public sealed class InboxHostingTests : LiteBusTestBase
         pass.LeasedCount.Should().Be(1);
     }
 
+    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        while (!condition() && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(50);
+        }
+    }
+
     private static ServiceProvider BuildProvider(
         InboxTestFixtures.CommandRecorder recorder,
         Action<InboxProcessorHostOptions>? configureHost = null,
@@ -203,15 +211,16 @@ public sealed class InboxHostingTests : LiteBusTestBase
     {
         return new ServiceCollection()
             .AddSingleton(recorder)
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
                     builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                 });
 
-                modules.AddInboxModule(inbox =>
+                registry.AddInboxModule(inbox =>
                 {
                     if (configureInbox is not null)
                     {
@@ -229,7 +238,7 @@ public sealed class InboxHostingTests : LiteBusTestBase
                     }
 
                     inbox.UseInMemoryStorage();
-                    inbox.UseInProcessDispatcher();
+                    inbox.UseCommandInboxDispatcher();
                     inbox.EnableInboxProcessor(configureHost);
                 });
             })

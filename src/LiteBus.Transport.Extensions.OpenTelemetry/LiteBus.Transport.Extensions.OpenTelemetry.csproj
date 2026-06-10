@@ -1,11 +1,12 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-    <ItemGroup>
-        <PackageReference Include="OpenTelemetry"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Transport\LiteBus.Transport.csproj"/>
-    </ItemGroup>
-
-</Project>
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <PackageReference Include="OpenTelemetry"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Transport\LiteBus.Transport.csproj"/>
+        <ProjectReference Include="..\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>
+    </ItemGroup>
+
+</Project>

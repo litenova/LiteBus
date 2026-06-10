@@ -1,8 +1,10 @@
 using LiteBus.Transport.Amqp;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.Transport;
+using LiteBus.Inbox.Dispatch;
+using LiteBus.Inbox.Dispatch.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -82,9 +84,10 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
     private static ServiceProvider BuildProvider(AmqpConnectionOptions connectionOptions, string exchangeName, string routingKey)
     {
         return new ServiceCollection()
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddInboxModule(inbox =>
+                registry.AddMessageModule(_ => { });
+                registry.AddInboxModule(inbox =>
                 {
                     inbox.Contracts.Register<RemoteWorkCommand>(ContractName, ContractVersion);
                     inbox.UseProcessorOptions(new InboxProcessorOptions
@@ -96,18 +99,13 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
-                });
-
-                modules.AddInboxModule(inbox => inbox.UseInMemoryStorage());
-                modules.AddInboxModule(inbox =>
-                {
-                    inbox.UseTransport(
+                    inbox.UseInMemoryStorage();
+                    inbox.UseAmqpDispatch(
                         transport =>
                         {
                             transport.DefaultDestination = exchangeName;
                             transport.ResolveRoute = _ => routingKey;
-                        },
-                        new AmqpTransportModule(connectionOptions));
+                        }, connectionOptions);
                 });
             })
             .BuildServiceProvider(new ServiceProviderOptions

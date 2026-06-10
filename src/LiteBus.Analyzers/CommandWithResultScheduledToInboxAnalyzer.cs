@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -40,7 +41,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
 
         if (symbol is null ||
             symbol.Name != "AcceptAsync" ||
-            !IsInboxAcceptMethod(symbol))
+            !IsInboxAcceptMethod(symbol, context.Compilation))
         {
             return;
         }
@@ -67,15 +68,27 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
     }
 
     /// <summary>
-    ///     Determines whether the method symbol is an inbox acceptance API on <c>IInbox</c>.
+    ///     Determines whether the method symbol is an inbox acceptance API on <see cref="LiteBus.Inbox.Abstractions.IInbox" />.
     /// </summary>
     /// <param name="method">The invoked method symbol.</param>
+    /// <param name="compilation">The compilation being analyzed.</param>
     /// <returns><see langword="true" /> when the method accepts messages into the inbox; otherwise, <see langword="false" />.</returns>
-    private static bool IsInboxAcceptMethod(IMethodSymbol method)
+    private static bool IsInboxAcceptMethod(IMethodSymbol method, Compilation compilation)
     {
-        return method.Name == "AcceptAsync" &&
-               method.ContainingType?.Name == "IInbox" &&
-               method.ContainingType.ContainingNamespace?.ToDisplayString() == "LiteBus.Inbox.Abstractions";
+        var inboxInterface = compilation.GetTypeByMetadataName("LiteBus.Inbox.Abstractions.IInbox");
+
+        if (inboxInterface is null || method.ContainingType is null)
+        {
+            return false;
+        }
+
+        if (SymbolEqualityComparer.Default.Equals(method.ContainingType, inboxInterface))
+        {
+            return true;
+        }
+
+        return method.ContainingType.AllInterfaces.Any(
+            candidate => SymbolEqualityComparer.Default.Equals(candidate, inboxInterface));
     }
 
     /// <summary>

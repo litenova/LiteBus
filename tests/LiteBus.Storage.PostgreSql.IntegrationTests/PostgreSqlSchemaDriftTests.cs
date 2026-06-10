@@ -58,63 +58,6 @@ public sealed class PostgreSqlSchemaDriftTests : IClassFixture<PostgreSqlFixture
     }
 
     [Fact]
-    public async Task InboxValidateAsync_WhenMetadataVersionIsStale_ShouldThrow()
-    {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
-        await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options);
-
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
-        await using var updateVersion = connection.CreateCommand();
-        updateVersion.CommandText = $"""
-                                     UPDATE "{options.MetadataSchemaName}"."{options.MetadataTableName}"
-                                     SET version = 1
-                                     WHERE component = @component
-                                       AND schema_name = @schema_name
-                                       AND table_name = @table_name;
-                                     """;
-        updateVersion.Parameters.AddWithValue("component", PostgreSqlSchemaComponents.Inbox);
-        updateVersion.Parameters.AddWithValue("schema_name", options.SchemaName);
-        updateVersion.Parameters.AddWithValue("table_name", options.TableName);
-        await updateVersion.ExecuteNonQueryAsync();
-
-        var action = async () => await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options);
-
-        await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>()
-            .Where(exception =>
-                exception.Component == PostgreSqlSchemaComponents.Inbox &&
-                exception.ActualVersion == 1 &&
-                exception.ExpectedVersion == PostgreSqlInboxSchema.CurrentSchemaVersion);
-    }
-
-    [Fact]
-    public async Task InboxEnsureAsync_WhenMetadataVersionIsStaleButShapeIsCurrent_ShouldRepairMetadata()
-    {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
-        await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options);
-
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
-        await using var updateVersion = connection.CreateCommand();
-        updateVersion.CommandText = $"""
-                                     UPDATE "{options.MetadataSchemaName}"."{options.MetadataTableName}"
-                                     SET version = 1
-                                     WHERE component = @component
-                                       AND schema_name = @schema_name
-                                       AND table_name = @table_name;
-                                     """;
-        updateVersion.Parameters.AddWithValue("component", PostgreSqlSchemaComponents.Inbox);
-        updateVersion.Parameters.AddWithValue("schema_name", options.SchemaName);
-        updateVersion.Parameters.AddWithValue("table_name", options.TableName);
-        await updateVersion.ExecuteNonQueryAsync();
-
-        var validate = async () => await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options);
-        await validate.Should().ThrowAsync<PostgreSqlSchemaDriftException>();
-
-        await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options);
-
-        await validate.Should().NotThrowAsync();
-    }
-
-    [Fact]
     public async Task InboxValidateAsync_WhenRequiredIndexMissing_ShouldThrowWithMissingIndexes()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
@@ -156,32 +99,4 @@ public sealed class PostgreSqlSchemaDriftTests : IClassFixture<PostgreSqlFixture
                 exception.Details.Contains(indexName, StringComparison.Ordinal));
     }
 
-    [Fact]
-    public async Task OutboxValidateAsync_WhenMetadataVersionIsStale_ShouldThrow()
-    {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
-        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options);
-
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
-        await using var updateVersion = connection.CreateCommand();
-        updateVersion.CommandText = $"""
-                                     UPDATE "{options.MetadataSchemaName}"."{options.MetadataTableName}"
-                                     SET version = 1
-                                     WHERE component = @component
-                                       AND schema_name = @schema_name
-                                       AND table_name = @table_name;
-                                     """;
-        updateVersion.Parameters.AddWithValue("component", PostgreSqlSchemaComponents.Outbox);
-        updateVersion.Parameters.AddWithValue("schema_name", options.SchemaName);
-        updateVersion.Parameters.AddWithValue("table_name", options.TableName);
-        await updateVersion.ExecuteNonQueryAsync();
-
-        var action = async () => await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options);
-
-        await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>()
-            .Where(exception =>
-                exception.Component == PostgreSqlSchemaComponents.Outbox &&
-                exception.ActualVersion == 1 &&
-                exception.ExpectedVersion == PostgreSqlOutboxSchema.CurrentSchemaVersion);
-    }
 }

@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Inbox.Ingress;
 
 namespace LiteBus.Inbox.Ingress.Amqp;
 
@@ -15,10 +16,10 @@ public sealed class AmqpInboxIngressModuleBuilder
     /// <summary>
     ///     Gets the options for the ingress background loop.
     /// </summary>
-    public AmqpInboxIngressHostOptions HostOptions { get; private set; } = new();
+    public TransportInboxIngressHostOptions HostOptions { get; private set; } = new();
 
     /// <summary>
-    ///     Gets a value indicating whether <see cref="AmqpInboxConsumer" /> is registered.
+    ///     Gets a value indicating whether <see cref="TransportInboxIngressConsumer" /> is registered.
     /// </summary>
     public bool EnableIngressConsumer { get; private set; } = true;
 

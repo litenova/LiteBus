@@ -1,28 +1,31 @@
+using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Orchestration.Abstractions;
 using LiteBus.Testing;
 
 namespace LiteBus.Inbox.UnitTests;
 
 /// <summary>
-///     Verifies the inbox processor batches terminal state updates into single store calls.
+///     Verifies pipelined inbox processor terminal state persistence behavior.
 /// </summary>
 public sealed class InboxProcessorBulkTerminalStateTests
 {
     /// <summary>
-    ///     Confirms each dead-letter transition is persisted per message and the pass <c>finally</c> block persists the
-    ///     accumulated batch.
+    ///     Confirms each dead-letter transition is persisted once per message in the pipelined processor.
     /// </summary>
     [Fact]
-    public async Task ProcessPendingAsync_when_max_attempts_exceeded_should_persist_per_message_and_in_finally()
+    public async Task ProcessPendingAsync_when_max_attempts_exceeded_should_persist_each_dead_letter()
     {
         var inner = new InMemoryInboxStore();
         var processingStore = new CountingInboxProcessingStore(inner);
         var clock = new ManualTimeProvider(new DateTimeOffset(2026, 6, 4, 12, 0, 0, TimeSpan.Zero));
         var dispatcher = new AlwaysFailingInboxDispatcher();
 
-        var processor = new InboxProcessor(
+        var processor = new PipelinedInboxProcessor(
+            processingStore,
             processingStore,
             dispatcher,
             new InboxProcessorOptions
@@ -32,11 +35,12 @@ public sealed class InboxProcessorBulkTerminalStateTests
                 LeaseDuration = TimeSpan.FromMinutes(1),
                 Retry = new RetryOptions { MaxAttempts = 1, UseJitter = false }
             },
-            clock);
+            clock,
+            Array.Empty<IProcessorEnvelopeHook>());
 
         for (var index = 0; index < 3; index++)
         {
-            await inner.EnqueueAsync(new InboxEnvelope
+            await inner.AddAsync(new InboxEnvelope
             {
                 Id = Guid.NewGuid(),
                 ContractName = "tests.commands.ship",
@@ -51,8 +55,8 @@ public sealed class InboxProcessorBulkTerminalStateTests
         var result = await processor.ProcessPendingAsync();
 
         result.DeadLetteredCount.Should().Be(3);
-        processingStore.PersistCallCount.Should().Be(4);
-        processingStore.LastPersistedDeadLetterCount.Should().Be(3);
+        processingStore.PersistCallCount.Should().Be(3);
+        processingStore.LastPersistedDeadLetterCount.Should().Be(1);
     }
 
     /// <summary>
@@ -83,14 +87,6 @@ public sealed class InboxProcessorBulkTerminalStateTests
 
         public int LastPersistedDeadLetterCount { get; private set; }
 
-        public Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default) =>
-            _inner.AddAsync(envelope, cancellationToken);
-
-        public Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
-            IReadOnlyList<InboxEnvelope> envelopes,
-            CancellationToken cancellationToken = default) =>
-            _inner.AddBatchAsync(envelopes, cancellationToken);
-
         public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
             InboxLeaseRequest request,
             CancellationToken cancellationToken = default) =>
@@ -103,11 +99,11 @@ public sealed class InboxProcessorBulkTerminalStateTests
             CancellationToken cancellationToken = default) =>
             _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
 
-        public Task PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
+        public async Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
         {
             PersistCallCount++;
             LastPersistedDeadLetterCount = envelopes.Count(envelope => envelope.Status == InboxStatus.DeadLettered);
-            return _inner.PersistAsync(envelopes, cancellationToken);
+            return await _inner.PersistAsync(envelopes, cancellationToken).ConfigureAwait(false);
         }
     }
 }

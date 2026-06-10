@@ -53,15 +53,14 @@ public sealed class OutboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldDispatchThroughMockDispatcherAndMarkPublished()
     {
-        var store = new InMemoryOutboxStore();
+        var dispatcherHolder = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         var serviceProvider = new ServiceCollection()
-            .AddOutboxStoreRoles(store)
-            .AddSingleton<OutboxTestInfrastructure.RecordingOutboxDispatcher>()
-            .AddSingleton<IOutboxDispatcher>(sp => sp.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>())
-            .AddLiteBus(modules =>
+            .AddSingleton(dispatcherHolder)
+            .AddLiteBus(registry =>
             {
-                modules.AddOutboxModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddOutboxModule(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -73,13 +72,16 @@ public sealed class OutboxTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
+                    builder.UseInMemoryStorage();
+                    builder.UseRecordingOutboxDispatcher(dispatcherHolder);
                 });
             })
             .BuildServiceProvider();
 
+        var store = serviceProvider.GetRequiredService<InMemoryOutboxStore>();
         var outbox = serviceProvider.GetRequiredService<IOutbox>();
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
-        var dispatcher = serviceProvider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>();
+        var dispatcher = dispatcherHolder.Instance!;
         var eventId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
@@ -107,15 +109,14 @@ public sealed class OutboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldSupportClosedGenericIntegrationEvents()
     {
-        var store = new InMemoryOutboxStore();
+        var dispatcherHolder = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         var serviceProvider = new ServiceCollection()
-            .AddOutboxStoreRoles(store)
-            .AddSingleton<OutboxTestInfrastructure.RecordingOutboxDispatcher>()
-            .AddSingleton<IOutboxDispatcher>(sp => sp.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>())
-            .AddLiteBus(modules =>
+            .AddSingleton(dispatcherHolder)
+            .AddLiteBus(registry =>
             {
-                modules.AddOutboxModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddOutboxModule(builder =>
                 {
                     builder.Contracts.Register<GenericIntegrationEvent<int>>("generic.events.int", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -127,13 +128,16 @@ public sealed class OutboxTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
+                    builder.UseInMemoryStorage();
+                    builder.UseRecordingOutboxDispatcher(dispatcherHolder);
                 });
             })
             .BuildServiceProvider();
 
+        var store = serviceProvider.GetRequiredService<InMemoryOutboxStore>();
         var outbox = serviceProvider.GetRequiredService<IOutbox>();
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
-        var dispatcher = serviceProvider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>();
+        var dispatcher = dispatcherHolder.Instance!;
         var messageId = Guid.NewGuid();
 
         await outbox.EnqueueAsync(new GenericIntegrationEvent<int>
@@ -168,14 +172,11 @@ public sealed class OutboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenDispatcherThrows_ShouldMarkFailedAndSetVisibleAfter()
     {
-        var store = new InMemoryOutboxStore();
-
         var serviceProvider = new ServiceCollection()
-            .AddOutboxStoreRoles(store)
-            .AddSingleton<IOutboxDispatcher>(new AlwaysFailingOutboxDispatcher())
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddOutboxModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddOutboxModule(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -189,9 +190,13 @@ public sealed class OutboxTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
+                    builder.UseInMemoryStorage();
+                    builder.UseFixedOutboxDispatcher(new AlwaysFailingOutboxDispatcher());
                 });
             })
             .BuildServiceProvider();
+
+        var store = serviceProvider.GetRequiredService<InMemoryOutboxStore>();
 
         var outbox = serviceProvider.GetRequiredService<IOutbox>();
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
@@ -214,14 +219,11 @@ public sealed class OutboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenDispatcherExceedsMaxAttempts_ShouldMoveToDeadLetter()
     {
-        var store = new InMemoryOutboxStore();
-
         var serviceProvider = new ServiceCollection()
-            .AddOutboxStoreRoles(store)
-            .AddSingleton<IOutboxDispatcher>(new AlwaysFailingOutboxDispatcher())
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddOutboxModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddOutboxModule(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -235,9 +237,13 @@ public sealed class OutboxTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
+                    builder.UseInMemoryStorage();
+                    builder.UseFixedOutboxDispatcher(new AlwaysFailingOutboxDispatcher());
                 });
             })
             .BuildServiceProvider();
+
+        var store = serviceProvider.GetRequiredService<InMemoryOutboxStore>();
 
         var outbox = serviceProvider.GetRequiredService<IOutbox>();
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
@@ -286,15 +292,14 @@ public sealed class OutboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldPassTraceMetadataToDispatcher()
     {
-        var store = new InMemoryOutboxStore();
+        var dispatcherHolder = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         var serviceProvider = new ServiceCollection()
-            .AddOutboxStoreRoles(store)
-            .AddSingleton<OutboxTestInfrastructure.RecordingOutboxDispatcher>()
-            .AddSingleton<IOutboxDispatcher>(sp => sp.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>())
-            .AddLiteBus(modules =>
+            .AddSingleton(dispatcherHolder)
+            .AddLiteBus(registry =>
             {
-                modules.AddOutboxModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddOutboxModule(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
                     builder.UseProcessorOptions(new OutboxProcessorOptions
@@ -303,13 +308,15 @@ public sealed class OutboxTests : LiteBusTestBase
                         LeaseOwner = "test-publisher",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+                    builder.UseInMemoryStorage();
+                    builder.UseRecordingOutboxDispatcher(dispatcherHolder);
                 });
             })
             .BuildServiceProvider();
 
         var outbox = serviceProvider.GetRequiredService<IOutbox>();
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
-        var dispatcher = serviceProvider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcher>();
+        var dispatcher = dispatcherHolder.Instance!;
         var messageId = Guid.NewGuid();
 
         await outbox.EnqueueAsync(new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
@@ -328,7 +335,36 @@ public sealed class OutboxTests : LiteBusTestBase
         envelope.TenantId.Should().Be("tenant-99");
     }
 
-    public sealed record OrderSubmittedIntegrationEvent
+    [Fact]
+    public async Task EnqueueBatchAsync_ShouldStoreAllEventsWithRuntimeTypes()
+    {
+        var store = new InMemoryOutboxStore();
+        var contractRegistry = new MessageContractRegistry();
+        contractRegistry.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+        contractRegistry.Register<GenericIntegrationEvent<string>>("orders.events.generic", 1);
+
+        var outbox = new Outbox(
+            store,
+            contractRegistry,
+            new SystemTextJsonMessageSerializer(),
+            TimeProvider.System);
+
+        var receipts = await outbox.EnqueueBatchAsync(
+            [
+                new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                new GenericIntegrationEvent<string> { Value = "batch" }
+            ],
+            [typeof(OrderSubmittedIntegrationEvent), typeof(GenericIntegrationEvent<string>)]);
+
+        receipts.Should().HaveCount(2);
+        receipts[0].ContractName.Should().Be("orders.events.submitted");
+        receipts[1].ContractName.Should().Be("orders.events.generic");
+        store.GetAll().Should().HaveCount(2);
+    }
+
+    public abstract record BaseIntegrationEvent;
+
+    public sealed record OrderSubmittedIntegrationEvent : BaseIntegrationEvent
     {
         public Guid OrderId { get; init; }
     }

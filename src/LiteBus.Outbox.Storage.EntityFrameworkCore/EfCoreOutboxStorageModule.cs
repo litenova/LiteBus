@@ -1,7 +1,9 @@
 using System;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
@@ -9,7 +11,7 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 /// <summary>
 ///     Registers the Entity Framework Core outbox store with LiteBus dependency injection.
 /// </summary>
-public sealed class EfCoreOutboxStorageModule : IModule
+public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -29,14 +31,6 @@ public sealed class EfCoreOutboxStorageModule : IModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        if (!configuration.TryGetContext<OutboxCoreRegisteredMarker>(out _))
-        {
-            throw new LiteBusConfigurationException(
-                $"{nameof(EfCoreOutboxStorageModule)} requires OutboxModule core services " +
-                "to be registered first. Configure storage inside AddOutboxModule(...) " +
-                "using UseEfCoreStorage().");
-        }
 
         var moduleBuilder = new EfCoreOutboxStorageModuleBuilder();
         _builder(moduleBuilder);
@@ -134,10 +128,36 @@ public sealed class EfCoreOutboxStorageModule : IModule
 
         if (moduleBuilder.RegisterSaveChangesInterceptor)
         {
+            var transactionalOutboxType = typeof(ITransactionalOutbox<>).MakeGenericType(moduleBuilder.DbContextType);
+
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(ITransactionalOutbox),
-                typeof(TransactionalOutbox)));
+                transactionalOutboxType,
+                serviceProvider => CreateTransactionalOutbox(serviceProvider, moduleBuilder),
+                InstanceLifetime.Scoped));
         }
+    }
+
+    /// <summary>
+    ///     Creates a transactional outbox bound to the configured application database context.
+    /// </summary>
+    /// <param name="serviceProvider">The application service provider.</param>
+    /// <param name="moduleBuilder">The configured module builder.</param>
+    /// <returns>The transactional outbox instance.</returns>
+    private static object CreateTransactionalOutbox(
+        IServiceProvider serviceProvider,
+        EfCoreOutboxStorageModuleBuilder moduleBuilder)
+    {
+        var dbContext = serviceProvider.GetRequiredService(moduleBuilder.DbContextType!);
+        var transactionalOutboxType = typeof(TransactionalOutbox<>).MakeGenericType(moduleBuilder.DbContextType!);
+
+        return Activator.CreateInstance(
+            transactionalOutboxType,
+            serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>(),
+            dbContext,
+            serviceProvider.GetRequiredService<IContractReader>(),
+            serviceProvider.GetRequiredService<IMessageSerializer>(),
+            serviceProvider.GetRequiredService<TimeProvider>(),
+            serviceProvider.GetService(typeof(IOutboxPayloadProtector)))!;
     }
 
     /// <summary>

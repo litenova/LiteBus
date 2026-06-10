@@ -23,35 +23,37 @@ public static class ContainerBuilderExtensions
     ///     Adds LiteBus to the Autofac container builder with the specified module configuration.
     /// </summary>
     /// <param name="builder">The Autofac container builder to add LiteBus to.</param>
-    /// <param name="liteBusBuilderAction">Action to configure LiteBus modules.</param>
+    /// <param name="configureRegistry">Action to configure LiteBus through <see cref="IModuleRegistry" />.</param>
     /// <returns>The container builder for method chaining.</returns>
     /// <exception cref="ArgumentNullException">
     ///     Thrown when <paramref name="builder" /> or
-    ///     <paramref name="liteBusBuilderAction" /> is <see langword="null" />.
+    ///     <paramref name="configureRegistry" /> is <see langword="null" />.
     /// </exception>
     /// <example>
     ///     <code>
     /// var builder = new ContainerBuilder();
     /// 
-    /// builder.AddLiteBus(modules =>
+    /// builder.AddLiteBus(registry =>
     /// {
-    ///     modules.AddMessageModule(messaging => messaging.RegisterFromAssembly(assembly));
-    ///     modules.AddCommandModule(commands => commands.RegisterFromAssembly(assembly));
+    ///     registry.AddMessageModule(messaging => messaging.RegisterFromAssembly(assembly));
+    ///     registry.AddCommandModule(commands => commands.RegisterFromAssembly(assembly));
     /// });
     /// 
     /// var container = builder.Build();
     /// </code>
     /// </example>
     public static ContainerBuilder AddLiteBus(this ContainerBuilder builder,
-                                              Action<IModuleRegistry> liteBusBuilderAction)
+                                              Action<IModuleRegistry> configureRegistry)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(liteBusBuilderAction);
+        ArgumentNullException.ThrowIfNull(configureRegistry);
+
+        RegisterServiceProviderAdapter(builder);
 
         var dependencyRegistryAdapter = new AutofacDependencyRegistryAdapter(builder);
         var moduleRegistry = new ModuleRegistry();
 
-        liteBusBuilderAction(moduleRegistry);
+        configureRegistry(moduleRegistry);
 
         var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
 
@@ -61,10 +63,6 @@ public static class ContainerBuilderExtensions
         }
 
         builder.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
-
-        builder.Register(c => new AutofacServiceProvider(c.Resolve<ILifetimeScope>()))
-            .As<IServiceProvider>()
-            .InstancePerLifetimeScope();
 
         return builder;
     }
@@ -82,6 +80,8 @@ public static class ContainerBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configure);
+
+        RegisterServiceProviderAdapter(builder);
 
         var dependencyRegistryAdapter = new AutofacDependencyRegistryAdapter(builder);
         var moduleRegistry = new ModuleRegistry();
@@ -108,10 +108,17 @@ public static class ContainerBuilderExtensions
 
         builder.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
 
-        builder.Register(c => new AutofacServiceProvider(c.Resolve<ILifetimeScope>()))
+        return builder;
+    }
+
+    /// <summary>
+    ///     Registers an <see cref="IServiceProvider" /> adapter before module build so factory registrations can resolve services.
+    /// </summary>
+    /// <param name="builder">The Autofac container builder receiving the adapter registration.</param>
+    private static void RegisterServiceProviderAdapter(ContainerBuilder builder)
+    {
+        builder.Register(c => (IServiceProvider)new AutofacServiceProviderAdapter(c.Resolve<ILifetimeScope>()))
             .As<IServiceProvider>()
             .InstancePerLifetimeScope();
-
-        return builder;
     }
 }

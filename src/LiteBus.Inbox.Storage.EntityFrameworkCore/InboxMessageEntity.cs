@@ -97,4 +97,29 @@ public sealed class InboxMessageEntity
     ///     Gets or sets the optional UTC timestamp when the command reached the completed state.
     /// </summary>
     public DateTimeOffset? CompletedAt { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the optional UTC timestamp of the most recent processing attempt.
+    /// </summary>
+    public DateTimeOffset? LastAttemptedAt { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the optional UTC timestamp when the command first entered a failed state.
+    /// </summary>
+    public DateTimeOffset? FirstFailedAt { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the optional UTC timestamp when the command was dead-lettered.
+    /// </summary>
+    public DateTimeOffset? DeadLetteredAt { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the optional lease owner recorded from the most recent processing attempt.
+    /// </summary>
+    public string? LastLeaseOwner { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the optional error classification from the most recent failure.
+    /// </summary>
+    public string? ErrorType { get; set; }
 }

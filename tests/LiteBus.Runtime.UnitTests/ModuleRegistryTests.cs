@@ -7,6 +7,19 @@ namespace LiteBus.Runtime.UnitTests;
 public sealed class ModuleRegistryTests
 {
     [Fact]
+    public void Register_DuplicateModuleType_ShouldThrowLiteBusConfigurationException()
+    {
+        var registry = new ModuleRegistry();
+        registry.Register(new IndependentModule());
+
+        var act = () => registry.Register(new IndependentModule());
+
+        act.Should()
+            .Throw<LiteBusConfigurationException>()
+            .WithMessage("*IndependentModule*already registered*");
+    }
+
+    [Fact]
     public void Register_WithNullModule_ShouldThrowArgumentNullException()
     {
         var registry = new ModuleRegistry();

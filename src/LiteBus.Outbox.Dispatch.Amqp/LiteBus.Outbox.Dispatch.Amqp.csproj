@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+
+
+    <ItemGroup>
+
+        <ProjectReference Include="..\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj"/>
+
+        <ProjectReference Include="..\LiteBus.Outbox.Dispatch\LiteBus.Outbox.Dispatch.csproj"/>
+
+        <ProjectReference Include="..\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>
+
+    </ItemGroup>
+
+
+
+</Project>
+

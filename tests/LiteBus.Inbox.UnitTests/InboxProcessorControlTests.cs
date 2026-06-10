@@ -1,6 +1,7 @@
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
@@ -28,7 +29,7 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
 
         await using var provider = BuildProvider(
             recorder,
-            configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(50));
+            configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(25));
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var control = provider.GetRequiredService<IInboxProcessorControl>();
@@ -62,7 +63,7 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
         await control.ResumeAsync(CancellationToken.None);
         control.State.Should().Be(ProcessorState.Running);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(250));
+        await WaitUntilAsync(() => recorder.Commands.Any(command => command.OrderId == pausedOrderId), TimeSpan.FromSeconds(10));
         recorder.Commands.Should().Contain(command => command.OrderId == pausedOrderId);
 
         await InboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
@@ -126,15 +127,16 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
     {
         return new ServiceCollection()
             .AddSingleton(recorder)
-            .AddLiteBus(modules =>
+            .AddLiteBus(registry =>
             {
-                modules.AddCommandModule(builder =>
+                registry.AddMessageModule(_ => { });
+                registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
                     builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                 });
 
-                modules.AddInboxModule(inbox =>
+                registry.AddInboxModule(inbox =>
                 {
                     inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
                     inbox.UseProcessorOptions(new InboxProcessorOptions
@@ -144,10 +146,19 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
                         Retry = new RetryOptions { UseJitter = false }
                     });
                     inbox.UseInMemoryStorage();
-                    inbox.UseInProcessDispatcher();
+                    inbox.UseCommandInboxDispatcher();
                     inbox.EnableInboxProcessor(configureHost);
                 });
             })
             .BuildServiceProvider();
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        while (!condition() && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(50);
+        }
     }
 }

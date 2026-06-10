@@ -2,6 +2,7 @@ using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.EntityFrameworkCore;
+using LiteBus.Messaging;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,8 +18,12 @@ public sealed class EfCoreInboxStorageModuleTests
 
         var provider = new ServiceCollection()
             .AddDbContext<ModuleTestInboxDbContext>(options => options.UseInMemoryDatabase(databaseName))
-            .AddLiteBus(modules => modules.AddInboxModule(inbox => inbox.UseEfCoreStorage(builder =>
-                builder.UseDbContext<ModuleTestInboxDbContext>())))
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessageModule(_ => { });
+                registry.AddInboxModule(inbox => inbox.UseEfCoreStorage(builder =>
+                    builder.UseDbContext<ModuleTestInboxDbContext>()));
+            })
             .BuildServiceProvider();
 
         var store = provider.GetRequiredService<EfCoreInboxStore>();
@@ -41,16 +46,20 @@ public sealed class EfCoreInboxStorageModuleTests
             .AddDbContext<ModuleTestInboxDbContext>(options => options
                 .UseInMemoryDatabase(databaseName)
                 .AddLiteBusInboxInterceptor(interceptor))
-            .AddLiteBus(modules => modules.AddInboxModule(inbox => inbox.UseEfCoreStorage(builder =>
-                builder
-                    .UseDbContext<ModuleTestInboxDbContext>()
-                    .EnableSaveChangesInterceptor())))
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessageModule(_ => { });
+                registry.AddInboxModule(inbox => inbox.UseEfCoreStorage(builder =>
+                    builder
+                        .UseDbContext<ModuleTestInboxDbContext>()
+                        .EnableSaveChangesInterceptor()));
+            })
             .BuildServiceProvider();
 
         provider.GetRequiredService<LiteBusInboxSaveChangesInterceptor>().Should().NotBeNull();
 
         using var scope = provider.CreateScope();
-        scope.ServiceProvider.GetRequiredService<ITransactionalInbox>().Should().NotBeNull();
+        scope.ServiceProvider.GetRequiredService<ITransactionalInbox<ModuleTestInboxDbContext>>().Should().NotBeNull();
     }
 
     [Fact]
@@ -59,10 +68,14 @@ public sealed class EfCoreInboxStorageModuleTests
         var act = () =>
             new ServiceCollection()
                 .AddDbContext<ModuleTestInboxDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString("N")))
-                .AddLiteBus(modules => modules.AddInboxModule(inbox => inbox.UseEfCoreStorage(builder =>
-                    builder
-                        .UseDbContext<ModuleTestInboxDbContext>()
-                        .EnforceTransactionalSetup())))
+                .AddLiteBus(registry =>
+                {
+                    registry.AddMessageModule(_ => { });
+                    registry.AddInboxModule(inbox => inbox.UseEfCoreStorage(builder =>
+                        builder
+                            .UseDbContext<ModuleTestInboxDbContext>()
+                            .EnforceTransactionalSetup()));
+                })
                 .BuildServiceProvider();
 
         act.Should().Throw<LiteBusConfigurationException>()

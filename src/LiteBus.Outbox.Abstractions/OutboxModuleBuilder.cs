@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Outbox.Abstractions;
 
@@ -20,12 +22,12 @@ public sealed class OutboxModuleBuilder
     /// <summary>
     ///     The configured storage sub-module, if any.
     /// </summary>
-    private object? _storageModule;
+    private IOutboxStorageModule? _storageModule;
 
     /// <summary>
     ///     The configured dispatcher sub-module, if any.
     /// </summary>
-    private object? _dispatcherModule;
+    private IOutboxDispatcherModule? _dispatcherModule;
 
     /// <summary>
     ///     Consumer-owned diagnostic probes registered for this outbox.
@@ -130,13 +132,13 @@ public sealed class OutboxModuleBuilder
     /// </summary>
     /// <param name="storageModule">The storage module to register as a child of the outbox module.</param>
     /// <returns>The current builder.</returns>
-    public OutboxModuleBuilder RegisterStorage(object storageModule)
+    public OutboxModuleBuilder RegisterStorage(IOutboxStorageModule storageModule)
     {
         ArgumentNullException.ThrowIfNull(storageModule);
 
         if (_storageModule is not null)
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 "Outbox storage is already configured. " +
                 "Call only one of UsePostgreSqlStorage, UseEfCoreStorage, " +
                 "or UseInMemoryStorage.");
@@ -148,19 +150,19 @@ public sealed class OutboxModuleBuilder
 
     /// <summary>
     ///     Registers the dispatcher sub-module. Exactly one dispatcher must be
-    ///     registered. Called by extension methods such as UseInProcessDispatcher().
+    ///     registered. Called by extension methods such as UseEventOutboxDispatcher().
     /// </summary>
     /// <param name="dispatcherModule">The dispatcher module to register as a child of the outbox module.</param>
     /// <returns>The current builder.</returns>
-    public OutboxModuleBuilder RegisterDispatcher(object dispatcherModule)
+    public OutboxModuleBuilder RegisterDispatcher(IOutboxDispatcherModule dispatcherModule)
     {
         ArgumentNullException.ThrowIfNull(dispatcherModule);
 
         if (_dispatcherModule is not null)
         {
-            throw new InvalidOperationException(
+            throw new LiteBusConfigurationException(
                 "Outbox dispatcher is already configured. " +
-                "Call only one of UseInProcessDispatcher or UseTransport.");
+                "Call only one outbox dispatcher registration method such as UseEventOutboxDispatcher or a broker-specific Use*Dispatch extension.");
         }
 
         _dispatcherModule = dispatcherModule;
@@ -209,9 +211,9 @@ public sealed class OutboxModuleBuilder
     ///     Collects configured sub-modules in storage then dispatcher order.
     /// </summary>
     /// <returns>The sub-modules declared on this builder.</returns>
-    public IReadOnlyList<object> CollectSubModules()
+    public IReadOnlyList<IModule> CollectSubModules()
     {
-        var modules = new List<object>();
+        var modules = new List<IModule>();
         if (_storageModule is not null)
         {
             modules.Add(_storageModule);

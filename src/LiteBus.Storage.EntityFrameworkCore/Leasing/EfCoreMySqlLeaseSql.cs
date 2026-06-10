@@ -24,8 +24,10 @@ internal static class EfCoreMySqlLeaseSql
                SELECT `__ID_COLUMN__` AS `Value`
                FROM __TABLE__
                WHERE
-                   ((`status` IN ({0}, {1}) AND (`visible_after` IS NULL OR `visible_after` <= {2}))
-                    OR (`status` = {3} AND `lease_expires_at` IS NOT NULL AND `lease_expires_at` <= {2}))
+                   ({5} IS NULL OR `tenant_id` = {5})
+                   AND ((`status` IN ({0}, {1}) AND (`visible_after` IS NULL OR `visible_after` <= {2}))
+                    OR (`status` = {3} AND `lease_expires_at` IS NOT NULL AND `lease_expires_at` <= {2})
+                    OR (`status` = {3} AND `lease_expires_at` IS NULL AND `created_at` < {6}))
                ORDER BY `created_at` ASC
                LIMIT {4}
                FOR UPDATE SKIP LOCKED

@@ -24,17 +24,19 @@ internal static class EfCorePostgreSqlLeaseSql
                    SELECT __ID_COLUMN__
                    FROM __TABLE__
                    WHERE
-                       ((status IN ({0}, {1}) AND (visible_after IS NULL OR visible_after <= {2}))
-                        OR (status = {3} AND lease_expires_at IS NOT NULL AND lease_expires_at <= {2}))
+                       ({7}::text IS NULL OR tenant_id = {7}::text)
+                       AND ((status IN ({0}::integer, {1}::integer) AND (visible_after IS NULL OR visible_after <= {2}::timestamptz))
+                        OR (status = {3}::integer AND lease_expires_at IS NOT NULL AND lease_expires_at <= {2}::timestamptz)
+                        OR (status = {3}::integer AND lease_expires_at IS NULL AND created_at < {8}::timestamptz))
                    ORDER BY created_at ASC
-                   LIMIT {4}
+                   LIMIT {4}::integer
                    FOR UPDATE SKIP LOCKED
                )
                UPDATE __TABLE__ AS __ALIAS__
                SET
-                   status = {3},
-                   lease_owner = {5},
-                   lease_expires_at = {6},
+                   status = {3}::integer,
+                   lease_owner = {5}::text,
+                   lease_expires_at = {6}::timestamptz,
                    attempt_count = __ALIAS__.attempt_count + 1
                FROM candidates
                WHERE __ALIAS__.__ID_COLUMN__ = candidates.__ID_COLUMN__

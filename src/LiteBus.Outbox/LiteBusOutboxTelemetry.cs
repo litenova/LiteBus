@@ -29,4 +29,34 @@ public static class LiteBusOutboxTelemetry
     ///     Gets the OpenTelemetry attribute key applied to outbox queue depth measurements.
     /// </summary>
     public const string QueueStatusAttributeName = "litebus.outbox.status";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when outbox lease renewal fails during publication.
+    /// </summary>
+    public const string ProcessorLeaseLostInstrumentName = "litebus.outbox.processor.lease_lost";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when terminal persist skips a message because the lease was lost.
+    /// </summary>
+    public const string ProcessorPersistSkippedInstrumentName = "litebus.outbox.processor.persist_skipped";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when outbox retention cleanup fails.
+    /// </summary>
+    public const string CleanupErrorInstrumentName = "litebus.outbox.cleanup.errors";
+
+    /// <summary>
+    ///     Gets the histogram instrument name for outbox publication duration in milliseconds.
+    /// </summary>
+    public const string ProcessorDispatchDurationInstrumentName = "litebus.outbox.processor.dispatch_duration";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when outbox messages are leased during a pass.
+    /// </summary>
+    public const string ProcessorLeasesAcquiredInstrumentName = "litebus.outbox.processor.leases_acquired";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when terminal persist rejects an update because the lease was lost.
+    /// </summary>
+    public const string ProcessorPersistRejectedInstrumentName = "litebus.outbox.processor.persist_rejected";
 }

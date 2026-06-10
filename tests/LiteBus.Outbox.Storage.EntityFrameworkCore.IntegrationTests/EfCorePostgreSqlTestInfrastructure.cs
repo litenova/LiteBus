@@ -26,9 +26,9 @@ internal static class EfCorePostgreSqlTestInfrastructure
     private static readonly SemaphoreSlim OutboxSchemaLock = new(1, 1);
 
     /// <summary>
-    ///     Tracks whether the shared outbox table has been created.
+    ///     Tracks connection strings whose shared outbox schema has been created.
     /// </summary>
-    private static bool _outboxSchemaInitialized;
+    private static readonly HashSet<string> InitializedConnectionStrings = new(StringComparer.Ordinal);
 
     /// <summary>
     ///     Gets the store options used by outbox contract tests.
@@ -59,10 +59,41 @@ internal static class EfCorePostgreSqlTestInfrastructure
     /// <returns>The database context.</returns>
     internal static IntegrationOutboxDbContext CreateOutboxContext(string connectionString)
     {
-        var builder = new DbContextOptionsBuilder<IntegrationOutboxDbContext>()
-            .UseNpgsql(connectionString);
+        return CreateOutboxContext(connectionString, OutboxOptions);
+    }
 
-        return new IntegrationOutboxDbContext(builder.Options, OutboxOptions);
+    /// <summary>
+    ///     Creates a PostgreSQL-backed outbox database context for the supplied store options.
+    /// </summary>
+    /// <param name="connectionString">The PostgreSQL connection string.</param>
+    /// <param name="storeOptions">The outbox store options.</param>
+    /// <returns>The database context.</returns>
+    internal static IntegrationOutboxDbContext CreateOutboxContext(
+        string connectionString,
+        EfCoreOutboxStoreOptions storeOptions)
+    {
+        var builder = new DbContextOptionsBuilder<IntegrationOutboxDbContext>()
+            .UseNpgsql(CreateScopedConnectionString(connectionString, storeOptions));
+
+        return new IntegrationOutboxDbContext(builder.Options, storeOptions);
+    }
+
+    /// <summary>
+    ///     Builds a connection string scoped to one outbox table so EF model caching stays isolated per test table.
+    /// </summary>
+    /// <param name="connectionString">The base PostgreSQL connection string.</param>
+    /// <param name="storeOptions">The outbox store options.</param>
+    /// <returns>The scoped connection string.</returns>
+    internal static string CreateScopedConnectionString(
+        string connectionString,
+        EfCoreOutboxStoreOptions storeOptions)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            ApplicationName = $"litebus_ef_{storeOptions.SchemaName}_{storeOptions.TableName}"
+        };
+
+        return builder.ConnectionString;
     }
 
     /// <summary>
@@ -71,7 +102,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
     /// <param name="connectionString">The PostgreSQL connection string.</param>
     private static async Task EnsureOutboxSchemaOnceAsync(string connectionString)
     {
-        if (_outboxSchemaInitialized)
+        if (InitializedConnectionStrings.Contains(connectionString))
         {
             return;
         }
@@ -79,7 +110,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
         await OutboxSchemaLock.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (_outboxSchemaInitialized)
+            if (!InitializedConnectionStrings.Add(connectionString))
             {
                 return;
             }
@@ -93,8 +124,6 @@ internal static class EfCorePostgreSqlTestInfrastructure
                     TableName = OutboxTableName,
                     ValidateSchemaCreationOnStartup = false
                 }).ConfigureAwait(false);
-
-            _outboxSchemaInitialized = true;
         }
         finally
         {

@@ -39,4 +39,20 @@ internal static class PostgreSqlTestInfrastructure
         await PostgreSqlOutboxSchema.EnsureAsync(dataSource, options);
     }
 
+    internal static async Task<bool> WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
+    {
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (await condition().ConfigureAwait(false))
+            {
+                return true;
+            }
+
+            await Task.Delay(50).ConfigureAwait(false);
+        }
+
+        return await condition().ConfigureAwait(false);
+    }
+
 }

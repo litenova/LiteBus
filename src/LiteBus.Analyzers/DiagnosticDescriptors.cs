@@ -57,7 +57,7 @@ public static class DiagnosticDescriptors
     internal static readonly DiagnosticDescriptor MissingMessageContractRegistration = new(
         DiagnosticIds.MissingMessageContractRegistration,
         "Missing message contract registration",
-        "Message type '{0}' is handled by '{1}' but has no durable contract registration. Apply [MessageContract(\"name\", version)] or call Contracts.Register<{0}>(...) during module configuration.",
+        "Message type '{0}' is handled by '{1}' but has no durable contract registration. Apply [MessageContract(\"name\", version)] or call Contracts.Register<{2}>(...) during module configuration.",
         "LiteBus.Contracts",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
@@ -125,6 +125,50 @@ public static class DiagnosticDescriptors
         "Transactional outbox without DbContext",
         "Type '{0}' injects ITransactionalOutboxStore but does not inject a DbContext in the same constructor. Transactional outbox requires an active EF Core unit of work.",
         "LiteBus.Outbox",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    ///     An inbox or outbox processor is enabled without a dispatcher registration.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor ProcessorEnabledWithoutDispatcher = new(
+        DiagnosticIds.ProcessorEnabledWithoutDispatcher,
+        "Processor enabled without dispatcher",
+        "{0} enables the background processor but does not register a dispatcher in the same configuration scope. Call {2}, a broker-specific Use*Dispatch extension, or RegisterDispatcher before Enable{1}Processor.",
+        "LiteBus.Configuration",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    ///     Transactional EF storage setup omits the save-changes interceptor.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor TransactionalStorageWithoutInterceptor = new(
+        DiagnosticIds.TransactionalStorageWithoutInterceptor,
+        "Transactional storage without interceptor",
+        "{0} calls EnforceTransactionalSetup() without EnableSaveChangesInterceptor() in the same configuration scope. Transactional inbox and outbox require the EF Core save-changes interceptor.",
+        "LiteBus.Configuration",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    ///     A type depends on transactional inbox storage without a database context in the same constructor.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor TransactionalInboxWithoutDbContext = new(
+        DiagnosticIds.TransactionalInboxWithoutDbContext,
+        "Transactional inbox without DbContext",
+        "Type '{0}' injects ITransactionalInboxStore but does not inject a DbContext in the same constructor. Transactional inbox requires an active EF Core unit of work.",
+        "LiteBus.Inbox",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    ///     A message type declares <c>[MessageContract]</c> but lacks explicit contract registration.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor ExplicitMessageContractRegistration = new(
+        DiagnosticIds.ExplicitMessageContractRegistration,
+        "Explicit message contract registration recommended",
+        "Message type '{0}' declares [MessageContract] but has no explicit Contracts.Register<{0}> or RegisterFromAssembly configuration. Runtime on-demand resolution still works; register explicitly for predictable contract discovery.",
+        "LiteBus.Contracts",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 }
