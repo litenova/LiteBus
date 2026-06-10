@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Processing;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Orchestration.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -68,44 +68,7 @@ internal static class InboxProcessorFactory
     /// <param name="options">The processor options to validate.</param>
     public static void ValidateOptions(InboxProcessorOptions options)
     {
-        ArgumentNullException.ThrowIfNull(options);
-
-        if (options.BatchSize <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(options), options.BatchSize, "Batch size must be greater than zero.");
-        }
-
-        if (options.LeaseDuration <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(options), options.LeaseDuration, "Lease duration must be greater than zero.");
-        }
-
-        if (options.DispatcherConcurrency <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                options.DispatcherConcurrency,
-                "Dispatcher concurrency must be greater than zero.");
-        }
-
-        if (options.LeaseHeartbeatInterval < TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                options.LeaseHeartbeatInterval,
-                "Lease heartbeat interval cannot be negative.");
-        }
-
-        if (options.LeaseHeartbeatInterval > TimeSpan.Zero &&
-            options.LeaseHeartbeatInterval > options.LeaseDuration / 2)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                options.LeaseHeartbeatInterval,
-                "Lease heartbeat interval must be less than or equal to half of the lease duration.");
-        }
-
-        MessageProcessorDiagnostics.ValidateRetryOptions(options.Retry, nameof(options));
+        ProcessorOptionsValidator.Validate(options, nameof(options));
     }
 
     /// <summary>

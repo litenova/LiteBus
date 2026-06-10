@@ -62,6 +62,11 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
     private Timer? _batchFlushTimer;
 
     /// <summary>
+    ///     Limits buffered deliveries to <see cref="TransportInboxIngressOptions.PrefetchCount" /> while a flush is in progress.
+    /// </summary>
+    private SemaphoreSlim? _batchAdmission;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="TransportInboxIngressConsumer" /> class.
     /// </summary>
     /// <param name="consumer">The transport consumer used to subscribe to the ingress destination.</param>
@@ -164,28 +169,44 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
     /// <returns>A task that completes when the delivery is buffered or flushed.</returns>
     private async Task HandleDeliveryWithBatchBufferAsync(TransportMessage message, CancellationToken cancellationToken)
     {
+        await WaitForBatchAdmissionAsync(cancellationToken).ConfigureAwait(false);
+
         List<TransportMessage>? batchToFlush = null;
+        var admissionReleased = false;
 
-        lock (_batchSync)
+        try
         {
-            var shouldScheduleFlush = _batchBuffer.Count == 0 && _options.BatchMaxWait > TimeSpan.Zero;
-            _batchBuffer.Add(message);
+            lock (_batchSync)
+            {
+                var shouldScheduleFlush = _batchBuffer.Count == 0 && _options.BatchMaxWait > TimeSpan.Zero;
+                _batchBuffer.Add(message);
 
-            if (_batchBuffer.Count >= _options.PrefetchCount)
-            {
-                batchToFlush = [.. _batchBuffer];
-                _batchBuffer.Clear();
-                CancelBatchFlushTimerUnsafe();
+                if (_batchBuffer.Count >= GetBatchBufferCapacity())
+                {
+                    batchToFlush = [.. _batchBuffer];
+                    _batchBuffer.Clear();
+                    CancelBatchFlushTimerUnsafe();
+                }
+                else if (shouldScheduleFlush)
+                {
+                    ScheduleBatchFlushTimerUnsafe();
+                }
             }
-            else if (shouldScheduleFlush)
+
+            if (batchToFlush is not null)
             {
-                ScheduleBatchFlushTimerUnsafe();
+                await AcceptAndAcknowledgeBatchAsync(batchToFlush, cancellationToken).ConfigureAwait(false);
+                admissionReleased = true;
             }
         }
-
-        if (batchToFlush is not null)
+        catch
         {
-            await AcceptAndAcknowledgeBatchAsync(batchToFlush, cancellationToken).ConfigureAwait(false);
+            if (!admissionReleased)
+            {
+                ReleaseBatchAdmission();
+            }
+
+            throw;
         }
     }
 
@@ -293,10 +314,11 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
             await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
             _circuitBreaker?.RecordSuccess();
         }
-        catch
+        catch (Exception exception)
         {
             _circuitBreaker?.RecordFailure();
-            await message.DiscardAsync(CancellationToken.None).ConfigureAwait(false);
+            TransportInboxIngressTelemetry.RecordAckFailedAfterAccept();
+            TransportInboxIngressLogMessages.AckFailedAfterAccept(_logger, exception);
         }
     }
 
@@ -321,6 +343,7 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
             foreach (var message in messages)
             {
                 await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
+                ReleaseBatchAdmission();
             }
 
             return;
@@ -330,6 +353,7 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
             foreach (var message in messages)
             {
                 await message.DiscardAsync(cancellationToken).ConfigureAwait(false);
+                ReleaseBatchAdmission();
             }
 
             return;
@@ -342,11 +366,42 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
                 await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
                 _circuitBreaker?.RecordSuccess();
             }
-            catch
+            catch (Exception exception)
             {
                 _circuitBreaker?.RecordFailure();
-                await message.DiscardAsync(CancellationToken.None).ConfigureAwait(false);
+                TransportInboxIngressTelemetry.RecordAckFailedAfterAccept();
+                TransportInboxIngressLogMessages.AckFailedAfterAccept(_logger, exception);
+            }
+            finally
+            {
+                ReleaseBatchAdmission();
             }
         }
+    }
+
+    /// <summary>
+    ///     Gets the maximum number of deliveries that may wait in the batch buffer.
+    /// </summary>
+    /// <returns>The batch buffer capacity derived from prefetch settings.</returns>
+    private int GetBatchBufferCapacity() =>
+        _options.PrefetchCount > 0 ? _options.PrefetchCount : 1;
+
+    /// <summary>
+    ///     Blocks until a batch admission slot is available or cancellation is requested.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel admission.</param>
+    /// <returns>A task that completes when the delivery may be buffered.</returns>
+    private async Task WaitForBatchAdmissionAsync(CancellationToken cancellationToken)
+    {
+        _batchAdmission ??= new SemaphoreSlim(GetBatchBufferCapacity(), GetBatchBufferCapacity());
+        await _batchAdmission.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Releases one batch admission slot after a buffered delivery is acknowledged or rejected.
+    /// </summary>
+    private void ReleaseBatchAdmission()
+    {
+        _batchAdmission?.Release();
     }
 }

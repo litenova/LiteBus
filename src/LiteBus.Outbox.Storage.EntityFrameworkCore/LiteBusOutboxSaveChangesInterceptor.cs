@@ -24,7 +24,7 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 ///     </para>
 ///     <para>
 ///         Duplicate <c>message_id</c> or <c>idempotency_key</c> conflicts are not resolved idempotently on this path.
-///         The provider raises on <c>SaveChanges</c>, which aborts the caller's unit of work (GPT-23).
+///         The provider raises on <c>SaveChanges</c>, which aborts the caller's unit of work.
 ///     </para>
 ///     <para>
 ///         Register the interceptor on the application <see cref="DbContext" /> through
@@ -51,12 +51,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(envelope);
 
-        if (!PendingEnvelopes.TryGetValue(context, out var pending))
-        {
-            pending = [];
-            PendingEnvelopes.Add(context, pending);
-        }
-
+        var pending = PendingEnvelopes.GetValue(context, static _ => []);
         pending.Add(envelope);
     }
 

@@ -9,6 +9,7 @@ using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
+using LiteBus.Transport.Kafka;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.DurableTransport.IntegrationTests.Kafka;
@@ -103,6 +104,74 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
     }
 
     /// <summary>
+    ///     Verifies that a transient accept failure seeks back and redelivers the same offset without restarting the consumer.
+    /// </summary>
+    /// <returns>A task that completes when the redelivery assertion succeeds.</returns>
+    [Fact]
+    public async Task TransientAcceptFailure_ShouldRedeliverSameOffsetWithoutRestart()
+    {
+        var ingressTopic = KafkaTransportTestInfrastructure.CreateTopic("ingress-transient");
+        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(
+            _fixture.TransportOptions.BootstrapServers,
+            ingressTopic);
+
+        var messageId = Guid.NewGuid();
+        var attempts = 0;
+        var observedMessageIds = new List<string>();
+
+        await using var provider = BuildTransportOnlyProvider();
+        var publisher = provider.GetRequiredService<IMessageTransport>();
+        var consumer = provider.GetRequiredService<IMessageConsumer>();
+
+        await publisher.PublishAsync(new TransportPublishRequest
+        {
+            Destination = ingressTopic,
+            Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
+            MessageId = messageId.ToString("D"),
+            Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
+        });
+
+        using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var consumerOptions = new TransportConsumerOptions
+        {
+            Destination = ingressTopic,
+            PrefetchCount = 1
+        };
+
+        await consumer.StartAsync(
+            consumerOptions,
+            async (message, cancellationToken) =>
+            {
+                var currentMessageId = message.MessageId ?? string.Empty;
+                observedMessageIds.Add(currentMessageId);
+                var currentAttempt = Interlocked.Increment(ref attempts);
+
+                if (currentAttempt == 1)
+                {
+                    await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
+                    return;
+                }
+
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+                await runCts.CancelAsync().ConfigureAwait(false);
+            },
+            runCts.Token);
+
+        try
+        {
+            await PollingWait.UntilAsync(() => Volatile.Read(ref attempts) >= 2, TimeSpan.FromSeconds(15));
+        }
+        finally
+        {
+            await consumer.StopAsync(CancellationToken.None);
+        }
+
+        observedMessageIds.Should().HaveCountGreaterThanOrEqualTo(2);
+        observedMessageIds.Should().OnlyContain(id => id == messageId.ToString("D"));
+        attempts.Should().BeGreaterThanOrEqualTo(2);
+    }
+
+    /// <summary>
     ///     Runs a Kafka ingress failure scenario and asserts pending inbox rows.
     /// </summary>
     /// <param name="body">The message body.</param>
@@ -151,6 +220,17 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
         {
             await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    ///     Builds a LiteBus service provider with Kafka transport only for consumer seek tests.
+    /// </summary>
+    /// <returns>The configured service provider.</returns>
+    private ServiceProvider BuildTransportOnlyProvider()
+    {
+        return new ServiceCollection()
+            .AddLiteBus(registry => registry.Register(new KafkaTransportModule(_fixture.TransportOptions)))
+            .BuildServiceProvider();
     }
 
     /// <summary>

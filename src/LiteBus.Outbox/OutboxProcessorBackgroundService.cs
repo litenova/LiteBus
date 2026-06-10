@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -15,34 +16,9 @@ namespace LiteBus.Outbox;
 public sealed class OutboxProcessorBackgroundService : IBackgroundService
 {
     /// <summary>
-    ///     Gets the outbox processor that performs each pass.
+    ///     Gets the shared processor background loop configured for outbox work signals and control.
     /// </summary>
-    private readonly IOutboxProcessor _processor;
-
-    /// <summary>
-    ///     Gets the batch and lease options used to interpret adaptive polling.
-    /// </summary>
-    private readonly OutboxProcessorOptions _processorOptions;
-
-    /// <summary>
-    ///     Gets the loop timing and adaptive polling options for the processor.
-    /// </summary>
-    private readonly OutboxProcessorHostOptions _hostOptions;
-
-    /// <summary>
-    ///     Gets the signal used to wait for PostgreSQL notifications or polling delays.
-    /// </summary>
-    private readonly IOutboxWorkSignal _workSignal;
-
-    /// <summary>
-    ///     Gets the logger used for processor loop diagnostics.
-    /// </summary>
-    private readonly ILogger<OutboxProcessorBackgroundService> _logger;
-
-    /// <summary>
-    ///     Gets the control surface used to pause, resume, and drain the processor loop.
-    /// </summary>
-    private readonly OutboxProcessorControl _control;
+    private readonly ProcessorBackgroundService<IOutboxProcessor> _loop;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="OutboxProcessorBackgroundService" /> class.
@@ -61,87 +37,25 @@ public sealed class OutboxProcessorBackgroundService : IBackgroundService
         OutboxProcessorControl control,
         ILogger<OutboxProcessorBackgroundService>? logger = null)
     {
-        _processor = processor ?? throw new ArgumentNullException(nameof(processor));
-        _processorOptions = processorOptions ?? throw new ArgumentNullException(nameof(processorOptions));
-        _hostOptions = hostOptions ?? throw new ArgumentNullException(nameof(hostOptions));
-        _workSignal = workSignal ?? throw new ArgumentNullException(nameof(workSignal));
-        _control = control ?? throw new ArgumentNullException(nameof(control));
-        _logger = logger ?? NullLogger<OutboxProcessorBackgroundService>.Instance;
+        ArgumentNullException.ThrowIfNull(processor);
+        ArgumentNullException.ThrowIfNull(processorOptions);
+        ArgumentNullException.ThrowIfNull(hostOptions);
+        ArgumentNullException.ThrowIfNull(workSignal);
+        ArgumentNullException.ThrowIfNull(control);
+
+        var resolvedLogger = logger ?? NullLogger<OutboxProcessorBackgroundService>.Instance;
+
+        _loop = new ProcessorBackgroundService<IOutboxProcessor>(
+            processor,
+            processorOptions,
+            hostOptions,
+            workSignal,
+            control,
+            OutboxProcessorTelemetry.RecordLoopError,
+            OutboxProcessorLogMessages.LoopFailed,
+            resolvedLogger);
     }
 
     /// <inheritdoc />
-    public async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        if (!_hostOptions.Enabled)
-        {
-            return;
-        }
-
-        if (_hostOptions.StartupDelay > TimeSpan.Zero)
-        {
-            await Task.Delay(_hostOptions.StartupDelay, stoppingToken).ConfigureAwait(false);
-        }
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            await _control.WaitIfPausedAsync(stoppingToken).ConfigureAwait(false);
-
-            if (_control.IsDraining)
-            {
-                try
-                {
-                    await _processor.ProcessPendingAsync(stoppingToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                }
-
-                _control.SignalDrainComplete();
-                return;
-            }
-
-            try
-            {
-                var passResult = await _processor.ProcessPendingAsync(stoppingToken).ConfigureAwait(false);
-
-                if (ShouldDelayAfterPass(passResult))
-                {
-                    await _workSignal.WaitForWorkOrDelayAsync(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
-                }
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception exception)
-            {
-                OutboxProcessorTelemetry.RecordLoopError();
-                OutboxProcessorLogMessages.LoopFailed(_logger, exception);
-                await _workSignal.WaitForWorkOrDelayAsync(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Determines whether the loop should wait for <see cref="OutboxProcessorHostOptions.PollInterval" />
-    ///     before the next processing pass.
-    /// </summary>
-    /// <param name="passResult">The result from the pass that just completed.</param>
-    /// <returns>
-    ///     <see langword="true" /> when the loop should delay before leasing again; otherwise <see langword="false" />.
-    /// </returns>
-    private bool ShouldDelayAfterPass(ProcessorPassResult passResult)
-    {
-        if (_hostOptions.PollInterval <= TimeSpan.Zero)
-        {
-            return false;
-        }
-
-        if (_hostOptions.UseAdaptivePolling && passResult.LeasedCount >= _processorOptions.BatchSize)
-        {
-            return false;
-        }
-
-        return true;
-    }
+    public Task ExecuteAsync(CancellationToken stoppingToken) => _loop.ExecuteAsync(stoppingToken);
 }

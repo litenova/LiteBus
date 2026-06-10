@@ -10,13 +10,16 @@ using LiteBus.Outbox;
 using LiteBus.Outbox.Dispatch.InProcess;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Samples.V6.Commands;
+using LiteBus.Samples.V6.Diagnostics;
 using LiteBus.Samples.V6.Events;
+using LiteBus.Samples.V6.Saga;
+using LiteBus.Saga;
 
 namespace LiteBus.Samples.V6;
 
 /// <summary>
 ///     Registers a full LiteBus v6 composition: core mediators, inbox/outbox modules, InMemory storage,
-///     explicit dispatch adapters, and hosted processor background services.
+///     explicit dispatch adapters, diagnostic probes, and hosted processor background services.
 /// </summary>
 public static class LiteBusV6Composition
 {
@@ -41,6 +44,7 @@ public static class LiteBusV6Composition
             builder.Modules.AddInboxModule(inbox =>
             {
                 inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
+                inbox.Contracts.Register<AdvanceOrderSagaCommand>("orders.saga.advance", 1);
                 inbox.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 20,
@@ -49,6 +53,32 @@ public static class LiteBusV6Composition
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
                 inbox.UseInMemoryStorage();
                 inbox.UseCommandInboxDispatcher();
+                inbox.EnableSaga(registry => registry.MapState<OrderSagaState>("orders.saga.advance"));
+                inbox.AddDiagnosticCheck<PaymentSampleDiagnosticCheck>("payments.sample.health");
+
+                // Production PostgreSQL storage (add LiteBus.Inbox.Storage.PostgreSql + Npgsql packages):
+                // inbox.UsePostgreSqlStorage(postgres =>
+                // {
+                //     postgres.UseConnectionString(configuration.GetConnectionString("LiteBus")!);
+                // });
+                // inbox.AddDiagnosticCheck<PostgreSqlInboxSchemaDiagnosticCheck>("inbox.postgresql.schema");
+
+                // Production AMQP ingress (add LiteBus.Inbox.Ingress.Amqp + LiteBus.Transport.Amqp packages):
+                // var connectionOptions = new AmqpConnectionOptions
+                // {
+                //     HostName = configuration["Amqp:HostName"]!,
+                //     UserName = configuration["Amqp:UserName"]!,
+                //     Password = configuration["Amqp:Password"]!
+                // };
+                // builder.Modules.Register(new AmqpTransportModule(connectionOptions));
+                // inbox.UseAmqpIngress(ingress =>
+                // {
+                //     ingress.UseOptions(new AmqpInboxIngressOptions
+                //     {
+                //         QueueName = configuration["Amqp:IngressQueue"]!,
+                //         Connection = connectionOptions
+                //     });
+                // });
             });
 
             builder.Modules.AddOutboxModule(outbox =>
@@ -57,6 +87,18 @@ public static class LiteBusV6Composition
                 outbox.EnableOutboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
                 outbox.UseInMemoryStorage();
                 outbox.UseEventOutboxDispatcher();
+
+                // Production PostgreSQL storage (add LiteBus.Outbox.Storage.PostgreSql + Npgsql packages):
+                // outbox.UsePostgreSqlStorage(postgres =>
+                // {
+                //     postgres.UseConnectionString(configuration.GetConnectionString("LiteBus")!);
+                // });
+                // outbox.AddDiagnosticCheck<PostgreSqlOutboxSchemaDiagnosticCheck>("outbox.postgresql.schema");
+
+                // Production AMQP dispatch (add LiteBus.Outbox.Dispatch.Amqp + LiteBus.Transport.Amqp packages):
+                // outbox.UseAmqpDispatch(
+                //     transport => transport.DefaultDestination = configuration["Amqp:OutboxDestination"]!,
+                //     connectionOptions);
             });
         });
 

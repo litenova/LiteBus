@@ -321,6 +321,15 @@ public abstract class OutboxStoreContractTests
     [Fact]
     public async Task LeasePendingAsync_ConcurrentPublishers_ShouldLeaseDisjointMessages()
     {
+        await AssertConcurrentLeasesAreDisjointAsync();
+    }
+
+    /// <summary>
+    ///     Verifies that concurrent lease attempts claim disjoint message sets.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    protected virtual async Task AssertConcurrentLeasesAreDisjointAsync()
+    {
         var store = CreateStore();
         var now = BaseTime;
 
@@ -380,6 +389,44 @@ public abstract class OutboxStoreContractTests
 
         counts[OutboxStatus.Pending].Should().Be(1);
         counts[OutboxStatus.Published].Should().Be(1);
+    }
+
+    /// <summary>
+    ///     Verifies that only one terminal persist succeeds when competing writers use different lease owners.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task PersistAsync_WhenCompetingLeaseOwnersPersistConcurrently_ShouldApplyExactlyOnce()
+    {
+        var store = CreateStore();
+        var messageId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-a",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        leased.Should().ContainSingle();
+        var publishing = leased[0];
+
+        var winner = publishing.AsPublished();
+        var stale = publishing with { LeaseOwner = "publisher-b" };
+        stale = stale.AsPublished();
+
+        var firstPersist = store.StateWriter.PersistAsync([winner]);
+        var secondPersist = store.StateWriter.PersistAsync([stale]);
+        await Task.WhenAll(firstPersist, secondPersist);
+
+        var firstResult = await firstPersist;
+        var secondResult = await secondPersist;
+
+        (firstResult.AppliedCount + secondResult.AppliedCount).Should().Be(1);
     }
 
     /// <summary>

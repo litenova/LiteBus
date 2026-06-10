@@ -111,7 +111,11 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
             .Should()
             .Be(2);
 
-        var purgeResponse = await client.DeleteAsync("/litebus/inbox/messages?confirm=true");
+        using var purgeRequest = new HttpRequestMessage(HttpMethod.Delete, "/litebus/inbox/messages")
+        {
+            Content = JsonContent.Create(new { confirm = true })
+        };
+        var purgeResponse = await client.SendAsync(purgeRequest);
         purgeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         (await purgeResponse.Content.ReadFromJsonAsync<JsonElement>()).GetInt32().Should().Be(2);
 

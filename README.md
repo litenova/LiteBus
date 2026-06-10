@@ -18,8 +18,8 @@
   <a href="https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.DependencyInjection">
     <img src="https://img.shields.io/nuget/vpre/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.svg" alt="NuGet Version" />
   </a>
-  <a href="https://github.com/litenova/LiteBus/wiki">
-    <img src="https://img.shields.io/badge/documentation-wiki-blue.svg" alt="Wiki" />
+  <a href="docs/Home.md">
+    <img src="https://img.shields.io/badge/documentation-docs-blue.svg" alt="Documentation" />
   </a>
 </p>
 
@@ -72,27 +72,27 @@ builder.Services.AddLiteBus(registry =>
 var productId = await commandMediator.SendAsync(new CreateProductCommand("Widget", 9.99m));
 ```
 
-Queries (`IQueryMediator.QueryAsync`) and events (`IEventMediator.PublishAsync`) follow the same shape. The [Getting Started](https://github.com/litenova/LiteBus/wiki/Getting-Started) guide walks through all three end to end.
+Queries (`IQueryMediator.QueryAsync`) and events (`IEventMediator.PublishAsync`) follow the same shape. The [Getting Started](docs/Getting-Started.md) guide walks through all three end to end.
 
 ## Features
 
 | Feature | What it does | Docs |
 | --- | --- | --- |
-| Typed pipeline | Pre-, post-, and error-handlers per message type, with an ambient context shared across a single mediation. | [The Handler Pipeline](https://github.com/litenova/LiteBus/wiki/The-Handler-Pipeline) |
-| Handler priority | Order handlers within a stage, and group event handlers into execution phases. | [Handler Priority](https://github.com/litenova/LiteBus/wiki/Handler-Priority) |
-| Tags and predicates | Run a different set of handlers per call based on runtime context. | [Handler Filtering](https://github.com/litenova/LiteBus/wiki/Handler-Filtering) |
-| Polymorphic dispatch | A handler for a base type runs for every derived message. | [Polymorphic Dispatch](https://github.com/litenova/LiteBus/wiki/Polymorphic-Dispatch) |
-| Open generic handlers | One handler applies to every matching message; closed at startup. Ideal for logging, validation, metrics. | [Open Generic Handlers](https://github.com/litenova/LiteBus/wiki/Open-Generic-Handlers) |
-| Event concurrency | Sequential or parallel execution across priority groups and within a group. | [Event Module](https://github.com/litenova/LiteBus/wiki/Event-Module) |
-| Streaming queries | Return `IAsyncEnumerable<T>` for large result sets. | [Query Module](https://github.com/litenova/LiteBus/wiki/Query-Module) |
-| Inbox | Store messages for reliable, out-of-band execution with idempotency keys. | [Inbox](https://github.com/litenova/LiteBus/wiki/Inbox) |
-| Outbox | Store messages in the same transaction as a state change, publish after commit. | [Outbox](https://github.com/litenova/LiteBus/wiki/Outbox) |
-| InProcess dispatch | Replay inbox/outbox envelopes through command and event mediators in the same process. | [Dependency Graph](https://github.com/litenova/LiteBus/wiki/Dependency-Graph) |
-| DI-agnostic core | First-class Microsoft DI and Autofac adapters; an adapter pattern for others. | [Architecture](https://github.com/litenova/LiteBus/wiki/Architecture) |
+| Typed pipeline | Pre-, post-, and error-handlers per message type, with an ambient context shared across a single mediation. | [The handler pipeline](docs/The-Handler-Pipeline.md) |
+| Handler priority | Order handlers within a stage, and group event handlers into execution phases. | [Handler priority](docs/Handler-Priority.md) |
+| Tags and predicates | Run a different set of handlers per call based on runtime context. | [Handler filtering](docs/Handler-Filtering.md) |
+| Polymorphic dispatch | A handler for a base type runs for every derived message. | [Polymorphic dispatch](docs/Polymorphic-Dispatch.md) |
+| Open generic handlers | One handler applies to every matching message; closed at startup. Ideal for logging, validation, metrics. | [Open generic handlers](docs/Open-Generic-Handlers.md) |
+| Event concurrency | Sequential or parallel execution across priority groups and within a group. | [Event module](docs/Event-Module.md) |
+| Streaming queries | Return `IAsyncEnumerable<T>` for large result sets. | [Query module](docs/Query-Module.md) |
+| Inbox | Store messages for reliable, out-of-band execution with idempotency keys. | [Inbox](docs/Inbox.md) |
+| Outbox | Store messages in the same transaction as a state change, publish after commit. | [Outbox](docs/Outbox.md) |
+| InProcess dispatch | Replay inbox/outbox envelopes through command and event mediators in the same process. | [Dependency graph](docs/Dependency-Graph.md) |
+| DI-agnostic core | First-class Microsoft DI and Autofac adapters; an adapter pattern for others. | [Architecture](docs/Architecture.md) |
 
 ## Packages
 
-LiteBus ships as small packages so you reference only what you run. The full layout, including abstractions and DI adapters, is in the [Dependency Graph](https://github.com/litenova/LiteBus/wiki/Dependency-Graph).
+LiteBus ships as small packages so you reference only what you run. The full layout, including abstractions and DI adapters, is in the [dependency graph](docs/Dependency-Graph.md).
 
 <details>
 <summary>Full package matrix</summary>
@@ -122,12 +122,12 @@ LiteBus ships as small packages so you reference only what you run. The full lay
 | `IStreamRequest<TResponse>` | `IStreamQuery<TResult>` returning `IAsyncEnumerable<TResult>` |
 | `IPipelineBehavior<,>` | Typed pre-, post-, and error-handlers per message type, plus open generic handlers |
 
-See [LiteBus vs. MediatR](https://github.com/litenova/LiteBus/wiki/LiteBus-and-MediatR-Differences) for the full comparison and migration notes.
+See [LiteBus vs. MediatR](docs/LiteBus-and-MediatR-Differences.md) for the full comparison and migration notes.
 
 ## Documentation
 
-The [LiteBus Wiki](https://github.com/litenova/LiteBus/wiki) is the complete reference: concepts, per-module guides, reliable messaging, internals, troubleshooting, and a glossary.
+Canonical documentation lives in [docs/Home.md](docs/Home.md): concepts, per-module guides, reliable messaging, internals, troubleshooting, and a glossary. The [GitHub wiki](https://github.com/litenova/LiteBus/wiki) is a legacy mirror.
 
 ## License
 
-LiteBus is free and licensed under the [MIT License](LICENSE), and always will be. Contributions are welcome; see [Contributing](https://github.com/litenova/LiteBus/wiki/Contributing).
+LiteBus is free and licensed under the [MIT License](LICENSE), and always will be. Contributions are welcome; see [Contributing](docs/Contributing.md).

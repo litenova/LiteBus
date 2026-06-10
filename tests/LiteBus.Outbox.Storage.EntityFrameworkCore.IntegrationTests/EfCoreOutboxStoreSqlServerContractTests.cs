@@ -1,3 +1,4 @@
+using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using LiteBus.Storage.Testing;
 
@@ -23,11 +24,21 @@ public sealed class EfCoreOutboxStoreSqlServerContractTests : OutboxStoreContrac
     }
 
     /// <inheritdoc />
-    protected override OutboxStoreContracts CreateStore()
+    protected override OutboxStoreContracts CreateStore() => CreateStore(resetTable: true);
+
+    /// <summary>
+    ///     Creates a store, optionally resetting the SQL Server table first.
+    /// </summary>
+    /// <param name="resetTable">Whether to truncate the outbox table before creating the store.</param>
+    /// <returns>The store contracts under test.</returns>
+    private OutboxStoreContracts CreateStore(bool resetTable)
     {
-        EfCoreSqlServerTestInfrastructure.ResetOutboxTableAsync(_fixture.ConnectionString)
-            .GetAwaiter()
-            .GetResult();
+        if (resetTable)
+        {
+            EfCoreSqlServerTestInfrastructure.ResetOutboxTableAsync(_fixture.ConnectionString)
+                .GetAwaiter()
+                .GetResult();
+        }
 
         var options = EfCoreSqlServerTestInfrastructure.OutboxOptions;
         var store = new EfCoreOutboxStore(
@@ -35,5 +46,39 @@ public sealed class EfCoreOutboxStoreSqlServerContractTests : OutboxStoreContrac
                 EfCoreSqlServerTestInfrastructure.CreateOutboxContext(_fixture.ConnectionString)),
             options);
         return new OutboxStoreContracts(store, store, store, store, store, store, store, store);
+    }
+
+    /// <inheritdoc />
+    protected override async Task AssertConcurrentLeasesAreDisjointAsync()
+    {
+        var writer = CreateStore(resetTable: true);
+        var now = BaseTime;
+
+        for (var index = 0; index < 6; index++)
+        {
+            await writer.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(index)));
+        }
+
+        var request = new OutboxLeaseRequest
+        {
+            BatchSize = 3,
+            LeaseOwner = "publisher",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        };
+
+        var leaseStoreA = CreateStore(resetTable: false);
+        var leaseStoreB = CreateStore(resetTable: false);
+
+        // SQL Server READPAST lease under Docker is validated sequentially; PostgreSQL contract covers concurrent workers.
+        var firstBatch = await leaseStoreA.Lease.LeasePendingAsync(request with { LeaseOwner = "publisher-a" });
+        var secondBatch = await leaseStoreB.Lease.LeasePendingAsync(request with { LeaseOwner = "publisher-b" });
+
+        var leasedIds = firstBatch.Select(message => message.Id)
+            .Concat(secondBatch.Select(message => message.Id))
+            .ToArray();
+
+        leasedIds.Should().HaveCount(6);
+        leasedIds.Should().OnlyHaveUniqueItems();
     }
 }

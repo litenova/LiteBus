@@ -131,6 +131,7 @@
     <Project Path="tests/LiteBus.Extensions.AspNetCore.IntegrationTests/LiteBus.Extensions.AspNetCore.IntegrationTests.csproj" />
     <Project Path="tests/LiteBus.Extensions.AspNetCore.UnitTests/LiteBus.Extensions.AspNetCore.UnitTests.csproj" />
     <Project Path="tests/LiteBus.EventModule.UnitTests/LiteBus.EventModule.UnitTests.csproj" />
+    <Project Path="tests/LiteBus.Enterprise.UnitTests/LiteBus.Enterprise.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Extensions.Autofac.UnitTests/LiteBus.Extensions.Autofac.UnitTests.csproj" />
     <Project Path="tests/LiteBus.Extensions.Diagnostics.HealthChecks.IntegrationTests/LiteBus.Extensions.Diagnostics.HealthChecks.IntegrationTests.csproj" />
     <Project Path="tests/LiteBus.Extensions.OpenTelemetry.IntegrationTests/LiteBus.Extensions.OpenTelemetry.IntegrationTests.csproj" />

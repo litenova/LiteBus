@@ -38,17 +38,26 @@ internal static class KafkaMessageMapper
     /// <param name="result">The consumed Kafka record.</param>
     /// <param name="destination">The topic name configured for the consumer.</param>
     /// <param name="commitAsync">The delegate that commits the consumed offset.</param>
+    /// <param name="seekToOffset">The delegate that rewinds the consumer to the failed offset for redelivery.</param>
     /// <returns>The transport message passed to consumer handlers.</returns>
     /// <remarks>
-    ///     <see cref="TransportMessage.NackAsync" /> is intentionally a no-op. Kafka does not rewind committed offsets
-    ///     or provide queue-style negative acknowledgement. Uncommitted records are redelivered after consumer restart
-    ///     or partition rebalance only.
+    ///     <see cref="TransportMessage.ReturnToQueueAsync" /> seeks to the consumed offset so the record is read again
+    ///     before the offset is committed. <see cref="TransportMessage.DiscardAsync" /> leaves the offset uncommitted
+    ///     until the consumer group rebalances or restarts.
     /// </remarks>
     internal static TransportMessage ToTransportMessage(
         ConsumeResult<string, byte[]> result,
         string destination,
-        Func<CancellationToken, Task> commitAsync) =>
-        new()
+        Func<CancellationToken, Task> commitAsync,
+        Action<TopicPartitionOffset> seekToOffset)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(commitAsync);
+        ArgumentNullException.ThrowIfNull(seekToOffset);
+
+        var offset = result.TopicPartitionOffset;
+
+        return new TransportMessage
         {
             Body = result.Message.Value ?? Array.Empty<byte>(),
             Headers = CopyHeaders(result.Message.Headers),
@@ -58,8 +67,17 @@ internal static class KafkaMessageMapper
             CorrelationId = GetHeader(result.Message.Headers, TransportHeaders.CorrelationId),
             Redelivered = false,
             AckAsync = commitAsync,
-            NackAsync = (_, _) => Task.CompletedTask
+            NackAsync = (requeue, _) =>
+            {
+                if (requeue)
+                {
+                    seekToOffset(offset);
+                }
+
+                return Task.CompletedTask;
+            }
         };
+    }
 
     /// <summary>
     ///     Copies standard publish metadata and request headers onto Kafka headers.

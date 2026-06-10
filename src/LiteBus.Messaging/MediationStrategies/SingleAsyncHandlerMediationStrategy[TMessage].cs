@@ -63,7 +63,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         {
             // Execution was aborted, no action needed.
         }
-        catch (Exception e) when (e is not LiteBusExecutionAbortedException)
+        catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
             await messageDependencies.RunAsyncErrorHandlers(message, messageResult, ExceptionDispatchInfo.Capture(e));
         }

@@ -264,7 +264,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
         command.ExecutedTypes[6].Should().Be<GlobalCommandPostHandler>();
     }
 
-    [Fact(Skip = "Multiple mediation tags match independent single-tag handlers without failing in v6.")]
+    [Fact]
     public async Task mediating_the_an_command_with_both_all_available_tags_will_fail_as_there_are_two_main_handlers()
     {
         var serviceProvider = new ServiceCollection()

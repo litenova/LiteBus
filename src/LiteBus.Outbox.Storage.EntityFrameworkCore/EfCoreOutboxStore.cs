@@ -9,6 +9,7 @@ using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Storage.EntityFrameworkCore;
 using LiteBus.Storage.EntityFrameworkCore.Leasing;
+using LiteBus.Storage.EntityFrameworkCore.Stores;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -451,7 +452,8 @@ public sealed class EfCoreOutboxStore :
                     await ApplyDeadLetteredAsync(context, deadLettered, token).ConfigureAwait(false));
             }
 
-            if (persistedMessageIds.Count > 0)
+            if (persistedMessageIds.Count > 0 && context is DbContext trackedContext &&
+                trackedContext.ChangeTracker.HasChanges())
             {
                 await SaveChangesAsync(context, token).ConfigureAwait(false);
             }
@@ -470,6 +472,57 @@ public sealed class EfCoreOutboxStore :
     /// <param name="cancellationToken">A token that cancels the update.</param>
     /// <returns>The message identifiers updated under the lease guard.</returns>
     private static async Task<HashSet<Guid>> ApplyPublishedAsync(
+        IOutboxDbContext context,
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken)
+    {
+        if (context is not DbContext dbContext)
+        {
+            throw new InvalidOperationException("Terminal persist requires a DbContext-backed outbox database context.");
+        }
+
+        if (!EfCoreBulkUpdateCapabilities.SupportsExecuteUpdate(dbContext))
+        {
+            return await ApplyPublishedTrackedAsync(context, envelopes, cancellationToken).ConfigureAwait(false);
+        }
+
+        var persistedMessageIds = new HashSet<Guid>();
+
+        foreach (var envelope in envelopes)
+        {
+            var publishedAt = envelope.PublishedAt ?? DateTimeOffset.UtcNow;
+            var affected = await dbContext.Set<OutboxMessageEntity>()
+                .Where(message =>
+                    message.Id == envelope.Id &&
+                    message.Status == OutboxStatus.Publishing &&
+                    message.LeaseOwner == envelope.LeaseOwner)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(message => message.Status, OutboxStatus.Published)
+                        .SetProperty(message => message.LeaseOwner, (string?)null)
+                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?)null)
+                        .SetProperty(message => message.LastError, (string?)null)
+                        .SetProperty(message => message.PublishedAt, publishedAt),
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (affected > 0)
+            {
+                persistedMessageIds.Add(envelope.Id);
+            }
+        }
+
+        return persistedMessageIds;
+    }
+
+    /// <summary>
+    ///     Applies published status using tracked entities for providers without bulk update support.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="envelopes">The published envelopes to persist.</param>
+    /// <param name="cancellationToken">A token that cancels the update.</param>
+    /// <returns>The message identifiers updated under the lease guard.</returns>
+    private static async Task<HashSet<Guid>> ApplyPublishedTrackedAsync(
         IOutboxDbContext context,
         IReadOnlyList<OutboxEnvelope> envelopes,
         CancellationToken cancellationToken)
@@ -512,6 +565,57 @@ public sealed class EfCoreOutboxStore :
         IReadOnlyList<OutboxEnvelope> envelopes,
         CancellationToken cancellationToken)
     {
+        if (context is not DbContext dbContext)
+        {
+            throw new InvalidOperationException("Terminal persist requires a DbContext-backed outbox database context.");
+        }
+
+        if (!EfCoreBulkUpdateCapabilities.SupportsExecuteUpdate(dbContext))
+        {
+            return await ApplyFailedTrackedAsync(context, envelopes, cancellationToken).ConfigureAwait(false);
+        }
+
+        var persistedMessageIds = new HashSet<Guid>();
+
+        foreach (var envelope in envelopes)
+        {
+            var affected = await dbContext.Set<OutboxMessageEntity>()
+                .Where(message =>
+                    message.Id == envelope.Id &&
+                    message.Status == OutboxStatus.Publishing &&
+                    message.LeaseOwner == envelope.LeaseOwner)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(message => message.Status, OutboxStatus.Failed)
+                        .SetProperty(message => message.VisibleAfter, envelope.VisibleAfter)
+                        .SetProperty(message => message.AttemptCount, envelope.AttemptCount)
+                        .SetProperty(message => message.LeaseOwner, (string?)null)
+                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?)null)
+                        .SetProperty(message => message.LastError, envelope.LastError),
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (affected > 0)
+            {
+                persistedMessageIds.Add(envelope.Id);
+            }
+        }
+
+        return persistedMessageIds;
+    }
+
+    /// <summary>
+    ///     Applies failed status using tracked entities for providers without bulk update support.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="envelopes">The failed envelopes to persist.</param>
+    /// <param name="cancellationToken">A token that cancels the update.</param>
+    /// <returns>The message identifiers updated under the lease guard.</returns>
+    private static async Task<HashSet<Guid>> ApplyFailedTrackedAsync(
+        IOutboxDbContext context,
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken)
+    {
         var envelopeById = envelopes.ToDictionary(envelope => envelope.Id);
         var entities = await context.OutboxMessages
             .Where(message => envelopeById.Keys.Contains(message.Id))
@@ -544,6 +648,56 @@ public sealed class EfCoreOutboxStore :
     /// <param name="cancellationToken">A token that cancels the update.</param>
     /// <returns>The message identifiers updated under the lease guard.</returns>
     private static async Task<HashSet<Guid>> ApplyDeadLetteredAsync(
+        IOutboxDbContext context,
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken)
+    {
+        if (context is not DbContext dbContext)
+        {
+            throw new InvalidOperationException("Terminal persist requires a DbContext-backed outbox database context.");
+        }
+
+        if (!EfCoreBulkUpdateCapabilities.SupportsExecuteUpdate(dbContext))
+        {
+            return await ApplyDeadLetteredTrackedAsync(context, envelopes, cancellationToken).ConfigureAwait(false);
+        }
+
+        var persistedMessageIds = new HashSet<Guid>();
+
+        foreach (var envelope in envelopes)
+        {
+            var affected = await dbContext.Set<OutboxMessageEntity>()
+                .Where(message =>
+                    message.Id == envelope.Id &&
+                    message.Status == OutboxStatus.Publishing &&
+                    message.LeaseOwner == envelope.LeaseOwner)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(message => message.Status, OutboxStatus.DeadLettered)
+                        .SetProperty(message => message.AttemptCount, envelope.AttemptCount)
+                        .SetProperty(message => message.LeaseOwner, (string?)null)
+                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?)null)
+                        .SetProperty(message => message.LastError, envelope.LastError),
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (affected > 0)
+            {
+                persistedMessageIds.Add(envelope.Id);
+            }
+        }
+
+        return persistedMessageIds;
+    }
+
+    /// <summary>
+    ///     Applies dead-letter status using tracked entities for providers without bulk update support.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="envelopes">The dead-lettered envelopes to persist.</param>
+    /// <param name="cancellationToken">A token that cancels the update.</param>
+    /// <returns>The message identifiers updated under the lease guard.</returns>
+    private static async Task<HashSet<Guid>> ApplyDeadLetteredTrackedAsync(
         IOutboxDbContext context,
         IReadOnlyList<OutboxEnvelope> envelopes,
         CancellationToken cancellationToken)

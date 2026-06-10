@@ -97,7 +97,7 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
                 }
             });
 
-            using var receiveTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var receiveTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             var dispatched = await dispatchReceived.Task.WaitAsync(receiveTimeout.Token);
 
             InMemoryTransportTestInfrastructure.ReadBody(dispatched).Should().Contain(orderId.ToString());

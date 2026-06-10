@@ -86,6 +86,78 @@ public sealed class TransportInboxIngressConsumerTests
     }
 
     /// <summary>
+    ///     Verifies acknowledgement failure after accept does not discard the broker delivery.
+    /// </summary>
+    /// <returns>A task that completes when the acknowledgement assertion succeeds.</returns>
+    [Fact]
+    public async Task HandleDeliveryAsync_WhenAckFailsAfterAccept_ShouldNotDiscard()
+    {
+        var nackRequeue = new List<bool>();
+        var consumer = CreateConsumer(requeueOnFailure: true);
+
+        await InvokeHandleDeliveryAsync(
+            consumer,
+            CreateValidMessage(
+                ack: () => Task.FromException(new InvalidOperationException("ack failed")),
+                nack: (requeue, _) => { nackRequeue.Add(requeue); return Task.CompletedTask; }));
+
+        nackRequeue.Should().BeEmpty();
+    }
+
+    /// <summary>
+    ///     Verifies batch buffering blocks additional deliveries until a flush releases admission slots.
+    /// </summary>
+    /// <returns>A task that completes when the backpressure assertion succeeds.</returns>
+    [Fact]
+    public async Task BatchAccept_WhenBufferFull_ShouldBlockUntilFlushCompletes()
+    {
+        var inbox = new SlowBatchInbox();
+        var consumer = CreateConsumer(
+            requeueOnFailure: true,
+            inbox: inbox,
+            options: new TransportInboxIngressOptions
+            {
+                PrefetchCount = 2,
+                EnableBatchAccept = true,
+                BatchMaxWait = TimeSpan.FromSeconds(30)
+            });
+
+        var first = InvokeHandleDeliveryAsync(
+            consumer,
+            CreateValidMessage(
+                ack: () => Task.CompletedTask,
+                nack: (_, _) => Task.CompletedTask));
+
+        var second = InvokeHandleDeliveryAsync(
+            consumer,
+            CreateValidMessage(
+                ack: () => Task.CompletedTask,
+                nack: (_, _) => Task.CompletedTask));
+
+        await Task.Delay(100);
+
+        var thirdCompleted = false;
+        var third = Task.Run(async () =>
+        {
+            await InvokeHandleDeliveryAsync(
+                consumer,
+                CreateValidMessage(
+                    ack: () => Task.CompletedTask,
+                    nack: (_, _) => Task.CompletedTask));
+            thirdCompleted = true;
+        });
+
+        await Task.Delay(100);
+        thirdCompleted.Should().BeFalse();
+
+        inbox.ReleaseAccept();
+        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(5));
+        await third.WaitAsync(TimeSpan.FromSeconds(5));
+        thirdCompleted.Should().BeTrue();
+        inbox.BatchAcceptCount.Should().Be(1);
+    }
+
+    /// <summary>
     ///     Verifies partial batches flush after BatchMaxWait even when prefetch count is not reached.
     /// </summary>
     /// <returns>A task that completes when the batch flush assertion succeeds.</returns>
@@ -218,6 +290,63 @@ public sealed class TransportInboxIngressConsumerTests
     ///     Probe command type used by ingress consumer tests.
     /// </summary>
     private sealed record ProbeCommand(int Value);
+
+    /// <summary>
+    ///     Blocks batch accept until released so ingress backpressure can be observed.
+    /// </summary>
+    private sealed class SlowBatchInbox : IInbox
+    {
+        /// <summary>
+        ///     Gets the gate that blocks <see cref="AcceptBatchAsync" /> until released.
+        /// </summary>
+        private readonly TaskCompletionSource _acceptGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>
+        ///     Gets the number of batch accept calls observed.
+        /// </summary>
+        public int BatchAcceptCount { get; private set; }
+
+        /// <summary>
+        ///     Releases the blocked batch accept call.
+        /// </summary>
+        public void ReleaseAccept() => _acceptGate.TrySetResult();
+
+        /// <inheritdoc />
+        public Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
+            TMessage message,
+            InboxOptions? options = null,
+            CancellationToken cancellationToken = default)
+            where TMessage : notnull =>
+            throw new NotSupportedException();
+
+        /// <inheritdoc />
+        public Task<InboxReceipt> AcceptAsync(
+            object message,
+            Type messageType,
+            InboxOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        /// <inheritdoc />
+        public Task<IReadOnlyList<InboxReceipt<TMessage>>> AcceptBatchAsync<TMessage>(
+            IReadOnlyList<TMessage> messages,
+            IReadOnlyList<InboxOptions?>? options = null,
+            CancellationToken cancellationToken = default)
+            where TMessage : notnull =>
+            throw new NotSupportedException();
+
+        /// <inheritdoc />
+        public async Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
+            IReadOnlyList<object> messages,
+            IReadOnlyList<Type> messageTypes,
+            IReadOnlyList<InboxOptions?>? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            await _acceptGate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            BatchAcceptCount++;
+            return [];
+        }
+    }
 
     /// <summary>
     ///     Records inbox batch accept calls.

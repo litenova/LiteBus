@@ -34,6 +34,7 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
     public AzureServiceBusInboxIngressFailureIntegrationTests(ServiceBusEmulatorFixture fixture)
     {
         _fixture = fixture;
+        DockerTestGate.EnsureBrokerAvailable(_fixture.IsAvailable, "Azure Service Bus emulator");
         Skip.IfNot(_fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
     }
 

@@ -1,3 +1,11 @@
+# Build & Test — mandatory CI gates for v6 GA
+#
+# Skip waiver policy:
+#   - [Fact(Skip = ...)] is blocked by verify-no-fact-skips.sh on all branches except quarantine.
+#   - Quarantine branch waives the gate until every hard-coded Fact skip is removed.
+#   - SkippableFact broker tests must not skip when Docker is available: TransportDocker and
+#     TransportAzure set LITEBUS_CI_STRICT_TRANSPORT=true and verify TRX skipped counts.
+#   - Full integration (PostgreSQL, AMQP, EF) requires Docker on ubuntu-latest runners.
 name: Build & Test
 
 on:
@@ -7,12 +15,16 @@ on:
       - 'LiteBus.slnx'
       - 'src/**'
       - 'tests/**'
+      - '.github/workflows/build-and-test.yml'
+      - '.github/scripts/**'
   pull_request:
     branches: [ main ]
     paths:
       - 'LiteBus.slnx'
       - 'src/**'
       - 'tests/**'
+      - '.github/workflows/build-and-test.yml'
+      - '.github/scripts/**'
 
 jobs:
   build:
@@ -38,35 +50,49 @@ jobs:
       - name: Build
         run: dotnet build LiteBus.slnx --configuration Release --no-restore
 
-      - name: Check Docker availability
-        id: docker
+      - name: Fail on [Fact(Skip = ...)] in test projects
+        run: bash .github/scripts/verify-no-fact-skips.sh "${{ github.workspace }}"
+
+      - name: Require Docker for integration suites
         run: |
-          if docker info >/dev/null 2>&1; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-            echo "Docker is available; integration tests will run."
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "Docker is not available; integration tests will be skipped."
+          if ! docker info >/dev/null 2>&1; then
+            echo "::error::Docker is required for TransportDocker, TransportAzure, and full integration tests on CI."
+            exit 1
           fi
-        continue-on-error: true
+          echo "Docker is available."
 
       - name: Unit Tests
-        run: dotnet test LiteBus.slnx --no-restore --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName!~IntegrationTests"
+        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName!~IntegrationTests"
 
       - name: Transport Fast Integration Tests
-        run: dotnet test tests/LiteBus.DurableTransport.IntegrationTests/LiteBus.DurableTransport.IntegrationTests.csproj --no-restore --verbosity normal --filter "Category=TransportFast"
+        run: dotnet test tests/LiteBus.DurableTransport.IntegrationTests/LiteBus.DurableTransport.IntegrationTests.csproj --no-build --configuration Release --verbosity normal --filter "Category=TransportFast"
 
       - name: Transport Docker Integration Tests
-        if: steps.docker.outputs.available == 'true'
-        run: dotnet test tests/LiteBus.DurableTransport.IntegrationTests/LiteBus.DurableTransport.IntegrationTests.csproj --no-restore --verbosity normal --filter "Category=TransportDocker"
+        env:
+          LITEBUS_CI_STRICT_TRANSPORT: 'true'
+        run: |
+          trx_dir="${RUNNER_TEMP}/transport-docker"
+          mkdir -p "${trx_dir}"
+          dotnet test tests/LiteBus.DurableTransport.IntegrationTests/LiteBus.DurableTransport.IntegrationTests.csproj \
+            --no-build --configuration Release --verbosity normal \
+            --filter "Category=TransportDocker" \
+            --logger "trx;LogFileName=${trx_dir}/transport-docker.trx"
+          bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-docker.trx"
 
       - name: Transport Azure Integration Tests
-        if: steps.docker.outputs.available == 'true'
-        run: dotnet test tests/LiteBus.DurableTransport.IntegrationTests/LiteBus.DurableTransport.IntegrationTests.csproj --no-restore --verbosity normal --filter "Category=TransportAzure"
+        env:
+          LITEBUS_CI_STRICT_TRANSPORT: 'true'
+        run: |
+          trx_dir="${RUNNER_TEMP}/transport-azure"
+          mkdir -p "${trx_dir}"
+          dotnet test tests/LiteBus.DurableTransport.IntegrationTests/LiteBus.DurableTransport.IntegrationTests.csproj \
+            --no-build --configuration Release --verbosity normal \
+            --filter "Category=TransportAzure" \
+            --logger "trx;LogFileName=${trx_dir}/transport-azure.trx"
+          bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-azure.trx"
 
       - name: Integration Tests
-        if: steps.docker.outputs.available == 'true'
-        run: dotnet test LiteBus.slnx --no-restore --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName~IntegrationTests&FullyQualifiedName!~DurableTransport.IntegrationTests"
+        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName~IntegrationTests&FullyQualifiedName!~DurableTransport.IntegrationTests"
 
       - name: Upload Test Results
         if: always()

@@ -27,5 +27,20 @@ public sealed class KafkaTransportOptions
     ///     When <see langword="null" />, the Confluent producer default applies.
     /// </value>
     public int? MessageTimeoutMs { get; init; }
+
+    /// <summary>
+    ///     Gets the initial delay applied before re-consuming an offset that failed ingress processing.
+    /// </summary>
+    public TimeSpan SeekFailureBackoffInitial { get; init; } = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
+    ///     Gets the maximum delay applied before re-consuming a repeatedly failing offset.
+    /// </summary>
+    public TimeSpan SeekFailureBackoffMax { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    ///     Gets the multiplier applied to the seek failure backoff delay after each repeated failure at the same offset.
+    /// </summary>
+    public double SeekFailureBackoffMultiplier { get; init; } = 2.0;
 }
 

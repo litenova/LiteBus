@@ -65,7 +65,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
 
             return await Task.FromResult((TMessageResult)executionContext.MessageResult);
         }
-        catch (Exception e) when (e is not LiteBusExecutionAbortedException)
+        catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
             await messageDependencies.RunAsyncErrorHandlers(message, messageResult, ExceptionDispatchInfo.Capture(e));
         }

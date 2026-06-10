@@ -92,7 +92,7 @@ public sealed class ManagementEndpointTests
     }
 
     [Fact]
-    public async Task Purge_WithoutConfirmOrFilter_ReturnsBadRequest()
+    public async Task Purge_WithoutConfirmBody_ReturnsBadRequest()
     {
         using var host = await CreateHostAsync(new LiteBusManagementOptions
         {
@@ -104,6 +104,26 @@ public sealed class ManagementEndpointTests
         var response = await client.DeleteAsync("/litebus/inbox/messages");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Purge_WithConfirmBody_ReturnsOk()
+    {
+        using var host = await CreateHostAsync(new LiteBusManagementOptions
+        {
+            FailHealthWhenNoProbes = false,
+            AllowAnonymousManagement = true
+        });
+        using var client = host.GetTestClient();
+
+        using var request = new HttpRequestMessage(HttpMethod.Delete, "/litebus/inbox/messages")
+        {
+            Content = JsonContent.Create(new { confirm = true })
+        };
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     private static Task<IHost> CreateHostAsync(

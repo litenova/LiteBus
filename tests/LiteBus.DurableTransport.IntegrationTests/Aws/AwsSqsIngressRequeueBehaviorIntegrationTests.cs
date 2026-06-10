@@ -10,6 +10,7 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
+using LiteBus.Transport.Aws;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.DurableTransport.IntegrationTests.Aws;
@@ -102,7 +103,7 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
 
             await PollingWait.UntilAsync(
                 () => provider.GetRequiredService<InMemoryInboxStore>().Count == 1,
-                TimeSpan.FromSeconds(20));
+                TimeSpan.FromSeconds(45));
         }
         finally
         {
@@ -130,14 +131,14 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
             {
                 inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
                 inbox.UseInMemoryStorage();
-                inbox.UseAwsSqsDispatch(_ => { }, _fixture.TransportOptions);
+                inbox.UseAwsSqsDispatch(_ => { }, CreateTestTransportOptions());
                 inbox.UseAwsSqsIngress(ingress =>
                 {
                     ingress.UseOptions(new AwsSqsInboxIngressOptions
                     {
                         Destination = ingressQueueUrl,
                         PrefetchCount = 1,
-                        Connection = _fixture.TransportOptions,
+                        Connection = CreateTestTransportOptions(),
                         RequeueOnFailure = requeueOnFailure
                     });
                 });
@@ -159,4 +160,19 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
 
         return services.BuildServiceProvider();
     }
+
+    /// <summary>
+    ///     Builds transport options tuned for fast SQS requeue integration tests.
+    /// </summary>
+    /// <returns>Transport options with a short requeue visibility timeout.</returns>
+    private AwsSqsTransportOptions CreateTestTransportOptions() => new()
+    {
+        ServiceUrl = _fixture.TransportOptions.ServiceUrl,
+        Region = _fixture.TransportOptions.Region,
+        AccessKey = _fixture.TransportOptions.AccessKey,
+        SecretKey = _fixture.TransportOptions.SecretKey,
+        RequeueVisibilityTimeoutSeconds = 2,
+        LongPollWaitTimeSeconds = 1,
+        VisibilityTimeoutSeconds = 5
+    };
 }

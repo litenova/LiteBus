@@ -6,6 +6,19 @@ namespace LiteBus.DurableTransport.IntegrationTesting;
 public static class DockerTestGate
 {
     /// <summary>
+    ///     Environment variable set by CI when broker transport jobs must fail instead of skipping tests.
+    /// </summary>
+    public const string StrictTransportEnvironmentVariable = "LITEBUS_CI_STRICT_TRANSPORT";
+
+    /// <summary>
+    ///     Gets a value indicating whether broker tests must fail when Docker or the emulator is unavailable.
+    /// </summary>
+    public static bool IsStrictTransportMode =>
+        string.Equals(
+            Environment.GetEnvironmentVariable(StrictTransportEnvironmentVariable),
+            "true",
+            StringComparison.OrdinalIgnoreCase);
+    /// <summary>
     ///     Message shown when Docker-backed integration tests cannot start a container.
     /// </summary>
     public const string DockerRequiredMessage =
@@ -27,6 +40,23 @@ public static class DockerTestGate
         catch (Exception exception) when (IsDockerUnavailable(exception))
         {
             throw new InvalidOperationException(DockerRequiredMessage, exception);
+        }
+    }
+
+    /// <summary>
+    ///     Ensures a broker fixture started successfully or fails when CI strict transport mode is enabled.
+    /// </summary>
+    /// <param name="isAvailable">Whether the broker fixture initialized successfully.</param>
+    /// <param name="brokerName">The broker label included in strict-mode failure messages.</param>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when <paramref name="isAvailable" /> is <see langword="false" /> and strict transport mode is enabled.
+    /// </exception>
+    public static void EnsureBrokerAvailable(bool isAvailable, string brokerName)
+    {
+        if (!isAvailable && IsStrictTransportMode)
+        {
+            throw new InvalidOperationException(
+                $"{brokerName} is unavailable while {StrictTransportEnvironmentVariable} is enabled.");
         }
     }
 

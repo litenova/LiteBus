@@ -9,6 +9,7 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Storage.PostgreSql;
+using LiteBus.Storage.PostgreSql.Stores;
 using Npgsql;
 using NpgsqlTypes;
 
@@ -58,6 +59,29 @@ public sealed class PostgreSqlInboxStore :
     ///     The existing PostgreSQL transaction used for command execution when provided by the caller.
     /// </summary>
     private readonly NpgsqlTransaction? _transaction;
+
+    /// <summary>
+    ///     The shared SELECT column list used by batch idempotency lookups.
+    /// </summary>
+    private const string BatchSelectColumns = """
+                                              message_id,
+                                              contract_name,
+                                              contract_version,
+                                              payload::text,
+                                              created_at,
+                                              visible_after,
+                                              attempt_count,
+                                              status,
+                                              idempotency_key,
+                                              lease_owner,
+                                              lease_expires_at,
+                                              last_error,
+                                              correlation_id,
+                                              causation_id,
+                                              tenant_id,
+                                              trace_context::text,
+                                              completed_at
+                                              """;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="PostgreSqlInboxStore" /> class.
@@ -359,14 +383,46 @@ public sealed class PostgreSqlInboxStore :
         var inserted = await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
         var insertedById = inserted.ToDictionary(envelope => envelope.Id);
         var stored = new InboxEnvelope[envelopes.Count];
+        var missingKeys = new List<PostgreSqlBatchIdempotencyLookup.LookupKey>();
 
         for (var index = 0; index < envelopes.Count; index++)
         {
             var envelope = envelopes[index];
 
-            stored[index] = insertedById.TryGetValue(envelope.Id, out var accepted)
-                ? accepted
-                : await FindExistingAsync(envelope.Id, envelope.IdempotencyKey, cancellationToken).ConfigureAwait(false);
+            if (insertedById.TryGetValue(envelope.Id, out var accepted))
+            {
+                stored[index] = accepted;
+                continue;
+            }
+
+            missingKeys.Add(new PostgreSqlBatchIdempotencyLookup.LookupKey(envelope.Id, envelope.IdempotencyKey));
+        }
+
+        if (missingKeys.Count > 0)
+        {
+            var resolved = await PostgreSqlBatchIdempotencyLookup.ResolveAsync(
+                    CreateCommand,
+                    _tableName,
+                    BatchSelectColumns,
+                    missingKeys,
+                    ReadEnvelope,
+                    envelope => envelope.Id,
+                    envelope => envelope.IdempotencyKey,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            for (var index = 0; index < envelopes.Count; index++)
+            {
+                if (stored[index] is not null)
+                {
+                    continue;
+                }
+
+                var envelope = envelopes[index];
+                stored[index] = resolved.TryGetValue(envelope.Id, out var existing)
+                    ? existing
+                    : await FindExistingAsync(envelope.Id, envelope.IdempotencyKey, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         return stored;
@@ -757,7 +813,7 @@ public sealed class PostgreSqlInboxStore :
         await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("pending_status", (int)InboxStatus.Pending);
         command.Parameters.AddWithValue("dead_lettered_status", (int)InboxStatus.DeadLettered);
-        command.Parameters.AddWithValue("message_ids", messageIds);
+        PostgreSqlParameterExtensions.AddUuidArrayParameter(command, "message_ids", messageIds.ToArray());
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 

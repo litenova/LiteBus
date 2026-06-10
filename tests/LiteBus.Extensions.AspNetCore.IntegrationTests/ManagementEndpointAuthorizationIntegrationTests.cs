@@ -31,7 +31,7 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
     /// <returns>A task that completes when the assertions finish.</returns>
     [Theory]
     [InlineData("/litebus/inbox/messages/requeue", "POST")]
-    [InlineData("/litebus/inbox/messages?confirm=true", "DELETE")]
+    [InlineData("/litebus/inbox/messages", "DELETE")]
     [InlineData("/litebus/inbox/retention/purge", "POST")]
     [InlineData("/litebus/inbox/processor/pause", "POST")]
     public async Task DestructiveEndpoints_ReturnUnauthorized_WhenAnonymousAndDefaultOptions(string path, string method)

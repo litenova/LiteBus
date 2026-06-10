@@ -81,7 +81,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         query.ExecutedTypes[4].Should().Be<GlobalQueryPostHandler>();
     }
 
-    [Fact(Skip = "Stream query handler pipeline returns an empty sequence until stream registration is fixed.")]
+    [Fact]
     public async Task Mediating_StreamProductsQuery_ShouldGoThroughHandlersCorrectly()
     {
         // Arrange
@@ -201,7 +201,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         query.ExecutedTypes[6].Should().Be<GlobalQueryPostHandler>();
     }
 
-    [Fact(Skip = "Multiple mediation tags match independent single-tag handlers without failing in v6.")]
+    [Fact]
     public async Task mediating_the_an_query_with_both_all_available_tags_will_fail_as_there_are_two_main_handlers()
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
@@ -320,7 +320,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         exception.Which.Message.Should().Contain("RegisterFromAssembly");
     }
 
-    [Fact(Skip = "Stream query handler pipeline returns an empty sequence until stream registration is fixed.")]
+    [Fact]
     public async Task Mediating_StreamQuery_ErrorHandler_ReceivesMessageResultNotExceptionDispatchInfo()
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>

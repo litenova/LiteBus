@@ -389,6 +389,21 @@ public sealed class InMemoryOutboxStore :
     }
 
     /// <summary>
+    ///     Gets the number of messages currently stored.
+    /// </summary>
+    /// <returns>The stored message count.</returns>
+    public int Count
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _envelopes.Count;
+            }
+        }
+    }
+
+    /// <summary>
     ///     Removes every stored envelope so a test can start from an empty store.
     /// </summary>
     public void Clear()

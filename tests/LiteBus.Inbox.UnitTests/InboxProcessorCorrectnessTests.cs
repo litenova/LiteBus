@@ -4,6 +4,7 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Messaging.Processing;
 using LiteBus.Orchestration.Abstractions;
 using LiteBus.Testing;
 
@@ -29,6 +30,36 @@ public sealed class InboxProcessorCorrectnessTests
 
         act.Should().Throw<ArgumentOutOfRangeException>()
             .WithMessage("*half of the lease duration*");
+    }
+
+    [Fact]
+    public async Task ProcessAsync_with_pass_recorder_should_record_completed_outcome()
+    {
+        var accumulator = new ProcessorPassAccumulator<InboxEnvelope>();
+        var envelope = new InboxEnvelope
+        {
+            Id = Guid.NewGuid(),
+            ContractName = "orders.commands.ship",
+            ContractVersion = 1,
+            Payload = "{}",
+            CreatedAt = BaseTime,
+            AttemptCount = 1,
+            Status = InboxStatus.Processing
+        };
+
+        var updated = await InboxProcessorEnvelopeHandler.ProcessAsync(
+            envelope,
+            new CountingInboxDispatcher(() => { }),
+            new InboxProcessorOptions(),
+            TimeProvider.System,
+            accumulator,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+            Array.Empty<IProcessorEnvelopeHook>(),
+            CancellationToken.None);
+
+        updated.Should().NotBeNull();
+        updated!.Status.Should().Be(InboxStatus.Completed);
+        accumulator.ToResult(1, TimeSpan.Zero).SucceededCount.Should().Be(1);
     }
 
     [Fact]

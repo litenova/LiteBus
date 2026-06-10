@@ -66,9 +66,10 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
                 IsAvailable = true;
             }).ConfigureAwait(false);
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException exception) when (!DockerTestGate.IsStrictTransportMode)
         {
             IsAvailable = false;
+            _ = exception;
         }
     }
 

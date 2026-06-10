@@ -22,7 +22,7 @@ internal sealed class MessageDependencies : IMessageDependencies
     /// <summary>
     ///     The mediation tags used to filter handlers by tag intersection.
     /// </summary>
-    private readonly IEnumerable<string> _tags;
+    private readonly IReadOnlyCollection<string> _tags;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="MessageDependencies" /> class.
@@ -39,7 +39,7 @@ internal sealed class MessageDependencies : IMessageDependencies
                                Func<IHandlerDescriptor, bool> handlerPredicate)
     {
         _messageType = messageType;
-        _tags = tags;
+        _tags = tags as IReadOnlyCollection<string> ?? tags.ToList();
         _handlerPredicate = handlerPredicate;
 
         MainHandlers = ResolveHandlers(descriptor.Handlers, handlerType => (IMessageHandler) serviceProvider.GetRequiredService(handlerType));
@@ -87,6 +87,11 @@ internal sealed class MessageDependencies : IMessageDependencies
     /// <param name="descriptors">The handler descriptors to filter, order, and resolve.</param>
     /// <param name="resolveFunc">The function that resolves a handler instance from its service type.</param>
     /// <returns>A lazy read-only collection of resolved handlers and their descriptors.</returns>
+    /// <remarks>
+    ///     Mediation tags use independent (OR) matching: a tagged handler participates when it shares at least one tag
+    ///     with the active mediation tags. Untagged handlers always participate. When more than one main handler remains
+    ///     after filtering, <see cref="MultipleHandlerFoundException" /> is thrown during handler resolution.
+    /// </remarks>
     private ILazyHandlerCollection<THandler, TDescriptor> ResolveHandlers<THandler, TDescriptor>(
         IEnumerable<TDescriptor> descriptors,
         Func<Type, THandler> resolveFunc) where TDescriptor : IHandlerDescriptor

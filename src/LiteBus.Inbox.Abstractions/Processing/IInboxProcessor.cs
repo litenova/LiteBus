@@ -1,6 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Inbox.Abstractions;
 
@@ -17,12 +18,6 @@ namespace LiteBus.Inbox.Abstractions;
 ///         and database writes that can be retried.
 ///     </para>
 /// </remarks>
-public interface IInboxProcessor
+public interface IInboxProcessor : IMessageProcessor
 {
-    /// <summary>
-    ///     Processes one batch of due inbox envelopes.
-    /// </summary>
-    /// <param name="cancellationToken">A token used to stop leasing or to stop before the next envelope is dispatched.</param>
-    /// <returns>A pass result that reports how many envelopes were leased in this pass.</returns>
-    Task<ProcessorPassResult> ProcessPendingAsync(CancellationToken cancellationToken = default);
 }

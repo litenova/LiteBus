@@ -133,7 +133,7 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
                     var message = CreateReceivedMessage(_consumerChannel, delivery);
                     await handler(message, cancellationToken).ConfigureAwait(false);
                 }
-                catch (Exception)
+                catch (Exception exception) when (AmqpConsumerAckPolicy.ShouldNack(exception, cancellationToken))
                 {
                     if (_consumerChannel.IsOpen)
                     {

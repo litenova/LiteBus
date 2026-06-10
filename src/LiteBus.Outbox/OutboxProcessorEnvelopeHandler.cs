@@ -52,30 +52,6 @@ internal static class OutboxProcessorEnvelopeHandler
     }
 
     /// <summary>
-    ///     Publishes one leased message envelope and returns its terminal state for a pipelined pass.
-    /// </summary>
-    /// <param name="envelope">The leased outbox message returned by the store.</param>
-    /// <param name="dispatcher">The dispatcher used to publish the message.</param>
-    /// <param name="options">The retry settings applied after publication failures.</param>
-    /// <param name="clock">The time provider used for retry visibility timestamps.</param>
-    /// <param name="accumulator">The concurrent pass accumulator that collects post-transition envelopes.</param>
-    /// <param name="logger">The logger used for publication failure diagnostics.</param>
-    /// <param name="cancellationToken">A token used to cancel dispatch.</param>
-    /// <returns>
-    ///     The post-transition envelope when dispatch finished with a terminal outcome for this attempt; otherwise
-    ///     <see langword="null" /> when dispatch was canceled.
-    /// </returns>
-    public static Task<OutboxEnvelope?> ProcessAsync(
-        OutboxEnvelope envelope,
-        IOutboxDispatcher dispatcher,
-        OutboxProcessorOptions options,
-        TimeProvider clock,
-        ConcurrentProcessorPassAccumulator<OutboxEnvelope> accumulator,
-        ILogger logger,
-        CancellationToken cancellationToken) =>
-        DispatchAsync(envelope, dispatcher, options, clock, logger, Array.Empty<IProcessorEnvelopeHook>(), cancellationToken);
-
-    /// <summary>
     ///     Executes publication and maps failures to terminal retry or dead-letter transitions.
     /// </summary>
     /// <param name="envelope">The leased outbox message returned by the store.</param>

@@ -1,10 +1,11 @@
 using LiteBus.Inbox.Storage.PostgreSql;
+using LiteBus.Storage.PostgreSql.Stores;
 using Npgsql;
 
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 
 /// <summary>
-///     Integration tests for <see cref="PostgreSqlInboxWorkSignal" /> listener reconnection behavior.
+///     Integration tests for <see cref="PostgreSqlWorkSignal" /> listener reconnection behavior.
 /// </summary>
 public sealed class PostgreSqlInboxWorkSignalTests : IClassFixture<PostgreSqlFixture>
 {
@@ -16,44 +17,54 @@ public sealed class PostgreSqlInboxWorkSignalTests : IClassFixture<PostgreSqlFix
     }
 
     /// <summary>
-    ///     Confirms a broken listener connection is replaced after the reconnect delay.
+    ///     Confirms a server-terminated listener connection is replaced after the reconnect delay.
     /// </summary>
-    [Trait("Category", "Quarantine")]
-    [Fact(Skip = "Npgsql rejects CloseAsync while the LISTEN connection is blocked in Waiting state.")]
+    [Fact]
     public async Task WaitForWorkOrDelayAsync_after_listener_breaks_should_open_new_connection()
     {
-        await using var signal = new PostgreSqlInboxWorkSignal(_fixture.DataSource);
+        await using var signal = new PostgreSqlWorkSignal(
+            _fixture.DataSource,
+            PostgreSqlInboxNotifyChannel.ChannelName);
 
         await signal.WaitForWorkOrDelayAsync(TimeSpan.FromMilliseconds(50), CancellationToken.None);
 
-        var firstConnection = await GetListenerConnectionAsync(signal);
+        var firstConnection = GetListenerConnection(signal);
         firstConnection.Should().NotBeNull();
         firstConnection!.State.Should().Be(System.Data.ConnectionState.Open);
 
-        await firstConnection.CloseAsync();
+        await TerminateBackendAsync(firstConnection.ProcessID).ConfigureAwait(false);
 
         NpgsqlConnection? secondConnection = null;
         var reconnected = await PostgreSqlTestInfrastructure.WaitUntilAsync(
-            async () =>
+            () =>
             {
-                secondConnection = await GetListenerConnectionAsync(signal);
-                return secondConnection is not null
+                secondConnection = GetListenerConnection(signal);
+                return Task.FromResult(secondConnection is not null
                     && !ReferenceEquals(firstConnection, secondConnection)
-                    && secondConnection.State == System.Data.ConnectionState.Open;
+                    && secondConnection.State == System.Data.ConnectionState.Open);
             },
             TimeSpan.FromSeconds(5));
 
-        reconnected.Should().BeTrue("the work signal should replace a closed listener connection");
+        reconnected.Should().BeTrue("the work signal should replace a terminated listener connection");
         secondConnection.Should().NotBeNull();
         secondConnection!.State.Should().Be(System.Data.ConnectionState.Open);
     }
 
-    private static Task<NpgsqlConnection?> GetListenerConnectionAsync(PostgreSqlInboxWorkSignal signal)
+    private async Task TerminateBackendAsync(int backendProcessId)
     {
-        var field = typeof(PostgreSqlInboxWorkSignal).GetField(
+        await using var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT pg_terminate_backend(@pid)";
+        command.Parameters.AddWithValue("pid", backendProcessId);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static NpgsqlConnection? GetListenerConnection(PostgreSqlWorkSignal signal)
+    {
+        var field = typeof(PostgreSqlWorkSignal).GetField(
             "_listenerConnection",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
 
-        return Task.FromResult(field?.GetValue(signal) as NpgsqlConnection);
+        return field?.GetValue(signal) as NpgsqlConnection;
     }
 }

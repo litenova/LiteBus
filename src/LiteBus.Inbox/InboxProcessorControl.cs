@@ -2,13 +2,14 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Inbox;
 
 /// <summary>
 ///     Gates the inbox processor background loop for pause, resume, and drain operations.
 /// </summary>
-public sealed class InboxProcessorControl : IInboxProcessorControl, IAsyncDisposable
+public sealed class InboxProcessorControl : IInboxProcessorControl, IProcessorBackgroundControl, IAsyncDisposable
 {
     /// <summary>
     ///     Serializes loop entry; pause holds the gate without releasing it.
@@ -57,6 +58,16 @@ public sealed class InboxProcessorControl : IInboxProcessorControl, IAsyncDispos
     {
         _drainComplete.Release();
     }
+
+    /// <inheritdoc />
+    Task IProcessorBackgroundControl.WaitIfPausedAsync(CancellationToken cancellationToken) =>
+        WaitIfPausedAsync(cancellationToken);
+
+    /// <inheritdoc />
+    bool IProcessorBackgroundControl.IsDraining => IsDraining;
+
+    /// <inheritdoc />
+    void IProcessorBackgroundControl.SignalDrainComplete() => SignalDrainComplete();
 
     /// <inheritdoc />
     public async Task PauseAsync(CancellationToken cancellationToken = default)

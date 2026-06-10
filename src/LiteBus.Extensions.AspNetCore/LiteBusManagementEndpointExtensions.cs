@@ -161,16 +161,20 @@ public static class LiteBusManagementEndpointExtensions
     /// </summary>
     /// <param name="manager">The inbox manager.</param>
     /// <param name="parameters">The bound query string parameters.</param>
-    /// <param name="confirm">When <see langword="true" />, allows unrestricted purge.</param>
+    /// <param name="confirmRequest">The JSON body that confirms unrestricted purge.</param>
     /// <param name="cancellationToken">A token that cancels the purge operation.</param>
     /// <returns>The number of deleted rows.</returns>
     private static Task<IResult> PurgeInboxMessagesAsync(
         IInboxManager manager,
         [AsParameters] InboxMessagePurgeParameters parameters,
-        [FromQuery] bool confirm,
+        [FromBody] PurgeConfirmRequest? confirmRequest,
         CancellationToken cancellationToken) =>
         ExecuteManagementAsync(async () => Results.Ok(
-            await manager.PurgeAsync(parameters.ToFilter(), confirm, cancellationToken).ConfigureAwait(false)));
+            await manager.PurgeAsync(
+                    parameters.ToFilter(),
+                    confirmRequest?.Confirm ?? false,
+                    cancellationToken)
+                .ConfigureAwait(false)));
 
     /// <summary>
     ///     Returns inbox status counts.
@@ -358,16 +362,20 @@ public static class LiteBusManagementEndpointExtensions
     /// </summary>
     /// <param name="manager">The outbox manager.</param>
     /// <param name="parameters">The bound query string parameters.</param>
-    /// <param name="confirm">When <see langword="true" />, allows unrestricted purge.</param>
+    /// <param name="confirmRequest">The JSON body that confirms unrestricted purge.</param>
     /// <param name="cancellationToken">A token that cancels the purge operation.</param>
     /// <returns>The number of deleted rows.</returns>
     private static Task<IResult> PurgeOutboxMessagesAsync(
         IOutboxManager manager,
         [AsParameters] OutboxMessagePurgeParameters parameters,
-        [FromQuery] bool confirm,
+        [FromBody] PurgeConfirmRequest? confirmRequest,
         CancellationToken cancellationToken) =>
         ExecuteManagementAsync(async () => Results.Ok(
-            await manager.PurgeAsync(parameters.ToFilter(), confirm, cancellationToken).ConfigureAwait(false)));
+            await manager.PurgeAsync(
+                    parameters.ToFilter(),
+                    confirmRequest?.Confirm ?? false,
+                    cancellationToken)
+                .ConfigureAwait(false)));
 
     /// <summary>
     ///     Returns outbox status counts.
@@ -583,6 +591,20 @@ public static class LiteBusManagementEndpointExtensions
         {
             return Results.Problem(exception.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
+    }
+
+    /// <summary>
+    ///     JSON payload that confirms an unrestricted message purge.
+    /// </summary>
+    private sealed record PurgeConfirmRequest
+    {
+        /// <summary>
+        ///     Gets a value indicating whether the caller confirms deleting all rows matched by the filter.
+        /// </summary>
+        /// <value>
+        ///     Must be <see langword="true" /> when the query string does not narrow the purge filter.
+        /// </value>
+        public bool Confirm { get; init; }
     }
 
     /// <summary>

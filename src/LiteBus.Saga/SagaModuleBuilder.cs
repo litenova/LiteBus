@@ -13,11 +13,16 @@ public sealed class SagaModuleBuilder
     private readonly SagaStateTypeRegistry _registry = new();
 
     /// <summary>
-    ///     Registers saga state for one contract or saga type name.
+    ///     Maps a saga state type to one contract or saga type name used during inbox dispatch.
     /// </summary>
     /// <typeparam name="TState">The saga state type.</typeparam>
     /// <param name="sagaTypeName">The saga type name, typically a message contract name.</param>
     /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     Use <c>MapState&lt;TState&gt;(contractName)</c> inside <c>EnableSaga</c> callbacks. The internal
+    ///     <see cref="ISagaStateTypeRegistry" /> stores the mapping; there is no public <c>Register&lt;TState&gt;</c> on
+    ///     this builder.
+    /// </remarks>
     public SagaModuleBuilder MapState<TState>(string sagaTypeName)
         where TState : class, new()
     {

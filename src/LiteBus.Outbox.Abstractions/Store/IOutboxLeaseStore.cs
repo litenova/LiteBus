@@ -1,7 +1,7 @@
-using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Outbox.Abstractions;
 
@@ -20,7 +20,7 @@ namespace LiteBus.Outbox.Abstractions;
 ///         messages stuck in the publishing state.
 ///     </para>
 /// </remarks>
-public interface IOutboxLeaseStore
+public interface IOutboxLeaseStore : ILeaseRenewable
 {
     /// <summary>
     ///     Leases pending, failed, or expired publishing messages for one processing pass.
@@ -32,22 +32,5 @@ public interface IOutboxLeaseStore
     /// <returns>The envelopes claimed by the caller, ordered according to the store policy.</returns>
     Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
         OutboxLeaseRequest request,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    ///     Extends the lease expiration for one in-flight message owned by the supplied publisher.
-    /// </summary>
-    /// <param name="messageId">The identifier of the leased message.</param>
-    /// <param name="leaseOwner">The publisher name that currently owns the lease.</param>
-    /// <param name="expiresAt">The new UTC expiration timestamp written to storage.</param>
-    /// <param name="cancellationToken">A token that cancels the renewal before it is committed.</param>
-    /// <returns>
-    ///     <see langword="true" /> when the row was still publishing under the supplied owner; otherwise
-    ///     <see langword="false" />.
-    /// </returns>
-    Task<bool> RenewLeaseAsync(
-        Guid messageId,
-        string leaseOwner,
-        DateTimeOffset expiresAt,
         CancellationToken cancellationToken = default);
 }

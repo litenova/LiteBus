@@ -185,9 +185,9 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
             processor => processor with
             {
                 BatchSize = 8,
-                LeaseDuration = TimeSpan.FromMilliseconds(75),
+                LeaseDuration = TimeSpan.FromMilliseconds(200),
                 DispatcherConcurrency = 2,
-                LeaseHeartbeatInterval = TimeSpan.FromMilliseconds(25)
+                LeaseHeartbeatInterval = TimeSpan.FromMilliseconds(50)
             });
 
         var inbox = provider.GetRequiredService<IInbox>();

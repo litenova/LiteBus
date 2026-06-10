@@ -83,7 +83,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         {
             shouldContinue = false;
         }
-        catch (Exception exception) when (exception is not LiteBusExecutionAbortedException)
+        catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
         {
             using (AmbientExecutionContext.CreateScope(executionContext))
             {
@@ -121,7 +121,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                     shouldContinue = false;
                     continue;
                 }
-                catch (Exception exception) when (exception is not LiteBusExecutionAbortedException)
+                catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
                 {
                     await messageDependencies.RunAsyncErrorHandlers(
                         message,
@@ -159,7 +159,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         {
             // Stream items were already yielded; post-handler abort is ignored.
         }
-        catch (Exception exception) when (exception is not LiteBusExecutionAbortedException)
+        catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
         {
             using (AmbientExecutionContext.CreateScope(executionContext))
             {

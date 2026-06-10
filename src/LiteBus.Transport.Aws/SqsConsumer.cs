@@ -43,6 +43,11 @@ public sealed class SqsConsumer : IMessageConsumer
     private Task? _consumeTask;
 
     /// <summary>
+    ///     Gets the number of consecutive receive batches where every handler failed.
+    /// </summary>
+    private int _consecutiveFullBatchFailures;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="SqsConsumer" /> class.
     /// </summary>
     /// <param name="sqsClient">The SQS client used to receive and acknowledge messages.</param>
@@ -134,7 +139,9 @@ public sealed class SqsConsumer : IMessageConsumer
 ///     Long-polls the configured queue until cancellation is requested.
 /// </summary>
 /// <remarks>
-///     When a handler throws, the message visibility is reset to zero so it becomes immediately available for retry.
+///     When a handler throws, the message visibility is extended using exponential backoff derived from
+///     <c>ApproximateReceiveCount</c>. When an entire received batch fails, poll backoff is applied before the next
+///     <c>ReceiveMessage</c> call.
 /// </remarks>
     /// <param name="options">The consumer options for the active subscription.</param>
     /// <param name="handler">The handler invoked for each delivery.</param>
@@ -166,14 +173,18 @@ public sealed class SqsConsumer : IMessageConsumer
 
                 if (response.Messages is null || response.Messages.Count == 0)
                 {
+                    _consecutiveFullBatchFailures = 0;
                     continue;
                 }
+
+                var batchFailed = true;
 
                 foreach (var message in response.Messages)
                 {
                     var transportMessage = SqsMessageMapper.ToTransportMessage(
                         message,
                         options.Destination,
+                        _options,
                         token => _sqsClient.DeleteMessageAsync(
                             new DeleteMessageRequest
                             {
@@ -193,11 +204,27 @@ public sealed class SqsConsumer : IMessageConsumer
                     try
                     {
                         await handler(transportMessage, cancellationToken).ConfigureAwait(false);
+                        batchFailed = false;
                     }
                     catch (Exception) when (!cancellationToken.IsCancellationRequested)
                     {
                         await transportMessage.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
                     }
+                }
+
+                if (batchFailed)
+                {
+                    _consecutiveFullBatchFailures++;
+                    var pollBackoff = SqsRequeueBackoff.ComputePollBackoff(_consecutiveFullBatchFailures, _options);
+
+                    if (pollBackoff > TimeSpan.Zero)
+                    {
+                        await Task.Delay(pollBackoff, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                else
+                {
+                    _consecutiveFullBatchFailures = 0;
                 }
             }
         }

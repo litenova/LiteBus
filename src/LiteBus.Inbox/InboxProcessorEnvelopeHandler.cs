@@ -158,6 +158,7 @@ internal static class InboxProcessorEnvelopeHandler
         switch (updated.Status)
         {
             case InboxStatus.Completed:
+                accumulator.RecordSucceeded(updated);
                 break;
 
             case InboxStatus.Failed:

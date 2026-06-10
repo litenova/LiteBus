@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Inbox.Abstractions;
 
@@ -19,7 +20,7 @@ namespace LiteBus.Inbox.Abstractions;
 ///         behavior after a worker crash or process shutdown.
 ///     </para>
 /// </remarks>
-public interface IInboxLeaseStore
+public interface IInboxLeaseStore : ILeaseRenewable
 {
     /// <summary>
     ///     Leases pending, failed, or expired processing envelopes for one processing pass.
@@ -31,22 +32,5 @@ public interface IInboxLeaseStore
     /// <returns>The envelopes claimed by the caller, ordered according to the store policy.</returns>
     Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
         InboxLeaseRequest request,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    ///     Extends the lease expiration for one in-flight envelope owned by the supplied worker.
-    /// </summary>
-    /// <param name="messageId">The identifier of the leased envelope.</param>
-    /// <param name="leaseOwner">The worker name that currently owns the lease.</param>
-    /// <param name="expiresAt">The new UTC expiration timestamp written to storage.</param>
-    /// <param name="cancellationToken">A token that cancels the renewal before it is committed.</param>
-    /// <returns>
-    ///     <see langword="true" /> when the row was still processing under the supplied owner; otherwise
-    ///     <see langword="false" />.
-    /// </returns>
-    Task<bool> RenewLeaseAsync(
-        Guid messageId,
-        string leaseOwner,
-        DateTimeOffset expiresAt,
         CancellationToken cancellationToken = default);
 }
