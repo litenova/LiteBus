@@ -239,7 +239,7 @@ public sealed class TransportInboxIngressConsumerTests
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<ProbeCommand>("probe.command", 1);
 
-        inbox ??= new Inbox(
+        inbox ??= InboxWriterTestFactory.Create(
             new InMemoryInboxStore(new InMemoryInboxStoreOptions
             {
                 Capacity = inboxCapacity ?? 100

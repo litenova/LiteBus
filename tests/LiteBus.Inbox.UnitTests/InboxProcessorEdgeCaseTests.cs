@@ -26,7 +26,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
 
-        var scheduler = new Inbox(
+        var scheduler = InboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
@@ -48,7 +48,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
 
-        var scheduler = new Inbox(
+        var scheduler = InboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
@@ -69,7 +69,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ScheduleAsync_WhenContractNotRegistered_ShouldThrowMessageContractNotRegisteredException()
     {
         var store = new InMemoryInboxStore();
-        var scheduler = new Inbox(
+        var scheduler = InboxWriterTestFactory.Create(
             store,
             new MessageContractRegistry(),
             new SystemTextJsonMessageSerializer(),

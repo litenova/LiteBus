@@ -20,7 +20,7 @@ public sealed class OutboxTests : LiteBusTestBase
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 3);
 
-        var outbox = new Outbox(
+        var outbox = OutboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
@@ -272,7 +272,7 @@ public sealed class OutboxTests : LiteBusTestBase
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
 
-        var writer = new Outbox(
+        var writer = OutboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
@@ -343,7 +343,7 @@ public sealed class OutboxTests : LiteBusTestBase
         contractRegistry.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
         contractRegistry.Register<GenericIntegrationEvent<string>>("orders.events.generic", 1);
 
-        var outbox = new Outbox(
+        var outbox = OutboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),

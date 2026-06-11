@@ -57,9 +57,12 @@ public static class LiteBusV6Composition
                 inbox.AddDiagnosticCheck<PaymentSampleDiagnosticCheck>("payments.sample.health");
 
                 // Production PostgreSQL storage (add LiteBus.Inbox.Storage.PostgreSql + Npgsql packages):
+                // Register one shared NpgsqlDataSource for inbox + outbox; see docs/Transactional-Messaging-Writes.md.
+                // var dataSource = services.BuildServiceProvider().GetRequiredService<NpgsqlDataSource>();
                 // inbox.UsePostgreSqlStorage(postgres =>
                 // {
-                //     postgres.UseConnectionString(configuration.GetConnectionString("LiteBus")!);
+                //     postgres.UseDataSource(dataSource);
+                //     postgres.EnableAmbientTransactionProvider(); // scoped ITransactionalInbox via IPostgreSqlTransactionProvider
                 // });
                 // inbox.AddDiagnosticCheck<PostgreSqlInboxSchemaDiagnosticCheck>("inbox.postgresql.schema");
 
@@ -89,9 +92,11 @@ public static class LiteBusV6Composition
                 outbox.UseEventOutboxDispatcher();
 
                 // Production PostgreSQL storage (add LiteBus.Outbox.Storage.PostgreSql + Npgsql packages):
+                // Share the same NpgsqlDataSource registered for inbox; see docs/Transactional-Messaging-Writes.md.
                 // outbox.UsePostgreSqlStorage(postgres =>
                 // {
-                //     postgres.UseConnectionString(configuration.GetConnectionString("LiteBus")!);
+                //     postgres.UseDataSource(dataSource);
+                //     postgres.EnableAmbientTransactionProvider(); // scoped ITransactionalOutbox via IPostgreSqlTransactionProvider
                 // });
                 // outbox.AddDiagnosticCheck<PostgreSqlOutboxSchemaDiagnosticCheck>("outbox.postgresql.schema");
 

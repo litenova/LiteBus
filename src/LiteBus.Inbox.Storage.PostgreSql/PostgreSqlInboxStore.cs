@@ -32,6 +32,7 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 /// </remarks>
 public sealed class PostgreSqlInboxStore :
     IInboxStore,
+    ITransactionalInboxStore,
     IInboxProcessingStore,
     IInboxOperationsStore
 {
@@ -124,7 +125,7 @@ public sealed class PostgreSqlInboxStore :
     /// <param name="connection">The existing open connection owned by the caller.</param>
     /// <param name="transaction">The transaction that should contain inbox writes.</param>
     /// <returns>A store instance bound to the supplied connection and transaction.</returns>
-    public PostgreSqlInboxStore UseExistingConnection(NpgsqlConnection connection, NpgsqlTransaction transaction)
+    public ITransactionalInboxStore UseExistingConnection(NpgsqlConnection connection, NpgsqlTransaction transaction)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(transaction);

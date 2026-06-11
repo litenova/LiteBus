@@ -7,30 +7,14 @@ using LiteBus.Inbox.Abstractions;
 namespace LiteBus.Inbox;
 
 /// <summary>
-///     Default implementation of <see cref="IInbox" /> that serializes a message and writes it to the inbox store.
+///     Accepts messages through a bound <see cref="ITransactionalInboxStore" /> without committing the caller transaction.
 /// </summary>
-/// <remarks>
-///     <para>
-///         Performs acceptance work only: contract lookup, serialization, metadata mapping, and write to the configured
-///         <see cref="IInboxStore" />. Execution belongs to <see cref="PipelinedInboxProcessor" /> and the configured
-///         <see cref="IInboxDispatcher" /> registered separately from the core inbox module.
-///     </para>
-///     <para>
-///         The runtime message type is used for contract lookup so closed generic instances are stored with the contract
-///         registered for that closed type.
-///     </para>
-/// </remarks>
-public sealed class Inbox : IInbox, IInboxScheduler
+public sealed class StoreBoundTransactionalInbox : ITransactionalInbox
 {
     /// <summary>
-    ///     Gets the time provider used to stamp acceptance time.
+    ///     Gets the bound inbox store participating in the caller transaction.
     /// </summary>
-    private readonly TimeProvider _clock;
-
-    /// <summary>
-    ///     Gets the inbox store used to persist newly accepted envelopes.
-    /// </summary>
-    private readonly IInboxStore _store;
+    private readonly ITransactionalInboxStore _store;
 
     /// <summary>
     ///     Gets the factory used to create envelopes before store writes.
@@ -38,13 +22,18 @@ public sealed class Inbox : IInbox, IInboxScheduler
     private readonly IInboxEnvelopeFactory _envelopeFactory;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="Inbox" /> class.
+    ///     Gets the time provider used for scheduled acceptance timestamps.
     /// </summary>
-    /// <param name="store">The inbox store used to persist newly accepted envelopes.</param>
+    private readonly TimeProvider _clock;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="StoreBoundTransactionalInbox" /> class.
+    /// </summary>
+    /// <param name="store">The bound inbox store participating in the caller transaction.</param>
     /// <param name="envelopeFactory">The factory used to create envelopes before store writes.</param>
-    /// <param name="clock">The time provider used to stamp acceptance time.</param>
-    public Inbox(
-        IInboxStore store,
+    /// <param name="clock">The time provider used for scheduled acceptance timestamps.</param>
+    public StoreBoundTransactionalInbox(
+        ITransactionalInboxStore store,
         IInboxEnvelopeFactory envelopeFactory,
         TimeProvider clock)
     {
@@ -63,7 +52,6 @@ public sealed class Inbox : IInbox, IInboxScheduler
         var envelope = await _envelopeFactory.CreateAsync(message, messageType, options, cancellationToken)
             .ConfigureAwait(false);
         var storedEnvelope = await _store.AddAsync(envelope, cancellationToken).ConfigureAwait(false);
-
         return CreateReceipt(storedEnvelope, messageType);
     }
 
@@ -167,7 +155,7 @@ public sealed class Inbox : IInbox, IInboxScheduler
     /// <summary>
     ///     Maps a stored envelope to an acceptance receipt.
     /// </summary>
-    /// <param name="storedEnvelope">The envelope returned by the store.</param>
+    /// <param name="storedEnvelope">The envelope returned by the bound store.</param>
     /// <param name="messageType">The runtime message type used for contract lookup.</param>
     /// <returns>The acceptance receipt returned to callers.</returns>
     private static InboxReceipt CreateReceipt(InboxEnvelope storedEnvelope, Type messageType) =>

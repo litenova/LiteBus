@@ -1,8 +1,9 @@
 using System.Text.Json;
-using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
+using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
+using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests;
@@ -30,11 +31,12 @@ public sealed class TransactionalOutboxEnqueueTests
         var registry = new MessageContractRegistry();
         registry.Register<OrderSubmittedEvent>("orders.events.submitted", 2);
 
+        var serializer = new SynchronousMessageSerializer();
+
         var transactionalOutbox = new TransactionalOutbox<TransactionalOutboxDbContext>(
             interceptor,
             context,
-            registry,
-            new SynchronousMessageSerializer(),
+            new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System),
             TimeProvider.System);
 
         var orderId = Guid.NewGuid();
@@ -89,15 +91,14 @@ public sealed class TransactionalOutboxEnqueueTests
         await context.Database.EnsureCreatedAsync();
         var registry = new MessageContractRegistry();
         registry.Register<OrderSubmittedEvent>("orders.events.submitted", 1);
+        var serializer = new SynchronousMessageSerializer();
         IOutboxPayloadProtector protector = new PrefixPayloadProtector("tx-outbox:");
 
         var transactionalOutbox = new TransactionalOutbox<TransactionalOutboxDbContext>(
             interceptor,
             context,
-            registry,
-            new SynchronousMessageSerializer(),
-            TimeProvider.System,
-            protector);
+            new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector),
+            TimeProvider.System);
 
         await transactionalOutbox.EnqueueAsync(new OrderSubmittedEvent { OrderId = Guid.NewGuid() });
         await context.SaveChangesAsync();

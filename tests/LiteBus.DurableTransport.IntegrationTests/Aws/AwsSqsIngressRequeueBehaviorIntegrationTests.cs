@@ -153,7 +153,10 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
                 var contracts = sp.GetRequiredService<IMessageContractRegistry>();
                 var serializer = sp.GetRequiredService<IMessageSerializer>();
                 var clock = sp.GetRequiredService<TimeProvider>();
-                var inner = new global::LiteBus.Inbox.Inbox(store, contracts, serializer, clock);
+                var inner = new global::LiteBus.Inbox.Inbox(
+                    store,
+                    new InboxEnvelopeFactory(contracts, serializer, clock),
+                    clock);
                 return new FlakyInbox(inner, new IOException("transient store failure"));
             });
         }

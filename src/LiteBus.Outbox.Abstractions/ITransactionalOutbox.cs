@@ -6,6 +6,105 @@ using System.Threading.Tasks;
 namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
+///     Enqueues events for persistence in the caller's active transaction boundary.
+/// </summary>
+/// <remarks>
+///     Use this API when domain work and outbox enqueue must commit or roll back together outside Entity Framework Core.
+///     Bind a store through <see cref="Store.ITransactionalOutboxStore" /> or register PostgreSQL ambient participation with
+///     <c>EnableAmbientTransactionProvider()</c>. The caller owns transaction commit. Processors continue to use
+///     <see cref="IOutbox" /> with the singleton auto-commit store.
+/// </remarks>
+public interface ITransactionalOutbox
+{
+    /// <summary>
+    ///     Enqueues an event for persistence in the caller's active transaction.
+    /// </summary>
+    /// <typeparam name="TEvent">The compile-time event type. The runtime type of <paramref name="event" /> is used for contract lookup.</typeparam>
+    /// <param name="event">The event instance to serialize and persist.</param>
+    /// <param name="options">Optional enqueue metadata.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>A receipt describing the enqueued outbox message.</returns>
+    Task<OutboxReceipt<TEvent>> EnqueueAsync<TEvent>(
+        TEvent @event,
+        OutboxOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where TEvent : notnull;
+
+    /// <summary>
+    ///     Enqueues multiple events for persistence in one store round trip within the caller's transaction.
+    /// </summary>
+    /// <param name="events">The event instances to serialize and persist.</param>
+    /// <param name="eventTypes">
+    ///     The runtime event types used for contract lookup. Must contain the same number of entries as
+    ///     <paramref name="events" />.
+    /// </param>
+    /// <param name="options">
+    ///     Optional per-event metadata aligned with <paramref name="events" />. When omitted, default metadata is used for
+    ///     every event. When supplied, the list length must match <paramref name="events" />.
+    /// </param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>
+    ///     Receipts describing enqueued outbox messages in the same order as <paramref name="events" />.
+    /// </returns>
+    Task<IReadOnlyList<OutboxReceipt>> EnqueueBatchAsync(
+        IReadOnlyList<object> events,
+        IReadOnlyList<Type> eventTypes,
+        IReadOnlyList<OutboxOptions?>? options = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Enqueues multiple events for persistence in one store round trip within the caller's transaction.
+    /// </summary>
+    /// <typeparam name="TEvent">The shared compile-time event type. Each instance's runtime type is used for contract lookup.</typeparam>
+    /// <param name="events">The event instances to serialize and persist.</param>
+    /// <param name="options">
+    ///     Optional per-event metadata aligned with <paramref name="events" />. When omitted, default metadata is used for
+    ///     every event.
+    /// </param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>
+    ///     Receipts describing enqueued outbox messages in the same order as <paramref name="events" />.
+    /// </returns>
+    Task<IReadOnlyList<OutboxReceipt<TEvent>>> EnqueueBatchAsync<TEvent>(
+        IReadOnlyList<TEvent> events,
+        IReadOnlyList<OutboxOptions?>? options = null,
+        CancellationToken cancellationToken = default)
+        where TEvent : notnull;
+
+    /// <summary>
+    ///     Enqueues an event with <see cref="OutboxOptions.VisibleAfter" /> set to <paramref name="enqueueAt" />.
+    /// </summary>
+    /// <typeparam name="TEvent">The event type being enqueued.</typeparam>
+    /// <param name="event">The event instance to serialize and persist.</param>
+    /// <param name="enqueueAt">The UTC timestamp when the event becomes visible to processors.</param>
+    /// <param name="options">Optional metadata applied in addition to the scheduled visibility time.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>A receipt describing the enqueued outbox message.</returns>
+    Task<OutboxReceipt<TEvent>> ScheduleAsync<TEvent>(
+        TEvent @event,
+        DateTimeOffset enqueueAt,
+        OutboxOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where TEvent : notnull;
+
+    /// <summary>
+    ///     Enqueues an event with <see cref="OutboxOptions.VisibleAfter" /> set relative to the current UTC time.
+    /// </summary>
+    /// <typeparam name="TEvent">The event type being enqueued.</typeparam>
+    /// <param name="event">The event instance to serialize and persist.</param>
+    /// <param name="delay">The delay before the event becomes visible to processors.</param>
+    /// <param name="options">Optional metadata applied in addition to the scheduled visibility time.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>A receipt describing the enqueued outbox message.</returns>
+    Task<OutboxReceipt<TEvent>> ScheduleAfterAsync<TEvent>(
+        TEvent @event,
+        TimeSpan delay,
+        OutboxOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where TEvent : notnull;
+}
+
+/// <summary>
 ///     Enqueues events for persistence in the same Entity Framework Core transaction as domain state.
 /// </summary>
 /// <typeparam name="TContext">

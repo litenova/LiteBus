@@ -250,4 +250,40 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         manifest.StartupTasks.Should().ContainSingle()
             .Which.Name.Should().Be("InboxObservableMetricsInitializer");
     }
+
+    /// <summary>
+    ///     Confirms inbox and outbox modules can share one registered <see cref="NpgsqlDataSource" /> instance.
+    /// </summary>
+    [Fact]
+    public void SharedDataSource_inbox_and_outbox_modules_should_resolve_same_instance()
+    {
+        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+
+        var services = new ServiceCollection();
+        services.AddSingleton(_fixture.DataSource);
+        services.AddLiteBus(registry =>
+        {
+            registry.AddMessageModule(_ => { });
+            registry.AddInboxModule(inbox => inbox.UsePostgreSqlStorage(pg =>
+            {
+                pg.UseDataSource(_fixture.DataSource);
+                pg.UseOptions(inboxOptions);
+                pg.DisableSchemaInitialization();
+            }));
+            registry.AddOutboxModule(outbox => outbox.UsePostgreSqlStorage(pg =>
+            {
+                pg.UseDataSource(_fixture.DataSource);
+                pg.UseOptions(outboxOptions);
+                pg.DisableSchemaInitialization();
+            }));
+        });
+
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<PostgreSqlInboxStoreRegistration>().DataSource
+            .Should().BeSameAs(_fixture.DataSource);
+        provider.GetRequiredService<PostgreSqlOutboxStoreRegistration>().DataSource
+            .Should().BeSameAs(_fixture.DataSource);
+    }
 }

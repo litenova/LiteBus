@@ -23,7 +23,7 @@ public sealed class TransportInboxIngressHandlerTests
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<TestIngressCommand>("orders.commands.ship", 1);
 
-        var inbox = new Inbox(
+        var inbox = InboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
@@ -67,7 +67,7 @@ public sealed class TransportInboxIngressHandlerTests
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<TestIngressCommand>("orders.commands.ship", 1);
 
-        var inbox = new Inbox(
+        var inbox = InboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),

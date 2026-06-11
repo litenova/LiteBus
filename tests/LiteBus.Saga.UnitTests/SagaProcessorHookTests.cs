@@ -62,8 +62,10 @@ public sealed class SagaProcessorHookTests
         var provider = services.BuildServiceProvider();
         var inbox = new global::LiteBus.Inbox.Inbox(
             store,
-            provider.GetRequiredService<IContractReader>(),
-            provider.GetRequiredService<IMessageSerializer>(),
+            new InboxEnvelopeFactory(
+                provider.GetRequiredService<IContractReader>(),
+                provider.GetRequiredService<IMessageSerializer>(),
+                TimeProvider.System),
             TimeProvider.System);
         await inbox.AcceptAsync(
             new ProcessOrderCommand(),

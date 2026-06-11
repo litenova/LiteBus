@@ -92,6 +92,10 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
         }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxEnvelopeFactory),
+            typeof(OutboxEnvelopeFactory)));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutbox),
             typeof(Outbox)));
 

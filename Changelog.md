@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- `IInboxEnvelopeFactory` / `IOutboxEnvelopeFactory` shared by auto-commit writers, store-bound transactional writers, and EF interceptors.
+- Non-generic `ITransactionalInbox` / `ITransactionalOutbox` with `StoreBoundTransactionalInbox` / `StoreBoundTransactionalOutbox`.
+- PostgreSQL `CreateTransactionalStore`, `EnableAmbientTransactionProvider()`, and `IPostgreSqlTransactionProvider` for ambient participation.
+- [Transactional messaging writes](docs/Transactional-Messaging-Writes.md) scenario guide; integration and unit tests (T-21–T-24).
+
 ## v6.0.0
 
 Greenfield release for durable messaging. Adopt v6 as a fresh integration: nested module builders, `AcceptAsync` / `EnqueueAsync`, pipelined processors only, and PostgreSQL **schema version 1** with no in-place upgrade from LiteBus v5 table shapes. Historical v4/v5 upgrade steps remain in [Migration Guide v4](docs/Migration-Guide-v4.md) and [Migration Guide v5](docs/Migration-Guide-v5.md) only.

@@ -6,6 +6,119 @@ using System.Threading.Tasks;
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
+///     Accepts messages for persistence in the caller's active transaction boundary.
+/// </summary>
+/// <remarks>
+///     Use this API when domain work and inbox acceptance must commit or roll back together outside Entity Framework Core.
+///     Bind a store through <see cref="Store.ITransactionalInboxStore" /> or register PostgreSQL ambient participation with
+///     <c>EnableAmbientTransactionProvider()</c>. The caller owns transaction commit. Processors continue to use
+///     <see cref="IInbox" /> with the singleton auto-commit store.
+/// </remarks>
+public interface ITransactionalInbox
+{
+    /// <summary>
+    ///     Accepts a message for persistence in the caller's active transaction using an explicit runtime type.
+    /// </summary>
+    /// <param name="message">The message instance to serialize and persist.</param>
+    /// <param name="messageType">The runtime message type used for contract lookup.</param>
+    /// <param name="options">Optional acceptance metadata.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>A receipt describing the accepted inbox message.</returns>
+    Task<InboxReceipt> AcceptAsync(
+        object message,
+        Type messageType,
+        InboxOptions? options = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Accepts a message for persistence in the caller's active transaction.
+    /// </summary>
+    /// <typeparam name="T">The compile-time message type. The runtime type of <paramref name="message" /> is used for contract lookup.</typeparam>
+    /// <param name="message">The message instance to serialize and persist.</param>
+    /// <param name="options">Optional acceptance metadata.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>A receipt describing the accepted inbox message.</returns>
+    Task<InboxReceipt<T>> AcceptAsync<T>(
+        T message,
+        InboxOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where T : notnull;
+
+    /// <summary>
+    ///     Accepts multiple messages for persistence in one store round trip within the caller's transaction.
+    /// </summary>
+    /// <param name="messages">The message instances to serialize and persist.</param>
+    /// <param name="messageTypes">
+    ///     The runtime message types used for contract lookup. Must contain the same number of entries as
+    ///     <paramref name="messages" />.
+    /// </param>
+    /// <param name="options">
+    ///     Optional per-message metadata aligned with <paramref name="messages" />. When omitted, default metadata is used
+    ///     for every message. When supplied, the list length must match <paramref name="messages" />.
+    /// </param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>
+    ///     Receipts describing accepted inbox messages in the same order as <paramref name="messages" />.
+    /// </returns>
+    Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
+        IReadOnlyList<object> messages,
+        IReadOnlyList<Type> messageTypes,
+        IReadOnlyList<InboxOptions?>? options = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Accepts multiple messages for persistence in one store round trip within the caller's transaction.
+    /// </summary>
+    /// <typeparam name="T">The shared compile-time message type. Each instance's runtime type is used for contract lookup.</typeparam>
+    /// <param name="messages">The message instances to serialize and persist.</param>
+    /// <param name="options">
+    ///     Optional per-message metadata aligned with <paramref name="messages" />. When omitted, default metadata is used
+    ///     for every message.
+    /// </param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>
+    ///     Receipts describing accepted inbox messages in the same order as <paramref name="messages" />.
+    /// </returns>
+    Task<IReadOnlyList<InboxReceipt<T>>> AcceptBatchAsync<T>(
+        IReadOnlyList<T> messages,
+        IReadOnlyList<InboxOptions?>? options = null,
+        CancellationToken cancellationToken = default)
+        where T : notnull;
+
+    /// <summary>
+    ///     Accepts a message with <see cref="InboxOptions.VisibleAfter" /> set to <paramref name="enqueueAt" />.
+    /// </summary>
+    /// <typeparam name="T">The message type being accepted.</typeparam>
+    /// <param name="message">The message instance to serialize and persist.</param>
+    /// <param name="enqueueAt">The UTC timestamp when the message becomes visible to processors.</param>
+    /// <param name="options">Optional metadata applied in addition to the scheduled visibility time.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>A receipt describing the accepted inbox message.</returns>
+    Task<InboxReceipt<T>> ScheduleAsync<T>(
+        T message,
+        DateTimeOffset enqueueAt,
+        InboxOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where T : notnull;
+
+    /// <summary>
+    ///     Accepts a message with <see cref="InboxOptions.VisibleAfter" /> set relative to the current UTC time.
+    /// </summary>
+    /// <typeparam name="T">The message type being accepted.</typeparam>
+    /// <param name="message">The message instance to serialize and persist.</param>
+    /// <param name="delay">The delay before the message becomes visible to processors.</param>
+    /// <param name="options">Optional metadata applied in addition to the scheduled visibility time.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>A receipt describing the accepted inbox message.</returns>
+    Task<InboxReceipt<T>> ScheduleAfterAsync<T>(
+        T message,
+        TimeSpan delay,
+        InboxOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where T : notnull;
+}
+
+/// <summary>
 ///     Accepts messages for persistence in the same Entity Framework Core transaction as domain state.
 /// </summary>
 /// <typeparam name="TContext">

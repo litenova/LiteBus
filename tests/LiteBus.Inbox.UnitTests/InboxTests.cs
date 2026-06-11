@@ -25,7 +25,7 @@ public sealed class InboxTests : LiteBusTestBase
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 2);
 
-        var scheduler = new Inbox(
+        var scheduler = InboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
@@ -174,7 +174,7 @@ public sealed class InboxTests : LiteBusTestBase
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
 
-        var scheduler = new Inbox(
+        var scheduler = InboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
@@ -503,7 +503,7 @@ public sealed class InboxTests : LiteBusTestBase
         contractRegistry.Register<BaseInboxCommand>("orders.commands.base", 1);
         contractRegistry.Register<DerivedInboxCommand>("orders.commands.derived", 1);
 
-        var inbox = new Inbox(
+        var inbox = InboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),

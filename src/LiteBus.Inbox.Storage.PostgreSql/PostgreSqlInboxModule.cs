@@ -5,6 +5,8 @@ using LiteBus.Inbox.Storage.PostgreSql.Exceptions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
+using LiteBus.Storage.PostgreSql;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
 namespace LiteBus.Inbox.Storage.PostgreSql;
@@ -118,5 +120,43 @@ public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<Inbox
             InstanceLifetime.Singleton));
 
         configuration.RegisterDiagnosticCheck(typeof(PostgreSqlInboxSchemaDiagnosticCheck), "inbox.postgresql.schema");
+
+        if (moduleBuilder.EnableAmbientTransactionProviderRegistration)
+        {
+            RegisterAmbientTransactionalInbox(configuration, moduleBuilder, store);
+        }
+    }
+
+    /// <summary>
+    ///     Registers scoped transactional inbox services resolved through the ambient PostgreSQL transaction provider.
+    /// </summary>
+    /// <param name="configuration">The module configuration receiving service registrations.</param>
+    /// <param name="moduleBuilder">The configured PostgreSQL inbox module builder.</param>
+    /// <param name="store">The singleton inbox store registered for processors and auto-commit acceptance.</param>
+    private static void RegisterAmbientTransactionalInbox(
+        IModuleConfiguration configuration,
+        PostgreSqlInboxModuleBuilder moduleBuilder,
+        PostgreSqlInboxStore store)
+    {
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(PostgreSqlTransactionalInboxParticipant),
+            serviceProvider => new PostgreSqlTransactionalInboxParticipant(
+                serviceProvider.GetRequiredService<PostgreSqlInboxStoreRegistration>(),
+                serviceProvider.GetRequiredService<IInboxStore>(),
+                serviceProvider.GetService(typeof(IPostgreSqlTransactionProvider)) as IPostgreSqlTransactionProvider,
+                moduleBuilder.TransactionalWriteMode),
+            InstanceLifetime.Scoped));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(ITransactionalInbox),
+            serviceProvider =>
+            {
+                var participant = serviceProvider.GetRequiredService<PostgreSqlTransactionalInboxParticipant>();
+                return new StoreBoundTransactionalInbox(
+                    participant.ResolveStore(),
+                    serviceProvider.GetRequiredService<IInboxEnvelopeFactory>(),
+                    serviceProvider.GetRequiredService<TimeProvider>());
+            },
+            InstanceLifetime.Scoped));
     }
 }

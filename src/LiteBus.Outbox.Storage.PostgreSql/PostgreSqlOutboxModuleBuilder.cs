@@ -51,6 +51,17 @@ public sealed class PostgreSqlOutboxModuleBuilder
     public bool EnableSchemaInitialization { get; private set; } = true;
 
     /// <summary>
+    ///     Gets a value indicating whether scoped <see cref="LiteBus.Outbox.Abstractions.ITransactionalOutbox" /> is registered
+    ///     through the ambient PostgreSQL transaction provider.
+    /// </summary>
+    public bool EnableAmbientTransactionProviderRegistration { get; private set; }
+
+    /// <summary>
+    ///     Gets the transactional write mode used when ambient registration is enabled.
+    /// </summary>
+    public TransactionalWriteMode TransactionalWriteMode { get; private set; } = TransactionalWriteMode.RequireActiveTransaction;
+
+    /// <summary>
     ///     Disables registration of outbox schema initialization background service work.
     /// </summary>
     /// <returns>The current builder.</returns>
@@ -118,6 +129,23 @@ public sealed class PostgreSqlOutboxModuleBuilder
     public PostgreSqlOutboxModuleBuilder EnsureSchemaCreationOnStartup()
     {
         Options = Options with { EnsureSchemaCreationOnStartup = true };
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers scoped <see cref="LiteBus.Outbox.Abstractions.ITransactionalOutbox" /> resolved through
+    ///     <see cref="IPostgreSqlTransactionProvider" /> when the application supplies one in the current scope.
+    /// </summary>
+    /// <param name="mode">
+    ///     Controls behavior when no ambient transaction is active. Defaults to
+    ///     <see cref="TransactionalWriteMode.RequireActiveTransaction" />.
+    /// </param>
+    /// <returns>The current builder.</returns>
+    public PostgreSqlOutboxModuleBuilder EnableAmbientTransactionProvider(
+        TransactionalWriteMode mode = TransactionalWriteMode.RequireActiveTransaction)
+    {
+        EnableAmbientTransactionProviderRegistration = true;
+        TransactionalWriteMode = mode;
         return this;
     }
 }

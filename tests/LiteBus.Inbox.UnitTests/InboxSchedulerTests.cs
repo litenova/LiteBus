@@ -24,7 +24,7 @@ public sealed class InboxSchedulerTests
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
 
-        IInboxScheduler scheduler = new Inbox(
+        IInboxScheduler scheduler = InboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
@@ -55,7 +55,7 @@ public sealed class InboxSchedulerTests
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
 
-        IInboxScheduler scheduler = new Inbox(
+        IInboxScheduler scheduler = InboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),

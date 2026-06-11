@@ -7,30 +7,14 @@ using LiteBus.Outbox.Abstractions;
 namespace LiteBus.Outbox;
 
 /// <summary>
-///     Default writer that turns an event instance into an outbox envelope.
+///     Enqueues events through a bound <see cref="ITransactionalOutboxStore" /> without committing the caller transaction.
 /// </summary>
-/// <remarks>
-///     <para>
-///         The writer performs only acceptance work: contract lookup, serialization, metadata mapping, and append to the
-///         configured <see cref="IOutboxStore" />. It does not publish the event. Publication belongs to
-///         <see cref="PipelinedOutboxProcessor" /> and the configured <see cref="IOutboxDispatcher" />.
-///     </para>
-///     <para>
-///         Contract lookup always uses <c>event.GetType()</c> so closed generic event instances are stored with the contract
-///         registered for that closed type. A stable message id can be supplied through <see cref="OutboxOptions" />.
-///     </para>
-/// </remarks>
-public sealed class Outbox : IOutbox, IOutboxScheduler
+public sealed class StoreBoundTransactionalOutbox : ITransactionalOutbox
 {
     /// <summary>
-    ///     Gets the time provider used to stamp storage time.
+    ///     Gets the bound outbox store participating in the caller transaction.
     /// </summary>
-    private readonly TimeProvider _clock;
-
-    /// <summary>
-    ///     Gets the outbox writer store used to persist newly accepted envelopes.
-    /// </summary>
-    private readonly IOutboxStore _store;
+    private readonly ITransactionalOutboxStore _store;
 
     /// <summary>
     ///     Gets the factory used to create envelopes before store writes.
@@ -38,13 +22,18 @@ public sealed class Outbox : IOutbox, IOutboxScheduler
     private readonly IOutboxEnvelopeFactory _envelopeFactory;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="Outbox" /> class.
+    ///     Gets the time provider used for scheduled enqueue timestamps.
     /// </summary>
-    /// <param name="store">The outbox writer store used to persist newly accepted envelopes.</param>
+    private readonly TimeProvider _clock;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="StoreBoundTransactionalOutbox" /> class.
+    /// </summary>
+    /// <param name="store">The bound outbox store participating in the caller transaction.</param>
     /// <param name="envelopeFactory">The factory used to create envelopes before store writes.</param>
-    /// <param name="clock">The time provider used to stamp storage time.</param>
-    public Outbox(
-        IOutboxStore store,
+    /// <param name="clock">The time provider used for scheduled enqueue timestamps.</param>
+    public StoreBoundTransactionalOutbox(
+        ITransactionalOutboxStore store,
         IOutboxEnvelopeFactory envelopeFactory,
         TimeProvider clock)
     {

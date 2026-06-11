@@ -1,17 +1,21 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-    <ItemGroup>
-        <PackageReference Include="AwesomeAssertions"/>
-        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
-        <PackageReference Include="xunit"/>
-        <PackageReference Include="xunit.runner.visualstudio">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
-    </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\..\src\LiteBus.Storage.PostgreSql\LiteBus.Storage.PostgreSql.csproj"/>
-    </ItemGroup>
-
-</Project>
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <PackageReference Include="AwesomeAssertions"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <PackageReference Include="xunit"/>
+        <PackageReference Include="xunit.runner.visualstudio">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.PostgreSql\LiteBus.Inbox.Storage.PostgreSql.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.InMemory\LiteBus.Outbox.Storage.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.PostgreSql\LiteBus.Outbox.Storage.PostgreSql.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Storage.PostgreSql\LiteBus.Storage.PostgreSql.csproj"/>
+    </ItemGroup>
+
+</Project>

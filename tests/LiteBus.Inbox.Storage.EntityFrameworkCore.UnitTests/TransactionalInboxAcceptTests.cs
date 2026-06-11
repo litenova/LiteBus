@@ -1,4 +1,5 @@
 using System.Text.Json;
+using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using LiteBus.Messaging;
@@ -30,11 +31,12 @@ public sealed class TransactionalInboxAcceptTests
         var registry = new MessageContractRegistry();
         registry.Register<SubmitOrderCommand>("orders.commands.submit", 2);
 
+        var serializer = new SynchronousMessageSerializer();
+
         var transactionalInbox = new TransactionalInbox<TransactionalInboxDbContext>(
             interceptor,
             context,
-            registry,
-            new SynchronousMessageSerializer(),
+            new InboxEnvelopeFactory(registry, serializer, TimeProvider.System),
             TimeProvider.System);
 
         var orderId = Guid.NewGuid();
@@ -87,15 +89,14 @@ public sealed class TransactionalInboxAcceptTests
         await context.Database.EnsureCreatedAsync();
         var registry = new MessageContractRegistry();
         registry.Register<SubmitOrderCommand>("orders.commands.submit", 1);
+        var serializer = new SynchronousMessageSerializer();
         IInboxPayloadProtector protector = new PrefixPayloadProtector("tx-inbox:");
 
         var transactionalInbox = new TransactionalInbox<TransactionalInboxDbContext>(
             interceptor,
             context,
-            registry,
-            new SynchronousMessageSerializer(),
-            TimeProvider.System,
-            protector);
+            new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector),
+            TimeProvider.System);
 
         await transactionalInbox.AcceptAsync(new SubmitOrderCommand { OrderId = Guid.NewGuid() });
         await context.SaveChangesAsync();

@@ -38,6 +38,7 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 /// </remarks>
 public sealed class PostgreSqlOutboxStore :
     IOutboxStore,
+    ITransactionalOutboxStore,
     IOutboxProcessingStore,
     IOutboxOperationsStore
 {
@@ -130,7 +131,7 @@ public sealed class PostgreSqlOutboxStore :
     /// <param name="connection">The existing open connection owned by the caller.</param>
     /// <param name="transaction">The transaction that should contain outbox writes.</param>
     /// <returns>A store instance bound to the supplied connection and transaction.</returns>
-    public PostgreSqlOutboxStore UseExistingConnection(NpgsqlConnection connection, NpgsqlTransaction transaction)
+    public ITransactionalOutboxStore UseExistingConnection(NpgsqlConnection connection, NpgsqlTransaction transaction)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(transaction);

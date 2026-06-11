@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,14 +22,14 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
     private readonly TimeProvider _clock;
 
     /// <summary>
-    ///     Gets the registry used to map the runtime event type to a stable contract.
-    /// </summary>
-    private readonly IContractReader _contractRegistry;
-
-    /// <summary>
     ///     Gets the database context that owns the ambient transaction for staged envelopes.
     /// </summary>
     private readonly TContext _dbContext;
+
+    /// <summary>
+    ///     Gets the factory used to create envelopes before interceptor staging.
+    /// </summary>
+    private readonly IOutboxEnvelopeFactory _envelopeFactory;
 
     /// <summary>
     ///     Gets the interceptor that queues envelopes until the next <c>SaveChanges</c> call.
@@ -38,38 +37,22 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
     private readonly LiteBusOutboxSaveChangesInterceptor _interceptor;
 
     /// <summary>
-    ///     Gets the serializer used to create the serialized payload.
-    /// </summary>
-    private readonly IMessageSerializer _messageSerializer;
-
-    /// <summary>
-    ///     Gets the optional outbox protector applied before payloads are staged.
-    /// </summary>
-    private readonly IOutboxPayloadProtector? _payloadProtector;
-
-    /// <summary>
     ///     Initializes a new instance of the <see cref="TransactionalOutbox{TContext}" /> class.
     /// </summary>
     /// <param name="interceptor">The interceptor that stages envelopes for the active context.</param>
     /// <param name="dbContext">The database context that owns the ambient transaction.</param>
-    /// <param name="contractRegistry">The registry used to map the runtime event type to a stable contract.</param>
-    /// <param name="messageSerializer">The serializer used to create the serialized payload.</param>
+    /// <param name="envelopeFactory">The factory used to create envelopes before interceptor staging.</param>
     /// <param name="clock">The time provider used to stamp storage time on staged envelopes.</param>
-    /// <param name="payloadProtector">The optional outbox protector applied before payloads are staged.</param>
     public TransactionalOutbox(
         LiteBusOutboxSaveChangesInterceptor interceptor,
         TContext dbContext,
-        IContractReader contractRegistry,
-        IMessageSerializer messageSerializer,
-        TimeProvider clock,
-        IOutboxPayloadProtector? payloadProtector = null)
+        IOutboxEnvelopeFactory envelopeFactory,
+        TimeProvider clock)
     {
         _interceptor = interceptor ?? throw new ArgumentNullException(nameof(interceptor));
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-        _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
-        _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
+        _envelopeFactory = envelopeFactory ?? throw new ArgumentNullException(nameof(envelopeFactory));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-        _payloadProtector = payloadProtector;
     }
 
     /// <inheritdoc />
@@ -79,41 +62,13 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
         CancellationToken cancellationToken = default)
         where TEvent : notnull
     {
-        ArgumentNullException.ThrowIfNull(@event);
-
-        options ??= new OutboxOptions();
-
-        var eventType = @event.GetType();
-        var contract = _contractRegistry.GetContract(eventType);
-        var storedAt = _clock.GetUtcNow();
-        var messageId = options.Id ?? Guid.NewGuid();
-        var payload = await _messageSerializer.SerializeAsync(@event, cancellationToken).ConfigureAwait(false);
-        payload = await ProtectPayloadAsync(payload, cancellationToken).ConfigureAwait(false);
-
-        var envelope = new OutboxEnvelope
-        {
-            Id = messageId,
-            ContractName = contract.Name,
-            ContractVersion = contract.Version,
-            Payload = payload,
-            Topic = options.Topic,
-            CreatedAt = storedAt,
-            VisibleAfter = options.VisibleAfter,
-            Status = OutboxStatus.Pending,
-            AttemptCount = 0,
-            CorrelationId = options.CorrelationId,
-            CausationId = options.CausationId,
-            TenantId = options.TenantId,
-            IdempotencyKey = string.IsNullOrWhiteSpace(options.IdempotencyKey) ? null : options.IdempotencyKey,
-            TraceContext = options.TraceContext
-        };
-
+        var envelope = await _envelopeFactory.CreateAsync(@event, options, cancellationToken).ConfigureAwait(false);
         _interceptor.Enqueue(_dbContext, envelope);
 
         return new OutboxReceipt<TEvent>
         {
             Id = envelope.Id,
-            MessageType = eventType,
+            MessageType = @event.GetType(),
             ContractName = envelope.ContractName,
             ContractVersion = envelope.ContractVersion,
             StoredAt = envelope.CreatedAt,
@@ -148,54 +103,21 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
             return Array.Empty<OutboxReceipt>();
         }
 
+        var envelopes = await _envelopeFactory
+            .CreateBatchAsync(events, eventTypes, options, cancellationToken)
+            .ConfigureAwait(false);
+
         var receipts = new OutboxReceipt[events.Count];
 
-        for (var index = 0; index < events.Count; index++)
+        for (var index = 0; index < envelopes.Count; index++)
         {
-            var @event = events[index];
-            var eventType = eventTypes[index];
-            var itemOptions = options?[index] ?? new OutboxOptions();
-
-            ArgumentNullException.ThrowIfNull(@event);
-            ArgumentNullException.ThrowIfNull(eventType);
-
-            if (!eventType.IsInstanceOfType(@event))
-            {
-                throw new ArgumentException(
-                    $"Event at index {index} is not assignable to '{eventType.FullName}'.",
-                    nameof(events));
-            }
-
-            var contract = _contractRegistry.GetContract(eventType);
-            var storedAt = _clock.GetUtcNow();
-            var messageId = itemOptions.Id ?? Guid.NewGuid();
-            var payload = await _messageSerializer.SerializeAsync(@event, cancellationToken).ConfigureAwait(false);
-            payload = await ProtectPayloadAsync(payload, cancellationToken).ConfigureAwait(false);
-
-            var envelope = new OutboxEnvelope
-            {
-                Id = messageId,
-                ContractName = contract.Name,
-                ContractVersion = contract.Version,
-                Payload = payload,
-                Topic = itemOptions.Topic,
-                CreatedAt = storedAt,
-                VisibleAfter = itemOptions.VisibleAfter,
-                Status = OutboxStatus.Pending,
-                AttemptCount = 0,
-                CorrelationId = itemOptions.CorrelationId,
-                CausationId = itemOptions.CausationId,
-                TenantId = itemOptions.TenantId,
-                IdempotencyKey = string.IsNullOrWhiteSpace(itemOptions.IdempotencyKey) ? null : itemOptions.IdempotencyKey,
-                TraceContext = itemOptions.TraceContext
-            };
-
+            var envelope = envelopes[index];
             _interceptor.Enqueue(_dbContext, envelope);
 
             receipts[index] = new OutboxReceipt
             {
                 Id = envelope.Id,
-                MessageType = eventType,
+                MessageType = eventTypes[index],
                 ContractName = envelope.ContractName,
                 ContractVersion = envelope.ContractVersion,
                 StoredAt = envelope.CreatedAt,
@@ -259,21 +181,6 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
         ArgumentOutOfRangeException.ThrowIfLessThan(delay, TimeSpan.Zero, nameof(delay));
 
         return EnqueueAsync(@event, WithVisibleAfter(options, _clock.GetUtcNow().Add(delay)), cancellationToken);
-    }
-
-    /// <summary>
-    ///     Encrypts a serialized payload when an outbox protector is configured.
-    /// </summary>
-    /// <param name="payload">The serialized payload.</param>
-    /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>The protected payload text.</returns>
-    private Task<string> ProtectPayloadAsync(string payload, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(payload);
-
-        return _payloadProtector is null
-            ? Task.FromResult(payload)
-            : _payloadProtector.EncryptAsync(payload, cancellationToken);
     }
 
     /// <summary>

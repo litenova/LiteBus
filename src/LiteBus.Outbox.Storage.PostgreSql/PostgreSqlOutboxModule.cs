@@ -5,6 +5,8 @@ using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Outbox.Storage.PostgreSql.Exceptions;
+using LiteBus.Storage.PostgreSql;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
 namespace LiteBus.Outbox.Storage.PostgreSql;
@@ -118,5 +120,43 @@ public sealed class PostgreSqlOutboxModule : IOutboxStorageModule, IRequires<Out
             InstanceLifetime.Singleton));
 
         configuration.RegisterDiagnosticCheck(typeof(PostgreSqlOutboxSchemaDiagnosticCheck), "outbox.postgresql.schema");
+
+        if (moduleBuilder.EnableAmbientTransactionProviderRegistration)
+        {
+            RegisterAmbientTransactionalOutbox(configuration, moduleBuilder, store);
+        }
+    }
+
+    /// <summary>
+    ///     Registers scoped transactional outbox services resolved through the ambient PostgreSQL transaction provider.
+    /// </summary>
+    /// <param name="configuration">The module configuration receiving service registrations.</param>
+    /// <param name="moduleBuilder">The configured PostgreSQL outbox module builder.</param>
+    /// <param name="store">The singleton outbox store registered for processors and auto-commit enqueue.</param>
+    private static void RegisterAmbientTransactionalOutbox(
+        IModuleConfiguration configuration,
+        PostgreSqlOutboxModuleBuilder moduleBuilder,
+        PostgreSqlOutboxStore store)
+    {
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(PostgreSqlTransactionalOutboxParticipant),
+            serviceProvider => new PostgreSqlTransactionalOutboxParticipant(
+                serviceProvider.GetRequiredService<PostgreSqlOutboxStoreRegistration>(),
+                serviceProvider.GetRequiredService<IOutboxStore>(),
+                serviceProvider.GetService(typeof(IPostgreSqlTransactionProvider)) as IPostgreSqlTransactionProvider,
+                moduleBuilder.TransactionalWriteMode),
+            InstanceLifetime.Scoped));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(ITransactionalOutbox),
+            serviceProvider =>
+            {
+                var participant = serviceProvider.GetRequiredService<PostgreSqlTransactionalOutboxParticipant>();
+                return new StoreBoundTransactionalOutbox(
+                    participant.ResolveStore(),
+                    serviceProvider.GetRequiredService<IOutboxEnvelopeFactory>(),
+                    serviceProvider.GetRequiredService<TimeProvider>());
+            },
+            InstanceLifetime.Scoped));
     }
 }

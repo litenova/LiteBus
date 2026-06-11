@@ -28,7 +28,10 @@ public sealed class PayloadEncryptionTests
         var registry = new MessageContractRegistry();
         registry.Register<TestCommand>("test-command");
         var serializer = new SystemTextJsonMessageSerializer();
-        var inbox = new global::LiteBus.Inbox.Inbox(store, registry, serializer, TimeProvider.System, encryptor);
+        var inbox = new global::LiteBus.Inbox.Inbox(
+            store,
+            new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, encryptor),
+            TimeProvider.System);
 
         await inbox.AcceptAsync(new TestCommand { Value = "secret" });
 

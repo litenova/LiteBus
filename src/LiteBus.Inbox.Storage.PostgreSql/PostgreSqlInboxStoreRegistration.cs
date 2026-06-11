@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Inbox.Abstractions;
 using Npgsql;
 
 namespace LiteBus.Inbox.Storage.PostgreSql;
@@ -7,8 +8,8 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 ///     Holds the PostgreSQL data source and options registered for the inbox store.
 /// </summary>
 /// <remarks>
-///     This registration is consumed by optional schema bootstrap hosting and is registered automatically by
-///     <see cref="PostgreSqlInboxModule" />.
+///     This registration is consumed by optional schema bootstrap hosting, ambient transactional writers, and is registered
+///     automatically by <see cref="PostgreSqlInboxModule" />.
 /// </remarks>
 public sealed class PostgreSqlInboxStoreRegistration
 {
@@ -32,4 +33,16 @@ public sealed class PostgreSqlInboxStoreRegistration
     ///     Gets the inbox store options.
     /// </summary>
     public PostgreSqlInboxStoreOptions Options { get; }
+
+    /// <summary>
+    ///     Creates an inbox writer bound to an existing PostgreSQL connection and transaction.
+    /// </summary>
+    /// <param name="connection">The existing open connection owned by the caller.</param>
+    /// <param name="transaction">The transaction that should contain inbox writes.</param>
+    /// <returns>A transactional inbox store participating in the supplied transaction.</returns>
+    public ITransactionalInboxStore CreateTransactionalStore(NpgsqlConnection connection, NpgsqlTransaction transaction)
+    {
+        var store = new PostgreSqlInboxStore(DataSource, Options);
+        return store.UseExistingConnection(connection, transaction);
+    }
 }

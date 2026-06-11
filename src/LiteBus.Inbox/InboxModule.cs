@@ -95,6 +95,10 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
         }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IInboxEnvelopeFactory),
+            typeof(InboxEnvelopeFactory)));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IInbox),
             typeof(Inbox)));
 

@@ -21,7 +21,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
 
-        var writer = new Outbox(
+        var writer = OutboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
@@ -44,7 +44,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
 
-        var writer = new Outbox(
+        var writer = OutboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
@@ -63,7 +63,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
 
-        var writer = new Outbox(
+        var writer = OutboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
@@ -84,7 +84,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task AddAsync_WhenContractNotRegistered_ShouldThrowMessageContractNotRegisteredException()
     {
         var store = new InMemoryOutboxStore();
-        var writer = new Outbox(
+        var writer = OutboxWriterTestFactory.Create(
             store,
             new MessageContractRegistry(),
             new SystemTextJsonMessageSerializer(),

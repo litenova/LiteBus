@@ -1,0 +1,105 @@
+using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Storage.InMemory;
+using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions;
+using LiteBus.Testing;
+
+namespace LiteBus.Inbox.UnitTests;
+
+/// <summary>
+///     Verifies <see cref="InboxEnvelopeFactory" /> produces the same envelope shape as <see cref="Inbox" />.
+/// </summary>
+public sealed class InboxEnvelopeFactoryTests
+{
+    /// <summary>
+    ///     Confirms factory output matches the fields written by the auto-commit inbox writer.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_should_match_inbox_writer_fields()
+    {
+        var now = new DateTimeOffset(2026, 6, 11, 12, 0, 0, TimeSpan.Zero);
+        var store = new InMemoryInboxStore();
+        var registry = new MessageContractRegistry();
+        registry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 2);
+        var serializer = new SystemTextJsonMessageSerializer();
+        var clock = new ManualTimeProvider(now);
+        var factory = new InboxEnvelopeFactory(registry, serializer, clock);
+        var inbox = InboxWriterTestFactory.Create(store, registry, serializer, clock);
+
+        var commandId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var options = new InboxOptions
+        {
+            Id = commandId,
+            IdempotencyKey = "idem-1",
+            CorrelationId = "corr-1",
+            CausationId = "cause-1",
+            TenantId = "tenant-1",
+            TraceContext = "trace-1"
+        };
+
+        var envelope = await factory.CreateAsync(
+            new InboxTestFixtures.ShipOrderCommand { OrderId = orderId, IdempotencyKey = "idem-1" },
+            typeof(InboxTestFixtures.ShipOrderCommand),
+            options);
+        var receipt = await inbox.AcceptAsync(
+            new InboxTestFixtures.ShipOrderCommand { OrderId = orderId, IdempotencyKey = "idem-1" },
+            options);
+
+        envelope.Id.Should().Be(commandId);
+        envelope.ContractName.Should().Be(receipt.ContractName);
+        envelope.ContractVersion.Should().Be(receipt.ContractVersion);
+        envelope.CreatedAt.Should().Be(receipt.AcceptedAt);
+        envelope.IdempotencyKey.Should().Be("idem-1");
+        envelope.CorrelationId.Should().Be("corr-1");
+        envelope.CausationId.Should().Be("cause-1");
+        envelope.TenantId.Should().Be("tenant-1");
+        envelope.TraceContext.Should().Be("trace-1");
+        envelope.Status.Should().Be(InboxStatus.Pending);
+        envelope.AttemptCount.Should().Be(0);
+    }
+
+    /// <summary>
+    ///     Confirms payload encryption is applied when a protector is registered.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_should_encrypt_payload_when_protector_configured()
+    {
+        var registry = new MessageContractRegistry();
+        registry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
+        var serializer = new SystemTextJsonMessageSerializer();
+        IInboxPayloadProtector protector = new PrefixProtector("enc:");
+        var factory = new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector);
+
+        var envelope = await factory.CreateAsync(
+            new InboxTestFixtures.ShipOrderCommand { OrderId = Guid.NewGuid(), IdempotencyKey = "k" },
+            typeof(InboxTestFixtures.ShipOrderCommand));
+
+        envelope.Payload.Should().StartWith("enc:");
+    }
+
+    /// <summary>
+    ///     Prefix-based test protector.
+    /// </summary>
+    private sealed class PrefixProtector : IInboxPayloadProtector
+    {
+        /// <summary>
+        ///     The ciphertext prefix.
+        /// </summary>
+        private readonly string _prefix;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="PrefixProtector" /> class.
+        /// </summary>
+        /// <param name="prefix">The ciphertext prefix.</param>
+        public PrefixProtector(string prefix) => _prefix = prefix;
+
+        /// <inheritdoc />
+        public Task<string> EncryptAsync(string plaintext, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_prefix + plaintext);
+
+        /// <inheritdoc />
+        public Task<string> DecryptAsync(string ciphertext, CancellationToken cancellationToken = default) =>
+            Task.FromResult(ciphertext[_prefix.Length..]);
+    }
+}
