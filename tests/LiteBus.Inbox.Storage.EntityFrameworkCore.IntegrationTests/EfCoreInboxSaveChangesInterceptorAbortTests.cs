@@ -1,8 +1,8 @@
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests;
 
@@ -31,7 +31,7 @@ public sealed class EfCoreInboxSaveChangesInterceptorAbortTests : IClassFixture<
     [Fact]
     public async Task SaveChangesAsync_WhenDuplicateIdempotencyKeyConflicts_ShouldAbortTransaction()
     {
-        var storeOptions = await CreateInboxTableAsync().ConfigureAwait(false);
+        var storeOptions = await CreateInboxTableAsync();
         var interceptor = new LiteBusInboxSaveChangesInterceptor();
         const string idempotencyKey = "duplicate-idem-key";
 
@@ -67,7 +67,8 @@ public sealed class EfCoreInboxSaveChangesInterceptorAbortTests : IClassFixture<
             TableName = $"inbox_ef_abort_{Guid.NewGuid():N}"
         };
 
-        await using var dataSource = Npgsql.NpgsqlDataSource.Create(_fixture.ConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+
         await PostgreSqlInboxSchema.EnsureAsync(
             dataSource,
             new PostgreSqlInboxStoreOptions
@@ -75,7 +76,7 @@ public sealed class EfCoreInboxSaveChangesInterceptorAbortTests : IClassFixture<
                 SchemaName = options.SchemaName,
                 TableName = options.TableName,
                 ValidateSchemaCreationOnStartup = false
-            }).ConfigureAwait(false);
+            });
 
         return options;
     }

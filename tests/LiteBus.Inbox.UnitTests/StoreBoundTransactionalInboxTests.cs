@@ -1,6 +1,5 @@
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Inbox.UnitTests;
 
@@ -17,18 +16,18 @@ public sealed class StoreBoundTransactionalInboxTests
     {
         var store = new RecordingTransactionalInboxStore();
         var registry = new MessageContractRegistry();
-        registry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
+        registry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
         var serializer = new SystemTextJsonMessageSerializer();
         var factory = new InboxEnvelopeFactory(registry, serializer, TimeProvider.System);
         var writer = new StoreBoundTransactionalInbox(store, factory, TimeProvider.System);
 
-        var receipt = await writer.AcceptAsync(
-            new InboxTestFixtures.ShipOrderCommand { OrderId = Guid.NewGuid(), IdempotencyKey = "k" });
+        var receipt = await writer.AcceptAsync(InboxAcceptItems.From(
+            new InboxTestFixtures.ShipOrderCommand { OrderId = Guid.NewGuid(), IdempotencyKey = "k" }));
 
         store.AddCalls.Should().Be(1);
         store.LastEnvelope.Should().NotBeNull();
         receipt.Id.Should().Be(store.LastEnvelope!.Id);
-        receipt.ContractName.Should().Be("orders.commands.ship");
+        receipt.Contract.Name.Should().Be("orders.commands.ship");
     }
 
     /// <summary>
@@ -57,7 +56,9 @@ public sealed class StoreBoundTransactionalInboxTests
         /// <inheritdoc />
         public Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
             IReadOnlyList<InboxEnvelope> envelopes,
-            CancellationToken cancellationToken = default) =>
+            CancellationToken cancellationToken = default)
+        {
             throw new NotSupportedException();
+        }
     }
 }

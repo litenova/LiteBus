@@ -1,7 +1,6 @@
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.DurableTransport.IntegrationTests.Aws;
 
@@ -34,7 +33,7 @@ internal static class SqsTransportTestInfrastructure
                 MaxNumberOfMessages = 1,
                 WaitTimeSeconds = 1,
                 MessageAttributeNames = ["All"]
-            }).ConfigureAwait(false);
+            });
 
             if (response.Messages.Count == 0)
             {
@@ -73,9 +72,9 @@ internal static class SqsTransportTestInfrastructure
         {
             var attributes = await sqsClient
                 .GetQueueAttributesAsync(queueUrl, ["ApproximateNumberOfMessages"])
-                .ConfigureAwait(false);
+                ;
 
             return attributes.ApproximateNumberOfMessages == expectedCount;
-        }, timeout).ConfigureAwait(false);
+        }, timeout);
     }
 }

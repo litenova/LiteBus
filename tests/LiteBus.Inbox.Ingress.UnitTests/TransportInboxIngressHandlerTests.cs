@@ -1,9 +1,6 @@
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Ingress;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Inbox.Ingress.UnitTests;
@@ -21,7 +18,7 @@ public sealed class TransportInboxIngressHandlerTests
     {
         var store = new InMemoryInboxStore();
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<TestIngressCommand>("orders.commands.ship", 1);
+        contractRegistry.Register<TestIngressCommand>("orders.commands.ship");
 
         var inbox = InboxWriterTestFactory.Create(
             store,
@@ -35,6 +32,7 @@ public sealed class TransportInboxIngressHandlerTests
             new SystemTextJsonMessageSerializer());
 
         var messageId = Guid.NewGuid();
+
         var transportMessage = new TransportMessage
         {
             Body = """{"orderId":"99"}"""u8.ToArray(),
@@ -65,7 +63,7 @@ public sealed class TransportInboxIngressHandlerTests
     {
         var store = new InMemoryInboxStore();
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<TestIngressCommand>("orders.commands.ship", 1);
+        contractRegistry.Register<TestIngressCommand>("orders.commands.ship");
 
         var inbox = InboxWriterTestFactory.Create(
             store,
@@ -79,6 +77,7 @@ public sealed class TransportInboxIngressHandlerTests
             new SystemTextJsonMessageSerializer());
 
         var messageId = Guid.NewGuid();
+
         var transportMessage = new TransportMessage
         {
             Body = """{"orderId":"42"}"""u8.ToArray(),

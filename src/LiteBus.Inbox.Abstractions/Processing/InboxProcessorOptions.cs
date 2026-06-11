@@ -11,8 +11,9 @@ namespace LiteBus.Inbox.Abstractions;
 ///         different options when an application needs different worker identities or batch sizes.
 ///     </para>
 ///     <para>
-///         Tuning trade-offs: larger <see cref="BatchSize" /> values reduce store round-trips but increase the number of
-///         leases held during dispatch and the blast radius when a worker stops mid-pass. Longer <see cref="LeaseDuration" />
+///         Tuning trade-offs: larger <see cref="ProcessorOptions.BatchSize" /> values reduce store round-trips but increase the number of
+///         leases held during dispatch and the blast radius when a worker stops mid-pass. Longer
+///         <see cref="ProcessorOptions.LeaseDuration" />
 ///         values tolerate slow handlers but delay recovery when a worker crashes without releasing leases.
 ///     </para>
 /// </remarks>

@@ -10,10 +10,18 @@ namespace LiteBus.Messaging.Mediator;
 /// <remarks>
 ///     The <see cref="MessageMediator" /> is responsible for handling the mediation of messages by:
 ///     <list type="bullet">
-///         <item><description>Creating and managing execution contexts for each mediation operation</description></item>
-///         <item><description>Resolving message handlers through the message reader</description></item>
-///         <item><description>Applying the appropriate mediation strategy to process messages</description></item>
-///         <item><description>Managing nested mediation calls by preserving execution context state</description></item>
+///         <item>
+///             <description>Creating and managing execution contexts for each mediation operation</description>
+///         </item>
+///         <item>
+///             <description>Resolving message handlers through the message reader</description>
+///         </item>
+///         <item>
+///             <description>Applying the appropriate mediation strategy to process messages</description>
+///         </item>
+///         <item>
+///             <description>Managing nested mediation calls by preserving execution context state</description>
+///         </item>
 ///     </list>
 /// </remarks>
 internal sealed class MessageMediator : IMessageMediator

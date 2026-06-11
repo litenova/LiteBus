@@ -1,8 +1,8 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
-using LiteBus.Extensions.AspNetCore;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Storage.InMemory;
@@ -56,6 +56,7 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
             FailHealthWhenNoProbes = false,
             AuthorizationPolicy = "LiteBusOperator"
         });
+
         using var client = host.GetTestClient();
 
         var response = await client.PostAsJsonAsync("/litebus/inbox/messages/requeue", new { messageIds = Array.Empty<Guid>() });
@@ -75,9 +76,10 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
             FailHealthWhenNoProbes = false,
             AuthorizationPolicy = "LiteBusOperator"
         });
+
         using var client = host.GetTestClient();
         TestAuthHandler.AuthenticationType = "authenticated";
-        client.DefaultRequestHeaders.Authorization = new("Test", "token");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Test", "token");
 
         var response = await client.PostAsJsonAsync("/litebus/inbox/messages/requeue", new { messageIds = Array.Empty<Guid>() });
 
@@ -96,6 +98,7 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
             FailHealthWhenNoProbes = false,
             AllowAnonymousManagement = true
         });
+
         using var client = host.GetTestClient();
 
         var response = await client.PostAsJsonAsync("/litebus/inbox/messages/requeue", new { messageIds = Array.Empty<Guid>() });
@@ -110,13 +113,15 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
     /// <param name="method">The HTTP method name.</param>
     /// <param name="path">The request path.</param>
     /// <returns>The HTTP response message.</returns>
-    private static Task<HttpResponseMessage> SendAsync(HttpClient client, string method, string path) =>
-        method switch
+    private static Task<HttpResponseMessage> SendAsync(HttpClient client, string method, string path)
+    {
+        return method switch
         {
-            "POST" => client.PostAsync(path, null),
+            "POST"   => client.PostAsync(path, null),
             "DELETE" => client.DeleteAsync(path),
-            _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Unsupported HTTP method.")
+            _        => throw new ArgumentOutOfRangeException(nameof(method), method, "Unsupported HTTP method.")
         };
+    }
 
     /// <summary>
     ///     Builds and starts a test host with in-memory storage and management endpoints.
@@ -131,12 +136,17 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
             .ConfigureWebHost(webBuilder =>
             {
                 webBuilder.UseTestServer();
+
                 webBuilder.ConfigureServices(services =>
                 {
                     services.AddRouting();
                     services.AddSingleton(managementOptions);
+
                     services.AddAuthentication(TestAuthHandler.SchemeName)
-                        .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
+                        .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ =>
+                        {
+                        });
+
                     services.AddAuthorization(options =>
                     {
                         options.AddPolicy("LiteBusOperator", policy => policy.RequireRole("operator"));
@@ -144,15 +154,20 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
 
                     services.AddLiteBus(registry =>
                     {
-                        registry.AddMessageModule(_ => { });
+                        registry.AddMessageModule(_ =>
+                        {
+                        });
+
                         registry.AddInboxModule(inbox =>
                         {
-                            inbox.Contracts.Register<TestCommand>("tests.command", 1);
+                            inbox.Contracts.Register<TestCommand>("tests.command");
                             inbox.UseInMemoryStorage();
                         });
+
                         registry.AddOutboxModule(outbox => outbox.UseInMemoryStorage());
                     });
                 });
+
                 webBuilder.Configure(app =>
                 {
                     app.UseRouting();
@@ -181,25 +196,23 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
         public const string SchemeName = "Test";
 
         /// <summary>
-        ///     The principal type to authenticate for the next request, or <see langword="null" /> for anonymous.
-        /// </summary>
-        public static string? AuthenticationType { get; set; }
-
-        /// <summary>
         ///     Initializes a new instance of the <see cref="TestAuthHandler" /> class.
         /// </summary>
         /// <param name="options">The monitor for authentication scheme options.</param>
         /// <param name="logger">The logger factory.</param>
         /// <param name="encoder">The URL encoder.</param>
-        /// <param name="clock">The system clock.</param>
         public TestAuthHandler(
             IOptionsMonitor<AuthenticationSchemeOptions> options,
             ILoggerFactory logger,
-            UrlEncoder encoder,
-            ISystemClock clock)
-            : base(options, logger, encoder, clock)
+            UrlEncoder encoder)
+            : base(options, logger, encoder)
         {
         }
+
+        /// <summary>
+        ///     The principal type to authenticate for the next request, or <see langword="null" /> for anonymous.
+        /// </summary>
+        public static string? AuthenticationType { get; set; }
 
         /// <inheritdoc />
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
@@ -211,9 +224,9 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
 
             Claim[] claims = AuthenticationType switch
             {
-                "operator" => [new Claim(ClaimTypes.Role, "operator")],
+                "operator"      => [new Claim(ClaimTypes.Role, "operator")],
                 "authenticated" => [],
-                _ => []
+                _               => []
             };
 
             var identity = new ClaimsIdentity(claims, SchemeName);

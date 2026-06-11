@@ -100,10 +100,6 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
             typeof(Outbox)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxScheduler),
-            typeof(Outbox)));
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(OutboxCleanupHostOptions),
             _builder.CleanupHostOptions));
 
@@ -206,5 +202,8 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
     /// </summary>
     /// <param name="services">The service provider used to resolve processor dependencies.</param>
     /// <returns>The configured outbox processor instance.</returns>
-    private static object CreateOutboxProcessor(IServiceProvider services) => OutboxProcessorFactory.Create(services);
+    private static object CreateOutboxProcessor(IServiceProvider services)
+    {
+        return OutboxProcessorFactory.Create(services);
+    }
 }

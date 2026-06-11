@@ -1,5 +1,4 @@
 using LiteBus.Queries.Abstractions;
-using LiteBus.QueryModule.UnitTests.UseCases;
 using LiteBus.QueryModule.UnitTests.UseCases.StreamProducts;
 
 namespace LiteBus.QueryModule.UnitTests.UseCases.IndirectStreamProducts;

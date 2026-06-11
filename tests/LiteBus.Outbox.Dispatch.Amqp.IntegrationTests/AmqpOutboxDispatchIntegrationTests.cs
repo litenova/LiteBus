@@ -1,16 +1,13 @@
 using System.Text;
 using System.Text.Json;
-using LiteBus.Transport.Amqp;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Outbox;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Dispatch;
-using LiteBus.Outbox.Dispatch.Amqp;
 using LiteBus.Outbox.Storage.InMemory;
-using LiteBus.Runtime.Abstractions;
 using LiteBus.Testing;
+using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 
@@ -50,15 +47,17 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
         await outbox.EnqueueAsync(
-            new OrderSubmittedIntegrationEvent { OrderId = orderId },
-            new OutboxOptions
-            {
-                Id = messageId,
-                Topic = queueName,
-                CorrelationId = "corr-outbox-amqp",
-                CausationId = "cause-outbox-amqp",
-                TenantId = "tenant-east"
-            });
+            OutboxEnqueueItems.WithMetadata(
+                new OrderSubmittedIntegrationEvent { OrderId = orderId },
+                new OutboxEnqueueMetadata
+                {
+                    Identity = new MessageIdentity.Supplied(messageId),
+                    Idempotency = Idempotency.None.Instance,
+                    Visibility = MessageVisibility.Immediate.Instance,
+                    Trace = new MessageTrace.Workflow("corr-outbox-amqp", "cause-outbox-amqp"),
+                    Tenant = new TenantScope.Isolated("tenant-east"),
+                    Target = new PublicationTarget.Topic(queueName)
+                }));
 
         await processor.ProcessPendingAsync();
 
@@ -75,6 +74,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
             json,
             new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
         payload!.OrderId.Should().Be(orderId);
         amqpMessage.MessageId.Should().Be(messageId.ToString("D"));
         amqpMessage.CorrelationId.Should().Be("corr-outbox-amqp");
@@ -104,8 +104,9 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
         await outbox.EnqueueAsync(
-            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            new OutboxOptions { Id = messageId });
+            OutboxEnqueueItems.WithIdentity(
+                new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                messageId));
 
         await processor.ProcessPendingAsync();
 
@@ -125,17 +126,22 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddOutboxModule(builder =>
                 {
                     builder.UseInMemoryStorage();
-                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted", 1);
+                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted");
+
                     builder.UseProcessorOptions(new OutboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = $"outbox-amqp-{BrokerName}",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     builder.UseAmqpDispatch(
                         transport => transport.DefaultDestination = exchangeName, ConnectionOptions);
                 });
@@ -152,12 +158,13 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
     {
         await using var manager = new AmqpConnectionManager(ConnectionOptions);
         await using var channel = await manager.CreateChannelAsync();
+
         await channel.QueueDeclareAsync(
-            queue: queueName,
-            durable: true,
-            exclusive: false,
-            autoDelete: false,
-            arguments: null);
+            queueName,
+            true,
+            false,
+            false,
+            null);
     }
 
     /// <summary>
@@ -171,24 +178,25 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
     {
         await using var manager = new AmqpConnectionManager(ConnectionOptions);
         await using var channel = await manager.CreateChannelAsync();
+
         await channel.ExchangeDeclareAsync(
-            exchange: exchangeName,
-            type: ExchangeType.Topic,
-            durable: true,
-            autoDelete: false,
-            arguments: null);
+            exchangeName,
+            ExchangeType.Topic,
+            true,
+            false,
+            null);
 
         await channel.QueueDeclareAsync(
-            queue: queueName,
-            durable: true,
-            exclusive: false,
-            autoDelete: false,
-            arguments: null);
+            queueName,
+            true,
+            false,
+            false,
+            null);
 
         await channel.QueueBindAsync(
-            queue: queueName,
-            exchange: exchangeName,
-            routingKey: routingKey);
+            queueName,
+            exchangeName,
+            routingKey);
     }
 
     /// <summary>
@@ -211,12 +219,22 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
             async (message, cancellationToken) =>
             {
                 var bodyCopy = message.Body.ToArray();
-                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+                await message.AcceptAsync(cancellationToken);
                 received.TrySetResult(new ConsumedAmqpMessage(message, bodyCopy));
             });
 
         using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         return await received.Task.WaitAsync(cancellationSource.Token);
+    }
+
+    /// <summary>
+    ///     Creates a unique broker-safe name for the current test run.
+    /// </summary>
+    /// <param name="suffix">The suffix that identifies the scenario under test.</param>
+    /// <returns>A unique broker-safe name.</returns>
+    private static string CreateUniqueName(string suffix)
+    {
+        return $"litebus-outbox-{suffix}-{Guid.NewGuid():N}";
     }
 
     /// <summary>
@@ -243,16 +261,6 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
             : this(message.MessageId, message.CorrelationId, message.RoutingKey, message.Headers, body)
         {
         }
-    }
-
-    /// <summary>
-    ///     Creates a unique broker-safe name for the current test run.
-    /// </summary>
-    /// <param name="suffix">The suffix that identifies the scenario under test.</param>
-    /// <returns>A unique broker-safe name.</returns>
-    private static string CreateUniqueName(string suffix)
-    {
-        return $"litebus-outbox-{suffix}-{Guid.NewGuid():N}";
     }
 
     /// <summary>
@@ -328,12 +336,18 @@ public sealed class AmqpOutboxDispatchRegistrationTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddOutboxModule(outbox =>
                 {
                     outbox.UseInMemoryStorage();
+
                     outbox.UseAmqpDispatch(
-                        _ => { }, new AmqpConnectionOptions { HostName = "localhost" });
+                        _ =>
+                        {
+                        }, new AmqpConnectionOptions { HostName = "localhost" });
                 });
             })
             .BuildServiceProvider();

@@ -1,9 +1,7 @@
 using LiteBus.Commands;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
@@ -29,6 +27,7 @@ internal static class EfCoreInboxE2eSupport
     internal static async Task EnsureInboxTableAsync(string connectionString, EfCoreInboxStoreOptions storeOptions)
     {
         await using var dataSource = NpgsqlDataSource.Create(connectionString);
+
         await PostgreSqlInboxSchema.EnsureAsync(
             dataSource,
             new PostgreSqlInboxStoreOptions
@@ -56,12 +55,16 @@ internal static class EfCoreInboxE2eSupport
         {
             var builder = new DbContextOptionsBuilder<TDbContext>()
                 .UseNpgsql(EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(connectionString, storeOptions));
-            return (TDbContext)Activator.CreateInstance(typeof(TDbContext), builder.Options, storeOptions)!;
+
+            return (TDbContext) Activator.CreateInstance(typeof(TDbContext), builder.Options, storeOptions)!;
         });
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddCommandModule(module =>
             {
                 if (composition.RegisterShipHandler)
@@ -87,12 +90,12 @@ internal static class EfCoreInboxE2eSupport
 
                 if (composition.RegisterShipHandler)
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
+                    inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship");
                 }
 
                 if (composition.RegisterFaultyHandler)
                 {
-                    inbox.Contracts.Register<FaultyCommand>("orders.commands.faulty", 1);
+                    inbox.Contracts.Register<FaultyCommand>("orders.commands.faulty");
                 }
 
                 inbox.UseProcessorOptions(new InboxProcessorOptions
@@ -106,13 +109,14 @@ internal static class EfCoreInboxE2eSupport
                         UseJitter = false
                     }
                 });
+
                 inbox.UseCommandInboxDispatcher();
             });
         });
 
         if (composition.Clock is not null)
         {
-            services.AddSingleton<TimeProvider>(composition.Clock);
+            services.AddSingleton(composition.Clock);
         }
 
         return services.BuildServiceProvider();

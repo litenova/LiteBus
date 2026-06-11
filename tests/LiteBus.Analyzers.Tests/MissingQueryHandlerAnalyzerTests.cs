@@ -1,7 +1,3 @@
-using System.Threading.Tasks;
-using LiteBus.Queries.Abstractions;
-using Xunit;
-
 namespace LiteBus.Analyzers.Tests;
 
 /// <summary>

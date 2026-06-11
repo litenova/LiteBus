@@ -1,9 +1,9 @@
+using System.Globalization;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Saga.Storage.PostgreSql;
-using LiteBus.Storage.PostgreSql;
 using Npgsql;
 
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
@@ -20,6 +20,7 @@ internal static class PostgreSqlTableReaders
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
+
         command.CommandText = $"""
                                SELECT
                                    message_id,
@@ -42,9 +43,11 @@ internal static class PostgreSqlTableReaders
                                FROM {tableName}
                                WHERE message_id = @message_id;
                                """;
+
         command.Parameters.AddWithValue("message_id", messageId);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
         if (!await reader.ReadAsync(cancellationToken))
         {
             return null;
@@ -59,7 +62,7 @@ internal static class PostgreSqlTableReaders
             CreatedAt = reader.GetFieldValue<DateTimeOffset>(4),
             VisibleAfter = ReadNullableDateTimeOffset(reader, 5),
             AttemptCount = reader.GetInt32(6),
-            Status = (InboxStatus)reader.GetInt32(7),
+            Status = (InboxStatus) reader.GetInt32(7),
             IdempotencyKey = ReadNullableString(reader, 8),
             LeaseOwner = ReadNullableString(reader, 9),
             LeaseExpiresAt = ReadNullableDateTimeOffset(reader, 10),
@@ -82,6 +85,7 @@ internal static class PostgreSqlTableReaders
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
+
         command.CommandText = $"""
                                SELECT
                                    message_id,
@@ -102,9 +106,11 @@ internal static class PostgreSqlTableReaders
                                FROM {tableName}
                                WHERE message_id = @message_id;
                                """;
+
         command.Parameters.AddWithValue("message_id", messageId);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
         if (!await reader.ReadAsync(cancellationToken))
         {
             return null;
@@ -119,7 +125,7 @@ internal static class PostgreSqlTableReaders
             Topic = ReadNullableString(reader, 4),
             CreatedAt = reader.GetFieldValue<DateTimeOffset>(5),
             VisibleAfter = ReadNullableDateTimeOffset(reader, 6),
-            Status = (OutboxStatus)reader.GetInt32(7),
+            Status = (OutboxStatus) reader.GetInt32(7),
             AttemptCount = reader.GetInt32(8),
             LeaseOwner = ReadNullableString(reader, 9),
             LeaseExpiresAt = ReadNullableDateTimeOffset(reader, 10),
@@ -140,7 +146,7 @@ internal static class PostgreSqlTableReaders
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT COUNT(*) FROM {tableName};";
-        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken), System.Globalization.CultureInfo.InvariantCulture);
+        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
     }
 
     internal static async Task<SagaTableRow?> ReadSagaAsync(
@@ -154,6 +160,7 @@ internal static class PostgreSqlTableReaders
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
+
         command.CommandText = $"""
                                SELECT
                                    correlation_id,
@@ -165,10 +172,12 @@ internal static class PostgreSqlTableReaders
                                WHERE correlation_id = @correlation_id
                                    AND saga_type = @saga_type;
                                """;
+
         command.Parameters.AddWithValue("correlation_id", correlationId);
         command.Parameters.AddWithValue("saga_type", sagaType);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
         if (!await reader.ReadAsync(cancellationToken))
         {
             return null;
@@ -194,7 +203,17 @@ internal static class PostgreSqlTableReaders
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT COUNT(*) FROM {tableName};";
-        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken), System.Globalization.CultureInfo.InvariantCulture);
+        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
+    }
+
+    private static string? ReadNullableString(NpgsqlDataReader reader, int ordinal)
+    {
+        return reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
+    }
+
+    private static DateTimeOffset? ReadNullableDateTimeOffset(NpgsqlDataReader reader, int ordinal)
+    {
+        return reader.IsDBNull(ordinal) ? null : reader.GetFieldValue<DateTimeOffset>(ordinal);
     }
 
     internal sealed class SagaTableRow
@@ -208,15 +227,5 @@ internal static class PostgreSqlTableReaders
         public required int OptimisticLockVersion { get; init; }
 
         public required bool IsCompleted { get; init; }
-    }
-
-    private static string? ReadNullableString(NpgsqlDataReader reader, int ordinal)
-    {
-        return reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
-    }
-
-    private static DateTimeOffset? ReadNullableDateTimeOffset(NpgsqlDataReader reader, int ordinal)
-    {
-        return reader.IsDBNull(ordinal) ? null : reader.GetFieldValue<DateTimeOffset>(ordinal);
     }
 }

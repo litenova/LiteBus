@@ -1,4 +1,3 @@
-using LiteBus.Extensions.Diagnostics.HealthChecks;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Storage.InMemory;
@@ -16,15 +15,20 @@ public sealed class LiteBusHealthCheckIntegrationTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddInboxModule(inbox =>
             {
                 inbox.UseInMemoryStorage();
                 inbox.AddDiagnosticCheck<UnhealthyDiagnosticCheck>("litebus.test.unhealthy");
             });
         });
+
         services.AddHealthChecks().AddLiteBus();
 
         await using var provider = services.BuildServiceProvider();
@@ -35,8 +39,10 @@ public sealed class LiteBusHealthCheckIntegrationTests
         report.Status.Should().Be(HealthStatus.Unhealthy);
         report.Entries.Should().ContainKey("litebus");
         report.Entries["litebus"].Status.Should().Be(HealthStatus.Unhealthy);
+
         report.Entries["litebus"].Description.Should()
             .Be("One or more LiteBus diagnostic probes reported unhealthy status.");
+
         report.Entries["litebus"].Data.Should().ContainKey("probes");
     }
 
@@ -45,15 +51,20 @@ public sealed class LiteBusHealthCheckIntegrationTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddInboxModule(inbox =>
             {
                 inbox.UseInMemoryStorage();
                 inbox.AddDiagnosticCheck<HealthyDiagnosticCheck>("litebus.test.healthy");
             });
         });
+
         services.AddHealthChecks().AddLiteBus();
 
         await using var provider = services.BuildServiceProvider();
@@ -71,10 +82,14 @@ public sealed class LiteBusHealthCheckIntegrationTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
         });
+
         services.AddHealthChecks().AddLiteBus();
 
         await using var provider = services.BuildServiceProvider();

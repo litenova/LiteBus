@@ -13,5 +13,5 @@ internal enum MessageKind
     /// <summary>
     ///     Query messages implementing <see cref="LiteBus.Queries.Abstractions.IQuery" />.
     /// </summary>
-    Query,
+    Query
 }

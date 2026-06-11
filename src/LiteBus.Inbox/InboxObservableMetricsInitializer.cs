@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Runtime.Abstractions;
@@ -15,7 +16,7 @@ internal sealed class InboxObservableMetricsInitializer : IStartupTask
     /// <param name="metrics">The inbox observable metrics instance to activate.</param>
     public InboxObservableMetricsInitializer(InboxObservableMetrics metrics)
     {
-        _ = metrics ?? throw new System.ArgumentNullException(nameof(metrics));
+        _ = metrics ?? throw new ArgumentNullException(nameof(metrics));
     }
 
     /// <inheritdoc />

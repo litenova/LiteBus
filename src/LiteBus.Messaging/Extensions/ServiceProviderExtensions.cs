@@ -1,4 +1,4 @@
-using System;
+using System;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Extensions;
@@ -18,7 +18,7 @@ public static class ServiceProviderExtensions
     /// <exception cref="LiteBusDependencyResolutionException">Thrown if the service is not registered.</exception>
     public static T GetRequiredService<T>(this IServiceProvider serviceProvider)
     {
-        return (T) GetRequiredService(serviceProvider, typeof(T));
+        return (T) serviceProvider.GetRequiredService(typeof(T));
     }
 
     /// <summary>

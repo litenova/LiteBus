@@ -1,9 +1,8 @@
-using LiteBus.Messaging;
-
 using Autofac;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Autofac.UnitTests.UseCases;
+using LiteBus.Messaging;
 using LiteBus.Testing;
 
 namespace LiteBus.Extensions.Autofac.UnitTests;
@@ -24,8 +23,11 @@ public sealed class AutofacIntegrationTests : LiteBusTestBase
         // Configure LiteBus using the Autofac extension
         builder.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddCommandModule(commandModuleBuilder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddCommandModule(commandModuleBuilder =>
             {
                 commandModuleBuilder.Register<RegisterComponentCommand>();
                 commandModuleBuilder.Register<RegisterComponentCommandPreHandler>();

@@ -17,19 +17,14 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(1);
 
     /// <summary>
-    ///     Signals that a notification arrived or the polling timeout elapsed.
+    ///     Gets the <c>LISTEN</c> channel subscribed to by this work signal.
     /// </summary>
-    private readonly SemaphoreSlim _signal = new(0, int.MaxValue);
+    private readonly string _channelName;
 
     /// <summary>
     ///     Gets the PostgreSQL data source used to open the dedicated listener connection.
     /// </summary>
     private readonly NpgsqlDataSource _dataSource;
-
-    /// <summary>
-    ///     Gets the <c>LISTEN</c> channel subscribed to by this work signal.
-    /// </summary>
-    private readonly string _channelName;
 
     /// <summary>
     ///     Serializes listener startup and loop creation.
@@ -42,17 +37,22 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     private readonly object _listenerLoopSync = new();
 
     /// <summary>
+    ///     Signals that a notification arrived or the polling timeout elapsed.
+    /// </summary>
+    private readonly SemaphoreSlim _signal = new(0, int.MaxValue);
+
+    /// <summary>
     ///     Gets the dedicated listener connection, if one has been opened.
     /// </summary>
     private NpgsqlConnection? _listenerConnection;
 
     /// <summary>
-    ///     Cancels the background <see cref="NpgsqlConnection.WaitAsync" /> loop.
+    ///     Cancels the background <c>WaitAsync</c> listener loop.
     /// </summary>
     private CancellationTokenSource? _listenerLoopCts;
 
     /// <summary>
-    ///     The background task that blocks on <see cref="NpgsqlConnection.WaitAsync" /> until notifications arrive.
+    ///     The background task that blocks on <c>WaitAsync</c> until notifications arrive.
     /// </summary>
     private Task? _listenerLoopTask;
 
@@ -66,26 +66,6 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         ArgumentException.ThrowIfNullOrWhiteSpace(channelName);
         _channelName = channelName;
-    }
-
-    /// <summary>
-    ///     Waits until work arrives on the notification channel or the polling interval elapses.
-    /// </summary>
-    /// <param name="pollInterval">The maximum delay before returning when no notification arrives.</param>
-    /// <param name="cancellationToken">A token that cancels the wait.</param>
-    /// <returns>A task that completes when work is signaled or the poll interval expires.</returns>
-    public async Task WaitForWorkOrDelayAsync(TimeSpan pollInterval, CancellationToken cancellationToken = default)
-    {
-        EnsureListenerLoopStarted();
-        await EnsureListenerStartedAsync(cancellationToken).ConfigureAwait(false);
-
-        if (pollInterval <= TimeSpan.Zero)
-        {
-            await _signal.WaitAsync(cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
-        await _signal.WaitAsync(pollInterval, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -135,7 +115,27 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Starts the dedicated background loop that calls <see cref="NpgsqlConnection.WaitAsync" />.
+    ///     Waits until work arrives on the notification channel or the polling interval elapses.
+    /// </summary>
+    /// <param name="pollInterval">The maximum delay before returning when no notification arrives.</param>
+    /// <param name="cancellationToken">A token that cancels the wait.</param>
+    /// <returns>A task that completes when work is signaled or the poll interval expires.</returns>
+    public async Task WaitForWorkOrDelayAsync(TimeSpan pollInterval, CancellationToken cancellationToken = default)
+    {
+        EnsureListenerLoopStarted();
+        await EnsureListenerStartedAsync(cancellationToken).ConfigureAwait(false);
+
+        if (pollInterval <= TimeSpan.Zero)
+        {
+            await _signal.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await _signal.WaitAsync(pollInterval, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Starts the dedicated background loop that calls <c>WaitAsync</c>.
     /// </summary>
     private void EnsureListenerLoopStarted()
     {
@@ -152,7 +152,7 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Blocks on <see cref="NpgsqlConnection.WaitAsync" /> and reconnects when the listener connection breaks.
+    ///     Blocks on <c>WaitAsync</c> and reconnects when the listener connection breaks.
     /// </summary>
     /// <param name="cancellationToken">A token that stops the background loop.</param>
     /// <returns>A task that represents the listener loop.</returns>
@@ -165,6 +165,7 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
                 await EnsureListenerStartedAsync(cancellationToken).ConfigureAwait(false);
 
                 var connection = _listenerConnection;
+
                 if (connection is null)
                 {
                     continue;
@@ -273,6 +274,7 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     private void InvalidateListenerConnection()
     {
         var connection = _listenerConnection;
+
         if (connection is null)
         {
             return;

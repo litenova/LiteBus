@@ -1,13 +1,7 @@
-using System.Collections.Generic;
 using System.Text.Json;
-using LiteBus.Commands;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch;
 using LiteBus.Inbox.Dispatch.Amqp;
-using LiteBus.Inbox.Ingress;
-using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
@@ -81,26 +75,34 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
         await AmqpTestInfrastructure.DeclareQueueAsync(connectionOptions, dispatchQueue);
 
         var services = new ServiceCollection();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddInboxModule(inbox =>
             {
-                inbox.Contracts.Register<ShipOrderCommand>(contractName, 1);
+                inbox.Contracts.Register<ShipOrderCommand>(contractName);
+
                 inbox.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 10,
                     LeaseOwner = "ingress-test-worker",
                     Retry = new RetryOptions { UseJitter = false }
                 });
+
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
                 inbox.UseInMemoryStorage();
+
                 inbox.UseAmqpDispatch(
                     transport =>
                     {
                         transport.DefaultDestination = string.Empty;
                         transport.ResolveRoute = _ => dispatchQueue;
                     }, connectionOptions);
+
                 inbox.UseAmqpIngress(ingress =>
                 {
                     ingress.UseOptions(new AmqpInboxIngressOptions

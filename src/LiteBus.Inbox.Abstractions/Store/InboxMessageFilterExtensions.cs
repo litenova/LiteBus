@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 
 namespace LiteBus.Inbox.Abstractions;
 
@@ -17,7 +16,7 @@ public static class InboxMessageFilterExtensions
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        return !HasMinimumCriteria(filter);
+        return !filter.HasMinimumCriteria();
     }
 
     /// <summary>

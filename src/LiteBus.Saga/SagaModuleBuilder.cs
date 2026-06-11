@@ -34,5 +34,8 @@ public sealed class SagaModuleBuilder
     ///     Collects the configured saga state type registry.
     /// </summary>
     /// <returns>The registry built from configuration callbacks.</returns>
-    internal ISagaStateTypeRegistry CollectRegistry() => _registry;
+    internal ISagaStateTypeRegistry CollectRegistry()
+    {
+        return _registry;
+    }
 }

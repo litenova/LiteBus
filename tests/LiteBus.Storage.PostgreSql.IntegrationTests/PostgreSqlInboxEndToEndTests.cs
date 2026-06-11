@@ -1,5 +1,4 @@
 using LiteBus.Commands;
-using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
@@ -7,9 +6,9 @@ using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-
 using IInboxProcessor = LiteBus.Inbox.Abstractions.IInboxProcessor;
 
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
@@ -26,7 +25,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task ProcessPendingAsync_ShouldExecuteScheduledCommandThroughPostgreSqlStore()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
         var recorder = new CommandRecorder();
 
@@ -35,11 +34,12 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
         var orderId = Guid.NewGuid();
-        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand
+
+        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        });
+        }));
 
         await processor.ProcessPendingAsync();
 
@@ -54,22 +54,22 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
     public async Task ProcessPendingAsync_WhenHandlerFails_ShouldMarkFailedWithVisibleAfter()
     {
         var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
 
         await using var provider = BuildProvider(
             _fixture,
             options,
-            recorder: null,
-            clock: clock,
-            registerFaultyHandler: true,
+            null,
+            clock,
+            true,
             maxAttempts: 5,
             initialDelay: TimeSpan.FromSeconds(30));
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(new FaultyCommand());
+        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new FaultyCommand()));
         await processor.ProcessPendingAsync();
 
         var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, receipt.Id);
@@ -81,20 +81,20 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task ProcessPendingAsync_WhenMaxAttemptsExceeded_ShouldMoveToDeadLetter()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
 
         await using var provider = BuildProvider(
             _fixture,
             options,
-            recorder: null,
+            null,
             registerFaultyHandler: true,
             maxAttempts: 1);
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(new FaultyCommand());
+        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new FaultyCommand()));
         await processor.ProcessPendingAsync();
 
         var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, receipt.Id);
@@ -106,7 +106,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimAndCompleteCommand()
     {
         var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         var recorder = new CommandRecorder();
 
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
@@ -116,11 +116,12 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
 
         var orderId = Guid.NewGuid();
-        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand
+
+        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = "lease-expiry"
-        });
+        }));
 
         await leaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -143,7 +144,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
     public async Task ScheduleAsync_WithVisibleAfter_ShouldDeferProcessingUntilDue()
     {
         var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         var recorder = new CommandRecorder();
         var visibleAfter = PostgreSqlTestInfrastructure.BaseTime.AddMinutes(30);
 
@@ -153,11 +154,17 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
         var orderId = Guid.NewGuid();
-        await scheduler.AcceptAsync(new ShipOrderCommand
-        {
-            OrderId = orderId,
-            IdempotencyKey = $"ship:{orderId}"
-        }, new InboxOptions { VisibleAfter = visibleAfter });
+
+        await scheduler.AcceptAsync(InboxAcceptItems.From(
+            new ShipOrderCommand
+            {
+                OrderId = orderId,
+                IdempotencyKey = $"ship:{orderId}"
+            },
+            new InboxAcceptMetadata
+            {
+                Visibility = new MessageVisibility.At(visibleAfter)
+            }));
 
         await processor.ProcessPendingAsync();
         recorder.Commands.Should().BeEmpty();
@@ -171,10 +178,10 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task ProcessPendingAsync_WhenContractIsUnknown_ShouldMarkFailedInDatabase()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
 
-        await using var provider = BuildProvider(_fixture, options, recorder: null, registerShipHandler: false);
+        await using var provider = BuildProvider(_fixture, options, null, registerShipHandler: false);
         var processor = provider.GetRequiredService<IInboxProcessor>();
         var writer = provider.GetRequiredService<IInboxStore>();
         var commandId = Guid.NewGuid();
@@ -216,8 +223,11 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddCommandModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddCommandModule(builder =>
             {
                 if (registerShipHandler)
                 {
@@ -242,12 +252,12 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
 
                 if (registerShipHandler)
                 {
-                    builder.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
+                    builder.Contracts.Register<ShipOrderCommand>("orders.commands.ship");
                 }
 
                 if (registerFaultyHandler)
                 {
-                    builder.Contracts.Register<FaultyCommand>("orders.commands.faulty", 1);
+                    builder.Contracts.Register<FaultyCommand>("orders.commands.faulty");
                 }
 
                 builder.UseProcessorOptions(new InboxProcessorOptions

@@ -1,4 +1,3 @@
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using LiteBus.Inbox.Storage.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -33,7 +32,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
     /// <summary>
     ///     Gets the store options used by inbox contract tests.
     /// </summary>
-    internal static EfCoreInboxStoreOptions InboxOptions { get; } = new()
+    internal static EfCoreInboxStoreOptions InboxStoreOptions { get; } = new()
     {
         SchemaName = SchemaName,
         TableName = InboxTableName
@@ -45,11 +44,12 @@ internal static class EfCorePostgreSqlTestInfrastructure
     /// <param name="connectionString">The PostgreSQL connection string.</param>
     internal static async Task ResetInboxTableAsync(string connectionString)
     {
-        await EnsureInboxSchemaOnceAsync(connectionString).ConfigureAwait(false);
+        await EnsureInboxSchemaOnceAsync(connectionString);
 
         await using var context = CreateInboxContext(connectionString);
+
         await context.Database.ExecuteSqlRawAsync(
-            $"""TRUNCATE TABLE "{SchemaName}"."{InboxTableName}";""").ConfigureAwait(false);
+            $"""TRUNCATE TABLE "{SchemaName}"."{InboxTableName}";""");
     }
 
     /// <summary>
@@ -59,7 +59,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
     /// <returns>The database context.</returns>
     internal static IntegrationInboxDbContext CreateInboxContext(string connectionString)
     {
-        return CreateInboxContext(connectionString, InboxOptions);
+        return CreateInboxContext(connectionString, InboxStoreOptions);
     }
 
     /// <summary>
@@ -107,7 +107,8 @@ internal static class EfCorePostgreSqlTestInfrastructure
             return;
         }
 
-        await InboxSchemaLock.WaitAsync().ConfigureAwait(false);
+        await InboxSchemaLock.WaitAsync();
+
         try
         {
             if (!InitializedConnectionStrings.Add(connectionString))
@@ -116,6 +117,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
             }
 
             await using var dataSource = NpgsqlDataSource.Create(connectionString);
+
             await PostgreSqlInboxSchema.EnsureAsync(
                 dataSource,
                 new PostgreSqlInboxStoreOptions
@@ -123,7 +125,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
                     SchemaName = SchemaName,
                     TableName = InboxTableName,
                     ValidateSchemaCreationOnStartup = false
-                }).ConfigureAwait(false);
+                });
         }
         finally
         {

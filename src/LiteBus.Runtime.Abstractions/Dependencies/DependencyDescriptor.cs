@@ -15,7 +15,8 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// <param name="dependencyType">The dependency type to register.</param>
     /// <param name="implementationType">The implementation type for the dependency.</param>
     /// <exception cref="System.ArgumentNullException">
-    ///     Thrown when <paramref name="dependencyType" /> or <paramref name="implementationType" /> is <see langword="null" />.
+    ///     Thrown when <paramref name="dependencyType" /> or <paramref name="implementationType" /> is <see langword="null" />
+    ///     .
     /// </exception>
     public DependencyDescriptor(Type dependencyType, Type implementationType)
         : this(dependencyType, implementationType, InstanceLifetime.Transient)
@@ -23,16 +24,18 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     }
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="DependencyDescriptor" /> class for type registration with an explicit lifetime.
+    ///     Initializes a new instance of the <see cref="DependencyDescriptor" /> class for type registration with an explicit
+    ///     lifetime.
     /// </summary>
     /// <param name="dependencyType">The dependency type to register.</param>
     /// <param name="implementationType">The implementation type for the dependency.</param>
     /// <param name="lifetime">The instance lifetime for resolved instances.</param>
     /// <exception cref="System.ArgumentNullException">
-    ///     Thrown when <paramref name="dependencyType" /> or <paramref name="implementationType" /> is <see langword="null" />.
+    ///     Thrown when <paramref name="dependencyType" /> or <paramref name="implementationType" /> is <see langword="null" />
+    ///     .
     /// </exception>
     public DependencyDescriptor(Type dependencyType, Type implementationType, InstanceLifetime lifetime)
-        : this(dependencyType, implementationType, lifetime, isCollectionRegistration: false)
+        : this(dependencyType, implementationType, lifetime, false)
     {
     }
 
@@ -46,7 +49,8 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     ///     When <see langword="true" />, the descriptor participates in multi-registration collection resolution.
     /// </param>
     /// <exception cref="System.ArgumentNullException">
-    ///     Thrown when <paramref name="dependencyType" /> or <paramref name="implementationType" /> is <see langword="null" />.
+    ///     Thrown when <paramref name="dependencyType" /> or <paramref name="implementationType" /> is <see langword="null" />
+    ///     .
     /// </exception>
     internal DependencyDescriptor(
         Type dependencyType,
@@ -69,7 +73,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     ///     Thrown when <paramref name="dependencyType" /> or <paramref name="instance" /> is <see langword="null" />.
     /// </exception>
     public DependencyDescriptor(Type dependencyType, object instance)
-        : this(dependencyType, instance, isCollectionRegistration: false)
+        : this(dependencyType, instance, false)
     {
     }
 
@@ -106,7 +110,8 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     }
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="DependencyDescriptor" /> class for factory registration with an explicit lifetime.
+    ///     Initializes a new instance of the <see cref="DependencyDescriptor" /> class for factory registration with an
+    ///     explicit lifetime.
     /// </summary>
     /// <param name="dependencyType">The dependency type to register.</param>
     /// <param name="factory">The factory function that creates instances of the dependency.</param>
@@ -118,12 +123,13 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
         Type dependencyType,
         Func<IServiceProvider, object> factory,
         InstanceLifetime lifetime)
-        : this(dependencyType, factory, lifetime, isCollectionRegistration: false)
+        : this(dependencyType, factory, lifetime, false)
     {
     }
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="DependencyDescriptor" /> class for factory registration with explicit metadata.
+    ///     Initializes a new instance of the <see cref="DependencyDescriptor" /> class for factory registration with explicit
+    ///     metadata.
     /// </summary>
     /// <param name="dependencyType">The dependency type to register.</param>
     /// <param name="factory">The factory function that creates instances of the dependency.</param>
@@ -186,53 +192,15 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     public bool IsCollectionRegistration { get; }
 
     /// <summary>
-    ///     Creates a collection-registration descriptor for a concrete implementation type.
-    /// </summary>
-    /// <param name="dependencyType">The service type resolved as <c>IEnumerable&lt;T&gt;</c>.</param>
-    /// <param name="implementationType">The implementation type registered for the collection.</param>
-    /// <param name="lifetime">The instance lifetime for resolved instances.</param>
-    /// <returns>A descriptor marked for collection registration.</returns>
-    public static DependencyDescriptor ForCollection(
-        Type dependencyType,
-        Type implementationType,
-        InstanceLifetime lifetime = InstanceLifetime.Transient)
-    {
-        return new DependencyDescriptor(dependencyType, implementationType, lifetime, isCollectionRegistration: true);
-    }
-
-    /// <summary>
-    ///     Creates a collection-registration descriptor for a pre-created singleton instance.
-    /// </summary>
-    /// <param name="dependencyType">The service type resolved as <c>IEnumerable&lt;T&gt;</c>.</param>
-    /// <param name="instance">The singleton instance to register in the collection.</param>
-    /// <returns>A descriptor marked for collection registration.</returns>
-    public static DependencyDescriptor ForCollection(Type dependencyType, object instance)
-    {
-        return new DependencyDescriptor(dependencyType, instance, isCollectionRegistration: true);
-    }
-
-    /// <summary>
-    ///     Creates a collection-registration descriptor for a factory-created instance.
-    /// </summary>
-    /// <param name="dependencyType">The service type resolved as <c>IEnumerable&lt;T&gt;</c>.</param>
-    /// <param name="factory">The factory that creates collection item instances.</param>
-    /// <param name="lifetime">The instance lifetime for factory-created instances.</param>
-    /// <returns>A descriptor marked for collection registration.</returns>
-    public static DependencyDescriptor ForCollection(
-        Type dependencyType,
-        Func<IServiceProvider, object> factory,
-        InstanceLifetime lifetime = InstanceLifetime.Transient)
-    {
-        return new DependencyDescriptor(dependencyType, factory, lifetime, isCollectionRegistration: true);
-    }
-
-    /// <summary>
     ///     Determines whether the specified <see cref="DependencyDescriptor" /> is equal to the current instance.
     ///     Type registrations compare dependency type, implementation type, and lifetime; instance and factory registrations
     ///     compare dependency type, lifetime, and the registered instance or factory reference.
     /// </summary>
     /// <param name="other">The descriptor to compare with the current instance.</param>
-    /// <returns><see langword="true" /> if the specified descriptor is equal to the current instance; otherwise, <see langword="false" />.</returns>
+    /// <returns>
+    ///     <see langword="true" /> if the specified descriptor is equal to the current instance; otherwise,
+    ///     <see langword="false" />.
+    /// </returns>
     public bool Equals(DependencyDescriptor? other)
     {
         if (other is null) return false;
@@ -272,10 +240,54 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     }
 
     /// <summary>
+    ///     Creates a collection-registration descriptor for a concrete implementation type.
+    /// </summary>
+    /// <param name="dependencyType">The service type resolved as <c>IEnumerable&lt;T&gt;</c>.</param>
+    /// <param name="implementationType">The implementation type registered for the collection.</param>
+    /// <param name="lifetime">The instance lifetime for resolved instances.</param>
+    /// <returns>A descriptor marked for collection registration.</returns>
+    public static DependencyDescriptor ForCollection(
+        Type dependencyType,
+        Type implementationType,
+        InstanceLifetime lifetime = InstanceLifetime.Transient)
+    {
+        return new DependencyDescriptor(dependencyType, implementationType, lifetime, true);
+    }
+
+    /// <summary>
+    ///     Creates a collection-registration descriptor for a pre-created singleton instance.
+    /// </summary>
+    /// <param name="dependencyType">The service type resolved as <c>IEnumerable&lt;T&gt;</c>.</param>
+    /// <param name="instance">The singleton instance to register in the collection.</param>
+    /// <returns>A descriptor marked for collection registration.</returns>
+    public static DependencyDescriptor ForCollection(Type dependencyType, object instance)
+    {
+        return new DependencyDescriptor(dependencyType, instance, true);
+    }
+
+    /// <summary>
+    ///     Creates a collection-registration descriptor for a factory-created instance.
+    /// </summary>
+    /// <param name="dependencyType">The service type resolved as <c>IEnumerable&lt;T&gt;</c>.</param>
+    /// <param name="factory">The factory that creates collection item instances.</param>
+    /// <param name="lifetime">The instance lifetime for factory-created instances.</param>
+    /// <returns>A descriptor marked for collection registration.</returns>
+    public static DependencyDescriptor ForCollection(
+        Type dependencyType,
+        Func<IServiceProvider, object> factory,
+        InstanceLifetime lifetime = InstanceLifetime.Transient)
+    {
+        return new DependencyDescriptor(dependencyType, factory, lifetime, true);
+    }
+
+    /// <summary>
     ///     Determines whether the specified object is equal to the current instance.
     /// </summary>
     /// <param name="obj">The object to compare with the current instance.</param>
-    /// <returns><see langword="true" /> if the specified object is equal to the current instance; otherwise, <see langword="false" />.</returns>
+    /// <returns>
+    ///     <see langword="true" /> if the specified object is equal to the current instance; otherwise,
+    ///     <see langword="false" />.
+    /// </returns>
     public override bool Equals(object? obj)
     {
         return Equals(obj as DependencyDescriptor);

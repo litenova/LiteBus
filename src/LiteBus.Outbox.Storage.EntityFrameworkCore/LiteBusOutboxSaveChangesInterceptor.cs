@@ -19,8 +19,10 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 ///         Entity Framework Core transaction.
 ///     </para>
 ///     <para>
-///         Call <see cref="Enqueue(DbContext, OutboxEnvelope)" /> before <c>SaveChanges</c>. The interceptor copies pending
-///         envelopes into the matching <see cref="IOutboxDbContext" /> so the provider writes them in the caller's transaction.
+///         Call <see cref="Enqueue(DbContext, OutboxEnvelope)" /> before <c>SaveChanges</c>. The interceptor copies
+///         pending
+///         envelopes into the matching <see cref="IOutboxDbContext" /> so the provider writes them in the caller's
+///         transaction.
 ///     </para>
 ///     <para>
 ///         Duplicate <c>message_id</c> or <c>idempotency_key</c> conflicts are not resolved idempotently on this path.
@@ -28,7 +30,8 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 ///     </para>
 ///     <para>
 ///         Register the interceptor on the application <see cref="DbContext" /> through
-///         <see cref="OutboxDbContextExtensions.AddLiteBusOutboxInterceptor(DbContextOptionsBuilder, LiteBusOutboxSaveChangesInterceptor)" />
+///         <see
+///             cref="OutboxDbContextExtensions.AddLiteBusOutboxInterceptor(DbContextOptionsBuilder, LiteBusOutboxSaveChangesInterceptor)" />
 ///         and enable module registration with
 ///         <see cref="EfCoreOutboxStorageModuleBuilder.EnableSaveChangesInterceptor" />.
 ///     </para>
@@ -81,9 +84,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
     /// <param name="context">The context currently saving changes.</param>
     private static void FlushPendingEnvelopes(DbContext? context)
     {
-        if (context is null
-            || !PendingEnvelopes.TryGetValue(context, out var pending)
-            || pending.Count == 0)
+        if (context is null || !PendingEnvelopes.TryGetValue(context, out var pending) || pending.Count == 0)
         {
             return;
         }
@@ -92,6 +93,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
             .GroupBy(envelope => envelope.Id)
             .Select(group => group.First())
             .ToList();
+
         PendingEnvelopes.Remove(context);
 
         if (context is not IOutboxDbContext outboxDbContext)

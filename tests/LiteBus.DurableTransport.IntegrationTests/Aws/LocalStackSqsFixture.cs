@@ -14,6 +14,11 @@ namespace LiteBus.DurableTransport.IntegrationTests.Aws;
 public sealed class LocalStackSqsFixture : IAsyncLifetime
 {
     /// <summary>
+    ///     The running LocalStack test container.
+    /// </summary>
+    private LocalStackContainer? _container;
+
+    /// <summary>
     ///     Gets the transport options for the started LocalStack container.
     /// </summary>
     public AwsSqsTransportOptions TransportOptions { get; private set; } = null!;
@@ -22,11 +27,6 @@ public sealed class LocalStackSqsFixture : IAsyncLifetime
     ///     Gets the SQS client bound to the LocalStack endpoint.
     /// </summary>
     public IAmazonSQS SqsClient { get; private set; } = null!;
-
-    /// <summary>
-    ///     The running LocalStack test container.
-    /// </summary>
-    private LocalStackContainer? _container;
 
     /// <inheritdoc />
     public async Task InitializeAsync()
@@ -37,9 +37,10 @@ public sealed class LocalStackSqsFixture : IAsyncLifetime
                 .WithImage("localstack/localstack:4.2")
                 .Build();
 
-            await _container.StartAsync().ConfigureAwait(false);
+            await _container.StartAsync();
 
             var serviceUrl = _container.GetConnectionString();
+
             TransportOptions = new AwsSqsTransportOptions
             {
                 ServiceUrl = serviceUrl,
@@ -55,7 +56,18 @@ public sealed class LocalStackSqsFixture : IAsyncLifetime
                     ServiceURL = serviceUrl,
                     AuthenticationRegion = RegionEndpoint.USEast1.SystemName
                 });
-        }).ConfigureAwait(false);
+        });
+    }
+
+    /// <inheritdoc />
+    public async Task DisposeAsync()
+    {
+        SqsClient?.Dispose();
+
+        if (_container is not null)
+        {
+            await _container.DisposeAsync();
+        }
     }
 
     /// <summary>
@@ -68,19 +80,8 @@ public sealed class LocalStackSqsFixture : IAsyncLifetime
         var response = await SqsClient.CreateQueueAsync(new CreateQueueRequest
         {
             QueueName = $"litebus-{prefix}-{Guid.NewGuid():N}"
-        }).ConfigureAwait(false);
+        });
 
         return response.QueueUrl;
-    }
-
-    /// <inheritdoc />
-    public async Task DisposeAsync()
-    {
-        SqsClient?.Dispose();
-
-        if (_container is not null)
-        {
-            await _container.DisposeAsync().ConfigureAwait(false);
-        }
     }
 }

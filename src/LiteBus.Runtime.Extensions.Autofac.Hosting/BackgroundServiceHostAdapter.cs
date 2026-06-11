@@ -33,7 +33,7 @@ internal sealed class BackgroundServiceHostAdapter : BackgroundService
     }
 
     /// <inheritdoc />
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await _startupGate.WaitAsync(stoppingToken).ConfigureAwait(false);
         await _backgroundService.ExecuteAsync(stoppingToken).ConfigureAwait(false);

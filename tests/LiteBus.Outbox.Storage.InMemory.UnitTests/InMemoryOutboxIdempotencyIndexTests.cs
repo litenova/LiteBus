@@ -1,5 +1,4 @@
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Storage.InMemory;
 
 namespace LiteBus.Outbox.Storage.InMemory.UnitTests;
 
@@ -19,6 +18,7 @@ public sealed class InMemoryOutboxIdempotencyIndexTests
         const string idempotencyKey = "order-42";
 
         var firstId = Guid.NewGuid();
+
         await store.EnqueueAsync(new OutboxEnvelope
         {
             Id = firstId,
@@ -45,6 +45,7 @@ public sealed class InMemoryOutboxIdempotencyIndexTests
         deleted.Should().Be(1);
 
         var secondId = Guid.NewGuid();
+
         var stored = await store.EnqueueAsync(new OutboxEnvelope
         {
             Id = secondId,
@@ -85,6 +86,7 @@ public sealed class InMemoryOutboxIdempotencyIndexTests
         store.Clear();
 
         var secondId = Guid.NewGuid();
+
         var stored = await store.EnqueueAsync(new OutboxEnvelope
         {
             Id = secondId,

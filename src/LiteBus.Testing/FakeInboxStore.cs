@@ -32,69 +32,97 @@ public sealed class FakeInboxStore :
     }
 
     /// <inheritdoc />
-    public Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default) =>
-        _inner.AddAsync(envelope, cancellationToken);
+    public Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    {
+        return _inner.RequeueAsync(messageIds, cancellationToken);
+    }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
-        IReadOnlyList<InboxEnvelope> envelopes,
-        CancellationToken cancellationToken = default) =>
-        _inner.AddBatchAsync(envelopes, cancellationToken);
+    public Task<int> DeleteCompletedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
+    {
+        return _inner.DeleteCompletedOlderThanAsync(olderThan, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<InboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
+    {
+        return _inner.GetStatusCountsAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
+    {
+        return _inner.GetSchemaInfoAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<InboxMessagePage> QueryAsync(
+        InboxMessageFilter filter,
+        InboxMessagePageRequest pageRequest,
+        CancellationToken cancellationToken = default)
+    {
+        return _inner.QueryAsync(filter, pageRequest, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<int> PurgeAsync(InboxMessageFilter filter, CancellationToken cancellationToken = default)
+    {
+        return _inner.PurgeAsync(filter, cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
         InboxLeaseRequest request,
-        CancellationToken cancellationToken = default) =>
-        _inner.LeasePendingAsync(request, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        return _inner.LeasePendingAsync(request, cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task<bool> RenewLeaseAsync(
         Guid messageId,
         string leaseOwner,
         DateTimeOffset expiresAt,
-        CancellationToken cancellationToken = default) =>
-        _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        return _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+    }
 
     /// <inheritdoc />
-    public Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default) =>
-        _inner.PersistAsync(envelopes, cancellationToken);
+    public Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
+    {
+        return _inner.PersistAsync(envelopes, cancellationToken);
+    }
 
     /// <inheritdoc />
-    public Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default) =>
-        _inner.RequeueAsync(messageIds, cancellationToken);
+    public Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
+    {
+        return _inner.AddAsync(envelope, cancellationToken);
+    }
 
     /// <inheritdoc />
-    public Task<int> DeleteCompletedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default) =>
-        _inner.DeleteCompletedOlderThanAsync(olderThan, cancellationToken);
-
-    /// <inheritdoc />
-    public Task<IReadOnlyDictionary<InboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default) =>
-        _inner.GetStatusCountsAsync(cancellationToken);
-
-    /// <inheritdoc />
-    public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default) =>
-        _inner.GetSchemaInfoAsync(cancellationToken);
-
-    /// <inheritdoc />
-    public Task<InboxMessagePage> QueryAsync(
-        InboxMessageFilter filter,
-        InboxMessagePageRequest pageRequest,
-        CancellationToken cancellationToken = default) =>
-        _inner.QueryAsync(filter, pageRequest, cancellationToken);
-
-    /// <inheritdoc />
-    public Task<int> PurgeAsync(InboxMessageFilter filter, CancellationToken cancellationToken = default) =>
-        _inner.PurgeAsync(filter, cancellationToken);
+    public Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
+        IReadOnlyList<InboxEnvelope> envelopes,
+        CancellationToken cancellationToken = default)
+    {
+        return _inner.AddBatchAsync(envelopes, cancellationToken);
+    }
 
     /// <summary>
     ///     Gets the stored envelope for the supplied message identifier.
     /// </summary>
     /// <param name="messageId">The message identifier.</param>
     /// <returns>The stored envelope.</returns>
-    public InboxEnvelope Get(Guid messageId) => _inner.Get(messageId);
+    public InboxEnvelope Get(Guid messageId)
+    {
+        return _inner.Get(messageId);
+    }
 
     /// <summary>
     ///     Removes every stored envelope so a test can start from an empty store.
     /// </summary>
-    public void Clear() => _inner.Clear();
+    public void Clear()
+    {
+        _inner.Clear();
+    }
 }

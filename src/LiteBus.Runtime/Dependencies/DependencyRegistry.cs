@@ -31,12 +31,14 @@ public sealed class DependencyRegistry : IDependencyRegistry
 
     /// <summary>
     ///     Registers a dependency in the registry when no other module has registered the same service type.
-    ///     Duplicate registrations with equal descriptors are ignored; see <see cref="DependencyDescriptor.Equals(DependencyDescriptor?)" />.
+    ///     Duplicate registrations with equal descriptors are ignored; see
+    ///     <see cref="DependencyDescriptor.Equals(DependencyDescriptor?)" />.
     /// </summary>
     /// <param name="descriptor">The dependency descriptor that defines how the dependency should be registered.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
     /// <exception cref="LiteBusConfigurationException">
-    ///     Thrown when another module already registered <see cref="DependencyDescriptor.DependencyType" /> with a different binding.
+    ///     Thrown when another module already registered <see cref="DependencyDescriptor.DependencyType" /> with a different
+    ///     binding.
     /// </exception>
     public void Register(DependencyDescriptor descriptor)
     {
@@ -49,7 +51,7 @@ public sealed class DependencyRegistry : IDependencyRegistry
                 $"Use {nameof(RegisterCollection)} for multi-registration services such as IEnumerable<T> hooks.");
         }
 
-        RegisterCore(descriptor, enforceSingleRegistration: true);
+        RegisterCore(descriptor, true);
     }
 
     /// <inheritdoc />
@@ -64,7 +66,25 @@ public sealed class DependencyRegistry : IDependencyRegistry
                 $"{nameof(DependencyDescriptor.ForCollection)} before calling {nameof(RegisterCollection)}.");
         }
 
-        RegisterCore(descriptor, enforceSingleRegistration: false);
+        RegisterCore(descriptor, false);
+    }
+
+    /// <summary>
+    ///     Returns an enumerator that iterates through the dependency descriptors.
+    /// </summary>
+    /// <returns>An enumerator that can be used to iterate through the dependency descriptors.</returns>
+    public IEnumerator<DependencyDescriptor> GetEnumerator()
+    {
+        return _descriptors.GetEnumerator();
+    }
+
+    /// <summary>
+    ///     Returns an enumerator that iterates through the dependency descriptors.
+    /// </summary>
+    /// <returns>An enumerator that can be used to iterate through the dependency descriptors.</returns>
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
     }
 
     /// <summary>
@@ -72,7 +92,8 @@ public sealed class DependencyRegistry : IDependencyRegistry
     /// </summary>
     /// <param name="descriptor">The dependency descriptor to register.</param>
     /// <param name="enforceSingleRegistration">
-    ///     When <see langword="true" />, rejects a second binding for the same <see cref="DependencyDescriptor.DependencyType" />.
+    ///     When <see langword="true" />, rejects a second binding for the same
+    ///     <see cref="DependencyDescriptor.DependencyType" />.
     /// </param>
     private void RegisterCore(DependencyDescriptor descriptor, bool enforceSingleRegistration)
     {
@@ -96,25 +117,6 @@ public sealed class DependencyRegistry : IDependencyRegistry
 
         if (!_descriptors.Add(descriptor))
         {
-            return;
         }
-    }
-
-    /// <summary>
-    ///     Returns an enumerator that iterates through the dependency descriptors.
-    /// </summary>
-    /// <returns>An enumerator that can be used to iterate through the dependency descriptors.</returns>
-    public IEnumerator<DependencyDescriptor> GetEnumerator()
-    {
-        return _descriptors.GetEnumerator();
-    }
-
-    /// <summary>
-    ///     Returns an enumerator that iterates through the dependency descriptors.
-    /// </summary>
-    /// <returns>An enumerator that can be used to iterate through the dependency descriptors.</returns>
-    IEnumerator IEnumerable.GetEnumerator()
-    {
-        return GetEnumerator();
     }
 }

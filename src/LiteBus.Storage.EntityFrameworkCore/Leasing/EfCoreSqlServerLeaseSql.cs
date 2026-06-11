@@ -15,6 +15,7 @@ internal static class EfCoreSqlServerLeaseSql
     {
         var idColumn = EfCoreLeaseTableMetadata.GetIdColumn(component);
         var alias = EfCoreLeaseTableMetadata.GetTableAlias(component);
+
         var outputProjection = component == EfCoreLeaseComponent.Inbox
             ? BuildInboxOutput()
             : BuildOutboxOutput();

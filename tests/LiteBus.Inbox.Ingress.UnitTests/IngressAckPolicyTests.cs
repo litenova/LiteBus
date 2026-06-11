@@ -1,5 +1,5 @@
+using System.Text.Json;
 using LiteBus.Inbox.Abstractions.Exceptions;
-using LiteBus.Inbox.Ingress;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Inbox.Ingress.UnitTests;
@@ -20,11 +20,11 @@ public sealed class IngressAckPolicyTests
     [InlineData(typeof(InvalidOperationException))]
     [InlineData(typeof(ArgumentException))]
     [InlineData(typeof(FormatException))]
-    [InlineData(typeof(System.Text.Json.JsonException))]
+    [InlineData(typeof(JsonException))]
     public void ShouldRequeue_WhenRequeueOnFailureTrueAndDiscardException_ShouldReturnFalse(Type exception)
     {
         var instance = CreateException(exception);
-        IngressAckPolicy.ShouldRequeue(instance, requeueOnFailure: true).Should().BeFalse();
+        IngressAckPolicy.ShouldRequeue(instance, true).Should().BeFalse();
     }
 
     /// <summary>
@@ -33,7 +33,7 @@ public sealed class IngressAckPolicyTests
     [Fact]
     public void ShouldRequeue_WhenRequeueOnFailureTrueAndTransientIOException_ShouldReturnTrue()
     {
-        IngressAckPolicy.ShouldRequeue(new IOException("disk full"), requeueOnFailure: true).Should().BeTrue();
+        IngressAckPolicy.ShouldRequeue(new IOException("disk full"), true).Should().BeTrue();
     }
 
     /// <summary>
@@ -42,7 +42,7 @@ public sealed class IngressAckPolicyTests
     [Fact]
     public void ShouldRequeue_WhenRequeueOnFailureFalse_ShouldReturnFalseForTransientFailure()
     {
-        IngressAckPolicy.ShouldRequeue(new IOException("disk full"), requeueOnFailure: false).Should().BeFalse();
+        IngressAckPolicy.ShouldRequeue(new IOException("disk full"), false).Should().BeFalse();
     }
 
     /// <summary>
@@ -67,11 +67,11 @@ public sealed class IngressAckPolicyTests
             return new InboxStorageException("capacity exceeded");
         }
 
-        if (exceptionType == typeof(System.Text.Json.JsonException))
+        if (exceptionType == typeof(JsonException))
         {
-            return new System.Text.Json.JsonException("invalid json");
+            return new JsonException("invalid json");
         }
 
-        return (Exception)Activator.CreateInstance(exceptionType, "test")!;
+        return (Exception) Activator.CreateInstance(exceptionType, "test")!;
     }
 }

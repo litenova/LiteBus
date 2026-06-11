@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection;
+using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -19,7 +21,7 @@ internal static class ContractRegistrationAnalysis
     /// <returns>The registered message type symbols.</returns>
     internal static ImmutableHashSet<ITypeSymbol> CollectRegisteredContractTypes(
         Compilation compilation,
-        System.Threading.CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
     {
         var builder = ImmutableHashSet.CreateBuilder<ITypeSymbol>(SymbolEqualityComparer.Default);
 
@@ -71,7 +73,7 @@ internal static class ContractRegistrationAnalysis
     /// <returns>The assemblies registered through assembly scanning.</returns>
     internal static ImmutableHashSet<IAssemblySymbol> CollectRegisterFromAssemblyTargets(
         Compilation compilation,
-        System.Threading.CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
     {
         var builder = ImmutableHashSet.CreateBuilder<IAssemblySymbol>(SymbolEqualityComparer.Default);
 
@@ -213,7 +215,7 @@ internal static class ContractRegistrationAnalysis
     private static ITypeSymbol? ResolveTypeArgument(
         ExpressionSyntax expression,
         SemanticModel semanticModel,
-        System.Threading.CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
     {
         if (expression is TypeOfExpressionSyntax typeOfExpression)
         {
@@ -233,7 +235,7 @@ internal static class ContractRegistrationAnalysis
     private static IAssemblySymbol? ResolveAssemblyArgument(
         ExpressionSyntax expression,
         SemanticModel semanticModel,
-        System.Threading.CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
     {
         if (expression is TypeOfExpressionSyntax typeOfExpression)
         {
@@ -243,6 +245,7 @@ internal static class ContractRegistrationAnalysis
         }
 
         var memberAccess = expression as MemberAccessExpressionSyntax;
+
         if (memberAccess?.Name.Identifier.Text == "Assembly" &&
             memberAccess.Expression is TypeOfExpressionSyntax typeofExpression)
         {
@@ -257,7 +260,7 @@ internal static class ContractRegistrationAnalysis
         {
             var constant = semanticModel.GetConstantValue(expression, cancellationToken);
 
-            if (constant.HasValue && constant.Value is System.Reflection.Assembly assembly)
+            if (constant.HasValue && constant.Value is Assembly assembly)
             {
                 return semanticModel.Compilation.GetAssemblyOrModuleSymbol(
                     MetadataReference.CreateFromFile(assembly.Location)) as IAssemblySymbol;

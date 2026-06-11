@@ -1,13 +1,12 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch;
 using LiteBus.Inbox.Dispatch.InMemory;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
-using LiteBus.Transport.InMemory;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Transport.InMemory.IntegrationTests;
@@ -32,6 +31,7 @@ public sealed class InboxDispatchTransportIntegrationTests : LiteBusTestBase
 
         await using var provider = BuildProvider(destination);
         var broker = provider.GetRequiredService<InMemoryTransportBroker>();
+
         await using var consumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(
             broker,
             destination,
@@ -41,15 +41,19 @@ public sealed class InboxDispatchTransportIntegrationTests : LiteBusTestBase
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
         var workItemId = Guid.NewGuid();
-        var receipt = await inbox.AcceptAsync(new RemoteWorkCommand
+
+        var receipt = await inbox.AcceptAsync(new InboxAcceptItem<RemoteWorkCommand>
         {
-            WorkItemId = workItemId,
-            IdempotencyKey = $"work:{workItemId}"
-        }, new InboxOptions
-        {
-            CorrelationId = "corr-dispatch",
-            CausationId = "cause-dispatch",
-            TenantId = "tenant-dispatch"
+            Message = new RemoteWorkCommand
+            {
+                WorkItemId = workItemId,
+                IdempotencyKey = $"work:{workItemId}"
+            },
+            Metadata = new InboxAcceptMetadata
+            {
+                Trace = new MessageTrace.Workflow("corr-dispatch", "cause-dispatch"),
+                Tenant = new TenantScope.Isolated("tenant-dispatch")
+            }
         });
 
         await processor.ProcessPendingAsync();
@@ -58,16 +62,22 @@ public sealed class InboxDispatchTransportIntegrationTests : LiteBusTestBase
         var message = await received.Task.WaitAsync(cancellationSource.Token);
 
         InMemoryTransportTestInfrastructure.ReadBody(message).Should().Contain(workItemId.ToString());
+
         InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.MessageId)
             .Should().Be(receipt.Id.ToString("D"));
+
         InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.ContractName)
             .Should().Be(ContractName);
+
         InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.ContractVersion)
             .Should().Be(ContractVersion.ToString());
+
         InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.CorrelationId)
             .Should().Be("corr-dispatch");
+
         InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.CausationId)
             .Should().Be("cause-dispatch");
+
         InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.TenantId)
             .Should().Be("tenant-dispatch");
 
@@ -85,16 +95,21 @@ public sealed class InboxDispatchTransportIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<RemoteWorkCommand>(ContractName, ContractVersion);
+                    inbox.Contracts.Register<RemoteWorkCommand>(ContractName);
+
                     inbox.UseProcessorOptions(new InboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "inmemory-dispatch-test",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     inbox.UseInMemoryStorage();
                     inbox.UseInMemoryDispatch(transport => transport.DefaultDestination = destination);
                 });

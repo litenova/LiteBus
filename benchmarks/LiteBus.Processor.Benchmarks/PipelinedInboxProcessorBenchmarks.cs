@@ -25,14 +25,14 @@ public class PipelinedInboxProcessorBenchmarks
     private static readonly DateTimeOffset BaseTime = new(2026, 6, 5, 12, 0, 0, TimeSpan.Zero);
 
     /// <summary>
-    ///     The inbox store seeded before each iteration.
-    /// </summary>
-    private InMemoryInboxStore _store = null!;
-
-    /// <summary>
     ///     The pipelined processor under measurement.
     /// </summary>
     private PipelinedInboxProcessor _processor = null!;
+
+    /// <summary>
+    ///     The inbox store seeded before each iteration.
+    /// </summary>
+    private InMemoryInboxStore _store = null!;
 
     /// <summary>
     ///     The handler latency applied by the benchmark dispatcher.

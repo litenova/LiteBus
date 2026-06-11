@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox.Abstractions;
 
 namespace LiteBus.Outbox;
@@ -16,26 +18,23 @@ namespace LiteBus.Outbox;
 ///         <see cref="PipelinedOutboxProcessor" /> and the configured <see cref="IOutboxDispatcher" />.
 ///     </para>
 ///     <para>
-///         Contract lookup always uses <c>event.GetType()</c> so closed generic event instances are stored with the contract
-///         registered for that closed type. A stable message id can be supplied through <see cref="OutboxOptions" />.
+///         Contract lookup always uses <c>event.GetType()</c> so closed generic event instances are stored with the
+///         contract
+///         registered for that closed type. Stable message identity is supplied through
+///         <see cref="OutboxEnqueueMetadata.Identity" />.
 ///     </para>
 /// </remarks>
-public sealed class Outbox : IOutbox, IOutboxScheduler
+public sealed class Outbox : IOutbox
 {
     /// <summary>
-    ///     Gets the time provider used to stamp storage time.
+    ///     Gets the factory used to create envelopes before store writes.
     /// </summary>
-    private readonly TimeProvider _clock;
+    private readonly IOutboxEnvelopeFactory _envelopeFactory;
 
     /// <summary>
     ///     Gets the outbox writer store used to persist newly accepted envelopes.
     /// </summary>
     private readonly IOutboxStore _store;
-
-    /// <summary>
-    ///     Gets the factory used to create envelopes before store writes.
-    /// </summary>
-    private readonly IOutboxEnvelopeFactory _envelopeFactory;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="Outbox" /> class.
@@ -50,128 +49,121 @@ public sealed class Outbox : IOutbox, IOutboxScheduler
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _envelopeFactory = envelopeFactory ?? throw new ArgumentNullException(nameof(envelopeFactory));
-        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _ = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
     /// <inheritdoc />
     public async Task<OutboxReceipt<TEvent>> EnqueueAsync<TEvent>(
-        TEvent @event,
-        OutboxOptions? options = null,
+        OutboxEnqueueItem<TEvent> item,
         CancellationToken cancellationToken = default)
         where TEvent : notnull
     {
-        var envelope = await _envelopeFactory.CreateAsync(@event, options, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(item);
+
+        var envelope = await _envelopeFactory.CreateAsync(item, cancellationToken).ConfigureAwait(false);
         var storedEnvelope = await _store.AddAsync(envelope, cancellationToken).ConfigureAwait(false);
 
-        return new OutboxReceipt<TEvent>
-        {
-            Id = storedEnvelope.Id,
-            MessageType = @event.GetType(),
-            ContractName = storedEnvelope.ContractName,
-            ContractVersion = storedEnvelope.ContractVersion,
-            StoredAt = storedEnvelope.CreatedAt,
-            CorrelationId = storedEnvelope.CorrelationId,
-            CausationId = storedEnvelope.CausationId,
-            TenantId = storedEnvelope.TenantId
-        };
+        return CreateTypedReceipt<TEvent>(storedEnvelope, item.Event.GetType());
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<OutboxReceipt>> EnqueueBatchAsync(
-        IReadOnlyList<object> events,
-        IReadOnlyList<Type> eventTypes,
-        IReadOnlyList<OutboxOptions?>? options = null,
+    public async Task<OutboxReceipt> EnqueueAsync(
+        OutboxEnqueueItem item,
         CancellationToken cancellationToken = default)
     {
-        var envelopes = await _envelopeFactory
-            .CreateBatchAsync(events, eventTypes, options, cancellationToken)
-            .ConfigureAwait(false);
-        var stored = await _store.AddBatchAsync(envelopes, cancellationToken).ConfigureAwait(false);
-        var receipts = new OutboxReceipt[stored.Count];
+        ArgumentNullException.ThrowIfNull(item);
 
-        for (var index = 0; index < stored.Count; index++)
-        {
-            var storedEnvelope = stored[index];
-            receipts[index] = new OutboxReceipt
-            {
-                Id = storedEnvelope.Id,
-                MessageType = eventTypes[index],
-                ContractName = storedEnvelope.ContractName,
-                ContractVersion = storedEnvelope.ContractVersion,
-                StoredAt = storedEnvelope.CreatedAt,
-                CorrelationId = storedEnvelope.CorrelationId,
-                CausationId = storedEnvelope.CausationId,
-                TenantId = storedEnvelope.TenantId
-            };
-        }
+        var envelope = await _envelopeFactory.CreateAsync(item, cancellationToken).ConfigureAwait(false);
+        var storedEnvelope = await _store.AddAsync(envelope, cancellationToken).ConfigureAwait(false);
 
-        return receipts;
+        return CreateReceipt(storedEnvelope, item.EventType);
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<OutboxReceipt<TEvent>>> EnqueueBatchAsync<TEvent>(
-        IReadOnlyList<TEvent> events,
-        IReadOnlyList<OutboxOptions?>? options = null,
+        IReadOnlyList<OutboxEnqueueItem<TEvent>> items,
         CancellationToken cancellationToken = default)
         where TEvent : notnull
     {
-        var envelopes = await _envelopeFactory.CreateBatchAsync(events, options, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(items);
+
+        var envelopes = await _envelopeFactory.CreateBatchAsync(items, cancellationToken).ConfigureAwait(false);
         var stored = await _store.AddBatchAsync(envelopes, cancellationToken).ConfigureAwait(false);
         var receipts = new OutboxReceipt<TEvent>[stored.Count];
 
         for (var index = 0; index < stored.Count; index++)
         {
-            var storedEnvelope = stored[index];
-            receipts[index] = new OutboxReceipt<TEvent>
-            {
-                Id = storedEnvelope.Id,
-                MessageType = events[index].GetType(),
-                ContractName = storedEnvelope.ContractName,
-                ContractVersion = storedEnvelope.ContractVersion,
-                StoredAt = storedEnvelope.CreatedAt,
-                CorrelationId = storedEnvelope.CorrelationId,
-                CausationId = storedEnvelope.CausationId,
-                TenantId = storedEnvelope.TenantId
-            };
+            receipts[index] = CreateTypedReceipt<TEvent>(stored[index], items[index].Event.GetType());
         }
 
         return receipts;
     }
 
     /// <inheritdoc />
-    public Task<OutboxReceipt<TEvent>> ScheduleAsync<TEvent>(
-        TEvent @event,
-        DateTimeOffset enqueueAt,
-        OutboxOptions? options = null,
+    public async Task<IReadOnlyList<OutboxReceipt>> EnqueueBatchAsync(
+        IReadOnlyList<OutboxEnqueueItem> items,
         CancellationToken cancellationToken = default)
-        where TEvent : notnull
     {
-        return EnqueueAsync(@event, WithVisibleAfter(options, enqueueAt), cancellationToken);
-    }
+        ArgumentNullException.ThrowIfNull(items);
 
-    /// <inheritdoc />
-    public Task<OutboxReceipt<TEvent>> ScheduleAfterAsync<TEvent>(
-        TEvent @event,
-        TimeSpan delay,
-        OutboxOptions? options = null,
-        CancellationToken cancellationToken = default)
-        where TEvent : notnull
-    {
-        ArgumentOutOfRangeException.ThrowIfLessThan(delay, TimeSpan.Zero, nameof(delay));
+        var envelopes = await _envelopeFactory.CreateBatchAsync(items, cancellationToken).ConfigureAwait(false);
+        var stored = await _store.AddBatchAsync(envelopes, cancellationToken).ConfigureAwait(false);
+        var receipts = new OutboxReceipt[stored.Count];
 
-        return EnqueueAsync(@event, WithVisibleAfter(options, _clock.GetUtcNow().Add(delay)), cancellationToken);
+        for (var index = 0; index < stored.Count; index++)
+        {
+            receipts[index] = CreateReceipt(stored[index], items[index].EventType);
+        }
+
+        return receipts;
     }
 
     /// <summary>
-    ///     Merges the supplied options with a scheduled visibility timestamp.
+    ///     Maps a stored envelope to an untyped enqueue receipt.
     /// </summary>
-    /// <param name="options">The caller-supplied outbox options, if any.</param>
-    /// <param name="visibleAfter">The UTC timestamp when the event becomes visible to processors.</param>
-    /// <returns>Outbox options with <see cref="OutboxOptions.VisibleAfter" /> set.</returns>
-    private static OutboxOptions WithVisibleAfter(OutboxOptions? options, DateTimeOffset visibleAfter)
+    /// <param name="storedEnvelope">The envelope returned by the store.</param>
+    /// <param name="messageType">The runtime message type used for contract lookup.</param>
+    /// <returns>The enqueue receipt returned to callers.</returns>
+    private static OutboxReceipt CreateReceipt(OutboxEnvelope storedEnvelope, Type messageType)
     {
-        options ??= new OutboxOptions();
+        return new OutboxReceipt
+        {
+            Id = storedEnvelope.Id,
+            MessageType = messageType,
+            Contract = new MessageContractReference
+            {
+                Name = storedEnvelope.ContractName,
+                Version = storedEnvelope.ContractVersion
+            },
+            StoredAt = storedEnvelope.CreatedAt,
+            Trace = DurableEnvelopeMetadataMapper.ResolveTrace(
+                storedEnvelope.CorrelationId,
+                storedEnvelope.CausationId,
+                storedEnvelope.TraceContext),
+            Tenant = DurableEnvelopeMetadataMapper.ResolveTenant(storedEnvelope.TenantId)
+        };
+    }
 
-        return options with { VisibleAfter = visibleAfter };
+    /// <summary>
+    ///     Maps a stored envelope to a typed enqueue receipt.
+    /// </summary>
+    /// <typeparam name="TEvent">The compile-time event type associated with the receipt.</typeparam>
+    /// <param name="storedEnvelope">The envelope returned by the store.</param>
+    /// <param name="messageType">The runtime message type used for contract lookup.</param>
+    /// <returns>The typed enqueue receipt returned to callers.</returns>
+    private static OutboxReceipt<TEvent> CreateTypedReceipt<TEvent>(OutboxEnvelope storedEnvelope, Type messageType)
+        where TEvent : notnull
+    {
+        var receipt = CreateReceipt(storedEnvelope, messageType);
+
+        return new OutboxReceipt<TEvent>
+        {
+            Id = receipt.Id,
+            MessageType = receipt.MessageType,
+            Contract = receipt.Contract,
+            StoredAt = receipt.StoredAt,
+            Trace = receipt.Trace,
+            Tenant = receipt.Tenant
+        };
     }
 }

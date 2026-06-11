@@ -7,7 +7,10 @@ namespace LiteBus.Outbox.Abstractions;
 /// </summary>
 /// <param name="Items">The envelopes in this page.</param>
 /// <param name="HasMore">Whether another page exists after this one.</param>
-/// <param name="NextCursor">The cursor to pass on the next request when <paramref name="HasMore" /> is <see langword="true" />.</param>
+/// <param name="NextCursor">
+///     The cursor to pass on the next request when <paramref name="HasMore" /> is
+///     <see langword="true" />.
+/// </param>
 public sealed record OutboxMessagePage(
     IReadOnlyList<OutboxEnvelope> Items,
     bool HasMore,

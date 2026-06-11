@@ -1,10 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging.Abstractions;
@@ -36,8 +30,10 @@ internal static class InboxTestInfrastructure
     /// <returns>The composite processing store passed to inbox processors.</returns>
     internal static IInboxProcessingStore CreateProcessingStore(
         IInboxLeaseStore leaseStore,
-        IInboxStateWriter stateWriter) =>
-        new CompositeInboxProcessingStore(leaseStore, stateWriter);
+        IInboxStateWriter stateWriter)
+    {
+        return new CompositeInboxProcessingStore(leaseStore, stateWriter);
+    }
 
     /// <summary>
     ///     Starts every LiteBus <see cref="IHostedService" /> so startup tasks unblock background loops.
@@ -47,8 +43,10 @@ internal static class InboxTestInfrastructure
     /// <returns>A task that completes after each hosted service has started.</returns>
     internal static Task StartLiteBusHostedServicesAsync(
         IServiceProvider provider,
-        CancellationToken cancellationToken) =>
-        LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        return LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, cancellationToken);
+    }
 
     /// <summary>
     ///     Stops every LiteBus <see cref="IHostedService" /> in reverse registration order.
@@ -58,29 +56,32 @@ internal static class InboxTestInfrastructure
     /// <returns>A task that completes after each hosted service has stopped.</returns>
     internal static Task StopLiteBusHostedServicesAsync(
         IServiceProvider provider,
-        CancellationToken cancellationToken) =>
-        LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        return LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, cancellationToken);
+    }
 
     /// <summary>
     ///     Resolves the generic-host adapter for <see cref="InboxProcessorBackgroundService" />.
     /// </summary>
     /// <param name="provider">The service provider built with <c>AddLiteBus</c> and an enabled inbox processor.</param>
     /// <returns>The <see cref="IHostedService" /> that runs the inbox processor loop.</returns>
-    internal static IHostedService GetInboxProcessorHostedService(IServiceProvider provider) =>
-        LiteBusHostedServiceExtensions.GetInboxProcessorHostedService(provider);
+    internal static IHostedService GetInboxProcessorHostedService(IServiceProvider provider)
+    {
+        return LiteBusHostedServiceExtensions.GetInboxProcessorHostedService(provider);
+    }
 
     internal sealed class ThrowingInboxLeaseStore : IInboxLeaseStore
     {
         private readonly int _failuresBeforeSuccess;
         private int _attempts;
-        private readonly InMemoryInboxStore _inner = new();
 
         public ThrowingInboxLeaseStore(int failuresBeforeSuccess = int.MaxValue)
         {
             _failuresBeforeSuccess = failuresBeforeSuccess;
         }
 
-        public InMemoryInboxStore Inner => _inner;
+        public InMemoryInboxStore Inner { get; } = new();
 
         public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
             InboxLeaseRequest request,
@@ -91,15 +92,17 @@ internal static class InboxTestInfrastructure
                 throw new InvalidOperationException("Simulated lease store failure.");
             }
 
-            return _inner.LeasePendingAsync(request, cancellationToken);
+            return Inner.LeasePendingAsync(request, cancellationToken);
         }
 
         public Task<bool> RenewLeaseAsync(
             Guid messageId,
             string leaseOwner,
             DateTimeOffset expiresAt,
-            CancellationToken cancellationToken = default) =>
-            _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return Inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+        }
     }
 
     internal sealed class DelegatingInboxLeaseStore : IInboxLeaseStore
@@ -119,7 +122,7 @@ internal static class InboxTestInfrastructure
             InboxLeaseRequest request,
             CancellationToken cancellationToken = default)
         {
-            var leased = await _inner.LeasePendingAsync(request, cancellationToken).ConfigureAwait(false);
+            var leased = await _inner.LeasePendingAsync(request, cancellationToken);
             return _onLease?.Invoke(request) ?? leased;
         }
 
@@ -127,8 +130,10 @@ internal static class InboxTestInfrastructure
             Guid messageId,
             string leaseOwner,
             DateTimeOffset expiresAt,
-            CancellationToken cancellationToken = default) =>
-            _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+        }
     }
 
     /// <summary>
@@ -173,7 +178,7 @@ internal static class InboxTestInfrastructure
             ArgumentNullException.ThrowIfNull(envelope);
 
             var messageType = _contractRegistry.GetMessageType(envelope.ContractName, envelope.ContractVersion);
-            var message = await _messageSerializer.DeserializeAsync(messageType, envelope.Payload, cancellationToken).ConfigureAwait(false);
+            var message = await _messageSerializer.DeserializeAsync(messageType, envelope.Payload, cancellationToken);
 
             if (message is not ICommand command)
             {
@@ -183,13 +188,14 @@ internal static class InboxTestInfrastructure
 
             var mediationSettings = new CommandMediationSettings();
             mediationSettings.Items[InboxExecutionContextKeys.IsInboxExecution] = true;
+
             MessageProcessorDiagnostics.ApplyTraceMetadata(
                 mediationSettings.Items,
                 envelope.CorrelationId,
                 envelope.CausationId,
                 envelope.TenantId);
 
-            await _commandMediator.SendAsync(command, mediationSettings, cancellationToken).ConfigureAwait(false);
+            await _commandMediator.SendAsync(command, mediationSettings, cancellationToken);
         }
     }
 
@@ -222,19 +228,25 @@ internal static class InboxTestInfrastructure
         /// <inheritdoc />
         public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
             InboxLeaseRequest request,
-            CancellationToken cancellationToken = default) =>
-            _leaseStore.LeasePendingAsync(request, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return _leaseStore.LeasePendingAsync(request, cancellationToken);
+        }
 
         /// <inheritdoc />
         public Task<bool> RenewLeaseAsync(
             Guid messageId,
             string leaseOwner,
             DateTimeOffset expiresAt,
-            CancellationToken cancellationToken = default) =>
-            _leaseStore.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return _leaseStore.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+        }
 
         /// <inheritdoc />
-        public Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default) =>
-            _stateWriter.PersistAsync(envelopes, cancellationToken);
+        public Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
+        {
+            return _stateWriter.PersistAsync(envelopes, cancellationToken);
+        }
     }
 }

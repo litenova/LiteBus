@@ -1,7 +1,5 @@
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
-using LiteBus.Testing;
 
 namespace LiteBus.Inbox.UnitTests;
 
@@ -44,7 +42,7 @@ public sealed class InboxManagerTests
         var store = new InMemoryInboxStore();
         var manager = CreateManager(store);
 
-        var act = async () => await manager.PurgeAsync(new InboxMessageFilter(), confirm: false);
+        var act = async () => await manager.PurgeAsync(new InboxMessageFilter(), false);
 
         await act.Should().ThrowAsync<InboxManagementException>();
     }
@@ -84,6 +82,7 @@ public sealed class InboxManagerTests
     private static InboxManager CreateManager(InMemoryInboxStore store)
     {
         var cleanupOptions = new InboxCleanupHostOptions();
+
         return new InboxManager(
             store,
             store,

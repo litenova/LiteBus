@@ -5,9 +5,6 @@ namespace LiteBus.MessageModule.UnitTests;
 
 public sealed class MessageContractRegistryTests
 {
-    [MessageContract("orders.commands.ship", 2)]
-    public sealed record AttributedCommand(Guid OrderId);
-
     [Fact]
     public void TryGetContract_WhenNotRegistered_ShouldReturnNull()
     {
@@ -65,9 +62,9 @@ public sealed class MessageContractRegistryTests
     {
         var registry = new MessageContractRegistry();
 
-        registry.Register<OrderCreated>("order-created", 1);
+        registry.Register<OrderCreated>("order-created");
 
-        var act = () => registry.Register<OrderCreated>("order-created", 1);
+        var act = () => registry.Register<OrderCreated>("order-created");
 
         act.Should().NotThrow();
         registry.GetContract(typeof(OrderCreated)).Name.Should().Be("order-created");
@@ -80,8 +77,8 @@ public sealed class MessageContractRegistryTests
         var inboxContracts = new MessageContractBuilder();
         var outboxContracts = new MessageContractBuilder();
 
-        inboxContracts.Register<OrderCreated>("order-created", 1);
-        outboxContracts.Register<OrderCreated>("order-created", 1);
+        inboxContracts.Register<OrderCreated>("order-created");
+        outboxContracts.Register<OrderCreated>("order-created");
 
         var registry = new MessageContractRegistry();
 
@@ -94,6 +91,9 @@ public sealed class MessageContractRegistryTests
         act.Should().NotThrow();
         registry.GetContract(typeof(OrderCreated)).Version.Should().Be(1);
     }
+
+    [MessageContract("orders.commands.ship", 2)]
+    public sealed record AttributedCommand(Guid OrderId);
 
     private sealed record UnregisteredCommand;
 

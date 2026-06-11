@@ -1,3 +1,5 @@
+using DotNet.Testcontainers.Builders;
+using DotNet.Testcontainers.Containers;
 using LiteBus.Transport.Amqp;
 using Testcontainers.RabbitMq;
 
@@ -32,6 +34,7 @@ public sealed class RabbitMqBrokerFixture : IAsyncLifetime
                 .Build();
 
             await _container.StartAsync();
+
             ConnectionOptions = new AmqpConnectionOptions
             {
                 Uri = new Uri(_container.GetConnectionString()),
@@ -64,7 +67,7 @@ public sealed class LavinMqBrokerFixture : IAsyncLifetime
     public const string DockerRequiredMessage =
         "AMQP integration tests require Docker. Start Docker Desktop (or the Docker daemon) and run the tests again.";
 
-    private DotNet.Testcontainers.Containers.IContainer? _container;
+    private IContainer? _container;
 
     /// <summary>
     ///     Gets the connection options for the started LavinMQ container.
@@ -75,13 +78,14 @@ public sealed class LavinMqBrokerFixture : IAsyncLifetime
     {
         try
         {
-            _container = new DotNet.Testcontainers.Builders.ContainerBuilder()
+            _container = new ContainerBuilder()
                 .WithImage("cloudamqp/lavinmq")
                 .WithPortBinding(5672, true)
-                .WithWaitStrategy(DotNet.Testcontainers.Builders.Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
+                .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
                 .Build();
 
             await _container.StartAsync();
+
             ConnectionOptions = new AmqpConnectionOptions
             {
                 HostName = _container.Hostname,

@@ -2,7 +2,6 @@ using System;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Runtime.Modules;
 
 namespace LiteBus.Extensions.Microsoft.DependencyInjection;
 

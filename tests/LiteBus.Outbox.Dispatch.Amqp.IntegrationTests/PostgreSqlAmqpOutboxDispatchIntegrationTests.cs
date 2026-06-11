@@ -2,17 +2,14 @@ using System.Text;
 using System.Text.Json;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
-using LiteBus.Outbox;
-using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Dispatch;
-using LiteBus.Outbox.Dispatch.Amqp;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
+using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Storage.PostgreSql;
 using LiteBus.Testing;
 using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
-using RabbitMQ.Client;
 
 namespace LiteBus.Outbox.Dispatch.Amqp.IntegrationTests;
 
@@ -44,7 +41,7 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
     [Fact]
     public async Task ProcessPendingAsync_ShouldPublishToAmqpAndMarkPostgreSqlEnvelopePublished()
     {
-        var storeOptions = CreateOutboxOptions();
+        var storeOptions = CreateOutboxStoreOptions();
         await PostgreSqlOutboxSchema.EnsureAsync(_postgresFixture.DataSource, storeOptions);
 
         var queueName = CreateUniqueName("pg-dispatch");
@@ -58,15 +55,17 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
         await outbox.EnqueueAsync(
-            new OrderSubmittedIntegrationEvent { OrderId = orderId },
-            new OutboxOptions
-            {
-                Id = messageId,
-                Topic = queueName,
-                CorrelationId = "corr-pg-outbox-amqp",
-                CausationId = "cause-pg-outbox-amqp",
-                TenantId = "tenant-pg"
-            });
+            OutboxEnqueueItems.WithMetadata(
+                new OrderSubmittedIntegrationEvent { OrderId = orderId },
+                new OutboxEnqueueMetadata
+                {
+                    Identity = new MessageIdentity.Supplied(messageId),
+                    Idempotency = Idempotency.None.Instance,
+                    Visibility = MessageVisibility.Immediate.Instance,
+                    Trace = new MessageTrace.Workflow("corr-pg-outbox-amqp", "cause-pg-outbox-amqp"),
+                    Tenant = new TenantScope.Isolated("tenant-pg"),
+                    Target = new PublicationTarget.Topic(queueName)
+                }));
 
         await processor.ProcessPendingAsync();
 
@@ -77,9 +76,11 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
 
         var amqpMessage = await ConsumeOneAsync(queueName);
         var json = Encoding.UTF8.GetString(amqpMessage.Body);
+
         var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
             json,
             new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
         payload!.OrderId.Should().Be(orderId);
         amqpMessage.MessageId.Should().Be(messageId.ToString("D"));
         AmqpHeaderValues.GetString(amqpMessage.Headers, AmqpHeaders.ContractName).Should().Be("orders.order-submitted");
@@ -90,7 +91,10 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddOutboxModule(outbox =>
                 {
                     outbox.UsePostgreSqlStorage(postgres =>
@@ -100,7 +104,8 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
                         postgres.DisableSchemaInitialization();
                     });
 
-                    outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted", 1);
+                    outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted");
+
                     outbox.UseProcessorOptions(new OutboxProcessorOptions
                     {
                         BatchSize = 10,
@@ -119,12 +124,13 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
     {
         await using var manager = new AmqpConnectionManager(_rabbitMqFixture.ConnectionOptions);
         await using var channel = await manager.CreateChannelAsync();
+
         await channel.QueueDeclareAsync(
-            queue: queueName,
-            durable: true,
-            exclusive: false,
-            autoDelete: false,
-            arguments: null);
+            queueName,
+            true,
+            false,
+            false,
+            null);
     }
 
     private async Task<ConsumedAmqpMessage> ConsumeOneAsync(string queueName)
@@ -142,7 +148,7 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
             async (message, cancellationToken) =>
             {
                 var bodyCopy = message.Body.ToArray();
-                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+                await message.AcceptAsync(cancellationToken);
                 received.TrySetResult(new ConsumedAmqpMessage(message, bodyCopy));
             });
 
@@ -156,23 +162,26 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
 
         await using var connection = await _postgresFixture.DataSource.OpenConnectionAsync();
         await using var command = connection.CreateCommand();
+
         command.CommandText = $"""
                                SELECT status, attempt_count
                                FROM {tableName}
                                WHERE message_id = @message_id;
                                """;
+
         command.Parameters.AddWithValue("message_id", messageId);
 
         await using var reader = await command.ExecuteReaderAsync();
+
         if (!await reader.ReadAsync())
         {
             return null;
         }
 
-        return ((OutboxStatus)reader.GetInt32(0), reader.GetInt32(1));
+        return ((OutboxStatus) reader.GetInt32(0), reader.GetInt32(1));
     }
 
-    private static PostgreSqlOutboxStoreOptions CreateOutboxOptions()
+    private static PostgreSqlOutboxStoreOptions CreateOutboxStoreOptions()
     {
         return new PostgreSqlOutboxStoreOptions
         {

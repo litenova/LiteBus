@@ -1,5 +1,4 @@
 using System;
-using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Abstractions.Processing;
 
@@ -71,7 +70,8 @@ public record ProcessorOptions
     public string? TenantId { get; init; }
 
     /// <summary>
-    ///     Gets a value indicating whether terminal <c>PersistAsync</c> calls observe the shutdown or dispatch cancellation token.
+    ///     Gets a value indicating whether terminal <c>PersistAsync</c> calls observe the shutdown or dispatch cancellation
+    ///     token.
     /// </summary>
     /// <value>
     ///     <see langword="false" /> by default.

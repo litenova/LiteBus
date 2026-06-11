@@ -1,6 +1,5 @@
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.AzureServiceBus;
@@ -53,6 +52,7 @@ public sealed class AzureServiceBusInboxIngressEndToEndIntegrationTests : LiteBu
         var messageId = Guid.NewGuid();
 
         await using var provider = BuildProvider(ingressQueue, dispatchQueue);
+
         provider.GetRequiredService<LiteBusHostManifest>().BackgroundServices
             .Should().Contain(typeof(TransportInboxIngressConsumer));
 
@@ -63,6 +63,7 @@ public sealed class AzureServiceBusInboxIngressEndToEndIntegrationTests : LiteBu
         try
         {
             var publisher = provider.GetRequiredService<IMessageTransport>();
+
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressQueue,
@@ -100,21 +101,28 @@ public sealed class AzureServiceBusInboxIngressEndToEndIntegrationTests : LiteBu
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                    inbox.Contracts.Register<ShipOrderCommand>(ContractName);
+
                     inbox.UseProcessorOptions(new InboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "azure-ingress-e2e",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
                     inbox.UseInMemoryStorage();
+
                     inbox.UseAzureServiceBusDispatch(
                         transport => transport.DefaultDestination = dispatchQueue,
                         _fixture.TransportOptions);
+
                     inbox.UseAzureServiceBusIngress(ingress =>
                     {
                         ingress.UseOptions(new AzureServiceBusInboxIngressOptions

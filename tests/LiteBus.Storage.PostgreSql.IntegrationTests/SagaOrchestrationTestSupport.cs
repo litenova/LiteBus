@@ -6,7 +6,6 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Saga;
 using LiteBus.Saga.Abstractions;
 using LiteBus.Saga.Storage.PostgreSql;
@@ -41,13 +40,13 @@ internal static class SagaOrchestrationTestSupport
     ///     Builds a service provider with inbox, saga orchestration, and PostgreSQL persistence configured.
     /// </summary>
     /// <param name="fixture">The PostgreSQL fixture.</param>
-    /// <param name="inboxOptions">The inbox store options.</param>
+    /// <param name="InboxStoreOptions">The inbox store options.</param>
     /// <param name="sagaOptions">The saga store options.</param>
     /// <param name="configureProcessor">An optional callback that tunes inbox processor options.</param>
     /// <returns>The configured service provider.</returns>
     internal static ServiceProvider BuildSagaProvider(
         PostgreSqlFixture fixture,
-        PostgreSqlInboxStoreOptions inboxOptions,
+        PostgreSqlInboxStoreOptions InboxStoreOptions,
         PostgreSqlSagaStoreOptions sagaOptions,
         Func<InboxProcessorOptions, InboxProcessorOptions>? configureProcessor = null)
     {
@@ -57,7 +56,10 @@ internal static class SagaOrchestrationTestSupport
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddCommandModule(builder =>
             {
                 builder.Register<OrderWorkflowSagaCommand>();
@@ -69,10 +71,10 @@ internal static class SagaOrchestrationTestSupport
                 builder.UsePostgreSqlStorage(postgres =>
                 {
                     postgres.UseDataSource(fixture.DataSource);
-                    postgres.UseOptions(inboxOptions);
+                    postgres.UseOptions(InboxStoreOptions);
                 });
 
-                builder.Contracts.Register<OrderWorkflowSagaCommand>(WorkflowContractName, 1);
+                builder.Contracts.Register<OrderWorkflowSagaCommand>(WorkflowContractName);
 
                 var processorOptions = new InboxProcessorOptions
                 {
@@ -84,6 +86,7 @@ internal static class SagaOrchestrationTestSupport
                 builder.UseProcessorOptions(processorOptions);
                 builder.UseCommandInboxDispatcher();
                 builder.EnableSaga(registry => registry.MapState<OrderWorkflowSagaState>(WorkflowContractName));
+
                 builder.UsePostgreSqlSagaStorage(postgres =>
                 {
                     postgres.UseDataSource(fixture.DataSource);
@@ -226,9 +229,9 @@ internal static class SagaOrchestrationTestSupport
     /// </summary>
     internal sealed class OrderWorkflowSagaCommandHandler : ICommandHandler<OrderWorkflowSagaCommand>
     {
-        private readonly ISagaContext _sagaContext;
-        private readonly SagaStepFailureGate _failureGate;
         private readonly SagaConcurrencyDelayGate _delayGate;
+        private readonly SagaStepFailureGate _failureGate;
+        private readonly ISagaContext _sagaContext;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="OrderWorkflowSagaCommandHandler" /> class.
@@ -261,7 +264,7 @@ internal static class SagaOrchestrationTestSupport
 
             if (command.Step == OrderWorkflowStep.Increment && _delayGate.IncrementDelay > TimeSpan.Zero)
             {
-                await Task.Delay(_delayGate.IncrementDelay, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(_delayGate.IncrementDelay, cancellationToken);
             }
 
             var state = _sagaContext.GetState<OrderWorkflowSagaState>();

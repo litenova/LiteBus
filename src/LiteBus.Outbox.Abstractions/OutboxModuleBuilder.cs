@@ -20,9 +20,9 @@ public sealed class OutboxModuleBuilder
     private readonly MessageContractBuilder _contracts = new();
 
     /// <summary>
-    ///     The configured storage sub-module, if any.
+    ///     Consumer-owned diagnostic probes registered for this outbox.
     /// </summary>
-    private IOutboxStorageModule? _storageModule;
+    private readonly List<DiagnosticCheckRegistration> _diagnosticChecks = [];
 
     /// <summary>
     ///     The configured dispatcher sub-module, if any.
@@ -30,9 +30,9 @@ public sealed class OutboxModuleBuilder
     private IOutboxDispatcherModule? _dispatcherModule;
 
     /// <summary>
-    ///     Consumer-owned diagnostic probes registered for this outbox.
+    ///     Whether <see cref="EnableCleanup" /> was called.
     /// </summary>
-    private readonly List<DiagnosticCheckRegistration> _diagnosticChecks = [];
+    private bool _enableCleanup;
 
     /// <summary>
     ///     Whether <see cref="EnableOutboxProcessor" /> was called.
@@ -40,14 +40,14 @@ public sealed class OutboxModuleBuilder
     private bool _enableOutboxProcessor;
 
     /// <summary>
-    ///     Whether <see cref="EnableCleanup" /> was called.
-    /// </summary>
-    private bool _enableCleanup;
-
-    /// <summary>
     ///     The optional payload encryptor registered through <see cref="UsePayloadEncryption" />.
     /// </summary>
     private IPayloadEncryptor? _payloadEncryptor;
+
+    /// <summary>
+    ///     The configured storage sub-module, if any.
+    /// </summary>
+    private IOutboxStorageModule? _storageModule;
 
     /// <summary>
     ///     Gets the deferred contract writer. Registrations are applied to the shared
@@ -63,12 +63,12 @@ public sealed class OutboxModuleBuilder
     /// <summary>
     ///     Gets the options controlling the background service lifecycle and poll behaviour.
     /// </summary>
-    public OutboxProcessorHostOptions ProcessorHostOptions { get; private set; } = new();
+    public OutboxProcessorHostOptions ProcessorHostOptions { get; } = new();
 
     /// <summary>
     ///     Gets the options for the optional outbox retention cleanup loop.
     /// </summary>
-    public OutboxCleanupHostOptions CleanupHostOptions { get; private set; } = new();
+    public OutboxCleanupHostOptions CleanupHostOptions { get; } = new();
 
     /// <summary>
     ///     Gets a value indicating whether the outbox processor background service is registered.
@@ -184,7 +184,10 @@ public sealed class OutboxModuleBuilder
     ///     Collects the configured payload encryptor, if any.
     /// </summary>
     /// <returns>The encryptor registered on this builder.</returns>
-    internal IPayloadEncryptor? CollectPayloadEncryptor() => _payloadEncryptor;
+    internal IPayloadEncryptor? CollectPayloadEncryptor()
+    {
+        return _payloadEncryptor;
+    }
 
     /// <summary>
     ///     Registers a consumer-owned diagnostic probe for this outbox.
@@ -205,7 +208,9 @@ public sealed class OutboxModuleBuilder
     /// </summary>
     /// <returns>The diagnostic probe registrations declared on this builder.</returns>
     internal IReadOnlyList<DiagnosticCheckRegistration> CollectDiagnosticChecks()
-        => _diagnosticChecks;
+    {
+        return _diagnosticChecks;
+    }
 
     /// <summary>
     ///     Collects configured sub-modules in storage then dispatcher order.
@@ -214,6 +219,7 @@ public sealed class OutboxModuleBuilder
     public IReadOnlyList<IModule> CollectSubModules()
     {
         var modules = new List<IModule>();
+
         if (_storageModule is not null)
         {
             modules.Add(_storageModule);
@@ -232,5 +238,7 @@ public sealed class OutboxModuleBuilder
     /// </summary>
     /// <param name="registry">The shared message contract registry.</param>
     public void ApplyContracts(IMessageContractRegistry registry)
-        => _contracts.ApplyTo(registry);
+    {
+        _contracts.ApplyTo(registry);
+    }
 }

@@ -19,17 +19,20 @@ public sealed class EfCoreInboxStorageModuleBuilder
     public EfCoreInboxStoreOptions Options { get; private set; } = new();
 
     /// <summary>
-    ///     Gets a value indicating whether <see cref="LiteBusInboxSaveChangesInterceptor" /> is registered in dependency injection.
+    ///     Gets a value indicating whether <see cref="LiteBusInboxSaveChangesInterceptor" /> is registered in dependency
+    ///     injection.
     /// </summary>
     public bool RegisterSaveChangesInterceptor { get; private set; }
 
     /// <summary>
-    ///     Gets a value indicating whether <see cref="EnforceTransactionalSetup" /> was called and Build() must fail when the save-changes interceptor is not enabled.
+    ///     Gets a value indicating whether <see cref="EnforceTransactionalSetup" /> was called and Build() must fail when the
+    ///     save-changes interceptor is not enabled.
     /// </summary>
     public bool RequireTransactionalSetup { get; private set; }
 
     /// <summary>
-    ///     Requires <see cref="EnableSaveChangesInterceptor" /> to be called before the module builds; otherwise Build() throws <see cref="LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException" />.
+    ///     Requires <see cref="EnableSaveChangesInterceptor" /> to be called before the module builds; otherwise Build()
+    ///     throws <see cref="LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException" />.
     /// </summary>
     /// <returns>The current builder.</returns>
     public EfCoreInboxStorageModuleBuilder EnforceTransactionalSetup()
@@ -39,12 +42,14 @@ public sealed class EfCoreInboxStorageModuleBuilder
     }
 
     /// <summary>
-    ///     Registers <see cref="LiteBusInboxSaveChangesInterceptor" /> as a singleton for use with application <see cref="DbContext" /> configuration.
+    ///     Registers <see cref="LiteBusInboxSaveChangesInterceptor" /> as a singleton for use with application
+    ///     <see cref="DbContext" /> configuration.
     /// </summary>
     /// <returns>The current builder.</returns>
     /// <remarks>
     ///     The interceptor is not attached to a <see cref="DbContext" /> automatically. Call
-    ///     <see cref="InboxDbContextExtensions.AddLiteBusInboxInterceptor(DbContextOptionsBuilder, LiteBusInboxSaveChangesInterceptor)" />
+    ///     <see
+    ///         cref="InboxDbContextExtensions.AddLiteBusInboxInterceptor(DbContextOptionsBuilder, LiteBusInboxSaveChangesInterceptor)" />
     ///     when building context options, for example
     ///     <c>options.AddLiteBusInboxInterceptor(interceptor)</c>.
     /// </remarks>

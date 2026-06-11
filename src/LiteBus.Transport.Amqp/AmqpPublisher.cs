@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Transport.Abstractions;
-using LiteBus.Transport;
 using RabbitMQ.Client;
 
 namespace LiteBus.Transport.Amqp;
@@ -14,14 +13,14 @@ namespace LiteBus.Transport.Amqp;
 public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport
 {
     /// <summary>
-    ///     Gets the connection manager used to open publish channels.
-    /// </summary>
-    private readonly IAmqpConnectionManager _connectionManager;
-
-    /// <summary>
     ///     Gets the circuit breaker shared with the connection manager when it is a <see cref="AmqpConnectionManager" />.
     /// </summary>
     private readonly ITransportCircuitBreaker? _circuitBreaker;
+
+    /// <summary>
+    ///     Gets the connection manager used to open publish channels.
+    /// </summary>
+    private readonly IAmqpConnectionManager _connectionManager;
 
     /// <summary>
     ///     Serializes publish operations on the shared publish channel.
@@ -40,31 +39,10 @@ public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport
     public AmqpPublisher(IAmqpConnectionManager connectionManager)
     {
         _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
+
         _circuitBreaker = connectionManager is AmqpConnectionManager manager
             ? manager.TransportCircuitBreaker
             : null;
-    }
-
-    /// <inheritdoc />
-    public Task PublishAsync(TransportPublishRequest request, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        return PublishAsync(
-            new AmqpPublishRequest
-            {
-                Exchange = request.Destination,
-                RoutingKey = request.Route ?? string.Empty,
-                Body = request.Body,
-                ContentType = request.ContentType,
-                ContentEncoding = request.ContentEncoding,
-                Persistent = request.Persistent,
-                Mandatory = request.Mandatory,
-                MessageId = request.MessageId,
-                CorrelationId = request.CorrelationId,
-                Headers = request.Headers
-            },
-            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -110,6 +88,28 @@ public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport
         {
             _publishGate.Release();
         }
+    }
+
+    /// <inheritdoc />
+    public Task PublishAsync(TransportPublishRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return PublishAsync(
+            new AmqpPublishRequest
+            {
+                Exchange = request.Destination,
+                RoutingKey = request.Route ?? string.Empty,
+                Body = request.Body,
+                ContentType = request.ContentType,
+                ContentEncoding = request.ContentEncoding,
+                Persistent = request.Persistent,
+                Mandatory = request.Mandatory,
+                MessageId = request.MessageId,
+                CorrelationId = request.CorrelationId,
+                Headers = request.Headers
+            },
+            cancellationToken);
     }
 
     /// <summary>

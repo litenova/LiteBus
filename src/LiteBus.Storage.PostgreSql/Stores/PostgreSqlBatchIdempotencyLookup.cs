@@ -13,13 +13,6 @@ namespace LiteBus.Storage.PostgreSql.Stores;
 internal static class PostgreSqlBatchIdempotencyLookup
 {
     /// <summary>
-    ///     Identifies one attempted insert that did not return from the batch insert statement.
-    /// </summary>
-    /// <param name="MessageId">The attempted message identifier.</param>
-    /// <param name="IdempotencyKey">The optional idempotency key supplied with the insert.</param>
-    internal readonly record struct LookupKey(Guid MessageId, string? IdempotencyKey);
-
-    /// <summary>
     ///     Loads existing rows for skipped batch inserts in one query.
     /// </summary>
     /// <typeparam name="TEnvelope">The envelope type returned to callers.</typeparam>
@@ -48,6 +41,7 @@ internal static class PostgreSqlBatchIdempotencyLookup
         }
 
         var messageIds = missingKeys.Select(key => key.MessageId).Distinct().ToArray();
+
         var idempotencyKeys = missingKeys
             .Select(key => key.IdempotencyKey)
             .Where(key => !string.IsNullOrWhiteSpace(key))
@@ -56,11 +50,11 @@ internal static class PostgreSqlBatchIdempotencyLookup
             .ToArray();
 
         var sql = $"""
-                  SELECT {selectColumnsSql}
-                  FROM {tableName}
-                  WHERE message_id = ANY(@message_ids)
-                     OR (cardinality(@idempotency_keys) > 0 AND idempotency_key = ANY(@idempotency_keys));
-                  """;
+                   SELECT {selectColumnsSql}
+                   FROM {tableName}
+                   WHERE message_id = ANY(@message_ids)
+                      OR (cardinality(@idempotency_keys) > 0 AND idempotency_key = ANY(@idempotency_keys));
+                   """;
 
         await using var command = createCommand();
         command.CommandText = sql;
@@ -71,6 +65,7 @@ internal static class PostgreSqlBatchIdempotencyLookup
         var byIdempotencyKey = new Dictionary<string, TEnvelope>(StringComparer.Ordinal);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             var envelope = readEnvelope(reader);
@@ -78,6 +73,7 @@ internal static class PostgreSqlBatchIdempotencyLookup
             byMessageId[envelopeId] = envelope;
 
             var idempotencyKey = readIdempotencyKey(envelope);
+
             if (!string.IsNullOrWhiteSpace(idempotencyKey))
             {
                 byIdempotencyKey[idempotencyKey] = envelope;
@@ -85,6 +81,7 @@ internal static class PostgreSqlBatchIdempotencyLookup
         }
 
         var resolved = new Dictionary<Guid, TEnvelope>(missingKeys.Count);
+
         foreach (var key in missingKeys)
         {
             if (byMessageId.TryGetValue(key.MessageId, out var byId))
@@ -102,4 +99,11 @@ internal static class PostgreSqlBatchIdempotencyLookup
 
         return resolved;
     }
+
+    /// <summary>
+    ///     Identifies one attempted insert that did not return from the batch insert statement.
+    /// </summary>
+    /// <param name="MessageId">The attempted message identifier.</param>
+    /// <param name="IdempotencyKey">The optional idempotency key supplied with the insert.</param>
+    internal readonly record struct LookupKey(Guid MessageId, string? IdempotencyKey);
 }

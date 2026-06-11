@@ -1,6 +1,6 @@
+using System.Text;
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.AzureServiceBus;
@@ -47,10 +47,11 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
     {
         var ingressQueue = _fixture.ResolveQueue("ingress-fail");
         await RunFailureScenarioAsync(ingressQueue, "{}", "unknown.contract", 1);
+
         await AzureServiceBusTransportTestInfrastructure.WaitForQueueDepthAsync(
             _fixture.TransportOptions.ConnectionString,
             ingressQueue,
-            expectedCount: 0,
+            0,
             TimeSpan.FromSeconds(30));
     }
 
@@ -63,10 +64,11 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
     {
         var ingressQueue = _fixture.ResolveQueue("ingress-fail");
         await RunFailureScenarioAsync(ingressQueue, "{not-json", ContractName, 1);
+
         await AzureServiceBusTransportTestInfrastructure.WaitForQueueDepthAsync(
             _fixture.TransportOptions.ConnectionString,
             ingressQueue,
-            expectedCount: 0,
+            0,
             TimeSpan.FromSeconds(30));
     }
 
@@ -78,7 +80,7 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
     public async Task StoreFull_ShouldDrainQueueAndKeepPrefilledRow()
     {
         var ingressQueue = _fixture.ResolveQueue("ingress-store-full");
-        await using var provider = BuildProvider(ingressQueue, capacity: 1);
+        await using var provider = BuildProvider(ingressQueue, 1);
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
         await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token);
@@ -86,10 +88,15 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
         try
         {
             var inbox = provider.GetRequiredService<IInbox>();
-            await inbox.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() });
+
+            await inbox.AcceptAsync(new InboxAcceptItem<ShipOrderCommand>
+            {
+                Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
+            });
 
             var publisher = provider.GetRequiredService<IMessageTransport>();
             var messageId = Guid.NewGuid();
+
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressQueue,
@@ -105,7 +112,7 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
             await AzureServiceBusTransportTestInfrastructure.WaitForQueueDepthAsync(
                 _fixture.TransportOptions.ConnectionString,
                 ingressQueue,
-                expectedCount: 0,
+                0,
                 TimeSpan.FromSeconds(30));
         }
         finally
@@ -137,10 +144,11 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
         {
             var publisher = provider.GetRequiredService<IMessageTransport>();
             var messageId = Guid.NewGuid();
+
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressQueue,
-                Body = System.Text.Encoding.UTF8.GetBytes(body),
+                Body = Encoding.UTF8.GetBytes(body),
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, contractName, contractVersion)
             });
@@ -166,15 +174,23 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                    inbox.Contracts.Register<ShipOrderCommand>(ContractName);
+
                     inbox.UseInMemoryStorage(builder => builder.UseOptions(new InMemoryInboxStoreOptions
                     {
                         Capacity = capacity
                     }));
-                    inbox.UseAzureServiceBusDispatch(_ => { }, _fixture.TransportOptions);
+
+                    inbox.UseAzureServiceBusDispatch(_ =>
+                    {
+                    }, _fixture.TransportOptions);
+
                     inbox.UseAzureServiceBusIngress(ingress =>
                     {
                         ingress.UseOptions(new AzureServiceBusInboxIngressOptions

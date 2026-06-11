@@ -1,4 +1,3 @@
-using AwesomeAssertions;
 using LiteBus.Inbox;
 using LiteBus.Runtime.Abstractions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,6 +41,7 @@ public static class LiteBusHostedServiceExtensions
         ArgumentNullException.ThrowIfNull(provider);
 
         var hostedServices = provider.GetServices<IHostedService>().ToList();
+
         for (var index = hostedServices.Count - 1; index >= 0; index--)
         {
             await hostedServices[index].StopAsync(cancellationToken).ConfigureAwait(false);
@@ -59,6 +59,7 @@ public static class LiteBusHostedServiceExtensions
 
         var manifest = provider.GetRequiredService<LiteBusHostManifest>();
         var processorIndex = -1;
+
         for (var index = 0; index < manifest.BackgroundServices.Count; index++)
         {
             if (manifest.BackgroundServices[index] == typeof(InboxProcessorBackgroundService))

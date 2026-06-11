@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace LiteBus.Transport.Abstractions;
 
 /// <summary>

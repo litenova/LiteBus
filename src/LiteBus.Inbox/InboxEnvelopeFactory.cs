@@ -14,7 +14,7 @@ namespace LiteBus.Inbox;
 public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
 {
     /// <summary>
-    ///     Gets the time provider used to stamp acceptance time.
+    ///     Gets the time provider used to stamp acceptance time and resolve relative visibility.
     /// </summary>
     private readonly TimeProvider _clock;
 
@@ -22,6 +22,11 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
     ///     Gets the registry used to map the runtime message type to a stable contract.
     /// </summary>
     private readonly IContractReader _contractRegistry;
+
+    /// <summary>
+    ///     Gets the optional resolver that selects the CLR type used for contract lookup.
+    /// </summary>
+    private readonly IMessageContractResolver? _contractTypeResolver;
 
     /// <summary>
     ///     Gets the serializer used to create the serialized payload.
@@ -32,11 +37,6 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
     ///     Gets the optional inbox protector applied before payloads are written to storage.
     /// </summary>
     private readonly IInboxPayloadProtector? _payloadProtector;
-
-    /// <summary>
-    ///     Gets the optional resolver that selects the CLR type used for contract lookup.
-    /// </summary>
-    private readonly IMessageContractResolver? _contractTypeResolver;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="InboxEnvelopeFactory" /> class.
@@ -64,14 +64,58 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
     }
 
     /// <inheritdoc />
-    public async Task<InboxEnvelope> CreateAsync(
+    public Task<InboxEnvelope> CreateAsync(
+        InboxAcceptItem item,
+        CancellationToken cancellationToken = default)
+    {
+        return CreateCoreAsync(item.Message, item.Message.GetType(), item.Metadata, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<InboxEnvelope>> CreateBatchAsync(
+        IReadOnlyList<InboxAcceptItem> items,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        if (items.Count == 0)
+        {
+            return Array.Empty<InboxEnvelope>();
+        }
+
+        var envelopes = new InboxEnvelope[items.Count];
+
+        for (var index = 0; index < items.Count; index++)
+        {
+            var item = items[index];
+
+            envelopes[index] = await CreateCoreAsync(
+                item.Message,
+                item.Message.GetType(),
+                item.Metadata,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        return envelopes;
+    }
+
+    /// <summary>
+    ///     Creates one inbox envelope from a message instance and acceptance metadata.
+    /// </summary>
+    /// <param name="message">The message instance to serialize.</param>
+    /// <param name="messageType">The runtime message type used for contract lookup.</param>
+    /// <param name="metadata">The acceptance metadata applied outside the payload.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>The inbox envelope ready for store persistence or staging.</returns>
+    private async Task<InboxEnvelope> CreateCoreAsync(
         object message,
         Type messageType,
-        InboxOptions? options = null,
-        CancellationToken cancellationToken = default)
+        InboxAcceptMetadata metadata,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(messageType);
+        ArgumentNullException.ThrowIfNull(metadata);
 
         if (!messageType.IsInstanceOfType(message))
         {
@@ -80,13 +124,12 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
                 nameof(message));
         }
 
-        options ??= new InboxOptions();
-
         var contract = _contractRegistry.GetContract(ResolveContractType(messageType, message));
         var acceptedAt = _clock.GetUtcNow();
-        var id = options.Id ?? Guid.NewGuid();
+        var id = DurableEnvelopeMetadataMapper.ResolveMessageId(metadata.Identity);
         var payload = await _messageSerializer.SerializeAsync(message, cancellationToken).ConfigureAwait(false);
         payload = await PayloadProtection.ProtectAsync(payload, _payloadProtector, cancellationToken).ConfigureAwait(false);
+        var (correlationId, causationId, traceContext) = DurableEnvelopeMetadataMapper.ResolveTraceColumns(metadata.Trace);
 
         return new InboxEnvelope
         {
@@ -95,87 +138,15 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
             ContractVersion = contract.Version,
             Payload = payload,
             CreatedAt = acceptedAt,
-            VisibleAfter = options.VisibleAfter,
+            VisibleAfter = DurableEnvelopeMetadataMapper.ResolveVisibleAfter(metadata.Visibility, _clock),
             AttemptCount = 0,
             Status = InboxStatus.Pending,
-            IdempotencyKey = string.IsNullOrWhiteSpace(options.IdempotencyKey) ? null : options.IdempotencyKey,
-            CorrelationId = options.CorrelationId,
-            CausationId = options.CausationId,
-            TenantId = options.TenantId,
-            TraceContext = options.TraceContext
+            IdempotencyKey = DurableEnvelopeMetadataMapper.ResolveIdempotencyKey(metadata.Idempotency),
+            CorrelationId = correlationId,
+            CausationId = causationId,
+            TenantId = DurableEnvelopeMetadataMapper.ResolveTenantId(metadata.Tenant),
+            TraceContext = traceContext
         };
-    }
-
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<InboxEnvelope>> CreateBatchAsync(
-        IReadOnlyList<object> messages,
-        IReadOnlyList<Type> messageTypes,
-        IReadOnlyList<InboxOptions?>? options = null,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(messages);
-        ArgumentNullException.ThrowIfNull(messageTypes);
-
-        if (messages.Count != messageTypes.Count)
-        {
-            throw new ArgumentException("Messages and message types must contain the same number of entries.");
-        }
-
-        if (options is not null && options.Count != messages.Count)
-        {
-            throw new ArgumentException("Options must contain the same number of entries as messages when supplied.");
-        }
-
-        if (messages.Count == 0)
-        {
-            return Array.Empty<InboxEnvelope>();
-        }
-
-        var envelopes = new InboxEnvelope[messages.Count];
-
-        for (var index = 0; index < messages.Count; index++)
-        {
-            envelopes[index] = await CreateAsync(
-                messages[index],
-                messageTypes[index],
-                options?[index],
-                cancellationToken).ConfigureAwait(false);
-        }
-
-        return envelopes;
-    }
-
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<InboxEnvelope>> CreateBatchAsync<T>(
-        IReadOnlyList<T> messages,
-        IReadOnlyList<InboxOptions?>? options = null,
-        CancellationToken cancellationToken = default)
-        where T : notnull
-    {
-        ArgumentNullException.ThrowIfNull(messages);
-
-        if (options is not null && options.Count != messages.Count)
-        {
-            throw new ArgumentException("Options must contain the same number of entries as messages when supplied.");
-        }
-
-        if (messages.Count == 0)
-        {
-            return Array.Empty<InboxEnvelope>();
-        }
-
-        var envelopes = new InboxEnvelope[messages.Count];
-
-        for (var index = 0; index < messages.Count; index++)
-        {
-            envelopes[index] = await CreateAsync(
-                messages[index],
-                typeof(T),
-                options?[index],
-                cancellationToken).ConfigureAwait(false);
-        }
-
-        return envelopes;
     }
 
     /// <summary>
@@ -184,6 +155,8 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
     /// <param name="declaredType">The declared message type supplied by the caller.</param>
     /// <param name="message">The message instance being accepted.</param>
     /// <returns>The CLR type used for contract lookup.</returns>
-    private Type ResolveContractType(Type declaredType, object message) =>
-        _contractTypeResolver?.ResolveContractType(declaredType, message) ?? message.GetType();
+    private Type ResolveContractType(Type declaredType, object message)
+    {
+        return _contractTypeResolver?.ResolveContractType(declaredType, message) ?? message.GetType();
+    }
 }

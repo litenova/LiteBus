@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using LiteBus.Transport;
 
 namespace LiteBus.Transport.Amqp;
 
@@ -17,8 +16,10 @@ public static class AmqpHeaderValues
     /// <param name="headers">The header dictionary from a received message.</param>
     /// <param name="name">The header name to read.</param>
     /// <returns>The string value, or <see langword="null" /> when the header is absent.</returns>
-    public static string? GetString(IReadOnlyDictionary<string, object?> headers, string name) =>
-        TransportHeaderValues.GetString(headers, name);
+    public static string? GetString(IReadOnlyDictionary<string, object?> headers, string name)
+    {
+        return TransportHeaderValues.GetString(headers, name);
+    }
 
     /// <summary>
     ///     Reads a header value as a 32-bit integer.
@@ -26,13 +27,18 @@ public static class AmqpHeaderValues
     /// <param name="headers">The header dictionary from a received message.</param>
     /// <param name="name">The header name to read.</param>
     /// <returns>The integer value, or <see langword="null" /> when the header is absent or not numeric.</returns>
-    public static int? GetInt32(IReadOnlyDictionary<string, object?> headers, string name) =>
-        TransportHeaderValues.GetInt32(headers, name);
+    public static int? GetInt32(IReadOnlyDictionary<string, object?> headers, string name)
+    {
+        return TransportHeaderValues.GetInt32(headers, name);
+    }
 
     /// <summary>
     ///     Converts an AMQP header value to a string when possible.
     /// </summary>
     /// <param name="value">The raw header value from the broker.</param>
     /// <returns>The string representation, or <see langword="null" /> when the value is absent.</returns>
-    internal static string? ConvertToString(object? value) => TransportHeaderValues.ConvertToString(value);
+    internal static string? ConvertToString(object? value)
+    {
+        return TransportHeaderValues.ConvertToString(value);
+    }
 }

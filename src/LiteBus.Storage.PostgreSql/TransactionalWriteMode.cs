@@ -1,8 +1,8 @@
 namespace LiteBus.Storage.PostgreSql;
 
 /// <summary>
-///     Controls how scoped <see cref="LiteBus.Inbox.Abstractions.ITransactionalInbox" /> and
-///     <see cref="LiteBus.Outbox.Abstractions.ITransactionalOutbox" /> behave when no ambient PostgreSQL transaction is active.
+///     Controls how scoped transactional inbox and outbox writers behave when no ambient PostgreSQL transaction is
+///     active.
 /// </summary>
 public enum TransactionalWriteMode
 {

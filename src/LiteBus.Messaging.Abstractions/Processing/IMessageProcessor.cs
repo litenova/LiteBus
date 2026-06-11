@@ -1,6 +1,5 @@
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Abstractions.Processing;
 

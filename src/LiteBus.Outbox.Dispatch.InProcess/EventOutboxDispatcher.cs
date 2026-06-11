@@ -36,8 +36,8 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     ///     The open generic publish helper resolved once at type initialization.
     /// </summary>
     private static readonly MethodInfo PublishTypedAsyncMethod = typeof(EventOutboxDispatcher)
-        .GetMethod(nameof(PublishTypedAsync), BindingFlags.NonPublic | BindingFlags.Static)
-        ?? throw new InvalidOperationException($"Could not resolve {nameof(PublishTypedAsync)}.");
+                                                                     .GetMethod(nameof(PublishTypedAsync), BindingFlags.NonPublic | BindingFlags.Static) ??
+                                                                 throw new InvalidOperationException($"Could not resolve {nameof(PublishTypedAsync)}.");
 
     /// <summary>
     ///     Gets the registry used to resolve persisted contracts back to event types.
@@ -86,8 +86,10 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         try
         {
             var eventType = _contractRegistry.GetMessageType(message.ContractName, message.ContractVersion);
+
             var payload = await PayloadProtection.UnprotectAsync(message.Payload, _payloadEncryptor, cancellationToken)
                 .ConfigureAwait(false);
+
             var @event = await _messageSerializer.DeserializeAsync(eventType, payload, cancellationToken).ConfigureAwait(false);
             var mediationSettings = CreateMediationSettings(message);
 
@@ -130,7 +132,7 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         CancellationToken cancellationToken)
         where TEvent : notnull
     {
-        return eventPublisher.PublishAsync((TEvent)eventInstance, mediationSettings, cancellationToken);
+        return eventPublisher.PublishAsync((TEvent) eventInstance, mediationSettings, cancellationToken);
     }
 
     /// <summary>
@@ -145,7 +147,7 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
             var closedMethod = PublishTypedAsyncMethod.MakeGenericMethod(eventType);
 
             return (mediator, eventInstance, settings, cancellationToken) =>
-                (Task)closedMethod.Invoke(null, [mediator, eventInstance, settings, cancellationToken])!;
+                (Task) closedMethod.Invoke(null, [mediator, eventInstance, settings, cancellationToken])!;
         }
         catch (Exception exception)
         {
@@ -164,6 +166,7 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     private static EventMediationSettings CreateMediationSettings(OutboxEnvelope message)
     {
         var settings = new EventMediationSettings();
+
         MessageProcessorDiagnostics.ApplyTraceMetadata(
             settings.Items,
             message.CorrelationId,

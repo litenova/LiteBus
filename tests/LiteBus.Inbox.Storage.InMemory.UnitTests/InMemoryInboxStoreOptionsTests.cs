@@ -1,5 +1,4 @@
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Inbox.Abstractions.Exceptions;
 using LiteBus.Testing;
 
@@ -62,6 +61,7 @@ public sealed class InMemoryInboxStoreOptionsTests
         {
             DefaultLeaseDuration = TimeSpan.FromMinutes(5)
         });
+
         var commandId = Guid.NewGuid();
         var now = BaseTime;
 
@@ -125,5 +125,4 @@ public sealed class InMemoryInboxStoreOptionsTests
             IdempotencyKey = $"ship:{commandId:N}"
         };
     }
-
 }

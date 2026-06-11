@@ -26,10 +26,11 @@ internal static class SagaStoreInvoker
             .GetMethod(nameof(ISagaStore.LoadAsync), BindingFlags.Public | BindingFlags.Instance)!
             .MakeGenericMethod(stateType);
 
-        var task = (Task)method.Invoke(store, [correlation, cancellationToken])!;
+        var task = (Task) method.Invoke(store, [correlation, cancellationToken])!;
         await task.ConfigureAwait(false);
 
         var result = task.GetType().GetProperty("Result")?.GetValue(task);
+
         if (result is null)
         {
             return null;
@@ -41,8 +42,8 @@ internal static class SagaStoreInvoker
 
         return (
             stateProperty!.GetValue(result)!,
-            (int)versionProperty!.GetValue(result)!,
-            (bool)completedProperty!.GetValue(result)!);
+            (int) versionProperty!.GetValue(result)!,
+            (bool) completedProperty!.GetValue(result)!);
     }
 
     /// <summary>
@@ -67,6 +68,6 @@ internal static class SagaStoreInvoker
             .GetMethod(nameof(ISagaStore.SaveAsync), BindingFlags.Public | BindingFlags.Instance)!
             .MakeGenericMethod(stateType);
 
-        return (Task)method.Invoke(store, [correlation, state, expectedVersion, cancellationToken])!;
+        return (Task) method.Invoke(store, [correlation, state, expectedVersion, cancellationToken])!;
     }
 }

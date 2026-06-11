@@ -1,21 +1,23 @@
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests;
 
 /// <summary>
-///     Unit tests for deferred outbox writes through <see cref="EfCoreOutboxStore.UseExistingDbContext{TContext}(TContext)" />.
+///     Unit tests for deferred outbox writes through
+///     <see cref="EfCoreOutboxStore.UseExistingDbContext{TContext}(TContext)" />.
 /// </summary>
 public sealed class EfCoreOutboxTransactionalUnitTests
 {
     /// <summary>
-    ///     Confirms <see cref="EfCoreOutboxStore.AddAsync(OutboxEnvelope, CancellationToken)" /> does not persist until the caller saves changes.
+    ///     Confirms <see cref="EfCoreOutboxStore.AddAsync(OutboxEnvelope, CancellationToken)" /> does not persist until the
+    ///     caller saves changes.
     /// </summary>
     [Fact]
     public async Task UseExistingDbContext_defers_persistence_until_save_changes()
     {
         var databaseName = Guid.NewGuid().ToString("N");
+
         var options = new DbContextOptionsBuilder<TestOutboxDbContext>()
             .UseInMemoryDatabase(databaseName)
             .Options;
@@ -25,6 +27,7 @@ public sealed class EfCoreOutboxTransactionalUnitTests
 
         var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), new EfCoreOutboxStoreOptions());
         var transactionalStore = store.UseExistingDbContext(context);
+
         var envelope = new OutboxEnvelope
         {
             Id = Guid.NewGuid(),

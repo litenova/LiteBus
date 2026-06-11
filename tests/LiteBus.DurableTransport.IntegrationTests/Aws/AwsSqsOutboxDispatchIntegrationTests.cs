@@ -1,7 +1,7 @@
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Dispatch.Aws;
@@ -49,16 +49,17 @@ public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        await outbox.EnqueueAsync(
-            new OrderSubmittedIntegrationEvent { OrderId = orderId },
-            new OutboxOptions
+        await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+        {
+            Event = new OrderSubmittedIntegrationEvent { OrderId = orderId },
+            Metadata = OutboxEnqueueMetadata.Immediate with
             {
-                Id = messageId,
-                Topic = queueUrl,
-                CorrelationId = "corr-sqs-outbox",
-                CausationId = "cause-sqs-outbox",
-                TenantId = "tenant-sqs-east"
-            });
+                Identity = new MessageIdentity.Supplied(messageId),
+                Trace = new MessageTrace.Workflow("corr-sqs-outbox", "cause-sqs-outbox"),
+                Tenant = new TenantScope.Isolated("tenant-sqs-east"),
+                Target = new PublicationTarget.Topic(queueUrl)
+            }
+        });
 
         await processor.ProcessPendingAsync();
 
@@ -72,6 +73,7 @@ public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
         var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
             body,
             new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
         payload!.OrderId.Should().Be(orderId);
         headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));
         headers[TransportHeaders.ContractName].Should().Be("orders.order-submitted");
@@ -97,9 +99,14 @@ public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        await outbox.EnqueueAsync(
-            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            new OutboxOptions { Id = messageId });
+        await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+        {
+            Event = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            Metadata = OutboxEnqueueMetadata.Immediate with
+            {
+                Identity = new MessageIdentity.Supplied(messageId)
+            }
+        });
 
         await processor.ProcessPendingAsync();
 
@@ -123,17 +130,22 @@ public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddOutboxModule(outbox =>
                 {
                     outbox.UseInMemoryStorage();
-                    outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted", 1);
+                    outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted");
+
                     outbox.UseProcessorOptions(new OutboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "sqs-outbox-test",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     outbox.UseAwsSqsDispatch(
                         transport => transport.DefaultDestination = queueUrl,
                         _fixture.TransportOptions);

@@ -1,4 +1,5 @@
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Samples.V6.Commands;
 using Microsoft.AspNetCore.Mvc;
 
@@ -34,15 +35,16 @@ public sealed class PaymentsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var receipt = await _inbox.AcceptAsync(
-            new ProcessPaymentCommand(request.PaymentId, request.Amount),
-            new InboxOptions
-            {
-                IdempotencyKey = $"payment:{request.PaymentId}",
-                CorrelationId = request.PaymentId.ToString()
-            },
+            InboxAcceptItems.From(
+                new ProcessPaymentCommand(request.PaymentId, request.Amount),
+                new InboxAcceptMetadata
+                {
+                    Idempotency = new Idempotency.Keyed($"payment:{request.PaymentId}"),
+                    Trace = new MessageTrace.Correlated(request.PaymentId.ToString())
+                }),
             cancellationToken).ConfigureAwait(false);
 
-        return Accepted(new { receipt.Id, receipt.ContractName, receipt.AcceptedAt });
+        return Accepted(new { receipt.Id, receipt.Contract.Name, receipt.AcceptedAt });
     }
 }
 

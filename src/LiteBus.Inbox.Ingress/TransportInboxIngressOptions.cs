@@ -37,7 +37,8 @@ public sealed record TransportInboxIngressOptions
     /// </summary>
     /// <value>
     ///     Default is <see langword="false" />. When <see langword="true" />, the consumer flushes buffered deliveries
-    ///     after reaching <see cref="PrefetchCount" />, when <see cref="BatchMaxWait" /> elapses, or when the ingress loop stops.
+    ///     after reaching <see cref="PrefetchCount" />, when <see cref="BatchMaxWait" /> elapses, or when the ingress loop
+    ///     stops.
     /// </value>
     public bool EnableBatchAccept { get; init; }
 
@@ -46,7 +47,8 @@ public sealed record TransportInboxIngressOptions
     /// </summary>
     /// <value>
     ///     Default is 200 milliseconds. Applies only when <see cref="EnableBatchAccept" /> is <see langword="true" />.
-    ///     Low-traffic queues still accept within this delay even when fewer than <see cref="PrefetchCount" /> messages arrive.
+    ///     Low-traffic queues still accept within this delay even when fewer than <see cref="PrefetchCount" /> messages
+    ///     arrive.
     /// </value>
     public TimeSpan BatchMaxWait { get; init; } = TimeSpan.FromMilliseconds(200);
 }

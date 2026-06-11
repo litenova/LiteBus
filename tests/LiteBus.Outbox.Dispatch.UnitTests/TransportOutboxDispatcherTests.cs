@@ -1,7 +1,5 @@
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Dispatch;
 using LiteBus.Testing;
 
 namespace LiteBus.Outbox.Dispatch.UnitTests;
@@ -19,7 +17,7 @@ public sealed class TransportOutboxDispatcherTests
     {
         var transport = new FakeMessageTransport();
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<TestOrderSubmittedEvent>("orders.events.order-submitted", 1);
+        contractRegistry.Register<TestOrderSubmittedEvent>("orders.events.order-submitted");
 
         var dispatcher = new TransportOutboxDispatcher(
             transport,
@@ -31,6 +29,7 @@ public sealed class TransportOutboxDispatcherTests
             });
 
         var messageId = Guid.NewGuid();
+
         await dispatcher.DispatchAsync(new OutboxEnvelope
         {
             Id = messageId,

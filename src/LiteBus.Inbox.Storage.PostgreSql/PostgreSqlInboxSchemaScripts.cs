@@ -59,10 +59,10 @@ internal static class PostgreSqlInboxSchemaScripts
     /// </summary>
     internal static IReadOnlyList<PostgreSqlSchemaSqlFile> SqlFiles { get; } =
     [
-        new PostgreSqlSchemaSqlFile(
+        new(
             PostgreSqlInboxSchemaSqlPaths.V1Create,
             "Creates the version 1 inbox table, indexes, and optional insert notify trigger."),
-        new PostgreSqlSchemaSqlFile(
+        new(
             PostgreSqlInboxSchemaSqlPaths.V1EnsureIndexes,
             "Ensures inbox indexes exist for schema version 1.")
     ];

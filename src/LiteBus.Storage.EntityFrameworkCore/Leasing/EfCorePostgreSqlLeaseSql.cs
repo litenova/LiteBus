@@ -15,6 +15,7 @@ internal static class EfCorePostgreSqlLeaseSql
     {
         var idColumn = EfCoreLeaseTableMetadata.GetIdColumn(component);
         var alias = EfCoreLeaseTableMetadata.GetTableAlias(component);
+
         var returningProjection = component == EfCoreLeaseComponent.Inbox
             ? BuildInboxReturning(alias)
             : BuildOutboxReturning(alias);

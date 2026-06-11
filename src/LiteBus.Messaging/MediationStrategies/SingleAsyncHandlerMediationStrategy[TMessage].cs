@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
@@ -53,7 +52,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
 
             var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
 
-            messageResult = (Task)handler.Handle(message);
+            messageResult = (Task) handler.Handle(message);
 
             await messageResult;
 

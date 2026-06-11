@@ -19,21 +19,6 @@ public abstract class OutboxRetentionStoreContractTests
     protected abstract OutboxStoreContracts CreateStore();
 
     /// <summary>
-    ///     Holds the outbox store roles exercised by retention contract tests.
-    /// </summary>
-    /// <param name="Writer">The writer role.</param>
-    /// <param name="Lease">The lease role.</param>
-    /// <param name="StateWriter">The state writer role.</param>
-    /// <param name="Retention">The retention role.</param>
-    /// <param name="Diagnostics">The diagnostics role.</param>
-    public sealed record OutboxStoreContracts(
-        IOutboxStore Writer,
-        IOutboxLeaseStore Lease,
-        IOutboxStateWriter StateWriter,
-        IOutboxRetentionStore Retention,
-        IOutboxDiagnosticsStore Diagnostics);
-
-    /// <summary>
     ///     Verifies that published rows older than the retention cutoff are deleted.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
@@ -159,4 +144,19 @@ public abstract class OutboxRetentionStoreContractTests
             AttemptCount = 0
         };
     }
+
+    /// <summary>
+    ///     Holds the outbox store roles exercised by retention contract tests.
+    /// </summary>
+    /// <param name="Writer">The writer role.</param>
+    /// <param name="Lease">The lease role.</param>
+    /// <param name="StateWriter">The state writer role.</param>
+    /// <param name="Retention">The retention role.</param>
+    /// <param name="Diagnostics">The diagnostics role.</param>
+    public sealed record OutboxStoreContracts(
+        IOutboxStore Writer,
+        IOutboxLeaseStore Lease,
+        IOutboxStateWriter StateWriter,
+        IOutboxRetentionStore Retention,
+        IOutboxDiagnosticsStore Diagnostics);
 }

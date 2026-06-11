@@ -35,13 +35,14 @@ internal static class InMemoryTransportTestInfrastructure
         ArgumentNullException.ThrowIfNull(received);
 
         var consumer = new InMemoryConsumer(broker);
+
         await consumer.StartAsync(
             new TransportConsumerOptions { Destination = destination },
             async (message, cancellationToken) =>
             {
                 received.TrySetResult(message);
-                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
-            }).ConfigureAwait(false);
+                await message.AcceptAsync(cancellationToken);
+            });
 
         return consumer;
     }
@@ -56,11 +57,11 @@ internal static class InMemoryTransportTestInfrastructure
     {
         ArgumentNullException.ThrowIfNull(condition);
 
-        var deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
+        var deadline = Environment.TickCount64 + (long) timeout.TotalMilliseconds;
 
         while (!condition() && Environment.TickCount64 < deadline)
         {
-            await Task.Delay(10).ConfigureAwait(false);
+            await Task.Delay(10);
         }
     }
 

@@ -1,4 +1,5 @@
-using System;
+using LiteBus.Storage.EntityFrameworkCore.Exceptions;
+
 namespace LiteBus.Storage.EntityFrameworkCore;
 
 /// <summary>
@@ -21,11 +22,11 @@ public static class EfCoreRelationalTableQualifier
         return provider switch
         {
             EfCoreStorageProvider.PostgreSql => $"\"{schemaName}\".\"{tableName}\"",
-            EfCoreStorageProvider.SqlServer => $"[{schemaName}].[{tableName}]",
-            EfCoreStorageProvider.MySql => $"`{schemaName}`.`{tableName}`",
-            EfCoreStorageProvider.InMemory => $"\"{schemaName}\".\"{tableName}\"",
-            EfCoreStorageProvider.Sqlite => $"\"{schemaName}\".\"{tableName}\"",
-            _ => throw new Exceptions.EfCoreStorageNotSupportedException($"Table qualification is not supported for provider '{provider}'.")
+            EfCoreStorageProvider.SqlServer  => $"[{schemaName}].[{tableName}]",
+            EfCoreStorageProvider.MySql      => $"`{schemaName}`.`{tableName}`",
+            EfCoreStorageProvider.InMemory   => $"\"{schemaName}\".\"{tableName}\"",
+            EfCoreStorageProvider.Sqlite     => $"\"{schemaName}\".\"{tableName}\"",
+            _                                => throw new EfCoreStorageNotSupportedException($"Table qualification is not supported for provider '{provider}'.")
         };
     }
 }

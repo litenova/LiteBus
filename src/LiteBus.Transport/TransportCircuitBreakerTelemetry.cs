@@ -32,6 +32,7 @@ internal static class TransportCircuitBreakerTelemetry
     public static void RecordFailureObserved(int failureCount)
     {
         FailureRecordedCounter.Add(1);
+
         Activity.Current?.AddEvent(new ActivityEvent(
             "litebus.transport.circuit_breaker.failure_recorded",
             tags: new ActivityTagsCollection { ["litebus.transport.circuit_breaker.failure_count"] = failureCount }));

@@ -1,6 +1,4 @@
-using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using LiteBus.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,10 +40,9 @@ public sealed class EfCoreOutboxProcessorDispatcherFailureEndToEndTests : LiteBu
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
-        {
-            Id = messageId
-        });
+        await outbox.EnqueueAsync(OutboxEnqueueItems.WithIdentity(
+            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            messageId));
 
         await processor.ProcessPendingAsync();
 

@@ -1,4 +1,3 @@
-using System;
 using System.Globalization;
 using Amazon.SQS.Model;
 
@@ -24,7 +23,7 @@ internal static class SqsRequeueBackoff
         var multiplier = Math.Pow(options.RequeueBackoffMultiplier, receiveCount - 1);
         var timeout = options.RequeueVisibilityTimeoutSeconds * multiplier;
         var capped = Math.Min(timeout, options.MaxRequeueVisibilityTimeoutSeconds);
-        return Math.Max(1, (int)Math.Ceiling(capped));
+        return Math.Max(1, (int) Math.Ceiling(capped));
     }
 
     /// <summary>
@@ -54,9 +53,9 @@ internal static class SqsRequeueBackoff
     /// <returns>The receive count, defaulting to one when the attribute is absent.</returns>
     private static int GetApproximateReceiveCount(Message message)
     {
-        if (!message.Attributes.TryGetValue("ApproximateReceiveCount", out var count)
-            || !int.TryParse(count, NumberStyles.Integer, CultureInfo.InvariantCulture, out var receiveCount)
-            || receiveCount < 1)
+        if (!message.Attributes.TryGetValue("ApproximateReceiveCount", out var count) ||
+            !int.TryParse(count, NumberStyles.Integer, CultureInfo.InvariantCulture, out var receiveCount) ||
+            receiveCount < 1)
         {
             return 1;
         }

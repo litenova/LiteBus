@@ -12,22 +12,22 @@ namespace LiteBus.Messaging.Abstractions;
 public sealed class MessageContractBuilder : IContractWriter
 {
     /// <summary>
-    ///     One deferred contract registration captured during builder configuration.
-    /// </summary>
-    /// <param name="MessageType">The CLR message type to register.</param>
-    /// <param name="Name">The stable contract name.</param>
-    /// <param name="Version">The positive contract version.</param>
-    private sealed record PendingRegistration(Type MessageType, string Name, int Version);
-
-    /// <summary>
     ///     Deferred registrations collected before <see cref="ApplyTo" /> runs.
     /// </summary>
     private readonly List<PendingRegistration> _pending = [];
 
+    /// <summary>
+    ///     Gets a value indicating whether any registrations have been captured.
+    /// </summary>
+    /// <value><see langword="true" /> when at least one registration was recorded; otherwise <see langword="false" />.</value>
+    public bool HasRegistrations => _pending.Count > 0;
+
     /// <inheritdoc />
     public IContractWriter Register<TMessage>(string name, int version = 1)
         where TMessage : notnull
-        => Register(typeof(TMessage), name, version);
+    {
+        return Register(typeof(TMessage), name, version);
+    }
 
     /// <inheritdoc />
     public IContractWriter Register(Type messageType, string name, int version = 1)
@@ -59,7 +59,8 @@ public sealed class MessageContractBuilder : IContractWriter
                 continue;
             }
 
-            var attribute = type.GetCustomAttribute<MessageContractAttribute>(inherit: false);
+            var attribute = type.GetCustomAttribute<MessageContractAttribute>(false);
+
             if (attribute is not null)
             {
                 Register(type, attribute.Name, attribute.Version);
@@ -84,8 +85,10 @@ public sealed class MessageContractBuilder : IContractWriter
     }
 
     /// <summary>
-    ///     Gets whether any registrations have been captured.
+    ///     One deferred contract registration captured during builder configuration.
     /// </summary>
-    /// <value><see langword="true" /> when at least one registration was recorded; otherwise <see langword="false" />.</value>
-    public bool HasRegistrations => _pending.Count > 0;
+    /// <param name="MessageType">The CLR message type to register.</param>
+    /// <param name="Name">The stable contract name.</param>
+    /// <param name="Version">The positive contract version.</param>
+    private sealed record PendingRegistration(Type MessageType, string Name, int Version);
 }

@@ -1,6 +1,5 @@
 using System;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Dispatch;
 using LiteBus.Transport.Kafka;
 
 namespace LiteBus.Outbox.Dispatch.Kafka;
@@ -28,6 +27,7 @@ public static class OutboxModuleBuilderKafkaDispatchExtensions
 
         var options = new TransportOutboxDispatcherOptions();
         configure(options);
+
         return builder.RegisterDispatcher(
             new TransportOutboxDispatchModule(options, new KafkaTransportModule(transportOptions)));
     }

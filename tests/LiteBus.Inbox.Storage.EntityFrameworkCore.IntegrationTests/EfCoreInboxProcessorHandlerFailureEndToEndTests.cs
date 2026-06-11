@@ -1,10 +1,7 @@
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using LiteBus.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-
 using IInboxProcessor = LiteBus.Inbox.Abstractions.IInboxProcessor;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests;
@@ -43,7 +40,7 @@ public sealed class EfCoreInboxProcessorHandlerFailureEndToEndTests : LiteBusTes
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(new FaultyCommand());
+        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new FaultyCommand()));
         await processor.ProcessPendingAsync();
 
         var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, receipt.Id);

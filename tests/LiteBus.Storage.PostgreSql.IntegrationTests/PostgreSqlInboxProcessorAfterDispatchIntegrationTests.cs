@@ -6,6 +6,7 @@ using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Orchestration.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,7 +28,7 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
     [Fact]
     public async Task ProcessPendingAsync_when_after_dispatch_hook_fails_should_dead_letter_from_processing()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
 
         await using var provider = BuildProvider(_fixture, options);
@@ -46,7 +47,10 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
             [new ThrowingAfterDispatchHook()]);
 
         var messageId = Guid.NewGuid();
-        await scheduler.AcceptAsync(new ShipOrderCommand { OrderId = messageId }, new InboxOptions { Id = messageId });
+
+        await scheduler.AcceptAsync(InboxAcceptItems.From(
+            new ShipOrderCommand { OrderId = messageId },
+            new InboxAcceptMetadata { Identity = new MessageIdentity.Supplied(messageId) }));
 
         var result = await processor.ProcessPendingAsync();
 
@@ -60,7 +64,7 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
     [Fact]
     public async Task PersistAsync_when_completed_already_persisted_should_skip_dead_letter_transition()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
         var store = new PostgreSqlInboxStore(_fixture.DataSource, options);
         var now = DateTimeOffset.UtcNow;
@@ -94,6 +98,7 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
             Status = InboxStatus.DeadLettered,
             LastError = "hook failure"
         };
+
         var deadLetterResult = await store.PersistAsync([deadLettered]);
 
         deadLetterResult.AppliedCount.Should().Be(0);
@@ -110,7 +115,10 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddCommandModule(builder =>
             {
                 builder.Register<ShipOrderCommand>();
@@ -125,7 +133,8 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
                     postgres.UseOptions(options);
                 });
 
-                builder.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
+                builder.Contracts.Register<ShipOrderCommand>("orders.commands.ship");
+
                 builder.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 1,
@@ -133,6 +142,7 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
                     LeaseDuration = TimeSpan.FromMinutes(1),
                     Retry = new RetryOptions { UseJitter = false }
                 });
+
                 builder.UseCommandInboxDispatcher();
             });
         });
@@ -142,10 +152,14 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
 
     private sealed class ThrowingAfterDispatchHook : IProcessorEnvelopeHook
     {
-        public Task BeforeDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+        public Task BeforeDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
 
-        public Task AfterDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default) =>
+        public Task AfterDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
+        {
             throw new InvalidOperationException("AfterDispatch failed.");
+        }
     }
 }

@@ -1,9 +1,10 @@
 using System.Collections.Immutable;
 using System.Linq;
+using LiteBus.Analyzers.Analysis;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
-using LiteBus.Analyzers.Analysis;
 
 namespace LiteBus.Analyzers;
 
@@ -22,57 +23,55 @@ public sealed class ExplicitMessageContractRegistrationAnalyzer : DiagnosticAnal
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterCompilationAction(AnalyzeCompilation);
-    }
-
-    /// <summary>
-    ///     Reports attributed durable message types that rely on on-demand contract resolution only.
-    /// </summary>
-    /// <param name="context">The compilation analysis context.</param>
-    private static void AnalyzeCompilation(CompilationAnalysisContext context)
-    {
-        var registeredTypes = ContractRegistrationAnalysis.CollectRegisteredContractTypes(
-            context.Compilation,
-            context.CancellationToken);
-        var registeredAssemblies = ContractRegistrationAnalysis.CollectRegisterFromAssemblyTargets(
-            context.Compilation,
-            context.CancellationToken);
-
-        foreach (var tree in context.Compilation.SyntaxTrees)
+        context.RegisterCompilationStartAction(startContext =>
         {
-            var semanticModel = context.Compilation.GetSemanticModel(tree);
+            var registeredTypes = ContractRegistrationAnalysis.CollectRegisteredContractTypes(
+                startContext.Compilation,
+                startContext.CancellationToken);
 
-            foreach (var typeDeclaration in tree.GetRoot(context.CancellationToken).DescendantNodes()
-                         .OfType<TypeDeclarationSyntax>())
-            {
-                if (semanticModel.GetDeclaredSymbol(typeDeclaration, context.CancellationToken) is not INamedTypeSymbol typeSymbol)
+            var registeredAssemblies = ContractRegistrationAnalysis.CollectRegisterFromAssemblyTargets(
+                startContext.Compilation,
+                startContext.CancellationToken);
+
+            startContext.RegisterSyntaxNodeAction(
+                nodeContext =>
                 {
-                    continue;
-                }
+                    if (nodeContext.Node is not TypeDeclarationSyntax typeDeclaration)
+                    {
+                        return;
+                    }
 
-                if (typeSymbol.TypeKind == TypeKind.TypeParameter ||
-                    HandlerAnalysis.IsGenericTypeDefinition(typeSymbol) ||
-                    !ContractRegistrationAnalysis.HasMessageContractAttribute(typeSymbol) ||
-                    !ContractRegistrationAnalysis.IsDurableMessageType(typeSymbol, context.Compilation))
-                {
-                    continue;
-                }
+                    if (nodeContext.SemanticModel.GetDeclaredSymbol(typeDeclaration, nodeContext.CancellationToken) is not INamedTypeSymbol typeSymbol)
+                    {
+                        return;
+                    }
 
-                if (ContractRegistrationAnalysis.IsExplicitlyRegistered(
-                        typeSymbol,
-                        registeredTypes,
-                        registeredAssemblies))
-                {
-                    continue;
-                }
+                    if (typeSymbol.TypeKind == TypeKind.TypeParameter ||
+                        HandlerAnalysis.IsGenericTypeDefinition(typeSymbol) ||
+                        !ContractRegistrationAnalysis.HasMessageContractAttribute(typeSymbol) ||
+                        !ContractRegistrationAnalysis.IsDurableMessageType(typeSymbol, startContext.Compilation))
+                    {
+                        return;
+                    }
 
-                var closedTypeDisplay = ContractRegistrationAnalysis.GetClosedRegistrationTypeDisplay(typeSymbol);
+                    if (ContractRegistrationAnalysis.IsExplicitlyRegistered(
+                            typeSymbol,
+                            registeredTypes,
+                            registeredAssemblies))
+                    {
+                        return;
+                    }
 
-                context.ReportDiagnostic(Diagnostic.Create(
-                    DiagnosticDescriptors.ExplicitMessageContractRegistration,
-                    typeSymbol.Locations.FirstOrDefault() ?? Location.None,
-                    closedTypeDisplay));
-            }
-        }
+                    var closedTypeDisplay = ContractRegistrationAnalysis.GetClosedRegistrationTypeDisplay(typeSymbol);
+
+                    nodeContext.ReportDiagnostic(Diagnostic.Create(
+                        DiagnosticDescriptors.ExplicitMessageContractRegistration,
+                        typeSymbol.Locations.FirstOrDefault() ?? Location.None,
+                        closedTypeDisplay));
+                },
+                SyntaxKind.ClassDeclaration,
+                SyntaxKind.StructDeclaration,
+                SyntaxKind.RecordDeclaration);
+        });
     }
 }

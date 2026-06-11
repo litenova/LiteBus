@@ -2,7 +2,6 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Processing;
 using LiteBus.Runtime.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -57,5 +56,8 @@ public sealed class InboxProcessorBackgroundService : IBackgroundService
     }
 
     /// <inheritdoc />
-    public Task ExecuteAsync(CancellationToken stoppingToken) => _loop.ExecuteAsync(stoppingToken);
+    public Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        return _loop.ExecuteAsync(stoppingToken);
+    }
 }

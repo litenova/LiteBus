@@ -1,12 +1,10 @@
-using LiteBus.Transport.Amqp;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Messaging;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch;
-using LiteBus.Inbox.Dispatch.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
+using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Testing;
+using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Inbox.Dispatch.Amqp.IntegrationTests;
@@ -47,16 +45,18 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
         var workItemId = Guid.NewGuid();
-        var receipt = await inbox.AcceptAsync(new RemoteWorkCommand
-        {
-            WorkItemId = workItemId,
-            IdempotencyKey = $"work:{workItemId}"
-        }, new InboxOptions
-        {
-            CorrelationId = "corr-dispatch",
-            CausationId = "cause-dispatch",
-            TenantId = "tenant-dispatch"
-        });
+
+        var receipt = await inbox.AcceptAsync(InboxAcceptItems.From(
+            new RemoteWorkCommand
+            {
+                WorkItemId = workItemId,
+                IdempotencyKey = $"work:{workItemId}"
+            },
+            new InboxAcceptMetadata
+            {
+                Trace = new MessageTrace.Workflow("corr-dispatch", "cause-dispatch"),
+                Tenant = new TenantScope.Isolated("tenant-dispatch")
+            }));
 
         await processor.ProcessPendingAsync();
 
@@ -86,10 +86,14 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<RemoteWorkCommand>(ContractName, ContractVersion);
+                    inbox.Contracts.Register<RemoteWorkCommand>(ContractName);
+
                     inbox.UseProcessorOptions(new InboxProcessorOptions
                     {
                         BatchSize = 10,
@@ -99,7 +103,9 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
+
                     inbox.UseInMemoryStorage();
+
                     inbox.UseAmqpDispatch(
                         transport =>
                         {

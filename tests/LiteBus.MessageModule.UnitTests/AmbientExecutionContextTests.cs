@@ -18,11 +18,13 @@ public sealed class AmbientExecutionContextTests
         AmbientExecutionContext.HasCurrent.Should().BeFalse();
 
         var outer = new TestExecutionContext();
+
         using (AmbientExecutionContext.CreateScope(outer))
         {
             AmbientExecutionContext.Current.Should().BeSameAs(outer);
 
             var inner = new TestExecutionContext();
+
             using (AmbientExecutionContext.CreateScope(inner))
             {
                 AmbientExecutionContext.Current.Should().BeSameAs(inner);

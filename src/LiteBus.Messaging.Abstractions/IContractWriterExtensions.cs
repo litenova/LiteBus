@@ -1,4 +1,3 @@
-using System;
 using System.Reflection;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -15,5 +14,7 @@ public static class IContractWriterExtensions
     /// <param name="assembly">The assembly to scan.</param>
     /// <returns>The same writer instance for chaining.</returns>
     public static IContractWriter RegisterFromAssembly(this IContractWriter writer, Assembly assembly)
-        => writer.AddFromAssembly(assembly);
+    {
+        return writer.AddFromAssembly(assembly);
+    }
 }

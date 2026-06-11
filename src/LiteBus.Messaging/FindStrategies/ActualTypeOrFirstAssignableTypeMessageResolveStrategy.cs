@@ -23,6 +23,7 @@ public sealed class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMes
             : messageType;
 
         var descriptor = messageReader.Find(lookupType);
+
         if (descriptor is not null)
         {
             return descriptor;

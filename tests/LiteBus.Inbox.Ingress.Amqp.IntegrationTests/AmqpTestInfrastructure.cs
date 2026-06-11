@@ -19,12 +19,13 @@ internal static class AmqpTestInfrastructure
     {
         await using var manager = new AmqpConnectionManager(connectionOptions);
         await using var channel = await manager.CreateChannelAsync();
+
         await channel.QueueDeclareAsync(
-            queue: queueName,
-            durable: true,
-            exclusive: false,
-            autoDelete: false,
-            arguments: null);
+            queueName,
+            true,
+            false,
+            false,
+            null);
     }
 
     /// <summary>
@@ -48,13 +49,16 @@ internal static class AmqpTestInfrastructure
 
         while (DateTime.UtcNow < deadline)
         {
-            var result = await channel.BasicGetAsync(queue, autoAck: true);
+            var result = await channel.BasicGetAsync(queue, true);
+
             if (result is not null)
             {
                 var body = Encoding.UTF8.GetString(result.Body.ToArray());
+
                 IReadOnlyDictionary<string, object?> headers = result.BasicProperties.Headers is null
                     ? new Dictionary<string, object?>()
                     : new Dictionary<string, object?>(result.BasicProperties.Headers);
+
                 return (body, headers);
             }
 

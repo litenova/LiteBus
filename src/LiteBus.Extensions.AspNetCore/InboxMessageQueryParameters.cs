@@ -78,26 +78,32 @@ public sealed class InboxMessageQueryParameters
     ///     Converts the bound query values to an <see cref="InboxMessageFilter" />.
     /// </summary>
     /// <returns>The filter used by inbox store queries.</returns>
-    public InboxMessageFilter ToFilter() => new()
+    public InboxMessageFilter ToFilter()
     {
-        MessageId = MessageId,
-        MessageIds = MessageIds,
-        Statuses = Statuses,
-        ContractName = ContractName,
-        CorrelationId = CorrelationId,
-        CausationId = CausationId,
-        TenantId = TenantId,
-        CreatedAfter = CreatedAfter,
-        CreatedBefore = CreatedBefore
-    };
+        return new InboxMessageFilter
+        {
+            MessageId = MessageId,
+            MessageIds = MessageIds,
+            Statuses = Statuses,
+            ContractName = ContractName,
+            CorrelationId = CorrelationId,
+            CausationId = CausationId,
+            TenantId = TenantId,
+            CreatedAfter = CreatedAfter,
+            CreatedBefore = CreatedBefore
+        };
+    }
 
     /// <summary>
     ///     Converts the bound pagination values to an <see cref="InboxMessagePageRequest" />.
     /// </summary>
     /// <returns>The page request used by inbox store queries.</returns>
-    public InboxMessagePageRequest ToPageRequest() => new()
+    public InboxMessagePageRequest ToPageRequest()
     {
-        PageSize = PageSize,
-        Cursor = Cursor
-    };
+        return new InboxMessagePageRequest
+        {
+            PageSize = PageSize,
+            Cursor = Cursor
+        };
+    }
 }

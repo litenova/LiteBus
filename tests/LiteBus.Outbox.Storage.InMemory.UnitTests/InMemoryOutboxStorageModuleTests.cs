@@ -1,8 +1,6 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
-using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Storage.InMemory;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Outbox.Storage.InMemory.UnitTests;
@@ -15,7 +13,10 @@ public sealed class InMemoryOutboxStorageModuleTests
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddOutboxModule(outbox => outbox.UseInMemoryStorage());
             })
             .BuildServiceProvider();

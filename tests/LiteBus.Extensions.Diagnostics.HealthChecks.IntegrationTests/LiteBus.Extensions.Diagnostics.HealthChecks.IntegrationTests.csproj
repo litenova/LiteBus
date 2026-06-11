@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 
-
     <ItemGroup>
 
         <PackageReference Include="AwesomeAssertions"/>
@@ -27,7 +26,6 @@
     </ItemGroup>
 
 
-
     <ItemGroup>
 
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Diagnostics.HealthChecks\LiteBus.Extensions.Diagnostics.HealthChecks.csproj"/>
@@ -43,7 +41,6 @@
         <ProjectReference Include="..\..\src\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
 
     </ItemGroup>
-
 
 
 </Project>

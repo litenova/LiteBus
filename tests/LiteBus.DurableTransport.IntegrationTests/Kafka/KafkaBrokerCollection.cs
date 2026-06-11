@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace LiteBus.DurableTransport.IntegrationTests.Kafka;
 
 /// <summary>

@@ -12,14 +12,14 @@ namespace LiteBus.Saga.Storage.PostgreSql;
 public sealed class PostgreSqlSagaStore : ISagaStore
 {
     /// <summary>
+    ///     The time provider used to stamp create and update timestamps.
+    /// </summary>
+    private readonly TimeProvider _clock;
+
+    /// <summary>
     ///     The PostgreSQL data source used to open commands against the saga table.
     /// </summary>
     private readonly NpgsqlDataSource _dataSource;
-
-    /// <summary>
-    ///     The quoted qualified saga table name built from store options at construction time.
-    /// </summary>
-    private readonly string _tableName;
 
     /// <summary>
     ///     The serializer used to convert saga state objects to JSON.
@@ -27,9 +27,9 @@ public sealed class PostgreSqlSagaStore : ISagaStore
     private readonly IMessageSerializer _serializer;
 
     /// <summary>
-    ///     The time provider used to stamp create and update timestamps.
+    ///     The quoted qualified saga table name built from store options at construction time.
     /// </summary>
-    private readonly TimeProvider _clock;
+    private readonly string _tableName;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="PostgreSqlSagaStore" /> class.
@@ -63,12 +63,12 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         ArgumentNullException.ThrowIfNull(correlation);
 
         var sql = $"""
-                  SELECT state_json::text, optimistic_lock_version, is_completed
-                  FROM {_tableName}
-                  WHERE correlation_id = @correlation_id
-                      AND saga_type = @saga_type
-                  LIMIT 1;
-                  """;
+                   SELECT state_json::text, optimistic_lock_version, is_completed
+                   FROM {_tableName}
+                   WHERE correlation_id = @correlation_id
+                       AND saga_type = @saga_type
+                   LIMIT 1;
+                   """;
 
         await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var command = CreateCommand(connection, sql);
@@ -76,6 +76,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         command.Parameters.AddWithValue("saga_type", correlation.SagaType);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
         if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             return null;
@@ -89,7 +90,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         return new SagaInstance<TState>
         {
             Correlation = correlation,
-            State = (TState)state,
+            State = (TState) state,
             Version = version,
             IsCompleted = isCompleted
         };
@@ -114,24 +115,24 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         if (expectedVersion == 0)
         {
             var insertSql = $"""
-                              INSERT INTO {_tableName} (
-                                  correlation_id,
-                                  saga_type,
-                                  state_json,
-                                  optimistic_lock_version,
-                                  is_completed,
-                                  created_at,
-                                  updated_at)
-                              VALUES (
-                                  @correlation_id,
-                                  @saga_type,
-                                  @state_json,
-                                  1,
-                                  false,
-                                  @now,
-                                  @now)
-                              ON CONFLICT (correlation_id, saga_type) DO NOTHING;
-                              """;
+                             INSERT INTO {_tableName} (
+                                 correlation_id,
+                                 saga_type,
+                                 state_json,
+                                 optimistic_lock_version,
+                                 is_completed,
+                                 created_at,
+                                 updated_at)
+                             VALUES (
+                                 @correlation_id,
+                                 @saga_type,
+                                 @state_json,
+                                 1,
+                                 false,
+                                 @now,
+                                 @now)
+                             ON CONFLICT (correlation_id, saga_type) DO NOTHING;
+                             """;
 
             await using var insertCommand = CreateCommand(connection, insertSql);
             AddCorrelationParameters(insertCommand, correlation, stateJson, now);
@@ -162,6 +163,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         updateCommand.Parameters.AddWithValue("expected_version", expectedVersion);
 
         var updated = await updateCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
         if (updated == 0)
         {
             throw new SagaConcurrencyException(correlation);
@@ -174,14 +176,15 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         ArgumentNullException.ThrowIfNull(correlation);
 
         var now = _clock.GetUtcNow();
+
         var sql = $"""
-                  UPDATE {_tableName}
-                  SET
-                      is_completed = true,
-                      updated_at = @now
-                  WHERE correlation_id = @correlation_id
-                      AND saga_type = @saga_type;
-                  """;
+                   UPDATE {_tableName}
+                   SET
+                       is_completed = true,
+                       updated_at = @now
+                   WHERE correlation_id = @correlation_id
+                       AND saga_type = @saga_type;
+                   """;
 
         await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var command = CreateCommand(connection, sql);

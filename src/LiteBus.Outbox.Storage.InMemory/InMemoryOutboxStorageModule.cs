@@ -1,8 +1,6 @@
 using System;
-using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Outbox.Storage.InMemory;
 

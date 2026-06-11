@@ -8,11 +8,6 @@ namespace LiteBus.DurableTransport.IntegrationTesting;
 public sealed class FlakyInbox : IInbox
 {
     /// <summary>
-    ///     Gets the inner inbox receiving successful accept calls.
-    /// </summary>
-    private readonly IInbox _inner;
-
-    /// <summary>
     ///     Gets the exception thrown until the failure budget is exhausted.
     /// </summary>
     private readonly Exception _failure;
@@ -21,6 +16,11 @@ public sealed class FlakyInbox : IInbox
     ///     Gets the number of accept attempts that should fail before delegating to the inner inbox.
     /// </summary>
     private readonly int _failureBudget;
+
+    /// <summary>
+    ///     Gets the inner inbox receiving successful accept calls.
+    /// </summary>
+    private readonly IInbox _inner;
 
     /// <summary>
     ///     Gets the number of accept attempts observed.
@@ -41,55 +41,22 @@ public sealed class FlakyInbox : IInbox
     }
 
     /// <inheritdoc />
-    public Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
-        TMessage message,
-        InboxOptions? options = null,
+    public Task<InboxReceipt> AcceptAsync<TMessage>(
+        InboxAcceptItem<TMessage> item,
         CancellationToken cancellationToken = default)
         where TMessage : notnull
-    {
-        if (ShouldFail())
-        {
-            return Task.FromException<InboxReceipt<TMessage>>(_failure);
-        }
-
-        return _inner.AcceptAsync(message, options, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task<InboxReceipt> AcceptAsync(
-        object message,
-        Type messageType,
-        InboxOptions? options = null,
-        CancellationToken cancellationToken = default)
     {
         if (ShouldFail())
         {
             return Task.FromException<InboxReceipt>(_failure);
         }
 
-        return _inner.AcceptAsync(message, messageType, options, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task<IReadOnlyList<InboxReceipt<TMessage>>> AcceptBatchAsync<TMessage>(
-        IReadOnlyList<TMessage> messages,
-        IReadOnlyList<InboxOptions?>? options = null,
-        CancellationToken cancellationToken = default)
-        where TMessage : notnull
-    {
-        if (ShouldFail())
-        {
-            return Task.FromException<IReadOnlyList<InboxReceipt<TMessage>>>(_failure);
-        }
-
-        return _inner.AcceptBatchAsync(messages, options, cancellationToken);
+        return _inner.AcceptAsync(item, cancellationToken);
     }
 
     /// <inheritdoc />
     public Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
-        IReadOnlyList<object> messages,
-        IReadOnlyList<Type> messageTypes,
-        IReadOnlyList<InboxOptions?>? options = null,
+        IReadOnlyList<InboxAcceptItem> items,
         CancellationToken cancellationToken = default)
     {
         if (ShouldFail())
@@ -97,12 +64,15 @@ public sealed class FlakyInbox : IInbox
             return Task.FromException<IReadOnlyList<InboxReceipt>>(_failure);
         }
 
-        return _inner.AcceptBatchAsync(messages, messageTypes, options, cancellationToken);
+        return _inner.AcceptBatchAsync(items, cancellationToken);
     }
 
     /// <summary>
     ///     Determines whether the current attempt should throw the configured failure.
     /// </summary>
     /// <returns><see langword="true" /> when the failure budget has not been exhausted.</returns>
-    private bool ShouldFail() => Interlocked.Increment(ref _attempts) <= _failureBudget;
+    private bool ShouldFail()
+    {
+        return Interlocked.Increment(ref _attempts) <= _failureBudget;
+    }
 }

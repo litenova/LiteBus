@@ -1,10 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Inbox;
-using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Amqp;
-using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Testing;
@@ -14,7 +11,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace LiteBus.Inbox.Ingress.Amqp.IntegrationTests;
 
 /// <summary>
-///     Verifies AMQP batch ingress acceptance at prefetch threshold and <see cref="AmqpInboxIngressOptions.BatchMaxWait" />.
+///     Verifies AMQP batch ingress acceptance at prefetch threshold and
+///     <see cref="AmqpInboxIngressOptions.BatchMaxWait" />.
 /// </summary>
 public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
 {
@@ -65,7 +63,7 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
         {
             var queueName = CreateQueueName();
             var batchWait = TimeSpan.FromMilliseconds(400);
-            await using var provider = BuildProvider(fixture.ConnectionOptions, queueName, prefetch: 10, batchWait);
+            await using var provider = BuildProvider(fixture.ConnectionOptions, queueName, 10, batchWait);
             await StartIngressAsync(provider);
 
             await PublishAsync(
@@ -100,12 +98,19 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
+                    inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship");
                     inbox.UseInMemoryStorage();
-                    inbox.UseAmqpDispatch(_ => { }, connectionOptions);
+
+                    inbox.UseAmqpDispatch(_ =>
+                    {
+                    }, connectionOptions);
+
                     inbox.UseAmqpIngress(ingress =>
                     {
                         ingress.UseOptions(new AmqpInboxIngressOptions
@@ -167,7 +172,10 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
     ///     Creates a unique queue name for the current test run.
     /// </summary>
     /// <returns>The queue name.</returns>
-    private static string CreateQueueName() => $"litebus-amqp-batch-{Guid.NewGuid():N}";
+    private static string CreateQueueName()
+    {
+        return $"litebus-amqp-batch-{Guid.NewGuid():N}";
+    }
 
     /// <summary>
     ///     Waits until the inbox store reports the expected envelope count.
@@ -179,6 +187,7 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
     private static async Task WaitForStoreCountAsync(ServiceProvider provider, int expectedCount, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;
+
         while (DateTime.UtcNow < deadline)
         {
             if (provider.GetRequiredService<InMemoryInboxStore>().Count == expectedCount)

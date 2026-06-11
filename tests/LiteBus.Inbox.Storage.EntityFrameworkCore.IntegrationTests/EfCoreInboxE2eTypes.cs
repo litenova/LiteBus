@@ -41,5 +41,8 @@ internal sealed class CommandRecorder
 
     public IReadOnlyList<ShipOrderCommand> Commands => _commands;
 
-    public void Record(ShipOrderCommand command) => _commands.Add(command);
+    public void Record(ShipOrderCommand command)
+    {
+        _commands.Add(command);
+    }
 }

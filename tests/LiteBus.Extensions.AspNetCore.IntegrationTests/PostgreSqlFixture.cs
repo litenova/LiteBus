@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using DotNet.Testcontainers.Builders;
 using Npgsql;
 using Testcontainers.PostgreSql;
 
@@ -42,6 +41,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         ConfigureDockerHostForCurrentPlatform();
 
         var connectionString = Environment.GetEnvironmentVariable(ConnectionStringEnvironmentVariable);
+
         if (!string.IsNullOrWhiteSpace(connectionString))
         {
             ConnectionString = connectionString;
@@ -164,7 +164,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         {
             try
             {
-                process.Kill(entireProcessTree: true);
+                process.Kill(true);
             }
             catch
             {
@@ -182,6 +182,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         for (var current = exception; current is not null; current = current.InnerException)
         {
             var typeName = current.GetType().FullName;
+
             if (typeName is "DotNet.Testcontainers.Builders.DockerUnavailableException"
                 or "DotNet.Testcontainers.Guard.ArgumentException"
                 or "Docker.DotNet.DockerApiException")

@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 
@@ -47,14 +45,14 @@ public static class TransportHeaderValues
 
         return value switch
         {
-            int number => number,
-            byte singleByte => singleByte,
-            sbyte signedByte => signedByte,
-            short number => number,
-            long number when number >= int.MinValue && number <= int.MaxValue => (int)number,
+            int number                                                                                              => number,
+            byte singleByte                                                                                         => singleByte,
+            sbyte signedByte                                                                                        => signedByte,
+            short number                                                                                            => number,
+            long number when number >= int.MinValue && number <= int.MaxValue                                       => (int) number,
             string text when int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) => parsed,
-            byte[] bytes when bytes.Length <= 4 && TryParseBytesAsInt32(bytes, out var parsed) => parsed,
-            _ => null
+            byte[] bytes when bytes.Length <= 4 && TryParseBytesAsInt32(bytes, out var parsed)                      => parsed,
+            _                                                                                                       => null
         };
     }
 
@@ -67,12 +65,12 @@ public static class TransportHeaderValues
     {
         return value switch
         {
-            null => null,
-            string text => text,
-            byte[] bytes => Encoding.UTF8.GetString(bytes),
+            null                        => null,
+            string text                 => text,
+            byte[] bytes                => Encoding.UTF8.GetString(bytes),
             ReadOnlyMemory<byte> memory => Encoding.UTF8.GetString(memory.Span),
-            Memory<byte> memory => Encoding.UTF8.GetString(memory.Span),
-            _ => Convert.ToString(value, CultureInfo.InvariantCulture)
+            Memory<byte> memory         => Encoding.UTF8.GetString(memory.Span),
+            _                           => Convert.ToString(value, CultureInfo.InvariantCulture)
         };
     }
 

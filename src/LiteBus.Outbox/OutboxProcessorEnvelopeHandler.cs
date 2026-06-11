@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
@@ -75,17 +76,20 @@ internal static class OutboxProcessorEnvelopeHandler
         CancellationToken cancellationToken)
     {
         MessageProcessorDiagnostics.TryGetParentActivityContext(envelope.TraceContext, out var parentContext);
+
         using var messageActivity = OutboxProcessorTelemetry.ActivitySource.StartActivity(
             "outbox.processor.message",
-            System.Diagnostics.ActivityKind.Internal,
+            ActivityKind.Internal,
             parentContext);
+
         messageActivity?.SetTag("litebus.message_id", envelope.Id);
 
         try
         {
             await OutboxProcessorHookRunner.RunBeforeDispatchAsync(hooks, envelope, cancellationToken)
                 .ConfigureAwait(false);
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            var stopwatch = Stopwatch.StartNew();
             await dispatcher.DispatchAsync(envelope, cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
             OutboxProcessorTelemetry.RecordDispatchDuration(stopwatch.Elapsed);

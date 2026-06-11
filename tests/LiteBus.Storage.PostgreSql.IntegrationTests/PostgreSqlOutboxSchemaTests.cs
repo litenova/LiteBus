@@ -1,5 +1,4 @@
 using LiteBus.Outbox.Storage.PostgreSql;
-using LiteBus.Storage.PostgreSql;
 
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 
@@ -15,7 +14,7 @@ public sealed class PostgreSqlOutboxSchemaTests : IClassFixture<PostgreSqlFixtur
     [Fact]
     public async Task EnsureAsync_ShouldCreateSchemaAndBeIdempotent()
     {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
 
         await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options);
         await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options);
@@ -26,7 +25,7 @@ public sealed class PostgreSqlOutboxSchemaTests : IClassFixture<PostgreSqlFixtur
     [Fact]
     public async Task EnsureAsync_ShouldHandleConcurrentBootstrap()
     {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
 
         var tasks = Enumerable.Range(0, 5)
             .Select(_ => PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options))
@@ -39,7 +38,7 @@ public sealed class PostgreSqlOutboxSchemaTests : IClassFixture<PostgreSqlFixtur
     [Fact]
     public async Task ValidateAsync_ShouldThrowWhenTableIsMissing()
     {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
 
         var action = async () => await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options);
 
@@ -50,7 +49,7 @@ public sealed class PostgreSqlOutboxSchemaTests : IClassFixture<PostgreSqlFixtur
     [Fact]
     public async Task CreateIfNotExistsAsync_ShouldDelegateToEnsureAsync()
     {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
 
         await PostgreSqlOutboxSchema.CreateIfNotExistsAsync(_fixture.DataSource, options);
         await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options);

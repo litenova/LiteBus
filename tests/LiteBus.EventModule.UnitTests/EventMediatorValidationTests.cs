@@ -16,7 +16,10 @@ public sealed class EventMediatorValidationTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddEventModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
@@ -26,7 +29,7 @@ public sealed class EventMediatorValidationTests : LiteBusTestBase
 
         var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
 
-        var act = async () => await eventMediator.PublishAsync((IEvent) null!);
+        var act = async () => await eventMediator.PublishAsync(null!);
 
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
@@ -37,7 +40,10 @@ public sealed class EventMediatorValidationTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddEventModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);

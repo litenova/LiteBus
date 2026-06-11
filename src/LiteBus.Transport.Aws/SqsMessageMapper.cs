@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using Amazon.SQS.Model;
 using LiteBus.Transport.Abstractions;
 
@@ -58,21 +54,17 @@ internal static class SqsMessageMapper
     /// </summary>
     /// <param name="message">The received SQS message.</param>
     /// <param name="queueUrl">The queue URL configured for the consumer.</param>
-    /// <param name="deleteAsync">The delegate that deletes the message after successful processing.</param>
-    /// <param name="changeVisibilityAsync">The delegate that changes message visibility for nack semantics.</param>
+    /// <param name="ackHandlers">The acknowledgement handlers wired by the consumer.</param>
     /// <returns>The transport message passed to consumer handlers.</returns>
     internal static TransportMessage ToTransportMessage(
         Message message,
         string queueUrl,
-        AwsSqsTransportOptions options,
-        Func<CancellationToken, Task> deleteAsync,
-        Func<int, CancellationToken, Task> changeVisibilityAsync)
+        TransportConsumerAckHandlers ackHandlers)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(ackHandlers);
 
         var body = Encoding.UTF8.GetBytes(message.Body ?? string.Empty);
         var headers = CopyMessageAttributes(message.MessageAttributes);
-        var requeueVisibilityTimeout = SqsRequeueBackoff.ComputeRequeueVisibilityTimeout(message, options);
 
         return new TransportMessage
         {
@@ -81,15 +73,12 @@ internal static class SqsMessageMapper
             Destination = queueUrl,
             Route = GetAttribute(headers, "Route"),
             MessageId = message.MessageId ?? GetAttribute(headers, TransportHeaders.MessageId),
-            CorrelationId = GetAttribute(headers, TransportHeaders.CorrelationId)
-                ?? GetAttribute(headers, "CorrelationId"),
-            Redelivered = message.Attributes.TryGetValue("ApproximateReceiveCount", out var count)
-                && int.TryParse(count, NumberStyles.Integer, CultureInfo.InvariantCulture, out var receiveCount)
-                && receiveCount > 1,
-            AckAsync = deleteAsync,
-            NackAsync = (requeue, token) => requeue
-                ? changeVisibilityAsync(requeueVisibilityTimeout, token)
-                : deleteAsync(token)
+            CorrelationId = GetAttribute(headers, TransportHeaders.CorrelationId) ?? GetAttribute(headers, "CorrelationId"),
+            Redelivered = message.Attributes.TryGetValue("ApproximateReceiveCount", out var count) &&
+                          int.TryParse(count, NumberStyles.Integer, CultureInfo.InvariantCulture, out var receiveCount) &&
+                          receiveCount > 1,
+            AckAsync = ackHandlers.AckAsync,
+            NackAsync = ackHandlers.NackAsync
         };
     }
 
@@ -122,12 +111,14 @@ internal static class SqsMessageMapper
     /// </summary>
     /// <param name="value">The attribute value.</param>
     /// <returns>The message attribute value.</returns>
-    private static MessageAttributeValue CreateStringAttribute(string value) =>
-        new()
+    private static MessageAttributeValue CreateStringAttribute(string value)
+    {
+        return new MessageAttributeValue
         {
             DataType = "String",
             StringValue = value
         };
+    }
 
     /// <summary>
     ///     Copies SQS message attributes into a read-only header dictionary.
@@ -163,4 +154,3 @@ internal static class SqsMessageMapper
         return headers.TryGetValue(name, out var value) ? Convert.ToString(value, CultureInfo.InvariantCulture) : null;
     }
 }
-

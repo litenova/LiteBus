@@ -11,13 +11,11 @@
     </ItemGroup>
 
 
-
     <ItemGroup>
 
         <PackageReference Include="AWSSDK.SQS"/>
 
     </ItemGroup>
-
 
 
     <ItemGroup>
@@ -29,7 +27,6 @@
         <ProjectReference Include="..\LiteBus.Transport\LiteBus.Transport.csproj"/>
 
     </ItemGroup>
-
 
 
 </Project>

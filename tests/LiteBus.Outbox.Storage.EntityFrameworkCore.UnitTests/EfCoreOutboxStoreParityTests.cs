@@ -1,6 +1,4 @@
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
-using LiteBus.Messaging.Abstractions.Processing;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests;
@@ -101,6 +99,7 @@ public sealed class EfCoreOutboxStoreParityTests
         var envelope = CreatePendingEnvelope("tenant-a", now);
 
         await store.AddAsync(envelope);
+
         var leased = (await store.LeasePendingAsync(new OutboxLeaseRequest
         {
             BatchSize = 1,
@@ -122,8 +121,10 @@ public sealed class EfCoreOutboxStoreParityTests
     /// </summary>
     /// <param name="databaseName">The isolated database name.</param>
     /// <returns>The outbox store.</returns>
-    private static EfCoreOutboxStore CreateStore(string databaseName) =>
-        new(_ => Task.FromResult<IOutboxDbContext>(CreateContext(databaseName)), new EfCoreOutboxStoreOptions());
+    private static EfCoreOutboxStore CreateStore(string databaseName)
+    {
+        return new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(CreateContext(databaseName)), new EfCoreOutboxStoreOptions());
+    }
 
     /// <summary>
     ///     Creates a configured outbox database context.
@@ -166,8 +167,9 @@ public sealed class EfCoreOutboxStoreParityTests
     /// <param name="tenantId">The tenant identifier.</param>
     /// <param name="createdAt">The created timestamp.</param>
     /// <returns>The outbox envelope.</returns>
-    private static OutboxEnvelope CreatePendingEnvelope(string tenantId, DateTimeOffset createdAt) =>
-        new()
+    private static OutboxEnvelope CreatePendingEnvelope(string tenantId, DateTimeOffset createdAt)
+    {
+        return new OutboxEnvelope
         {
             Id = Guid.NewGuid(),
             ContractName = "tests.events.shipped",
@@ -178,6 +180,7 @@ public sealed class EfCoreOutboxStoreParityTests
             Status = OutboxStatus.Pending,
             TenantId = tenantId
         };
+    }
 
     /// <summary>
     ///     Test database context that exposes outbox messages.

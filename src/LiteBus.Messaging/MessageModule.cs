@@ -51,6 +51,7 @@ public sealed class MessageModule : IModule
     /// <param name="configuration">The module configuration.</param>
     /// <param name="messageRegistry">The message registry instance.</param>
     /// <param name="messageContractRegistry">The message contract registry instance.</param>
+    /// <param name="timeProvider">The optional time provider registered for messaging services.</param>
     private static void RegisterMessagingServices(
         IModuleConfiguration configuration,
         IMessageRegistry messageRegistry,

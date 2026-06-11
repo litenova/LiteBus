@@ -1,4 +1,3 @@
-using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 
@@ -43,7 +42,7 @@ public sealed class OutboxManagerTests
         var store = new InMemoryOutboxStore();
         var manager = CreateManager(store);
 
-        var act = async () => await manager.PurgeAsync(new OutboxMessageFilter(), confirm: false);
+        var act = async () => await manager.PurgeAsync(new OutboxMessageFilter(), false);
 
         await act.Should().ThrowAsync<OutboxManagementException>();
     }
@@ -56,6 +55,7 @@ public sealed class OutboxManagerTests
     private static OutboxManager CreateManager(InMemoryOutboxStore store)
     {
         var cleanupOptions = new OutboxCleanupHostOptions();
+
         return new OutboxManager(
             store,
             store,

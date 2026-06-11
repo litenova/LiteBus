@@ -1,4 +1,3 @@
-using DotNet.Testcontainers.Builders;
 using Testcontainers.MsSql;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests;
@@ -33,6 +32,7 @@ public sealed class SqlServerFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var connectionString = Environment.GetEnvironmentVariable(ConnectionStringEnvironmentVariable);
+
         if (!string.IsNullOrWhiteSpace(connectionString))
         {
             ConnectionString = connectionString;

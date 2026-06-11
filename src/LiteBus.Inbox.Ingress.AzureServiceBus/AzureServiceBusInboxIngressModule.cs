@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Ingress;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Transport;
@@ -37,9 +36,9 @@ public sealed class AzureServiceBusInboxIngressModule : IInboxIngressModule
         var moduleBuilder = new AzureServiceBusInboxIngressModuleBuilder();
         _builder(moduleBuilder);
 
-        var options = moduleBuilder.Options
-            ?? throw new LiteBusConfigurationException(
-                $"{nameof(AzureServiceBusInboxIngressOptions)} must be configured before registering Azure Service Bus inbox ingress.");
+        var options = moduleBuilder.Options ??
+                      throw new LiteBusConfigurationException(
+                          $"{nameof(AzureServiceBusInboxIngressOptions)} must be configured before registering Azure Service Bus inbox ingress.");
 
         if (string.IsNullOrWhiteSpace(options.Destination))
         {
@@ -57,6 +56,7 @@ public sealed class AzureServiceBusInboxIngressModule : IInboxIngressModule
         };
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(TransportInboxIngressOptions), ingressOptions));
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(TransportInboxIngressHandler),
             typeof(TransportInboxIngressHandler)));
@@ -78,7 +78,8 @@ public sealed class AzureServiceBusInboxIngressModule : IInboxIngressModule
     }
 
     /// <summary>
-    ///     Ensures <see cref="IMessageConsumer" /> is registered, bootstrapping Service Bus transport from ingress options when needed.
+    ///     Ensures <see cref="IMessageConsumer" /> is registered, bootstrapping Service Bus transport from ingress options
+    ///     when needed.
     /// </summary>
     /// <param name="configuration">The module configuration receiving dependency registrations.</param>
     /// <param name="options">The ingress options supplying connection settings when transport is not pre-registered.</param>

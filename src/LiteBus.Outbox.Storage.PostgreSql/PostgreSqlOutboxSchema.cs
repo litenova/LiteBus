@@ -32,13 +32,15 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 ///         <item>
 ///             <description>
 ///                 <strong>Opt-in host bootstrap.</strong> Set
-///                 <see cref="PostgreSqlOutboxStoreOptions.EnsureSchemaCreationOnStartup" /> to <see langword="true" /> and
+///                 <see cref="PostgreSqlOutboxStoreOptions.EnsureSchemaCreationOnStartup" /> to <see langword="true" />
+///                 and
 ///                 register the PostgreSQL outbox schema hosting module.
 ///             </description>
 ///         </item>
 ///     </list>
 ///     <para>
-///         Schema version 1 includes the full outbox column set, required indexes, and an optional insert notify trigger for
+///         Schema version 1 includes the full outbox column set, required indexes, and an optional insert notify trigger
+///         for
 ///         LISTEN/NOTIFY wake-up. Existing databases are not upgraded; recreate tables or apply
 ///         <see cref="GetCreateScript(PostgreSqlOutboxStoreOptions?)" /> through your migration pipeline.
 ///     </para>

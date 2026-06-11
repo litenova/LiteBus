@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
+
 namespace LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 
 /// <summary>
@@ -13,14 +14,14 @@ namespace LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
 {
     /// <summary>
-    ///     Tracks descriptors already translated into Microsoft DI service registrations.
-    /// </summary>
-    private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
-
-    /// <summary>
     ///     Tracks the first descriptor registered for each service type so conflicting module registrations fail early.
     /// </summary>
     private readonly Dictionary<Type, DependencyDescriptor> _descriptorsByServiceType = [];
+
+    /// <summary>
+    ///     Tracks descriptors already translated into Microsoft DI service registrations.
+    /// </summary>
+    private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
 
     /// <summary>
     ///     The service collection receiving LiteBus dependency registrations.
@@ -48,10 +49,12 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     /// <param name="descriptor">The dependency descriptor to register.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
     /// <exception cref="LiteBusConfigurationException">
-    ///     Thrown when another module already registered <see cref="DependencyDescriptor.DependencyType" /> with a different binding.
+    ///     Thrown when another module already registered <see cref="DependencyDescriptor.DependencyType" /> with a different
+    ///     binding.
     /// </exception>
     /// <remarks>
-    ///     Duplicate registrations with equal descriptors are ignored; see <see cref="DependencyDescriptor.Equals(DependencyDescriptor?)" />.
+    ///     Duplicate registrations with equal descriptors are ignored; see
+    ///     <see cref="DependencyDescriptor.Equals(DependencyDescriptor?)" />.
     /// </remarks>
     public void Register(DependencyDescriptor descriptor)
     {
@@ -64,7 +67,7 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
                 $"Use {nameof(RegisterCollection)} for multi-registration services such as IEnumerable<T> hooks.");
         }
 
-        RegisterCore(descriptor, enforceSingleRegistration: true);
+        RegisterCore(descriptor, true);
     }
 
     /// <inheritdoc />
@@ -79,7 +82,25 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
                 $"{nameof(DependencyDescriptor.ForCollection)} before calling {nameof(RegisterCollection)}.");
         }
 
-        RegisterCore(descriptor, enforceSingleRegistration: false);
+        RegisterCore(descriptor, false);
+    }
+
+    /// <summary>
+    ///     Returns an enumerator that iterates through the registered dependency descriptors.
+    /// </summary>
+    /// <returns>An enumerator for the registered dependency descriptors.</returns>
+    public IEnumerator<DependencyDescriptor> GetEnumerator()
+    {
+        return _registeredDescriptors.GetEnumerator();
+    }
+
+    /// <summary>
+    ///     Returns a non-generic enumerator that iterates through the registered dependency descriptors.
+    /// </summary>
+    /// <returns>A non-generic enumerator for the registered dependency descriptors.</returns>
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
     }
 
     /// <summary>
@@ -87,7 +108,8 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     /// </summary>
     /// <param name="descriptor">The dependency descriptor to register.</param>
     /// <param name="enforceSingleRegistration">
-    ///     When <see langword="true" />, rejects a second binding for the same <see cref="DependencyDescriptor.DependencyType" />.
+    ///     When <see langword="true" />, rejects a second binding for the same
+    ///     <see cref="DependencyDescriptor.DependencyType" />.
     /// </param>
     private void RegisterCore(DependencyDescriptor descriptor, bool enforceSingleRegistration)
     {
@@ -115,24 +137,6 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
         }
 
         _services.Add(ConvertToServiceDescriptor(descriptor));
-    }
-
-    /// <summary>
-    ///     Returns an enumerator that iterates through the registered dependency descriptors.
-    /// </summary>
-    /// <returns>An enumerator for the registered dependency descriptors.</returns>
-    public IEnumerator<DependencyDescriptor> GetEnumerator()
-    {
-        return _registeredDescriptors.GetEnumerator();
-    }
-
-    /// <summary>
-    ///     Returns a non-generic enumerator that iterates through the registered dependency descriptors.
-    /// </summary>
-    /// <returns>A non-generic enumerator for the registered dependency descriptors.</returns>
-    IEnumerator IEnumerable.GetEnumerator()
-    {
-        return GetEnumerator();
     }
 
     /// <summary>

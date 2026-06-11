@@ -1,6 +1,4 @@
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
-using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Storage.PostgreSql;
 using Npgsql;
 
@@ -19,6 +17,7 @@ internal static class EfCoreOutboxTableReaders
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
+
         command.CommandText = $"""
                                SELECT
                                    message_id,
@@ -39,9 +38,11 @@ internal static class EfCoreOutboxTableReaders
                                FROM {tableName}
                                WHERE message_id = @message_id;
                                """;
+
         command.Parameters.AddWithValue("message_id", messageId);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
         if (!await reader.ReadAsync(cancellationToken))
         {
             return null;
@@ -56,7 +57,7 @@ internal static class EfCoreOutboxTableReaders
             Topic = ReadNullableString(reader, 4),
             CreatedAt = reader.GetFieldValue<DateTimeOffset>(5),
             VisibleAfter = ReadNullableDateTimeOffset(reader, 6),
-            Status = (OutboxStatus)reader.GetInt32(7),
+            Status = (OutboxStatus) reader.GetInt32(7),
             AttemptCount = reader.GetInt32(8),
             LeaseOwner = ReadNullableString(reader, 9),
             LeaseExpiresAt = ReadNullableDateTimeOffset(reader, 10),

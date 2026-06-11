@@ -1,10 +1,7 @@
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Testing;
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-
 using IInboxProcessor = LiteBus.Inbox.Abstractions.IInboxProcessor;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests;
@@ -28,7 +25,8 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
     }
 
     /// <summary>
-    ///     Verifies that <see cref="IInboxProcessor.ProcessPendingAsync" /> executes a scheduled command through EF Core storage.
+    ///     Verifies that <see cref="IInboxProcessor.ProcessPendingAsync" /> executes a scheduled command through EF Core
+    ///     storage.
     /// </summary>
     /// <returns>A task that completes when the command is handled.</returns>
     [Fact]
@@ -52,11 +50,12 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
         var orderId = Guid.NewGuid();
-        await scheduler.AcceptAsync(new ShipOrderCommand
+
+        await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        });
+        }));
 
         await processor.ProcessPendingAsync();
 

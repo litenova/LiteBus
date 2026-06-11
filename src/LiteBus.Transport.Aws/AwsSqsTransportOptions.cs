@@ -65,4 +65,3 @@ public sealed class AwsSqsTransportOptions
     /// </summary>
     public double PollBackoffMultiplier { get; init; } = 2.0;
 }
-

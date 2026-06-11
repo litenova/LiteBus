@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
@@ -16,11 +17,6 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
     where TContext : DbContext
 {
-    /// <summary>
-    ///     Gets the time provider used to stamp storage time on staged envelopes.
-    /// </summary>
-    private readonly TimeProvider _clock;
-
     /// <summary>
     ///     Gets the database context that owns the ambient transaction for staged envelopes.
     /// </summary>
@@ -42,7 +38,7 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
     /// <param name="interceptor">The interceptor that stages envelopes for the active context.</param>
     /// <param name="dbContext">The database context that owns the ambient transaction.</param>
     /// <param name="envelopeFactory">The factory used to create envelopes before interceptor staging.</param>
-    /// <param name="clock">The time provider used to stamp storage time on staged envelopes.</param>
+    /// <param name="clock">The time provider reserved for factory visibility resolution.</param>
     public TransactionalInbox(
         LiteBusInboxSaveChangesInterceptor interceptor,
         TContext dbContext,
@@ -52,157 +48,112 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
         _interceptor = interceptor ?? throw new ArgumentNullException(nameof(interceptor));
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _envelopeFactory = envelopeFactory ?? throw new ArgumentNullException(nameof(envelopeFactory));
-        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _ = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
     /// <inheritdoc />
-    public async Task<InboxReceipt> AcceptAsync(
-        object message,
-        Type messageType,
-        InboxOptions? options = null,
+    public async Task<InboxReceipt> AcceptAsync<TMessage>(
+        InboxAcceptItem<TMessage> item,
         CancellationToken cancellationToken = default)
+        where TMessage : notnull
     {
-        var envelope = await _envelopeFactory.CreateAsync(message, messageType, options, cancellationToken)
+        ArgumentNullException.ThrowIfNull(item);
+
+        var envelope = await _envelopeFactory
+            .CreateAsync(InboxAcceptItems.From(item), cancellationToken)
             .ConfigureAwait(false);
+
         _interceptor.Enqueue(_dbContext, envelope);
 
-        return new InboxReceipt
-        {
-            Id = envelope.Id,
-            MessageType = messageType,
-            ContractName = envelope.ContractName,
-            ContractVersion = envelope.ContractVersion,
-            AcceptedAt = envelope.CreatedAt,
-            CorrelationId = envelope.CorrelationId,
-            CausationId = envelope.CausationId,
-            TenantId = envelope.TenantId
-        };
-    }
-
-    /// <inheritdoc />
-    public async Task<InboxReceipt<T>> AcceptAsync<T>(
-        T message,
-        InboxOptions? options = null,
-        CancellationToken cancellationToken = default)
-        where T : notnull
-    {
-        var receipt = await AcceptAsync(message, message.GetType(), options, cancellationToken).ConfigureAwait(false);
-
-        return new InboxReceipt<T>
-        {
-            Id = receipt.Id,
-            MessageType = receipt.MessageType,
-            ContractName = receipt.ContractName,
-            ContractVersion = receipt.ContractVersion,
-            AcceptedAt = receipt.AcceptedAt,
-            CorrelationId = receipt.CorrelationId,
-            CausationId = receipt.CausationId,
-            TenantId = receipt.TenantId
-        };
+        return CreateReceipt(envelope, item.Message.GetType());
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
-        IReadOnlyList<object> messages,
-        IReadOnlyList<Type> messageTypes,
-        IReadOnlyList<InboxOptions?>? options = null,
+        IReadOnlyList<InboxAcceptItem> items,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(messages);
-        ArgumentNullException.ThrowIfNull(messageTypes);
+        ArgumentNullException.ThrowIfNull(items);
 
-        if (messages.Count != messageTypes.Count)
-        {
-            throw new ArgumentException("Messages and message types must contain the same number of entries.");
-        }
-
-        if (options is not null && options.Count != messages.Count)
-        {
-            throw new ArgumentException("Options must contain the same number of entries as messages when supplied.");
-        }
-
-        if (messages.Count == 0)
+        if (items.Count == 0)
         {
             return Array.Empty<InboxReceipt>();
         }
 
-        var receipts = new InboxReceipt[messages.Count];
+        var envelopes = await _envelopeFactory.CreateBatchAsync(items, cancellationToken).ConfigureAwait(false);
+        var receipts = new InboxReceipt[envelopes.Count];
 
-        for (var index = 0; index < messages.Count; index++)
+        for (var index = 0; index < envelopes.Count; index++)
         {
-            receipts[index] = await AcceptAsync(
-                messages[index],
-                messageTypes[index],
-                options?[index],
-                cancellationToken).ConfigureAwait(false);
+            _interceptor.Enqueue(_dbContext, envelopes[index]);
+            receipts[index] = CreateReceipt(envelopes[index], items[index].Message.GetType());
         }
 
         return receipts;
-    }
-
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<InboxReceipt<T>>> AcceptBatchAsync<T>(
-        IReadOnlyList<T> messages,
-        IReadOnlyList<InboxOptions?>? options = null,
-        CancellationToken cancellationToken = default)
-        where T : notnull
-    {
-        ArgumentNullException.ThrowIfNull(messages);
-
-        if (options is not null && options.Count != messages.Count)
-        {
-            throw new ArgumentException("Options must contain the same number of entries as messages when supplied.");
-        }
-
-        if (messages.Count == 0)
-        {
-            return Array.Empty<InboxReceipt<T>>();
-        }
-
-        var receipts = new InboxReceipt<T>[messages.Count];
-
-        for (var index = 0; index < messages.Count; index++)
-        {
-            receipts[index] = await AcceptAsync(messages[index], options?[index], cancellationToken).ConfigureAwait(false);
-        }
-
-        return receipts;
-    }
-
-    /// <inheritdoc />
-    public Task<InboxReceipt<T>> ScheduleAsync<T>(
-        T message,
-        DateTimeOffset enqueueAt,
-        InboxOptions? options = null,
-        CancellationToken cancellationToken = default)
-        where T : notnull
-    {
-        return AcceptAsync(message, WithVisibleAfter(options, enqueueAt), cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task<InboxReceipt<T>> ScheduleAfterAsync<T>(
-        T message,
-        TimeSpan delay,
-        InboxOptions? options = null,
-        CancellationToken cancellationToken = default)
-        where T : notnull
-    {
-        ArgumentOutOfRangeException.ThrowIfLessThan(delay, TimeSpan.Zero, nameof(delay));
-
-        return AcceptAsync(message, WithVisibleAfter(options, _clock.GetUtcNow().Add(delay)), cancellationToken);
     }
 
     /// <summary>
-    ///     Merges the supplied options with a scheduled visibility timestamp.
+    ///     Maps a staged envelope to an acceptance receipt.
     /// </summary>
-    /// <param name="options">The caller-supplied inbox options, if any.</param>
-    /// <param name="visibleAfter">The UTC timestamp when the message becomes visible to processors.</param>
-    /// <returns>Inbox options with <see cref="InboxOptions.VisibleAfter" /> set.</returns>
-    private static InboxOptions WithVisibleAfter(InboxOptions? options, DateTimeOffset visibleAfter)
+    /// <param name="envelope">The envelope staged for the next <c>SaveChanges</c> call.</param>
+    /// <param name="messageType">The runtime message type used for contract lookup.</param>
+    /// <returns>The acceptance receipt returned to callers.</returns>
+    private static InboxReceipt CreateReceipt(InboxEnvelope envelope, Type messageType)
     {
-        options ??= new InboxOptions();
+        return new InboxReceipt
+        {
+            Id = envelope.Id,
+            MessageType = messageType,
+            Contract = new MessageContractReference
+            {
+                Name = envelope.ContractName,
+                Version = envelope.ContractVersion
+            },
+            AcceptedAt = envelope.CreatedAt,
+            Trace = ResolveTrace(envelope.CorrelationId, envelope.CausationId, envelope.TraceContext),
+            Tenant = ResolveTenant(envelope.TenantId)
+        };
+    }
 
-        return options with { VisibleAfter = visibleAfter };
+    /// <summary>
+    ///     Reconstructs trace metadata from persisted envelope columns.
+    /// </summary>
+    /// <param name="correlationId">The optional correlation identifier stored with the envelope.</param>
+    /// <param name="causationId">The optional causation identifier stored with the envelope.</param>
+    /// <param name="traceContext">The optional distributed trace context stored with the envelope.</param>
+    /// <returns>The trace metadata represented by the stored columns.</returns>
+    private static MessageTrace ResolveTrace(
+        string? correlationId,
+        string? causationId,
+        string? traceContext)
+    {
+        if (!string.IsNullOrWhiteSpace(traceContext) && !string.IsNullOrWhiteSpace(correlationId) && !string.IsNullOrWhiteSpace(causationId))
+        {
+            return new MessageTrace.Distributed(correlationId, causationId, traceContext);
+        }
+
+        if (!string.IsNullOrWhiteSpace(correlationId) && !string.IsNullOrWhiteSpace(causationId))
+        {
+            return new MessageTrace.Workflow(correlationId, causationId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(correlationId))
+        {
+            return new MessageTrace.Correlated(correlationId);
+        }
+
+        return MessageTrace.None.Instance;
+    }
+
+    /// <summary>
+    ///     Reconstructs tenant metadata from the persisted tenant identifier column.
+    /// </summary>
+    /// <param name="tenantId">The optional tenant identifier stored with the envelope.</param>
+    /// <returns>The tenant metadata represented by the stored column.</returns>
+    private static TenantScope ResolveTenant(string? tenantId)
+    {
+        return string.IsNullOrWhiteSpace(tenantId)
+            ? TenantScope.Unscoped.Instance
+            : new TenantScope.Isolated(tenantId);
     }
 }

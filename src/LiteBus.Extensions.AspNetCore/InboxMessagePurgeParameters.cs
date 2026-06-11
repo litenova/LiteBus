@@ -66,16 +66,19 @@ public sealed class InboxMessagePurgeParameters
     ///     Converts the bound query values to an <see cref="InboxMessageFilter" />.
     /// </summary>
     /// <returns>The filter used by inbox purge operations.</returns>
-    public InboxMessageFilter ToFilter() => new()
+    public InboxMessageFilter ToFilter()
     {
-        MessageId = MessageId,
-        MessageIds = MessageIds,
-        Statuses = Statuses,
-        ContractName = ContractName,
-        CorrelationId = CorrelationId,
-        CausationId = CausationId,
-        TenantId = TenantId,
-        CreatedAfter = CreatedAfter,
-        CreatedBefore = CreatedBefore
-    };
+        return new InboxMessageFilter
+        {
+            MessageId = MessageId,
+            MessageIds = MessageIds,
+            Statuses = Statuses,
+            ContractName = ContractName,
+            CorrelationId = CorrelationId,
+            CausationId = CausationId,
+            TenantId = TenantId,
+            CreatedAfter = CreatedAfter,
+            CreatedBefore = CreatedBefore
+        };
+    }
 }

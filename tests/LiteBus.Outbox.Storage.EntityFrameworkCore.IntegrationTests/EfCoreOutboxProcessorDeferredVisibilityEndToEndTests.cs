@@ -1,6 +1,5 @@
-using LiteBus.Outbox;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using LiteBus.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,11 +42,13 @@ public sealed class EfCoreOutboxProcessorDeferredVisibilityEndToEndTests : LiteB
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
-        {
-            Id = messageId,
-            VisibleAfter = visibleAfter
-        });
+        await outbox.EnqueueAsync(OutboxEnqueueItems.WithMetadata(
+            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            OutboxEnqueueMetadata.Immediate with
+            {
+                Identity = new MessageIdentity.Supplied(messageId),
+                Visibility = new MessageVisibility.At(visibleAfter)
+            }));
 
         await processor.ProcessPendingAsync();
         recorder.Events.Should().BeEmpty();

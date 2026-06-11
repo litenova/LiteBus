@@ -8,16 +8,16 @@ namespace LiteBus.Storage.PostgreSql;
 public sealed class NullPostgreSqlSchemaLogger : IPostgreSqlSchemaLogger
 {
     /// <summary>
-    ///     Gets the shared null logger instance.
-    /// </summary>
-    public static NullPostgreSqlSchemaLogger Instance { get; } = new();
-
-    /// <summary>
     ///     Initializes a new instance of the <see cref="NullPostgreSqlSchemaLogger" /> class.
     /// </summary>
     private NullPostgreSqlSchemaLogger()
     {
     }
+
+    /// <summary>
+    ///     Gets the shared null logger instance.
+    /// </summary>
+    public static NullPostgreSqlSchemaLogger Instance { get; } = new();
 
     /// <inheritdoc />
     public void Log(PostgreSqlSchemaLogLevel level, string message, Exception? exception = null)

@@ -1,166 +1,198 @@
 <Solution>
-  <Configurations>
-    <Platform Name="Any CPU" />
-    <Platform Name="x64" />
-    <Platform Name="x86" />
-  </Configurations>
-  <Folder Name="/.github/">
-    <File Path=".github/dependabot.yml" />
-  </Folder>
-  <Folder Name="/.github/scripts/">
-    <File Path=".github/scripts/generate-release-notes.sh" />
-  </Folder>
-  <Folder Name="/.github/workflows/">
-    <File Path=".github/workflows/build-and-test.yml" />
-    <File Path=".github/workflows/manual-test-and-coverage.yml" />
-    <File Path=".github/workflows/release.yml" />
-  </Folder>
-  <Folder Name="/samples/">
-    <Project Path="samples/LiteBus.Samples.V6/LiteBus.Samples.V6.csproj" />
-    <Project Path="samples/LiteBus.Samples/LiteBus.Samples.csproj" />
-  </Folder>
-  <Folder Name="/solution-items/">
-    <File Path=".gitignore" />
-    <File Path="Changelog.md" />
-    <File Path="GitVersion.yml" />
-    <File Path="global.json" />
-    <File Path="LICENSE" />
-    <File Path="README.md" />
-  </Folder>
-  <Folder Name="/src/">
-    <File Path="src/Directory.Build.props" />
-    <File Path="src/Directory.Packages.props" />
-    <Project Path="src/LiteBus.Transport.Abstractions/LiteBus.Transport.Abstractions.csproj" />
-    <Project Path="src/LiteBus.Transport/LiteBus.Transport.csproj" />
-    <Project Path="src/LiteBus.Transport.Amqp/LiteBus.Transport.Amqp.csproj" />
-    <Project Path="src/LiteBus.Transport.AzureServiceBus/LiteBus.Transport.AzureServiceBus.csproj" />
-    <Project Path="src/LiteBus.Transport.Aws/LiteBus.Transport.Aws.csproj" />
-    <Project Path="src/LiteBus.Transport.InMemory/LiteBus.Transport.InMemory.csproj" />
-    <Project Path="src/LiteBus.Transport.Kafka/LiteBus.Transport.Kafka.csproj" />
-    <Project Path="src/LiteBus.Orchestration.Abstractions/LiteBus.Orchestration.Abstractions.csproj" />
-    <Project Path="src/LiteBus.Saga.Abstractions/LiteBus.Saga.Abstractions.csproj" />
-    <Project Path="src/LiteBus.Saga/LiteBus.Saga.csproj" />
-    <Project Path="src/LiteBus.Saga.InboxIntegration/LiteBus.Saga.InboxIntegration.csproj" />
-    <Project Path="src/LiteBus.Saga.Storage.PostgreSql/LiteBus.Saga.Storage.PostgreSql.csproj" />
-    <Project Path="src/LiteBus.Extensions.AspNetCore/LiteBus.Extensions.AspNetCore.csproj" />
-    <Project Path="src/LiteBus.Extensions.Diagnostics.HealthChecks/LiteBus.Extensions.Diagnostics.HealthChecks.csproj" />
-    <Project Path="src/LiteBus.Analyzers/LiteBus.Analyzers.csproj" />
-    <Project Path="src/LiteBus.Commands.Abstractions/LiteBus.Commands.Abstractions.csproj" />
-    <Project Path="src/LiteBus.Commands.Extensions.Autofac/LiteBus.Commands.Extensions.Autofac.csproj" />
-    <Project Path="src/LiteBus.Commands.Extensions.Microsoft.DependencyInjection/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.csproj" />
-    <Project Path="src/LiteBus.Commands/LiteBus.Commands.csproj" />
-    <Project Path="src/LiteBus.Events.Abstractions/LiteBus.Events.Abstractions.csproj" />
-    <Project Path="src/LiteBus.Events.Extensions.Autofac/LiteBus.Events.Extensions.Autofac.csproj" />
-    <Project Path="src/LiteBus.Events.Extensions.Microsoft.DependencyInjection/LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj" />
-    <Project Path="src/LiteBus.Events/LiteBus.Events.csproj" />
-    <Project Path="src/LiteBus.Extensions.All/LiteBus.Extensions.All.csproj" />
-    <Project Path="src/LiteBus.Extensions.Microsoft.DependencyInjection/LiteBus.Extensions.Microsoft.DependencyInjection.csproj" />
-    <Project Path="src/LiteBus.Inbox.Extensions.OpenTelemetry/LiteBus.Inbox.Extensions.OpenTelemetry.csproj" />
-    <Project Path="src/LiteBus.Outbox.Extensions.OpenTelemetry/LiteBus.Outbox.Extensions.OpenTelemetry.csproj" />
-    <Project Path="src/LiteBus.Transport.Extensions.OpenTelemetry/LiteBus.Transport.Extensions.OpenTelemetry.csproj" />
-    <Project Path="src/LiteBus.Inbox.Abstractions/LiteBus.Inbox.Abstractions.csproj" />
-    <Project Path="src/LiteBus.Inbox.Dispatch/LiteBus.Inbox.Dispatch.csproj" />
-    <Project Path="src/LiteBus.Inbox.Dispatch.Amqp/LiteBus.Inbox.Dispatch.Amqp.csproj" />
-    <Project Path="src/LiteBus.Inbox.Dispatch.Aws/LiteBus.Inbox.Dispatch.Aws.csproj" />
-    <Project Path="src/LiteBus.Inbox.Dispatch.AzureServiceBus/LiteBus.Inbox.Dispatch.AzureServiceBus.csproj" />
-    <Project Path="src/LiteBus.Inbox.Dispatch.InMemory/LiteBus.Inbox.Dispatch.InMemory.csproj" />
-    <Project Path="src/LiteBus.Inbox.Dispatch.Kafka/LiteBus.Inbox.Dispatch.Kafka.csproj" />
-    <Project Path="src/LiteBus.Inbox.Dispatch.InProcess/LiteBus.Inbox.Dispatch.InProcess.csproj" />
-    <Project Path="src/LiteBus.Inbox.Ingress/LiteBus.Inbox.Ingress.csproj" />
-    <Project Path="src/LiteBus.Inbox.Ingress.Amqp/LiteBus.Inbox.Ingress.Amqp.csproj" />
-    <Project Path="src/LiteBus.Inbox.Ingress.Aws/LiteBus.Inbox.Ingress.Aws.csproj" />
-    <Project Path="src/LiteBus.Inbox.Ingress.AzureServiceBus/LiteBus.Inbox.Ingress.AzureServiceBus.csproj" />
-    <Project Path="src/LiteBus.Inbox.Ingress.InMemory/LiteBus.Inbox.Ingress.InMemory.csproj" />
-    <Project Path="src/LiteBus.Inbox.Ingress.Kafka/LiteBus.Inbox.Ingress.Kafka.csproj" />
-    <Project Path="src/LiteBus.Inbox.Storage.EntityFrameworkCore/LiteBus.Inbox.Storage.EntityFrameworkCore.csproj" />
-    <Project Path="src/LiteBus.Inbox.Storage.InMemory/LiteBus.Inbox.Storage.InMemory.csproj" />
-    <Project Path="src/LiteBus.Inbox.Storage.PostgreSql/LiteBus.Inbox.Storage.PostgreSql.csproj" />
-    <Project Path="src/LiteBus.Inbox/LiteBus.Inbox.csproj" />
-    <Project Path="src/LiteBus.Messaging.Abstractions/LiteBus.Messaging.Abstractions.csproj" />
-    <Project Path="src/LiteBus.Messaging.Extensions.Autofac/LiteBus.Messaging.Extensions.Autofac.csproj" />
-    <Project Path="src/LiteBus.Messaging.Extensions.Microsoft.DependencyInjection/LiteBus.Messaging.Extensions.Microsoft.DependencyInjection.csproj" />
-    <Project Path="src/LiteBus.Messaging/LiteBus.Messaging.csproj" />
-    <Project Path="src/LiteBus.Outbox.Abstractions/LiteBus.Outbox.Abstractions.csproj" />
-    <Project Path="src/LiteBus.Outbox.Dispatch/LiteBus.Outbox.Dispatch.csproj" />
-    <Project Path="src/LiteBus.Outbox.Dispatch.Amqp/LiteBus.Outbox.Dispatch.Amqp.csproj" />
-    <Project Path="src/LiteBus.Outbox.Dispatch.Aws/LiteBus.Outbox.Dispatch.Aws.csproj" />
-    <Project Path="src/LiteBus.Outbox.Dispatch.AzureServiceBus/LiteBus.Outbox.Dispatch.AzureServiceBus.csproj" />
-    <Project Path="src/LiteBus.Outbox.Dispatch.InMemory/LiteBus.Outbox.Dispatch.InMemory.csproj" />
-    <Project Path="src/LiteBus.Outbox.Dispatch.Kafka/LiteBus.Outbox.Dispatch.Kafka.csproj" />
-    <Project Path="src/LiteBus.Outbox.Dispatch.InProcess/LiteBus.Outbox.Dispatch.InProcess.csproj" />
-    <Project Path="src/LiteBus.Outbox.Storage.EntityFrameworkCore/LiteBus.Outbox.Storage.EntityFrameworkCore.csproj" />
-    <Project Path="src/LiteBus.Outbox.Storage.InMemory/LiteBus.Outbox.Storage.InMemory.csproj" />
-    <Project Path="src/LiteBus.Outbox.Storage.PostgreSql/LiteBus.Outbox.Storage.PostgreSql.csproj" />
-    <Project Path="src/LiteBus.Outbox/LiteBus.Outbox.csproj" />
-    <Project Path="src/LiteBus.Queries.Abstractions/LiteBus.Queries.Abstractions.csproj" />
-    <Project Path="src/LiteBus.Queries.Extensions.Autofac/LiteBus.Queries.Extensions.Autofac.csproj" />
-    <Project Path="src/LiteBus.Queries.Extensions.Microsoft.DependencyInjection/LiteBus.Queries.Extensions.Microsoft.DependencyInjection.csproj" />
-    <Project Path="src/LiteBus.Queries/LiteBus.Queries.csproj" />
-    <Project Path="src/LiteBus.Runtime.Abstractions/LiteBus.Runtime.Abstractions.csproj" />
-    <Project Path="src/LiteBus.Runtime.Extensions.Autofac/LiteBus.Runtime.Extensions.Autofac.csproj" />
-    <Project Path="src/LiteBus.Runtime.Extensions.Autofac.Hosting/LiteBus.Runtime.Extensions.Autofac.Hosting.csproj" />
-    <Project Path="src/LiteBus.Runtime.Extensions.Microsoft.DependencyInjection/LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.csproj" />
-    <Project Path="src/LiteBus.Runtime.Extensions.Microsoft.Hosting/LiteBus.Runtime.Extensions.Microsoft.Hosting.csproj" />
-    <Project Path="src/LiteBus.Runtime/LiteBus.Runtime.csproj" />
-    <Project Path="src/LiteBus.Storage.PostgreSql/LiteBus.Storage.PostgreSql.csproj" />
-    <Project Path="src/LiteBus.Storage.EntityFrameworkCore/LiteBus.Storage.EntityFrameworkCore.csproj" />
-    <Project Path="src/LiteBus.Testing/LiteBus.Testing.csproj" />
-    <Project Path="src/LiteBus/LiteBus.csproj" />
-  </Folder>
-  <Folder Name="/benchmarks/">
-    <File Path="benchmarks/Directory.Build.props" />
-    <File Path="benchmarks/Directory.Packages.props" />
-    <Project Path="benchmarks/LiteBus.Processor.Benchmarks/LiteBus.Processor.Benchmarks.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <File Path="tests/Directory.Build.props" />
-    <File Path="tests/Directory.Packages.props" />
-    <Project Path="tests/LiteBus.Transport.Amqp.IntegrationTests/LiteBus.Transport.Amqp.IntegrationTests.csproj" />
-    <Project Path="tests/LiteBus.Transport.AzureServiceBus.UnitTests/LiteBus.Transport.AzureServiceBus.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Transport.Aws.UnitTests/LiteBus.Transport.Aws.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Transport.InMemory.UnitTests/LiteBus.Transport.InMemory.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.DurableTransport.IntegrationTesting/LiteBus.DurableTransport.IntegrationTesting.csproj" />
-    <Project Path="tests/LiteBus.DurableTransport.IntegrationTests/LiteBus.DurableTransport.IntegrationTests.csproj" />
-    <Project Path="tests/LiteBus.Transport.InMemory.IntegrationTests/LiteBus.Transport.InMemory.IntegrationTests.csproj" />
-    <Project Path="tests/LiteBus.Transport.Kafka.UnitTests/LiteBus.Transport.Kafka.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Saga.UnitTests/LiteBus.Saga.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Saga.Storage.PostgreSql.UnitTests/LiteBus.Saga.Storage.PostgreSql.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Analyzers.Tests/LiteBus.Analyzers.Tests.csproj" />
-    <Project Path="tests/LiteBus.CommandModule.UnitTests/LiteBus.CommandModule.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Composition.UnitTests/LiteBus.Composition.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Extensions.AspNetCore.IntegrationTests/LiteBus.Extensions.AspNetCore.IntegrationTests.csproj" />
-    <Project Path="tests/LiteBus.Extensions.AspNetCore.UnitTests/LiteBus.Extensions.AspNetCore.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.EventModule.UnitTests/LiteBus.EventModule.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Enterprise.UnitTests/LiteBus.Enterprise.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Extensions.Autofac.UnitTests/LiteBus.Extensions.Autofac.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Extensions.Diagnostics.HealthChecks.IntegrationTests/LiteBus.Extensions.Diagnostics.HealthChecks.IntegrationTests.csproj" />
-    <Project Path="tests/LiteBus.Extensions.OpenTelemetry.IntegrationTests/LiteBus.Extensions.OpenTelemetry.IntegrationTests.csproj" />
-    <Project Path="tests/LiteBus.Inbox.Dispatch.Amqp.IntegrationTests/LiteBus.Inbox.Dispatch.Amqp.IntegrationTests.csproj" />
-    <Project Path="tests/LiteBus.Inbox.Dispatch.InProcess.UnitTests/LiteBus.Inbox.Dispatch.InProcess.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Inbox.Dispatch.UnitTests/LiteBus.Inbox.Dispatch.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Inbox.Ingress.UnitTests/LiteBus.Inbox.Ingress.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Inbox.Ingress.Amqp.IntegrationTests/LiteBus.Inbox.Ingress.Amqp.IntegrationTests.csproj" />
-    <Project Path="tests/LiteBus.Inbox.Ingress.Amqp.UnitTests/LiteBus.Inbox.Ingress.Amqp.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests/LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests.csproj" />
-    <Project Path="tests/LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests/LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Inbox.Abstractions.UnitTests/LiteBus.Inbox.Abstractions.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Inbox.Storage.InMemory.UnitTests/LiteBus.Inbox.Storage.InMemory.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Inbox.UnitTests/LiteBus.Inbox.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.MessageModule.UnitTests/LiteBus.MessageModule.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Outbox.Dispatch.Amqp.IntegrationTests/LiteBus.Outbox.Dispatch.Amqp.IntegrationTests.csproj" />
-    <Project Path="tests/LiteBus.Outbox.Dispatch.InProcess.UnitTests/LiteBus.Outbox.Dispatch.InProcess.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Outbox.Dispatch.UnitTests/LiteBus.Outbox.Dispatch.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests/LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests.csproj" />
-    <Project Path="tests/LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests/LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Outbox.Storage.InMemory.UnitTests/LiteBus.Outbox.Storage.InMemory.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Outbox.UnitTests/LiteBus.Outbox.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.QueryModule.UnitTests/LiteBus.QueryModule.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Runtime.UnitTests/LiteBus.Runtime.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Storage.EntityFrameworkCore.UnitTests/LiteBus.Storage.EntityFrameworkCore.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Storage.PostgreSql.IntegrationTests/LiteBus.Storage.PostgreSql.IntegrationTests.csproj" />
-    <Project Path="tests/LiteBus.Storage.PostgreSql.UnitTests/LiteBus.Storage.PostgreSql.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Storage.Testing/LiteBus.Storage.Testing.csproj" />
-    <Project Path="tests/LiteBus.Transport.UnitTests/LiteBus.Transport.UnitTests.csproj" />
-    <Project Path="tests/LiteBus.Transport.Amqp.UnitTests/LiteBus.Transport.Amqp.UnitTests.csproj" />
-  </Folder>
+    <Configurations>
+        <Platform Name="Any CPU"/>
+        <Platform Name="x64"/>
+        <Platform Name="x86"/>
+    </Configurations>
+    <Folder Name="/.github/">
+        <File Path=".github/dependabot.yml"/>
+    </Folder>
+    <Folder Name="/.github/scripts/">
+        <File Path=".github/scripts/generate-release-notes.sh"/>
+    </Folder>
+    <Folder Name="/.github/workflows/">
+        <File Path=".github/workflows/build-and-test.yml"/>
+        <File Path=".github/workflows/manual-test-and-coverage.yml"/>
+        <File Path=".github/workflows/release.yml"/>
+    </Folder>
+    <Folder Name="/samples/">
+        <Project Path="samples/LiteBus.Samples.V6/LiteBus.Samples.V6.csproj"/>
+        <Project Path="samples/LiteBus.Samples/LiteBus.Samples.csproj"/>
+    </Folder>
+    <Folder Name="/solution-items/">
+        <File Path=".gitignore"/>
+        <File Path="Changelog.md"/>
+        <File Path="GitVersion.yml"/>
+        <File Path="global.json"/>
+        <File Path="LICENSE"/>
+        <File Path="README.md"/>
+    </Folder>
+    <Folder Name="/src/">
+        <File Path="src/Directory.Build.props"/>
+        <File Path="src/Directory.Packages.props"/>
+        <Project Path="src/LiteBus.Transport.Abstractions/LiteBus.Transport.Abstractions.csproj"/>
+        <Project Path="src/LiteBus.Transport/LiteBus.Transport.csproj"/>
+        <Project Path="src/LiteBus.Transport.Amqp/LiteBus.Transport.Amqp.csproj"/>
+        <Project Path="src/LiteBus.Transport.AzureServiceBus/LiteBus.Transport.AzureServiceBus.csproj"/>
+        <Project Path="src/LiteBus.Transport.Aws/LiteBus.Transport.Aws.csproj"/>
+        <Project Path="src/LiteBus.Transport.InMemory/LiteBus.Transport.InMemory.csproj"/>
+        <Project Path="src/LiteBus.Transport.Kafka/LiteBus.Transport.Kafka.csproj"/>
+        <Project Path="src/LiteBus.Orchestration.Abstractions/LiteBus.Orchestration.Abstractions.csproj"/>
+        <Project Path="src/LiteBus.Saga.Abstractions/LiteBus.Saga.Abstractions.csproj"/>
+        <Project Path="src/LiteBus.Saga/LiteBus.Saga.csproj"/>
+        <Project Path="src/LiteBus.Saga.InboxIntegration/LiteBus.Saga.InboxIntegration.csproj"/>
+        <Project Path="src/LiteBus.Saga.Storage.PostgreSql/LiteBus.Saga.Storage.PostgreSql.csproj"/>
+        <Project Path="src/LiteBus.Extensions.AspNetCore/LiteBus.Extensions.AspNetCore.csproj"/>
+        <Project
+                Path="src/LiteBus.Extensions.Diagnostics.HealthChecks/LiteBus.Extensions.Diagnostics.HealthChecks.csproj"/>
+        <Project Path="src/LiteBus.Analyzers/LiteBus.Analyzers.csproj"/>
+        <Project Path="src/LiteBus.Commands.Abstractions/LiteBus.Commands.Abstractions.csproj"/>
+        <Project Path="src/LiteBus.Commands.Extensions.Autofac/LiteBus.Commands.Extensions.Autofac.csproj"/>
+        <Project
+                Path="src/LiteBus.Commands.Extensions.Microsoft.DependencyInjection/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <Project Path="src/LiteBus.Commands/LiteBus.Commands.csproj"/>
+        <Project Path="src/LiteBus.Events.Abstractions/LiteBus.Events.Abstractions.csproj"/>
+        <Project Path="src/LiteBus.Events.Extensions.Autofac/LiteBus.Events.Extensions.Autofac.csproj"/>
+        <Project
+                Path="src/LiteBus.Events.Extensions.Microsoft.DependencyInjection/LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <Project Path="src/LiteBus.Events/LiteBus.Events.csproj"/>
+        <Project Path="src/LiteBus.Extensions.All/LiteBus.Extensions.All.csproj"/>
+        <Project
+                Path="src/LiteBus.Extensions.Microsoft.DependencyInjection/LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Extensions.OpenTelemetry/LiteBus.Inbox.Extensions.OpenTelemetry.csproj"/>
+        <Project Path="src/LiteBus.Outbox.Extensions.OpenTelemetry/LiteBus.Outbox.Extensions.OpenTelemetry.csproj"/>
+        <Project
+                Path="src/LiteBus.Transport.Extensions.OpenTelemetry/LiteBus.Transport.Extensions.OpenTelemetry.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Abstractions/LiteBus.Inbox.Abstractions.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Dispatch/LiteBus.Inbox.Dispatch.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Dispatch.Amqp/LiteBus.Inbox.Dispatch.Amqp.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Dispatch.Aws/LiteBus.Inbox.Dispatch.Aws.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Dispatch.AzureServiceBus/LiteBus.Inbox.Dispatch.AzureServiceBus.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Dispatch.InMemory/LiteBus.Inbox.Dispatch.InMemory.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Dispatch.Kafka/LiteBus.Inbox.Dispatch.Kafka.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Dispatch.InProcess/LiteBus.Inbox.Dispatch.InProcess.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Ingress/LiteBus.Inbox.Ingress.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Ingress.Amqp/LiteBus.Inbox.Ingress.Amqp.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Ingress.Aws/LiteBus.Inbox.Ingress.Aws.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Ingress.AzureServiceBus/LiteBus.Inbox.Ingress.AzureServiceBus.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Ingress.InMemory/LiteBus.Inbox.Ingress.InMemory.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Ingress.Kafka/LiteBus.Inbox.Ingress.Kafka.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Storage.EntityFrameworkCore/LiteBus.Inbox.Storage.EntityFrameworkCore.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Storage.InMemory/LiteBus.Inbox.Storage.InMemory.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Storage.PostgreSql/LiteBus.Inbox.Storage.PostgreSql.csproj"/>
+        <Project Path="src/LiteBus.Inbox/LiteBus.Inbox.csproj"/>
+        <Project Path="src/LiteBus.Messaging.Abstractions/LiteBus.Messaging.Abstractions.csproj"/>
+        <Project Path="src/LiteBus.Messaging.Extensions.Autofac/LiteBus.Messaging.Extensions.Autofac.csproj"/>
+        <Project
+                Path="src/LiteBus.Messaging.Extensions.Microsoft.DependencyInjection/LiteBus.Messaging.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <Project Path="src/LiteBus.Messaging/LiteBus.Messaging.csproj"/>
+        <Project Path="src/LiteBus.Outbox.Abstractions/LiteBus.Outbox.Abstractions.csproj"/>
+        <Project Path="src/LiteBus.Outbox.Dispatch/LiteBus.Outbox.Dispatch.csproj"/>
+        <Project Path="src/LiteBus.Outbox.Dispatch.Amqp/LiteBus.Outbox.Dispatch.Amqp.csproj"/>
+        <Project Path="src/LiteBus.Outbox.Dispatch.Aws/LiteBus.Outbox.Dispatch.Aws.csproj"/>
+        <Project Path="src/LiteBus.Outbox.Dispatch.AzureServiceBus/LiteBus.Outbox.Dispatch.AzureServiceBus.csproj"/>
+        <Project Path="src/LiteBus.Outbox.Dispatch.InMemory/LiteBus.Outbox.Dispatch.InMemory.csproj"/>
+        <Project Path="src/LiteBus.Outbox.Dispatch.Kafka/LiteBus.Outbox.Dispatch.Kafka.csproj"/>
+        <Project Path="src/LiteBus.Outbox.Dispatch.InProcess/LiteBus.Outbox.Dispatch.InProcess.csproj"/>
+        <Project
+                Path="src/LiteBus.Outbox.Storage.EntityFrameworkCore/LiteBus.Outbox.Storage.EntityFrameworkCore.csproj"/>
+        <Project Path="src/LiteBus.Outbox.Storage.InMemory/LiteBus.Outbox.Storage.InMemory.csproj"/>
+        <Project Path="src/LiteBus.Outbox.Storage.PostgreSql/LiteBus.Outbox.Storage.PostgreSql.csproj"/>
+        <Project Path="src/LiteBus.Outbox/LiteBus.Outbox.csproj"/>
+        <Project Path="src/LiteBus.Queries.Abstractions/LiteBus.Queries.Abstractions.csproj"/>
+        <Project Path="src/LiteBus.Queries.Extensions.Autofac/LiteBus.Queries.Extensions.Autofac.csproj"/>
+        <Project
+                Path="src/LiteBus.Queries.Extensions.Microsoft.DependencyInjection/LiteBus.Queries.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <Project Path="src/LiteBus.Queries/LiteBus.Queries.csproj"/>
+        <Project Path="src/LiteBus.Runtime.Abstractions/LiteBus.Runtime.Abstractions.csproj"/>
+        <Project Path="src/LiteBus.Runtime.Extensions.Autofac/LiteBus.Runtime.Extensions.Autofac.csproj"/>
+        <Project
+                Path="src/LiteBus.Runtime.Extensions.Autofac.Hosting/LiteBus.Runtime.Extensions.Autofac.Hosting.csproj"/>
+        <Project
+                Path="src/LiteBus.Runtime.Extensions.Microsoft.DependencyInjection/LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <Project
+                Path="src/LiteBus.Runtime.Extensions.Microsoft.Hosting/LiteBus.Runtime.Extensions.Microsoft.Hosting.csproj"/>
+        <Project Path="src/LiteBus.Runtime/LiteBus.Runtime.csproj"/>
+        <Project Path="src/LiteBus.Storage.PostgreSql/LiteBus.Storage.PostgreSql.csproj"/>
+        <Project Path="src/LiteBus.Storage.EntityFrameworkCore/LiteBus.Storage.EntityFrameworkCore.csproj"/>
+        <Project Path="src/LiteBus.Testing/LiteBus.Testing.csproj"/>
+        <Project Path="src/LiteBus/LiteBus.csproj"/>
+    </Folder>
+    <Folder Name="/benchmarks/">
+        <File Path="benchmarks/Directory.Build.props"/>
+        <File Path="benchmarks/Directory.Packages.props"/>
+        <Project Path="benchmarks/LiteBus.Processor.Benchmarks/LiteBus.Processor.Benchmarks.csproj"/>
+    </Folder>
+    <Folder Name="/tests/">
+        <File Path="tests/Directory.Build.props"/>
+        <File Path="tests/Directory.Packages.props"/>
+        <Project Path="tests/LiteBus.Transport.Amqp.IntegrationTests/LiteBus.Transport.Amqp.IntegrationTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Transport.AzureServiceBus.UnitTests/LiteBus.Transport.AzureServiceBus.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Transport.Aws.UnitTests/LiteBus.Transport.Aws.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Transport.InMemory.UnitTests/LiteBus.Transport.InMemory.UnitTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.DurableTransport.IntegrationTesting/LiteBus.DurableTransport.IntegrationTesting.csproj"/>
+        <Project
+                Path="tests/LiteBus.DurableTransport.IntegrationTests/LiteBus.DurableTransport.IntegrationTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Transport.InMemory.IntegrationTests/LiteBus.Transport.InMemory.IntegrationTests.csproj"/>
+        <Project Path="tests/LiteBus.Transport.Kafka.UnitTests/LiteBus.Transport.Kafka.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Saga.UnitTests/LiteBus.Saga.UnitTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Saga.Storage.PostgreSql.UnitTests/LiteBus.Saga.Storage.PostgreSql.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Analyzers.Tests/LiteBus.Analyzers.Tests.csproj"/>
+        <Project Path="tests/LiteBus.CommandModule.UnitTests/LiteBus.CommandModule.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Composition.UnitTests/LiteBus.Composition.UnitTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Extensions.AspNetCore.IntegrationTests/LiteBus.Extensions.AspNetCore.IntegrationTests.csproj"/>
+        <Project Path="tests/LiteBus.Extensions.AspNetCore.UnitTests/LiteBus.Extensions.AspNetCore.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.EventModule.UnitTests/LiteBus.EventModule.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Enterprise.UnitTests/LiteBus.Enterprise.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Extensions.Autofac.UnitTests/LiteBus.Extensions.Autofac.UnitTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Extensions.Diagnostics.HealthChecks.IntegrationTests/LiteBus.Extensions.Diagnostics.HealthChecks.IntegrationTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Extensions.OpenTelemetry.IntegrationTests/LiteBus.Extensions.OpenTelemetry.IntegrationTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Inbox.Dispatch.Amqp.IntegrationTests/LiteBus.Inbox.Dispatch.Amqp.IntegrationTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Inbox.Dispatch.InProcess.UnitTests/LiteBus.Inbox.Dispatch.InProcess.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Inbox.Dispatch.UnitTests/LiteBus.Inbox.Dispatch.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Inbox.Ingress.UnitTests/LiteBus.Inbox.Ingress.UnitTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Inbox.Ingress.Amqp.IntegrationTests/LiteBus.Inbox.Ingress.Amqp.IntegrationTests.csproj"/>
+        <Project Path="tests/LiteBus.Inbox.Ingress.Amqp.UnitTests/LiteBus.Inbox.Ingress.Amqp.UnitTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests/LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests/LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Inbox.Abstractions.UnitTests/LiteBus.Inbox.Abstractions.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Inbox.Storage.InMemory.UnitTests/LiteBus.Inbox.Storage.InMemory.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Inbox.UnitTests/LiteBus.Inbox.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Messaging.Abstractions.UnitTests/LiteBus.Messaging.Abstractions.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.MessageModule.UnitTests/LiteBus.MessageModule.UnitTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Outbox.Dispatch.Amqp.IntegrationTests/LiteBus.Outbox.Dispatch.Amqp.IntegrationTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Outbox.Dispatch.InProcess.UnitTests/LiteBus.Outbox.Dispatch.InProcess.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Outbox.Dispatch.UnitTests/LiteBus.Outbox.Dispatch.UnitTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests/LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests/LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Outbox.Storage.InMemory.UnitTests/LiteBus.Outbox.Storage.InMemory.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Outbox.UnitTests/LiteBus.Outbox.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.QueryModule.UnitTests/LiteBus.QueryModule.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Runtime.UnitTests/LiteBus.Runtime.UnitTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Storage.EntityFrameworkCore.UnitTests/LiteBus.Storage.EntityFrameworkCore.UnitTests.csproj"/>
+        <Project
+                Path="tests/LiteBus.Storage.PostgreSql.IntegrationTests/LiteBus.Storage.PostgreSql.IntegrationTests.csproj"/>
+        <Project Path="tests/LiteBus.Storage.PostgreSql.UnitTests/LiteBus.Storage.PostgreSql.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Storage.Testing/LiteBus.Storage.Testing.csproj"/>
+        <Project Path="tests/LiteBus.Transport.UnitTests/LiteBus.Transport.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Transport.Amqp.UnitTests/LiteBus.Transport.Amqp.UnitTests.csproj"/>
+    </Folder>
 </Solution>

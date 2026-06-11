@@ -15,31 +15,6 @@ namespace LiteBus.Inbox;
 public sealed class InboxCleanupBackgroundService : IBackgroundService
 {
     /// <summary>
-    ///     Gets the loop timing and retention options for cleanup.
-    /// </summary>
-    private readonly InboxCleanupHostOptions _hostOptions;
-
-    /// <summary>
-    ///     Gets the store used to delete completed rows.
-    /// </summary>
-    private readonly IInboxRetentionStore _stateStore;
-
-    /// <summary>
-    ///     Gets the coordinator that records retention cleanup outcomes.
-    /// </summary>
-    private readonly InboxRetentionCoordinator _retentionCoordinator;
-
-    /// <summary>
-    ///     Gets the clock used to calculate retention cutoffs.
-    /// </summary>
-    private readonly TimeProvider _timeProvider;
-
-    /// <summary>
-    ///     Gets the logger used for cleanup diagnostics.
-    /// </summary>
-    private readonly ILogger<InboxCleanupBackgroundService> _logger;
-
-    /// <summary>
     ///     Gets the meter used for cleanup error counters.
     /// </summary>
     private static readonly Meter CleanupMeter = new(LiteBusInboxTelemetry.MeterName);
@@ -49,6 +24,31 @@ public sealed class InboxCleanupBackgroundService : IBackgroundService
     /// </summary>
     private static readonly Counter<long> CleanupErrorCounter =
         CleanupMeter.CreateCounter<long>(LiteBusInboxTelemetry.CleanupErrorInstrumentName);
+
+    /// <summary>
+    ///     Gets the loop timing and retention options for cleanup.
+    /// </summary>
+    private readonly InboxCleanupHostOptions _hostOptions;
+
+    /// <summary>
+    ///     Gets the logger used for cleanup diagnostics.
+    /// </summary>
+    private readonly ILogger<InboxCleanupBackgroundService> _logger;
+
+    /// <summary>
+    ///     Gets the coordinator that records retention cleanup outcomes.
+    /// </summary>
+    private readonly InboxRetentionCoordinator _retentionCoordinator;
+
+    /// <summary>
+    ///     Gets the store used to delete completed rows.
+    /// </summary>
+    private readonly IInboxRetentionStore _stateStore;
+
+    /// <summary>
+    ///     Gets the clock used to calculate retention cutoffs.
+    /// </summary>
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="InboxCleanupBackgroundService" /> class.

@@ -54,7 +54,8 @@ public sealed class AmqpReceivedMessage
     ///     Gets the delegate that acknowledges successful processing of the delivery.
     /// </summary>
     /// <remarks>
-    ///     Prefer <see cref="AcceptAsync" />, <see cref="DiscardAsync" />, and <see cref="ReturnToQueueAsync" /> at call sites.
+    ///     Prefer <see cref="AcceptAsync" />, <see cref="DiscardAsync" />, and <see cref="ReturnToQueueAsync" /> at call
+    ///     sites.
     /// </remarks>
     public required Func<bool, CancellationToken, Task> AckDelegate { get; init; }
 
@@ -62,7 +63,8 @@ public sealed class AmqpReceivedMessage
     ///     Gets the delegate that negative-acknowledges the delivery so the broker can requeue or dead-letter it.
     /// </summary>
     /// <remarks>
-    ///     Prefer <see cref="AcceptAsync" />, <see cref="DiscardAsync" />, and <see cref="ReturnToQueueAsync" /> at call sites.
+    ///     Prefer <see cref="AcceptAsync" />, <see cref="DiscardAsync" />, and <see cref="ReturnToQueueAsync" /> at call
+    ///     sites.
     /// </remarks>
     public required Func<bool, bool, CancellationToken, Task> NackDelegate { get; init; }
 
@@ -71,8 +73,10 @@ public sealed class AmqpReceivedMessage
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the acknowledgement.</param>
     /// <returns>A task that completes when the broker has accepted the acknowledgement.</returns>
-    public Task AcceptAsync(CancellationToken cancellationToken = default) =>
-        AckDelegate(false, cancellationToken);
+    public Task AcceptAsync(CancellationToken cancellationToken = default)
+    {
+        return AckDelegate(false, cancellationToken);
+    }
 
     /// <summary>
     ///     Rejects the message and discards it from the queue.
@@ -82,8 +86,10 @@ public sealed class AmqpReceivedMessage
     /// </remarks>
     /// <param name="cancellationToken">A token that cancels the rejection.</param>
     /// <returns>A task that completes when the broker has accepted the rejection.</returns>
-    public Task DiscardAsync(CancellationToken cancellationToken = default) =>
-        NackDelegate(false, false, cancellationToken);
+    public Task DiscardAsync(CancellationToken cancellationToken = default)
+    {
+        return NackDelegate(false, false, cancellationToken);
+    }
 
     /// <summary>
     ///     Rejects the message and returns it to the queue for redelivery.
@@ -93,6 +99,8 @@ public sealed class AmqpReceivedMessage
     /// </remarks>
     /// <param name="cancellationToken">A token that cancels the rejection.</param>
     /// <returns>A task that completes when the broker has accepted the rejection.</returns>
-    public Task ReturnToQueueAsync(CancellationToken cancellationToken = default) =>
-        NackDelegate(false, true, cancellationToken);
+    public Task ReturnToQueueAsync(CancellationToken cancellationToken = default)
+    {
+        return NackDelegate(false, true, cancellationToken);
+    }
 }

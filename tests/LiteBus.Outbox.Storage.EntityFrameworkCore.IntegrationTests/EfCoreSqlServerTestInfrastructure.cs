@@ -1,4 +1,3 @@
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,7 +31,7 @@ internal static class EfCoreSqlServerTestInfrastructure
     /// <summary>
     ///     Gets the store options used by outbox contract tests.
     /// </summary>
-    internal static EfCoreOutboxStoreOptions OutboxOptions { get; } = new()
+    internal static EfCoreOutboxStoreOptions OutboxStoreOptions { get; } = new()
     {
         SchemaName = SchemaName,
         TableName = OutboxTableName,
@@ -45,11 +44,12 @@ internal static class EfCoreSqlServerTestInfrastructure
     /// <param name="connectionString">The SQL Server connection string.</param>
     internal static async Task ResetOutboxTableAsync(string connectionString)
     {
-        await EnsureOutboxSchemaOnceAsync(connectionString).ConfigureAwait(false);
+        await EnsureOutboxSchemaOnceAsync(connectionString);
 
         await using var context = CreateOutboxContext(connectionString);
+
         await context.Database.ExecuteSqlRawAsync(
-            $"""DELETE FROM [{SchemaName}].[{OutboxTableName}];""").ConfigureAwait(false);
+            $"""DELETE FROM [{SchemaName}].[{OutboxTableName}];""");
     }
 
     /// <summary>
@@ -62,7 +62,7 @@ internal static class EfCoreSqlServerTestInfrastructure
         var builder = new DbContextOptionsBuilder<IntegrationOutboxDbContext>()
             .UseSqlServer(connectionString);
 
-        return new IntegrationOutboxDbContext(builder.Options, OutboxOptions, EfCoreStorageProvider.SqlServer);
+        return new IntegrationOutboxDbContext(builder.Options, OutboxStoreOptions, EfCoreStorageProvider.SqlServer);
     }
 
     /// <summary>
@@ -76,7 +76,8 @@ internal static class EfCoreSqlServerTestInfrastructure
             return;
         }
 
-        await OutboxSchemaLock.WaitAsync().ConfigureAwait(false);
+        await OutboxSchemaLock.WaitAsync();
+
         try
         {
             if (_outboxSchemaInitialized)
@@ -85,14 +86,16 @@ internal static class EfCoreSqlServerTestInfrastructure
             }
 
             await using var context = CreateOutboxContext(connectionString);
+
             await context.Database.ExecuteSqlRawAsync(
                 $"""
                  IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'{SchemaName}')
                  BEGIN
                      EXEC(N'CREATE SCHEMA [{SchemaName}]');
                  END
-                 """).ConfigureAwait(false);
-            await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
+                 """);
+
+            await context.Database.EnsureCreatedAsync();
             _outboxSchemaInitialized = true;
         }
         finally

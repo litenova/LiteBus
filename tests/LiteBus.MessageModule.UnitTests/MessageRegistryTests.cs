@@ -164,62 +164,6 @@ public sealed class MessageRegistryTests : LiteBusTestBase
         messageDescriptor.Handlers.First().HandlerType.Should().Be(typeof(TestHandler));
     }
 
-    public record TestRecordClass(string Name) : IEvent;
-
-    public readonly record struct TestRecordStruct(string Name) : IEvent;
-
-    public class TestClass : IEvent
-    {
-        public required string Name { get; set; }
-    }
-
-    public struct TestStruct
-    {
-        public string Name { get; set; }
-    }
-
-    public record GenericRecordClass<T>(T Value) : IEvent;
-
-    public readonly record struct GenericRecordStruct<T>(T Value) : IEvent;
-
-    public class TestHandler : IAsyncMessageHandler<TestRecordStruct>
-    {
-        public Task HandleAsync(TestRecordStruct message, CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-    }
-
-    // --- Open Generic Handler Test Types ---
-
-    public class TestCommand : ICommand;
-
-    public class AnotherTestCommand : ICommand;
-
-    public class TestCommandHandler : ICommandHandler<TestCommand>
-    {
-        public Task HandleAsync(TestCommand message, CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-    }
-
-    public class OpenGenericTestPreHandler<T> : ICommandPreHandler<T> where T : ICommand
-    {
-        public Task PreHandleAsync(T message, CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-    }
-
-    public class UnsupportedOpenGenericTestPreHandler<TCommand, TContext> : ICommandPreHandler<TCommand> where TCommand : ICommand
-    {
-        public Task PreHandleAsync(TCommand message, CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-    }
-
     // --- Open Generic Handler Tests ---
 
     [Fact]
@@ -360,5 +304,61 @@ public sealed class MessageRegistryTests : LiteBusTestBase
         var exception = act.Should().Throw<UnsupportedOpenGenericHandlerException>();
         exception.Which.HandlerType.Should().Be(typeof(UnsupportedOpenGenericTestPreHandler<,>));
         exception.Which.GenericParameterCount.Should().Be(2);
+    }
+
+    public record TestRecordClass(string Name) : IEvent;
+
+    public readonly record struct TestRecordStruct(string Name) : IEvent;
+
+    public class TestClass : IEvent
+    {
+        public required string Name { get; set; }
+    }
+
+    public struct TestStruct
+    {
+        public string Name { get; set; }
+    }
+
+    public record GenericRecordClass<T>(T Value) : IEvent;
+
+    public readonly record struct GenericRecordStruct<T>(T Value) : IEvent;
+
+    public class TestHandler : IAsyncMessageHandler<TestRecordStruct>
+    {
+        public Task HandleAsync(TestRecordStruct message, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    // --- Open Generic Handler Test Types ---
+
+    public class TestCommand : ICommand;
+
+    public class AnotherTestCommand : ICommand;
+
+    public class TestCommandHandler : ICommandHandler<TestCommand>
+    {
+        public Task HandleAsync(TestCommand message, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    public class OpenGenericTestPreHandler<T> : ICommandPreHandler<T> where T : ICommand
+    {
+        public Task PreHandleAsync(T message, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    public class UnsupportedOpenGenericTestPreHandler<TCommand, TContext> : ICommandPreHandler<TCommand> where TCommand : ICommand
+    {
+        public Task PreHandleAsync(TCommand message, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
     }
 }

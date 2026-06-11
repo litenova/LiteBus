@@ -1,5 +1,4 @@
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Storage.InMemory;
 
 namespace LiteBus.Outbox.Storage.InMemory.UnitTests;
 
@@ -16,6 +15,7 @@ public sealed class InMemoryOutboxStoreLeaseAvailabilityTests
     {
         var store = new InMemoryOutboxStore();
         var now = DateTimeOffset.UtcNow;
+
         var envelope = new OutboxEnvelope
         {
             Id = Guid.NewGuid(),

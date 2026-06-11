@@ -1,4 +1,3 @@
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,7 +31,7 @@ internal static class EfCoreSqlServerTestInfrastructure
     /// <summary>
     ///     Gets the store options used by inbox contract tests.
     /// </summary>
-    internal static EfCoreInboxStoreOptions InboxOptions { get; } = new()
+    internal static EfCoreInboxStoreOptions InboxStoreOptions { get; } = new()
     {
         SchemaName = SchemaName,
         TableName = InboxTableName,
@@ -45,11 +44,12 @@ internal static class EfCoreSqlServerTestInfrastructure
     /// <param name="connectionString">The SQL Server connection string.</param>
     internal static async Task ResetInboxTableAsync(string connectionString)
     {
-        await EnsureInboxSchemaOnceAsync(connectionString).ConfigureAwait(false);
+        await EnsureInboxSchemaOnceAsync(connectionString);
 
         await using var context = CreateInboxContext(connectionString);
+
         await context.Database.ExecuteSqlRawAsync(
-            $"""DELETE FROM [{SchemaName}].[{InboxTableName}];""").ConfigureAwait(false);
+            $"""DELETE FROM [{SchemaName}].[{InboxTableName}];""");
     }
 
     /// <summary>
@@ -62,7 +62,7 @@ internal static class EfCoreSqlServerTestInfrastructure
         var builder = new DbContextOptionsBuilder<IntegrationInboxDbContext>()
             .UseSqlServer(connectionString);
 
-        return new IntegrationInboxDbContext(builder.Options, InboxOptions, EfCoreStorageProvider.SqlServer);
+        return new IntegrationInboxDbContext(builder.Options, InboxStoreOptions, EfCoreStorageProvider.SqlServer);
     }
 
     /// <summary>
@@ -76,7 +76,8 @@ internal static class EfCoreSqlServerTestInfrastructure
             return;
         }
 
-        await InboxSchemaLock.WaitAsync().ConfigureAwait(false);
+        await InboxSchemaLock.WaitAsync();
+
         try
         {
             if (_inboxSchemaInitialized)
@@ -85,14 +86,16 @@ internal static class EfCoreSqlServerTestInfrastructure
             }
 
             await using var context = CreateInboxContext(connectionString);
+
             await context.Database.ExecuteSqlRawAsync(
                 $"""
                  IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'{SchemaName}')
                  BEGIN
                      EXEC(N'CREATE SCHEMA [{SchemaName}]');
                  END
-                 """).ConfigureAwait(false);
-            await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
+                 """);
+
+            await context.Database.EnsureCreatedAsync();
             _inboxSchemaInitialized = true;
         }
         finally

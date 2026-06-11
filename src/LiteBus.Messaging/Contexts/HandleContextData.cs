@@ -20,7 +20,7 @@ public class HandleContextData : IHandleContextData
     /// <inheritdoc />
     public T Get<T>()
     {
-        return (T)_data[typeof(T)];
+        return (T) _data[typeof(T)];
     }
 
     /// <inheritdoc />

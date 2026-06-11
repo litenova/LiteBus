@@ -1,6 +1,5 @@
 using System;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Dispatch;
 using LiteBus.Transport.Aws;
 
 namespace LiteBus.Outbox.Dispatch.Aws;
@@ -28,6 +27,7 @@ public static class OutboxModuleBuilderAwsDispatchExtensions
 
         var options = new TransportOutboxDispatcherOptions();
         configure(options);
+
         return builder.RegisterDispatcher(
             new TransportOutboxDispatchModule(options, new AwsSqsTransportModule(transportOptions)));
     }

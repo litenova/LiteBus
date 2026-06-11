@@ -7,7 +7,8 @@ using Microsoft.Extensions.Hosting;
 namespace LiteBus.Runtime.Extensions.Autofac.Hosting;
 
 /// <summary>
-///     Applies startup task and background service registrations from module configuration to an Autofac container builder.
+///     Applies startup task and background service registrations from module configuration to an Autofac container
+///     builder.
 /// </summary>
 public static class AutofacBackgroundServiceHostingExtensions
 {
@@ -52,7 +53,7 @@ public static class AutofacBackgroundServiceHostingExtensions
 
                     foreach (var implementationType in startupTaskTypes)
                     {
-                        resolvedStartupTasks.Add((IStartupTask)context.Resolve(implementationType));
+                        resolvedStartupTasks.Add((IStartupTask) context.Resolve(implementationType));
                     }
 
                     return new StartupTaskPhaseHostedService(
@@ -84,7 +85,7 @@ public static class AutofacBackgroundServiceHostingExtensions
         foreach (var implementationType in backgroundServiceTypes)
         {
             builder.Register(context => new BackgroundServiceHostAdapter(
-                    (IBackgroundService)context.Resolve(implementationType),
+                    (IBackgroundService) context.Resolve(implementationType),
                     context.Resolve<StartupTaskGate>()))
                 .As<IHostedService>()
                 .SingleInstance();

@@ -1,6 +1,7 @@
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Registry;
 using LiteBus.Testing;
+using Systematic.Domain.Events;
 
 namespace LiteBus.MessageModule.UnitTests
 {
@@ -12,10 +13,10 @@ namespace LiteBus.MessageModule.UnitTests
         {
             var registry = new MessageRegistry();
 
-            registry.Register(typeof(Systematic.Domain.Events.SystematicEvent));
+            registry.Register(typeof(SystematicEvent));
 
             registry.Should().HaveCount(1);
-            registry.First().MessageType.Should().Be(typeof(Systematic.Domain.Events.SystematicEvent));
+            registry.First().MessageType.Should().Be(typeof(SystematicEvent));
         }
 
         [Fact]
@@ -27,7 +28,7 @@ namespace LiteBus.MessageModule.UnitTests
 
             registry.Register(typeof(DateTimeOffset));
 
-            registry.Register(typeof(System.Collections.Generic.List<string>));
+            registry.Register(typeof(List<string>));
 
             registry.Should().BeEmpty();
         }

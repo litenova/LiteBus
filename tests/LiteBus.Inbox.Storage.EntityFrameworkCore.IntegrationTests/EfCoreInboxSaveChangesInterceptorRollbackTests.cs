@@ -1,7 +1,8 @@
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using LiteBus.Inbox.Storage.PostgreSql;
+using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests;
 
@@ -23,24 +24,25 @@ public sealed class EfCoreInboxSaveChangesInterceptorRollbackTests : IClassFixtu
     [Fact]
     public async Task SaveChangesAsync_ShouldNotPersistInboxMessage_WhenTransactionRollsBack()
     {
-        var storeOptions = await CreateInboxTableAsync().ConfigureAwait(false);
+        var storeOptions = await CreateInboxTableAsync();
         var interceptor = new LiteBusInboxSaveChangesInterceptor();
 
         await using var context = CreateContext(storeOptions, interceptor);
         var envelope = CreateEnvelope();
 
-        await using var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
+        await using var transaction = await context.Database.BeginTransactionAsync();
         interceptor.Enqueue(context, envelope);
 
-        var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
+        var savedCount = await context.SaveChangesAsync();
         savedCount.Should().Be(1);
 
-        await transaction.RollbackAsync().ConfigureAwait(false);
+        await transaction.RollbackAsync();
 
         await using var verificationContext = CreateContext(storeOptions);
+
         var storedCount = await verificationContext.InboxMessages
             .CountAsync(message => message.Id == envelope.Id)
-            .ConfigureAwait(false);
+            ;
 
         storedCount.Should().Be(0);
     }
@@ -53,7 +55,8 @@ public sealed class EfCoreInboxSaveChangesInterceptorRollbackTests : IClassFixtu
             TableName = $"inbox_ef_rollback_{Guid.NewGuid():N}"
         };
 
-        await using var dataSource = Npgsql.NpgsqlDataSource.Create(_fixture.ConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+
         await PostgreSqlInboxSchema.EnsureAsync(
             dataSource,
             new PostgreSqlInboxStoreOptions
@@ -61,7 +64,7 @@ public sealed class EfCoreInboxSaveChangesInterceptorRollbackTests : IClassFixtu
                 SchemaName = options.SchemaName,
                 TableName = options.TableName,
                 ValidateSchemaCreationOnStartup = false
-            }).ConfigureAwait(false);
+            });
 
         return options;
     }
@@ -111,7 +114,7 @@ public sealed class EfCoreInboxSaveChangesInterceptorRollbackTests : IClassFixtu
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.GetModelBuilderConfiguration(_storeOptions, LiteBus.Storage.EntityFrameworkCore.EfCoreStorageProvider.PostgreSql);
+            modelBuilder.GetModelBuilderConfiguration(_storeOptions, EfCoreStorageProvider.PostgreSql);
         }
     }
 }

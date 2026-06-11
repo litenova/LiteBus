@@ -1,10 +1,10 @@
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InMemory;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.InMemory;
@@ -39,18 +39,20 @@ public sealed class InMemoryInboxDispatchIntegrationTests : LiteBusTestBase
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
         var workItemId = Guid.NewGuid();
-        var receipt = await inbox.AcceptAsync(
-            new RemoteWorkCommand
+
+        var receipt = await inbox.AcceptAsync(new InboxAcceptItem<RemoteWorkCommand>
+        {
+            Message = new RemoteWorkCommand
             {
                 WorkItemId = workItemId,
                 IdempotencyKey = $"work:{workItemId}"
             },
-            new InboxOptions
+            Metadata = new InboxAcceptMetadata
             {
-                CorrelationId = "corr-dispatch",
-                CausationId = "cause-dispatch",
-                TenantId = "tenant-dispatch"
-            });
+                Trace = new MessageTrace.Workflow("corr-dispatch", "cause-dispatch"),
+                Tenant = new TenantScope.Isolated("tenant-dispatch")
+            }
+        });
 
         await processor.ProcessPendingAsync();
 
@@ -58,16 +60,22 @@ public sealed class InMemoryInboxDispatchIntegrationTests : LiteBusTestBase
         var message = await received.Task.WaitAsync(cancellationSource.Token);
 
         TransportMessageAssertions.ReadBody(message).Should().Contain(workItemId.ToString());
+
         TransportMessageAssertions.GetHeader(message, TransportHeaders.MessageId)
             .Should().Be(receipt.Id.ToString("D"));
+
         TransportMessageAssertions.GetHeader(message, TransportHeaders.ContractName)
             .Should().Be(ContractName);
+
         TransportMessageAssertions.GetHeader(message, TransportHeaders.ContractVersion)
             .Should().Be(ContractVersion.ToString());
+
         TransportMessageAssertions.GetHeader(message, TransportHeaders.CorrelationId)
             .Should().Be("corr-dispatch");
+
         TransportMessageAssertions.GetHeader(message, TransportHeaders.CausationId)
             .Should().Be("cause-dispatch");
+
         TransportMessageAssertions.GetHeader(message, TransportHeaders.TenantId)
             .Should().Be("tenant-dispatch");
 
@@ -84,16 +92,21 @@ public sealed class InMemoryInboxDispatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<RemoteWorkCommand>(ContractName, ContractVersion);
+                    inbox.Contracts.Register<RemoteWorkCommand>(ContractName);
+
                     inbox.UseProcessorOptions(new InboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "inmemory-dispatch-test",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     inbox.UseInMemoryStorage();
                     inbox.UseInMemoryDispatch(transport => transport.DefaultDestination = destination);
                 });
@@ -110,8 +123,10 @@ public sealed class InMemoryInboxDispatchIntegrationTests : LiteBusTestBase
     /// </summary>
     /// <param name="prefix">The prefix identifying the scenario under test.</param>
     /// <returns>A destination name safe for in-memory transport routing.</returns>
-    private static string CreateDestination(string prefix) =>
-        $"litebus-inmemory-{prefix}-{Guid.NewGuid():N}";
+    private static string CreateDestination(string prefix)
+    {
+        return $"litebus-inmemory-{prefix}-{Guid.NewGuid():N}";
+    }
 
     /// <summary>
     ///     Starts a consumer that completes the supplied task source when one message arrives.
@@ -126,13 +141,14 @@ public sealed class InMemoryInboxDispatchIntegrationTests : LiteBusTestBase
         TaskCompletionSource<TransportMessage> received)
     {
         var consumer = new InMemoryConsumer(broker);
+
         await consumer.StartAsync(
             new TransportConsumerOptions { Destination = destination },
             async (message, cancellationToken) =>
             {
                 received.TrySetResult(message);
-                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
-            }).ConfigureAwait(false);
+                await message.AcceptAsync(cancellationToken);
+            });
 
         return consumer;
     }

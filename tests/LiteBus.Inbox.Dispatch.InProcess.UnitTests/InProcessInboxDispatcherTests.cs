@@ -1,13 +1,12 @@
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Abstractions.Exceptions;
-using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -21,7 +20,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
     {
         var recorder = new CommandRecorder();
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<ProcessOrderCommand>("orders.commands.process", 1);
+        contractRegistry.Register<ProcessOrderCommand>("orders.commands.process");
 
         var serializer = new SystemTextJsonMessageSerializer();
         var payload = await serializer.SerializeAsync(new ProcessOrderCommand { OrderId = Guid.NewGuid() });
@@ -30,11 +29,15 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder => builder.Register<ProcessOrderCommandHandler>());
+
                 registry.AddInboxModule(builder =>
                 {
-                    builder.Contracts.Register<ProcessOrderCommand>("orders.commands.process", 1);
+                    builder.Contracts.Register<ProcessOrderCommand>("orders.commands.process");
                     builder.UseInMemoryStorage();
                     builder.UseCommandInboxDispatcher();
                 });
@@ -42,6 +45,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
             .BuildServiceProvider();
 
         var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
+
         var envelope = CreateEnvelope(
             contractRegistry,
             "orders.commands.process",
@@ -58,10 +62,11 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
     public async Task DispatchAsync_WhenMessageIsNotACommand_ShouldThrowInvalidOperationException()
     {
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<NonCommandPayload>("inbox.payload.non-command", 1);
+        contractRegistry.Register<NonCommandPayload>("inbox.payload.non-command");
 
         var serializer = new SystemTextJsonMessageSerializer();
         var payload = await serializer.SerializeAsync(new NonCommandPayload { Value = "not-a-command" });
+
         var envelope = CreateEnvelope(
             contractRegistry,
             "inbox.payload.non-command",
@@ -86,26 +91,30 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         var inboxCapture = new IsInboxCapture();
         var traceCapture = new TraceMetadataCapture();
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<InboxProbeCommand>("inbox.commands.probe", 1);
+        contractRegistry.Register<InboxProbeCommand>("inbox.commands.probe");
 
         var serializer = new SystemTextJsonMessageSerializer();
         var payload = await serializer.SerializeAsync(new InboxProbeCommand());
+
         var envelope = CreateEnvelope(
             contractRegistry,
             "inbox.commands.probe",
             1,
             payload,
             DateTimeOffset.UtcNow,
-            correlationId: "correlation-42",
-            causationId: "causation-7",
-            tenantId: "tenant-west");
+            "correlation-42",
+            "causation-7",
+            "tenant-west");
 
         await using var provider = new ServiceCollection()
             .AddSingleton(inboxCapture)
             .AddSingleton(traceCapture)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxProbeCommandHandler>();
@@ -113,7 +122,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
 
                 registry.AddInboxModule(builder =>
                 {
-                    builder.Contracts.Register<InboxProbeCommand>("inbox.commands.probe", 1);
+                    builder.Contracts.Register<InboxProbeCommand>("inbox.commands.probe");
                     builder.UseInMemoryStorage();
                     builder.UseCommandInboxDispatcher();
                 });
@@ -133,10 +142,11 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
     public async Task DispatchAsync_WhenCancellationRequested_ShouldPassCancelledTokenToMediator()
     {
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<InboxProbeCommand>("inbox.commands.probe", 1);
+        contractRegistry.Register<InboxProbeCommand>("inbox.commands.probe");
 
         var serializer = new SystemTextJsonMessageSerializer();
         var payload = await serializer.SerializeAsync(new InboxProbeCommand());
+
         var envelope = CreateEnvelope(
             contractRegistry,
             "inbox.commands.probe",
@@ -163,8 +173,14 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
-                registry.AddCommandModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
+                registry.AddCommandModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
                     inbox.UseInMemoryStorage();
@@ -182,34 +198,22 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         var act = () => new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
-                registry.AddCommandModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
+                registry.AddCommandModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox => inbox.UseInMemoryStorage());
                 registry.Register(new PreRegisteredInboxDispatcherModule());
                 registry.Register(new CommandInboxDispatchModule());
             })
             .BuildServiceProvider();
 
-        act.Should().Throw<LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException>()
+        act.Should().Throw<LiteBusConfigurationException>()
             .WithMessage("*IInboxDispatcher*");
-    }
-
-    private sealed class PreRegisteredInboxDispatcherModule : LiteBus.Runtime.Abstractions.IModule
-    {
-        public void Build(LiteBus.Runtime.Abstractions.IModuleConfiguration configuration)
-        {
-            configuration.DependencyRegistry.Register(new LiteBus.Runtime.Abstractions.DependencyDescriptor(
-                typeof(IInboxDispatcher),
-                typeof(StubInboxDispatcher)));
-        }
-    }
-
-    private sealed class StubInboxDispatcher : IInboxDispatcher
-    {
-        public Task DispatchAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
     }
 
     [Fact]
@@ -218,8 +222,14 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         var act = () => new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
-                registry.AddCommandModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
+                registry.AddCommandModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
                     inbox.UseInMemoryStorage();
@@ -229,7 +239,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
             })
             .BuildServiceProvider();
 
-        act.Should().Throw<LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException>()
+        act.Should().Throw<LiteBusConfigurationException>()
             .WithMessage("*Inbox dispatcher is already configured*");
     }
 
@@ -256,6 +266,24 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
             CausationId = causationId,
             TenantId = tenantId
         };
+    }
+
+    private sealed class PreRegisteredInboxDispatcherModule : IModule
+    {
+        public void Build(IModuleConfiguration configuration)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(IInboxDispatcher),
+                typeof(StubInboxDispatcher)));
+        }
+    }
+
+    private sealed class StubInboxDispatcher : IInboxDispatcher
+    {
+        public Task DispatchAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     public sealed record ProcessOrderCommand : ICommand
@@ -318,12 +346,15 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
                 value is true;
 
             var items = AmbientExecutionContext.Current.Items;
+
             _traceCapture.CorrelationId = items.TryGetValue(MessageTraceContextKeys.CorrelationId, out var correlation)
                 ? correlation as string
                 : null;
+
             _traceCapture.CausationId = items.TryGetValue(MessageTraceContextKeys.CausationId, out var causation)
                 ? causation as string
                 : null;
+
             _traceCapture.TenantId = items.TryGetValue(MessageTraceContextKeys.TenantId, out var tenant)
                 ? tenant as string
                 : null;
@@ -393,6 +424,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         {
             WasSendCalled = true;
             LastCancellationToken = cancellationToken;
+
             return cancellationToken.IsCancellationRequested
                 ? Task.FromCanceled(cancellationToken)
                 : Task.CompletedTask;

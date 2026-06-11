@@ -13,11 +13,6 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 public sealed class PostgreSqlInboxSchemaDiagnosticCheck : IDiagnosticCheck
 {
     /// <summary>
-    ///     Gets the stable probe name reported to operators.
-    /// </summary>
-    public string Name => "inbox.postgresql.schema";
-
-    /// <summary>
     ///     The registered inbox store configuration consumed by the probe.
     /// </summary>
     private readonly PostgreSqlInboxStoreRegistration _registration;
@@ -30,6 +25,11 @@ public sealed class PostgreSqlInboxSchemaDiagnosticCheck : IDiagnosticCheck
     {
         _registration = registration ?? throw new ArgumentNullException(nameof(registration));
     }
+
+    /// <summary>
+    ///     Gets the stable probe name reported to operators.
+    /// </summary>
+    public string Name => "inbox.postgresql.schema";
 
     /// <inheritdoc />
     public async Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default)

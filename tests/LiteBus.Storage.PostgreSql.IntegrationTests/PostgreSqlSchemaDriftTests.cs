@@ -1,6 +1,5 @@
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Outbox.Storage.PostgreSql;
-using LiteBus.Storage.PostgreSql;
 
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 
@@ -16,15 +15,17 @@ public sealed class PostgreSqlSchemaDriftTests : IClassFixture<PostgreSqlFixture
     [Fact]
     public async Task InboxValidateAsync_WhenRequiredColumnMissing_ShouldThrowWithMissingColumns()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options);
 
         await using var connection = await _fixture.DataSource.OpenConnectionAsync();
         await using var dropColumn = connection.CreateCommand();
+
         dropColumn.CommandText = $"""
                                   ALTER TABLE "{options.SchemaName}"."{options.TableName}"
                                       DROP COLUMN IF EXISTS trace_context;
                                   """;
+
         await dropColumn.ExecuteNonQueryAsync();
 
         var action = async () => await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options);
@@ -38,15 +39,17 @@ public sealed class PostgreSqlSchemaDriftTests : IClassFixture<PostgreSqlFixture
     [Fact]
     public async Task OutboxValidateAsync_WhenRequiredColumnMissing_ShouldThrowWithMissingColumns()
     {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
         await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options);
 
         await using var connection = await _fixture.DataSource.OpenConnectionAsync();
         await using var dropColumn = connection.CreateCommand();
+
         dropColumn.CommandText = $"""
                                   ALTER TABLE "{options.SchemaName}"."{options.TableName}"
                                       DROP COLUMN IF EXISTS trace_context;
                                   """;
+
         await dropColumn.ExecuteNonQueryAsync();
 
         var action = async () => await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options);
@@ -60,7 +63,7 @@ public sealed class PostgreSqlSchemaDriftTests : IClassFixture<PostgreSqlFixture
     [Fact]
     public async Task InboxValidateAsync_WhenRequiredIndexMissing_ShouldThrowWithMissingIndexes()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options);
 
         var indexName = PostgreSqlIdentifier.UnquotedIndexName(options.TableName, "idempotency_key_uidx");
@@ -81,7 +84,7 @@ public sealed class PostgreSqlSchemaDriftTests : IClassFixture<PostgreSqlFixture
     [Fact]
     public async Task OutboxValidateAsync_WhenRequiredIndexMissing_ShouldThrowWithMissingIndexes()
     {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
         await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options);
 
         var indexName = PostgreSqlIdentifier.UnquotedIndexName(options.TableName, "lease_idx");
@@ -98,5 +101,4 @@ public sealed class PostgreSqlSchemaDriftTests : IClassFixture<PostgreSqlFixture
                 exception.Component == PostgreSqlSchemaComponents.Outbox &&
                 exception.Details.Contains(indexName, StringComparison.Ordinal));
     }
-
 }

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Kafka;
@@ -58,6 +57,7 @@ public sealed class KafkaIngressIdempotencyIntegrationTests : LiteBusTestBase
         try
         {
             var publisher = provider.GetRequiredService<IMessageTransport>();
+
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressTopic,
@@ -65,6 +65,7 @@ public sealed class KafkaIngressIdempotencyIntegrationTests : LiteBusTestBase
                 MessageId = messageId.ToString("D"),
                 Headers = headers
             });
+
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressTopic,
@@ -95,12 +96,19 @@ public sealed class KafkaIngressIdempotencyIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                    inbox.Contracts.Register<ShipOrderCommand>(ContractName);
                     inbox.UseInMemoryStorage();
-                    inbox.UseKafkaDispatch(_ => { }, _fixture.TransportOptions);
+
+                    inbox.UseKafkaDispatch(_ =>
+                    {
+                    }, _fixture.TransportOptions);
+
                     inbox.UseKafkaIngress(ingress =>
                     {
                         ingress.UseOptions(new KafkaInboxIngressOptions

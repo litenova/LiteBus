@@ -1,6 +1,5 @@
 using System;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Dispatch;
 using LiteBus.Transport.AzureServiceBus;
 
 namespace LiteBus.Outbox.Dispatch.AzureServiceBus;
@@ -28,6 +27,7 @@ public static class OutboxModuleBuilderAzureServiceBusDispatchExtensions
 
         var options = new TransportOutboxDispatcherOptions();
         configure(options);
+
         return builder.RegisterDispatcher(
             new TransportOutboxDispatchModule(options, new AzureServiceBusTransportModule(transportOptions)));
     }

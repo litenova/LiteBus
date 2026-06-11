@@ -20,7 +20,8 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 ///     </para>
 ///     <para>
 ///         Call <see cref="Enqueue(DbContext, InboxEnvelope)" /> before <c>SaveChanges</c>. The interceptor copies pending
-///         envelopes into the current <see cref="IInboxDbContext" /> so the provider writes them in the caller's transaction.
+///         envelopes into the current <see cref="IInboxDbContext" /> so the provider writes them in the caller's
+///         transaction.
 ///     </para>
 ///     <para>
 ///         Duplicate <c>message_id</c> or <c>idempotency_key</c> conflicts are not resolved idempotently on this path.
@@ -28,7 +29,8 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 ///     </para>
 ///     <para>
 ///         Register the interceptor on the application <see cref="DbContext" /> through
-///         <see cref="InboxDbContextExtensions.AddLiteBusInboxInterceptor(DbContextOptionsBuilder, LiteBusInboxSaveChangesInterceptor)" />
+///         <see
+///             cref="InboxDbContextExtensions.AddLiteBusInboxInterceptor(DbContextOptionsBuilder, LiteBusInboxSaveChangesInterceptor)" />
 ///         and enable module registration with
 ///         <see cref="EfCoreInboxStorageModuleBuilder.EnableSaveChangesInterceptor" />.
 ///     </para>
@@ -95,6 +97,7 @@ public sealed class LiteBusInboxSaveChangesInterceptor : SaveChangesInterceptor
             .GroupBy(envelope => envelope.Id)
             .Select(group => group.First())
             .ToList();
+
         PendingEnvelopesByContext.Remove(context);
 
         if (context is not IInboxDbContext inboxDbContext)

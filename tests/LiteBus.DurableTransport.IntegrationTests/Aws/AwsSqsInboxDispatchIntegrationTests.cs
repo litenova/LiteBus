@@ -1,10 +1,10 @@
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Aws;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,13 +48,19 @@ public sealed class AwsSqsInboxDispatchIntegrationTests : LiteBusTestBase
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
         var workItemId = Guid.NewGuid();
-        var receipt = await inbox.AcceptAsync(
-            new RemoteWorkCommand
+
+        var receipt = await inbox.AcceptAsync(new InboxAcceptItem<RemoteWorkCommand>
+        {
+            Message = new RemoteWorkCommand
             {
                 WorkItemId = workItemId,
                 IdempotencyKey = $"work:{workItemId}"
             },
-            new InboxOptions { CorrelationId = "corr-sqs-dispatch" });
+            Metadata = new InboxAcceptMetadata
+            {
+                Trace = new MessageTrace.Correlated("corr-sqs-dispatch")
+            }
+        });
 
         await processor.ProcessPendingAsync();
 
@@ -79,17 +85,23 @@ public sealed class AwsSqsInboxDispatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<RemoteWorkCommand>(ContractName, ContractVersion);
+                    inbox.Contracts.Register<RemoteWorkCommand>(ContractName);
+
                     inbox.UseProcessorOptions(new InboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "sqs-dispatch-test",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     inbox.UseInMemoryStorage();
+
                     inbox.UseAwsSqsDispatch(
                         transport => transport.DefaultDestination = queueUrl,
                         _fixture.TransportOptions);

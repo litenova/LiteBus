@@ -1,9 +1,6 @@
-using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Inbox.Storage.PostgreSql;
-using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Outbox.Storage.PostgreSql;
-using LiteBus.Storage.PostgreSql;
+using Npgsql;
 
 namespace LiteBus.Storage.PostgreSql.UnitTests;
 
@@ -18,13 +15,14 @@ public sealed class PostgreSqlTransactionalParticipantTests
     [Fact]
     public void InboxParticipant_should_throw_when_provider_inactive_and_require_active()
     {
-        var dataSource = Npgsql.NpgsqlDataSource.Create("Host=localhost;Database=test;Username=test;Password=test");
+        var dataSource = NpgsqlDataSource.Create("Host=localhost;Database=test;Username=test;Password=test");
         var registration = new PostgreSqlInboxStoreRegistration(dataSource, new PostgreSqlInboxStoreOptions());
         var singleton = new PostgreSqlInboxStore(dataSource, new PostgreSqlInboxStoreOptions());
+
         var participant = new PostgreSqlTransactionalInboxParticipant(
             registration,
             singleton,
-            transactionProvider: null,
+            null,
             TransactionalWriteMode.RequireActiveTransaction);
 
         var act = () => participant.ResolveStore();
@@ -40,13 +38,14 @@ public sealed class PostgreSqlTransactionalParticipantTests
     [Fact]
     public void InboxParticipant_should_fallback_to_singleton_when_allow_immediate_commit()
     {
-        var dataSource = Npgsql.NpgsqlDataSource.Create("Host=localhost;Database=test;Username=test;Password=test");
+        var dataSource = NpgsqlDataSource.Create("Host=localhost;Database=test;Username=test;Password=test");
         var registration = new PostgreSqlInboxStoreRegistration(dataSource, new PostgreSqlInboxStoreOptions());
         var singleton = new PostgreSqlInboxStore(dataSource, new PostgreSqlInboxStoreOptions());
+
         var participant = new PostgreSqlTransactionalInboxParticipant(
             registration,
             singleton,
-            transactionProvider: null,
+            null,
             TransactionalWriteMode.AllowImmediateCommit);
 
         participant.ResolveStore().Should().BeSameAs(singleton);
@@ -58,13 +57,14 @@ public sealed class PostgreSqlTransactionalParticipantTests
     [Fact]
     public void OutboxParticipant_should_fallback_to_singleton_when_allow_immediate_commit()
     {
-        var dataSource = Npgsql.NpgsqlDataSource.Create("Host=localhost;Database=test;Username=test;Password=test");
+        var dataSource = NpgsqlDataSource.Create("Host=localhost;Database=test;Username=test;Password=test");
         var registration = new PostgreSqlOutboxStoreRegistration(dataSource, new PostgreSqlOutboxStoreOptions());
         var singleton = new PostgreSqlOutboxStore(dataSource, new PostgreSqlOutboxStoreOptions());
+
         var participant = new PostgreSqlTransactionalOutboxParticipant(
             registration,
             singleton,
-            transactionProvider: null,
+            null,
             TransactionalWriteMode.AllowImmediateCommit);
 
         participant.ResolveStore().Should().BeSameAs(singleton);
@@ -76,13 +76,14 @@ public sealed class PostgreSqlTransactionalParticipantTests
     [Fact]
     public void OutboxParticipant_should_throw_when_provider_inactive_and_require_active()
     {
-        var dataSource = Npgsql.NpgsqlDataSource.Create("Host=localhost;Database=test;Username=test;Password=test");
+        var dataSource = NpgsqlDataSource.Create("Host=localhost;Database=test;Username=test;Password=test");
         var registration = new PostgreSqlOutboxStoreRegistration(dataSource, new PostgreSqlOutboxStoreOptions());
         var singleton = new PostgreSqlOutboxStore(dataSource, new PostgreSqlOutboxStoreOptions());
+
         var participant = new PostgreSqlTransactionalOutboxParticipant(
             registration,
             singleton,
-            transactionProvider: null,
+            null,
             TransactionalWriteMode.RequireActiveTransaction);
 
         var act = () => participant.ResolveStore();

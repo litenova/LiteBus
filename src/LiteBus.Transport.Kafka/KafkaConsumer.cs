@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Confluent.Kafka;
 using LiteBus.Transport.Abstractions;
 
@@ -22,6 +19,11 @@ public sealed class KafkaConsumer : IMessageConsumer
     private readonly IConsumer<string, byte[]> _consumer;
 
     /// <summary>
+    ///     Serializes start and stop operations on the consume loop.
+    /// </summary>
+    private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+
+    /// <summary>
     ///     Gets the connection settings controlling seek backoff behavior.
     /// </summary>
     private readonly KafkaTransportOptions _options;
@@ -30,16 +32,6 @@ public sealed class KafkaConsumer : IMessageConsumer
     ///     Tracks repeated seek failures and computes consume delays between retries.
     /// </summary>
     private readonly KafkaSeekBackoff _seekBackoff;
-
-    /// <summary>
-    ///     Serializes start and stop operations on the consume loop.
-    /// </summary>
-    private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
-
-    /// <summary>
-    ///     Signals when the active consume loop stops because of shutdown or cancellation.
-    /// </summary>
-    private TaskCompletionSource _stoppedTcs = CreateStoppedTaskSource();
 
     /// <summary>
     ///     Gets the cancellation source used to stop the active consume loop.
@@ -55,6 +47,11 @@ public sealed class KafkaConsumer : IMessageConsumer
     ///     Gets the delay to apply before the next consume call after a seek retry.
     /// </summary>
     private TimeSpan _pendingConsumeDelay;
+
+    /// <summary>
+    ///     Signals when the active consume loop stops because of shutdown or cancellation.
+    /// </summary>
+    private TaskCompletionSource _stoppedTcs = CreateStoppedTaskSource();
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="KafkaConsumer" /> class.
@@ -137,8 +134,10 @@ public sealed class KafkaConsumer : IMessageConsumer
     }
 
     /// <inheritdoc />
-    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default) =>
-        _stoppedTcs.Task.WaitAsync(cancellationToken);
+    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
+    {
+        return _stoppedTcs.Task.WaitAsync(cancellationToken);
+    }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
@@ -183,20 +182,32 @@ public sealed class KafkaConsumer : IMessageConsumer
                     throw;
                 }
 
-                var transportMessage = KafkaMessageMapper.ToTransportMessage(
-                    result,
-                    options.Destination,
-                    _ =>
+                var offset = result.TopicPartitionOffset;
+
+                var ackHandlers = new TransportConsumerAckHandlers
+                {
+                    AckAsync = _ =>
                     {
-                        _seekBackoff.RecordCommit(result.TopicPartitionOffset);
+                        _seekBackoff.RecordCommit(offset);
                         CommitOffset(result);
                         return Task.CompletedTask;
                     },
-                    offset =>
+                    NackAsync = (requeue, _) =>
                     {
-                        _consumer.Seek(offset);
-                        _pendingConsumeDelay = _seekBackoff.RecordSeek(offset);
-                    });
+                        if (requeue)
+                        {
+                            _consumer.Seek(offset);
+                            _pendingConsumeDelay = _seekBackoff.RecordSeek(offset);
+                        }
+
+                        return Task.CompletedTask;
+                    }
+                };
+
+                var transportMessage = KafkaMessageMapper.ToTransportMessage(
+                    result,
+                    options.Destination,
+                    ackHandlers);
 
                 await handler(transportMessage, cancellationToken).ConfigureAwait(false);
             }
@@ -224,12 +235,16 @@ public sealed class KafkaConsumer : IMessageConsumer
     ///     Creates a new task source used to observe consumer shutdown.
     /// </summary>
     /// <returns>The task source for the current consume session.</returns>
-    private static TaskCompletionSource CreateStoppedTaskSource() =>
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static TaskCompletionSource CreateStoppedTaskSource()
+    {
+        return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
 
     /// <summary>
     ///     Marks the current consume session as stopped.
     /// </summary>
-    private void SignalStopped() => _stoppedTcs.TrySetResult();
+    private void SignalStopped()
+    {
+        _stoppedTcs.TrySetResult();
+    }
 }
-

@@ -19,6 +19,10 @@ public static class InboxModuleBuilderInMemoryExtensions
         Action<InMemoryInboxStorageModuleBuilder>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        return builder.RegisterStorage(new InMemoryInboxStorageModule(configure ?? (_ => { })));
+
+        return builder.RegisterStorage(new InMemoryInboxStorageModule(configure ??
+                                                                      (_ =>
+                                                                      {
+                                                                      })));
     }
 }

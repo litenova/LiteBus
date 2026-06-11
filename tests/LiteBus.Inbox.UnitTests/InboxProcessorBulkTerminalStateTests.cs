@@ -1,4 +1,3 @@
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging.Abstractions;
@@ -89,21 +88,25 @@ public sealed class InboxProcessorBulkTerminalStateTests
 
         public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
             InboxLeaseRequest request,
-            CancellationToken cancellationToken = default) =>
-            _inner.LeasePendingAsync(request, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return _inner.LeasePendingAsync(request, cancellationToken);
+        }
 
         public Task<bool> RenewLeaseAsync(
             Guid messageId,
             string leaseOwner,
             DateTimeOffset expiresAt,
-            CancellationToken cancellationToken = default) =>
-            _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+        }
 
         public async Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
         {
             PersistCallCount++;
             LastPersistedDeadLetterCount = envelopes.Count(envelope => envelope.Status == InboxStatus.DeadLettered);
-            return await _inner.PersistAsync(envelopes, cancellationToken).ConfigureAwait(false);
+            return await _inner.PersistAsync(envelopes, cancellationToken);
         }
     }
 }

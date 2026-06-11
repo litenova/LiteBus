@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests;
 
 /// <summary>

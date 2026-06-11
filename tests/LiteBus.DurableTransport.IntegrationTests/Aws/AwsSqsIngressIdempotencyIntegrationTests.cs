@@ -1,6 +1,5 @@
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Aws;
@@ -56,6 +55,7 @@ public sealed class AwsSqsIngressIdempotencyIntegrationTests : LiteBusTestBase
         try
         {
             var publisher = provider.GetRequiredService<IMessageTransport>();
+
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressQueueUrl,
@@ -63,6 +63,7 @@ public sealed class AwsSqsIngressIdempotencyIntegrationTests : LiteBusTestBase
                 MessageId = messageId.ToString("D"),
                 Headers = headers
             });
+
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressQueueUrl,
@@ -93,12 +94,19 @@ public sealed class AwsSqsIngressIdempotencyIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                    inbox.Contracts.Register<ShipOrderCommand>(ContractName);
                     inbox.UseInMemoryStorage();
-                    inbox.UseAwsSqsDispatch(_ => { }, _fixture.TransportOptions);
+
+                    inbox.UseAwsSqsDispatch(_ =>
+                    {
+                    }, _fixture.TransportOptions);
+
                     inbox.UseAwsSqsIngress(ingress =>
                     {
                         ingress.UseOptions(new AwsSqsInboxIngressOptions

@@ -1,8 +1,8 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Messaging;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
+using LiteBus.Messaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
@@ -30,6 +30,12 @@ public sealed class InboxOutboxTestHost : IAsyncDisposable
     /// </summary>
     public ServiceProvider Services { get; }
 
+    /// <inheritdoc />
+    public ValueTask DisposeAsync()
+    {
+        return Services.DisposeAsync();
+    }
+
     /// <summary>
     ///     Creates a host with in-memory inbox and outbox storage and optional module configuration.
     /// </summary>
@@ -51,7 +57,10 @@ public sealed class InboxOutboxTestHost : IAsyncDisposable
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddInboxModule(inbox => inbox.UseInMemoryStorage());
             registry.AddOutboxModule(outbox => outbox.UseInMemoryStorage());
             configureRegistry?.Invoke(registry);
@@ -66,17 +75,17 @@ public sealed class InboxOutboxTestHost : IAsyncDisposable
     ///     Gets the inbox writer from the host.
     /// </summary>
     /// <returns>The configured <see cref="IInbox" /> instance.</returns>
-    public IInbox GetInbox() => Services.GetRequiredService<IInbox>();
+    public IInbox GetInbox()
+    {
+        return Services.GetRequiredService<IInbox>();
+    }
 
     /// <summary>
     ///     Gets the outbox writer from the host.
     /// </summary>
     /// <returns>The configured <see cref="IOutbox" /> instance.</returns>
-    public IOutbox GetOutbox() => Services.GetRequiredService<IOutbox>();
-
-    /// <inheritdoc />
-    public ValueTask DisposeAsync()
+    public IOutbox GetOutbox()
     {
-        return Services.DisposeAsync();
+        return Services.GetRequiredService<IOutbox>();
     }
 }

@@ -50,7 +50,8 @@ public static class PostgreSqlSagaSchema
         options ??= new PostgreSqlSagaStoreOptions();
 
         var qualifiedTableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
-        var sql = $"""
+
+        var sql = """
                   SELECT column_name
                   FROM information_schema.columns
                   WHERE table_schema = @schema_name
@@ -64,6 +65,7 @@ public static class PostgreSqlSagaSchema
 
         var columns = new HashSet<string>(StringComparer.Ordinal);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             columns.Add(reader.GetString(0));

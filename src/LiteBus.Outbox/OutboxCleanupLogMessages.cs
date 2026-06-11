@@ -23,6 +23,8 @@ internal static class OutboxCleanupLogMessages
     /// <param name="logger">The logger receiving the event.</param>
     /// <param name="exception">The exception that aborted cleanup.</param>
     /// <param name="backoff">The delay before the next retry attempt.</param>
-    public static void CleanupFailed(ILogger logger, Exception exception, TimeSpan backoff) =>
+    public static void CleanupFailed(ILogger logger, Exception exception, TimeSpan backoff)
+    {
         CleanupFailedMessage(logger, backoff, exception);
+    }
 }

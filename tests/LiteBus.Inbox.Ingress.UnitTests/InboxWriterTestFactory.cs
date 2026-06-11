@@ -20,9 +20,11 @@ internal static class InboxWriterTestFactory
         IInboxStore store,
         IContractReader contractRegistry,
         IMessageSerializer serializer,
-        TimeProvider clock) =>
-        new(
+        TimeProvider clock)
+    {
+        return new Inbox(
             store,
             new InboxEnvelopeFactory(contractRegistry, serializer, clock),
             clock);
+    }
 }

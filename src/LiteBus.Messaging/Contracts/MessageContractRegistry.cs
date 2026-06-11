@@ -16,14 +16,14 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
     private readonly Dictionary<Type, MessageContract> _contractsByType = [];
 
     /// <summary>
-    ///     Maps contract name and version pairs back to registered CLR message types.
-    /// </summary>
-    private readonly Dictionary<(string Name, int Version), Type> _typesByContract = [];
-
-    /// <summary>
     ///     Serializes concurrent reads and writes to both contract lookup tables.
     /// </summary>
     private readonly object _syncRoot = new();
+
+    /// <summary>
+    ///     Maps contract name and version pairs back to registered CLR message types.
+    /// </summary>
+    private readonly Dictionary<(string Name, int Version), Type> _typesByContract = [];
 
     /// <inheritdoc />
     public IContractWriter Register<TMessage>(string name, int version = 1)
@@ -72,7 +72,7 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
     {
         ArgumentNullException.ThrowIfNull(messageType);
 
-        var attribute = messageType.GetCustomAttribute<MessageContractAttribute>(inherit: false);
+        var attribute = messageType.GetCustomAttribute<MessageContractAttribute>(false);
 
         lock (_syncRoot)
         {
@@ -96,7 +96,7 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
     {
         ArgumentNullException.ThrowIfNull(messageType);
 
-        var attribute = messageType.GetCustomAttribute<MessageContractAttribute>(inherit: false);
+        var attribute = messageType.GetCustomAttribute<MessageContractAttribute>(false);
 
         lock (_syncRoot)
         {
@@ -113,6 +113,61 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
         }
 
         return null;
+    }
+
+    /// <inheritdoc />
+    public Type GetMessageType(string contractName, int contractVersion)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractName);
+
+        lock (_syncRoot)
+        {
+            if (_typesByContract.TryGetValue((contractName, contractVersion), out var messageType))
+            {
+                return messageType;
+            }
+        }
+
+        throw new MessageContractNotRegisteredException(contractName, contractVersion);
+    }
+
+    /// <inheritdoc />
+    public Type? TryGetMessageType(string contractName, int contractVersion)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractName);
+
+        lock (_syncRoot)
+        {
+            if (_typesByContract.TryGetValue((contractName, contractVersion), out var messageType))
+            {
+                return messageType;
+            }
+        }
+
+        return null;
+    }
+
+    /// <inheritdoc />
+    public IContractWriter AddFromAssembly(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+
+        foreach (var type in assembly.GetTypes())
+        {
+            if (type is not { IsAbstract: false } || type.ContainsGenericParameters)
+            {
+                continue;
+            }
+
+            var attribute = type.GetCustomAttribute<MessageContractAttribute>(false);
+
+            if (attribute is not null)
+            {
+                Register(type, attribute.Name, attribute.Version);
+            }
+        }
+
+        return this;
     }
 
     /// <summary>
@@ -179,7 +234,8 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
     /// <param name="version">The contract version supplied to <see cref="Register" />.</param>
     private static void ValidateAgainstAttribute(Type messageType, string name, int version)
     {
-        var attribute = messageType.GetCustomAttribute<MessageContractAttribute>(inherit: false);
+        var attribute = messageType.GetCustomAttribute<MessageContractAttribute>(false);
+
         if (attribute is null)
         {
             return;
@@ -194,59 +250,5 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
                 name,
                 version);
         }
-    }
-
-    /// <inheritdoc />
-    public Type GetMessageType(string contractName, int contractVersion)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(contractName);
-
-        lock (_syncRoot)
-        {
-            if (_typesByContract.TryGetValue((contractName, contractVersion), out var messageType))
-            {
-                return messageType;
-            }
-        }
-
-        throw new MessageContractNotRegisteredException(contractName, contractVersion);
-    }
-
-    /// <inheritdoc />
-    public Type? TryGetMessageType(string contractName, int contractVersion)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(contractName);
-
-        lock (_syncRoot)
-        {
-            if (_typesByContract.TryGetValue((contractName, contractVersion), out var messageType))
-            {
-                return messageType;
-            }
-        }
-
-        return null;
-    }
-
-    /// <inheritdoc />
-    public IContractWriter AddFromAssembly(Assembly assembly)
-    {
-        ArgumentNullException.ThrowIfNull(assembly);
-
-        foreach (var type in assembly.GetTypes())
-        {
-            if (type is not { IsAbstract: false } || type.ContainsGenericParameters)
-            {
-                continue;
-            }
-
-            var attribute = type.GetCustomAttribute<MessageContractAttribute>(inherit: false);
-            if (attribute is not null)
-            {
-                Register(type, attribute.Name, attribute.Version);
-            }
-        }
-
-        return this;
     }
 }

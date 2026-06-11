@@ -36,22 +36,24 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
     [Fact]
     public async Task ProcessorBackgroundService_ShouldProcessAcceptedCommandThroughPostgreSqlStore()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
         var recorder = new CommandRecorder();
 
         await using var provider = BuildProcessorProvider(options, recorder);
+
         LiteBusHostedServiceExtensions.AssertBackgroundServices(
             provider,
             typeof(InboxProcessorBackgroundService));
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var orderId = Guid.NewGuid();
-        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand
+
+        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        });
+        }));
 
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
@@ -85,7 +87,7 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
     [Fact]
     public async Task ProcessorBackgroundService_WhenPendingRowInserted_ShouldWakeViaNotifyBeforePollTimeout()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
         var recorder = new CommandRecorder();
         var orderId = Guid.NewGuid();
@@ -94,7 +96,7 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
         await using var provider = BuildProcessorProvider(
             options,
             recorder,
-            configureHost: host =>
+            host =>
             {
                 host.PollInterval = TimeSpan.FromSeconds(30);
                 host.UseAdaptivePolling = false;
@@ -108,6 +110,7 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
             await Task.Delay(TimeSpan.FromMilliseconds(250), runCts.Token);
 
             var store = provider.GetRequiredService<IInboxStore>();
+
             var payload = JsonSerializer.Serialize(
                 new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" },
                 new JsonSerializerOptions(JsonSerializerDefaults.Web));
@@ -150,10 +153,11 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
     public async Task CleanupBackgroundService_ShouldPurgeCompletedRowsPastRetention()
     {
         var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
 
         await using var provider = BuildCleanupProvider(options, clock);
+
         LiteBusHostedServiceExtensions.AssertBackgroundServices(
             provider,
             typeof(InboxCleanupBackgroundService));
@@ -239,7 +243,10 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddCommandModule(builder =>
             {
                 builder.Register<ShipOrderCommand>();
@@ -255,14 +262,17 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
                     postgres.DisableSchemaInitialization();
                 });
 
-                inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
+                inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship");
+
                 inbox.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 10,
                     LeaseOwner = "pg-hosting-test-worker",
                     Retry = new RetryOptions { UseJitter = false }
                 });
+
                 inbox.UseCommandInboxDispatcher();
+
                 inbox.EnableInboxProcessor(host =>
                 {
                     host.PollInterval = TimeSpan.FromMilliseconds(100);
@@ -283,6 +293,7 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
         services.AddLiteBus(registry =>
         {
             registry.AddMessageModule(message => message.UseTimeProvider(clock));
+
             registry.AddInboxModule(inbox =>
             {
                 inbox.UsePostgreSqlStorage(postgres =>

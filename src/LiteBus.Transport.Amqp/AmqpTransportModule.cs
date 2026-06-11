@@ -1,8 +1,7 @@
 using System;
 using System.Linq;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Runtime.Abstractions.Diagnostics;
-using LiteBus.Transport;
+using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.Amqp;
 
@@ -30,7 +29,7 @@ public sealed class AmqpTransportModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(Abstractions.IMessageTransport)))
+        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageTransport)))
         {
             return;
         }
@@ -49,17 +48,16 @@ public sealed class AmqpTransportModule : IModule
             static serviceProvider =>
             {
                 var manager = serviceProvider.GetService(typeof(IAmqpConnectionManager)) as AmqpConnectionManager;
-                return manager?.TransportCircuitBreaker
-                    ?? throw new InvalidOperationException("IAmqpConnectionManager is not registered.");
+                return manager?.TransportCircuitBreaker ?? throw new InvalidOperationException("IAmqpConnectionManager is not registered.");
             },
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(Abstractions.IMessageTransport),
+            typeof(IMessageTransport),
             typeof(AmqpPublisher)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(Abstractions.IMessageConsumer),
+            typeof(IMessageConsumer),
             typeof(AmqpConsumer)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

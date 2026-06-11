@@ -14,14 +14,6 @@ namespace LiteBus.Messaging.Abstractions;
 public interface IMessageReader : IEnumerable<IMessageDescriptor>
 {
     /// <summary>
-    ///     Returns the descriptor for <paramref name="messageType" /> using an exact type match,
-    ///     or <see langword="null" /> when no descriptor is registered for that type.
-    /// </summary>
-    /// <param name="messageType">The message type to resolve, normalized to its generic type definition when generic.</param>
-    /// <returns>The registered descriptor, or <see langword="null" /> when not found.</returns>
-    IMessageDescriptor? Find(Type messageType);
-
-    /// <summary>
     ///     Gets all handler descriptors in registration order.
     /// </summary>
     IReadOnlyList<IHandlerDescriptor> Handlers { get; }
@@ -30,4 +22,12 @@ public interface IMessageReader : IEnumerable<IMessageDescriptor>
     ///     Gets the number of committed message descriptors in the registry.
     /// </summary>
     int Count { get; }
+
+    /// <summary>
+    ///     Returns the descriptor for <paramref name="messageType" /> using an exact type match,
+    ///     or <see langword="null" /> when no descriptor is registered for that type.
+    /// </summary>
+    /// <param name="messageType">The message type to resolve, normalized to its generic type definition when generic.</param>
+    /// <returns>The registered descriptor, or <see langword="null" /> when not found.</returns>
+    IMessageDescriptor? Find(Type messageType);
 }

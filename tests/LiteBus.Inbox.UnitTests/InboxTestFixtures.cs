@@ -1,4 +1,3 @@
-using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
@@ -148,12 +147,15 @@ internal static class InboxTestFixtures
         public Task HandleAsync(InboxCheckCommand message, CancellationToken cancellationToken = default)
         {
             var items = AmbientExecutionContext.Current.Items;
+
             _capture.CorrelationId = items.TryGetValue(MessageTraceContextKeys.CorrelationId, out var correlation)
                 ? correlation as string
                 : null;
+
             _capture.CausationId = items.TryGetValue(MessageTraceContextKeys.CausationId, out var causation)
                 ? causation as string
                 : null;
+
             _capture.TenantId = items.TryGetValue(MessageTraceContextKeys.TenantId, out var tenant)
                 ? tenant as string
                 : null;
@@ -164,8 +166,8 @@ internal static class InboxTestFixtures
 
     internal sealed class FlakyInboxStateStore : IInboxStateWriter
     {
-        private readonly InMemoryInboxStore _inner;
         private readonly int _failCompletionsBeforeSuccess;
+        private readonly InMemoryInboxStore _inner;
         private int _completionAttempts;
 
         public FlakyInboxStateStore(
@@ -178,8 +180,7 @@ internal static class InboxTestFixtures
 
         public Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
         {
-            if (envelopes.Any(envelope => envelope.Status == InboxStatus.Completed)
-                && _completionAttempts++ < _failCompletionsBeforeSuccess)
+            if (envelopes.Any(envelope => envelope.Status == InboxStatus.Completed) && _completionAttempts++ < _failCompletionsBeforeSuccess)
             {
                 throw new InvalidOperationException("Simulated completion failure.");
             }

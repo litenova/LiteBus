@@ -1,13 +1,11 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Outbox.UnitTests;
 
@@ -34,12 +32,15 @@ public sealed class OutboxHostingTests : LiteBusTestBase
 
         await using var provider = BuildProvider(
             dispatcher,
-            configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(50));
+            options => options.PollInterval = TimeSpan.FromMilliseconds(50));
 
         var outbox = provider.GetRequiredService<IOutbox>();
 
         var orderId = Guid.NewGuid();
-        await outbox.EnqueueAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { Id = Guid.NewGuid() });
+
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId },
+            Guid.NewGuid()));
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
@@ -59,10 +60,13 @@ public sealed class OutboxHostingTests : LiteBusTestBase
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ => { });
-                registry.AddOutboxModule(outbox =>
+                    registry.AddMessageModule(_ =>
                     {
-                        outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                    });
+
+                    registry.AddOutboxModule(outbox =>
+                    {
+                        outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
                         outbox.EnableOutboxProcessor();
                     });
                 })
@@ -79,10 +83,13 @@ public sealed class OutboxHostingTests : LiteBusTestBase
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ => { });
+                    registry.AddMessageModule(_ =>
+                    {
+                    });
+
                     registry.AddOutboxModule(outbox =>
                     {
-                        outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                        outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
                         outbox.UseInMemoryStorage();
                         outbox.EnableOutboxProcessor();
                     });
@@ -100,7 +107,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
 
         await using var provider = BuildProvider(
             dispatcher,
-            configureHost: options =>
+            options =>
             {
                 options.StartupDelay = TimeSpan.FromMilliseconds(300);
                 options.PollInterval = TimeSpan.FromMilliseconds(50);
@@ -109,7 +116,10 @@ public sealed class OutboxHostingTests : LiteBusTestBase
         var outbox = provider.GetRequiredService<IOutbox>();
 
         var orderId = Guid.NewGuid();
-        await outbox.EnqueueAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { Id = Guid.NewGuid() });
+
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId },
+            Guid.NewGuid()));
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
@@ -135,7 +145,8 @@ public sealed class OutboxHostingTests : LiteBusTestBase
             dispatcher,
             configureOutbox: outbox =>
             {
-                outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
+
                 outbox.UseProcessorOptions(new OutboxProcessorOptions
                 {
                     BatchSize = 2,
@@ -153,7 +164,9 @@ public sealed class OutboxHostingTests : LiteBusTestBase
 
         for (var i = 0; i < 4; i++)
         {
-            await outbox.EnqueueAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions { Id = Guid.NewGuid() });
+            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Guid.NewGuid()));
         }
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
@@ -167,6 +180,7 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
     {
         var deadline = DateTimeOffset.UtcNow + timeout;
+
         while (!condition() && DateTimeOffset.UtcNow < deadline)
         {
             await Task.Delay(50);
@@ -182,7 +196,10 @@ public sealed class OutboxHostingTests : LiteBusTestBase
             .AddSingleton(dispatcherHolder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddOutboxModule(outbox =>
                 {
                     if (configureOutbox is not null)
@@ -191,7 +208,8 @@ public sealed class OutboxHostingTests : LiteBusTestBase
                     }
                     else
                     {
-                        outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                        outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
+
                         outbox.UseProcessorOptions(new OutboxProcessorOptions
                         {
                             BatchSize = 10,

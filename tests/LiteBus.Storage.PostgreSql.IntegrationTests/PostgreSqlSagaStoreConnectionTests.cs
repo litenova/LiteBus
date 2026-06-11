@@ -1,5 +1,4 @@
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Saga.Abstractions;
 using LiteBus.Saga.Storage.PostgreSql;
 using Npgsql;

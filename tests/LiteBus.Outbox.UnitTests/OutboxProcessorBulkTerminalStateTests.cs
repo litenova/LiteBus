@@ -1,6 +1,6 @@
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
-using LiteBus.Outbox;
+using LiteBus.Orchestration.Abstractions;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Testing;
@@ -35,7 +35,7 @@ public sealed class OutboxProcessorBulkTerminalStateTests
                 Retry = new RetryOptions { MaxAttempts = 1, UseJitter = false }
             },
             clock,
-            Array.Empty<LiteBus.Orchestration.Abstractions.IProcessorEnvelopeHook>());
+            Array.Empty<IProcessorEnvelopeHook>());
 
         for (var index = 0; index < 3; index++)
         {
@@ -90,16 +90,20 @@ public sealed class OutboxProcessorBulkTerminalStateTests
         /// <inheritdoc />
         public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
             OutboxLeaseRequest request,
-            CancellationToken cancellationToken = default) =>
-            _inner.LeasePendingAsync(request, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return _inner.LeasePendingAsync(request, cancellationToken);
+        }
 
         /// <inheritdoc />
         public Task<bool> RenewLeaseAsync(
             Guid messageId,
             string leaseOwner,
             DateTimeOffset expiresAt,
-            CancellationToken cancellationToken = default) =>
-            _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+        }
 
         /// <inheritdoc />
         public Task<PersistResult> PersistAsync(
@@ -118,7 +122,9 @@ public sealed class OutboxProcessorBulkTerminalStateTests
     private sealed class AlwaysFailingOutboxDispatcher : IOutboxDispatcher
     {
         /// <inheritdoc />
-        public Task DispatchAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default) =>
+        public Task DispatchAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
+        {
             throw new InvalidOperationException("Simulated publish failure.");
+        }
     }
 }

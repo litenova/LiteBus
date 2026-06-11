@@ -1,6 +1,4 @@
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
-using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Storage.PostgreSql;
 using Npgsql;
 
@@ -19,6 +17,7 @@ internal static class EfCoreInboxTableReaders
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
+
         command.CommandText = $"""
                                SELECT
                                    message_id,
@@ -41,9 +40,11 @@ internal static class EfCoreInboxTableReaders
                                FROM {tableName}
                                WHERE message_id = @message_id;
                                """;
+
         command.Parameters.AddWithValue("message_id", messageId);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
         if (!await reader.ReadAsync(cancellationToken))
         {
             return null;
@@ -58,7 +59,7 @@ internal static class EfCoreInboxTableReaders
             CreatedAt = reader.GetFieldValue<DateTimeOffset>(4),
             VisibleAfter = ReadNullableDateTimeOffset(reader, 5),
             AttemptCount = reader.GetInt32(6),
-            Status = (InboxStatus)reader.GetInt32(7),
+            Status = (InboxStatus) reader.GetInt32(7),
             IdempotencyKey = ReadNullableString(reader, 8),
             LeaseOwner = ReadNullableString(reader, 9),
             LeaseExpiresAt = ReadNullableDateTimeOffset(reader, 10),

@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
 using System.Linq;
+using LiteBus.Analyzers.Analysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
-using LiteBus.Analyzers.Analysis;
 
 namespace LiteBus.Analyzers;
 
@@ -33,6 +33,7 @@ public sealed class MissingMessageContractRegistrationAnalyzer : DiagnosticAnaly
         var registeredContracts = ContractRegistrationAnalysis.CollectRegisteredContractTypes(
             context.Compilation,
             context.CancellationToken);
+
         var handlers = HandlerAnalysis.CollectHandlerRegistrations(context.Compilation, context.CancellationToken)
             .Where(handler => handler.Pipeline is "command" or "event")
             .ToList();

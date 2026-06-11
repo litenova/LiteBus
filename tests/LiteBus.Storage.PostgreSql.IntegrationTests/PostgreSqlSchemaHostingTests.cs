@@ -4,8 +4,6 @@ using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Storage.PostgreSql;
-using LiteBus.Runtime.Abstractions;
-using LiteBus.Storage.PostgreSql;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -23,7 +21,7 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task InboxSchemaInitializer_WhenEnabled_ShouldCreateSchemaOnStartup()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions() with
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions() with
         {
             EnsureSchemaCreationOnStartup = true
         };
@@ -40,7 +38,7 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task InboxSchemaInitializer_WhenValidateOnly_ShouldValidateWithoutEnsure()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions() with
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions() with
         {
             EnsureSchemaCreationOnStartup = false,
             ValidateSchemaCreationOnStartup = true
@@ -58,7 +56,7 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task InboxSchemaInitializer_WhenDisabled_ShouldNotCreateSchemaOnStartup()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions() with
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions() with
         {
             EnsureSchemaCreationOnStartup = false,
             ValidateSchemaCreationOnStartup = false
@@ -76,7 +74,7 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task InboxSchemaInitializer_WhenValidationEnabled_ShouldValidateAfterEnsure()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions() with
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions() with
         {
             EnsureSchemaCreationOnStartup = true,
             ValidateSchemaCreationOnStartup = true
@@ -92,7 +90,7 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task OutboxSchemaInitializer_WhenEnabled_ShouldCreateSchemaOnStartup()
     {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions() with
+        var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions() with
         {
             EnsureSchemaCreationOnStartup = true
         };
@@ -109,7 +107,7 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task OutboxSchemaInitializer_WhenValidateOnly_ShouldValidateWithoutEnsure()
     {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions() with
+        var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions() with
         {
             EnsureSchemaCreationOnStartup = false,
             ValidateSchemaCreationOnStartup = true
@@ -127,7 +125,7 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task OutboxSchemaInitializer_WhenDisabled_ShouldNotCreateSchemaOnStartup()
     {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions() with
+        var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions() with
         {
             EnsureSchemaCreationOnStartup = false,
             ValidateSchemaCreationOnStartup = false
@@ -145,7 +143,7 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task SchemaInitializer_SecondRun_ShouldRemainIdempotent()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions() with
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions() with
         {
             EnsureSchemaCreationOnStartup = true
         };
@@ -162,9 +160,13 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     private ServiceProvider BuildInboxProvider(PostgreSqlInboxStoreOptions options)
     {
         var services = new ServiceCollection();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddInboxModule(inbox => inbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
@@ -178,9 +180,13 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
     private ServiceProvider BuildOutboxProvider(PostgreSqlOutboxStoreOptions options)
     {
         var services = new ServiceCollection();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddOutboxModule(outbox => outbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);

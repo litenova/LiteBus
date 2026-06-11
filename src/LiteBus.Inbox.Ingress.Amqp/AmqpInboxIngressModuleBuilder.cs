@@ -1,6 +1,3 @@
-using System;
-using LiteBus.Inbox.Ingress;
-
 namespace LiteBus.Inbox.Ingress.Amqp;
 
 /// <summary>

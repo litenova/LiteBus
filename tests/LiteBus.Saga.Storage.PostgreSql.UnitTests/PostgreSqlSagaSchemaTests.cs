@@ -1,4 +1,3 @@
-using LiteBus.Saga.Storage.PostgreSql;
 using LiteBus.Storage.PostgreSql.IntegrationTests;
 
 namespace LiteBus.Saga.Storage.PostgreSql.UnitTests;

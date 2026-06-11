@@ -1,5 +1,4 @@
 using System;
-using LiteBus.Transport;
 using LiteBus.Transport.Amqp;
 using OpenTelemetry.Metrics;
 

@@ -11,7 +11,7 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 ///     Register with an existing data source:
 ///     <code>
 /// var dataSource = NpgsqlDataSource.Create(connectionString);
-///
+/// 
 /// liteBus.AddPostgreSqlInboxStorage(postgres =>
 /// {
 ///     postgres.UseDataSource(dataSource);

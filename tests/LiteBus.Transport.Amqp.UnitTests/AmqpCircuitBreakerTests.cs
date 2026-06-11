@@ -1,5 +1,3 @@
-using LiteBus.Transport.Amqp;
-
 namespace LiteBus.Transport.Amqp.UnitTests;
 
 /// <summary>

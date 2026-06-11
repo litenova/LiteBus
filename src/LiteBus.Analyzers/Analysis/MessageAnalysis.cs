@@ -1,6 +1,8 @@
 using System.Collections.Immutable;
 using System.Linq;
+using System.Threading;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace LiteBus.Analyzers.Analysis;
 
@@ -15,7 +17,7 @@ internal static class MessageAnalysis
     private static readonly string[] CommandMessageMetadataNames =
     {
         "LiteBus.Commands.Abstractions.ICommand",
-        "LiteBus.Commands.Abstractions.ICommand`1",
+        "LiteBus.Commands.Abstractions.ICommand`1"
     };
 
     /// <summary>
@@ -24,7 +26,7 @@ internal static class MessageAnalysis
     private static readonly string[] QueryMessageMetadataNames =
     {
         "LiteBus.Queries.Abstractions.IQuery",
-        "LiteBus.Queries.Abstractions.IQuery`1",
+        "LiteBus.Queries.Abstractions.IQuery`1"
     };
 
     /// <summary>
@@ -33,7 +35,7 @@ internal static class MessageAnalysis
     private static readonly string[] OpenGenericCommandHandlerMetadataNames =
     {
         "LiteBus.Commands.Abstractions.ICommandHandler`1",
-        "LiteBus.Commands.Abstractions.ICommandHandler`2",
+        "LiteBus.Commands.Abstractions.ICommandHandler`2"
     };
 
     /// <summary>
@@ -41,7 +43,7 @@ internal static class MessageAnalysis
     /// </summary>
     private static readonly string[] OpenGenericQueryHandlerMetadataNames =
     {
-        "LiteBus.Queries.Abstractions.IQueryHandler`2",
+        "LiteBus.Queries.Abstractions.IQueryHandler`2"
     };
 
     /// <summary>
@@ -54,7 +56,7 @@ internal static class MessageAnalysis
     internal static ImmutableArray<MessageTypeRegistration> CollectMessageTypes(
         Compilation compilation,
         MessageKind kind,
-        System.Threading.CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
         var markerMetadataNames = kind == MessageKind.Command
             ? CommandMessageMetadataNames
@@ -65,7 +67,7 @@ internal static class MessageAnalysis
         foreach (var syntaxTree in compilation.SyntaxTrees)
         {
             foreach (var typeDeclaration in syntaxTree.GetRoot(cancellationToken).DescendantNodes()
-                         .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax>())
+                         .OfType<TypeDeclarationSyntax>())
             {
                 var model = compilation.GetSemanticModel(syntaxTree);
                 var symbol = model.GetDeclaredSymbol(typeDeclaration, cancellationToken) as INamedTypeSymbol;
@@ -131,7 +133,7 @@ internal static class MessageAnalysis
     internal static ImmutableArray<INamedTypeSymbol> CollectOpenGenericMainHandlers(
         Compilation compilation,
         MessageKind kind,
-        System.Threading.CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
         var handlerMetadataNames = kind == MessageKind.Command
             ? OpenGenericCommandHandlerMetadataNames
@@ -142,7 +144,7 @@ internal static class MessageAnalysis
         foreach (var syntaxTree in compilation.SyntaxTrees)
         {
             foreach (var typeDeclaration in syntaxTree.GetRoot(cancellationToken).DescendantNodes()
-                         .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax>())
+                         .OfType<TypeDeclarationSyntax>())
             {
                 var model = compilation.GetSemanticModel(syntaxTree);
                 var symbol = model.GetDeclaredSymbol(typeDeclaration, cancellationToken) as INamedTypeSymbol;
@@ -253,7 +255,10 @@ internal static class MessageAnalysis
     /// <param name="openGenericHandler">The open generic handler type definition.</param>
     /// <param name="messageType">The concrete message type.</param>
     /// <param name="compilation">The compilation being analyzed.</param>
-    /// <returns><see langword="true" /> when the handler would close for the message type; otherwise, <see langword="false" />.</returns>
+    /// <returns>
+    ///     <see langword="true" /> when the handler would close for the message type; otherwise, <see langword="false" />
+    ///     .
+    /// </returns>
     private static bool OpenGenericHandlerCoversMessageType(
         INamedTypeSymbol openGenericHandler,
         INamedTypeSymbol messageType,
@@ -273,7 +278,10 @@ internal static class MessageAnalysis
     /// <param name="compilation">The compilation being analyzed.</param>
     /// <param name="source">The source type symbol.</param>
     /// <param name="target">The target type symbol.</param>
-    /// <returns><see langword="true" /> when the source type is assignable to the target type; otherwise, <see langword="false" />.</returns>
+    /// <returns>
+    ///     <see langword="true" /> when the source type is assignable to the target type; otherwise,
+    ///     <see langword="false" />.
+    /// </returns>
     private static bool IsAssignableTo(Compilation compilation, ITypeSymbol source, ITypeSymbol target)
     {
         return SymbolEqualityComparer.Default.Equals(source, target) ||

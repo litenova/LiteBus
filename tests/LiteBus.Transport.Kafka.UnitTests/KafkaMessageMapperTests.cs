@@ -2,7 +2,6 @@ using System.Text;
 using AwesomeAssertions;
 using Confluent.Kafka;
 using LiteBus.Transport.Abstractions;
-using LiteBus.Transport.Kafka;
 
 namespace LiteBus.Transport.Kafka.UnitTests;
 
@@ -34,8 +33,10 @@ public sealed class KafkaMessageMapperTests
 
         kafkaMessage.Key.Should().Be("tenant-a");
         Encoding.UTF8.GetString(kafkaMessage.Value).Should().Contain("orderId");
+
         KafkaMessageMapperTestsHelpers.GetHeader(kafkaMessage.Headers, TransportHeaders.ContractName)
             .Should().Be("orders.commands.ship");
+
         KafkaMessageMapperTestsHelpers.GetHeader(kafkaMessage.Headers, TransportHeaders.MessageId)
             .Should().Be(request.MessageId);
     }
@@ -47,6 +48,7 @@ public sealed class KafkaMessageMapperTests
     public async Task ToTransportMessage_ShouldExposeCommitDelegate()
     {
         var committed = false;
+
         var result = new ConsumeResult<string, byte[]>
         {
             Topic = "orders",
@@ -64,12 +66,15 @@ public sealed class KafkaMessageMapperTests
         var transportMessage = KafkaMessageMapper.ToTransportMessage(
             result,
             "orders",
-            _ =>
+            new TransportConsumerAckHandlers
             {
-                committed = true;
-                return Task.CompletedTask;
-            },
-            _ => { });
+                AckAsync = _ =>
+                {
+                    committed = true;
+                    return Task.CompletedTask;
+                },
+                NackAsync = (_, _) => Task.CompletedTask
+            });
 
         transportMessage.Route.Should().Be("tenant-a");
         transportMessage.Headers[TransportHeaders.ContractName].Should().Be("orders.commands.ship");
@@ -86,6 +91,7 @@ public sealed class KafkaMessageMapperTests
     public async Task ToTransportMessage_ReturnToQueueAsync_ShouldSeekToConsumedOffset()
     {
         TopicPartitionOffset? seekedOffset = null;
+
         var result = new ConsumeResult<string, byte[]>
         {
             Topic = "orders",
@@ -101,8 +107,19 @@ public sealed class KafkaMessageMapperTests
         var transportMessage = KafkaMessageMapper.ToTransportMessage(
             result,
             "orders",
-            _ => Task.CompletedTask,
-            offset => seekedOffset = offset);
+            new TransportConsumerAckHandlers
+            {
+                AckAsync = _ => Task.CompletedTask,
+                NackAsync = (requeue, _) =>
+                {
+                    if (requeue)
+                    {
+                        seekedOffset = result.TopicPartitionOffset;
+                    }
+
+                    return Task.CompletedTask;
+                }
+            });
 
         await transportMessage.ReturnToQueueAsync();
 
@@ -117,6 +134,7 @@ public sealed class KafkaMessageMapperTests
     public async Task ToTransportMessage_DiscardAsync_ShouldNotSeek()
     {
         var seekCount = 0;
+
         var result = new ConsumeResult<string, byte[]>
         {
             Topic = "orders",
@@ -132,8 +150,15 @@ public sealed class KafkaMessageMapperTests
         var transportMessage = KafkaMessageMapper.ToTransportMessage(
             result,
             "orders",
-            _ => Task.CompletedTask,
-            _ => seekCount++);
+            new TransportConsumerAckHandlers
+            {
+                AckAsync = _ => Task.CompletedTask,
+                NackAsync = (_, _) =>
+                {
+                    seekCount++;
+                    return Task.CompletedTask;
+                }
+            });
 
         await transportMessage.DiscardAsync();
 
@@ -165,4 +190,3 @@ internal static class KafkaMessageMapperTestsHelpers
         return null;
     }
 }
-

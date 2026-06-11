@@ -73,7 +73,7 @@ internal static class InboxProcessorTelemetry
     ///     Gets the histogram recording inbox dispatch duration in milliseconds.
     /// </summary>
     private static readonly Histogram<double> DispatchDurationHistogram =
-        Meter.CreateHistogram<double>(LiteBusInboxTelemetry.ProcessorDispatchDurationInstrumentName, unit: "ms");
+        Meter.CreateHistogram<double>(LiteBusInboxTelemetry.ProcessorDispatchDurationInstrumentName, "ms");
 
     /// <summary>
     ///     Records that the inbox processor background loop caught an unhandled exception.

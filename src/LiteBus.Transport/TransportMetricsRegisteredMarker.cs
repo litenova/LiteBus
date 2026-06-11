@@ -1,5 +1,3 @@
-using LiteBus.Runtime.Abstractions;
-
 namespace LiteBus.Transport;
 
 /// <summary>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using LiteBus.Storage.PostgreSql.Exceptions;
 
 namespace LiteBus.Storage.PostgreSql;
 
@@ -33,7 +34,10 @@ internal static class PostgreSqlSqlScriptLoader
     /// </param>
     /// <param name="tokens">Placeholder values such as <c>QualifiedTableName</c>.</param>
     /// <returns>The rendered SQL batch.</returns>
-    /// <exception cref="Exceptions.PostgreSqlStorageConfigurationException">Thrown when the embedded resource name cannot be resolved.</exception>
+    /// <exception cref="Exceptions.PostgreSqlStorageConfigurationException">
+    ///     Thrown when the embedded resource name cannot be
+    ///     resolved.
+    /// </exception>
     internal static string LoadAndRender(Assembly assembly, string relativePath, IReadOnlyDictionary<string, string> tokens)
     {
         ArgumentNullException.ThrowIfNull(assembly);
@@ -50,7 +54,10 @@ internal static class PostgreSqlSqlScriptLoader
     /// <param name="assembly">The assembly that embeds the SQL file.</param>
     /// <param name="relativePath">The path relative to the package <c>Sql</c> folder.</param>
     /// <returns>The raw SQL template text.</returns>
-    /// <exception cref="Exceptions.PostgreSqlStorageConfigurationException">Thrown when the embedded resource name cannot be resolved.</exception>
+    /// <exception cref="Exceptions.PostgreSqlStorageConfigurationException">
+    ///     Thrown when the embedded resource name cannot be
+    ///     resolved.
+    /// </exception>
     internal static string Load(Assembly assembly, string relativePath)
     {
         ArgumentNullException.ThrowIfNull(assembly);
@@ -59,10 +66,10 @@ internal static class PostgreSqlSqlScriptLoader
         var normalizedPath = relativePath.Replace('/', '.').Replace('\\', '.');
         var resourceName = $"{assembly.GetName().Name}.Sql.{normalizedPath}";
 
-        using var stream = assembly.GetManifestResourceStream(resourceName)
-            ?? throw new Exceptions.PostgreSqlStorageConfigurationException(
-                $"Embedded SQL resource '{resourceName}' was not found. " +
-                $"Verify the file exists under Sql/ and is included as an EmbeddedResource in the project file.");
+        using var stream = assembly.GetManifestResourceStream(resourceName) ??
+                           throw new PostgreSqlStorageConfigurationException(
+                               $"Embedded SQL resource '{resourceName}' was not found. " +
+                               $"Verify the file exists under Sql/ and is included as an EmbeddedResource in the project file.");
 
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();

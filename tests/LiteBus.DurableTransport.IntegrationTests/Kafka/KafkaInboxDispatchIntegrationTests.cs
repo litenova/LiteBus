@@ -1,10 +1,10 @@
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Kafka;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
@@ -51,18 +51,20 @@ public sealed class KafkaInboxDispatchIntegrationTests : LiteBusTestBase
             var processor = provider.GetRequiredService<IInboxProcessor>();
 
             var workItemId = Guid.NewGuid();
-            var receipt = await inbox.AcceptAsync(
-                new RemoteWorkCommand
+
+            var receipt = await inbox.AcceptAsync(new InboxAcceptItem<RemoteWorkCommand>
+            {
+                Message = new RemoteWorkCommand
                 {
                     WorkItemId = workItemId,
                     IdempotencyKey = $"work:{workItemId}"
                 },
-                new InboxOptions
+                Metadata = new InboxAcceptMetadata
                 {
-                    CorrelationId = "corr-kafka-dispatch",
-                    CausationId = "cause-kafka-dispatch",
-                    TenantId = "tenant-kafka"
-                });
+                    Trace = new MessageTrace.Workflow("corr-kafka-dispatch", "cause-kafka-dispatch"),
+                    Tenant = new TenantScope.Isolated("tenant-kafka")
+                }
+            });
 
             await processor.ProcessPendingAsync();
 
@@ -95,17 +97,23 @@ public sealed class KafkaInboxDispatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<RemoteWorkCommand>(ContractName, ContractVersion);
+                    inbox.Contracts.Register<RemoteWorkCommand>(ContractName);
+
                     inbox.UseProcessorOptions(new InboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "kafka-dispatch-test",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     inbox.UseInMemoryStorage();
+
                     inbox.UseKafkaDispatch(
                         transport => transport.DefaultDestination = topic,
                         _fixture.TransportOptions);

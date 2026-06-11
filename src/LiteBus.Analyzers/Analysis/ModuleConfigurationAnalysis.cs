@@ -28,7 +28,7 @@ internal static class ModuleConfigurationAnalysis
             return false;
         }
 
-        var isInbox = IsProcessorEnablement(enableProcessorInvocation, semanticModel, isInbox: true);
+        var isInbox = IsProcessorEnablement(enableProcessorInvocation, semanticModel, true);
 
         foreach (var invocation in scope.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
@@ -113,6 +113,7 @@ internal static class ModuleConfigurationAnalysis
         }
 
         var expectedName = isInbox ? "EnableInboxProcessor" : "EnableOutboxProcessor";
+
         var expectedBuilder = isInbox
             ? "LiteBus.Inbox.Abstractions.InboxModuleBuilder"
             : "LiteBus.Outbox.Abstractions.OutboxModuleBuilder";
@@ -159,7 +160,7 @@ internal static class ModuleConfigurationAnalysis
     /// </summary>
     /// <param name="invocation">The configuration invocation.</param>
     /// <returns>The enclosing syntax node that bounds the configuration scope.</returns>
-    private static SyntaxNode? GetConfigurationScope(InvocationExpressionSyntax invocation)
+    private static SyntaxNode GetConfigurationScope(InvocationExpressionSyntax invocation)
     {
         for (var node = invocation.Parent; node is not null; node = node.Parent)
         {
@@ -196,7 +197,8 @@ internal static class ModuleConfigurationAnalysis
 
         return inboxBuilder is not null &&
                (SymbolEqualityComparer.Default.Equals(method.ContainingType, inboxBuilder) ||
-                method.IsExtensionMethod && method.Parameters.Length > 0 &&
+                method.IsExtensionMethod &&
+                method.Parameters.Length > 0 &&
                 SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, inboxBuilder));
     }
 
@@ -224,7 +226,8 @@ internal static class ModuleConfigurationAnalysis
 
         return outboxBuilder is not null &&
                (SymbolEqualityComparer.Default.Equals(method.ContainingType, outboxBuilder) ||
-                method.IsExtensionMethod && method.Parameters.Length > 0 &&
+                method.IsExtensionMethod &&
+                method.Parameters.Length > 0 &&
                 SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, outboxBuilder));
     }
 }

@@ -18,19 +18,14 @@ namespace LiteBus.Inbox;
 internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessageProcessorOperations<InboxEnvelope, InboxProcessorOptions>
 {
     /// <summary>
+    ///     Gets the time provider used for retry timestamps during dispatch.
+    /// </summary>
+    private readonly TimeProvider _clock;
+
+    /// <summary>
     ///     Gets the dispatcher used to execute each leased envelope.
     /// </summary>
     private readonly IInboxDispatcher _dispatcher;
-
-    /// <summary>
-    ///     Gets the lease store used to claim envelopes during processing.
-    /// </summary>
-    private readonly IInboxLeaseStore _leaseStore;
-
-    /// <summary>
-    ///     Gets the state writer used to persist terminal envelope transitions.
-    /// </summary>
-    private readonly IInboxStateWriter _stateWriter;
 
     /// <summary>
     ///     Gets the optional scope factory used to resolve scoped handlers per message.
@@ -43,14 +38,19 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
     private readonly IReadOnlyList<IProcessorEnvelopeHook> _hooks;
 
     /// <summary>
-    ///     Gets the time provider used for retry timestamps during dispatch.
+    ///     Gets the lease store used to claim envelopes during processing.
     /// </summary>
-    private readonly TimeProvider _clock;
+    private readonly IInboxLeaseStore _leaseStore;
 
     /// <summary>
     ///     Gets the logger used for dispatch failure diagnostics.
     /// </summary>
     private readonly ILogger _logger;
+
+    /// <summary>
+    ///     Gets the state writer used to persist terminal envelope transitions.
+    /// </summary>
+    private readonly IInboxStateWriter _stateWriter;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="InboxPipelinedMessageProcessorOperations" /> class.
@@ -89,22 +89,31 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
         "Leased {LeasedCount} inbox envelope(s) as owner {LeaseOwner}.";
 
     /// <inheritdoc />
-    public Activity? StartPassActivity() =>
-        InboxProcessorTelemetry.ActivitySource.StartActivity("inbox.processor.pass");
+    public Activity? StartPassActivity()
+    {
+        return InboxProcessorTelemetry.ActivitySource.StartActivity("inbox.processor.pass");
+    }
 
     /// <inheritdoc />
-    public void RecordLeasesAcquired(int count) => InboxProcessorTelemetry.RecordLeasesAcquired(count);
+    public void RecordLeasesAcquired(int count)
+    {
+        InboxProcessorTelemetry.RecordLeasesAcquired(count);
+    }
 
     /// <inheritdoc />
-    public void RecordLeaseLost() => InboxProcessorTelemetry.RecordLeaseLost();
+    public void RecordLeaseLost()
+    {
+        InboxProcessorTelemetry.RecordLeaseLost();
+    }
 
     /// <inheritdoc />
     public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
         string leaseOwner,
         InboxProcessorOptions options,
         DateTimeOffset now,
-        CancellationToken cancellationToken) =>
-        _leaseStore.LeasePendingAsync(new InboxLeaseRequest
+        CancellationToken cancellationToken)
+    {
+        return _leaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = options.BatchSize,
             LeaseOwner = leaseOwner,
@@ -112,6 +121,7 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
             LeaseDuration = options.LeaseDuration,
             TenantId = options.TenantId
         }, cancellationToken);
+    }
 
     /// <inheritdoc />
     public async Task<InboxEnvelope?> DispatchEnvelopeAsync(
@@ -163,11 +173,13 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
             {
                 await InboxProcessorHookRunner.RunAfterDispatchAsync(_hooks, sourceEnvelope, cancellationToken)
                     .ConfigureAwait(false);
+
                 terminal = updated;
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 var error = MessageProcessorDiagnostics.FormatError(exception);
+
                 logger.LogWarning(
                     exception,
                     "Inbox AfterDispatch hook failed for message {MessageId}; moving to dead letter.",
@@ -181,9 +193,11 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
             if (persistResult.SkippedCount > 0)
             {
                 InboxProcessorTelemetry.RecordPersistSkipped();
+
                 logger.LogWarning(
                     "Inbox terminal persist skipped for message {MessageId} because the active lease was lost.",
                     updated.Id);
+
                 return;
             }
 
@@ -204,9 +218,11 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
         if (outcomePersist.SkippedCount > 0)
         {
             InboxProcessorTelemetry.RecordPersistSkipped();
+
             logger.LogWarning(
                 "Inbox terminal persist skipped for message {MessageId} because the active lease was lost.",
                 updated.Id);
+
             return;
         }
 
@@ -219,9 +235,14 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
         int leasedCount,
         TimeSpan elapsed,
         Activity? passActivity,
-        ILogger logger) =>
-        InboxProcessorPassRecorder.FinalizePass(accumulator, leasedCount, elapsed, passActivity, logger);
+        ILogger logger)
+    {
+        return InboxProcessorPassRecorder.FinalizePass(accumulator, leasedCount, elapsed, passActivity, logger);
+    }
 
     /// <inheritdoc />
-    public Guid GetMessageId(InboxEnvelope envelope) => envelope.Id;
+    public Guid GetMessageId(InboxEnvelope envelope)
+    {
+        return envelope.Id;
+    }
 }

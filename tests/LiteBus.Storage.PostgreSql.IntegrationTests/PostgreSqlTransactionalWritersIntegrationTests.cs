@@ -6,7 +6,6 @@ using LiteBus.Messaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql;
-using LiteBus.Storage.PostgreSql;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
@@ -37,23 +36,25 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     [Fact]
     public async Task TransactionalOutbox_manual_bind_should_commit_with_domain()
     {
-        var (outboxOptions, ordersTableName, registration) = await CreateOutboxTablesAsync().ConfigureAwait(false);
+        var (outboxOptions, ordersTableName, registration) = await CreateOutboxTablesAsync();
         var orderId = Guid.NewGuid();
         var factory = CreateOutboxEnvelopeFactory();
 
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
-        await using var transaction = await connection.BeginTransactionAsync().ConfigureAwait(false);
+        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
         var store = registration.CreateTransactionalStore(connection, transaction);
         var writer = new StoreBoundTransactionalOutbox(store, factory, TimeProvider.System);
 
         await InsertOrderAsync(connection, transaction, outboxOptions.SchemaName, ordersTableName, orderId, 15m)
-            .ConfigureAwait(false);
-        var receipt = await writer.EnqueueAsync(new TestIntegrationEvent { OrderId = orderId }).ConfigureAwait(false);
-        await transaction.CommitAsync().ConfigureAwait(false);
+            ;
 
-        (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId).ConfigureAwait(false))
+        var receipt = await writer.EnqueueAsync(OutboxEnqueueItems.From(new TestIntegrationEvent { OrderId = orderId }));
+        await transaction.CommitAsync();
+
+        (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId))
             .Should().Be(1);
-        (await CountOutboxMessagesAsync(outboxOptions, receipt.Id).ConfigureAwait(false))
+
+        (await CountOutboxMessagesAsync(outboxOptions, receipt.Id))
             .Should().Be(1);
     }
 
@@ -63,13 +64,13 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     [Fact]
     public async Task ManualBind_inbox_and_outbox_should_roll_back_together()
     {
-        var tables = await CreateCombinedTablesAsync().ConfigureAwait(false);
+        var tables = await CreateCombinedTablesAsync();
         var orderId = Guid.NewGuid();
         var inboxFactory = CreateInboxEnvelopeFactory();
         var outboxFactory = CreateOutboxEnvelopeFactory();
 
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
-        await using var transaction = await connection.BeginTransactionAsync().ConfigureAwait(false);
+        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
         var inboxStore = tables.InboxRegistration.CreateTransactionalStore(connection, transaction);
         var outboxStore = tables.OutboxRegistration.CreateTransactionalStore(connection, transaction);
         var inbox = new StoreBoundTransactionalInbox(inboxStore, inboxFactory, TimeProvider.System);
@@ -78,20 +79,23 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
         await InsertOrderAsync(
                 connection,
                 transaction,
-                tables.InboxOptions.SchemaName,
+                tables.InboxStoreOptions.SchemaName,
                 tables.OrdersTableName,
                 orderId,
                 5m)
-            .ConfigureAwait(false);
-        var inboxReceipt = await inbox.AcceptAsync(new TestCommand { OrderId = orderId }).ConfigureAwait(false);
-        var outboxReceipt = await outbox.EnqueueAsync(new TestIntegrationEvent { OrderId = orderId }).ConfigureAwait(false);
-        await transaction.RollbackAsync().ConfigureAwait(false);
+            ;
 
-        (await CountOrdersAsync(tables.InboxOptions.SchemaName, tables.OrdersTableName, orderId).ConfigureAwait(false))
+        var inboxReceipt = await inbox.AcceptAsync(InboxAcceptItems.From(new TestCommand { OrderId = orderId }));
+        var outboxReceipt = await outbox.EnqueueAsync(OutboxEnqueueItems.From(new TestIntegrationEvent { OrderId = orderId }));
+        await transaction.RollbackAsync();
+
+        (await CountOrdersAsync(tables.InboxStoreOptions.SchemaName, tables.OrdersTableName, orderId))
             .Should().Be(0);
-        (await CountInboxMessagesAsync(tables.InboxOptions, inboxReceipt.Id).ConfigureAwait(false))
+
+        (await CountInboxMessagesAsync(tables.InboxStoreOptions, inboxReceipt.Id))
             .Should().Be(0);
-        (await CountOutboxMessagesAsync(tables.OutboxOptions, outboxReceipt.Id).ConfigureAwait(false))
+
+        (await CountOutboxMessagesAsync(tables.OutboxStoreOptions, outboxReceipt.Id))
             .Should().Be(0);
     }
 
@@ -101,18 +105,23 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     [Fact]
     public async Task AmbientProvider_should_enqueue_outbox_in_active_transaction()
     {
-        var (outboxOptions, ordersTableName, _) = await CreateOutboxTablesAsync().ConfigureAwait(false);
+        var (outboxOptions, ordersTableName, _) = await CreateOutboxTablesAsync();
         var orderId = Guid.NewGuid();
 
         var services = new ServiceCollection();
         services.AddSingleton(_fixture.DataSource);
         services.AddScoped<IPostgreSqlTransactionProvider, ScopedTransactionProvider>();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddOutboxModule(outbox =>
             {
-                outbox.Contracts.Register<TestIntegrationEvent>("orders.events.submitted", 1);
+                outbox.Contracts.Register<TestIntegrationEvent>("orders.events.submitted");
+
                 outbox.UsePostgreSqlStorage(pg =>
                 {
                     pg.UseDataSource(_fixture.DataSource);
@@ -126,7 +135,7 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
         await using var provider = services.BuildServiceProvider();
         await using var scope = provider.CreateAsyncScope();
         var ambient = scope.ServiceProvider.GetRequiredService<IPostgreSqlTransactionProvider>() as ScopedTransactionProvider;
-        ambient!.Activate(await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false));
+        ambient!.Activate(await _fixture.DataSource.OpenConnectionAsync());
 
         await InsertOrderAsync(
                 ambient.Connection!,
@@ -135,39 +144,42 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
                 ordersTableName,
                 orderId,
                 99m)
-            .ConfigureAwait(false);
+            ;
 
         var writer = scope.ServiceProvider.GetRequiredService<ITransactionalOutbox>();
-        var receipt = await writer.EnqueueAsync(new TestIntegrationEvent { OrderId = orderId }).ConfigureAwait(false);
-        await ambient.Transaction!.CommitAsync().ConfigureAwait(false);
+        var receipt = await writer.EnqueueAsync(OutboxEnqueueItems.From(new TestIntegrationEvent { OrderId = orderId }));
+        await ambient.Transaction!.CommitAsync();
 
-        (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId).ConfigureAwait(false))
+        (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId))
             .Should().Be(1);
-        (await CountOutboxMessagesAsync(outboxOptions, receipt.Id).ConfigureAwait(false))
+
+        (await CountOutboxMessagesAsync(outboxOptions, receipt.Id))
             .Should().Be(1);
     }
 
     /// <summary>
     ///     Creates outbox tables and registration for one test run.
     /// </summary>
-    private async Task<(PostgreSqlOutboxStoreOptions OutboxOptions, string OrdersTableName, PostgreSqlOutboxStoreRegistration Registration)> CreateOutboxTablesAsync()
+    private async Task<(PostgreSqlOutboxStoreOptions OutboxStoreOptions, string OrdersTableName, PostgreSqlOutboxStoreRegistration Registration)> CreateOutboxTablesAsync()
     {
         var suffix = Guid.NewGuid().ToString("N");
-        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxOptions($"outbox_tx_writer_{suffix}");
+        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions($"outbox_tx_writer_{suffix}");
         var ordersTableName = $"orders_tx_writer_{suffix}";
 
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions)
-            .ConfigureAwait(false);
+            ;
 
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
         await using var command = connection.CreateCommand();
+
         command.CommandText =
             $"""
              CREATE TABLE IF NOT EXISTS "{outboxOptions.SchemaName}"."{ordersTableName}" (
                  order_id uuid NOT NULL PRIMARY KEY,
                  amount numeric NOT NULL);
              """;
-        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+
+        await command.ExecuteNonQueryAsync();
 
         var registration = new PostgreSqlOutboxStoreRegistration(_fixture.DataSource, outboxOptions);
         return (outboxOptions, ordersTableName, registration);
@@ -179,24 +191,27 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     private async Task<CombinedTables> CreateCombinedTablesAsync()
     {
         var suffix = Guid.NewGuid().ToString("N");
-        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxOptions($"inbox_combined_{suffix}");
-        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxOptions($"outbox_combined_{suffix}");
+        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions($"inbox_combined_{suffix}");
+        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions($"outbox_combined_{suffix}");
         var ordersTableName = $"orders_combined_{suffix}";
 
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions)
-            .ConfigureAwait(false);
-        await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions)
-            .ConfigureAwait(false);
+            ;
 
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions)
+            ;
+
+        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
         await using var command = connection.CreateCommand();
+
         command.CommandText =
             $"""
              CREATE TABLE IF NOT EXISTS "{inboxOptions.SchemaName}"."{ordersTableName}" (
                  order_id uuid NOT NULL PRIMARY KEY,
                  amount numeric NOT NULL);
              """;
-        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+
+        await command.ExecuteNonQueryAsync();
 
         return new CombinedTables(
             inboxOptions,
@@ -212,7 +227,7 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     private static InboxEnvelopeFactory CreateInboxEnvelopeFactory()
     {
         var registry = new MessageContractRegistry();
-        registry.Register<TestCommand>("orders.commands.submit", 1);
+        registry.Register<TestCommand>("orders.commands.submit");
         return new InboxEnvelopeFactory(registry, new SystemTextJsonMessageSerializer(), TimeProvider.System);
     }
 
@@ -222,7 +237,7 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     private static OutboxEnvelopeFactory CreateOutboxEnvelopeFactory()
     {
         var registry = new MessageContractRegistry();
-        registry.Register<TestIntegrationEvent>("orders.events.submitted", 1);
+        registry.Register<TestIntegrationEvent>("orders.events.submitted");
         return new OutboxEnvelopeFactory(registry, new SystemTextJsonMessageSerializer(), TimeProvider.System);
     }
 
@@ -239,14 +254,16 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
+
         command.CommandText =
             $"""
              INSERT INTO "{schemaName}"."{ordersTableName}" (order_id, amount)
              VALUES (@order_id, @amount);
              """;
+
         command.Parameters.AddWithValue("order_id", orderId);
         command.Parameters.AddWithValue("amount", amount);
-        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+        await command.ExecuteNonQueryAsync();
     }
 
     /// <summary>
@@ -254,15 +271,17 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     /// </summary>
     private async Task<int> CountOrdersAsync(string schemaName, string ordersTableName, Guid orderId)
     {
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
         await using var command = connection.CreateCommand();
+
         command.CommandText =
             $"""
              SELECT COUNT(*) FROM "{schemaName}"."{ordersTableName}"
              WHERE order_id = @order_id;
              """;
+
         command.Parameters.AddWithValue("order_id", orderId);
-        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false));
+        return Convert.ToInt32(await command.ExecuteScalarAsync());
     }
 
     /// <summary>
@@ -270,15 +289,17 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     /// </summary>
     private async Task<int> CountInboxMessagesAsync(PostgreSqlInboxStoreOptions options, Guid messageId)
     {
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
         await using var command = connection.CreateCommand();
+
         command.CommandText =
             $"""
              SELECT COUNT(*) FROM "{options.SchemaName}"."{options.TableName}"
              WHERE message_id = @message_id;
              """;
+
         command.Parameters.AddWithValue("message_id", messageId);
-        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false));
+        return Convert.ToInt32(await command.ExecuteScalarAsync());
     }
 
     /// <summary>
@@ -286,15 +307,17 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     /// </summary>
     private async Task<int> CountOutboxMessagesAsync(PostgreSqlOutboxStoreOptions options, Guid messageId)
     {
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
         await using var command = connection.CreateCommand();
+
         command.CommandText =
             $"""
              SELECT COUNT(*) FROM "{options.SchemaName}"."{options.TableName}"
              WHERE message_id = @message_id;
              """;
+
         command.Parameters.AddWithValue("message_id", messageId);
-        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false));
+        return Convert.ToInt32(await command.ExecuteScalarAsync());
     }
 
     /// <summary>
@@ -322,14 +345,14 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     /// <summary>
     ///     Table metadata for combined inbox and outbox tests.
     /// </summary>
-    /// <param name="InboxOptions">The inbox store options.</param>
-    /// <param name="OutboxOptions">The outbox store options.</param>
+    /// <param name="InboxStoreOptions">The inbox store options.</param>
+    /// <param name="OutboxStoreOptions">The outbox store options.</param>
     /// <param name="OrdersTableName">The shared domain table name.</param>
     /// <param name="InboxRegistration">The inbox store registration.</param>
     /// <param name="OutboxRegistration">The outbox store registration.</param>
     private sealed record CombinedTables(
-        PostgreSqlInboxStoreOptions InboxOptions,
-        PostgreSqlOutboxStoreOptions OutboxOptions,
+        PostgreSqlInboxStoreOptions InboxStoreOptions,
+        PostgreSqlOutboxStoreOptions OutboxStoreOptions,
         string OrdersTableName,
         PostgreSqlInboxStoreRegistration InboxRegistration,
         PostgreSqlOutboxStoreRegistration OutboxRegistration);
@@ -349,6 +372,30 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
         /// </summary>
         public NpgsqlTransaction? Transaction { get; private set; }
 
+        /// <inheritdoc />
+        public async ValueTask DisposeAsync()
+        {
+            if (Transaction is not null)
+            {
+                await Transaction.DisposeAsync();
+            }
+
+            if (Connection is not null)
+            {
+                await Connection.DisposeAsync();
+            }
+        }
+
+        /// <inheritdoc />
+        public bool TryGetCurrent(
+            [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out NpgsqlConnection? connection,
+            [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out NpgsqlTransaction? transaction)
+        {
+            connection = Connection;
+            transaction = Transaction;
+            return Connection is not null && Transaction is not null;
+        }
+
         /// <summary>
         ///     Opens a transaction on the supplied connection and marks it active for the scope.
         /// </summary>
@@ -356,29 +403,7 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
         public async void Activate(NpgsqlConnection connection)
         {
             Connection = connection;
-            Transaction = await connection.BeginTransactionAsync().ConfigureAwait(false);
-        }
-
-        /// <inheritdoc />
-        public bool TryGetCurrent(out NpgsqlConnection? connection, out NpgsqlTransaction? transaction)
-        {
-            connection = Connection;
-            transaction = Transaction;
-            return Connection is not null && Transaction is not null;
-        }
-
-        /// <inheritdoc />
-        public async ValueTask DisposeAsync()
-        {
-            if (Transaction is not null)
-            {
-                await Transaction.DisposeAsync().ConfigureAwait(false);
-            }
-
-            if (Connection is not null)
-            {
-                await Connection.DisposeAsync().ConfigureAwait(false);
-            }
+            Transaction = await connection.BeginTransactionAsync();
         }
     }
 }

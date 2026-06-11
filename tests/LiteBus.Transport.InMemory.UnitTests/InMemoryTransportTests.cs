@@ -1,7 +1,6 @@
 using System.Text;
 using AwesomeAssertions;
 using LiteBus.Transport.Abstractions;
-using LiteBus.Transport;
 
 namespace LiteBus.Transport.InMemory.UnitTests;
 
@@ -133,7 +132,7 @@ public sealed class InMemoryTransportTests
     /// <returns>A task that completes when the condition becomes true.</returns>
     private static async Task WaitForAsync(Func<bool> condition, TimeSpan timeout)
     {
-        var deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
+        var deadline = Environment.TickCount64 + (long) timeout.TotalMilliseconds;
 
         while (!condition() && Environment.TickCount64 < deadline)
         {
@@ -141,4 +140,3 @@ public sealed class InMemoryTransportTests
         }
     }
 }
-

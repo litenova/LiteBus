@@ -1,6 +1,5 @@
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InMemory;
@@ -17,7 +16,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace LiteBus.DurableTransport.IntegrationTests.InMemory;
 
 /// <summary>
-///     End-to-end inbox ingress tests that exercise <see cref="InboxModuleBuilderInMemoryIngressExtensions.UseInMemoryIngress" />.
+///     End-to-end inbox ingress tests that exercise
+///     <see cref="InboxModuleBuilderInMemoryIngressExtensions.UseInMemoryIngress" />.
 /// </summary>
 [Trait("Category", TransportTestTraits.Fast)]
 public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
@@ -25,7 +25,8 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
     private const string ContractName = "orders.commands.ship";
 
     /// <summary>
-    ///     Verifies that <see cref="InboxModuleBuilderInMemoryIngressExtensions.UseInMemoryIngress" /> accepts, processes, and dispatches a command.
+    ///     Verifies that <see cref="InboxModuleBuilderInMemoryIngressExtensions.UseInMemoryIngress" /> accepts, processes, and
+    ///     dispatches a command.
     /// </summary>
     /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
     [Fact]
@@ -67,15 +68,19 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
             var dispatched = await dispatchReceived.Task.WaitAsync(receiveTimeout.Token);
 
             TransportMessageAssertions.ReadBody(dispatched).Should().Contain(orderId.ToString());
+
             TransportMessageAssertions.GetHeader(dispatched, TransportHeaders.MessageId)
                 .Should().Be(messageId.ToString("D"));
+
             TransportMessageAssertions.GetHeader(dispatched, TransportHeaders.ContractName)
                 .Should().Be(ContractName);
 
             var store = provider.GetRequiredService<InMemoryInboxStore>();
+
             await PollingWait.UntilAsync(
                 () => store.Get(messageId).Status == InboxStatus.Completed,
                 TimeSpan.FromSeconds(10));
+
             store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
         }
         finally
@@ -95,19 +100,25 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                    inbox.Contracts.Register<ShipOrderCommand>(ContractName);
+
                     inbox.UseProcessorOptions(new InboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "inmemory-ingress-module-test",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(50));
                     inbox.UseInMemoryStorage();
                     inbox.UseInMemoryDispatch(transport => transport.DefaultDestination = dispatchDestination);
+
                     inbox.UseInMemoryIngress(ingress =>
                     {
                         ingress.UseOptions(new InMemoryInboxIngressOptions
@@ -138,13 +149,14 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
         TaskCompletionSource<TransportMessage> received)
     {
         var consumer = new InMemoryConsumer(broker);
+
         await consumer.StartAsync(
             new TransportConsumerOptions { Destination = destination },
             async (message, cancellationToken) =>
             {
                 received.TrySetResult(message);
-                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
-            }).ConfigureAwait(false);
+                await message.AcceptAsync(cancellationToken);
+            });
 
         return consumer;
     }

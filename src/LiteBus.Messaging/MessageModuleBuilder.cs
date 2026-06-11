@@ -38,7 +38,10 @@ public sealed class MessageModuleBuilder
     /// <summary>
     ///     Registers the <see cref="TimeProvider" /> instance exposed through dependency injection.
     /// </summary>
-    /// <param name="timeProvider">The time provider to register. When omitted at build time, <see cref="TimeProvider.System" /> is used.</param>
+    /// <param name="timeProvider">
+    ///     The time provider to register. When omitted at build time,
+    ///     <see cref="TimeProvider.System" /> is used.
+    /// </param>
     /// <returns>The current builder.</returns>
     public MessageModuleBuilder UseTimeProvider(TimeProvider timeProvider)
     {

@@ -5,7 +5,8 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 /// </summary>
 /// <remarks>
 ///     These paths map to manifest resource names such as
-///     <c>LiteBus.Outbox.Storage.PostgreSql.Sql.outbox.v1.create.sql</c>. For copy-paste migration ownership, use the public
+///     <c>LiteBus.Outbox.Storage.PostgreSql.Sql.outbox.v1.create.sql</c>. For copy-paste migration ownership, use the
+///     public
 ///     repository or NuGet paths from <see cref="PostgreSqlOutboxSchemaSqlPaths" /> instead.
 /// </remarks>
 internal static class PostgreSqlOutboxSchemaEmbeddedSql

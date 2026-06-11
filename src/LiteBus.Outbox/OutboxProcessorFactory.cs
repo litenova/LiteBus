@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Messaging.Processing;
-using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Orchestration.Abstractions;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -32,6 +31,7 @@ internal static class OutboxProcessorFactory
         var stateWriter = GetRequiredService<IOutboxStateWriter>(services);
         var dispatcher = GetRequiredService<IOutboxDispatcher>(services);
         var hooks = ResolveHooks(services);
+
         var dispatchScopeFactory = services.GetService(typeof(IServiceScopeFactory)) is IServiceScopeFactory scopeFactory
             ? new MessageDispatchScopeFactory(scopeFactory)
             : null;
@@ -43,8 +43,7 @@ internal static class OutboxProcessorFactory
             options,
             clock,
             hooks,
-            services.GetService(typeof(ILogger<PipelinedOutboxProcessor>)) as ILogger<PipelinedOutboxProcessor>
-            ?? NullLogger<PipelinedOutboxProcessor>.Instance,
+            services.GetService(typeof(ILogger<PipelinedOutboxProcessor>)) as ILogger<PipelinedOutboxProcessor> ?? NullLogger<PipelinedOutboxProcessor>.Instance,
             dispatchScopeFactory);
     }
 
@@ -68,7 +67,7 @@ internal static class OutboxProcessorFactory
     /// <param name="options">The processor options to validate.</param>
     public static void ValidateOptions(OutboxProcessorOptions options)
     {
-        ProcessorOptionsValidator.Validate(options, nameof(options));
+        ProcessorOptionsValidator.Validate(options);
     }
 
     /// <summary>

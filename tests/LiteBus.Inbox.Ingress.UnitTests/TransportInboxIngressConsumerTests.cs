@@ -1,11 +1,7 @@
 using System.Reflection;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Abstractions.Exceptions;
-using LiteBus.Inbox.Ingress;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
-using LiteBus.Runtime.Abstractions;
 using LiteBus.Transport.Abstractions;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -25,13 +21,21 @@ public sealed class TransportInboxIngressConsumerTests
     {
         var ackCount = 0;
         var nackRequeue = new List<bool>();
-        var consumer = CreateConsumer(requeueOnFailure: true);
+        var consumer = CreateConsumer(true);
 
         await InvokeHandleDeliveryAsync(
             consumer,
             CreateValidMessage(
-                ack: () => { ackCount++; return Task.CompletedTask; },
-                nack: (requeue, _) => { nackRequeue.Add(requeue); return Task.CompletedTask; }));
+                () =>
+                {
+                    ackCount++;
+                    return Task.CompletedTask;
+                },
+                (requeue, _) =>
+                {
+                    nackRequeue.Add(requeue);
+                    return Task.CompletedTask;
+                }));
 
         ackCount.Should().Be(1);
         nackRequeue.Should().BeEmpty();
@@ -46,18 +50,26 @@ public sealed class TransportInboxIngressConsumerTests
     {
         var ackCount = 0;
         var nackRequeue = new List<bool>();
-        var consumer = CreateConsumer(requeueOnFailure: true, inboxCapacity: 1);
+        var consumer = CreateConsumer(true, 1);
         var handler = GetHandler(consumer);
 
         await handler.AcceptAsync(CreateValidMessage(
-            ack: () => Task.CompletedTask,
-            nack: (_, _) => Task.CompletedTask));
+            () => Task.CompletedTask,
+            (_, _) => Task.CompletedTask));
 
         await InvokeHandleDeliveryAsync(
             consumer,
             CreateValidMessage(
-                ack: () => { ackCount++; return Task.CompletedTask; },
-                nack: (requeue, _) => { nackRequeue.Add(requeue); return Task.CompletedTask; }));
+                () =>
+                {
+                    ackCount++;
+                    return Task.CompletedTask;
+                },
+                (requeue, _) =>
+                {
+                    nackRequeue.Add(requeue);
+                    return Task.CompletedTask;
+                }));
 
         ackCount.Should().Be(0);
         nackRequeue.Should().ContainSingle().Which.Should().BeFalse();
@@ -73,13 +85,21 @@ public sealed class TransportInboxIngressConsumerTests
         var ackCount = 0;
         var nackRequeue = new List<bool>();
         var throwingInbox = new ThrowingInbox(new IOException("transient"));
-        var consumer = CreateConsumer(requeueOnFailure: true, inbox: throwingInbox);
+        var consumer = CreateConsumer(true, inbox: throwingInbox);
 
         await InvokeHandleDeliveryAsync(
             consumer,
             CreateValidMessage(
-                ack: () => { ackCount++; return Task.CompletedTask; },
-                nack: (requeue, _) => { nackRequeue.Add(requeue); return Task.CompletedTask; }));
+                () =>
+                {
+                    ackCount++;
+                    return Task.CompletedTask;
+                },
+                (requeue, _) =>
+                {
+                    nackRequeue.Add(requeue);
+                    return Task.CompletedTask;
+                }));
 
         ackCount.Should().Be(0);
         nackRequeue.Should().ContainSingle().Which.Should().BeTrue();
@@ -93,13 +113,17 @@ public sealed class TransportInboxIngressConsumerTests
     public async Task HandleDeliveryAsync_WhenAckFailsAfterAccept_ShouldNotDiscard()
     {
         var nackRequeue = new List<bool>();
-        var consumer = CreateConsumer(requeueOnFailure: true);
+        var consumer = CreateConsumer(true);
 
         await InvokeHandleDeliveryAsync(
             consumer,
             CreateValidMessage(
-                ack: () => Task.FromException(new InvalidOperationException("ack failed")),
-                nack: (requeue, _) => { nackRequeue.Add(requeue); return Task.CompletedTask; }));
+                () => Task.FromException(new InvalidOperationException("ack failed")),
+                (requeue, _) =>
+                {
+                    nackRequeue.Add(requeue);
+                    return Task.CompletedTask;
+                }));
 
         nackRequeue.Should().BeEmpty();
     }
@@ -112,8 +136,9 @@ public sealed class TransportInboxIngressConsumerTests
     public async Task BatchAccept_WhenBufferFull_ShouldBlockUntilFlushCompletes()
     {
         var inbox = new SlowBatchInbox();
+
         var consumer = CreateConsumer(
-            requeueOnFailure: true,
+            true,
             inbox: inbox,
             options: new TransportInboxIngressOptions
             {
@@ -125,25 +150,27 @@ public sealed class TransportInboxIngressConsumerTests
         var first = InvokeHandleDeliveryAsync(
             consumer,
             CreateValidMessage(
-                ack: () => Task.CompletedTask,
-                nack: (_, _) => Task.CompletedTask));
+                () => Task.CompletedTask,
+                (_, _) => Task.CompletedTask));
 
         var second = InvokeHandleDeliveryAsync(
             consumer,
             CreateValidMessage(
-                ack: () => Task.CompletedTask,
-                nack: (_, _) => Task.CompletedTask));
+                () => Task.CompletedTask,
+                (_, _) => Task.CompletedTask));
 
         await Task.Delay(100);
 
         var thirdCompleted = false;
+
         var third = Task.Run(async () =>
         {
             await InvokeHandleDeliveryAsync(
                 consumer,
                 CreateValidMessage(
-                    ack: () => Task.CompletedTask,
-                    nack: (_, _) => Task.CompletedTask));
+                    () => Task.CompletedTask,
+                    (_, _) => Task.CompletedTask));
+
             thirdCompleted = true;
         });
 
@@ -166,8 +193,9 @@ public sealed class TransportInboxIngressConsumerTests
     {
         var batchWait = TimeSpan.FromMilliseconds(150);
         var inbox = new RecordingInbox();
+
         var consumer = CreateConsumer(
-            requeueOnFailure: true,
+            true,
             inbox: inbox,
             options: new TransportInboxIngressOptions
             {
@@ -177,12 +205,13 @@ public sealed class TransportInboxIngressConsumerTests
             });
 
         await InvokeHandleDeliveryAsync(consumer, CreateValidMessage(
-            ack: () => Task.CompletedTask,
-            nack: (_, _) => Task.CompletedTask));
+            () => Task.CompletedTask,
+            (_, _) => Task.CompletedTask));
 
         inbox.BatchAcceptCount.Should().Be(0);
 
         var deadline = DateTime.UtcNow + batchWait + TimeSpan.FromSeconds(2);
+
         while (DateTime.UtcNow < deadline && inbox.BatchAcceptCount == 0)
         {
             await Task.Delay(25);
@@ -200,11 +229,11 @@ public sealed class TransportInboxIngressConsumerTests
     private static Task InvokeHandleDeliveryAsync(TransportInboxIngressConsumer consumer, TransportMessage message)
     {
         var method = typeof(TransportInboxIngressConsumer).GetMethod(
-            "HandleDeliveryAsync",
-            BindingFlags.NonPublic | BindingFlags.Instance)
-            ?? throw new InvalidOperationException("HandleDeliveryAsync not found.");
+                         "HandleDeliveryAsync",
+                         BindingFlags.NonPublic | BindingFlags.Instance) ??
+                     throw new InvalidOperationException("HandleDeliveryAsync not found.");
 
-        return (Task)method.Invoke(consumer, [message, CancellationToken.None])!;
+        return (Task) method.Invoke(consumer, [message, CancellationToken.None])!;
     }
 
     /// <summary>
@@ -215,11 +244,11 @@ public sealed class TransportInboxIngressConsumerTests
     private static TransportInboxIngressHandler GetHandler(TransportInboxIngressConsumer consumer)
     {
         var field = typeof(TransportInboxIngressConsumer).GetField(
-            "_handler",
-            BindingFlags.NonPublic | BindingFlags.Instance)
-            ?? throw new InvalidOperationException("_handler not found.");
+                        "_handler",
+                        BindingFlags.NonPublic | BindingFlags.Instance) ??
+                    throw new InvalidOperationException("_handler not found.");
 
-        return (TransportInboxIngressHandler)field.GetValue(consumer)!;
+        return (TransportInboxIngressHandler) field.GetValue(consumer)!;
     }
 
     /// <summary>
@@ -237,7 +266,7 @@ public sealed class TransportInboxIngressConsumerTests
         TransportInboxIngressOptions? options = null)
     {
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<ProbeCommand>("probe.command", 1);
+        contractRegistry.Register<ProbeCommand>("probe.command");
 
         inbox ??= InboxWriterTestFactory.Create(
             new InMemoryInboxStore(new InMemoryInboxStoreOptions
@@ -260,8 +289,8 @@ public sealed class TransportInboxIngressConsumerTests
             handler,
             options,
             new TransportInboxIngressHostOptions { Enabled = false },
-            circuitBreaker: null,
-            logger: NullLogger<TransportInboxIngressConsumer>.Instance);
+            null,
+            NullLogger<TransportInboxIngressConsumer>.Instance);
     }
 
     /// <summary>
@@ -272,8 +301,9 @@ public sealed class TransportInboxIngressConsumerTests
     /// <returns>A transport message for ingress consumer tests.</returns>
     private static TransportMessage CreateValidMessage(
         Func<Task> ack,
-        Func<bool, CancellationToken, Task> nack) =>
-        new()
+        Func<bool, CancellationToken, Task> nack)
+    {
+        return new TransportMessage
         {
             Body = """{"value":1}"""u8.ToArray(),
             Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
@@ -285,6 +315,7 @@ public sealed class TransportInboxIngressConsumerTests
             AckAsync = _ => ack(),
             NackAsync = nack
         };
+    }
 
     /// <summary>
     ///     Probe command type used by ingress consumer tests.
@@ -306,45 +337,31 @@ public sealed class TransportInboxIngressConsumerTests
         /// </summary>
         public int BatchAcceptCount { get; private set; }
 
-        /// <summary>
-        ///     Releases the blocked batch accept call.
-        /// </summary>
-        public void ReleaseAccept() => _acceptGate.TrySetResult();
-
         /// <inheritdoc />
-        public Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
-            TMessage message,
-            InboxOptions? options = null,
+        public Task<InboxReceipt> AcceptAsync<TMessage>(
+            InboxAcceptItem<TMessage> item,
             CancellationToken cancellationToken = default)
-            where TMessage : notnull =>
+            where TMessage : notnull
+        {
             throw new NotSupportedException();
-
-        /// <inheritdoc />
-        public Task<InboxReceipt> AcceptAsync(
-            object message,
-            Type messageType,
-            InboxOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        /// <inheritdoc />
-        public Task<IReadOnlyList<InboxReceipt<TMessage>>> AcceptBatchAsync<TMessage>(
-            IReadOnlyList<TMessage> messages,
-            IReadOnlyList<InboxOptions?>? options = null,
-            CancellationToken cancellationToken = default)
-            where TMessage : notnull =>
-            throw new NotSupportedException();
+        }
 
         /// <inheritdoc />
         public async Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
-            IReadOnlyList<object> messages,
-            IReadOnlyList<Type> messageTypes,
-            IReadOnlyList<InboxOptions?>? options = null,
+            IReadOnlyList<InboxAcceptItem> items,
             CancellationToken cancellationToken = default)
         {
-            await _acceptGate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await _acceptGate.Task.WaitAsync(cancellationToken);
             BatchAcceptCount++;
             return [];
+        }
+
+        /// <summary>
+        ///     Releases the blocked batch accept call.
+        /// </summary>
+        public void ReleaseAccept()
+        {
+            _acceptGate.TrySetResult();
         }
     }
 
@@ -359,34 +376,17 @@ public sealed class TransportInboxIngressConsumerTests
         public int BatchAcceptCount { get; private set; }
 
         /// <inheritdoc />
-        public Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
-            TMessage message,
-            InboxOptions? options = null,
+        public Task<InboxReceipt> AcceptAsync<TMessage>(
+            InboxAcceptItem<TMessage> item,
             CancellationToken cancellationToken = default)
-            where TMessage : notnull =>
+            where TMessage : notnull
+        {
             throw new NotSupportedException();
-
-        /// <inheritdoc />
-        public Task<InboxReceipt> AcceptAsync(
-            object message,
-            Type messageType,
-            InboxOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        /// <inheritdoc />
-        public Task<IReadOnlyList<InboxReceipt<TMessage>>> AcceptBatchAsync<TMessage>(
-            IReadOnlyList<TMessage> messages,
-            IReadOnlyList<InboxOptions?>? options = null,
-            CancellationToken cancellationToken = default)
-            where TMessage : notnull =>
-            throw new NotSupportedException();
+        }
 
         /// <inheritdoc />
         public Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
-            IReadOnlyList<object> messages,
-            IReadOnlyList<Type> messageTypes,
-            IReadOnlyList<InboxOptions?>? options = null,
+            IReadOnlyList<InboxAcceptItem> items,
             CancellationToken cancellationToken = default)
         {
             BatchAcceptCount++;
@@ -414,36 +414,21 @@ public sealed class TransportInboxIngressConsumerTests
         }
 
         /// <inheritdoc />
-        public Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
-            TMessage message,
-            InboxOptions? options = null,
+        public Task<InboxReceipt> AcceptAsync<TMessage>(
+            InboxAcceptItem<TMessage> item,
             CancellationToken cancellationToken = default)
-            where TMessage : notnull =>
-            Task.FromException<InboxReceipt<TMessage>>(_exception);
-
-        /// <inheritdoc />
-        public Task<InboxReceipt> AcceptAsync(
-            object message,
-            Type messageType,
-            InboxOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromException<InboxReceipt>(_exception);
-
-        /// <inheritdoc />
-        public Task<IReadOnlyList<InboxReceipt<TMessage>>> AcceptBatchAsync<TMessage>(
-            IReadOnlyList<TMessage> messages,
-            IReadOnlyList<InboxOptions?>? options = null,
-            CancellationToken cancellationToken = default)
-            where TMessage : notnull =>
-            Task.FromException<IReadOnlyList<InboxReceipt<TMessage>>>(_exception);
+            where TMessage : notnull
+        {
+            return Task.FromException<InboxReceipt>(_exception);
+        }
 
         /// <inheritdoc />
         public Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
-            IReadOnlyList<object> messages,
-            IReadOnlyList<Type> messageTypes,
-            IReadOnlyList<InboxOptions?>? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromException<IReadOnlyList<InboxReceipt>>(_exception);
+            IReadOnlyList<InboxAcceptItem> items,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromException<IReadOnlyList<InboxReceipt>>(_exception);
+        }
     }
 
     /// <summary>
@@ -455,16 +440,27 @@ public sealed class TransportInboxIngressConsumerTests
         public Task StartAsync(
             TransportConsumerOptions options,
             Func<TransportMessage, CancellationToken, Task> handler,
-            CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
 
         /// <inheritdoc />
-        public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task StopAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
 
         /// <inheritdoc />
-        public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
 
         /// <inheritdoc />
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
+        }
     }
 }

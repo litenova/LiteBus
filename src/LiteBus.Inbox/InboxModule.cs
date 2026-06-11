@@ -3,9 +3,6 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Inbox;
@@ -103,10 +100,6 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
             typeof(Inbox)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IInboxScheduler),
-            typeof(Inbox)));
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(InboxCleanupHostOptions),
             _builder.CleanupHostOptions));
 
@@ -121,7 +114,7 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
             typeof(InboxManager)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(Abstractions.IInboxProcessor),
+            typeof(IInboxProcessor),
             CreateInboxProcessor,
             InstanceLifetime.Transient));
 
@@ -205,5 +198,8 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
     /// </summary>
     /// <param name="services">The service provider used to resolve processor dependencies.</param>
     /// <returns>The configured inbox processor instance.</returns>
-    private static object CreateInboxProcessor(IServiceProvider services) => InboxProcessorFactory.Create(services);
+    private static object CreateInboxProcessor(IServiceProvider services)
+    {
+        return InboxProcessorFactory.Create(services);
+    }
 }

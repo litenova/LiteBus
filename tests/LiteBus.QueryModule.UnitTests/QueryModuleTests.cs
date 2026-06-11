@@ -6,10 +6,10 @@ using LiteBus.Queries.Abstractions;
 using LiteBus.QueryModule.UnitTests.UseCases;
 using LiteBus.QueryModule.UnitTests.UseCases.GetProduct;
 using LiteBus.QueryModule.UnitTests.UseCases.GetProductByCriteria;
-using LiteBus.QueryModule.UnitTests.UseCases.ProblematicQuery;
-using LiteBus.QueryModule.UnitTests.UseCases.QueryWithTag;
 using LiteBus.QueryModule.UnitTests.UseCases.IndirectStreamProducts;
 using LiteBus.QueryModule.UnitTests.UseCases.NoHandlerStream;
+using LiteBus.QueryModule.UnitTests.UseCases.ProblematicQuery;
+using LiteBus.QueryModule.UnitTests.UseCases.QueryWithTag;
 using LiteBus.QueryModule.UnitTests.UseCases.StreamErrorHandling;
 using LiteBus.QueryModule.UnitTests.UseCases.StreamProducts;
 using LiteBus.Testing;
@@ -25,8 +25,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
         // Arrange
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddQueryModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(GetProductQuery).Assembly);
             });
@@ -56,8 +59,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
         // Arrange
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddQueryModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(GetProductByCriteriaQuery<>).Assembly);
             });
@@ -87,8 +93,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
         // Arrange
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddQueryModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(GetProductQuery).Assembly);
                 builder.Register<StreamProductsQuery>();
@@ -119,8 +128,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddQueryModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProblematicQueryPreHandler).Assembly);
             });
@@ -146,8 +158,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddQueryModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProblematicQueryPreHandler).Assembly);
             });
@@ -176,8 +191,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddQueryModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProblematicQueryPreHandler).Assembly);
             });
@@ -206,8 +224,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddQueryModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProblematicQueryPreHandler).Assembly);
             });
@@ -230,8 +251,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
         // Arrange
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddQueryModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(GetProductQuery).Assembly);
             });
@@ -256,8 +280,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
         // Arrange
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddQueryModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddQueryModule(builder =>
             {
                 builder.Register<StreamProductsQueryHandler>();
                 builder.Register<StreamProductsQueryHandlerPostHandler1>();
@@ -281,7 +308,10 @@ public sealed class QueryModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddQueryModule(builder =>
             {
                 builder.Register<IndirectStreamProductsQuery>();
@@ -295,6 +325,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         var results = await queryMediator.StreamAsync(query).ToListAsync();
 
         results.Should().ContainSingle();
+
         query.ExecutedTypes.Should().ContainSingle()
             .Which.Should().Be<IndirectStreamProductsQueryHandler>();
     }
@@ -304,7 +335,10 @@ public sealed class QueryModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddQueryModule(builder =>
             {
                 builder.Register<EmptyStreamQuery>();
@@ -325,7 +359,10 @@ public sealed class QueryModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddQueryModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(StreamErrorHandlingQueryHandler).Assembly);

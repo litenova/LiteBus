@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Storage.PostgreSql.Exceptions;
 using Npgsql;
 
 namespace LiteBus.Storage.PostgreSql;
@@ -40,17 +41,19 @@ internal static class PostgreSqlSchemaManager
         ArgumentNullException.ThrowIfNull(definition);
 
         var logger = options.Logger ?? NullPostgreSqlSchemaLogger.Instance;
+        var storeTable = PostgreSqlTableReference.ForStore(options);
 
         logger.Log(
             PostgreSqlSchemaLogLevel.Information,
-            $"Ensuring {definition.Component} schema creation for '{options.SchemaName}.{options.TableName}'.");
+            $"Ensuring {definition.Component} schema creation for '{storeTable.QualifiedName}'.");
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await EnsureWithLockAsync(connection, options, definition, logger, cancellationToken).ConfigureAwait(false);
+        var context = PostgreSqlSchemaOperationContext.ForComponent(connection, options, definition, logger);
+        await EnsureWithLockAsync(context, cancellationToken).ConfigureAwait(false);
 
         logger.Log(
             PostgreSqlSchemaLogLevel.Information,
-            $"Schema creation complete for {definition.Component} table '{options.SchemaName}.{options.TableName}'.");
+            $"Schema creation complete for {definition.Component} table '{storeTable.QualifiedName}'.");
     }
 
     /// <summary>
@@ -72,51 +75,49 @@ internal static class PostgreSqlSchemaManager
         ArgumentNullException.ThrowIfNull(definition);
 
         var logger = options.Logger ?? NullPostgreSqlSchemaLogger.Instance;
+        var storeTable = PostgreSqlTableReference.ForStore(options);
 
         logger.Log(
             PostgreSqlSchemaLogLevel.Debug,
-            $"Validating {definition.Component} schema for '{options.SchemaName}.{options.TableName}'.");
+            $"Validating {definition.Component} schema for '{storeTable.QualifiedName}'.");
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await ValidateCoreAsync(connection, options, definition, logger, cancellationToken).ConfigureAwait(false);
+        var context = PostgreSqlSchemaOperationContext.ForComponent(connection, options, definition, logger);
+        await ValidateCoreAsync(context, cancellationToken).ConfigureAwait(false);
 
         logger.Log(
             PostgreSqlSchemaLogLevel.Information,
-            $"Schema validation succeeded for {definition.Component} table '{options.SchemaName}.{options.TableName}'.");
+            $"Schema validation succeeded for {definition.Component} table '{storeTable.QualifiedName}'.");
     }
 
     /// <summary>
     ///     Applies schema bootstrap under an advisory lock or waits for another session to finish.
     /// </summary>
-    /// <param name="connection">The open PostgreSQL connection.</param>
-    /// <param name="options">The store table and metadata options.</param>
-    /// <param name="definition">The component schema definition that supplies SQL builders.</param>
-    /// <param name="logger">The schema logger that receives operational output.</param>
+    /// <param name="context">The schema operation context.</param>
     /// <param name="cancellationToken">A token used to cancel the operation.</param>
     /// <returns>A task that completes when the schema reaches the expected version.</returns>
     private static async Task EnsureWithLockAsync(
-        NpgsqlConnection connection,
-        IPostgreSqlStoreTableOptions options,
-        PostgreSqlComponentSchemaDefinition definition,
-        IPostgreSqlSchemaLogger logger,
+        PostgreSqlSchemaOperationContext context,
         CancellationToken cancellationToken)
     {
-        var lockKey = definition.CreateLockKey(options);
+        var definition = context.Definition ?? throw new InvalidOperationException("Schema ensure requires a component schema definition.");
+
+        var lockKey = definition.CreateLockKey(context.Options);
 
         await using var lockScope = await PostgreSqlAdvisoryLockScope.TryAcquireAsync(
-                connection,
+                context.Connection,
                 lockKey,
                 cancellationToken)
             .ConfigureAwait(false);
 
         if (lockScope is not null)
         {
-            logger.Log(PostgreSqlSchemaLogLevel.Debug, $"Acquired advisory lock '{lockKey}'.");
-            await ApplyEnsureAsync(connection, options, definition, logger, cancellationToken).ConfigureAwait(false);
+            context.Logger.Log(PostgreSqlSchemaLogLevel.Debug, $"Acquired advisory lock '{lockKey}'.");
+            await ApplyEnsureAsync(context, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        logger.Log(
+        context.Logger.Log(
             PostgreSqlSchemaLogLevel.Debug,
             $"Advisory lock '{lockKey}' is held by another session. Waiting for schema version {definition.CurrentSchemaVersion}.");
 
@@ -126,66 +127,61 @@ internal static class PostgreSqlSchemaManager
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (await IsAtExpectedVersionAsync(connection, options, definition, cancellationToken).ConfigureAwait(false))
+            if (await IsAtExpectedVersionAsync(context, cancellationToken).ConfigureAwait(false))
             {
-                logger.Log(
+                context.Logger.Log(
                     PostgreSqlSchemaLogLevel.Debug,
                     $"Schema version {definition.CurrentSchemaVersion} is available without acquiring lock '{lockKey}'.");
+
                 return;
             }
 
             await Task.Delay(DefaultLockPollInterval, cancellationToken).ConfigureAwait(false);
         }
 
-        throw new Exceptions.PostgreSqlStorageTimeoutException(
+        throw new PostgreSqlStorageTimeoutException(
             $"Timed out after {DefaultLockTimeout} waiting for {definition.Component} schema " +
-            $"'{options.SchemaName}.{options.TableName}' to reach version {definition.CurrentSchemaVersion}.");
+            $"'{context.StoreTable.QualifiedName}' to reach version {definition.CurrentSchemaVersion}.");
     }
 
     /// <summary>
     ///     Creates the schema when missing, ensures indexes, and records version metadata while holding the advisory lock.
     /// </summary>
-    /// <param name="connection">The open PostgreSQL connection.</param>
-    /// <param name="options">The store table and metadata options.</param>
-    /// <param name="definition">The component schema definition that supplies SQL builders.</param>
-    /// <param name="logger">The schema logger that receives operational output.</param>
+    /// <param name="context">The schema operation context.</param>
     /// <param name="cancellationToken">A token used to cancel the operation.</param>
     /// <returns>A task that completes when bootstrap finishes.</returns>
     private static async Task ApplyEnsureAsync(
-        NpgsqlConnection connection,
-        IPostgreSqlStoreTableOptions options,
-        PostgreSqlComponentSchemaDefinition definition,
-        IPostgreSqlSchemaLogger logger,
+        PostgreSqlSchemaOperationContext context,
         CancellationToken cancellationToken)
     {
-        await PostgreSqlSchemaVersionStore.EnsureMetadataTableAsync(connection, options, logger, cancellationToken)
+        var definition = context.Definition ?? throw new InvalidOperationException("Schema ensure requires a component schema definition.");
+
+        await PostgreSqlSchemaVersionStore.EnsureMetadataTableAsync(context, cancellationToken)
             .ConfigureAwait(false);
 
         var tableExists = await PostgreSqlSchemaInspector.TableExistsAsync(
-                connection,
-                options.SchemaName,
-                options.TableName,
+                context.Connection,
+                context.StoreTable,
                 cancellationToken)
             .ConfigureAwait(false);
 
         if (!tableExists)
         {
-            logger.Log(
+            context.Logger.Log(
                 PostgreSqlSchemaLogLevel.Information,
-                $"Creating {definition.Component} schema version 1 for '{options.SchemaName}.{options.TableName}'.");
+                $"Creating {definition.Component} schema version 1 for '{context.StoreTable.QualifiedName}'.");
 
             await PostgreSqlSchemaExecutor.ExecuteScriptAsync(
-                    connection,
-                    definition.BuildVersion1CreateScript(options),
-                    logger,
+                    context.Connection,
+                    definition.BuildVersion1CreateScript(context.Options),
+                    context.Logger,
                     cancellationToken)
                 .ConfigureAwait(false);
         }
 
         var columns = await PostgreSqlSchemaInspector.GetColumnNamesAsync(
-                connection,
-                options.SchemaName,
-                options.TableName,
+                context.Connection,
+                context.StoreTable,
                 cancellationToken)
             .ConfigureAwait(false);
 
@@ -197,9 +193,9 @@ internal static class PostgreSqlSchemaManager
         {
             if (tableExists)
             {
-                logger.Log(
+                context.Logger.Log(
                     PostgreSqlSchemaLogLevel.Warning,
-                    $"{definition.Component} table '{options.SchemaName}.{options.TableName}' exists but does not " +
+                    $"{definition.Component} table '{context.StoreTable.QualifiedName}' exists but does not " +
                     $"match schema version {definition.CurrentSchemaVersion}. Recreate the table or apply " +
                     "GetCreateScript() through your migration pipeline.");
             }
@@ -208,21 +204,16 @@ internal static class PostgreSqlSchemaManager
         }
 
         await PostgreSqlSchemaExecutor.ExecuteScriptAsync(
-                connection,
-                definition.BuildEnsureIndexesScript(options),
-                logger,
+                context.Connection,
+                definition.BuildEnsureIndexesScript(context.Options),
+                context.Logger,
                 cancellationToken)
             .ConfigureAwait(false);
 
         await PostgreSqlSchemaVersionStore.SetVersionAsync(
-                connection,
-                options,
-                definition.Component,
-                options.SchemaName,
-                options.TableName,
+                context,
                 definition.CurrentSchemaVersion,
                 DateTimeOffset.UtcNow,
-                logger,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -230,23 +221,18 @@ internal static class PostgreSqlSchemaManager
     /// <summary>
     ///     Validates table shape and recorded schema version against the current package release.
     /// </summary>
-    /// <param name="connection">The open PostgreSQL connection.</param>
-    /// <param name="options">The store table and metadata options.</param>
-    /// <param name="definition">The component schema definition that supplies validation metadata.</param>
-    /// <param name="logger">The schema logger that receives operational output.</param>
+    /// <param name="context">The schema operation context.</param>
     /// <param name="cancellationToken">A token used to cancel the operation.</param>
     /// <returns>A task that completes when validation succeeds.</returns>
     private static async Task ValidateCoreAsync(
-        NpgsqlConnection connection,
-        IPostgreSqlStoreTableOptions options,
-        PostgreSqlComponentSchemaDefinition definition,
-        IPostgreSqlSchemaLogger logger,
+        PostgreSqlSchemaOperationContext context,
         CancellationToken cancellationToken)
     {
+        var definition = context.Definition ?? throw new InvalidOperationException("Schema validation requires a component schema definition.");
+
         var tableExists = await PostgreSqlSchemaInspector.TableExistsAsync(
-                connection,
-                options.SchemaName,
-                options.TableName,
+                context.Connection,
+                context.StoreTable,
                 cancellationToken)
             .ConfigureAwait(false);
 
@@ -254,20 +240,19 @@ internal static class PostgreSqlSchemaManager
         {
             var exception = new PostgreSqlSchemaDriftException(
                 definition.Component,
-                options.SchemaName,
-                options.TableName,
+                context.StoreTable.SchemaName,
+                context.StoreTable.TableName,
                 definition.CurrentSchemaVersion,
-                actualVersion: null,
-                $"Table '{options.SchemaName}.{options.TableName}' does not exist.");
+                null,
+                $"Table '{context.StoreTable.QualifiedName}' does not exist.");
 
-            logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
+            context.Logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
             throw exception;
         }
 
         var columns = await PostgreSqlSchemaInspector.GetColumnNamesAsync(
-                connection,
-                options.SchemaName,
-                options.TableName,
+                context.Connection,
+                context.StoreTable,
                 cancellationToken)
             .ConfigureAwait(false);
 
@@ -280,23 +265,17 @@ internal static class PostgreSqlSchemaManager
         {
             var exception = new PostgreSqlSchemaDriftException(
                 definition.Component,
-                options.SchemaName,
-                options.TableName,
+                context.StoreTable.SchemaName,
+                context.StoreTable.TableName,
                 definition.CurrentSchemaVersion,
-                actualVersion: null,
+                null,
                 $"Missing columns: {string.Join(", ", missingColumns)}.");
 
-            logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
+            context.Logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
             throw exception;
         }
 
-        var recordedVersion = await PostgreSqlSchemaVersionStore.GetVersionAsync(
-                connection,
-                options,
-                definition.Component,
-                options.SchemaName,
-                options.TableName,
-                cancellationToken)
+        var recordedVersion = await PostgreSqlSchemaVersionStore.GetVersionAsync(context, cancellationToken)
             .ConfigureAwait(false);
 
         if (recordedVersion == 0)
@@ -309,13 +288,13 @@ internal static class PostgreSqlSchemaManager
             {
                 var exception = new PostgreSqlSchemaDriftException(
                     definition.Component,
-                    options.SchemaName,
-                    options.TableName,
+                    context.StoreTable.SchemaName,
+                    context.StoreTable.TableName,
                     definition.CurrentSchemaVersion,
-                    actualVersion: inferredVersion == 0 ? null : inferredVersion,
+                    inferredVersion == 0 ? null : inferredVersion,
                     "Schema metadata is missing and the table shape does not match the current LiteBus release.");
 
-                logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
+                context.Logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
                 throw exception;
             }
 
@@ -326,19 +305,19 @@ internal static class PostgreSqlSchemaManager
         {
             var exception = new PostgreSqlSchemaDriftException(
                 definition.Component,
-                options.SchemaName,
-                options.TableName,
+                context.StoreTable.SchemaName,
+                context.StoreTable.TableName,
                 definition.CurrentSchemaVersion,
                 recordedVersion,
                 "Run EnsureAsync or apply GetCreateScript() before starting the application.");
 
-            logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
+            context.Logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
             throw exception;
         }
 
-        if (ShouldValidateIndexes(options))
+        if (ShouldValidateIndexes(context.Options))
         {
-            await ValidateRequiredIndexesAsync(connection, options, definition, logger, cancellationToken)
+            await ValidateRequiredIndexesAsync(context, cancellationToken)
                 .ConfigureAwait(false);
         }
     }
@@ -358,30 +337,25 @@ internal static class PostgreSqlSchemaManager
     /// <summary>
     ///     Validates that all required indexes for the current schema version exist on the store table.
     /// </summary>
-    /// <param name="connection">The open PostgreSQL connection.</param>
-    /// <param name="options">The store table and metadata options.</param>
-    /// <param name="definition">The component schema definition that supplies index names.</param>
-    /// <param name="logger">The schema logger that receives operational output.</param>
+    /// <param name="context">The schema operation context.</param>
     /// <param name="cancellationToken">A token used to cancel the lookup.</param>
     /// <returns>A task that completes when validation succeeds.</returns>
     private static async Task ValidateRequiredIndexesAsync(
-        NpgsqlConnection connection,
-        IPostgreSqlStoreTableOptions options,
-        PostgreSqlComponentSchemaDefinition definition,
-        IPostgreSqlSchemaLogger logger,
+        PostgreSqlSchemaOperationContext context,
         CancellationToken cancellationToken)
     {
+        var definition = context.Definition ?? throw new InvalidOperationException("Index validation requires a component schema definition.");
+
         var missingIndexes = new List<string>();
 
-        foreach (var indexName in definition.GetRequiredIndexNames(options))
+        foreach (var indexName in definition.GetRequiredIndexNames(context.Options))
         {
             if (!await PostgreSqlSchemaInspector.IndexExistsAsync(
-                    connection,
-                    options.SchemaName,
-                    options.TableName,
-                    indexName,
-                    cancellationToken)
-                .ConfigureAwait(false))
+                        context.Connection,
+                        context.StoreTable,
+                        indexName,
+                        cancellationToken)
+                    .ConfigureAwait(false))
             {
                 missingIndexes.Add(indexName);
             }
@@ -394,40 +368,32 @@ internal static class PostgreSqlSchemaManager
 
         var exception = new PostgreSqlSchemaDriftException(
             definition.Component,
-            options.SchemaName,
-            options.TableName,
+            context.StoreTable.SchemaName,
+            context.StoreTable.TableName,
             definition.CurrentSchemaVersion,
-            actualVersion: null,
+            null,
             $"Missing indexes: {string.Join(", ", missingIndexes)}.");
 
-        logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
+        context.Logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
         throw exception;
     }
 
     /// <summary>
     ///     Returns <see langword="true" /> when the store table already matches the expected schema version.
     /// </summary>
-    /// <param name="connection">The open PostgreSQL connection.</param>
-    /// <param name="options">The store table and metadata options.</param>
-    /// <param name="definition">The component schema definition that supplies validation metadata.</param>
+    /// <param name="context">The schema operation context.</param>
     /// <param name="cancellationToken">A token used to cancel the lookup.</param>
     /// <returns>
     ///     <see langword="true" /> when metadata or inferred columns indicate the expected version; otherwise,
     ///     <see langword="false" />.
     /// </returns>
     private static async Task<bool> IsAtExpectedVersionAsync(
-        NpgsqlConnection connection,
-        IPostgreSqlStoreTableOptions options,
-        PostgreSqlComponentSchemaDefinition definition,
+        PostgreSqlSchemaOperationContext context,
         CancellationToken cancellationToken)
     {
-        var recordedVersion = await PostgreSqlSchemaVersionStore.GetVersionAsync(
-                connection,
-                options,
-                definition.Component,
-                options.SchemaName,
-                options.TableName,
-                cancellationToken)
+        var definition = context.Definition ?? throw new InvalidOperationException("Version checks require a component schema definition.");
+
+        var recordedVersion = await PostgreSqlSchemaVersionStore.GetVersionAsync(context, cancellationToken)
             .ConfigureAwait(false);
 
         if (recordedVersion >= definition.CurrentSchemaVersion)
@@ -436,24 +402,23 @@ internal static class PostgreSqlSchemaManager
         }
 
         if (!await PostgreSqlSchemaInspector.TableExistsAsync(
-                connection,
-                options.SchemaName,
-                options.TableName,
-                cancellationToken)
-            .ConfigureAwait(false))
+                    context.Connection,
+                    context.StoreTable,
+                    cancellationToken)
+                .ConfigureAwait(false))
         {
             return false;
         }
 
         var columns = await PostgreSqlSchemaInspector.GetColumnNamesAsync(
-                connection,
-                options.SchemaName,
-                options.TableName,
+                context.Connection,
+                context.StoreTable,
                 cancellationToken)
             .ConfigureAwait(false);
 
         return PostgreSqlSchemaInspector.InferVersionFromColumns(
                    columns,
-                   definition.VersionColumnSets) >= definition.CurrentSchemaVersion;
+                   definition.VersionColumnSets) >=
+               definition.CurrentSchemaVersion;
     }
 }

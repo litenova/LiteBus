@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Inbox.UnitTests;

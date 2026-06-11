@@ -42,7 +42,7 @@ public sealed class SagaModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ISagaContext),
-            static services => (ISagaContext)services.GetService(typeof(SagaExecutionContext))!,
+            static services => (ISagaContext) services.GetService(typeof(SagaExecutionContext))!,
             InstanceLifetime.Singleton));
 
         if (!configuration.TryGetContext<SagaStoreRegisteredMarker>(out _))

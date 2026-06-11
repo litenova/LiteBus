@@ -11,8 +11,9 @@ namespace LiteBus.Outbox.Abstractions;
 ///         different options when an application needs different publisher identities or batch sizes.
 ///     </para>
 ///     <para>
-///         Tuning trade-offs: larger <see cref="BatchSize" /> values reduce store round-trips but increase the number of
-///         leases held while dispatchers publish. Longer <see cref="LeaseDuration" /> values tolerate slow brokers but delay
+///         Tuning trade-offs: larger <see cref="ProcessorOptions.BatchSize" /> values reduce store round-trips but increase the number of
+///         leases held while dispatchers publish. Longer <see cref="ProcessorOptions.LeaseDuration" /> values tolerate slow brokers but
+///         delay
 ///         recovery when a publisher crashes without releasing leases.
 ///     </para>
 /// </remarks>

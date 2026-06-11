@@ -1,5 +1,3 @@
-using LiteBus.Transport;
-
 namespace LiteBus.Transport.Amqp;
 
 /// <summary>
@@ -11,7 +9,6 @@ public sealed class AmqpCircuitBreakerOpenException : TransportCircuitBreakerOpe
     ///     Initializes a new instance of the <see cref="AmqpCircuitBreakerOpenException" /> class.
     /// </summary>
     public AmqpCircuitBreakerOpenException()
-        : base()
     {
     }
 }

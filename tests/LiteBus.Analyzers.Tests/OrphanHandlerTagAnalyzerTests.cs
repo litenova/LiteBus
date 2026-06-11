@@ -23,7 +23,7 @@ public sealed class OrphanHandlerTagAnalyzerTests
         await AnalyzerTest.VerifyDiagnosticAsync<OrphanHandlerTagAnalyzer>(
             source,
             DiagnosticDescriptors.OrphanHandlerTag,
-            markupLocation: 2,
+            2,
             "OrphanTaggedHandler",
             "orphan");
     }

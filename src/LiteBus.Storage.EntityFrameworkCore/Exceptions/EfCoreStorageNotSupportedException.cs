@@ -1,5 +1,3 @@
-using System;
-
 namespace LiteBus.Storage.EntityFrameworkCore.Exceptions;
 
 /// <summary>

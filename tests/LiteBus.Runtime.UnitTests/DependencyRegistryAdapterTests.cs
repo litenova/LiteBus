@@ -5,9 +5,9 @@ using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Dependencies;
-using LiteBus.Runtime.Modules;
 using LiteBus.Runtime.Extensions.Autofac;
 using LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Runtime.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -216,7 +216,7 @@ public sealed class DependencyRegistryAdapterTests
     /// <param name="builder">The Autofac container builder receiving the adapter registration.</param>
     private static void RegisterServiceProviderAdapterForTests(ContainerBuilder builder)
     {
-        builder.Register(c => (IServiceProvider)new AutofacServiceProviderAdapter(c.Resolve<ILifetimeScope>()))
+        builder.Register(c => (IServiceProvider) new AutofacServiceProviderAdapter(c.Resolve<ILifetimeScope>()))
             .As<IServiceProvider>()
             .InstancePerLifetimeScope();
     }

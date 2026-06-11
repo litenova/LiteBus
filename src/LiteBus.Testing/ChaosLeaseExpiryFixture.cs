@@ -1,6 +1,5 @@
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
-using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Testing;
 
@@ -34,7 +33,10 @@ public sealed class ChaosLeaseExpiryFixture
     ///     Creates a lease store that forces lease renewal to fail for the target message.
     /// </summary>
     /// <returns>The chaos lease store.</returns>
-    public IInboxLeaseStore CreateLeaseStore() => new ChaosLeaseStore(_inner, _targetMessageId);
+    public IInboxLeaseStore CreateLeaseStore()
+    {
+        return new ChaosLeaseStore(_inner, _targetMessageId);
+    }
 
     /// <summary>
     ///     Lease store that reports renewal failure for one message to simulate lease loss mid-dispatch.
@@ -65,8 +67,10 @@ public sealed class ChaosLeaseExpiryFixture
         /// <inheritdoc />
         public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
             InboxLeaseRequest request,
-            CancellationToken cancellationToken = default) =>
-            _inner.LeasePendingAsync(request, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return _inner.LeasePendingAsync(request, cancellationToken);
+        }
 
         /// <inheritdoc />
         public Task<bool> RenewLeaseAsync(

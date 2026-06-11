@@ -1,5 +1,3 @@
-using LiteBus.Storage.PostgreSql;
-
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 
 public sealed class PostgreSqlIdentifierTests

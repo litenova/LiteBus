@@ -1,6 +1,5 @@
 using System;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Dispatch;
 using LiteBus.Transport.Amqp;
 
 namespace LiteBus.Outbox.Dispatch.Amqp;

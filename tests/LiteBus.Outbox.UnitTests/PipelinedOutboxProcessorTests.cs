@@ -1,13 +1,11 @@
-using LiteBus.Events;
-using LiteBus.Events.Abstractions;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
+using System.Text;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Outbox;
+using LiteBus.Orchestration.Abstractions;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Testing;
-using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Outbox.UnitTests;
 
@@ -28,7 +26,7 @@ public sealed class PipelinedOutboxProcessorTests : LiteBusTestBase
         var store = new InMemoryOutboxStore();
         var transport = new FakeMessageTransport();
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+        contractRegistry.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
 
         var processor = new PipelinedOutboxProcessor(
             store,
@@ -42,7 +40,7 @@ public sealed class PipelinedOutboxProcessorTests : LiteBusTestBase
                 Retry = new RetryOptions { UseJitter = false }
             },
             new ManualTimeProvider(BaseTime),
-            Array.Empty<LiteBus.Orchestration.Abstractions.IProcessorEnvelopeHook>());
+            Array.Empty<IProcessorEnvelopeHook>());
 
         for (var index = 0; index < 3; index++)
         {
@@ -87,10 +85,10 @@ public sealed class PipelinedOutboxProcessorTests : LiteBusTestBase
         /// <inheritdoc />
         public Task DispatchAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
         {
-            return _transport.PublishAsync(new LiteBus.Transport.Abstractions.TransportPublishRequest
+            return _transport.PublishAsync(new TransportPublishRequest
             {
                 Destination = "tests.topic",
-                Body = System.Text.Encoding.UTF8.GetBytes(envelope.Payload)
+                Body = Encoding.UTF8.GetBytes(envelope.Payload)
             }, cancellationToken);
         }
     }

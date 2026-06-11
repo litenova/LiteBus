@@ -11,7 +11,7 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 ///     Register with an existing data source:
 ///     <code>
 /// var dataSource = NpgsqlDataSource.Create(connectionString);
-///
+/// 
 /// liteBus.AddPostgreSqlOutboxStorage(postgres =>
 /// {
 ///     postgres.UseDataSource(dataSource);
@@ -51,7 +51,8 @@ public sealed class PostgreSqlOutboxModuleBuilder
     public bool EnableSchemaInitialization { get; private set; } = true;
 
     /// <summary>
-    ///     Gets a value indicating whether scoped <see cref="LiteBus.Outbox.Abstractions.ITransactionalOutbox" /> is registered
+    ///     Gets a value indicating whether scoped <see cref="LiteBus.Outbox.Abstractions.ITransactionalOutbox" /> is
+    ///     registered
     ///     through the ambient PostgreSQL transaction provider.
     /// </summary>
     public bool EnableAmbientTransactionProviderRegistration { get; private set; }

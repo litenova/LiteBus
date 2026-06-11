@@ -1,7 +1,5 @@
 using LiteBus.Commands;
-using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
@@ -24,7 +22,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
     {
         var recorder = new InboxTestFixtures.CommandRecorder();
 
-        await using var provider = BuildProcessorProvider(recorder, dispatcherConcurrency: 1);
+        await using var provider = BuildProcessorProvider(recorder, 1);
 
         var store = provider.GetRequiredService<InMemoryInboxStore>();
         await SeedCommandsAsync(provider.GetRequiredService<IInbox>());
@@ -61,6 +59,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
             Array.Empty<IProcessorEnvelopeHook>());
 
         var commandId = Guid.NewGuid();
+
         await store.AddAsync(new InboxEnvelope
         {
             Id = commandId,
@@ -85,6 +84,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var dispatcher = new ConcurrentTrackingInboxDispatcher(gate);
         var store = new InMemoryInboxStore();
+
         var processor = new PipelinedInboxProcessor(
             store,
             store,
@@ -128,11 +128,12 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
         for (var index = 0; index < 3; index++)
         {
             var orderId = Guid.NewGuid();
-            await inbox.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+
+            await inbox.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
             {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
-            });
+            }));
         }
     }
 
@@ -144,7 +145,10 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
@@ -153,7 +157,8 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
 
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
+                    inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
+
                     inbox.UseProcessorOptions(new InboxProcessorOptions
                     {
                         BatchSize = 10,
@@ -161,6 +166,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
                         DispatcherConcurrency = dispatcherConcurrency,
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     inbox.UseInMemoryStorage();
                     inbox.UseCommandInboxDispatcher();
                 });
@@ -181,8 +187,10 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
 
         public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
             InboxLeaseRequest request,
-            CancellationToken cancellationToken = default) =>
-            _inner.LeasePendingAsync(request, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return _inner.LeasePendingAsync(request, cancellationToken);
+        }
 
         public async Task<bool> RenewLeaseAsync(
             Guid messageId,
@@ -191,12 +199,15 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
             CancellationToken cancellationToken = default)
         {
             RenewalCount++;
+
             return await _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken)
-                .ConfigureAwait(false);
+                ;
         }
 
-        public Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default) =>
-            _inner.PersistAsync(envelopes, cancellationToken);
+        public Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
+        {
+            return _inner.PersistAsync(envelopes, cancellationToken);
+        }
     }
 
     private sealed class SlowInboxDispatcher : IInboxDispatcher
@@ -210,7 +221,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
 
         public async Task DispatchAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
         {
-            await Task.Delay(_delay, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(_delay, cancellationToken);
         }
     }
 
@@ -228,8 +239,6 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
 
         public int MaxConcurrent => _maxConcurrent;
 
-        public Task WaitForConcurrentDispatchAsync() => _concurrentReached.Task;
-
         public async Task DispatchAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
         {
             var active = Interlocked.Increment(ref _active);
@@ -240,8 +249,13 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
                 _concurrentReached.TrySetResult();
             }
 
-            await _gate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await _gate.Task.WaitAsync(cancellationToken);
             Interlocked.Decrement(ref _active);
+        }
+
+        public Task WaitForConcurrentDispatchAsync()
+        {
+            return _concurrentReached.Task;
         }
 
         private void UpdateMax(int active)
@@ -249,6 +263,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
             while (true)
             {
                 var current = _maxConcurrent;
+
                 if (active <= current || Interlocked.CompareExchange(ref _maxConcurrent, active, current) == current)
                 {
                     return;

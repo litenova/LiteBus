@@ -1,5 +1,4 @@
 using System;
-using LiteBus.Outbox.Abstractions;
 using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;

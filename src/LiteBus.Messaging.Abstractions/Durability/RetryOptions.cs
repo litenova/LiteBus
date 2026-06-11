@@ -58,11 +58,12 @@ public sealed record RetryOptions
     public TimeSpan CalculateDelay(int attemptCount)
     {
         var initialTicks = InitialDelay.Ticks;
+
         var rawTicks = Backoff == RetryBackoff.Fixed
             ? initialTicks
             : initialTicks * Math.Pow(2, Math.Max(0, attemptCount - 1));
 
-        var delay = TimeSpan.FromTicks((long)Math.Min(rawTicks, MaxDelay.Ticks));
+        var delay = TimeSpan.FromTicks((long) Math.Min(rawTicks, MaxDelay.Ticks));
 
         if (!UseJitter || delay == TimeSpan.Zero)
         {
@@ -70,6 +71,6 @@ public sealed record RetryOptions
         }
 
         var jitterFactor = 0.8 + Random.Shared.NextDouble() * 0.4;
-        return TimeSpan.FromTicks((long)Math.Min(delay.Ticks * jitterFactor, MaxDelay.Ticks));
+        return TimeSpan.FromTicks((long) Math.Min(delay.Ticks * jitterFactor, MaxDelay.Ticks));
     }
 }

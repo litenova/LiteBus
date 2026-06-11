@@ -1,8 +1,4 @@
-using System.Threading;
-using System.Threading.Tasks;
-using LiteBus.Commands.Abstractions;
 using LiteBus.Inbox.Abstractions;
-using Xunit;
 
 namespace LiteBus.Analyzers.Tests;
 
@@ -36,7 +32,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzerTests
                                   }
 
                                   public Task ScheduleAsync(ProcessPaymentCommand command, CancellationToken cancellationToken)
-                                      => _inbox.AcceptAsync(command, cancellationToken: cancellationToken);
+                                      => _inbox.AcceptAsync(InboxAcceptItems.From(command), cancellationToken: cancellationToken);
                               }
                               """;
 
@@ -68,7 +64,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzerTests
                                   }
 
                                   public Task ScheduleAsync(CreateUserCommand command, CancellationToken cancellationToken)
-                                      => {|#0:_inbox.AcceptAsync(command, cancellationToken: cancellationToken)|};
+                                      => {|#0:_inbox.AcceptAsync(InboxAcceptItems.From(command), cancellationToken: cancellationToken)|};
                               }
                               """;
 
@@ -81,11 +77,11 @@ public sealed class CommandWithResultScheduledToInboxAnalyzerTests
     }
 
     /// <summary>
-    ///     Verifies that generic <c>AddAsync&lt;T&gt;</c> with a command that has a result produces LB1004.
+    ///     Verifies that explicitly typed <c>AcceptAsync&lt;T&gt;</c> with a command that has a result produces LB1004.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
     [Fact]
-    public Task GenericAddAsyncWithCommandResult_ProducesDiagnostic()
+    public Task ExplicitGenericAcceptAsyncWithCommandResult_ProducesDiagnostic()
     {
         const string source = """
                               using System.Threading;
@@ -105,7 +101,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzerTests
                                   }
 
                                   public Task ScheduleAsync(CreateUserCommand command, CancellationToken cancellationToken)
-                                      => {|#0:_inbox.AcceptAsync(command, typeof(CreateUserCommand), cancellationToken: cancellationToken)|};
+                                      => {|#0:_inbox.AcceptAsync<CreateUserCommand>(InboxAcceptItems.From(command), cancellationToken: cancellationToken)|};
                               }
                               """;
 
@@ -139,7 +135,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzerTests
                               public sealed class UserService
                               {
                                   public Task ScheduleAsync(IOrderInbox inbox, CreateUserCommand command, CancellationToken cancellationToken)
-                                      => {|#0:inbox.AcceptAsync(command, cancellationToken: cancellationToken)|};
+                                      => {|#0:inbox.AcceptAsync(InboxAcceptItems.From(command), cancellationToken: cancellationToken)|};
                               }
                               """;
 

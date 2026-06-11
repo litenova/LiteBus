@@ -70,8 +70,10 @@ public sealed class CommandInboxDispatcher : IInboxDispatcher
         ArgumentNullException.ThrowIfNull(envelope);
 
         var messageType = _contractRegistry.GetMessageType(envelope.ContractName, envelope.ContractVersion);
+
         var payload = await PayloadProtection.UnprotectAsync(envelope.Payload, _payloadEncryptor, cancellationToken)
             .ConfigureAwait(false);
+
         var message = await _messageSerializer.DeserializeAsync(messageType, payload, cancellationToken).ConfigureAwait(false);
 
         if (message is not ICommand command)
@@ -82,6 +84,7 @@ public sealed class CommandInboxDispatcher : IInboxDispatcher
 
         var mediationSettings = new CommandMediationSettings();
         mediationSettings.Items[InboxExecutionContextKeys.IsInboxExecution] = true;
+
         MessageProcessorDiagnostics.ApplyTraceMetadata(
             mediationSettings.Items,
             envelope.CorrelationId,

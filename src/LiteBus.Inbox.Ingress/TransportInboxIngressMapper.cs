@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
@@ -12,23 +13,21 @@ namespace LiteBus.Inbox.Ingress;
 internal static class TransportInboxIngressMapper
 {
     /// <summary>
-    ///     Builds inbox metadata from LiteBus transport headers and message properties.
+    ///     Builds inbox acceptance metadata from LiteBus transport headers and message properties.
     /// </summary>
     /// <param name="message">The received transport delivery.</param>
-    /// <returns>The inbox options passed to <see cref="IInbox.AcceptAsync" />.</returns>
-    public static InboxOptions ToInboxOptions(TransportMessage message)
+    /// <returns>The metadata passed to <see cref="IInbox.AcceptBatchAsync" />.</returns>
+    public static InboxAcceptMetadata ToInboxAcceptMetadata(TransportMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        return new InboxOptions
+        return new InboxAcceptMetadata
         {
-            Id = TryGetMessageId(message),
-            IdempotencyKey = TransportHeaderValues.GetString(message.Headers, TransportHeaders.IdempotencyKey),
-            CorrelationId = TransportHeaderValues.GetString(message.Headers, TransportHeaders.CorrelationId) ?? message.CorrelationId,
-            CausationId = TransportHeaderValues.GetString(message.Headers, TransportHeaders.CausationId),
-            TenantId = TransportHeaderValues.GetString(message.Headers, TransportHeaders.TenantId),
-            TraceContext = TransportHeaderValues.GetString(message.Headers, TransportHeaders.TraceContext),
-            VisibleAfter = TryGetVisibleAfter(message)
+            Identity = ResolveIdentity(message),
+            Idempotency = ResolveIdempotency(message),
+            Visibility = ResolveVisibility(message),
+            Trace = ResolveTrace(message),
+            Tenant = ResolveTenant(message)
         };
     }
 
@@ -74,6 +73,91 @@ internal static class TransportInboxIngressMapper
         }
 
         return version;
+    }
+
+    /// <summary>
+    ///     Resolves message identity metadata from transport headers and message properties.
+    /// </summary>
+    /// <param name="message">The received transport delivery.</param>
+    /// <returns>Supplied identity when a valid message id is present; otherwise generated identity.</returns>
+    private static MessageIdentity ResolveIdentity(TransportMessage message)
+    {
+        var messageId = TryGetMessageId(message);
+
+        return messageId is { } id
+            ? new MessageIdentity.Supplied(id)
+            : MessageIdentity.Generated.Instance;
+    }
+
+    /// <summary>
+    ///     Resolves idempotency metadata from the optional idempotency key header.
+    /// </summary>
+    /// <param name="message">The received transport delivery.</param>
+    /// <returns>Keyed idempotency when a non-empty key is present; otherwise none.</returns>
+    private static Idempotency ResolveIdempotency(TransportMessage message)
+    {
+        var key = TransportHeaderValues.GetString(message.Headers, TransportHeaders.IdempotencyKey);
+
+        return !string.IsNullOrWhiteSpace(key)
+            ? new Idempotency.Keyed(key)
+            : Idempotency.None.Instance;
+    }
+
+    /// <summary>
+    ///     Resolves visibility metadata from the optional visible-after header.
+    /// </summary>
+    /// <param name="message">The received transport delivery.</param>
+    /// <returns>Deferred visibility when a valid timestamp is present; otherwise immediate visibility.</returns>
+    private static MessageVisibility ResolveVisibility(TransportMessage message)
+    {
+        var visibleAfter = TryGetVisibleAfter(message);
+
+        return visibleAfter is { } at
+            ? new MessageVisibility.At(at)
+            : MessageVisibility.Immediate.Instance;
+    }
+
+    /// <summary>
+    ///     Resolves trace metadata from correlation, causation, and trace-context headers.
+    /// </summary>
+    /// <param name="message">The received transport delivery.</param>
+    /// <returns>The trace specification represented by the ingress headers.</returns>
+    private static MessageTrace ResolveTrace(TransportMessage message)
+    {
+        var correlationId = TransportHeaderValues.GetString(message.Headers, TransportHeaders.CorrelationId) ?? message.CorrelationId;
+        var causationId = TransportHeaderValues.GetString(message.Headers, TransportHeaders.CausationId);
+        var traceContext = TransportHeaderValues.GetString(message.Headers, TransportHeaders.TraceContext);
+
+        if (!string.IsNullOrWhiteSpace(traceContext) && !string.IsNullOrWhiteSpace(correlationId) && !string.IsNullOrWhiteSpace(causationId))
+        {
+            return new MessageTrace.Distributed(correlationId, causationId, traceContext);
+        }
+
+        if (!string.IsNullOrWhiteSpace(correlationId) && !string.IsNullOrWhiteSpace(causationId))
+        {
+            return new MessageTrace.Workflow(correlationId, causationId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(correlationId))
+        {
+            return new MessageTrace.Correlated(correlationId);
+        }
+
+        return MessageTrace.None.Instance;
+    }
+
+    /// <summary>
+    ///     Resolves tenant metadata from the optional tenant identifier header.
+    /// </summary>
+    /// <param name="message">The received transport delivery.</param>
+    /// <returns>Isolated tenant scope when a non-empty tenant id is present; otherwise unscoped.</returns>
+    private static TenantScope ResolveTenant(TransportMessage message)
+    {
+        var tenantId = TransportHeaderValues.GetString(message.Headers, TransportHeaders.TenantId);
+
+        return !string.IsNullOrWhiteSpace(tenantId)
+            ? new TenantScope.Isolated(tenantId)
+            : TenantScope.Unscoped.Instance;
     }
 
     /// <summary>

@@ -1,9 +1,7 @@
 using System;
 using System.Linq;
 using Autofac;
-using Autofac.Extensions.DependencyInjection;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Hosting;
@@ -71,7 +69,10 @@ public static class ContainerBuilderExtensions
     ///     Adds LiteBus to the Autofac container builder with shared contract and module configuration.
     /// </summary>
     /// <param name="builder">The Autofac container builder to add LiteBus to.</param>
-    /// <param name="configure">Action to configure shared contracts and LiteBus modules through <see cref="ILiteBusBuilder" />.</param>
+    /// <param name="configure">
+    ///     Action to configure shared contracts and LiteBus modules through <see cref="ILiteBusBuilder" />
+    ///     .
+    /// </param>
     /// <returns>The container builder for method chaining.</returns>
     /// <exception cref="ArgumentNullException">
     ///     Thrown when <paramref name="builder" /> or <paramref name="configure" /> is <see langword="null" />.
@@ -112,12 +113,13 @@ public static class ContainerBuilderExtensions
     }
 
     /// <summary>
-    ///     Registers an <see cref="IServiceProvider" /> adapter before module build so factory registrations can resolve services.
+    ///     Registers an <see cref="IServiceProvider" /> adapter before module build so factory registrations can resolve
+    ///     services.
     /// </summary>
     /// <param name="builder">The Autofac container builder receiving the adapter registration.</param>
     private static void RegisterServiceProviderAdapter(ContainerBuilder builder)
     {
-        builder.Register(c => (IServiceProvider)new AutofacServiceProviderAdapter(c.Resolve<ILifetimeScope>()))
+        builder.Register(c => (IServiceProvider) new AutofacServiceProviderAdapter(c.Resolve<ILifetimeScope>()))
             .As<IServiceProvider>()
             .InstancePerLifetimeScope();
     }

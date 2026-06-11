@@ -13,14 +13,14 @@ namespace LiteBus.Runtime.Extensions.Microsoft.Hosting;
 internal sealed class StartupTaskPhaseHostedService : IHostedService
 {
     /// <summary>
-    ///     The startup tasks executed during host start.
-    /// </summary>
-    private readonly IReadOnlyList<IStartupTask> _startupTasks;
-
-    /// <summary>
     ///     The gate released after startup tasks complete.
     /// </summary>
     private readonly StartupTaskGate _gate;
+
+    /// <summary>
+    ///     The startup tasks executed during host start.
+    /// </summary>
+    private readonly IReadOnlyList<IStartupTask> _startupTasks;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="StartupTaskPhaseHostedService" /> class.

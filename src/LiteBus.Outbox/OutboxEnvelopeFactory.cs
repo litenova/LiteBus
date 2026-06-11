@@ -14,7 +14,7 @@ namespace LiteBus.Outbox;
 public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
 {
     /// <summary>
-    ///     Gets the time provider used to stamp storage time.
+    ///     Gets the time provider used to stamp storage time and resolve relative visibility.
     /// </summary>
     private readonly TimeProvider _clock;
 
@@ -22,6 +22,11 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     ///     Gets the registry used to map the runtime event type to a stable contract.
     /// </summary>
     private readonly IContractReader _contractRegistry;
+
+    /// <summary>
+    ///     Gets the optional resolver that selects the CLR type used for contract lookup.
+    /// </summary>
+    private readonly IMessageContractResolver? _contractTypeResolver;
 
     /// <summary>
     ///     Gets the serializer used to create the serialized payload.
@@ -32,11 +37,6 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     ///     Gets the optional outbox protector applied before payloads are written to storage.
     /// </summary>
     private readonly IOutboxPayloadProtector? _payloadProtector;
-
-    /// <summary>
-    ///     Gets the optional resolver that selects the CLR type used for contract lookup.
-    /// </summary>
-    private readonly IMessageContractResolver? _contractTypeResolver;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="OutboxEnvelopeFactory" /> class.
@@ -64,140 +64,146 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     }
 
     /// <inheritdoc />
-    public async Task<OutboxEnvelope> CreateAsync<TEvent>(
-        TEvent @event,
-        OutboxOptions? options = null,
+    public Task<OutboxEnvelope> CreateAsync<TEvent>(
+        OutboxEnqueueItem<TEvent> item,
         CancellationToken cancellationToken = default)
         where TEvent : notnull
     {
-        ArgumentNullException.ThrowIfNull(@event);
+        ArgumentNullException.ThrowIfNull(item);
 
-        options ??= new OutboxOptions();
-
-        var eventType = @event.GetType();
-        var contract = _contractRegistry.GetContract(ResolveContractType(eventType, @event));
-        var storedAt = _clock.GetUtcNow();
-        var messageId = options.Id ?? Guid.NewGuid();
-        var payload = await _messageSerializer.SerializeAsync(@event, cancellationToken).ConfigureAwait(false);
-        payload = await PayloadProtection.ProtectAsync(payload, _payloadProtector, cancellationToken).ConfigureAwait(false);
-
-        return new OutboxEnvelope
-        {
-            Id = messageId,
-            ContractName = contract.Name,
-            ContractVersion = contract.Version,
-            Payload = payload,
-            Topic = options.Topic,
-            CreatedAt = storedAt,
-            VisibleAfter = options.VisibleAfter,
-            Status = OutboxStatus.Pending,
-            AttemptCount = 0,
-            CorrelationId = options.CorrelationId,
-            CausationId = options.CausationId,
-            TenantId = options.TenantId,
-            IdempotencyKey = string.IsNullOrWhiteSpace(options.IdempotencyKey) ? null : options.IdempotencyKey,
-            TraceContext = options.TraceContext
-        };
+        return CreateCoreAsync(item.Event, item.Event.GetType(), item.Metadata, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<OutboxEnvelope>> CreateBatchAsync(
-        IReadOnlyList<object> events,
-        IReadOnlyList<Type> eventTypes,
-        IReadOnlyList<OutboxOptions?>? options = null,
+    public Task<OutboxEnvelope> CreateAsync(
+        OutboxEnqueueItem item,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(events);
-        ArgumentNullException.ThrowIfNull(eventTypes);
+        ArgumentNullException.ThrowIfNull(item);
 
-        if (events.Count != eventTypes.Count)
-        {
-            throw new ArgumentException("Events and event types must contain the same number of entries.");
-        }
-
-        if (options is not null && options.Count != events.Count)
-        {
-            throw new ArgumentException("Options must contain the same number of entries as events when supplied.");
-        }
-
-        if (events.Count == 0)
-        {
-            return Array.Empty<OutboxEnvelope>();
-        }
-
-        var envelopes = new OutboxEnvelope[events.Count];
-
-        for (var index = 0; index < events.Count; index++)
-        {
-            var @event = events[index];
-            var eventType = eventTypes[index];
-            var itemOptions = options?[index] ?? new OutboxOptions();
-
-            ArgumentNullException.ThrowIfNull(@event);
-            ArgumentNullException.ThrowIfNull(eventType);
-
-            if (!eventType.IsInstanceOfType(@event))
-            {
-                throw new ArgumentException(
-                    $"Event at index {index} is not assignable to '{eventType.FullName}'.",
-                    nameof(events));
-            }
-
-            var contract = _contractRegistry.GetContract(ResolveContractType(eventType, @event));
-            var storedAt = _clock.GetUtcNow();
-            var messageId = itemOptions.Id ?? Guid.NewGuid();
-            var payload = await _messageSerializer.SerializeAsync(@event, cancellationToken).ConfigureAwait(false);
-            payload = await PayloadProtection.ProtectAsync(payload, _payloadProtector, cancellationToken).ConfigureAwait(false);
-
-            envelopes[index] = new OutboxEnvelope
-            {
-                Id = messageId,
-                ContractName = contract.Name,
-                ContractVersion = contract.Version,
-                Payload = payload,
-                Topic = itemOptions.Topic,
-                CreatedAt = storedAt,
-                VisibleAfter = itemOptions.VisibleAfter,
-                Status = OutboxStatus.Pending,
-                AttemptCount = 0,
-                CorrelationId = itemOptions.CorrelationId,
-                CausationId = itemOptions.CausationId,
-                TenantId = itemOptions.TenantId,
-                IdempotencyKey = string.IsNullOrWhiteSpace(itemOptions.IdempotencyKey) ? null : itemOptions.IdempotencyKey,
-                TraceContext = itemOptions.TraceContext
-            };
-        }
-
-        return envelopes;
+        return CreateCoreAsync(item.Event, item.EventType, item.Metadata, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<OutboxEnvelope>> CreateBatchAsync<TEvent>(
-        IReadOnlyList<TEvent> events,
-        IReadOnlyList<OutboxOptions?>? options = null,
+        IReadOnlyList<OutboxEnqueueItem<TEvent>> items,
         CancellationToken cancellationToken = default)
         where TEvent : notnull
     {
-        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(items);
 
-        if (options is not null && options.Count != events.Count)
-        {
-            throw new ArgumentException("Options must contain the same number of entries as events when supplied.");
-        }
-
-        if (events.Count == 0)
+        if (items.Count == 0)
         {
             return Array.Empty<OutboxEnvelope>();
         }
 
-        var envelopes = new OutboxEnvelope[events.Count];
+        var envelopes = new OutboxEnvelope[items.Count];
 
-        for (var index = 0; index < events.Count; index++)
+        for (var index = 0; index < items.Count; index++)
         {
-            envelopes[index] = await CreateAsync(events[index], options?[index], cancellationToken).ConfigureAwait(false);
+            var item = items[index];
+
+            envelopes[index] = await CreateCoreAsync(
+                item.Event,
+                item.Event.GetType(),
+                item.Metadata,
+                cancellationToken).ConfigureAwait(false);
         }
 
         return envelopes;
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<OutboxEnvelope>> CreateBatchAsync(
+        IReadOnlyList<OutboxEnqueueItem> items,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        if (items.Count == 0)
+        {
+            return Array.Empty<OutboxEnvelope>();
+        }
+
+        var envelopes = new OutboxEnvelope[items.Count];
+
+        for (var index = 0; index < items.Count; index++)
+        {
+            var item = items[index];
+
+            envelopes[index] = await CreateCoreAsync(
+                item.Event,
+                item.EventType,
+                item.Metadata,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        return envelopes;
+    }
+
+    /// <summary>
+    ///     Creates one outbox envelope from an event instance and enqueue metadata.
+    /// </summary>
+    /// <param name="eventInstance">The event instance to serialize.</param>
+    /// <param name="eventType">The runtime event type used for contract lookup.</param>
+    /// <param name="metadata">The enqueue metadata applied outside the payload.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>The outbox envelope ready for store persistence or staging.</returns>
+    private async Task<OutboxEnvelope> CreateCoreAsync(
+        object eventInstance,
+        Type eventType,
+        OutboxEnqueueMetadata metadata,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(eventInstance);
+        ArgumentNullException.ThrowIfNull(eventType);
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        if (!eventType.IsInstanceOfType(eventInstance))
+        {
+            throw new ArgumentException(
+                $"The supplied event instance is not assignable to '{eventType.FullName}'.",
+                nameof(eventInstance));
+        }
+
+        var contract = _contractRegistry.GetContract(ResolveContractType(eventType, eventInstance));
+        var storedAt = _clock.GetUtcNow();
+        var id = DurableEnvelopeMetadataMapper.ResolveMessageId(metadata.Identity);
+        var payload = await _messageSerializer.SerializeAsync(eventInstance, cancellationToken).ConfigureAwait(false);
+        payload = await PayloadProtection.ProtectAsync(payload, _payloadProtector, cancellationToken).ConfigureAwait(false);
+        var (correlationId, causationId, traceContext) = DurableEnvelopeMetadataMapper.ResolveTraceColumns(metadata.Trace);
+
+        return new OutboxEnvelope
+        {
+            Id = id,
+            ContractName = contract.Name,
+            ContractVersion = contract.Version,
+            Payload = payload,
+            Topic = ResolveTopic(metadata.Target),
+            CreatedAt = storedAt,
+            VisibleAfter = DurableEnvelopeMetadataMapper.ResolveVisibleAfter(metadata.Visibility, _clock),
+            Status = OutboxStatus.Pending,
+            AttemptCount = 0,
+            CorrelationId = correlationId,
+            CausationId = causationId,
+            TenantId = DurableEnvelopeMetadataMapper.ResolveTenantId(metadata.Tenant),
+            IdempotencyKey = DurableEnvelopeMetadataMapper.ResolveIdempotencyKey(metadata.Idempotency),
+            TraceContext = traceContext
+        };
+    }
+
+    /// <summary>
+    ///     Resolves the publication topic column value from publication target metadata.
+    /// </summary>
+    /// <param name="target">The publication target metadata supplied by the caller.</param>
+    /// <returns>The topic to persist, or <see langword="null" /> when dispatchers should use contract defaults.</returns>
+    private static string? ResolveTopic(PublicationTarget target)
+    {
+        return target switch
+        {
+            PublicationTarget.Topic topic when !string.IsNullOrWhiteSpace(topic.Name) => topic.Name,
+            _                                                                         => null
+        };
     }
 
     /// <summary>
@@ -206,6 +212,8 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     /// <param name="declaredType">The declared event type supplied by the caller.</param>
     /// <param name="eventInstance">The event instance being enqueued.</param>
     /// <returns>The CLR type used for contract lookup.</returns>
-    private Type ResolveContractType(Type declaredType, object eventInstance) =>
-        _contractTypeResolver?.ResolveContractType(declaredType, eventInstance) ?? eventInstance.GetType();
+    private Type ResolveContractType(Type declaredType, object eventInstance)
+    {
+        return _contractTypeResolver?.ResolveContractType(declaredType, eventInstance) ?? eventInstance.GetType();
+    }
 }

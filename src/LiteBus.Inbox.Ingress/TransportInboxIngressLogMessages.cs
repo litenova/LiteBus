@@ -40,22 +40,28 @@ internal static class TransportInboxIngressLogMessages
     /// </summary>
     /// <param name="logger">The logger receiving the event.</param>
     /// <param name="exception">The exception that stopped the ingress loop.</param>
-    public static void IngressRestarting(ILogger logger, Exception exception) =>
+    public static void IngressRestarting(ILogger logger, Exception exception)
+    {
         IngressRestartingMessage(logger, exception);
+    }
 
     /// <summary>
     ///     Logs that a timed batch flush failed after <see cref="TransportInboxIngressOptions.BatchMaxWait" /> elapsed.
     /// </summary>
     /// <param name="logger">The logger receiving the event.</param>
     /// <param name="exception">The exception thrown while flushing the partial batch.</param>
-    public static void BatchFlushFailed(ILogger logger, Exception exception) =>
+    public static void BatchFlushFailed(ILogger logger, Exception exception)
+    {
         BatchFlushFailedMessage(logger, exception);
+    }
 
     /// <summary>
     ///     Logs that broker acknowledgement failed after the inbox store accepted the delivery.
     /// </summary>
     /// <param name="logger">The logger receiving the event.</param>
     /// <param name="exception">The exception thrown while acknowledging the broker delivery.</param>
-    public static void AckFailedAfterAccept(ILogger logger, Exception exception) =>
+    public static void AckFailedAfterAccept(ILogger logger, Exception exception)
+    {
         AckFailedAfterAcceptMessage(logger, exception);
+    }
 }

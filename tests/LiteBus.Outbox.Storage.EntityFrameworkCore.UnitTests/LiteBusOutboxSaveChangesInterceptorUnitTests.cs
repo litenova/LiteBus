@@ -1,5 +1,5 @@
+using System.Collections.Concurrent;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests;
@@ -58,6 +58,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptorUnitTests
     {
         const int contextCount = 8;
         var interceptor = new LiteBusOutboxSaveChangesInterceptor();
+
         var envelopes = Enumerable.Range(0, contextCount)
             .Select(index => CreateFullEnvelope() with
             {
@@ -67,7 +68,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptorUnitTests
             })
             .ToArray();
 
-        var storedIds = new System.Collections.Concurrent.ConcurrentBag<Guid>();
+        var storedIds = new ConcurrentBag<Guid>();
 
         await Task.WhenAll(Enumerable.Range(0, contextCount).Select(async index =>
         {
@@ -94,6 +95,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptorUnitTests
     {
         const int envelopeCount = 8;
         var interceptor = new LiteBusOutboxSaveChangesInterceptor();
+
         var envelopes = Enumerable.Range(0, envelopeCount)
             .Select(index => CreateFullEnvelope() with
             {
@@ -112,6 +114,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptorUnitTests
         await context.Database.EnsureCreatedAsync();
 
         var enqueueLock = new object();
+
         await Task.WhenAll(envelopes.Select(envelope => Task.Run(() =>
         {
             lock (enqueueLock)

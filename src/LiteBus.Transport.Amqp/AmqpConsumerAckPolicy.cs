@@ -17,6 +17,8 @@ internal static class AmqpConsumerAckPolicy
     ///     <see langword="true" /> when the delivery should be nacked; <see langword="false" /> during graceful
     ///     shutdown so the channel close can requeue unacknowledged deliveries.
     /// </returns>
-    public static bool ShouldNack(Exception exception, CancellationToken cancellationToken) =>
-        exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested;
+    public static bool ShouldNack(Exception exception, CancellationToken cancellationToken)
+    {
+        return exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested;
+    }
 }

@@ -16,7 +16,7 @@ namespace LiteBus.Storage.PostgreSql;
 /// {
 ///     Logger = new ConsolePostgreSqlSchemaLogger()
 /// };
-///
+/// 
 /// await PostgreSqlInboxSchema.EnsureAsync(dataSource, options, cancellationToken);
 ///     </code>
 /// </example>

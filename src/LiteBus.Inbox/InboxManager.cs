@@ -19,14 +19,14 @@ internal sealed class InboxManager : IInboxManager
     private const int DeadLetterRequeuePageSize = 200;
 
     /// <summary>
+    ///     Gets the loop timing and retention options for cleanup.
+    /// </summary>
+    private readonly InboxCleanupHostOptions _cleanupHostOptions;
+
+    /// <summary>
     ///     The operations store used for browse, replay, purge, and diagnostics.
     /// </summary>
     private readonly IInboxOperationsStore _operationsStore;
-
-    /// <summary>
-    ///     The retention store used to delete completed rows.
-    /// </summary>
-    private readonly IInboxRetentionStore _retentionStore;
 
     /// <summary>
     ///     The coordinator that tracks retention cleanup outcomes.
@@ -34,9 +34,9 @@ internal sealed class InboxManager : IInboxManager
     private readonly InboxRetentionCoordinator _retentionCoordinator;
 
     /// <summary>
-    ///     Gets the loop timing and retention options for cleanup.
+    ///     The retention store used to delete completed rows.
     /// </summary>
-    private readonly InboxCleanupHostOptions _cleanupHostOptions;
+    private readonly IInboxRetentionStore _retentionStore;
 
     /// <summary>
     ///     Gets the clock used to calculate retention cutoffs.
@@ -158,12 +158,16 @@ internal sealed class InboxManager : IInboxManager
 
     /// <inheritdoc />
     public Task<IReadOnlyDictionary<InboxStatus, int>> GetStatusCountsAsync(
-        CancellationToken cancellationToken = default) =>
-        _operationsStore.GetStatusCountsAsync(cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        return _operationsStore.GetStatusCountsAsync(cancellationToken);
+    }
 
     /// <inheritdoc />
-    public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default) =>
-        _operationsStore.GetSchemaInfoAsync(cancellationToken);
+    public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
+    {
+        return _operationsStore.GetSchemaInfoAsync(cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task<RetentionRunStatus> GetRetentionStatusAsync(CancellationToken cancellationToken = default)
@@ -185,8 +189,10 @@ internal sealed class InboxManager : IInboxManager
         try
         {
             var cutoff = runAt - _cleanupHostOptions.Retention.Value;
+
             var deleted = await _retentionStore.DeleteCompletedOlderThanAsync(cutoff, cancellationToken)
                 .ConfigureAwait(false);
+
             _retentionCoordinator.RecordSuccess(deleted, runAt);
             return deleted;
         }

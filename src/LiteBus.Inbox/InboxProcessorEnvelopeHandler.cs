@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
@@ -80,8 +81,10 @@ internal static class InboxProcessorEnvelopeHandler
         TimeProvider clock,
         ILogger logger,
         IReadOnlyList<IProcessorEnvelopeHook> hooks,
-        CancellationToken cancellationToken) =>
-        DispatchAsync(envelope, dispatcher, options, clock, logger, hooks, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        return DispatchAsync(envelope, dispatcher, options, clock, logger, hooks, cancellationToken);
+    }
 
     /// <summary>
     ///     Executes dispatch and maps failures to terminal retry or dead-letter transitions.
@@ -107,16 +110,18 @@ internal static class InboxProcessorEnvelopeHandler
         CancellationToken cancellationToken)
     {
         MessageProcessorDiagnostics.TryGetParentActivityContext(envelope.TraceContext, out var parentContext);
+
         using var messageActivity = InboxProcessorTelemetry.ActivitySource.StartActivity(
             "inbox.processor.message",
-            System.Diagnostics.ActivityKind.Internal,
+            ActivityKind.Internal,
             parentContext);
+
         messageActivity?.SetTag("litebus.message_id", envelope.Id);
 
         try
         {
             await InboxProcessorHookRunner.RunBeforeDispatchAsync(hooks, envelope, cancellationToken).ConfigureAwait(false);
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var stopwatch = Stopwatch.StartNew();
             await dispatcher.DispatchAsync(envelope, cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
             InboxProcessorTelemetry.RecordDispatchDuration(stopwatch.Elapsed);

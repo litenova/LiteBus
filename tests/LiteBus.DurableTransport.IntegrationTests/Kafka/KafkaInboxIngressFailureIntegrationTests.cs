@@ -1,6 +1,6 @@
+using System.Text;
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Kafka;
@@ -44,7 +44,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
     [Fact]
     public async Task UnknownContract_ShouldNotWriteToStore()
     {
-        await RunFailureScenarioAsync("{}", "unknown.contract", 1, expectedPendingCount: 0);
+        await RunFailureScenarioAsync("{}", "unknown.contract", 1, 0);
     }
 
     /// <summary>
@@ -57,7 +57,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
         var ingressTopic = KafkaTransportTestInfrastructure.CreateTopic("ingress-store-full");
         await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, ingressTopic);
 
-        await using var provider = BuildProvider(ingressTopic, capacity: 1);
+        await using var provider = BuildProvider(ingressTopic, 1);
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
         await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
@@ -65,10 +65,15 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
         try
         {
             var inbox = provider.GetRequiredService<IInbox>();
-            await inbox.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() });
+
+            await inbox.AcceptAsync(new InboxAcceptItem<ShipOrderCommand>
+            {
+                Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
+            });
 
             var publisher = provider.GetRequiredService<IMessageTransport>();
             var messageId = Guid.NewGuid();
+
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressTopic,
@@ -83,9 +88,9 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
 
             await KafkaTransportTestInfrastructure.WaitForStableStoreCountAsync(
                 () => GetInboxStoreCount(provider),
-                expectedCount: 1,
-                stableDuration: TimeSpan.FromSeconds(2),
-                timeout: TimeSpan.FromSeconds(10));
+                1,
+                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(10));
         }
         finally
         {
@@ -100,7 +105,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
     [Fact]
     public async Task InvalidJson_ShouldNotWriteToStore()
     {
-        await RunFailureScenarioAsync("{not-json", ContractName, 1, expectedPendingCount: 0);
+        await RunFailureScenarioAsync("{not-json", ContractName, 1, 0);
     }
 
     /// <summary>
@@ -111,6 +116,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
     public async Task TransientAcceptFailure_ShouldRedeliverSameOffsetWithoutRestart()
     {
         var ingressTopic = KafkaTransportTestInfrastructure.CreateTopic("ingress-transient");
+
         await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(
             _fixture.TransportOptions.BootstrapServers,
             ingressTopic);
@@ -132,6 +138,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
         });
 
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
         var consumerOptions = new TransportConsumerOptions
         {
             Destination = ingressTopic,
@@ -148,12 +155,12 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
 
                 if (currentAttempt == 1)
                 {
-                    await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
+                    await message.ReturnToQueueAsync(cancellationToken);
                     return;
                 }
 
-                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
-                await runCts.CancelAsync().ConfigureAwait(false);
+                await message.AcceptAsync(cancellationToken);
+                await runCts.CancelAsync();
             },
             runCts.Token);
 
@@ -201,7 +208,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressTopic,
-                Body = System.Text.Encoding.UTF8.GetBytes(body),
+                Body = Encoding.UTF8.GetBytes(body),
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, contractName, contractVersion)
             });
@@ -212,9 +219,9 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
 
             await KafkaTransportTestInfrastructure.WaitForStableStoreCountAsync(
                 () => GetInboxStoreCount(provider),
-                expectedCount: expectedPendingCount,
-                stableDuration: TimeSpan.FromSeconds(2),
-                timeout: TimeSpan.FromSeconds(10));
+                expectedPendingCount,
+                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(10));
         }
         finally
         {
@@ -244,15 +251,23 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                    inbox.Contracts.Register<ShipOrderCommand>(ContractName);
+
                     inbox.UseInMemoryStorage(builder => builder.UseOptions(new InMemoryInboxStoreOptions
                     {
                         Capacity = capacity
                     }));
-                    inbox.UseKafkaDispatch(_ => { }, _fixture.TransportOptions);
+
+                    inbox.UseKafkaDispatch(_ =>
+                    {
+                    }, _fixture.TransportOptions);
+
                     inbox.UseKafkaIngress(ingress =>
                     {
                         ingress.UseOptions(new KafkaInboxIngressOptions

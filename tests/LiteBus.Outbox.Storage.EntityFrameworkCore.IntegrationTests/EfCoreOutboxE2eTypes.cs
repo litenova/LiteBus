@@ -30,7 +30,10 @@ internal sealed class EventRecorder
 
     public IReadOnlyList<OrderSubmittedIntegrationEvent> Events => _events;
 
-    public void Record(OrderSubmittedIntegrationEvent @event) => _events.Add(@event);
+    public void Record(OrderSubmittedIntegrationEvent @event)
+    {
+        _events.Add(@event);
+    }
 }
 
 internal sealed class AlwaysFailingOutboxDispatcher : IOutboxDispatcher

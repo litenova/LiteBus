@@ -24,7 +24,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.Register<OverrideResultCommandHandler>();
@@ -50,7 +53,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.Register<NoOverrideCommandHandler>();
@@ -76,7 +82,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.Register<MultiOverrideCommandHandler>();
@@ -103,7 +112,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddQueryModule(builder =>
                 {
                     builder.Register<OverrideResultQueryHandler>();
@@ -129,7 +141,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.Register<ImmutableResultCommandHandler>();
@@ -156,7 +171,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.Register<VoidCommandHandler>();
@@ -182,7 +200,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.Register<FirstSequentialCommandHandler>();
@@ -212,7 +233,9 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     private sealed class OverrideResultCommandHandler : ICommandHandler<OverrideResultCommand, string>
     {
         public Task<string> HandleAsync(OverrideResultCommand message, CancellationToken cancellationToken = default)
-            => Task.FromResult("original");
+        {
+            return Task.FromResult("original");
+        }
     }
 
     private sealed class OverrideResultCommandPostHandler : ICommandPostHandler<OverrideResultCommand, string>
@@ -233,13 +256,17 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     private sealed class NoOverrideCommandHandler : ICommandHandler<NoOverrideCommand, string>
     {
         public Task<string> HandleAsync(NoOverrideCommand message, CancellationToken cancellationToken = default)
-            => Task.FromResult("original");
+        {
+            return Task.FromResult("original");
+        }
     }
 
     private sealed class NoOverrideCommandPostHandler : ICommandPostHandler<NoOverrideCommand, string>
     {
         public Task PostHandleAsync(NoOverrideCommand message, string? messageResult, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        {
+            return Task.CompletedTask;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -251,7 +278,9 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     private sealed class MultiOverrideCommandHandler : ICommandHandler<MultiOverrideCommand, string>
     {
         public Task<string> HandleAsync(MultiOverrideCommand message, CancellationToken cancellationToken = default)
-            => Task.FromResult("original");
+        {
+            return Task.FromResult("original");
+        }
     }
 
     [HandlerPriority(1)]
@@ -283,7 +312,9 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     private sealed class OverrideResultQueryHandler : IQueryHandler<OverrideResultQuery, int>
     {
         public Task<int> HandleAsync(OverrideResultQuery message, CancellationToken cancellationToken = default)
-            => Task.FromResult(42);
+        {
+            return Task.FromResult(42);
+        }
     }
 
     private sealed class OverrideResultQueryPostHandler : IQueryPostHandler<OverrideResultQuery, int>
@@ -301,7 +332,10 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
 
     public sealed record ImmutableResult(bool IsSuccess, string? Error = null)
     {
-        public ImmutableResult WithError(string error) => new(false, error);
+        public ImmutableResult WithError(string error)
+        {
+            return new ImmutableResult(false, error);
+        }
     }
 
     private sealed record ImmutableResultCommand : ICommand<ImmutableResult>;
@@ -309,7 +343,9 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     private sealed class ImmutableResultCommandHandler : ICommandHandler<ImmutableResultCommand, ImmutableResult>
     {
         public Task<ImmutableResult> HandleAsync(ImmutableResultCommand message, CancellationToken cancellationToken = default)
-            => Task.FromResult(new ImmutableResult(true));
+        {
+            return Task.FromResult(new ImmutableResult(true));
+        }
     }
 
     private sealed class ImmutableResultCommandPostHandler : ICommandPostHandler<ImmutableResultCommand, ImmutableResult>
@@ -334,7 +370,9 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     private sealed class VoidCommandHandler : ICommandHandler<VoidCommand>
     {
         public Task HandleAsync(VoidCommand message, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class VoidCommandPostHandler : ICommandPostHandler<VoidCommand>
@@ -357,7 +395,9 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     private sealed class FirstSequentialCommandHandler : ICommandHandler<FirstSequentialCommand, string>
     {
         public Task<string> HandleAsync(FirstSequentialCommand message, CancellationToken cancellationToken = default)
-            => Task.FromResult("first-original");
+        {
+            return Task.FromResult("first-original");
+        }
     }
 
     private sealed class FirstSequentialCommandPostHandler : ICommandPostHandler<FirstSequentialCommand, string>
@@ -374,6 +414,8 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
     private sealed class SecondSequentialCommandHandler : ICommandHandler<SecondSequentialCommand, string>
     {
         public Task<string> HandleAsync(SecondSequentialCommand message, CancellationToken cancellationToken = default)
-            => Task.FromResult("second-original");
+        {
+            return Task.FromResult("second-original");
+        }
     }
 }

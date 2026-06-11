@@ -2,7 +2,6 @@ using System.Text;
 using Amazon.SQS.Model;
 using AwesomeAssertions;
 using LiteBus.Transport.Abstractions;
-using LiteBus.Transport.Aws;
 
 namespace LiteBus.Transport.Aws.UnitTests;
 
@@ -35,8 +34,10 @@ public sealed class SqsMessageMapperTests
 
         sendRequest.QueueUrl.Should().Be(request.Destination);
         sendRequest.MessageBody.Should().Contain("orderId");
+
         sendRequest.MessageAttributes[TransportHeaders.ContractName].StringValue
             .Should().Be("orders.commands.ship");
+
         sendRequest.MessageAttributes[TransportHeaders.ContractVersion].StringValue.Should().Be("2");
         sendRequest.MessageAttributes["Route"].StringValue.Should().Be("ship");
     }
@@ -48,6 +49,7 @@ public sealed class SqsMessageMapperTests
     public async Task ToTransportMessage_ShouldExposeAckDelegates()
     {
         var deleted = false;
+
         var message = new Message
         {
             MessageId = "msg-1",
@@ -55,7 +57,7 @@ public sealed class SqsMessageMapperTests
             ReceiptHandle = "receipt-1",
             MessageAttributes = new Dictionary<string, MessageAttributeValue>(StringComparer.Ordinal)
             {
-                [TransportHeaders.ContractName] = new MessageAttributeValue
+                [TransportHeaders.ContractName] = new()
                 {
                     DataType = "String",
                     StringValue = "orders.commands.ship"
@@ -70,13 +72,15 @@ public sealed class SqsMessageMapperTests
         var transportMessage = SqsMessageMapper.ToTransportMessage(
             message,
             "https://sqs.us-east-1.amazonaws.com/123/orders",
-            new AwsSqsTransportOptions(),
-            _ =>
+            new TransportConsumerAckHandlers
             {
-                deleted = true;
-                return Task.CompletedTask;
-            },
-            (_, _) => Task.CompletedTask);
+                AckAsync = _ =>
+                {
+                    deleted = true;
+                    return Task.CompletedTask;
+                },
+                NackAsync = (_, _) => Task.CompletedTask
+            });
 
         transportMessage.Redelivered.Should().BeTrue();
         transportMessage.Headers[TransportHeaders.ContractName].Should().Be("orders.commands.ship");
@@ -85,4 +89,3 @@ public sealed class SqsMessageMapperTests
         deleted.Should().BeTrue();
     }
 }
-

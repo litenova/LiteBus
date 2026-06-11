@@ -19,7 +19,8 @@ public sealed class MessageDescriptorNotFoundException : Exception
                                               Type resolveStrategyType,
                                               bool registerPlainMessagesOnSpot,
                                               int registeredMessageCount)
-        : base($"No descriptor found for message type '{messageType.FullName ?? messageType.Name}' using resolve strategy '{resolveStrategyType.FullName ?? resolveStrategyType.Name}'. RegisterPlainMessagesOnSpot: {registerPlainMessagesOnSpot}. Registered message count: {registeredMessageCount}.")
+        : base(
+            $"No descriptor found for message type '{messageType.FullName ?? messageType.Name}' using resolve strategy '{resolveStrategyType.FullName ?? resolveStrategyType.Name}'. RegisterPlainMessagesOnSpot: {registerPlainMessagesOnSpot}. Registered message count: {registeredMessageCount}.")
     {
         MessageType = messageType;
         ResolveStrategyType = resolveStrategyType;

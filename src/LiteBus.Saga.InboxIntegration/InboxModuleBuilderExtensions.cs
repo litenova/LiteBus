@@ -18,6 +18,10 @@ public static class InboxModuleBuilderExtensions
         Action<SagaModuleBuilder>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        return builder.RegisterSaga(new SagaModule(configure ?? (_ => { })));
+
+        return builder.RegisterSaga(new SagaModule(configure ??
+                                                   (_ =>
+                                                   {
+                                                   })));
     }
 }

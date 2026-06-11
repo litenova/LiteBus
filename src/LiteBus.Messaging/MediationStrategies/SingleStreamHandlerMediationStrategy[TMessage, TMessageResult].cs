@@ -76,7 +76,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                 await messageDependencies.RunAsyncPreHandlers(message);
 
                 var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
-                messageResultAsyncEnumerable = (IAsyncEnumerable<TMessageResult>)handler.Handle(message);
+                messageResultAsyncEnumerable = (IAsyncEnumerable<TMessageResult>) handler.Handle(message);
             }
         }
         catch (LiteBusExecutionAbortedException)

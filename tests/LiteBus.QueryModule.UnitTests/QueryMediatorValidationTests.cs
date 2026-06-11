@@ -16,7 +16,10 @@ public sealed class QueryMediatorValidationTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddQueryModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(GetProductQuery).Assembly);
@@ -37,7 +40,10 @@ public sealed class QueryMediatorValidationTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddQueryModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(GetProductQuery).Assembly);

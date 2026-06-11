@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,6 +16,21 @@ internal static class PostgreSqlSchemaInspector
     ///     The assembly that embeds shared PostgreSQL schema inspection SQL resources.
     /// </summary>
     private static readonly Assembly Assembly = typeof(PostgreSqlSchemaInspector).Assembly;
+
+    /// <summary>
+    ///     Returns <see langword="true" /> when the table exists in the supplied schema.
+    /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="table">The table reference to inspect.</param>
+    /// <param name="cancellationToken">A token used to cancel the lookup.</param>
+    /// <returns><see langword="true" /> when the table exists; otherwise, <see langword="false" />.</returns>
+    public static Task<bool> TableExistsAsync(
+        NpgsqlConnection connection,
+        PostgreSqlTableReference table,
+        CancellationToken cancellationToken)
+    {
+        return TableExistsAsync(connection, table.SchemaName, table.TableName, cancellationToken);
+    }
 
     /// <summary>
     ///     Returns <see langword="true" /> when the table exists in the supplied schema.
@@ -43,7 +57,24 @@ internal static class PostgreSqlSchemaInspector
         command.Parameters.AddWithValue("schemaName", schemaName);
         command.Parameters.AddWithValue("tableName", tableName);
 
-        return (bool)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) ?? false);
+        return (bool) (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) ?? false);
+    }
+
+    /// <summary>
+    ///     Returns <see langword="true" /> when the named index exists on the table in the supplied schema.
+    /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="table">The table reference to inspect.</param>
+    /// <param name="indexName">The unquoted index name.</param>
+    /// <param name="cancellationToken">A token used to cancel the lookup.</param>
+    /// <returns><see langword="true" /> when the index exists; otherwise, <see langword="false" />.</returns>
+    public static Task<bool> IndexExistsAsync(
+        NpgsqlConnection connection,
+        PostgreSqlTableReference table,
+        string indexName,
+        CancellationToken cancellationToken)
+    {
+        return IndexExistsAsync(connection, table.SchemaName, table.TableName, indexName, cancellationToken);
     }
 
     /// <summary>
@@ -75,7 +106,22 @@ internal static class PostgreSqlSchemaInspector
         command.Parameters.AddWithValue("tableName", tableName);
         command.Parameters.AddWithValue("indexName", indexName);
 
-        return (bool)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) ?? false);
+        return (bool) (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) ?? false);
+    }
+
+    /// <summary>
+    ///     Returns the set of column names defined on the table.
+    /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="table">The table reference to inspect.</param>
+    /// <param name="cancellationToken">A token used to cancel the lookup.</param>
+    /// <returns>The column names present on the table.</returns>
+    public static Task<HashSet<string>> GetColumnNamesAsync(
+        NpgsqlConnection connection,
+        PostgreSqlTableReference table,
+        CancellationToken cancellationToken)
+    {
+        return GetColumnNamesAsync(connection, table.SchemaName, table.TableName, cancellationToken);
     }
 
     /// <summary>
@@ -106,6 +152,7 @@ internal static class PostgreSqlSchemaInspector
         var columns = new HashSet<string>(StringComparer.Ordinal);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             columns.Add(reader.GetString(0));
@@ -133,7 +180,7 @@ internal static class PostgreSqlSchemaInspector
 
             foreach (var requiredColumn in requiredColumns)
             {
-                if (!columns.Contains(requiredColumn))
+                if (!ContainsColumn(columns, requiredColumn))
                 {
                     return inferredVersion;
                 }
@@ -163,7 +210,7 @@ internal static class PostgreSqlSchemaInspector
 
         foreach (var requiredColumn in requiredColumns)
         {
-            if (!columns.Contains(requiredColumn))
+            if (!ContainsColumn(columns, requiredColumn))
             {
                 missing.Add(requiredColumn);
             }
@@ -197,5 +244,24 @@ internal static class PostgreSqlSchemaInspector
         }
 
         return columns;
+    }
+
+    /// <summary>
+    ///     Returns <see langword="true" /> when the column name exists in the supplied collection.
+    /// </summary>
+    /// <param name="columns">The column names present on the table.</param>
+    /// <param name="requiredColumn">The column name to locate.</param>
+    /// <returns><see langword="true" /> when the column is present; otherwise, <see langword="false" />.</returns>
+    private static bool ContainsColumn(IReadOnlyCollection<string> columns, string requiredColumn)
+    {
+        foreach (var column in columns)
+        {
+            if (string.Equals(column, requiredColumn, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

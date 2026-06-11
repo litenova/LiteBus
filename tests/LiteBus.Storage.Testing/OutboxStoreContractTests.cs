@@ -328,7 +328,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that concurrent lease attempts claim disjoint message sets.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    protected virtual async Task AssertConcurrentLeasesAreDisjointAsync()
+    protected async virtual Task AssertConcurrentLeasesAreDisjointAsync()
     {
         var store = CreateStore();
         var now = BaseTime;
@@ -488,27 +488,6 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
-    ///     Holds the outbox store roles exercised by contract tests.
-    /// </summary>
-    /// <param name="Writer">The writer role.</param>
-    /// <param name="Lease">The lease role.</param>
-    /// <param name="StateWriter">The state writer role.</param>
-    /// <param name="DeadLetterStore">The dead-letter replay role.</param>
-    /// <param name="Retention">The retention role.</param>
-    /// <param name="Diagnostics">The diagnostics role.</param>
-    /// <param name="MessageQuery">The message query role used by browse APIs.</param>
-    /// <param name="PurgeStore">The purge role used by operator cleanup.</param>
-    public sealed record OutboxStoreContracts(
-        IOutboxStore Writer,
-        IOutboxLeaseStore Lease,
-        IOutboxStateWriter StateWriter,
-        IOutboxDeadLetterStore DeadLetterStore,
-        IOutboxRetentionStore Retention,
-        IOutboxDiagnosticsStore Diagnostics,
-        IOutboxMessageQuery MessageQuery,
-        IOutboxPurgeStore PurgeStore);
-
-    /// <summary>
     ///     Verifies that message queries filter by status and support keyset pagination.
     /// </summary>
     [Fact]
@@ -588,4 +567,25 @@ public abstract class OutboxStoreContractTests
         remaining.Items.Should().ContainSingle();
         remaining.Items[0].Id.Should().Be(publishedId);
     }
+
+    /// <summary>
+    ///     Holds the outbox store roles exercised by contract tests.
+    /// </summary>
+    /// <param name="Writer">The writer role.</param>
+    /// <param name="Lease">The lease role.</param>
+    /// <param name="StateWriter">The state writer role.</param>
+    /// <param name="DeadLetterStore">The dead-letter replay role.</param>
+    /// <param name="Retention">The retention role.</param>
+    /// <param name="Diagnostics">The diagnostics role.</param>
+    /// <param name="MessageQuery">The message query role used by browse APIs.</param>
+    /// <param name="PurgeStore">The purge role used by operator cleanup.</param>
+    public sealed record OutboxStoreContracts(
+        IOutboxStore Writer,
+        IOutboxLeaseStore Lease,
+        IOutboxStateWriter StateWriter,
+        IOutboxDeadLetterStore DeadLetterStore,
+        IOutboxRetentionStore Retention,
+        IOutboxDiagnosticsStore Diagnostics,
+        IOutboxMessageQuery MessageQuery,
+        IOutboxPurgeStore PurgeStore);
 }

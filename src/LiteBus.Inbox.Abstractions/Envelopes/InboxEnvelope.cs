@@ -88,7 +88,8 @@ public sealed record InboxEnvelope
     public string? TenantId { get; init; }
 
     /// <summary>
-    ///     Gets the optional distributed trace context stored as JSON text (for example W3C trace context or OpenTelemetry baggage).
+    ///     Gets the optional distributed trace context stored as JSON text (for example W3C trace context or OpenTelemetry
+    ///     baggage).
     /// </summary>
     public string? TraceContext { get; init; }
 
@@ -103,14 +104,16 @@ public sealed record InboxEnvelope
     /// <param name="leaseOwner">The processor instance that claimed the envelope.</param>
     /// <param name="leaseExpiresAt">The UTC timestamp when the lease expires.</param>
     /// <returns>The leased envelope returned to the processor.</returns>
-    public InboxEnvelope AsLeased(string leaseOwner, DateTimeOffset leaseExpiresAt) =>
-        this with
+    public InboxEnvelope AsLeased(string leaseOwner, DateTimeOffset leaseExpiresAt)
+    {
+        return this with
         {
             Status = InboxStatus.Processing,
             LeaseOwner = leaseOwner,
             LeaseExpiresAt = leaseExpiresAt,
             AttemptCount = AttemptCount + 1
         };
+    }
 
     /// <summary>
     ///     Returns a new envelope representing successful dispatch completion.

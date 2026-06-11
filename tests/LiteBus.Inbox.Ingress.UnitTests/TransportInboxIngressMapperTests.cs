@@ -1,6 +1,4 @@
-using System.Text;
-using AwesomeAssertions;
-using LiteBus.Inbox.Ingress;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Inbox.Ingress.UnitTests;
@@ -11,12 +9,13 @@ namespace LiteBus.Inbox.Ingress.UnitTests;
 public sealed class TransportInboxIngressMapperTests
 {
     /// <summary>
-    ///     Verifies inbox envelope headers round-trip through <see cref="TransportMessage" /> to inbox options.
+    ///     Verifies inbox envelope headers round-trip through <see cref="TransportMessage" /> to acceptance metadata.
     /// </summary>
     [Fact]
-    public void ToInboxOptions_ShouldRoundTripDispatchHeaders()
+    public void ToInboxAcceptMetadata_ShouldRoundTripDispatchHeaders()
     {
         var messageId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+
         var headers = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             [TransportHeaders.MessageId] = messageId.ToString("D"),
@@ -29,28 +28,35 @@ public sealed class TransportInboxIngressMapperTests
         };
 
         var transportMessage = CreateTransportMessage(headers, messageId.ToString("D"), "corr-1");
-        var options = TransportInboxIngressMapper.ToInboxOptions(transportMessage);
+        var metadata = TransportInboxIngressMapper.ToInboxAcceptMetadata(transportMessage);
 
-        options.Id.Should().Be(messageId);
-        options.CorrelationId.Should().Be("corr-1");
-        options.CausationId.Should().Be("cause-1");
-        options.TenantId.Should().Be("tenant-west");
-        options.TraceContext.Should().Be("""{"traceparent":"00-abc-def-01"}""");
+        metadata.Identity.Should().Be(new MessageIdentity.Supplied(messageId));
+
+        metadata.Trace.Should().Be(new MessageTrace.Distributed(
+            "corr-1",
+            "cause-1",
+            """{"traceparent":"00-abc-def-01"}"""));
+
+        metadata.Tenant.Should().Be(new TenantScope.Isolated("tenant-west"));
+
         TransportInboxIngressMapper.GetRequiredHeader(transportMessage, TransportHeaders.ContractName)
             .Should().Be("orders.commands.ship");
+
         TransportInboxIngressMapper.GetRequiredContractVersion(transportMessage).Should().Be(2);
     }
 
     /// <summary>
-    ///     Verifies optional ingress headers map to inbox options.
+    ///     Verifies optional ingress headers map to inbox acceptance metadata.
     /// </summary>
     [Fact]
-    public void ToInboxOptions_ShouldMapOptionalHeaders()
+    public void ToInboxAcceptMetadata_ShouldMapOptionalHeaders()
     {
+        var messageId = Guid.NewGuid();
         var visibleAfter = new DateTimeOffset(2026, 6, 5, 12, 0, 0, TimeSpan.Zero);
+
         var headers = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            [TransportHeaders.MessageId] = Guid.NewGuid().ToString("D"),
+            [TransportHeaders.MessageId] = messageId.ToString("D"),
             [TransportHeaders.ContractName] = "orders.commands.ship",
             [TransportHeaders.ContractVersion] = "1",
             [TransportHeaders.IdempotencyKey] = "idem-key-1",
@@ -58,10 +64,11 @@ public sealed class TransportInboxIngressMapperTests
         };
 
         var transportMessage = CreateTransportMessage(headers);
-        var options = TransportInboxIngressMapper.ToInboxOptions(transportMessage);
+        var metadata = TransportInboxIngressMapper.ToInboxAcceptMetadata(transportMessage);
 
-        options.IdempotencyKey.Should().Be("idem-key-1");
-        options.VisibleAfter.Should().Be(visibleAfter);
+        metadata.Identity.Should().Be(new MessageIdentity.Supplied(messageId));
+        metadata.Idempotency.Should().Be(new Idempotency.Keyed("idem-key-1"));
+        metadata.Visibility.Should().Be(new MessageVisibility.At(visibleAfter));
     }
 
     /// <summary>
@@ -74,8 +81,9 @@ public sealed class TransportInboxIngressMapperTests
     private static TransportMessage CreateTransportMessage(
         IReadOnlyDictionary<string, object?> headers,
         string? messageId = null,
-        string? correlationId = null) =>
-        new()
+        string? correlationId = null)
+    {
+        return new TransportMessage
         {
             Body = ReadOnlyMemory<byte>.Empty,
             Headers = headers,
@@ -84,4 +92,5 @@ public sealed class TransportInboxIngressMapperTests
             AckAsync = _ => Task.CompletedTask,
             NackAsync = (_, _) => Task.CompletedTask
         };
+    }
 }

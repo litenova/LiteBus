@@ -1,8 +1,7 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Inbox.Storage.InMemory.UnitTests;
@@ -15,7 +14,10 @@ public sealed class InMemoryInboxStorageModuleTests
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox => inbox.UseInMemoryStorage());
             })
             .BuildServiceProvider();
@@ -37,7 +39,10 @@ public sealed class InMemoryInboxStorageModuleTests
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                     inbox.UseInMemoryStorage(builder => builder.UseTimeProvider(timeProvider)));
             })
@@ -52,7 +57,10 @@ public sealed class InMemoryInboxStorageModuleTests
         var act = () => new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
                     inbox.UseInMemoryStorage();
@@ -61,7 +69,7 @@ public sealed class InMemoryInboxStorageModuleTests
             })
             .BuildServiceProvider();
 
-        act.Should().Throw<LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException>()
+        act.Should().Throw<LiteBusConfigurationException>()
             .WithMessage("*Inbox storage is already configured*");
     }
 }

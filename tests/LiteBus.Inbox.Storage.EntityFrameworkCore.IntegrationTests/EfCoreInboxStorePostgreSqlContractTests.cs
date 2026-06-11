@@ -1,4 +1,3 @@
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using LiteBus.Storage.Testing;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests;
@@ -29,11 +28,13 @@ public sealed class EfCoreInboxStorePostgreSqlContractTests : InboxStoreContract
             .GetAwaiter()
             .GetResult();
 
-        var options = EfCorePostgreSqlTestInfrastructure.InboxOptions;
+        var options = EfCorePostgreSqlTestInfrastructure.InboxStoreOptions;
+
         var store = new EfCoreInboxStore(
             _ => Task.FromResult<IInboxDbContext>(
                 EfCorePostgreSqlTestInfrastructure.CreateInboxContext(_fixture.ConnectionString)),
             options);
+
         return new InboxStoreRoles(store, store, store, store, store, store, store, store);
     }
 }

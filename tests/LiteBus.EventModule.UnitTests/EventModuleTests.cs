@@ -24,8 +24,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductUpdatedEvent).Assembly);
             });
@@ -54,8 +57,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
             });
@@ -82,8 +88,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductViewedEvent<>).Assembly);
             });
@@ -118,8 +127,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
             });
@@ -156,8 +168,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
             });
@@ -194,8 +209,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
             });
@@ -232,8 +250,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
             });
@@ -274,8 +295,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(EventWithTag).Assembly);
             });
@@ -309,8 +333,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(EventWithTag).Assembly);
             });
@@ -347,8 +374,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
             });
@@ -386,8 +416,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(EventWithNoHandlers).Assembly);
             });
@@ -407,8 +440,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(EventWithNoHandlers).Assembly);
             });
@@ -428,8 +464,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProductCreatedEvent).Assembly);
             });
@@ -461,8 +500,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProblematicEventPreHandler).Assembly);
             });
@@ -486,8 +528,11 @@ public sealed class EventModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.RegisterFromAssembly(typeof(ProblematicEventPreHandler).Assembly);
             });
@@ -573,8 +618,11 @@ public sealed class EventModuleTests : LiteBusTestBase
         // ARRANGE
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddEventModule(builder =>
             {
                 builder.Register<ContextPropagationEventPreHandler>();
                 builder.Register<ContextPropagationEventHandler>();

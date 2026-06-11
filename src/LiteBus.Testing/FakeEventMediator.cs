@@ -1,5 +1,4 @@
 using LiteBus.Events.Abstractions;
-using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Testing;
 
@@ -44,5 +43,8 @@ public sealed class FakeEventMediator : IEventMediator
     /// <summary>
     ///     Clears recorded events.
     /// </summary>
-    public void Clear() => _events.Clear();
+    public void Clear()
+    {
+        _events.Clear();
+    }
 }

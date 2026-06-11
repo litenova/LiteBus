@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Transport.Abstractions;
 using LiteBus.Transport;
+using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Inbox.Dispatch;
 
@@ -31,11 +31,6 @@ public sealed class TransportInboxDispatcher : IInboxDispatcher
     private readonly TransportInboxDispatcherOptions _options;
 
     /// <summary>
-    ///     Gets the transport used as the dispatch target.
-    /// </summary>
-    private readonly IMessageTransport _transport;
-
-    /// <summary>
     ///     Gets the optional inbox protector used to decrypt stored payloads before deserialization.
     /// </summary>
     private readonly IInboxPayloadProtector? _payloadProtector;
@@ -44,6 +39,11 @@ public sealed class TransportInboxDispatcher : IInboxDispatcher
     ///     Gets the optional tenant routing strategy used to resolve transport routes.
     /// </summary>
     private readonly ITenantRoutingStrategy? _tenantRoutingStrategy;
+
+    /// <summary>
+    ///     Gets the transport used as the dispatch target.
+    /// </summary>
+    private readonly IMessageTransport _transport;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="TransportInboxDispatcher" /> class.
@@ -76,8 +76,10 @@ public sealed class TransportInboxDispatcher : IInboxDispatcher
         ArgumentNullException.ThrowIfNull(envelope);
 
         var messageType = _contractRegistry.GetMessageType(envelope.ContractName, envelope.ContractVersion);
+
         var payload = await PayloadProtection.UnprotectAsync(envelope.Payload, _payloadProtector, cancellationToken)
             .ConfigureAwait(false);
+
         _ = await _messageSerializer.DeserializeAsync(messageType, payload, cancellationToken).ConfigureAwait(false);
 
         var route = ResolveRoute(envelope);

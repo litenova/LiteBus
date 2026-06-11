@@ -1,13 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using LiteBus.Extensions.AspNetCore;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Messaging;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Outbox;
 using LiteBus.Inbox.Storage.InMemory;
+using LiteBus.Messaging;
+using LiteBus.Outbox;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using Microsoft.AspNetCore.Builder;
@@ -28,6 +27,7 @@ public sealed class ManagementEndpointTests
             FailHealthWhenNoProbes = true,
             AllowAnonymousManagement = true
         });
+
         using var client = host.GetTestClient();
 
         var response = await client.GetAsync("/litebus/health");
@@ -43,6 +43,7 @@ public sealed class ManagementEndpointTests
             FailHealthWhenNoProbes = false,
             AllowAnonymousManagement = true
         });
+
         using var client = host.GetTestClient();
 
         var response = await client.GetAsync("/litebus/health");
@@ -59,7 +60,7 @@ public sealed class ManagementEndpointTests
                 FailHealthWhenNoProbes = false,
                 AllowAnonymousManagement = true
             },
-            configureInbox: inbox => inbox.AddDiagnosticCheck<UnhealthyDiagnosticCheck>("test.unhealthy"));
+            inbox => inbox.AddDiagnosticCheck<UnhealthyDiagnosticCheck>("test.unhealthy"));
 
         using var client = host.GetTestClient();
 
@@ -81,6 +82,7 @@ public sealed class ManagementEndpointTests
             FailHealthWhenNoProbes = false,
             AllowAnonymousManagement = true
         });
+
         using var client = host.GetTestClient();
         var messageId = Guid.NewGuid();
 
@@ -99,6 +101,7 @@ public sealed class ManagementEndpointTests
             FailHealthWhenNoProbes = false,
             AllowAnonymousManagement = true
         });
+
         using var client = host.GetTestClient();
 
         var response = await client.DeleteAsync("/litebus/inbox/messages");
@@ -114,6 +117,7 @@ public sealed class ManagementEndpointTests
             FailHealthWhenNoProbes = false,
             AllowAnonymousManagement = true
         });
+
         using var client = host.GetTestClient();
 
         using var request = new HttpRequestMessage(HttpMethod.Delete, "/litebus/inbox/messages")
@@ -134,6 +138,7 @@ public sealed class ManagementEndpointTests
             .ConfigureWebHost(webBuilder =>
             {
                 webBuilder.UseTestServer();
+
                 webBuilder.ConfigureServices(services =>
                 {
                     services.AddRouting();
@@ -141,16 +146,21 @@ public sealed class ManagementEndpointTests
 
                     services.AddLiteBus(registry =>
                     {
-                        registry.AddMessageModule(_ => { });
+                        registry.AddMessageModule(_ =>
+                        {
+                        });
+
                         registry.AddInboxModule(inbox =>
                         {
-                            inbox.Contracts.Register<TestCommand>("tests.command", 1);
+                            inbox.Contracts.Register<TestCommand>("tests.command");
                             inbox.UseInMemoryStorage();
                             configureInbox?.Invoke(inbox);
                         });
+
                         registry.AddOutboxModule(outbox => outbox.UseInMemoryStorage());
                     });
                 });
+
                 webBuilder.Configure(app =>
                 {
                     app.UseRouting();
@@ -167,10 +177,12 @@ public sealed class ManagementEndpointTests
     {
         public string Name => "test.unhealthy";
 
-        public Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new DiagnosticResult(
+        public Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new DiagnosticResult(
                 DiagnosticStatus.Unhealthy,
                 "Probe failed.",
                 new Dictionary<string, object> { ["reason"] = "test" }));
+        }
     }
 }

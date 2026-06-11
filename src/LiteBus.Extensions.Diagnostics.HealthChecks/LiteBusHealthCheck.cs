@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -50,7 +45,7 @@ public sealed class LiteBusHealthCheck : IHealthCheck
 
         foreach (var descriptor in _manifest.DiagnosticChecks)
         {
-            var check = (IDiagnosticCheck)_services.GetRequiredService(descriptor.ImplementationType);
+            var check = (IDiagnosticCheck) _services.GetRequiredService(descriptor.ImplementationType);
             results.Add(await check.CheckAsync(cancellationToken).ConfigureAwait(false));
         }
 
@@ -80,13 +75,12 @@ public sealed class LiteBusHealthCheck : IHealthCheck
     {
         return new Dictionary<string, object>
         {
-            ["probes"] = results.Select(
-                result => new Dictionary<string, object?>
-                {
-                    ["status"] = result.Status.ToString(),
-                    ["description"] = result.Description,
-                    ["data"] = result.Data
-                }).ToArray()
+            ["probes"] = results.Select(result => new Dictionary<string, object?>
+            {
+                ["status"] = result.Status.ToString(),
+                ["description"] = result.Description,
+                ["data"] = result.Data
+            }).ToArray()
         };
     }
 }

@@ -1,6 +1,4 @@
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
-using LiteBus.Messaging.Abstractions.Processing;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests;
@@ -101,6 +99,7 @@ public sealed class EfCoreInboxStoreParityTests
         var envelope = CreatePendingEnvelope("tenant-a", now);
 
         await store.AddAsync(envelope);
+
         var leased = (await store.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 1,
@@ -122,8 +121,10 @@ public sealed class EfCoreInboxStoreParityTests
     /// </summary>
     /// <param name="databaseName">The isolated database name.</param>
     /// <returns>The inbox store.</returns>
-    private static EfCoreInboxStore CreateStore(string databaseName) =>
-        new(_ => Task.FromResult<IInboxDbContext>(CreateContext(databaseName)), new EfCoreInboxStoreOptions());
+    private static EfCoreInboxStore CreateStore(string databaseName)
+    {
+        return new EfCoreInboxStore(_ => Task.FromResult<IInboxDbContext>(CreateContext(databaseName)), new EfCoreInboxStoreOptions());
+    }
 
     /// <summary>
     ///     Creates a configured inbox database context.
@@ -166,8 +167,9 @@ public sealed class EfCoreInboxStoreParityTests
     /// <param name="tenantId">The tenant identifier.</param>
     /// <param name="createdAt">The created timestamp.</param>
     /// <returns>The inbox envelope.</returns>
-    private static InboxEnvelope CreatePendingEnvelope(string tenantId, DateTimeOffset createdAt) =>
-        new()
+    private static InboxEnvelope CreatePendingEnvelope(string tenantId, DateTimeOffset createdAt)
+    {
+        return new InboxEnvelope
         {
             Id = Guid.NewGuid(),
             ContractName = "tests.commands.ship",
@@ -178,6 +180,7 @@ public sealed class EfCoreInboxStoreParityTests
             Status = InboxStatus.Pending,
             TenantId = tenantId
         };
+    }
 
     /// <summary>
     ///     Test database context that exposes inbox messages.

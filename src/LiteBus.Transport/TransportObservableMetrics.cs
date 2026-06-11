@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 
 namespace LiteBus.Transport;
@@ -23,6 +21,7 @@ public sealed class TransportObservableMetrics
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
         var meter = new Meter(LiteBusTransportTelemetry.MeterName);
+
         meter.CreateObservableGauge(
             LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName,
             ObserveCircuitBreakerOpen,
@@ -41,6 +40,7 @@ public sealed class TransportObservableMetrics
     private IEnumerable<Measurement<int>> ObserveCircuitBreakerOpen()
     {
         var circuitBreaker = ResolveCircuitBreaker();
+
         if (circuitBreaker is null)
         {
             yield break;
@@ -56,6 +56,7 @@ public sealed class TransportObservableMetrics
     private IEnumerable<Measurement<long>> ObserveCircuitBreakerFailureCount()
     {
         var circuitBreaker = ResolveCircuitBreaker();
+
         if (circuitBreaker is null)
         {
             yield break;

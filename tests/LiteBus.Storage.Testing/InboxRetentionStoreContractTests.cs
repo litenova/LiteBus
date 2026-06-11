@@ -19,21 +19,6 @@ public abstract class InboxRetentionStoreContractTests
     protected abstract InboxStoreRoles CreateStore();
 
     /// <summary>
-    ///     Holds the inbox store roles exercised by retention contract tests.
-    /// </summary>
-    /// <param name="Writer">The append-only writer role.</param>
-    /// <param name="LeaseStore">The lease role used by the processor.</param>
-    /// <param name="StateWriter">The state writer role used by the processor.</param>
-    /// <param name="RetentionStore">The retention role used by cleanup.</param>
-    /// <param name="DiagnosticsStore">The diagnostics role used by operators.</param>
-    public sealed record InboxStoreRoles(
-        IInboxStore Writer,
-        IInboxLeaseStore LeaseStore,
-        IInboxStateWriter StateWriter,
-        IInboxRetentionStore RetentionStore,
-        IInboxDiagnosticsStore DiagnosticsStore);
-
-    /// <summary>
     ///     Verifies that completed rows older than the retention cutoff are deleted.
     /// </summary>
     [Fact]
@@ -157,4 +142,19 @@ public abstract class InboxRetentionStoreContractTests
             IdempotencyKey = $"ship:{commandId:N}"
         };
     }
+
+    /// <summary>
+    ///     Holds the inbox store roles exercised by retention contract tests.
+    /// </summary>
+    /// <param name="Writer">The append-only writer role.</param>
+    /// <param name="LeaseStore">The lease role used by the processor.</param>
+    /// <param name="StateWriter">The state writer role used by the processor.</param>
+    /// <param name="RetentionStore">The retention role used by cleanup.</param>
+    /// <param name="DiagnosticsStore">The diagnostics role used by operators.</param>
+    public sealed record InboxStoreRoles(
+        IInboxStore Writer,
+        IInboxLeaseStore LeaseStore,
+        IInboxStateWriter StateWriter,
+        IInboxRetentionStore RetentionStore,
+        IInboxDiagnosticsStore DiagnosticsStore);
 }

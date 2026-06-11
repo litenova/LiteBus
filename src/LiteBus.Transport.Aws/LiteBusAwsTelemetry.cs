@@ -16,4 +16,3 @@ public static class LiteBusAwsTelemetry
     /// </summary>
     public const string MeterName = "LiteBus.Transport.Aws";
 }
-

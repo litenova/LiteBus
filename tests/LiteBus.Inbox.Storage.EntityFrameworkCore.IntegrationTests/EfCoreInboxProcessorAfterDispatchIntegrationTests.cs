@@ -1,6 +1,4 @@
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using LiteBus.Orchestration.Abstractions;
 using LiteBus.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -51,7 +49,7 @@ public sealed class EfCoreInboxProcessorAfterDispatchIntegrationTests : LiteBusT
             clock,
             [new ThrowingAfterDispatchHook()]);
 
-        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() });
+        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand { OrderId = Guid.NewGuid() }));
         var result = await processor.ProcessPendingAsync();
 
         result.DeadLetteredCount.Should().Be(1);
@@ -74,7 +72,7 @@ public sealed class EfCoreInboxProcessorAfterDispatchIntegrationTests : LiteBusT
 
         var processingStore = provider.GetRequiredService<IInboxProcessingStore>();
         var scheduler = provider.GetRequiredService<IInbox>();
-        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() });
+        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand { OrderId = Guid.NewGuid() }));
 
         var leased = await processingStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -93,6 +91,7 @@ public sealed class EfCoreInboxProcessorAfterDispatchIntegrationTests : LiteBusT
             Status = InboxStatus.DeadLettered,
             LastError = "hook failure"
         };
+
         var deadLetterResult = await processingStore.PersistAsync([deadLettered]);
 
         deadLetterResult.AppliedCount.Should().Be(0);
@@ -120,10 +119,14 @@ public sealed class EfCoreInboxProcessorAfterDispatchIntegrationTests : LiteBusT
 
     private sealed class ThrowingAfterDispatchHook : IProcessorEnvelopeHook
     {
-        public Task BeforeDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+        public Task BeforeDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
 
-        public Task AfterDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default) =>
+        public Task AfterDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
+        {
             throw new InvalidOperationException("AfterDispatch failed.");
+        }
     }
 }

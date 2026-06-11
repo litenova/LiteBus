@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-
 namespace LiteBus.Transport;
 
 /// <summary>
@@ -23,6 +20,15 @@ public class TransportCircuitBreaker : ITransportCircuitBreaker
     /// </summary>
     private long _openUntilTicks;
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="TransportCircuitBreaker" /> class.
+    /// </summary>
+    /// <param name="options">The circuit breaker settings.</param>
+    public TransportCircuitBreaker(TransportCircuitBreakerOptions? options = null)
+    {
+        _options = options ?? new TransportCircuitBreakerOptions();
+    }
+
     /// <inheritdoc />
     public bool IsOpen
     {
@@ -41,15 +47,6 @@ public class TransportCircuitBreaker : ITransportCircuitBreaker
 
     /// <inheritdoc />
     public int FailureCount => Volatile.Read(ref _consecutiveFailures);
-
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="TransportCircuitBreaker" /> class.
-    /// </summary>
-    /// <param name="options">The circuit breaker settings.</param>
-    public TransportCircuitBreaker(TransportCircuitBreakerOptions? options = null)
-    {
-        _options = options ?? new TransportCircuitBreakerOptions();
-    }
 
     /// <inheritdoc />
     public void ThrowIfOpen()
@@ -105,7 +102,8 @@ public class TransportCircuitBreaker : ITransportCircuitBreaker
 
         Volatile.Write(
             ref _openUntilTicks,
-            Environment.TickCount64 + (long)_options.BreakDuration.TotalMilliseconds);
+            Environment.TickCount64 + (long) _options.BreakDuration.TotalMilliseconds);
+
         Interlocked.Exchange(ref _consecutiveFailures, 0);
         TransportCircuitBreakerTelemetry.RecordCircuitOpened();
     }

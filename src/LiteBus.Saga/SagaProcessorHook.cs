@@ -10,14 +10,14 @@ namespace LiteBus.Saga;
 public sealed class SagaProcessorHook : IProcessorEnvelopeHook
 {
     /// <summary>
+    ///     Gets the ambient saga context exposed to handlers.
+    /// </summary>
+    private readonly SagaExecutionContext _context;
+
+    /// <summary>
     ///     Gets the durable saga store.
     /// </summary>
     private readonly ISagaStore _sagaStore;
-
-    /// <summary>
-    ///     Gets the registry that maps saga type names to state types.
-    /// </summary>
-    private readonly ISagaStateTypeRegistry _stateTypeRegistry;
 
     /// <summary>
     ///     Gets the serializer used to hydrate default state objects.
@@ -25,9 +25,9 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
     private readonly IMessageSerializer _serializer;
 
     /// <summary>
-    ///     Gets the ambient saga context exposed to handlers.
+    ///     Gets the registry that maps saga type names to state types.
     /// </summary>
-    private readonly SagaExecutionContext _context;
+    private readonly ISagaStateTypeRegistry _stateTypeRegistry;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="SagaProcessorHook" /> class.
@@ -61,6 +61,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
         }
 
         var stateType = _stateTypeRegistry.Resolve(envelope.ContractName);
+
         if (stateType is null)
         {
             return;
@@ -80,8 +81,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
             return;
         }
 
-        var state = loaded?.State ?? Activator.CreateInstance(stateType)
-            ?? throw new InvalidOperationException($"Could not create saga state type '{stateType.FullName}'.");
+        var state = loaded?.State ?? Activator.CreateInstance(stateType) ?? throw new InvalidOperationException($"Could not create saga state type '{stateType.FullName}'.");
         var version = loaded?.Version ?? 0;
 
         _context.Begin(correlation, state, version);
@@ -109,6 +109,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
             if (_context.IsDirty)
             {
                 var state = _context.GetState<object>();
+
                 await SagaStoreInvoker.SaveAsync(
                         _sagaStore,
                         state.GetType(),

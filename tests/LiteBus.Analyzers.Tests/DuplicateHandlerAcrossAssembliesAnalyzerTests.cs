@@ -1,10 +1,9 @@
-using System.Threading;
-using System.Threading.Tasks;
+using LiteBus.Commands.Abstractions;
+using LiteBus.Events.Abstractions;
+using LiteBus.Messaging.Abstractions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Testing;
-using Microsoft.CodeAnalysis.Testing.Verifiers;
-using Xunit;
 
 namespace LiteBus.Analyzers.Tests;
 
@@ -51,9 +50,10 @@ public sealed class DuplicateHandlerAcrossAssembliesAnalyzerTests
                                      """;
 
         var commandsReference = MetadataReference.CreateFromFile(
-            typeof(LiteBus.Commands.Abstractions.ICommand).Assembly.Location);
+            typeof(ICommand).Assembly.Location);
+
         var messagingReference = MetadataReference.CreateFromFile(
-            typeof(LiteBus.Messaging.Abstractions.HandlerPriorityAttribute).Assembly.Location);
+            typeof(HandlerPriorityAttribute).Assembly.Location);
 
         var test = new CSharpAnalyzerTest<DuplicateHandlerAcrossAssembliesAnalyzer, DefaultVerifier>
         {
@@ -69,16 +69,16 @@ public sealed class DuplicateHandlerAcrossAssembliesAnalyzerTests
                     {
                         Sources = { ("HandlerB.cs", otherAssembly) },
                         ReferenceAssemblies = AnalyzerTest.Net10ReferenceAssemblies,
-                        AdditionalReferences = { commandsReference, messagingReference },
-                    },
+                        AdditionalReferences = { commandsReference, messagingReference }
+                    }
                 },
                 ExpectedDiagnostics =
                 {
                     new DiagnosticResult(DiagnosticDescriptors.DuplicateHandlerAcrossAssemblies)
                         .WithSpan("HandlerA.cs", 7, 21, 7, 38)
-                        .WithArguments("SharedHandlerName", "AssemblyB", "TestProject"),
-                },
-            },
+                        .WithArguments("SharedHandlerName", "AssemblyB", "TestProject")
+                }
+            }
         };
 
         await test.RunAsync(CancellationToken.None);
@@ -151,9 +151,10 @@ public sealed class DuplicateHandlerAcrossAssembliesAnalyzerTests
                                      """;
 
         var eventsReference = MetadataReference.CreateFromFile(
-            typeof(LiteBus.Events.Abstractions.IEvent).Assembly.Location);
+            typeof(IEvent).Assembly.Location);
+
         var messagingReference = MetadataReference.CreateFromFile(
-            typeof(LiteBus.Messaging.Abstractions.HandlerPriorityAttribute).Assembly.Location);
+            typeof(HandlerPriorityAttribute).Assembly.Location);
 
         var test = new CSharpAnalyzerTest<DuplicateHandlerAcrossAssembliesAnalyzer, DefaultVerifier>
         {
@@ -169,16 +170,16 @@ public sealed class DuplicateHandlerAcrossAssembliesAnalyzerTests
                     {
                         Sources = { ("HandlerB.cs", otherAssembly) },
                         ReferenceAssemblies = AnalyzerTest.Net10ReferenceAssemblies,
-                        AdditionalReferences = { eventsReference, messagingReference },
-                    },
+                        AdditionalReferences = { eventsReference, messagingReference }
+                    }
                 },
                 ExpectedDiagnostics =
                 {
                     new DiagnosticResult(DiagnosticDescriptors.DuplicateHandlerAcrossAssemblies)
                         .WithSpan("HandlerA.cs", 7, 21, 7, 39)
-                        .WithArguments("SharedEventHandler", "AssemblyB", "TestProject"),
-                },
-            },
+                        .WithArguments("SharedEventHandler", "AssemblyB", "TestProject")
+                }
+            }
         };
 
         await test.RunAsync(CancellationToken.None);

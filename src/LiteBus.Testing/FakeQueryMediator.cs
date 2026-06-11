@@ -1,4 +1,4 @@
-using LiteBus.Messaging.Abstractions;
+using System.Runtime.CompilerServices;
 using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.Testing;
@@ -31,14 +31,14 @@ public sealed class FakeQueryMediator : IQueryMediator, IRegistrableQueryConstru
     {
         ArgumentNullException.ThrowIfNull(query);
         _queries.Add(query);
-        return Task.FromResult((TQueryResult)(NextResult ?? default(TQueryResult)!));
+        return Task.FromResult((TQueryResult) (NextResult ?? default(TQueryResult)!));
     }
 
     /// <inheritdoc />
     public async IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(
         IStreamQuery<TQueryResult> query,
         QueryMediationSettings? queryMediationSettings = null,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
         _queries.Add(query);

@@ -15,4 +15,3 @@ public static class LiteBusKafkaTelemetry
     /// </summary>
     public const string MeterName = "LiteBus.Transport.Kafka";
 }
-

@@ -1,12 +1,11 @@
+using Azure.Messaging.ServiceBus;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.AzureServiceBus;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Testing;
-using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.AzureServiceBus;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -46,16 +45,19 @@ public sealed class AzureServiceBusOptionalIntegrationTests : LiteBusTestBase
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
         var workItemId = Guid.NewGuid();
-        await inbox.AcceptAsync(
-            new RemoteWorkCommand
+
+        await inbox.AcceptAsync(new InboxAcceptItem<RemoteWorkCommand>
+        {
+            Message = new RemoteWorkCommand
             {
                 WorkItemId = workItemId,
                 IdempotencyKey = $"work:{workItemId}"
-            });
+            }
+        });
 
         await processor.ProcessPendingAsync();
 
-        await using var client = new global::Azure.Messaging.ServiceBus.ServiceBusClient(connectionString!);
+        await using var client = new ServiceBusClient(connectionString!);
         await using var receiver = client.CreateReceiver(queueName!);
         var received = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(30));
         received.Should().NotBeNull();
@@ -73,17 +75,23 @@ public sealed class AzureServiceBusOptionalIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<RemoteWorkCommand>("tests.remote-work", 1);
+                    inbox.Contracts.Register<RemoteWorkCommand>("tests.remote-work");
+
                     inbox.UseProcessorOptions(new InboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "azure-dispatch-test",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     inbox.UseInMemoryStorage();
+
                     inbox.UseAzureServiceBusDispatch(
                         transport => transport.DefaultDestination = queueName,
                         transportOptions);

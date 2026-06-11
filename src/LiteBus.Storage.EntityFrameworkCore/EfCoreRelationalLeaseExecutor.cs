@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Threading;
-using System.Threading.Tasks;
 using LiteBus.Storage.EntityFrameworkCore.Leasing;
 using Microsoft.EntityFrameworkCore;
 
@@ -64,7 +60,7 @@ internal static class EfCoreRelationalLeaseExecutor
                 batchSize,
                 leaseOwner,
                 leaseExpiresAt,
-                (object?)tenantId ?? DBNull.Value,
+                (object?) tenantId ?? DBNull.Value,
                 staleCutoff)
             .ToListAsync(cancellationToken);
     }
@@ -120,7 +116,7 @@ internal static class EfCoreRelationalLeaseExecutor
                 batchSize,
                 leaseOwner,
                 leaseExpiresAt,
-                (object?)tenantId ?? DBNull.Value,
+                (object?) tenantId ?? DBNull.Value,
                 staleCutoff)
             .ToListAsync(cancellationToken);
     }
@@ -181,7 +177,7 @@ internal static class EfCoreRelationalLeaseExecutor
                     now,
                     processingStatus,
                     batchSize,
-                    (object?)tenantId ?? DBNull.Value,
+                    (object?) tenantId ?? DBNull.Value,
                     staleCutoff)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -193,8 +189,9 @@ internal static class EfCoreRelationalLeaseExecutor
             }
 
             var candidateIds = candidateRows.ConvertAll(row => row.Value);
-            var updateInClause = BuildInClause(candidateIds.Count, startingIndex: 9);
+            var updateInClause = BuildInClause(candidateIds.Count, 9);
             var updateSql = updateSqlTemplate.Replace(EfCoreMySqlLeaseSql.InClauseToken, updateInClause, StringComparison.Ordinal);
+
             var updateParameters = BuildLeaseParameters(
                 pendingStatus,
                 failedStatus,
@@ -210,9 +207,10 @@ internal static class EfCoreRelationalLeaseExecutor
             await dbContext.Database.ExecuteSqlRawAsync(updateSql, updateParameters, cancellationToken)
                 .ConfigureAwait(false);
 
-            var reloadInClause = BuildInClause(candidateIds.Count, startingIndex: 0);
+            var reloadInClause = BuildInClause(candidateIds.Count, 0);
             var reloadSql = reloadSqlTemplate.Replace(EfCoreMySqlLeaseSql.InClauseToken, reloadInClause, StringComparison.Ordinal);
             var reloadParameters = BuildInParameters(candidateIds);
+
             var rows = await dbContext.Database
                 .SqlQueryRaw<TRow>(reloadSql, reloadParameters)
                 .ToListAsync(cancellationToken)
@@ -237,6 +235,7 @@ internal static class EfCoreRelationalLeaseExecutor
     private static string BuildInClause(int count, int startingIndex)
     {
         var placeholders = new string[count];
+
         for (var index = 0; index < count; index++)
         {
             placeholders[index] = $"{{{startingIndex + index}}}";
@@ -279,7 +278,7 @@ internal static class EfCoreRelationalLeaseExecutor
         parameters[4] = batchSize;
         parameters[5] = leaseOwner;
         parameters[6] = leaseExpiresAt;
-        parameters[7] = (object?)tenantId ?? DBNull.Value;
+        parameters[7] = (object?) tenantId ?? DBNull.Value;
         parameters[8] = staleCutoff;
 
         for (var index = 0; index < candidateIds.Count; index++)

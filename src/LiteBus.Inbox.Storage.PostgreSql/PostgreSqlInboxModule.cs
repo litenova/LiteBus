@@ -1,10 +1,7 @@
 using System;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.PostgreSql.Exceptions;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Runtime.Abstractions.Diagnostics;
-using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Storage.PostgreSql;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -109,7 +106,7 @@ public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<Inbox
         }
 
         var workSignal = moduleBuilder.Options.UseListenNotify
-            ? (IInboxWorkSignal)new PostgreSqlInboxWorkSignal(moduleBuilder.DataSource)
+            ? (IInboxWorkSignal) new PostgreSqlInboxWorkSignal(moduleBuilder.DataSource)
             : new InboxPollingWorkSignal();
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxWorkSignal), workSignal));
@@ -152,6 +149,7 @@ public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<Inbox
             serviceProvider =>
             {
                 var participant = serviceProvider.GetRequiredService<PostgreSqlTransactionalInboxParticipant>();
+
                 return new StoreBoundTransactionalInbox(
                     participant.ResolveStore(),
                     serviceProvider.GetRequiredService<IInboxEnvelopeFactory>(),

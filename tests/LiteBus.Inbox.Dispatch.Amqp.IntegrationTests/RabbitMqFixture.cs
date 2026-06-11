@@ -33,6 +33,7 @@ public sealed class RabbitMqFixture : IAsyncLifetime
                 .Build();
 
             await _container.StartAsync();
+
             ConnectionOptions = new AmqpConnectionOptions
             {
                 Uri = new Uri(_container.GetConnectionString()),

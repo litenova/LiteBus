@@ -1,8 +1,4 @@
-using System;
-using System.Linq;
-using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Runtime.Abstractions;
@@ -25,6 +21,7 @@ internal static class OutboxTestInfrastructure
 
         var manifest = provider.GetRequiredService<LiteBusHostManifest>();
         var processorIndex = manifest.BackgroundServices.ToList().IndexOf(typeof(OutboxProcessorBackgroundService));
+
         if (processorIndex < 0)
         {
             throw new InvalidOperationException(
@@ -51,7 +48,7 @@ internal static class OutboxTestInfrastructure
 
         foreach (var hostedService in provider.GetServices<IHostedService>())
         {
-            await hostedService.StartAsync(cancellationToken).ConfigureAwait(false);
+            await hostedService.StartAsync(cancellationToken);
         }
     }
 
@@ -68,24 +65,54 @@ internal static class OutboxTestInfrastructure
         ArgumentNullException.ThrowIfNull(provider);
 
         var hostedServices = provider.GetServices<IHostedService>().ToList();
+
         for (var index = hostedServices.Count - 1; index >= 0; index--)
         {
-            await hostedServices[index].StopAsync(cancellationToken).ConfigureAwait(false);
+            await hostedServices[index].StopAsync(cancellationToken);
         }
+    }
+
+    /// <summary>
+    ///     Registers the test recording dispatcher through the outbox module builder.
+    /// </summary>
+    /// <param name="builder">The outbox module builder under test.</param>
+    /// <param name="dispatcherHolder">The holder that receives the resolved dispatcher instance.</param>
+    /// <returns>The outbox module builder for chaining.</returns>
+    internal static OutboxModuleBuilder UseRecordingOutboxDispatcher(
+        this OutboxModuleBuilder builder,
+        RecordingOutboxDispatcherHolder dispatcherHolder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(dispatcherHolder);
+        return builder.RegisterDispatcher(new RecordingOutboxDispatchModule(dispatcherHolder));
+    }
+
+    /// <summary>
+    ///     Registers a fixed dispatcher instance through the outbox module builder.
+    /// </summary>
+    /// <param name="builder">The outbox module builder under test.</param>
+    /// <param name="dispatcher">The dispatcher instance used for every dispatch call.</param>
+    /// <returns>The outbox module builder for chaining.</returns>
+    internal static OutboxModuleBuilder UseFixedOutboxDispatcher(
+        this OutboxModuleBuilder builder,
+        IOutboxDispatcher dispatcher)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(dispatcher);
+        return builder.RegisterDispatcher(new FixedOutboxDispatchModule(dispatcher));
     }
 
     internal sealed class ThrowingOutboxLeaseStore : IOutboxLeaseStore
     {
         private readonly int _failuresBeforeSuccess;
         private int _attempts;
-        private readonly InMemoryOutboxStore _inner = new();
 
         public ThrowingOutboxLeaseStore(int failuresBeforeSuccess = int.MaxValue)
         {
             _failuresBeforeSuccess = failuresBeforeSuccess;
         }
 
-        public InMemoryOutboxStore Inner => _inner;
+        public InMemoryOutboxStore Inner { get; } = new();
 
         public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
             OutboxLeaseRequest request,
@@ -96,15 +123,17 @@ internal static class OutboxTestInfrastructure
                 throw new InvalidOperationException("Simulated lease store failure.");
             }
 
-            return _inner.LeasePendingAsync(request, cancellationToken);
+            return Inner.LeasePendingAsync(request, cancellationToken);
         }
 
         public Task<bool> RenewLeaseAsync(
             Guid messageId,
             string leaseOwner,
             DateTimeOffset expiresAt,
-            CancellationToken cancellationToken = default) =>
-            _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return Inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+        }
     }
 
     /// <summary>
@@ -118,11 +147,6 @@ internal static class OutboxTestInfrastructure
         private readonly IMessageContractRegistry _contractRegistry;
 
         /// <summary>
-        ///     Gets the serializer used to hydrate stored payloads.
-        /// </summary>
-        private readonly IMessageSerializer _messageSerializer;
-
-        /// <summary>
         ///     Gets the envelopes passed to <see cref="DispatchAsync" />.
         /// </summary>
         private readonly List<OutboxEnvelope> _dispatchedEnvelopes = [];
@@ -131,6 +155,11 @@ internal static class OutboxTestInfrastructure
         ///     Gets the deserialized message instances produced during dispatch.
         /// </summary>
         private readonly List<object> _dispatchedMessages = [];
+
+        /// <summary>
+        ///     Gets the serializer used to hydrate stored payloads.
+        /// </summary>
+        private readonly IMessageSerializer _messageSerializer;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="RecordingOutboxDispatcher" /> class.
@@ -163,8 +192,9 @@ internal static class OutboxTestInfrastructure
             _dispatchedEnvelopes.Add(message);
 
             var messageType = _contractRegistry.GetMessageType(message.ContractName, message.ContractVersion);
+
             var deserialized = await _messageSerializer.DeserializeAsync(messageType, message.Payload, cancellationToken)
-                .ConfigureAwait(false);
+                ;
 
             _dispatchedMessages.Add(deserialized);
         }
@@ -179,36 +209,6 @@ internal static class OutboxTestInfrastructure
         ///     Gets or sets the recording dispatcher assigned when the service provider is built.
         /// </summary>
         public RecordingOutboxDispatcher? Instance { get; set; }
-    }
-
-    /// <summary>
-    ///     Registers the test recording dispatcher through the outbox module builder.
-    /// </summary>
-    /// <param name="builder">The outbox module builder under test.</param>
-    /// <param name="dispatcherHolder">The holder that receives the resolved dispatcher instance.</param>
-    /// <returns>The outbox module builder for chaining.</returns>
-    internal static OutboxModuleBuilder UseRecordingOutboxDispatcher(
-        this OutboxModuleBuilder builder,
-        RecordingOutboxDispatcherHolder dispatcherHolder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(dispatcherHolder);
-        return builder.RegisterDispatcher(new RecordingOutboxDispatchModule(dispatcherHolder));
-    }
-
-    /// <summary>
-    ///     Registers a fixed dispatcher instance through the outbox module builder.
-    /// </summary>
-    /// <param name="builder">The outbox module builder under test.</param>
-    /// <param name="dispatcher">The dispatcher instance used for every dispatch call.</param>
-    /// <returns>The outbox module builder for chaining.</returns>
-    internal static OutboxModuleBuilder UseFixedOutboxDispatcher(
-        this OutboxModuleBuilder builder,
-        IOutboxDispatcher dispatcher)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(dispatcher);
-        return builder.RegisterDispatcher(new FixedOutboxDispatchModule(dispatcher));
     }
 
     /// <summary>

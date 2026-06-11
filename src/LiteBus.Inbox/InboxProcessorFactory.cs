@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Processing;
-using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Orchestration.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,7 +21,7 @@ internal static class InboxProcessorFactory
     /// </summary>
     /// <param name="services">The service provider used to resolve processor dependencies.</param>
     /// <returns>The configured pipelined inbox processor instance.</returns>
-    public static Abstractions.IInboxProcessor Create(IServiceProvider services)
+    public static IInboxProcessor Create(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -32,6 +31,7 @@ internal static class InboxProcessorFactory
         var stateWriter = GetRequiredService<IInboxStateWriter>(services);
         var dispatcher = GetRequiredService<IInboxDispatcher>(services);
         var hooks = ResolveHooks(services);
+
         var dispatchScopeFactory = services.GetService(typeof(IServiceScopeFactory)) is IServiceScopeFactory scopeFactory
             ? new MessageDispatchScopeFactory(scopeFactory)
             : null;
@@ -43,8 +43,7 @@ internal static class InboxProcessorFactory
             options,
             clock,
             hooks,
-            services.GetService(typeof(ILogger<PipelinedInboxProcessor>)) as ILogger<PipelinedInboxProcessor>
-            ?? NullLogger<PipelinedInboxProcessor>.Instance,
+            services.GetService(typeof(ILogger<PipelinedInboxProcessor>)) as ILogger<PipelinedInboxProcessor> ?? NullLogger<PipelinedInboxProcessor>.Instance,
             dispatchScopeFactory);
     }
 
@@ -68,7 +67,7 @@ internal static class InboxProcessorFactory
     /// <param name="options">The processor options to validate.</param>
     public static void ValidateOptions(InboxProcessorOptions options)
     {
-        ProcessorOptionsValidator.Validate(options, nameof(options));
+        ProcessorOptionsValidator.Validate(options);
     }
 
     /// <summary>

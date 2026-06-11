@@ -1,4 +1,3 @@
-using LiteBus.Storage.EntityFrameworkCore;
 using LiteBus.Storage.EntityFrameworkCore.Exceptions;
 
 namespace LiteBus.Storage.EntityFrameworkCore.UnitTests;

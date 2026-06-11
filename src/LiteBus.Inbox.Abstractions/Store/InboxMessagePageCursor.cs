@@ -27,7 +27,10 @@ public static class InboxMessagePageCursor
     /// <param name="cursor">The opaque cursor from a previous page.</param>
     /// <param name="createdAt">The decoded created timestamp when decoding succeeds.</param>
     /// <param name="messageId">The decoded message identifier when decoding succeeds.</param>
-    /// <returns><see langword="true" /> when <paramref name="cursor" /> is a valid cursor; otherwise, <see langword="false" />.</returns>
+    /// <returns>
+    ///     <see langword="true" /> when <paramref name="cursor" /> is a valid cursor; otherwise, <see langword="false" />
+    ///     .
+    /// </returns>
     public static bool TryDecode(string? cursor, out DateTimeOffset createdAt, out Guid messageId)
     {
         createdAt = default;

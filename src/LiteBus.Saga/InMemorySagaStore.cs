@@ -10,19 +10,14 @@ namespace LiteBus.Saga;
 public sealed class InMemorySagaStore : ISagaStore
 {
     /// <summary>
-    ///     One persisted saga row.
+    ///     The saga rows keyed by correlation and saga type.
     /// </summary>
-    private sealed record SagaRow(string StateJson, int Version, bool IsCompleted);
+    private readonly ConcurrentDictionary<string, SagaRow> _rows = new(StringComparer.Ordinal);
 
     /// <summary>
     ///     The serializer used to convert state objects to JSON.
     /// </summary>
     private readonly IMessageSerializer _serializer;
-
-    /// <summary>
-    ///     The saga rows keyed by correlation and saga type.
-    /// </summary>
-    private readonly ConcurrentDictionary<string, SagaRow> _rows = new(StringComparer.Ordinal);
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="InMemorySagaStore" /> class.
@@ -47,10 +42,11 @@ public sealed class InMemorySagaStore : ISagaStore
         }
 
         var state = await _serializer.DeserializeAsync(typeof(TState), row.StateJson, cancellationToken).ConfigureAwait(false);
+
         return new SagaInstance<TState>
         {
             Correlation = correlation,
-            State = (TState)state,
+            State = (TState) state,
             Version = row.Version,
             IsCompleted = row.IsCompleted
         };
@@ -90,6 +86,7 @@ public sealed class InMemorySagaStore : ISagaStore
         ArgumentNullException.ThrowIfNull(correlation);
 
         var key = BuildKey(correlation);
+
         _rows.AddOrUpdate(
             key,
             _ => new SagaRow("{}", 1, true),
@@ -104,5 +101,12 @@ public sealed class InMemorySagaStore : ISagaStore
     /// <param name="correlation">The saga correlation.</param>
     /// <returns>The composite storage key.</returns>
     private static string BuildKey(SagaCorrelation correlation)
-        => $"{correlation.SagaType}:{correlation.CorrelationId}";
+    {
+        return $"{correlation.SagaType}:{correlation.CorrelationId}";
+    }
+
+    /// <summary>
+    ///     One persisted saga row.
+    /// </summary>
+    private sealed record SagaRow(string StateJson, int Version, bool IsCompleted);
 }

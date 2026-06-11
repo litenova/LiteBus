@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Outbox.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Storage.PostgreSql;
 using LiteBus.Storage.PostgreSql.Stores;
@@ -32,7 +33,8 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 ///     <para>
 ///         The default store opens its own connection per call. Use
 ///         <see cref="UseExistingConnection(NpgsqlConnection, NpgsqlTransaction)" /> when outbox writes must share the
-///         caller's PostgreSQL transaction. Without that overload, <see cref="IOutbox.EnqueueAsync" /> commits in a separate
+///         caller's PostgreSQL transaction. Without that overload, <see cref="IOutbox.EnqueueAsync" /> commits in a
+///         separate
 ///         transaction from manual SQL or ADO.NET work.
 ///     </para>
 /// </remarks>
@@ -42,31 +44,6 @@ public sealed class PostgreSqlOutboxStore :
     IOutboxProcessingStore,
     IOutboxOperationsStore
 {
-    /// <summary>
-    ///     The PostgreSQL data source used to open commands against the outbox table.
-    /// </summary>
-    private readonly NpgsqlDataSource _dataSource;
-
-    /// <summary>
-    ///     The store table and metadata options.
-    /// </summary>
-    private readonly PostgreSqlOutboxStoreOptions _options;
-
-    /// <summary>
-    ///     The quoted qualified outbox table name built from store options at construction time.
-    /// </summary>
-    private readonly string _tableName;
-
-    /// <summary>
-    ///     The existing open PostgreSQL connection used when callers provide an external transaction boundary.
-    /// </summary>
-    private readonly NpgsqlConnection? _transactionConnection;
-
-    /// <summary>
-    ///     The existing PostgreSQL transaction used for command execution when provided by the caller.
-    /// </summary>
-    private readonly NpgsqlTransaction? _transaction;
-
     /// <summary>
     ///     The shared SELECT column list used by batch idempotency lookups.
     /// </summary>
@@ -90,6 +67,31 @@ public sealed class PostgreSqlOutboxStore :
                                               trace_context::text,
                                               published_at
                                               """;
+
+    /// <summary>
+    ///     The PostgreSQL data source used to open commands against the outbox table.
+    /// </summary>
+    private readonly NpgsqlDataSource _dataSource;
+
+    /// <summary>
+    ///     The store table and metadata options.
+    /// </summary>
+    private readonly PostgreSqlOutboxStoreOptions _options;
+
+    /// <summary>
+    ///     The quoted qualified outbox table name built from store options at construction time.
+    /// </summary>
+    private readonly string _tableName;
+
+    /// <summary>
+    ///     The existing PostgreSQL transaction used for command execution when provided by the caller.
+    /// </summary>
+    private readonly NpgsqlTransaction? _transaction;
+
+    /// <summary>
+    ///     The existing open PostgreSQL connection used when callers provide an external transaction boundary.
+    /// </summary>
+    private readonly NpgsqlConnection? _transactionConnection;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="PostgreSqlOutboxStore" /> class.
@@ -120,105 +122,205 @@ public sealed class PostgreSqlOutboxStore :
         NpgsqlTransaction? transaction)
     {
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+        _options = new PostgreSqlOutboxStoreOptions();
         _tableName = tableName ?? throw new ArgumentNullException(nameof(tableName));
         _transactionConnection = transactionConnection;
         _transaction = transaction;
     }
 
-    /// <summary>
-    ///     Returns a store that executes commands on an existing PostgreSQL connection and transaction.
-    /// </summary>
-    /// <param name="connection">The existing open connection owned by the caller.</param>
-    /// <param name="transaction">The transaction that should contain outbox writes.</param>
-    /// <returns>A store instance bound to the supplied connection and transaction.</returns>
-    public ITransactionalOutboxStore UseExistingConnection(NpgsqlConnection connection, NpgsqlTransaction transaction)
+    /// <inheritdoc />
+    public async Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(connection);
-        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentNullException.ThrowIfNull(messageIds);
 
-        if (!ReferenceEquals(transaction.Connection, connection))
+        if (messageIds.Count == 0)
         {
-            throw new ArgumentException("The supplied transaction must belong to the supplied connection.", nameof(transaction));
+            return;
         }
 
-        if (connection.State != System.Data.ConnectionState.Open)
+        if (messageIds.Count == 1)
         {
-            throw new InvalidOperationException("The supplied connection must already be open.");
+            var singleSql = $"""
+                             UPDATE {_tableName}
+                             SET
+                                 status = @pending_status,
+                                 visible_after = NULL,
+                                 attempt_count = 0,
+                                 lease_owner = NULL,
+                                 lease_expires_at = NULL,
+                                 last_error = NULL
+                             WHERE message_id = @message_id AND status = @dead_lettered_status;
+                             """;
+
+            await using var singleCommand = CreateCommand(singleSql);
+            singleCommand.Parameters.AddWithValue("pending_status", (int) OutboxStatus.Pending);
+            singleCommand.Parameters.AddWithValue("dead_lettered_status", (int) OutboxStatus.DeadLettered);
+            singleCommand.Parameters.AddWithValue("message_id", messageIds[0]);
+            await singleCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            return;
         }
 
-        return new PostgreSqlOutboxStore(_dataSource, _tableName, connection, transaction);
+        var sql = $"""
+                   UPDATE {_tableName}
+                   SET
+                       status = @pending_status,
+                       visible_after = NULL,
+                       attempt_count = 0,
+                       lease_owner = NULL,
+                       lease_expires_at = NULL,
+                       last_error = NULL
+                   WHERE message_id = ANY(@message_ids) AND status = @dead_lettered_status;
+                   """;
+
+        await using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("pending_status", (int) OutboxStatus.Pending);
+        command.Parameters.AddWithValue("dead_lettered_status", (int) OutboxStatus.DeadLettered);
+        PostgreSqlParameterExtensions.AddUuidArrayParameter(command, "message_ids", messageIds.ToArray());
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
+    public async Task<int> DeletePublishedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(envelope);
-
         var sql = $"""
-                  INSERT INTO {_tableName} (
-                      message_id,
-                      contract_name,
-                      contract_version,
-                      payload,
-                      topic,
-                      created_at,
-                      visible_after,
-                      status,
-                      attempt_count,
-                      lease_owner,
-                      lease_expires_at,
-                      last_error,
-                      correlation_id,
-                      causation_id,
-                      tenant_id,
-                      idempotency_key,
-                      trace_context)
-                  VALUES (
-                      @message_id,
-                      @contract_name,
-                      @contract_version,
-                      @payload,
-                      @topic,
-                      @created_at,
-                      @visible_after,
-                      @status,
-                      @attempt_count,
-                      @lease_owner,
-                      @lease_expires_at,
-                      @last_error,
-                      @correlation_id,
-                      @causation_id,
-                      @tenant_id,
-                      @idempotency_key,
-                      @trace_context)
-                  ON CONFLICT DO NOTHING
-                  RETURNING
-                      message_id,
-                      contract_name,
-                      contract_version,
-                      payload::text,
-                      topic,
-                      created_at,
-                      visible_after,
-                      status,
-                      attempt_count,
-                      lease_owner,
-                      lease_expires_at,
-                      last_error,
-                      correlation_id,
-                      causation_id,
-                      tenant_id,
-                      idempotency_key,
-                      trace_context::text,
-                      published_at;
-                  """;
+                   DELETE FROM {_tableName}
+                   WHERE status = @published_status
+                       AND COALESCE(published_at, created_at) < @older_than;
+                   """;
 
         await using var command = CreateCommand(sql);
-        AddEnvelopeParameters(command, envelope);
+        command.Parameters.AddWithValue("published_status", (int) OutboxStatus.Published);
+        command.Parameters.AddWithValue("older_than", olderThan);
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
 
-        var storedEnvelope = await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false);
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<OutboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
+    {
+        var sql = $"""
+                   SELECT status, COUNT(*)::int
+                   FROM {_tableName}
+                   GROUP BY status;
+                   """;
 
-        return storedEnvelope ?? await FindExistingAsync(envelope.Id, envelope.IdempotencyKey, cancellationToken).ConfigureAwait(false);
+        await using var command = CreateCommand(sql);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var counts = new Dictionary<OutboxStatus, int>();
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            counts[(OutboxStatus) reader.GetInt32(0)] = reader.GetInt32(1);
+        }
+
+        return counts;
+    }
+
+    /// <inheritdoc />
+    public async Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+        var recordedVersion = await PostgreSqlSchemaVersionStore.GetVersionAsync(
+                connection,
+                _options,
+                PostgreSqlSchemaComponents.Outbox,
+                _options.SchemaName,
+                _options.TableName,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var recorded = recordedVersion == 0
+            ? PostgreSqlOutboxSchema.CurrentSchemaVersion
+            : recordedVersion;
+
+        return new StoreSchemaInfo(
+            PostgreSqlSchemaComponents.Outbox,
+            PostgreSqlOutboxSchema.CurrentSchemaVersion,
+            recorded,
+            _options.SchemaName,
+            _options.TableName);
+    }
+
+    /// <inheritdoc />
+    public async Task<OutboxMessagePage> QueryAsync(
+        OutboxMessageFilter filter,
+        OutboxMessagePageRequest pageRequest,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(pageRequest);
+        ValidatePageSize(pageRequest.PageSize);
+
+        var sql = $"""
+                   SELECT
+                       message_id,
+                       contract_name,
+                       contract_version,
+                       payload::text,
+                       topic,
+                       created_at,
+                       visible_after,
+                       status,
+                       attempt_count,
+                       lease_owner,
+                       lease_expires_at,
+                       last_error,
+                       correlation_id,
+                       causation_id,
+                       tenant_id,
+                       idempotency_key,
+                       trace_context::text,
+                       published_at
+                   FROM {_tableName}
+                   WHERE (@status_filter OR status = ANY(@statuses))
+                       AND (@message_id IS NULL OR message_id = @message_id)
+                       AND (@message_ids IS NULL OR message_id = ANY(@message_ids))
+                       AND (@contract_name IS NULL OR contract_name = @contract_name)
+                       AND (@topic IS NULL OR topic = @topic)
+                       AND (@correlation_id IS NULL OR correlation_id = @correlation_id)
+                       AND (@causation_id IS NULL OR causation_id = @causation_id)
+                       AND (@tenant_id IS NULL OR tenant_id = @tenant_id)
+                       AND (@created_after IS NULL OR created_at >= @created_after)
+                       AND (@created_before IS NULL OR created_at <= @created_before)
+                       AND (
+                           @cursor_created_at IS NULL
+                           OR (created_at, message_id) > (@cursor_created_at, @cursor_id)
+                       )
+                   ORDER BY created_at ASC, message_id ASC
+                   LIMIT @page_size;
+                   """;
+
+        await using var command = CreateCommand(sql);
+        AddFilterParameters(command, filter);
+        AddCursorParameters(command, pageRequest.Cursor);
+        command.Parameters.AddWithValue("page_size", pageRequest.PageSize + 1);
+
+        var envelopes = await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
+        return BuildPage(envelopes, pageRequest.PageSize);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> PurgeAsync(OutboxMessageFilter filter, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+
+        var sql = $"""
+                   DELETE FROM {_tableName}
+                   WHERE (@status_filter OR status = ANY(@statuses))
+                       AND (@message_id IS NULL OR message_id = @message_id)
+                       AND (@message_ids IS NULL OR message_id = ANY(@message_ids))
+                       AND (@contract_name IS NULL OR contract_name = @contract_name)
+                       AND (@topic IS NULL OR topic = @topic)
+                       AND (@correlation_id IS NULL OR correlation_id = @correlation_id)
+                       AND (@causation_id IS NULL OR causation_id = @causation_id)
+                       AND (@tenant_id IS NULL OR tenant_id = @tenant_id)
+                       AND (@created_after IS NULL OR created_at >= @created_after)
+                       AND (@created_before IS NULL OR created_at <= @created_before);
+                   """;
+
+        await using var command = CreateCommand(sql);
+        AddFilterParameters(command, filter);
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -227,51 +329,51 @@ public sealed class PostgreSqlOutboxStore :
         ArgumentNullException.ThrowIfNull(request);
 
         var sql = $"""
-                  WITH candidates AS (
-                      SELECT message_id
-                      FROM {_tableName}
-                      WHERE
-                          (@tenant_id IS NULL OR tenant_id = @tenant_id)
-                          AND ((status IN (@pending_status, @failed_status) AND (visible_after IS NULL OR visible_after <= @now))
-                           OR (status = @publishing_status AND lease_expires_at IS NOT NULL AND lease_expires_at <= @now)
-                           OR (status = @publishing_status AND lease_expires_at IS NULL AND created_at < @stale_cutoff))
-                      ORDER BY created_at ASC
-                      LIMIT @batch_size
-                      FOR UPDATE SKIP LOCKED
-                  )
-                  UPDATE {_tableName} AS outbox
-                  SET
-                      status = @publishing_status,
-                      lease_owner = @lease_owner,
-                      lease_expires_at = @lease_expires_at,
-                      attempt_count = outbox.attempt_count + 1
-                  FROM candidates
-                  WHERE outbox.message_id = candidates.message_id
-                  RETURNING
-                      outbox.message_id,
-                      outbox.contract_name,
-                      outbox.contract_version,
-                      outbox.payload::text,
-                      outbox.topic,
-                      outbox.created_at,
-                      outbox.visible_after,
-                      outbox.status,
-                      outbox.attempt_count,
-                      outbox.lease_owner,
-                      outbox.lease_expires_at,
-                      outbox.last_error,
-                      outbox.correlation_id,
-                      outbox.causation_id,
-                      outbox.tenant_id,
-                      outbox.idempotency_key,
-                      outbox.trace_context::text,
-                      outbox.published_at;
-                  """;
+                   WITH candidates AS (
+                       SELECT message_id
+                       FROM {_tableName}
+                       WHERE
+                           (@tenant_id IS NULL OR tenant_id = @tenant_id)
+                           AND ((status IN (@pending_status, @failed_status) AND (visible_after IS NULL OR visible_after <= @now))
+                            OR (status = @publishing_status AND lease_expires_at IS NOT NULL AND lease_expires_at <= @now)
+                            OR (status = @publishing_status AND lease_expires_at IS NULL AND created_at < @stale_cutoff))
+                       ORDER BY created_at ASC
+                       LIMIT @batch_size
+                       FOR UPDATE SKIP LOCKED
+                   )
+                   UPDATE {_tableName} AS outbox
+                   SET
+                       status = @publishing_status,
+                       lease_owner = @lease_owner,
+                       lease_expires_at = @lease_expires_at,
+                       attempt_count = outbox.attempt_count + 1
+                   FROM candidates
+                   WHERE outbox.message_id = candidates.message_id
+                   RETURNING
+                       outbox.message_id,
+                       outbox.contract_name,
+                       outbox.contract_version,
+                       outbox.payload::text,
+                       outbox.topic,
+                       outbox.created_at,
+                       outbox.visible_after,
+                       outbox.status,
+                       outbox.attempt_count,
+                       outbox.lease_owner,
+                       outbox.lease_expires_at,
+                       outbox.last_error,
+                       outbox.correlation_id,
+                       outbox.causation_id,
+                       outbox.tenant_id,
+                       outbox.idempotency_key,
+                       outbox.trace_context::text,
+                       outbox.published_at;
+                   """;
 
         await using var command = CreateCommand(sql);
-        command.Parameters.AddWithValue("pending_status", (int)OutboxStatus.Pending);
-        command.Parameters.AddWithValue("failed_status", (int)OutboxStatus.Failed);
-        command.Parameters.AddWithValue("publishing_status", (int)OutboxStatus.Publishing);
+        command.Parameters.AddWithValue("pending_status", (int) OutboxStatus.Pending);
+        command.Parameters.AddWithValue("failed_status", (int) OutboxStatus.Failed);
+        command.Parameters.AddWithValue("publishing_status", (int) OutboxStatus.Publishing);
         command.Parameters.AddWithValue("now", request.Now);
         command.Parameters.AddWithValue("batch_size", request.BatchSize);
         command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
@@ -292,21 +394,136 @@ public sealed class PostgreSqlOutboxStore :
         ArgumentException.ThrowIfNullOrWhiteSpace(leaseOwner);
 
         var sql = $"""
-                  UPDATE {_tableName}
-                  SET lease_expires_at = @lease_expires_at
-                  WHERE message_id = @message_id
-                      AND status = @publishing_status
-                      AND lease_owner = @lease_owner;
-                  """;
+                   UPDATE {_tableName}
+                   SET lease_expires_at = @lease_expires_at
+                   WHERE message_id = @message_id
+                       AND status = @publishing_status
+                       AND lease_owner = @lease_owner;
+                   """;
 
         await using var command = CreateCommand(sql);
         command.Parameters.AddWithValue("lease_expires_at", expiresAt);
         command.Parameters.AddWithValue("message_id", messageId);
-        command.Parameters.AddWithValue("publishing_status", (int)OutboxStatus.Publishing);
+        command.Parameters.AddWithValue("publishing_status", (int) OutboxStatus.Publishing);
         command.Parameters.AddWithValue("lease_owner", leaseOwner);
 
         var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return affected > 0;
+    }
+
+    /// <inheritdoc />
+    public async Task<PersistResult> PersistAsync(
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelopes);
+
+        if (envelopes.Count == 0)
+        {
+            return PersistResult.Empty;
+        }
+
+        List<OutboxEnvelope>? published = null;
+        List<OutboxEnvelope>? failed = null;
+        List<OutboxEnvelope>? deadLettered = null;
+
+        foreach (var envelope in envelopes)
+        {
+            switch (envelope.Status)
+            {
+                case OutboxStatus.Published:
+                    (published ??= []).Add(envelope);
+                    break;
+
+                case OutboxStatus.Failed:
+                    (failed ??= []).Add(envelope);
+                    break;
+
+                case OutboxStatus.DeadLettered:
+                    (deadLettered ??= []).Add(envelope);
+                    break;
+
+                default:
+                    throw new InvalidOperationException(
+                        $"Envelope '{envelope.Id}' has unexpected status '{envelope.Status}' in PersistAsync. " +
+                        "Only Published, Failed, and DeadLettered are valid outcomes.");
+            }
+        }
+
+        return await PersistTerminalGroupsAsync(published, failed, deadLettered, envelopes, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+
+        var sql = $"""
+                   INSERT INTO {_tableName} (
+                       message_id,
+                       contract_name,
+                       contract_version,
+                       payload,
+                       topic,
+                       created_at,
+                       visible_after,
+                       status,
+                       attempt_count,
+                       lease_owner,
+                       lease_expires_at,
+                       last_error,
+                       correlation_id,
+                       causation_id,
+                       tenant_id,
+                       idempotency_key,
+                       trace_context)
+                   VALUES (
+                       @message_id,
+                       @contract_name,
+                       @contract_version,
+                       @payload,
+                       @topic,
+                       @created_at,
+                       @visible_after,
+                       @status,
+                       @attempt_count,
+                       @lease_owner,
+                       @lease_expires_at,
+                       @last_error,
+                       @correlation_id,
+                       @causation_id,
+                       @tenant_id,
+                       @idempotency_key,
+                       @trace_context)
+                   ON CONFLICT DO NOTHING
+                   RETURNING
+                       message_id,
+                       contract_name,
+                       contract_version,
+                       payload::text,
+                       topic,
+                       created_at,
+                       visible_after,
+                       status,
+                       attempt_count,
+                       lease_owner,
+                       lease_expires_at,
+                       last_error,
+                       correlation_id,
+                       causation_id,
+                       tenant_id,
+                       idempotency_key,
+                       trace_context::text,
+                       published_at;
+                   """;
+
+        await using var command = CreateCommand(sql);
+        AddEnvelopeParameters(command, envelope);
+
+        var storedEnvelope = await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false);
+
+        return storedEnvelope ?? await FindExistingAsync(envelope.Id, envelope.IdempotencyKey, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -343,46 +560,46 @@ public sealed class PostgreSqlOutboxStore :
         }
 
         var sql = $"""
-                  INSERT INTO {_tableName} (
-                      message_id,
-                      contract_name,
-                      contract_version,
-                      payload,
-                      topic,
-                      created_at,
-                      visible_after,
-                      status,
-                      attempt_count,
-                      lease_owner,
-                      lease_expires_at,
-                      last_error,
-                      correlation_id,
-                      causation_id,
-                      tenant_id,
-                      idempotency_key,
-                      trace_context)
-                  VALUES {valueClauses}
-                  ON CONFLICT DO NOTHING
-                  RETURNING
-                      message_id,
-                      contract_name,
-                      contract_version,
-                      payload::text,
-                      topic,
-                      created_at,
-                      visible_after,
-                      status,
-                      attempt_count,
-                      lease_owner,
-                      lease_expires_at,
-                      last_error,
-                      correlation_id,
-                      causation_id,
-                      tenant_id,
-                      idempotency_key,
-                      trace_context::text,
-                      published_at;
-                  """;
+                   INSERT INTO {_tableName} (
+                       message_id,
+                       contract_name,
+                       contract_version,
+                       payload,
+                       topic,
+                       created_at,
+                       visible_after,
+                       status,
+                       attempt_count,
+                       lease_owner,
+                       lease_expires_at,
+                       last_error,
+                       correlation_id,
+                       causation_id,
+                       tenant_id,
+                       idempotency_key,
+                       trace_context)
+                   VALUES {valueClauses}
+                   ON CONFLICT DO NOTHING
+                   RETURNING
+                       message_id,
+                       contract_name,
+                       contract_version,
+                       payload::text,
+                       topic,
+                       created_at,
+                       visible_after,
+                       status,
+                       attempt_count,
+                       lease_owner,
+                       lease_expires_at,
+                       last_error,
+                       correlation_id,
+                       causation_id,
+                       tenant_id,
+                       idempotency_key,
+                       trace_context::text,
+                       published_at;
+                   """;
 
         await using var command = CreateCommand(sql);
 
@@ -430,6 +647,7 @@ public sealed class PostgreSqlOutboxStore :
                 }
 
                 var envelope = envelopes[index];
+
                 stored[index] = resolved.TryGetValue(envelope.Id, out var existing)
                     ? existing
                     : await FindExistingAsync(envelope.Id, envelope.IdempotencyKey, cancellationToken).ConfigureAwait(false);
@@ -439,47 +657,28 @@ public sealed class PostgreSqlOutboxStore :
         return stored;
     }
 
-    /// <inheritdoc />
-    public async Task<PersistResult> PersistAsync(
-        IReadOnlyList<OutboxEnvelope> envelopes,
-        CancellationToken cancellationToken = default)
+    /// <summary>
+    ///     Returns a store that executes commands on an existing PostgreSQL connection and transaction.
+    /// </summary>
+    /// <param name="connection">The existing open connection owned by the caller.</param>
+    /// <param name="transaction">The transaction that should contain outbox writes.</param>
+    /// <returns>A store instance bound to the supplied connection and transaction.</returns>
+    public ITransactionalOutboxStore UseExistingConnection(NpgsqlConnection connection, NpgsqlTransaction transaction)
     {
-        ArgumentNullException.ThrowIfNull(envelopes);
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
 
-        if (envelopes.Count == 0)
+        if (!ReferenceEquals(transaction.Connection, connection))
         {
-            return PersistResult.Empty;
+            throw new ArgumentException("The supplied transaction must belong to the supplied connection.", nameof(transaction));
         }
 
-        List<OutboxEnvelope>? published = null;
-        List<OutboxEnvelope>? failed = null;
-        List<OutboxEnvelope>? deadLettered = null;
-
-        foreach (var envelope in envelopes)
+        if (connection.State != ConnectionState.Open)
         {
-            switch (envelope.Status)
-            {
-                case OutboxStatus.Published:
-                    (published ??= []).Add(envelope);
-                    break;
-
-                case OutboxStatus.Failed:
-                    (failed ??= []).Add(envelope);
-                    break;
-
-                case OutboxStatus.DeadLettered:
-                    (deadLettered ??= []).Add(envelope);
-                    break;
-
-                default:
-                    throw new InvalidOperationException(
-                        $"Envelope '{envelope.Id}' has unexpected status '{envelope.Status}' in PersistAsync. " +
-                        "Only Published, Failed, and DeadLettered are valid outcomes.");
-            }
+            throw new InvalidOperationException("The supplied connection must already be open.");
         }
 
-        return await PersistTerminalGroupsAsync(published, failed, deadLettered, envelopes, cancellationToken)
-            .ConfigureAwait(false);
+        return new PostgreSqlOutboxStore(_dataSource, _tableName, connection, transaction);
     }
 
     /// <summary>
@@ -504,6 +703,7 @@ public sealed class PostgreSqlOutboxStore :
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
             var scopedStore = new PostgreSqlOutboxStore(_dataSource, _tableName, connection, transaction);
+
             var result = await scopedStore.PersistTerminalGroupsAsync(
                     published,
                     failed,
@@ -511,6 +711,7 @@ public sealed class PostgreSqlOutboxStore :
                     requestedEnvelopes,
                     cancellationToken)
                 .ConfigureAwait(false);
+
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return result;
         }
@@ -550,23 +751,24 @@ public sealed class PostgreSqlOutboxStore :
         if (envelopes.Count == 1)
         {
             var envelope = envelopes[0];
+
             var sql = $"""
-                      UPDATE {_tableName}
-                      SET
-                          status = @published_status,
-                          lease_owner = NULL,
-                          lease_expires_at = NULL,
-                          last_error = NULL,
-                          published_at = @published_at
-                      WHERE message_id = @message_id
-                          AND status = @in_flight_status
-                          AND lease_owner = @owner
-                      RETURNING message_id;
-                      """;
+                       UPDATE {_tableName}
+                       SET
+                           status = @published_status,
+                           lease_owner = NULL,
+                           lease_expires_at = NULL,
+                           last_error = NULL,
+                           published_at = @published_at
+                       WHERE message_id = @message_id
+                           AND status = @in_flight_status
+                           AND lease_owner = @owner
+                       RETURNING message_id;
+                       """;
 
             await using var command = CreateCommand(sql);
-            command.Parameters.AddWithValue("published_status", (int)OutboxStatus.Published);
-            command.Parameters.AddWithValue("in_flight_status", (int)OutboxStatus.Publishing);
+            command.Parameters.AddWithValue("published_status", (int) OutboxStatus.Published);
+            command.Parameters.AddWithValue("in_flight_status", (int) OutboxStatus.Publishing);
             command.Parameters.AddWithValue("message_id", envelope.Id);
             command.Parameters.AddWithValue("owner", envelope.LeaseOwner!);
             command.Parameters.AddWithValue("published_at", ResolvePublishedAt(envelope));
@@ -585,24 +787,24 @@ public sealed class PostgreSqlOutboxStore :
         }
 
         var batchSql = $"""
-                       UPDATE {_tableName} AS outbox
-                       SET
-                           status = @published_status,
-                           lease_owner = NULL,
-                           lease_expires_at = NULL,
-                           last_error = NULL,
-                           published_at = batch.published_at
-                       FROM unnest(@message_ids, @lease_owners, @published_at)
-                           AS batch(message_id, lease_owner, published_at)
-                       WHERE outbox.message_id = batch.message_id
-                           AND outbox.status = @in_flight_status
-                           AND outbox.lease_owner = batch.lease_owner
-                       RETURNING outbox.message_id;
-                       """;
+                        UPDATE {_tableName} AS outbox
+                        SET
+                            status = @published_status,
+                            lease_owner = NULL,
+                            lease_expires_at = NULL,
+                            last_error = NULL,
+                            published_at = batch.published_at
+                        FROM unnest(@message_ids, @lease_owners, @published_at)
+                            AS batch(message_id, lease_owner, published_at)
+                        WHERE outbox.message_id = batch.message_id
+                            AND outbox.status = @in_flight_status
+                            AND outbox.lease_owner = batch.lease_owner
+                        RETURNING outbox.message_id;
+                        """;
 
         await using var batchCommand = CreateCommand(batchSql);
-        batchCommand.Parameters.AddWithValue("published_status", (int)OutboxStatus.Published);
-        batchCommand.Parameters.AddWithValue("in_flight_status", (int)OutboxStatus.Publishing);
+        batchCommand.Parameters.AddWithValue("published_status", (int) OutboxStatus.Published);
+        batchCommand.Parameters.AddWithValue("in_flight_status", (int) OutboxStatus.Publishing);
         batchCommand.Parameters.AddWithValue("message_ids", ids);
         batchCommand.Parameters.AddWithValue("lease_owners", owners);
         AddTimestampArrayParameter(batchCommand, "published_at", publishedAt);
@@ -622,24 +824,25 @@ public sealed class PostgreSqlOutboxStore :
         if (envelopes.Count == 1)
         {
             var envelope = envelopes[0];
+
             var sql = $"""
-                      UPDATE {_tableName}
-                      SET
-                          status = @failed_status,
-                          visible_after = @visible_after,
-                          lease_owner = NULL,
-                          lease_expires_at = NULL,
-                          last_error = @last_error
-                      WHERE message_id = @message_id
-                          AND status = @in_flight_status
-                          AND lease_owner = @owner
-                      RETURNING message_id;
-                      """;
+                       UPDATE {_tableName}
+                       SET
+                           status = @failed_status,
+                           visible_after = @visible_after,
+                           lease_owner = NULL,
+                           lease_expires_at = NULL,
+                           last_error = @last_error
+                       WHERE message_id = @message_id
+                           AND status = @in_flight_status
+                           AND lease_owner = @owner
+                       RETURNING message_id;
+                       """;
 
             await using var command = CreateCommand(sql);
-            command.Parameters.AddWithValue("failed_status", (int)OutboxStatus.Failed);
-            command.Parameters.AddWithValue("in_flight_status", (int)OutboxStatus.Publishing);
-            command.Parameters.AddWithValue("visible_after", (object?)envelope.VisibleAfter ?? DBNull.Value);
+            command.Parameters.AddWithValue("failed_status", (int) OutboxStatus.Failed);
+            command.Parameters.AddWithValue("in_flight_status", (int) OutboxStatus.Publishing);
+            command.Parameters.AddWithValue("visible_after", (object?) envelope.VisibleAfter ?? DBNull.Value);
             command.Parameters.AddWithValue("last_error", envelope.LastError!);
             command.Parameters.AddWithValue("message_id", envelope.Id);
             command.Parameters.AddWithValue("owner", envelope.LeaseOwner!);
@@ -660,24 +863,24 @@ public sealed class PostgreSqlOutboxStore :
         }
 
         var batchSql = $"""
-                       UPDATE {_tableName} AS outbox
-                       SET
-                           status = @failed_status,
-                           visible_after = batch.visible_after,
-                           lease_owner = NULL,
-                           lease_expires_at = NULL,
-                           last_error = batch.last_error
-                       FROM unnest(@message_ids, @lease_owners, @visible_after, @last_errors)
-                           AS batch(message_id, lease_owner, visible_after, last_error)
-                       WHERE outbox.message_id = batch.message_id
-                           AND outbox.status = @in_flight_status
-                           AND outbox.lease_owner = batch.lease_owner
-                       RETURNING outbox.message_id;
-                       """;
+                        UPDATE {_tableName} AS outbox
+                        SET
+                            status = @failed_status,
+                            visible_after = batch.visible_after,
+                            lease_owner = NULL,
+                            lease_expires_at = NULL,
+                            last_error = batch.last_error
+                        FROM unnest(@message_ids, @lease_owners, @visible_after, @last_errors)
+                            AS batch(message_id, lease_owner, visible_after, last_error)
+                        WHERE outbox.message_id = batch.message_id
+                            AND outbox.status = @in_flight_status
+                            AND outbox.lease_owner = batch.lease_owner
+                        RETURNING outbox.message_id;
+                        """;
 
         await using var batchCommand = CreateCommand(batchSql);
-        batchCommand.Parameters.AddWithValue("failed_status", (int)OutboxStatus.Failed);
-        batchCommand.Parameters.AddWithValue("in_flight_status", (int)OutboxStatus.Publishing);
+        batchCommand.Parameters.AddWithValue("failed_status", (int) OutboxStatus.Failed);
+        batchCommand.Parameters.AddWithValue("in_flight_status", (int) OutboxStatus.Publishing);
         batchCommand.Parameters.AddWithValue("message_ids", ids);
         batchCommand.Parameters.AddWithValue("lease_owners", owners);
         AddVisibleAfterArrayParameter(batchCommand, visibleAfter);
@@ -698,22 +901,23 @@ public sealed class PostgreSqlOutboxStore :
         if (envelopes.Count == 1)
         {
             var envelope = envelopes[0];
+
             var sql = $"""
-                      UPDATE {_tableName}
-                      SET
-                          status = @dead_lettered_status,
-                          lease_owner = NULL,
-                          lease_expires_at = NULL,
-                          last_error = @last_error
-                      WHERE message_id = @message_id
-                          AND status = @in_flight_status
-                          AND lease_owner = @owner
-                      RETURNING message_id;
-                      """;
+                       UPDATE {_tableName}
+                       SET
+                           status = @dead_lettered_status,
+                           lease_owner = NULL,
+                           lease_expires_at = NULL,
+                           last_error = @last_error
+                       WHERE message_id = @message_id
+                           AND status = @in_flight_status
+                           AND lease_owner = @owner
+                       RETURNING message_id;
+                       """;
 
             await using var command = CreateCommand(sql);
-            command.Parameters.AddWithValue("dead_lettered_status", (int)OutboxStatus.DeadLettered);
-            command.Parameters.AddWithValue("in_flight_status", (int)OutboxStatus.Publishing);
+            command.Parameters.AddWithValue("dead_lettered_status", (int) OutboxStatus.DeadLettered);
+            command.Parameters.AddWithValue("in_flight_status", (int) OutboxStatus.Publishing);
             command.Parameters.AddWithValue("last_error", envelope.LastError!);
             command.Parameters.AddWithValue("message_id", envelope.Id);
             command.Parameters.AddWithValue("owner", envelope.LeaseOwner!);
@@ -732,23 +936,23 @@ public sealed class PostgreSqlOutboxStore :
         }
 
         var batchSql = $"""
-                       UPDATE {_tableName} AS outbox
-                       SET
-                           status = @dead_lettered_status,
-                           lease_owner = NULL,
-                           lease_expires_at = NULL,
-                           last_error = batch.last_error
-                       FROM unnest(@message_ids, @lease_owners, @last_errors)
-                           AS batch(message_id, lease_owner, last_error)
-                       WHERE outbox.message_id = batch.message_id
-                           AND outbox.status = @in_flight_status
-                           AND outbox.lease_owner = batch.lease_owner
-                       RETURNING outbox.message_id;
-                       """;
+                        UPDATE {_tableName} AS outbox
+                        SET
+                            status = @dead_lettered_status,
+                            lease_owner = NULL,
+                            lease_expires_at = NULL,
+                            last_error = batch.last_error
+                        FROM unnest(@message_ids, @lease_owners, @last_errors)
+                            AS batch(message_id, lease_owner, last_error)
+                        WHERE outbox.message_id = batch.message_id
+                            AND outbox.status = @in_flight_status
+                            AND outbox.lease_owner = batch.lease_owner
+                        RETURNING outbox.message_id;
+                        """;
 
         await using var batchCommand = CreateCommand(batchSql);
-        batchCommand.Parameters.AddWithValue("dead_lettered_status", (int)OutboxStatus.DeadLettered);
-        batchCommand.Parameters.AddWithValue("in_flight_status", (int)OutboxStatus.Publishing);
+        batchCommand.Parameters.AddWithValue("dead_lettered_status", (int) OutboxStatus.DeadLettered);
+        batchCommand.Parameters.AddWithValue("in_flight_status", (int) OutboxStatus.Publishing);
         batchCommand.Parameters.AddWithValue("message_ids", ids);
         batchCommand.Parameters.AddWithValue("lease_owners", owners);
         batchCommand.Parameters.AddWithValue("last_errors", reasons);
@@ -775,200 +979,6 @@ public sealed class PostgreSqlOutboxStore :
         }
 
         return persistedMessageIds;
-    }
-
-    /// <inheritdoc />
-    public async Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(messageIds);
-
-        if (messageIds.Count == 0)
-        {
-            return;
-        }
-
-        if (messageIds.Count == 1)
-        {
-            var singleSql = $"""
-                            UPDATE {_tableName}
-                            SET
-                                status = @pending_status,
-                                visible_after = NULL,
-                                attempt_count = 0,
-                                lease_owner = NULL,
-                                lease_expires_at = NULL,
-                                last_error = NULL
-                            WHERE message_id = @message_id AND status = @dead_lettered_status;
-                            """;
-
-            await using var singleCommand = CreateCommand(singleSql);
-            singleCommand.Parameters.AddWithValue("pending_status", (int)OutboxStatus.Pending);
-            singleCommand.Parameters.AddWithValue("dead_lettered_status", (int)OutboxStatus.DeadLettered);
-            singleCommand.Parameters.AddWithValue("message_id", messageIds[0]);
-            await singleCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
-        var sql = $"""
-                  UPDATE {_tableName}
-                  SET
-                      status = @pending_status,
-                      visible_after = NULL,
-                      attempt_count = 0,
-                      lease_owner = NULL,
-                      lease_expires_at = NULL,
-                      last_error = NULL
-                  WHERE message_id = ANY(@message_ids) AND status = @dead_lettered_status;
-                  """;
-
-        await using var command = CreateCommand(sql);
-        command.Parameters.AddWithValue("pending_status", (int)OutboxStatus.Pending);
-        command.Parameters.AddWithValue("dead_lettered_status", (int)OutboxStatus.DeadLettered);
-        PostgreSqlParameterExtensions.AddUuidArrayParameter(command, "message_ids", messageIds.ToArray());
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public async Task<int> DeletePublishedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
-    {
-        var sql = $"""
-                  DELETE FROM {_tableName}
-                  WHERE status = @published_status
-                      AND COALESCE(published_at, created_at) < @older_than;
-                  """;
-
-        await using var command = CreateCommand(sql);
-        command.Parameters.AddWithValue("published_status", (int)OutboxStatus.Published);
-        command.Parameters.AddWithValue("older_than", olderThan);
-        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public async Task<IReadOnlyDictionary<OutboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
-    {
-        var sql = $"""
-                  SELECT status, COUNT(*)::int
-                  FROM {_tableName}
-                  GROUP BY status;
-                  """;
-
-        await using var command = CreateCommand(sql);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        var counts = new Dictionary<OutboxStatus, int>();
-
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            counts[(OutboxStatus)reader.GetInt32(0)] = reader.GetInt32(1);
-        }
-
-        return counts;
-    }
-
-    /// <inheritdoc />
-    public async Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
-    {
-        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var recordedVersion = await PostgreSqlSchemaVersionStore.GetVersionAsync(
-                connection,
-                _options,
-                PostgreSqlSchemaComponents.Outbox,
-                _options.SchemaName,
-                _options.TableName,
-                cancellationToken)
-            .ConfigureAwait(false);
-
-        var recorded = recordedVersion == 0
-            ? PostgreSqlOutboxSchema.CurrentSchemaVersion
-            : recordedVersion;
-
-        return new StoreSchemaInfo(
-            PostgreSqlSchemaComponents.Outbox,
-            PostgreSqlOutboxSchema.CurrentSchemaVersion,
-            recorded,
-            _options.SchemaName,
-            _options.TableName);
-    }
-
-    /// <inheritdoc />
-    public async Task<OutboxMessagePage> QueryAsync(
-        OutboxMessageFilter filter,
-        OutboxMessagePageRequest pageRequest,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(filter);
-        ArgumentNullException.ThrowIfNull(pageRequest);
-        ValidatePageSize(pageRequest.PageSize);
-
-        var sql = $"""
-                  SELECT
-                      message_id,
-                      contract_name,
-                      contract_version,
-                      payload::text,
-                      topic,
-                      created_at,
-                      visible_after,
-                      status,
-                      attempt_count,
-                      lease_owner,
-                      lease_expires_at,
-                      last_error,
-                      correlation_id,
-                      causation_id,
-                      tenant_id,
-                      idempotency_key,
-                      trace_context::text,
-                      published_at
-                  FROM {_tableName}
-                  WHERE (@status_filter OR status = ANY(@statuses))
-                      AND (@message_id IS NULL OR message_id = @message_id)
-                      AND (@message_ids IS NULL OR message_id = ANY(@message_ids))
-                      AND (@contract_name IS NULL OR contract_name = @contract_name)
-                      AND (@topic IS NULL OR topic = @topic)
-                      AND (@correlation_id IS NULL OR correlation_id = @correlation_id)
-                      AND (@causation_id IS NULL OR causation_id = @causation_id)
-                      AND (@tenant_id IS NULL OR tenant_id = @tenant_id)
-                      AND (@created_after IS NULL OR created_at >= @created_after)
-                      AND (@created_before IS NULL OR created_at <= @created_before)
-                      AND (
-                          @cursor_created_at IS NULL
-                          OR (created_at, message_id) > (@cursor_created_at, @cursor_id)
-                      )
-                  ORDER BY created_at ASC, message_id ASC
-                  LIMIT @page_size;
-                  """;
-
-        await using var command = CreateCommand(sql);
-        AddFilterParameters(command, filter);
-        AddCursorParameters(command, pageRequest.Cursor);
-        command.Parameters.AddWithValue("page_size", pageRequest.PageSize + 1);
-
-        var envelopes = await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
-        return BuildPage(envelopes, pageRequest.PageSize);
-    }
-
-    /// <inheritdoc />
-    public async Task<int> PurgeAsync(OutboxMessageFilter filter, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(filter);
-
-        var sql = $"""
-                  DELETE FROM {_tableName}
-                  WHERE (@status_filter OR status = ANY(@statuses))
-                      AND (@message_id IS NULL OR message_id = @message_id)
-                      AND (@message_ids IS NULL OR message_id = ANY(@message_ids))
-                      AND (@contract_name IS NULL OR contract_name = @contract_name)
-                      AND (@topic IS NULL OR topic = @topic)
-                      AND (@correlation_id IS NULL OR correlation_id = @correlation_id)
-                      AND (@causation_id IS NULL OR causation_id = @causation_id)
-                      AND (@tenant_id IS NULL OR tenant_id = @tenant_id)
-                      AND (@created_after IS NULL OR created_at >= @created_after)
-                      AND (@created_before IS NULL OR created_at <= @created_before);
-                  """;
-
-        await using var command = CreateCommand(sql);
-        AddFilterParameters(command, filter);
-        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1048,8 +1058,8 @@ public sealed class PostgreSqlOutboxStore :
 
         command.CommandText = sql;
 
-        return await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false)
-               ?? throw new InvalidOperationException("The outbox insert was skipped but the existing message could not be found.");
+        return await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false) ??
+               throw new InvalidOperationException("The outbox insert was skipped but the existing message could not be found.");
     }
 
     /// <summary>
@@ -1059,7 +1069,7 @@ public sealed class PostgreSqlOutboxStore :
     /// <param name="envelope">The envelope being inserted.</param>
     private static void AddEnvelopeParameters(NpgsqlCommand command, OutboxEnvelope envelope)
     {
-        AddEnvelopeParameters(command, envelope, parameterSuffix: null);
+        AddEnvelopeParameters(command, envelope, null);
     }
 
     /// <summary>
@@ -1081,18 +1091,18 @@ public sealed class PostgreSqlOutboxStore :
         var payloadParameter = command.Parameters.Add($"payload{suffix}", NpgsqlDbType.Jsonb);
         payloadParameter.Value = envelope.Payload;
 
-        command.Parameters.AddWithValue($"topic{suffix}", (object?)envelope.Topic ?? DBNull.Value);
+        command.Parameters.AddWithValue($"topic{suffix}", (object?) envelope.Topic ?? DBNull.Value);
         command.Parameters.AddWithValue($"created_at{suffix}", envelope.CreatedAt);
-        command.Parameters.AddWithValue($"visible_after{suffix}", (object?)envelope.VisibleAfter ?? DBNull.Value);
-        command.Parameters.AddWithValue($"status{suffix}", (int)envelope.Status);
+        command.Parameters.AddWithValue($"visible_after{suffix}", (object?) envelope.VisibleAfter ?? DBNull.Value);
+        command.Parameters.AddWithValue($"status{suffix}", (int) envelope.Status);
         command.Parameters.AddWithValue($"attempt_count{suffix}", envelope.AttemptCount);
-        command.Parameters.AddWithValue($"lease_owner{suffix}", (object?)envelope.LeaseOwner ?? DBNull.Value);
-        command.Parameters.AddWithValue($"lease_expires_at{suffix}", (object?)envelope.LeaseExpiresAt ?? DBNull.Value);
-        command.Parameters.AddWithValue($"last_error{suffix}", (object?)envelope.LastError ?? DBNull.Value);
-        command.Parameters.AddWithValue($"correlation_id{suffix}", (object?)envelope.CorrelationId ?? DBNull.Value);
-        command.Parameters.AddWithValue($"causation_id{suffix}", (object?)envelope.CausationId ?? DBNull.Value);
-        command.Parameters.AddWithValue($"tenant_id{suffix}", (object?)envelope.TenantId ?? DBNull.Value);
-        command.Parameters.AddWithValue($"idempotency_key{suffix}", (object?)envelope.IdempotencyKey ?? DBNull.Value);
+        command.Parameters.AddWithValue($"lease_owner{suffix}", (object?) envelope.LeaseOwner ?? DBNull.Value);
+        command.Parameters.AddWithValue($"lease_expires_at{suffix}", (object?) envelope.LeaseExpiresAt ?? DBNull.Value);
+        command.Parameters.AddWithValue($"last_error{suffix}", (object?) envelope.LastError ?? DBNull.Value);
+        command.Parameters.AddWithValue($"correlation_id{suffix}", (object?) envelope.CorrelationId ?? DBNull.Value);
+        command.Parameters.AddWithValue($"causation_id{suffix}", (object?) envelope.CausationId ?? DBNull.Value);
+        command.Parameters.AddWithValue($"tenant_id{suffix}", (object?) envelope.TenantId ?? DBNull.Value);
+        command.Parameters.AddWithValue($"idempotency_key{suffix}", (object?) envelope.IdempotencyKey ?? DBNull.Value);
 
         var traceContextParameter = command.Parameters.Add($"trace_context{suffix}", NpgsqlDbType.Jsonb);
         traceContextParameter.Value = string.IsNullOrWhiteSpace(envelope.TraceContext) ? DBNull.Value : envelope.TraceContext;
@@ -1149,7 +1159,7 @@ public sealed class PostgreSqlOutboxStore :
             Topic = GetNullableString(reader, 4),
             CreatedAt = reader.GetFieldValue<DateTimeOffset>(5),
             VisibleAfter = GetNullable<DateTimeOffset>(reader, 6),
-            Status = (OutboxStatus)reader.GetInt32(7),
+            Status = (OutboxStatus) reader.GetInt32(7),
             AttemptCount = reader.GetInt32(8),
             LeaseOwner = GetNullableString(reader, 9),
             LeaseExpiresAt = GetNullable<DateTimeOffset>(reader, 10),
@@ -1184,8 +1194,10 @@ public sealed class PostgreSqlOutboxStore :
     /// </summary>
     /// <param name="envelope">The published envelope being persisted.</param>
     /// <returns>The UTC timestamp written to <c>published_at</c>.</returns>
-    private static DateTimeOffset ResolvePublishedAt(OutboxEnvelope envelope) =>
-        envelope.PublishedAt ?? DateTimeOffset.UtcNow;
+    private static DateTimeOffset ResolvePublishedAt(OutboxEnvelope envelope)
+    {
+        return envelope.PublishedAt ?? DateTimeOffset.UtcNow;
+    }
 
     /// <summary>
     ///     Reads a nullable value type from the current row.
@@ -1270,20 +1282,24 @@ public sealed class PostgreSqlOutboxStore :
     private static void AddFilterParameters(NpgsqlCommand command, OutboxMessageFilter filter)
     {
         var hasStatusFilter = filter.Statuses is { Count: > 0 };
+
         var statuses = hasStatusFilter
-            ? filter.Statuses!.Select(status => (int)status).ToArray()
+            ? filter.Statuses!.Select(status => (int) status).ToArray()
             : Array.Empty<int>();
 
         command.Parameters.AddWithValue("status_filter", !hasStatusFilter);
         command.Parameters.AddWithValue("statuses", statuses);
+
         command.Parameters.Add(new NpgsqlParameter("message_id", NpgsqlDbType.Uuid)
         {
             Value = filter.MessageId is null ? DBNull.Value : filter.MessageId.Value
         });
+
         command.Parameters.Add(new NpgsqlParameter("message_ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid)
         {
             Value = filter.MessageIds is { Count: > 0 } ? filter.MessageIds.ToArray() : DBNull.Value
         });
+
         AddNullableTextParameter(command, "contract_name", filter.ContractName);
         AddNullableTextParameter(command, "topic", filter.Topic);
         AddNullableTextParameter(command, "correlation_id", filter.CorrelationId);
@@ -1326,6 +1342,7 @@ public sealed class PostgreSqlOutboxStore :
     {
         var hasMore = envelopes.Count > pageSize;
         var items = hasMore ? envelopes.Take(pageSize).ToList() : envelopes;
+
         var nextCursor = hasMore
             ? OutboxMessagePageCursor.Encode(items[^1].CreatedAt, items[^1].Id)
             : null;
@@ -1355,7 +1372,7 @@ public sealed class PostgreSqlOutboxStore :
     {
         command.Parameters.Add(new NpgsqlParameter(name, NpgsqlDbType.Text)
         {
-            Value = (object?)value ?? DBNull.Value
+            Value = (object?) value ?? DBNull.Value
         });
     }
 

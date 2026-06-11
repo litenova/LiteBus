@@ -93,7 +93,8 @@ public sealed record OutboxEnvelope
     public string? IdempotencyKey { get; init; }
 
     /// <summary>
-    ///     Gets the optional distributed trace context stored as JSON text (for example W3C trace context or OpenTelemetry baggage).
+    ///     Gets the optional distributed trace context stored as JSON text (for example W3C trace context or OpenTelemetry
+    ///     baggage).
     /// </summary>
     public string? TraceContext { get; init; }
 
@@ -108,14 +109,16 @@ public sealed record OutboxEnvelope
     /// <param name="leaseOwner">The processor instance that claimed the envelope.</param>
     /// <param name="leaseExpiresAt">The UTC timestamp when the lease expires.</param>
     /// <returns>The leased envelope returned to the processor.</returns>
-    public OutboxEnvelope AsLeased(string leaseOwner, DateTimeOffset leaseExpiresAt) =>
-        this with
+    public OutboxEnvelope AsLeased(string leaseOwner, DateTimeOffset leaseExpiresAt)
+    {
+        return this with
         {
             Status = OutboxStatus.Publishing,
             LeaseOwner = leaseOwner,
             LeaseExpiresAt = leaseExpiresAt,
             AttemptCount = AttemptCount + 1
         };
+    }
 
     /// <summary>
     ///     Returns a new envelope representing successful publication.

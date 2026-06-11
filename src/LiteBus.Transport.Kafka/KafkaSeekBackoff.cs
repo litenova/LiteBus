@@ -1,4 +1,3 @@
-using System;
 using Confluent.Kafka;
 
 namespace LiteBus.Transport.Kafka;
@@ -14,14 +13,14 @@ internal sealed class KafkaSeekBackoff
     private readonly KafkaTransportOptions _options;
 
     /// <summary>
-    ///     Gets the offset that most recently failed and triggered a seek.
-    /// </summary>
-    private TopicPartitionOffset? _lastFailedOffset;
-
-    /// <summary>
     ///     Gets the number of consecutive seek failures observed at <see cref="_lastFailedOffset" />.
     /// </summary>
     private int _consecutiveFailures;
+
+    /// <summary>
+    ///     Gets the offset that most recently failed and triggered a seek.
+    /// </summary>
+    private TopicPartitionOffset? _lastFailedOffset;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="KafkaSeekBackoff" /> class.

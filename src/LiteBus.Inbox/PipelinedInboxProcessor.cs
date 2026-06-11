@@ -19,7 +19,7 @@ namespace LiteBus.Inbox;
 /// <remarks>
 ///     <para>
 ///         Each pass writes leased envelopes to a bounded channel consumed by
-///         <see cref="InboxProcessorOptions.DispatcherConcurrency" /> workers. Lease heartbeat renewal runs while
+///         <see cref="ProcessorOptions.DispatcherConcurrency" /> workers. Lease heartbeat renewal runs while
 ///         dispatch is in progress so slow handlers retain ownership until they finish.
 ///     </para>
 ///     <para>
@@ -65,6 +65,7 @@ public sealed class PipelinedInboxProcessor : IInboxProcessor
         InboxProcessorFactory.ValidateOptions(options);
 
         var resolvedLogger = logger ?? NullLogger<PipelinedInboxProcessor>.Instance;
+
         var operations = new InboxPipelinedMessageProcessorOperations(
             leaseStore,
             stateWriter,
@@ -83,6 +84,8 @@ public sealed class PipelinedInboxProcessor : IInboxProcessor
     }
 
     /// <inheritdoc />
-    public Task<ProcessorPassResult> ProcessPendingAsync(CancellationToken cancellationToken = default) =>
-        _processor.ProcessPendingAsync(cancellationToken);
+    public Task<ProcessorPassResult> ProcessPendingAsync(CancellationToken cancellationToken = default)
+    {
+        return _processor.ProcessPendingAsync(cancellationToken);
+    }
 }

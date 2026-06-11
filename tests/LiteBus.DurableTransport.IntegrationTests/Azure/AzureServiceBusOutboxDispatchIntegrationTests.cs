@@ -1,6 +1,7 @@
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Dispatch.AzureServiceBus;
@@ -50,16 +51,17 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        await outbox.EnqueueAsync(
-            new OrderSubmittedIntegrationEvent { OrderId = orderId },
-            new OutboxOptions
+        await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+        {
+            Event = new OrderSubmittedIntegrationEvent { OrderId = orderId },
+            Metadata = OutboxEnqueueMetadata.Immediate with
             {
-                Id = messageId,
-                Topic = queueName,
-                CorrelationId = "corr-azure-outbox",
-                CausationId = "cause-azure-outbox",
-                TenantId = "tenant-azure-east"
-            });
+                Identity = new MessageIdentity.Supplied(messageId),
+                Trace = new MessageTrace.Workflow("corr-azure-outbox", "cause-azure-outbox"),
+                Tenant = new TenantScope.Isolated("tenant-azure-east"),
+                Target = new PublicationTarget.Topic(queueName)
+            }
+        });
 
         await processor.ProcessPendingAsync();
 
@@ -73,6 +75,7 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
         var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
             body,
             new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
         payload!.OrderId.Should().Be(orderId);
         headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));
         headers[TransportHeaders.ContractName].Should().Be("orders.order-submitted");
@@ -98,9 +101,14 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        await outbox.EnqueueAsync(
-            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            new OutboxOptions { Id = messageId });
+        await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+        {
+            Event = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            Metadata = OutboxEnqueueMetadata.Immediate with
+            {
+                Identity = new MessageIdentity.Supplied(messageId)
+            }
+        });
 
         await processor.ProcessPendingAsync();
 
@@ -124,17 +132,22 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddOutboxModule(outbox =>
                 {
                     outbox.UseInMemoryStorage();
-                    outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted", 1);
+                    outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted");
+
                     outbox.UseProcessorOptions(new OutboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "azure-outbox-test",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     outbox.UseAzureServiceBusDispatch(
                         transport => transport.DefaultDestination = queueName,
                         _fixture.TransportOptions);

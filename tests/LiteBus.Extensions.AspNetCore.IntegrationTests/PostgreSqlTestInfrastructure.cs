@@ -1,5 +1,6 @@
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Outbox.Storage.PostgreSql;
+using Npgsql;
 
 namespace LiteBus.Extensions.AspNetCore.IntegrationTests;
 
@@ -17,7 +18,7 @@ internal static class PostgreSqlTestInfrastructure
     ///     Creates isolated inbox store options for one test run.
     /// </summary>
     /// <returns>The PostgreSQL inbox store options.</returns>
-    internal static PostgreSqlInboxStoreOptions CreateInboxOptions()
+    internal static PostgreSqlInboxStoreOptions CreateInboxStoreOptions()
     {
         return new PostgreSqlInboxStoreOptions
         {
@@ -31,7 +32,7 @@ internal static class PostgreSqlTestInfrastructure
     ///     Creates isolated outbox store options for one test run.
     /// </summary>
     /// <returns>The PostgreSQL outbox store options.</returns>
-    internal static PostgreSqlOutboxStoreOptions CreateOutboxOptions()
+    internal static PostgreSqlOutboxStoreOptions CreateOutboxStoreOptions()
     {
         return new PostgreSqlOutboxStoreOptions
         {
@@ -46,7 +47,7 @@ internal static class PostgreSqlTestInfrastructure
     /// </summary>
     /// <param name="dataSource">The PostgreSQL data source.</param>
     /// <param name="options">The inbox store options.</param>
-    internal static async Task EnsureInboxSchemaAsync(Npgsql.NpgsqlDataSource dataSource, PostgreSqlInboxStoreOptions options)
+    internal static async Task EnsureInboxSchemaAsync(NpgsqlDataSource dataSource, PostgreSqlInboxStoreOptions options)
     {
         await PostgreSqlInboxSchema.EnsureAsync(dataSource, options);
     }
@@ -56,7 +57,7 @@ internal static class PostgreSqlTestInfrastructure
     /// </summary>
     /// <param name="dataSource">The PostgreSQL data source.</param>
     /// <param name="options">The outbox store options.</param>
-    internal static async Task EnsureOutboxSchemaAsync(Npgsql.NpgsqlDataSource dataSource, PostgreSqlOutboxStoreOptions options)
+    internal static async Task EnsureOutboxSchemaAsync(NpgsqlDataSource dataSource, PostgreSqlOutboxStoreOptions options)
     {
         await PostgreSqlOutboxSchema.EnsureAsync(dataSource, options);
     }

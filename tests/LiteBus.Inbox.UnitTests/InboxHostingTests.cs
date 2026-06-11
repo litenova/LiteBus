@@ -1,7 +1,5 @@
 using LiteBus.Commands;
-using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
@@ -10,7 +8,6 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Inbox.UnitTests;
 
@@ -36,15 +33,16 @@ public sealed class InboxHostingTests : LiteBusTestBase
 
         await using var provider = BuildProvider(
             recorder,
-            configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(50));
+            options => options.PollInterval = TimeSpan.FromMilliseconds(50));
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var orderId = Guid.NewGuid();
-        await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+
+        await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        });
+        }));
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
@@ -61,10 +59,13 @@ public sealed class InboxHostingTests : LiteBusTestBase
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ => { });
-                registry.AddInboxModule(inbox =>
+                    registry.AddMessageModule(_ =>
                     {
-                        inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
+                    });
+
+                    registry.AddInboxModule(inbox =>
+                    {
+                        inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
                         inbox.EnableInboxProcessor();
                     });
                 })
@@ -81,10 +82,13 @@ public sealed class InboxHostingTests : LiteBusTestBase
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ => { });
+                    registry.AddMessageModule(_ =>
+                    {
+                    });
+
                     registry.AddInboxModule(inbox =>
                     {
-                        inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
+                        inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
                         inbox.UseInMemoryStorage();
                         inbox.EnableInboxProcessor();
                     });
@@ -102,7 +106,7 @@ public sealed class InboxHostingTests : LiteBusTestBase
 
         await using var provider = BuildProvider(
             recorder,
-            configureHost: options =>
+            options =>
             {
                 options.StartupDelay = TimeSpan.FromMilliseconds(300);
                 options.PollInterval = TimeSpan.FromMilliseconds(50);
@@ -111,11 +115,12 @@ public sealed class InboxHostingTests : LiteBusTestBase
         var scheduler = provider.GetRequiredService<IInbox>();
 
         var orderId = Guid.NewGuid();
-        await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+
+        await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        });
+        }));
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
@@ -138,7 +143,8 @@ public sealed class InboxHostingTests : LiteBusTestBase
             recorder,
             configureInbox: inbox =>
             {
-                inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
+                inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
+
                 inbox.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 2,
@@ -157,11 +163,12 @@ public sealed class InboxHostingTests : LiteBusTestBase
         for (var i = 0; i < 4; i++)
         {
             var orderId = Guid.NewGuid();
-            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+
+            await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
             {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
-            });
+            }));
         }
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
@@ -185,11 +192,12 @@ public sealed class InboxHostingTests : LiteBusTestBase
         emptyPass.LeasedCount.Should().Be(0);
 
         var orderId = Guid.NewGuid();
-        await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+
+        await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        });
+        }));
 
         var pass = await processor.ProcessPendingAsync();
         pass.LeasedCount.Should().Be(1);
@@ -198,6 +206,7 @@ public sealed class InboxHostingTests : LiteBusTestBase
     private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
     {
         var deadline = DateTimeOffset.UtcNow + timeout;
+
         while (!condition() && DateTimeOffset.UtcNow < deadline)
         {
             await Task.Delay(50);
@@ -213,7 +222,10 @@ public sealed class InboxHostingTests : LiteBusTestBase
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
@@ -228,7 +240,8 @@ public sealed class InboxHostingTests : LiteBusTestBase
                     }
                     else
                     {
-                        inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
+                        inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
+
                         inbox.UseProcessorOptions(new InboxProcessorOptions
                         {
                             BatchSize = 10,
@@ -245,4 +258,3 @@ public sealed class InboxHostingTests : LiteBusTestBase
             .BuildServiceProvider();
     }
 }
-

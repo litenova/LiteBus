@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
+using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Messaging.Processing;
 using Microsoft.Extensions.Logging;
 
@@ -22,7 +22,7 @@ internal static class InboxProcessorPassRecorder
     /// <param name="logger">The logger used for pass completion diagnostics.</param>
     /// <returns>The processor pass result.</returns>
     public static ProcessorPassResult FinalizePass(
-        ProcessorPassAccumulator<Abstractions.InboxEnvelope> accumulator,
+        ProcessorPassAccumulator<InboxEnvelope> accumulator,
         int leasedCount,
         TimeSpan elapsed,
         Activity? passActivity,
@@ -34,6 +34,7 @@ internal static class InboxProcessorPassRecorder
         passActivity?.SetTag("litebus.inbox.succeeded_count", result.SucceededCount);
         passActivity?.SetTag("litebus.inbox.failed_count", result.FailedCount);
         passActivity?.SetTag("litebus.inbox.dead_lettered_count", result.DeadLetteredCount);
+
         InboxProcessorTelemetry.RecordPass(
             result.LeasedCount,
             result.SucceededCount,
@@ -61,7 +62,7 @@ internal static class InboxProcessorPassRecorder
     /// <param name="logger">The logger used for pass completion diagnostics.</param>
     /// <returns>The processor pass result.</returns>
     public static ProcessorPassResult FinalizePass(
-        ConcurrentProcessorPassAccumulator<Abstractions.InboxEnvelope> accumulator,
+        ConcurrentProcessorPassAccumulator<InboxEnvelope> accumulator,
         int leasedCount,
         TimeSpan elapsed,
         Activity? passActivity,
@@ -73,6 +74,7 @@ internal static class InboxProcessorPassRecorder
         passActivity?.SetTag("litebus.inbox.succeeded_count", result.SucceededCount);
         passActivity?.SetTag("litebus.inbox.failed_count", result.FailedCount);
         passActivity?.SetTag("litebus.inbox.dead_lettered_count", result.DeadLetteredCount);
+
         InboxProcessorTelemetry.RecordPass(
             result.LeasedCount,
             result.SucceededCount,

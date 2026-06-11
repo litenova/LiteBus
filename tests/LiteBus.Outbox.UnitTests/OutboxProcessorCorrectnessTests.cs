@@ -2,7 +2,6 @@ using System.Diagnostics.Metrics;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Orchestration.Abstractions;
-using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Testing;
@@ -56,6 +55,7 @@ public sealed class OutboxProcessorCorrectnessTests
             Array.Empty<IProcessorEnvelopeHook>());
 
         var messageId = Guid.NewGuid();
+
         await store.Inner.AddAsync(new OutboxEnvelope
         {
             Id = messageId,
@@ -101,10 +101,13 @@ public sealed class OutboxProcessorCorrectnessTests
 
         var clock = new ManualTimeProvider(BaseTime);
         var store = new LeaseFailingOutboxStore(new InMemoryOutboxStore(timeProvider: clock));
+
         var processor = new PipelinedOutboxProcessor(
             store,
             store,
-            new CountingOutboxDispatcher(() => { }),
+            new CountingOutboxDispatcher(() =>
+            {
+            }),
             new OutboxProcessorOptions
             {
                 BatchSize = 1,
@@ -156,6 +159,7 @@ public sealed class OutboxProcessorCorrectnessTests
             [new ThrowingAfterDispatchHook()]);
 
         var messageId = Guid.NewGuid();
+
         await store.AddAsync(new OutboxEnvelope
         {
             Id = messageId,
@@ -178,10 +182,13 @@ public sealed class OutboxProcessorCorrectnessTests
     public async Task PipelinedProcessor_when_after_dispatch_hook_fails_should_persist_dead_letter_without_published()
     {
         var store = new PersistRecordingOutboxStore(new InMemoryOutboxStore());
+
         var processor = new PipelinedOutboxProcessor(
             store,
             store,
-            new CountingOutboxDispatcher(() => { }),
+            new CountingOutboxDispatcher(() =>
+            {
+            }),
             new OutboxProcessorOptions
             {
                 BatchSize = 1,
@@ -194,6 +201,7 @@ public sealed class OutboxProcessorCorrectnessTests
             [new ThrowingAfterDispatchHook()]);
 
         var messageId = Guid.NewGuid();
+
         await store.Inner.AddAsync(new OutboxEnvelope
         {
             Id = messageId,
@@ -237,10 +245,13 @@ public sealed class OutboxProcessorCorrectnessTests
         meterListener.Start();
 
         var store = new SkippingPersistOutboxStore(new InMemoryOutboxStore());
+
         var processor = new PipelinedOutboxProcessor(
             store,
             store,
-            new CountingOutboxDispatcher(() => { }),
+            new CountingOutboxDispatcher(() =>
+            {
+            }),
             new OutboxProcessorOptions
             {
                 BatchSize = 1,
@@ -272,10 +283,13 @@ public sealed class OutboxProcessorCorrectnessTests
     public async Task PipelinedProcessor_default_options_should_pass_none_to_terminal_persist()
     {
         var store = new TokenCapturingOutboxStore(new InMemoryOutboxStore());
+
         var processor = new PipelinedOutboxProcessor(
             store,
             store,
-            new CountingOutboxDispatcher(() => { }),
+            new CountingOutboxDispatcher(() =>
+            {
+            }),
             new OutboxProcessorOptions
             {
                 BatchSize = 1,
@@ -308,10 +322,13 @@ public sealed class OutboxProcessorCorrectnessTests
     public async Task PipelinedProcessor_when_honor_shutdown_enabled_should_pass_dispatch_token_to_persist()
     {
         var store = new TokenCapturingOutboxStore(new InMemoryOutboxStore());
+
         var processor = new PipelinedOutboxProcessor(
             store,
             store,
-            new CountingOutboxDispatcher(() => { }),
+            new CountingOutboxDispatcher(() =>
+            {
+            }),
             new OutboxProcessorOptions
             {
                 BatchSize = 1,
@@ -358,11 +375,15 @@ public sealed class OutboxProcessorCorrectnessTests
 
     private sealed class ThrowingAfterDispatchHook : IProcessorEnvelopeHook
     {
-        public Task BeforeDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+        public Task BeforeDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
 
-        public Task AfterDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default) =>
+        public Task AfterDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
+        {
             throw new InvalidOperationException("AfterDispatch failed.");
+        }
     }
 
     private sealed class LeaseFailingOutboxStore : IOutboxProcessingStore
@@ -378,8 +399,10 @@ public sealed class OutboxProcessorCorrectnessTests
 
         public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
             OutboxLeaseRequest request,
-            CancellationToken cancellationToken = default) =>
-            Inner.LeasePendingAsync(request, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return Inner.LeasePendingAsync(request, cancellationToken);
+        }
 
         public Task<bool> RenewLeaseAsync(
             Guid messageId,
@@ -393,8 +416,10 @@ public sealed class OutboxProcessorCorrectnessTests
 
         public Task<PersistResult> PersistAsync(
             IReadOnlyList<OutboxEnvelope> envelopes,
-            CancellationToken cancellationToken = default) =>
-            Inner.PersistAsync(envelopes, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return Inner.PersistAsync(envelopes, cancellationToken);
+        }
     }
 
     private sealed class SkippingPersistOutboxStore : IOutboxProcessingStore
@@ -408,20 +433,26 @@ public sealed class OutboxProcessorCorrectnessTests
 
         public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
             OutboxLeaseRequest request,
-            CancellationToken cancellationToken = default) =>
-            Inner.LeasePendingAsync(request, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return Inner.LeasePendingAsync(request, cancellationToken);
+        }
 
         public Task<bool> RenewLeaseAsync(
             Guid messageId,
             string leaseOwner,
             DateTimeOffset expiresAt,
-            CancellationToken cancellationToken = default) =>
-            Inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return Inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+        }
 
         public Task<PersistResult> PersistAsync(
             IReadOnlyList<OutboxEnvelope> envelopes,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(PersistResult.FromOutcome(0, envelopes.Count));
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(PersistResult.FromOutcome(0, envelopes.Count));
+        }
     }
 
     private sealed class PersistRecordingOutboxStore : IOutboxProcessingStore
@@ -437,15 +468,19 @@ public sealed class OutboxProcessorCorrectnessTests
 
         public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
             OutboxLeaseRequest request,
-            CancellationToken cancellationToken = default) =>
-            Inner.LeasePendingAsync(request, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return Inner.LeasePendingAsync(request, cancellationToken);
+        }
 
         public Task<bool> RenewLeaseAsync(
             Guid messageId,
             string leaseOwner,
             DateTimeOffset expiresAt,
-            CancellationToken cancellationToken = default) =>
-            Inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return Inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+        }
 
         public async Task<PersistResult> PersistAsync(
             IReadOnlyList<OutboxEnvelope> envelopes,
@@ -456,7 +491,7 @@ public sealed class OutboxProcessorCorrectnessTests
                 PersistedStatuses.Add(envelope.Status);
             }
 
-            return await Inner.PersistAsync(envelopes, cancellationToken).ConfigureAwait(false);
+            return await Inner.PersistAsync(envelopes, cancellationToken);
         }
     }
 
@@ -473,22 +508,26 @@ public sealed class OutboxProcessorCorrectnessTests
 
         public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
             OutboxLeaseRequest request,
-            CancellationToken cancellationToken = default) =>
-            Inner.LeasePendingAsync(request, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return Inner.LeasePendingAsync(request, cancellationToken);
+        }
 
         public Task<bool> RenewLeaseAsync(
             Guid messageId,
             string leaseOwner,
             DateTimeOffset expiresAt,
-            CancellationToken cancellationToken = default) =>
-            Inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            return Inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+        }
 
         public async Task<PersistResult> PersistAsync(
             IReadOnlyList<OutboxEnvelope> envelopes,
             CancellationToken cancellationToken = default)
         {
             LastPersistToken = cancellationToken;
-            return await Inner.PersistAsync(envelopes, cancellationToken).ConfigureAwait(false);
+            return await Inner.PersistAsync(envelopes, cancellationToken);
         }
     }
 }

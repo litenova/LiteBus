@@ -34,6 +34,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
         ArgumentNullException.ThrowIfNull(module);
 
         var moduleType = module.GetType();
+
         if (!_registeredTypes.Add(moduleType))
         {
             throw new LiteBusConfigurationException(

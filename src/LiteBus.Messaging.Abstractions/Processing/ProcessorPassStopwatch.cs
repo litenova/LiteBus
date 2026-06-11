@@ -3,7 +3,8 @@ using System;
 namespace LiteBus.Messaging.Abstractions.Processing;
 
 /// <summary>
-///     Lightweight stopwatch used to measure processor pass duration without allocating <see cref="System.Diagnostics.Stopwatch" />.
+///     Lightweight stopwatch used to measure processor pass duration without allocating
+///     <see cref="System.Diagnostics.Stopwatch" />.
 /// </summary>
 public readonly struct ProcessorPassStopwatch
 {
@@ -16,7 +17,10 @@ public readonly struct ProcessorPassStopwatch
     ///     Starts a new stopwatch instance.
     /// </summary>
     /// <returns>The running stopwatch value.</returns>
-    public static ProcessorPassStopwatch StartNew() => new(Environment.TickCount64);
+    public static ProcessorPassStopwatch StartNew()
+    {
+        return new ProcessorPassStopwatch(Environment.TickCount64);
+    }
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="ProcessorPassStopwatch" /> struct.

@@ -1,7 +1,7 @@
+using System.Text;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Transport.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.DurableTransport.IntegrationTests.Kafka;
@@ -39,6 +39,7 @@ internal static class KafkaTransportTestInfrastructure
 
         using var admin = new AdminClientBuilder(new AdminClientConfig { BootstrapServers = bootstrapServers }).Build();
         var metadata = admin.GetMetadata(TimeSpan.FromSeconds(15));
+
         var existing = metadata.Topics
             .Select(topic => topic.Topic)
             .ToHashSet(StringComparer.Ordinal);
@@ -60,7 +61,7 @@ internal static class KafkaTransportTestInfrastructure
 
         try
         {
-            await admin.CreateTopicsAsync(specifications).ConfigureAwait(false);
+            await admin.CreateTopicsAsync(specifications);
         }
         catch (CreateTopicsException exception)
         {
@@ -102,18 +103,20 @@ internal static class KafkaTransportTestInfrastructure
         while (DateTime.UtcNow < deadline)
         {
             var result = consumer.Consume(TimeSpan.FromMilliseconds(250));
+
             if (result is null)
             {
                 continue;
             }
 
             var headers = new Dictionary<string, object?>(StringComparer.Ordinal);
+
             foreach (var header in result.Message.Headers)
             {
-                headers[header.Key] = System.Text.Encoding.UTF8.GetString(header.GetValueBytes());
+                headers[header.Key] = Encoding.UTF8.GetString(header.GetValueBytes());
             }
 
-            return (System.Text.Encoding.UTF8.GetString(result.Message.Value), headers);
+            return (Encoding.UTF8.GetString(result.Message.Value), headers);
         }
 
         throw new TimeoutException($"No Kafka record was received from topic '{topic}' within {timeout}.");
@@ -130,7 +133,7 @@ internal static class KafkaTransportTestInfrastructure
 
         try
         {
-            await provider.DisposeAsync().ConfigureAwait(false);
+            await provider.DisposeAsync();
         }
         catch (ObjectDisposedException)
         {
@@ -149,7 +152,7 @@ internal static class KafkaTransportTestInfrastructure
         int expectedCount,
         TimeSpan timeout)
     {
-        return PollingWait.UntilAsync(async () => await countPending().ConfigureAwait(false) == expectedCount, timeout);
+        return PollingWait.UntilAsync(async () => await countPending() == expectedCount, timeout);
     }
 
     /// <summary>
@@ -186,14 +189,13 @@ internal static class KafkaTransportTestInfrastructure
         while (DateTime.UtcNow < deadline)
         {
             var committed = consumer.Committed([partition], TimeSpan.FromSeconds(5));
-            if (committed.Count > 0
-                && committed[0].Offset != Offset.Unset
-                && committed[0].Offset.Value >= expectedCommittedOffset)
+
+            if (committed.Count > 0 && committed[0].Offset != Offset.Unset && committed[0].Offset.Value >= expectedCommittedOffset)
             {
                 return;
             }
 
-            await Task.Delay(250).ConfigureAwait(false);
+            await Task.Delay(250);
         }
 
         throw new TimeoutException(
@@ -224,6 +226,7 @@ internal static class KafkaTransportTestInfrastructure
             if (countStore() == expectedCount)
             {
                 stableSince ??= DateTime.UtcNow;
+
                 if (DateTime.UtcNow - stableSince >= stableDuration)
                 {
                     return;
@@ -234,7 +237,7 @@ internal static class KafkaTransportTestInfrastructure
                 stableSince = null;
             }
 
-            await Task.Delay(100).ConfigureAwait(false);
+            await Task.Delay(100);
         }
 
         throw new TimeoutException(

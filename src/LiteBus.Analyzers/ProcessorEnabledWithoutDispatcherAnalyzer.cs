@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
+using LiteBus.Analyzers.Analysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
-using LiteBus.Analyzers.Analysis;
 
 namespace LiteBus.Analyzers;
 
@@ -36,9 +36,10 @@ public sealed class ProcessorEnabledWithoutDispatcherAnalyzer : DiagnosticAnalyz
             return;
         }
 
-        var isInbox = ModuleConfigurationAnalysis.IsProcessorEnablement(invocation, context.SemanticModel, isInbox: true);
+        var isInbox = ModuleConfigurationAnalysis.IsProcessorEnablement(invocation, context.SemanticModel, true);
+
         var isOutbox = !isInbox &&
-                       ModuleConfigurationAnalysis.IsProcessorEnablement(invocation, context.SemanticModel, isInbox: false);
+                       ModuleConfigurationAnalysis.IsProcessorEnablement(invocation, context.SemanticModel, false);
 
         if (!isInbox && !isOutbox)
         {

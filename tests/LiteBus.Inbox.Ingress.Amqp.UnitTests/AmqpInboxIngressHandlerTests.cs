@@ -3,16 +3,11 @@ using System.Text.Json;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Abstractions.Exceptions;
-using LiteBus.Inbox.Dispatch;
 using LiteBus.Inbox.Dispatch.InMemory;
-using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
-using LiteBus.Transport.InMemory;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,9 +38,10 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
                 headers[AmqpHeaders.TenantId] = "tenant-west";
                 headers["litebus-visible-after"] = visibleAfter.ToString("O");
             },
-            correlationId: "property-correlation"));
+            "property-correlation"));
 
         var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
+
         var leased = await leaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 10,
@@ -135,6 +131,7 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
             }));
 
         var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
+
         var leased = await leaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 10,
@@ -160,6 +157,7 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
             headers => headers[AmqpHeaders.MessageId] = "not-a-guid"));
 
         var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
+
         var leased = await leaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 10,
@@ -183,6 +181,7 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
             headers => headers["litebus-visible-after"] = "not-a-date"));
 
         var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
+
         var leased = await leaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 10,
@@ -200,16 +199,22 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(module => module.Register<ShipOrderCommandHandler>());
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
+                    inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship");
                     inbox.UseInMemoryStorage();
                     inbox.UseInMemoryDispatch();
+
                     inbox.UseAmqpIngress(ingress =>
                     {
                         ingress.DisableIngressConsumer();
+
                         ingress.UseOptions(new AmqpInboxIngressOptions
                         {
                             QueueName = "litebus.inbox.ingress.unit-tests",

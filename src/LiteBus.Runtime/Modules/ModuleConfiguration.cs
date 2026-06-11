@@ -13,21 +13,6 @@ namespace LiteBus.Runtime.Modules;
 internal sealed class ModuleConfiguration : IModuleConfiguration
 {
     /// <summary>
-    ///     Shared contexts published by modules during initialization.
-    /// </summary>
-    private readonly Dictionary<Type, object> _contexts = [];
-
-    /// <summary>
-    ///     Startup task implementation types registered for host execution in first-registration order.
-    /// </summary>
-    private readonly List<Type> _startupTasks = [];
-
-    /// <summary>
-    ///     Tracks startup task types already registered so duplicates are ignored without reordering.
-    /// </summary>
-    private readonly HashSet<Type> _startupTaskTypes = [];
-
-    /// <summary>
     ///     Background service implementation types registered for host execution in first-registration order.
     /// </summary>
     private readonly List<Type> _backgroundServices = [];
@@ -36,6 +21,11 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
     ///     Tracks background service types already registered so duplicates are ignored without reordering.
     /// </summary>
     private readonly HashSet<Type> _backgroundServiceTypes = [];
+
+    /// <summary>
+    ///     Shared contexts published by modules during initialization.
+    /// </summary>
+    private readonly Dictionary<Type, object> _contexts = [];
 
     /// <summary>
     ///     Diagnostic probe descriptors registered for host execution in first-registration order.
@@ -48,10 +38,23 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
     private readonly HashSet<Type> _diagnosticCheckTypes = [];
 
     /// <summary>
+    ///     Startup task implementation types registered for host execution in first-registration order.
+    /// </summary>
+    private readonly List<Type> _startupTasks = [];
+
+    /// <summary>
+    ///     Tracks startup task types already registered so duplicates are ignored without reordering.
+    /// </summary>
+    private readonly HashSet<Type> _startupTaskTypes = [];
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="ModuleConfiguration" /> class.
     /// </summary>
     /// <param name="dependencyRegistry">The dependency registry for service registration.</param>
-    /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="dependencyRegistry" /> is <see langword="null" />.</exception>
+    /// <exception cref="System.ArgumentNullException">
+    ///     Thrown when <paramref name="dependencyRegistry" /> is
+    ///     <see langword="null" />.
+    /// </exception>
     public ModuleConfiguration(IDependencyRegistry dependencyRegistry)
     {
         DependencyRegistry = dependencyRegistry ?? throw new ArgumentNullException(nameof(dependencyRegistry));

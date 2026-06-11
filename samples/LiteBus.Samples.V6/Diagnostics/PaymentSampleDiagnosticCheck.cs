@@ -11,9 +11,11 @@ public sealed class PaymentSampleDiagnosticCheck : IDiagnosticCheck
     public string Name => "payments.sample.health";
 
     /// <inheritdoc />
-    public Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(new DiagnosticResult(
+    public Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(new DiagnosticResult(
             DiagnosticStatus.Healthy,
             "Payment sample host is running.",
             new Dictionary<string, object> { ["component"] = "payments" }));
+    }
 }

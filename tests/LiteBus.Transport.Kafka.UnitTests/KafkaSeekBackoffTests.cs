@@ -1,6 +1,5 @@
 using AwesomeAssertions;
 using Confluent.Kafka;
-using LiteBus.Transport.Kafka;
 
 namespace LiteBus.Transport.Kafka.UnitTests;
 

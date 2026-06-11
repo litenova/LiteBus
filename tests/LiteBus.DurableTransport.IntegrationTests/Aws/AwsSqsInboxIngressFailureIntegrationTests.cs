@@ -1,6 +1,6 @@
+using System.Text;
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Aws;
@@ -45,10 +45,11 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
     {
         var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress-fail");
         await RunFailureScenarioAsync(ingressQueueUrl, "{}", "unknown.contract", 1);
+
         await SqsTransportTestInfrastructure.WaitForQueueDepthAsync(
             _fixture.SqsClient,
             ingressQueueUrl,
-            expectedCount: 0,
+            0,
             TimeSpan.FromSeconds(20));
     }
 
@@ -61,10 +62,11 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
     {
         var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress-fail");
         await RunFailureScenarioAsync(ingressQueueUrl, "{not-json", ContractName, 1);
+
         await SqsTransportTestInfrastructure.WaitForQueueDepthAsync(
             _fixture.SqsClient,
             ingressQueueUrl,
-            expectedCount: 0,
+            0,
             TimeSpan.FromSeconds(20));
     }
 
@@ -76,7 +78,7 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
     public async Task StoreFull_ShouldDrainQueueAndKeepPrefilledRow()
     {
         var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress-store-full");
-        await using var provider = BuildProvider(ingressQueueUrl, capacity: 1);
+        await using var provider = BuildProvider(ingressQueueUrl, 1);
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
         await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
@@ -84,10 +86,15 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
         try
         {
             var inbox = provider.GetRequiredService<IInbox>();
-            await inbox.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() });
+
+            await inbox.AcceptAsync(new InboxAcceptItem<ShipOrderCommand>
+            {
+                Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
+            });
 
             var publisher = provider.GetRequiredService<IMessageTransport>();
             var messageId = Guid.NewGuid();
+
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressQueueUrl,
@@ -103,7 +110,7 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
             await SqsTransportTestInfrastructure.WaitForQueueDepthAsync(
                 _fixture.SqsClient,
                 ingressQueueUrl,
-                expectedCount: 0,
+                0,
                 TimeSpan.FromSeconds(20));
         }
         finally
@@ -139,7 +146,7 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressQueueUrl,
-                Body = System.Text.Encoding.UTF8.GetBytes(body),
+                Body = Encoding.UTF8.GetBytes(body),
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, contractName, contractVersion)
             });
@@ -164,15 +171,23 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                    inbox.Contracts.Register<ShipOrderCommand>(ContractName);
+
                     inbox.UseInMemoryStorage(builder => builder.UseOptions(new InMemoryInboxStoreOptions
                     {
                         Capacity = capacity
                     }));
-                    inbox.UseAwsSqsDispatch(_ => { }, _fixture.TransportOptions);
+
+                    inbox.UseAwsSqsDispatch(_ =>
+                    {
+                    }, _fixture.TransportOptions);
+
                     inbox.UseAwsSqsIngress(ingress =>
                     {
                         ingress.UseOptions(new AwsSqsInboxIngressOptions

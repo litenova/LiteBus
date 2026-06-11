@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
 using LiteBus.Commands;
@@ -11,9 +10,9 @@ using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Dispatch;
 using LiteBus.Outbox.Dispatch.Amqp;
 using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Runtime.Abstractions.Hosting;
@@ -25,11 +24,14 @@ using RabbitMQ.Client;
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 
 /// <summary>
-///     End-to-end reliable-messaging tests covering outbox publish, AMQP broker delivery, inbox ingress, and in-process dispatch.
+///     End-to-end reliable-messaging tests covering outbox publish, AMQP broker delivery, inbox ingress, and in-process
+///     dispatch.
 /// </summary>
 /// <remarks>
-///     Dispatch mode is explicit: <see cref="InboxModuleBuilderExtensions.UseCommandInboxDispatcher" /> runs handlers locally.
-///     v6 does not allow combining that with <c>UseAmqpDispatch</c> on the inbox axis; transport dispatch is covered separately
+///     Dispatch mode is explicit: <see cref="InboxModuleBuilderExtensions.UseCommandInboxDispatcher" /> runs handlers
+///     locally.
+///     v6 does not allow combining that with <c>UseAmqpDispatch</c> on the inbox axis; transport dispatch is covered
+///     separately
 ///     in <see cref="PostgreSqlInboxIngressEndToEndTests" />.
 /// </remarks>
 public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, IClassFixture<PostgreSqlFixture>
@@ -49,7 +51,8 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     }
 
     /// <summary>
-    ///     Verifies the full outbox-to-inbox chain: PostgreSQL outbox, RabbitMQ broker, PostgreSQL inbox, and local handler dispatch.
+    ///     Verifies the full outbox-to-inbox chain: PostgreSQL outbox, RabbitMQ broker, PostgreSQL inbox, and local handler
+    ///     dispatch.
     /// </summary>
     /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
     [Fact]
@@ -81,8 +84,8 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
         try
         {
             var ingressQueue = CreateQueueName("reliable-messaging.ingress");
-            var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxOptions();
-            var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxOptions();
+            var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
+            var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
             await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_postgresFixture.DataSource, outboxOptions);
             await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, inboxOptions);
             await DeclareQueueAsync(rabbitMqFixture.ConnectionOptions, ingressQueue);
@@ -105,16 +108,16 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
             try
             {
                 var outbox = provider.GetRequiredService<IOutbox>();
-                await outbox.EnqueueAsync(
+
+                await outbox.EnqueueAsync(OutboxEnqueueItems.WithMetadata(
                     new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" },
-                    new OutboxOptions
+                    OutboxEnqueueMetadata.Immediate with
                     {
-                        Id = messageId,
-                        Topic = ingressQueue,
-                        CorrelationId = "corr-reliable-idem",
-                        CausationId = "cause-reliable-idem",
-                        TenantId = "tenant-reliable"
-                    });
+                        Identity = new MessageIdentity.Supplied(messageId),
+                        Target = new PublicationTarget.Topic(ingressQueue),
+                        Trace = new MessageTrace.Workflow("corr-reliable-idem", "cause-reliable-idem"),
+                        Tenant = new TenantScope.Isolated("tenant-reliable")
+                    }));
 
                 await WaitUntilAsync(
                     () => recorder.Commands.Count >= 1,
@@ -131,6 +134,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                 inboxRow.AttemptCount.Should().Be(1);
 
                 var payload = JsonSerializer.Serialize(new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" });
+
                 await PublishToIngressQueueAsync(
                     rabbitMqFixture.ConnectionOptions,
                     ingressQueue,
@@ -138,7 +142,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                     messageId,
                     ContractName,
                     "1",
-                    correlationId: "corr-reliable-idem");
+                    "corr-reliable-idem");
 
                 await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token);
 
@@ -148,6 +152,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                     _postgresFixture.DataSource,
                     inboxOptions,
                     messageId);
+
                 inboxAfterDuplicate!.Status.Should().Be(InboxStatus.Completed);
                 inboxAfterDuplicate.AttemptCount.Should().Be(1);
             }
@@ -175,7 +180,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
         try
         {
             var ingressQueue = CreateQueueName("reliable-messaging.ingress.failures");
-            var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxOptions();
+            var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
             await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, inboxOptions);
             await DeclareQueueAsync(rabbitMqFixture.ConnectionOptions, ingressQueue);
 
@@ -183,7 +188,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                 rabbitMqFixture.ConnectionOptions,
                 ingressQueue,
                 inboxOptions,
-                registerShipContract: true);
+                true);
 
             using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
@@ -194,15 +199,15 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                 await PublishToIngressQueueAsync(
                     rabbitMqFixture.ConnectionOptions,
                     ingressQueue,
-                    body: "{}",
-                    messageId: Guid.NewGuid(),
-                    contractName: "unknown.contract",
-                    contractVersion: "1");
+                    "{}",
+                    Guid.NewGuid(),
+                    "unknown.contract",
+                    "1");
 
                 await WaitForQueueDepthAsync(
                     rabbitMqFixture.ConnectionOptions,
                     ingressQueue,
-                    expectedCount: 0,
+                    0,
                     TimeSpan.FromSeconds(15));
 
                 var rowCount = await PostgreSqlTableReaders.CountInboxRowsAsync(_postgresFixture.DataSource, inboxOptions);
@@ -232,7 +237,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
         try
         {
             var ingressQueue = CreateQueueName("reliable-messaging.ingress.failures");
-            var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxOptions();
+            var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
             await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, inboxOptions);
             await DeclareQueueAsync(rabbitMqFixture.ConnectionOptions, ingressQueue);
 
@@ -240,7 +245,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                 rabbitMqFixture.ConnectionOptions,
                 ingressQueue,
                 inboxOptions,
-                registerShipContract: true);
+                true);
 
             using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
@@ -251,15 +256,15 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                 await PublishToIngressQueueAsync(
                     rabbitMqFixture.ConnectionOptions,
                     ingressQueue,
-                    body: "{not-valid-json",
-                    messageId: Guid.NewGuid(),
-                    contractName: ContractName,
-                    contractVersion: "1");
+                    "{not-valid-json",
+                    Guid.NewGuid(),
+                    ContractName,
+                    "1");
 
                 await WaitForQueueDepthAsync(
                     rabbitMqFixture.ConnectionOptions,
                     ingressQueue,
-                    expectedCount: 0,
+                    0,
                     TimeSpan.FromSeconds(15));
 
                 var rowCount = await PostgreSqlTableReaders.CountInboxRowsAsync(_postgresFixture.DataSource, inboxOptions);
@@ -284,8 +289,8 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     private async Task RunReliableMessagingChainAsync(AmqpConnectionOptions connectionOptions)
     {
         var ingressQueue = CreateQueueName("reliable-messaging.ingress");
-        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxOptions();
-        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
+        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_postgresFixture.DataSource, outboxOptions);
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, inboxOptions);
         await DeclareQueueAsync(connectionOptions, ingressQueue);
@@ -316,16 +321,16 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
         try
         {
             var outbox = provider.GetRequiredService<IOutbox>();
-            await outbox.EnqueueAsync(
+
+            await outbox.EnqueueAsync(OutboxEnqueueItems.WithMetadata(
                 new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" },
-                new OutboxOptions
+                OutboxEnqueueMetadata.Immediate with
                 {
-                    Id = messageId,
-                    Topic = ingressQueue,
-                    CorrelationId = correlationId,
-                    CausationId = causationId,
-                    TenantId = tenantId
-                });
+                    Identity = new MessageIdentity.Supplied(messageId),
+                    Target = new PublicationTarget.Topic(ingressQueue),
+                    Trace = new MessageTrace.Workflow(correlationId, causationId),
+                    Tenant = new TenantScope.Isolated(tenantId)
+                }));
 
             await WaitUntilAsync(
                 () => recorder.Commands.Count >= 1,
@@ -366,15 +371,15 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     /// </summary>
     /// <param name="connectionOptions">The broker connection options.</param>
     /// <param name="ingressQueue">The queue shared as outbox topic and inbox ingress source.</param>
-    /// <param name="outboxOptions">The PostgreSQL outbox store options.</param>
-    /// <param name="inboxOptions">The PostgreSQL inbox store options.</param>
+    /// <param name="OutboxStoreOptions">The PostgreSQL outbox store options.</param>
+    /// <param name="InboxStoreOptions">The PostgreSQL inbox store options.</param>
     /// <param name="recorder">The command recorder used to observe handler execution.</param>
     /// <returns>The configured service provider.</returns>
     private ServiceProvider BuildReliableMessagingProvider(
         AmqpConnectionOptions connectionOptions,
         string ingressQueue,
-        PostgreSqlOutboxStoreOptions outboxOptions,
-        PostgreSqlInboxStoreOptions inboxOptions,
+        PostgreSqlOutboxStoreOptions OutboxStoreOptions,
+        PostgreSqlInboxStoreOptions InboxStoreOptions,
         CommandRecorder recorder)
     {
         var services = new ServiceCollection();
@@ -382,7 +387,10 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddCommandModule(module =>
             {
                 module.Register<ShipOrderCommand>();
@@ -394,18 +402,21 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                 outbox.UsePostgreSqlStorage(postgres =>
                 {
                     postgres.UseDataSource(_postgresFixture.DataSource);
-                    postgres.UseOptions(outboxOptions);
+                    postgres.UseOptions(OutboxStoreOptions);
                     postgres.DisableSchemaInitialization();
                 });
 
-                outbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                outbox.Contracts.Register<ShipOrderCommand>(ContractName);
+
                 outbox.UseProcessorOptions(new OutboxProcessorOptions
                 {
                     BatchSize = 10,
                     LeaseOwner = "reliable-messaging-publisher",
                     Retry = new RetryOptions { UseJitter = false }
                 });
+
                 outbox.EnableOutboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
+
                 outbox.UseAmqpDispatch(
                     transport => transport.DefaultDestination = string.Empty, connectionOptions);
             });
@@ -415,19 +426,22 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                 inbox.UsePostgreSqlStorage(postgres =>
                 {
                     postgres.UseDataSource(_postgresFixture.DataSource);
-                    postgres.UseOptions(inboxOptions);
+                    postgres.UseOptions(InboxStoreOptions);
                     postgres.DisableSchemaInitialization();
                 });
 
-                inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                inbox.Contracts.Register<ShipOrderCommand>(ContractName);
+
                 inbox.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 10,
                     LeaseOwner = "reliable-messaging-consumer",
                     Retry = new RetryOptions { UseJitter = false }
                 });
+
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
                 inbox.UseCommandInboxDispatcher();
+
                 inbox.UseAmqpIngress(ingress =>
                 {
                     ingress.UseOptions(new AmqpInboxIngressOptions
@@ -449,13 +463,13 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     /// </summary>
     /// <param name="connectionOptions">The broker connection options.</param>
     /// <param name="ingressQueue">The ingress queue name.</param>
-    /// <param name="inboxOptions">The PostgreSQL inbox store options.</param>
+    /// <param name="InboxStoreOptions">The PostgreSQL inbox store options.</param>
     /// <param name="registerShipContract">Whether to register the ship-order contract.</param>
     /// <returns>The configured service provider.</returns>
     private ServiceProvider BuildIngressOnlyProvider(
         AmqpConnectionOptions connectionOptions,
         string ingressQueue,
-        PostgreSqlInboxStoreOptions inboxOptions,
+        PostgreSqlInboxStoreOptions InboxStoreOptions,
         bool registerShipContract)
     {
         var services = new ServiceCollection();
@@ -463,8 +477,10 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
 
         services.AddLiteBus(registry =>
         {
-            registry.Register(new AmqpTransportModule(connectionOptions));
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddCommandModule(module =>
             {
                 module.Register<ShipOrderCommand>();
@@ -476,16 +492,17 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                 inbox.UsePostgreSqlStorage(postgres =>
                 {
                     postgres.UseDataSource(_postgresFixture.DataSource);
-                    postgres.UseOptions(inboxOptions);
+                    postgres.UseOptions(InboxStoreOptions);
                     postgres.DisableSchemaInitialization();
                 });
 
                 if (registerShipContract)
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                    inbox.Contracts.Register<ShipOrderCommand>(ContractName);
                 }
 
                 inbox.UseCommandInboxDispatcher();
+
                 inbox.UseAmqpIngress(ingress =>
                 {
                     ingress.UseOptions(new AmqpInboxIngressOptions
@@ -528,7 +545,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
             await Task.Delay(200, cancellationToken);
         }
 
-        condition().Should().BeTrue(because: $"condition was not satisfied within {timeout}");
+        condition().Should().BeTrue($"condition was not satisfied within {timeout}");
     }
 
     /// <summary>
@@ -541,12 +558,13 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     {
         await using var manager = new AmqpConnectionManager(connectionOptions);
         await using var channel = await manager.CreateChannelAsync();
+
         await channel.QueueDeclareAsync(
-            queue: queueName,
-            durable: true,
-            exclusive: false,
-            autoDelete: false,
-            arguments: null);
+            queueName,
+            true,
+            false,
+            false,
+            null);
     }
 
     /// <summary>
@@ -612,6 +630,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
         while (DateTime.UtcNow < deadline)
         {
             var count = await GetQueueDepthAsync(connectionOptions, queueName);
+
             if (count == expectedCount)
             {
                 return;
@@ -621,7 +640,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
         }
 
         var actual = await GetQueueDepthAsync(connectionOptions, queueName);
-        actual.Should().Be(expectedCount, because: $"queue '{queueName}' should reach depth {expectedCount} within {timeout}");
+        actual.Should().Be(expectedCount, $"queue '{queueName}' should reach depth {expectedCount} within {timeout}");
     }
 
     /// <summary>
@@ -632,8 +651,9 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     /// <returns>The current queue depth.</returns>
     private static async Task<uint> GetQueueDepthAsync(AmqpConnectionOptions connectionOptions, string queueName)
     {
-        var uri = connectionOptions.Uri ?? new Uri(
-            $"amqp://{Uri.EscapeDataString(connectionOptions.UserName)}:{Uri.EscapeDataString(connectionOptions.Password)}@{connectionOptions.HostName}:{connectionOptions.Port}{connectionOptions.VirtualHost}");
+        var uri = connectionOptions.Uri ??
+                  new Uri(
+                      $"amqp://{Uri.EscapeDataString(connectionOptions.UserName)}:{Uri.EscapeDataString(connectionOptions.Password)}@{connectionOptions.HostName}:{connectionOptions.Port}{connectionOptions.VirtualHost}");
 
         var factory = new ConnectionFactory { Uri = uri };
         await using var connection = await factory.CreateConnectionAsync();

@@ -1,21 +1,14 @@
-using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
 using LiteBus.Commands;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Messaging;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.InProcess;
-using LiteBus.Inbox.Dispatch;
 using LiteBus.Inbox.Dispatch.Amqp;
-using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
-using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging;
 using LiteBus.Testing;
 using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
 
 namespace LiteBus.Inbox.Ingress.Amqp.IntegrationTests;
@@ -38,17 +31,17 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
         try
         {
             var queueName = CreateQueueName();
-            await using var provider = BuildProvider(fixture.ConnectionOptions, queueName, inboxCapacity: 100);
+            await using var provider = BuildProvider(fixture.ConnectionOptions, queueName, 100);
             await StartIngressAsync(provider);
 
             await PublishAsync(
                 fixture.ConnectionOptions,
                 queueName,
-                body: "{}",
-                contractName: "unknown.contract",
-                contractVersion: "1");
+                "{}",
+                "unknown.contract",
+                "1");
 
-            await WaitForQueueDepthAsync(fixture.ConnectionOptions, queueName, expectedCount: 0, TimeSpan.FromSeconds(15));
+            await WaitForQueueDepthAsync(fixture.ConnectionOptions, queueName, 0, TimeSpan.FromSeconds(15));
 
             var pending = await CountPendingInboxRowsAsync(provider);
             pending.Should().Be(0);
@@ -72,17 +65,17 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
         try
         {
             var queueName = CreateQueueName();
-            await using var provider = BuildProvider(fixture.ConnectionOptions, queueName, inboxCapacity: 100);
+            await using var provider = BuildProvider(fixture.ConnectionOptions, queueName, 100);
             await StartIngressAsync(provider);
 
             await PublishAsync(
                 fixture.ConnectionOptions,
                 queueName,
-                body: "{not-valid-json",
-                contractName: "orders.commands.ship",
-                contractVersion: "1");
+                "{not-valid-json",
+                "orders.commands.ship",
+                "1");
 
-            await WaitForQueueDepthAsync(fixture.ConnectionOptions, queueName, expectedCount: 0, TimeSpan.FromSeconds(15));
+            await WaitForQueueDepthAsync(fixture.ConnectionOptions, queueName, 0, TimeSpan.FromSeconds(15));
 
             var pending = await CountPendingInboxRowsAsync(provider);
             pending.Should().Be(0);
@@ -94,7 +87,8 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
     }
 
     /// <summary>
-    ///     Verifies that a store write failure that throws <see cref="InvalidOperationException" /> is discarded without requeue.
+    ///     Verifies that a store write failure that throws <see cref="InvalidOperationException" /> is discarded without
+    ///     requeue.
     /// </summary>
     /// <returns>A task that completes when the acknowledgement assertion succeeds.</returns>
     [Fact]
@@ -106,20 +100,20 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
         try
         {
             var queueName = CreateQueueName();
-            await using var provider = BuildProvider(fixture.ConnectionOptions, queueName, inboxCapacity: 1);
+            await using var provider = BuildProvider(fixture.ConnectionOptions, queueName, 1);
             await StartIngressAsync(provider);
 
             var inbox = provider.GetRequiredService<IInbox>();
-            await inbox.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() });
+            await inbox.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand { OrderId = Guid.NewGuid() }));
 
             await PublishAsync(
                 fixture.ConnectionOptions,
                 queueName,
-                body: JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
-                contractName: "orders.commands.ship",
-                contractVersion: "1");
+                JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
+                "orders.commands.ship",
+                "1");
 
-            await WaitForQueueDepthAsync(fixture.ConnectionOptions, queueName, expectedCount: 0, TimeSpan.FromSeconds(15));
+            await WaitForQueueDepthAsync(fixture.ConnectionOptions, queueName, 0, TimeSpan.FromSeconds(15));
 
             var pending = await CountPendingInboxRowsAsync(provider);
             pending.Should().Be(1);
@@ -140,8 +134,11 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddCommandModule(module =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddCommandModule(module =>
             {
                 module.Register<ShipOrderCommand>();
                 module.Register<ShipOrderCommandHandler>();
@@ -149,12 +146,17 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
 
             registry.AddInboxModule(inbox =>
             {
-                inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
+                inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship");
+
                 inbox.UseInMemoryStorage(builder => builder.UseOptions(new InMemoryInboxStoreOptions
                 {
                     Capacity = inboxCapacity
                 }));
-                inbox.UseAmqpDispatch(_ => { }, connectionOptions);
+
+                inbox.UseAmqpDispatch(_ =>
+                {
+                }, connectionOptions);
+
                 inbox.UseAmqpIngress(ingress =>
                 {
                     ingress.UseOptions(new AmqpInboxIngressOptions
@@ -213,6 +215,7 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
         while (DateTime.UtcNow < deadline)
         {
             var count = await GetQueueDepthAsync(connectionOptions, queueName);
+
             if (count == expectedCount)
             {
                 return;
@@ -222,13 +225,14 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
         }
 
         var actual = await GetQueueDepthAsync(connectionOptions, queueName);
-        actual.Should().Be(expectedCount, because: $"queue '{queueName}' should reach depth {expectedCount} within {timeout}");
+        actual.Should().Be(expectedCount, $"queue '{queueName}' should reach depth {expectedCount} within {timeout}");
     }
 
     private static async Task<uint> GetQueueDepthAsync(AmqpConnectionOptions connectionOptions, string queueName)
     {
-        var uri = connectionOptions.Uri ?? new Uri(
-            $"amqp://{Uri.EscapeDataString(connectionOptions.UserName)}:{Uri.EscapeDataString(connectionOptions.Password)}@{connectionOptions.HostName}:{connectionOptions.Port}{connectionOptions.VirtualHost}");
+        var uri = connectionOptions.Uri ??
+                  new Uri(
+                      $"amqp://{Uri.EscapeDataString(connectionOptions.UserName)}:{Uri.EscapeDataString(connectionOptions.Password)}@{connectionOptions.HostName}:{connectionOptions.Port}{connectionOptions.VirtualHost}");
 
         var factory = new ConnectionFactory { Uri = uri };
         await using var connection = await factory.CreateConnectionAsync();
@@ -240,6 +244,7 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
     private static async Task<int> CountPendingInboxRowsAsync(ServiceProvider provider)
     {
         var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
+
         var leased = await leaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 100,

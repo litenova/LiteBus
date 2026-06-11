@@ -1,5 +1,4 @@
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 

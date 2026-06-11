@@ -21,9 +21,9 @@ public sealed class ProcessorPassAccumulator<TEnvelope> : IProcessorPassRecorder
     private readonly List<TEnvelope> _updates = [];
 
     /// <summary>
-    ///     The number of envelopes that completed successfully during the pass.
+    ///     The number of envelopes moved to dead-letter state during the pass.
     /// </summary>
-    private int _succeededCount;
+    private int _deadLetteredCount;
 
     /// <summary>
     ///     The number of envelopes marked failed for retry during the pass.
@@ -31,9 +31,9 @@ public sealed class ProcessorPassAccumulator<TEnvelope> : IProcessorPassRecorder
     private int _failedCount;
 
     /// <summary>
-    ///     The number of envelopes moved to dead-letter state during the pass.
+    ///     The number of envelopes that completed successfully during the pass.
     /// </summary>
-    private int _deadLetteredCount;
+    private int _succeededCount;
 
     /// <summary>
     ///     Gets the post-transition envelopes to be persisted in one store call.
@@ -96,8 +96,9 @@ public sealed class ProcessorPassAccumulator<TEnvelope> : IProcessorPassRecorder
     /// <param name="leasedCount">The number of envelopes leased during the pass.</param>
     /// <param name="elapsed">The wall-clock duration of the pass.</param>
     /// <returns>The processor pass result.</returns>
-    public ProcessorPassResult ToResult(int leasedCount, TimeSpan elapsed) =>
-        new()
+    public ProcessorPassResult ToResult(int leasedCount, TimeSpan elapsed)
+    {
+        return new ProcessorPassResult
         {
             LeasedCount = leasedCount,
             SucceededCount = _succeededCount,
@@ -105,4 +106,5 @@ public sealed class ProcessorPassAccumulator<TEnvelope> : IProcessorPassRecorder
             DeadLetteredCount = _deadLetteredCount,
             ElapsedTime = elapsed
         };
+    }
 }

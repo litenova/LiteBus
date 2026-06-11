@@ -1,10 +1,8 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Messaging;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch;
-using LiteBus.Inbox.Dispatch.Amqp;
 using LiteBus.Inbox.Storage.PostgreSql;
+using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Storage.PostgreSql;
 using LiteBus.Testing;
 using LiteBus.Transport.Amqp;
@@ -42,7 +40,7 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
     [Fact]
     public async Task ProcessPendingAsync_ShouldPublishToAmqpAndMarkPostgreSqlEnvelopeCompleted()
     {
-        var storeOptions = CreateInboxOptions();
+        var storeOptions = CreateInboxStoreOptions();
         await PostgreSqlInboxSchema.EnsureAsync(_postgresFixture.DataSource, storeOptions);
 
         var exchangeName = $"litebus.inbox.pg.dispatch.{Guid.NewGuid():N}";
@@ -62,17 +60,19 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
 
         var workItemId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
-        await inbox.AcceptAsync(new RemoteWorkCommand
-        {
-            WorkItemId = workItemId,
-            IdempotencyKey = $"work:{workItemId}"
-        }, new InboxOptions
-        {
-            Id = messageId,
-            CorrelationId = "corr-pg-dispatch",
-            CausationId = "cause-pg-dispatch",
-            TenantId = "tenant-pg"
-        });
+
+        await inbox.AcceptAsync(InboxAcceptItems.From(
+            new RemoteWorkCommand
+            {
+                WorkItemId = workItemId,
+                IdempotencyKey = $"work:{workItemId}"
+            },
+            new InboxAcceptMetadata
+            {
+                Identity = new MessageIdentity.Supplied(messageId),
+                Trace = new MessageTrace.Workflow("corr-pg-dispatch", "cause-pg-dispatch"),
+                Tenant = new TenantScope.Isolated("tenant-pg")
+            }));
 
         await processor.ProcessPendingAsync();
 
@@ -98,7 +98,10 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
                     inbox.UsePostgreSqlStorage(postgres =>
@@ -108,7 +111,8 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
                         postgres.DisableSchemaInitialization();
                     });
 
-                    inbox.Contracts.Register<RemoteWorkCommand>(ContractName, ContractVersion);
+                    inbox.Contracts.Register<RemoteWorkCommand>(ContractName);
+
                     inbox.UseProcessorOptions(new InboxProcessorOptions
                     {
                         BatchSize = 10,
@@ -131,7 +135,7 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
             });
     }
 
-    private static PostgreSqlInboxStoreOptions CreateInboxOptions()
+    private static PostgreSqlInboxStoreOptions CreateInboxStoreOptions()
     {
         return new PostgreSqlInboxStoreOptions
         {
@@ -147,20 +151,23 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
 
         await using var connection = await _postgresFixture.DataSource.OpenConnectionAsync();
         await using var command = connection.CreateCommand();
+
         command.CommandText = $"""
                                SELECT status, attempt_count
                                FROM {tableName}
                                WHERE message_id = @message_id;
                                """;
+
         command.Parameters.AddWithValue("message_id", messageId);
 
         await using var reader = await command.ExecuteReaderAsync();
+
         if (!await reader.ReadAsync())
         {
             return null;
         }
 
-        return ((InboxStatus)reader.GetInt32(0), reader.GetInt32(1));
+        return ((InboxStatus) reader.GetInt32(0), reader.GetInt32(1));
     }
 
     private static Uri ResolveConnectionUri(AmqpConnectionOptions connectionOptions)

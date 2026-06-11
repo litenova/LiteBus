@@ -1,7 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.InMemory;
@@ -28,11 +24,6 @@ public sealed class InMemoryConsumer : IMessageConsumer
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
 
     /// <summary>
-    ///     Signals when the active consume loop stops because of shutdown or cancellation.
-    /// </summary>
-    private TaskCompletionSource _stoppedTcs = CreateStoppedTaskSource();
-
-    /// <summary>
     ///     Gets the cancellation source used to stop the active consume loop.
     /// </summary>
     private CancellationTokenSource? _consumeCts;
@@ -41,6 +32,11 @@ public sealed class InMemoryConsumer : IMessageConsumer
     ///     Gets the background task running the consume loop.
     /// </summary>
     private Task? _consumeTask;
+
+    /// <summary>
+    ///     Signals when the active consume loop stops because of shutdown or cancellation.
+    /// </summary>
+    private TaskCompletionSource _stoppedTcs = CreateStoppedTaskSource();
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="InMemoryConsumer" /> class.
@@ -119,8 +115,10 @@ public sealed class InMemoryConsumer : IMessageConsumer
     }
 
     /// <inheritdoc />
-    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default) =>
-        _stoppedTcs.Task.WaitAsync(cancellationToken);
+    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
+    {
+        return _stoppedTcs.Task.WaitAsync(cancellationToken);
+    }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
@@ -160,7 +158,7 @@ public sealed class InMemoryConsumer : IMessageConsumer
                     {
                         if (!cancellationToken.IsCancellationRequested)
                         {
-                            await RequeueIfNeededAsync(endpoint, delivery, requeue: true, cancellationToken)
+                            await RequeueIfNeededAsync(endpoint, delivery, true, cancellationToken)
                                 .ConfigureAwait(false);
                         }
                     }
@@ -185,8 +183,9 @@ public sealed class InMemoryConsumer : IMessageConsumer
     /// <returns>The transport message passed to consumer handlers.</returns>
     private static TransportMessage CreateTransportMessage(
         InMemoryDestinationEndpoint endpoint,
-        InMemoryPendingDelivery delivery) =>
-        new()
+        InMemoryPendingDelivery delivery)
+    {
+        return new TransportMessage
         {
             Body = delivery.Body,
             Headers = delivery.Headers,
@@ -198,6 +197,7 @@ public sealed class InMemoryConsumer : IMessageConsumer
             AckAsync = _ => Task.CompletedTask,
             NackAsync = (requeue, token) => RequeueIfNeededAsync(endpoint, delivery, requeue, token)
         };
+    }
 
     /// <summary>
     ///     Requeues a rejected delivery when the handler requests redelivery.
@@ -236,12 +236,16 @@ public sealed class InMemoryConsumer : IMessageConsumer
     ///     Creates a new task source used to observe consumer shutdown.
     /// </summary>
     /// <returns>The task source for the current consume session.</returns>
-    private static TaskCompletionSource CreateStoppedTaskSource() =>
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static TaskCompletionSource CreateStoppedTaskSource()
+    {
+        return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
 
     /// <summary>
     ///     Marks the current consume session as stopped.
     /// </summary>
-    private void SignalStopped() => _stoppedTcs.TrySetResult();
+    private void SignalStopped()
+    {
+        _stoppedTcs.TrySetResult();
+    }
 }
-

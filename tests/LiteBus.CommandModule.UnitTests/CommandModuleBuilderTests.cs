@@ -17,7 +17,10 @@ public sealed class CommandModuleBuilderTests : LiteBusTestBase
         {
             new ServiceCollection().AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(module => module.RegisterFromAssembly(null!));
             });
         };
@@ -31,7 +34,10 @@ public sealed class CommandModuleBuilderTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(module => module.RegisterFromAssembly(typeof(ICommand).Assembly));
             })
             .BuildServiceProvider();

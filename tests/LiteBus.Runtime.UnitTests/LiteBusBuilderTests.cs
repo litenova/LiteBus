@@ -15,7 +15,10 @@ public sealed class LiteBusBuilderTests
         services.AddLiteBus(builder =>
         {
             builder.Contracts.Register<SharedContractMessage>("shared.contract", 2);
-            builder.Modules.AddMessageModule(_ => { });
+
+            builder.Modules.AddMessageModule(_ =>
+            {
+            });
         });
 
         using var provider = services.BuildServiceProvider();
@@ -32,8 +35,9 @@ public sealed class LiteBusBuilderTests
         services.AddLiteBus(builder =>
         {
             builder.Contracts.Register<SharedContractMessage>("shared.contract", 2);
+
             builder.Modules.AddMessageModule(messaging =>
-                messaging.Contracts.Register<ModuleContractMessage>("module.contract", 1));
+                messaging.Contracts.Register<ModuleContractMessage>("module.contract"));
         });
 
         using var provider = services.BuildServiceProvider();

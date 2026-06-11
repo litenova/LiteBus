@@ -1,10 +1,9 @@
-using System.Collections.Generic;
+using System.Text;
 using System.Text.Json;
 using LiteBus.Commands;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch;
 using LiteBus.Inbox.Dispatch.Amqp;
 using LiteBus.Inbox.Ingress;
 using LiteBus.Inbox.Ingress.Amqp;
@@ -15,7 +14,7 @@ using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
 using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using RabbitMQ.Client;
 
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 
@@ -58,7 +57,7 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
     private async Task RunEndToEndAsync(AmqpConnectionOptions connectionOptions)
     {
         const string contractName = "orders.commands.ship";
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, options);
 
         var ingressQueue = $"litebus.inbox.pg.ingress.{Guid.NewGuid():N}";
@@ -70,9 +69,13 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
         await DeclareQueueAsync(connectionOptions, dispatchQueue);
 
         var services = new ServiceCollection();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddCommandModule(module =>
             {
                 module.Register<ShipOrderCommand>();
@@ -87,20 +90,24 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
                     postgres.DisableSchemaInitialization();
                 });
 
-                inbox.Contracts.Register<ShipOrderCommand>(contractName, 1);
+                inbox.Contracts.Register<ShipOrderCommand>(contractName);
+
                 inbox.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 10,
                     LeaseOwner = "pg-ingress-test-worker",
                     Retry = new RetryOptions { UseJitter = false }
                 });
+
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
+
                 inbox.UseAmqpDispatch(
                     transport =>
                     {
                         transport.DefaultDestination = string.Empty;
                         transport.ResolveRoute = _ => dispatchQueue;
                     }, connectionOptions);
+
                 inbox.UseAmqpIngress(ingress =>
                 {
                     ingress.UseOptions(new AmqpInboxIngressOptions
@@ -161,12 +168,13 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
     {
         await using var manager = new AmqpConnectionManager(connectionOptions);
         await using var channel = await manager.CreateChannelAsync();
+
         await channel.QueueDeclareAsync(
-            queue: queueName,
-            durable: true,
-            exclusive: false,
-            autoDelete: false,
-            arguments: null);
+            queueName,
+            true,
+            false,
+            false,
+            null);
     }
 
     private static async Task<string> ReceiveOneAsync(
@@ -174,20 +182,23 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
         string queue,
         TimeSpan timeout)
     {
-        var uri = connectionOptions.Uri ?? new Uri(
-            $"amqp://{Uri.EscapeDataString(connectionOptions.UserName)}:{Uri.EscapeDataString(connectionOptions.Password)}@{connectionOptions.HostName}:{connectionOptions.Port}{connectionOptions.VirtualHost}");
+        var uri = connectionOptions.Uri ??
+                  new Uri(
+                      $"amqp://{Uri.EscapeDataString(connectionOptions.UserName)}:{Uri.EscapeDataString(connectionOptions.Password)}@{connectionOptions.HostName}:{connectionOptions.Port}{connectionOptions.VirtualHost}");
 
-        var factory = new RabbitMQ.Client.ConnectionFactory { Uri = uri };
+        var factory = new ConnectionFactory { Uri = uri };
         await using var connection = await factory.CreateConnectionAsync();
         await using var channel = await connection.CreateChannelAsync();
 
         var deadline = DateTime.UtcNow + timeout;
+
         while (DateTime.UtcNow < deadline)
         {
-            var result = await channel.BasicGetAsync(queue, autoAck: true);
+            var result = await channel.BasicGetAsync(queue, true);
+
             if (result is not null)
             {
-                return System.Text.Encoding.UTF8.GetString(result.Body.ToArray());
+                return Encoding.UTF8.GetString(result.Body.ToArray());
             }
 
             await Task.Delay(100);

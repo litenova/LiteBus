@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using LiteBus.Inbox.Ingress;
+using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Amqp;
 
@@ -30,9 +26,9 @@ public sealed class AmqpInboxIngressHandler
     /// <param name="contractRegistry">The registry used to resolve persisted contracts back to CLR types.</param>
     /// <param name="messageSerializer">The serializer used to hydrate AMQP message bodies.</param>
     public AmqpInboxIngressHandler(
-        Abstractions.IInbox inbox,
-        Messaging.Abstractions.IContractReader contractRegistry,
-        Messaging.Abstractions.IMessageSerializer messageSerializer)
+        IInbox inbox,
+        IContractReader contractRegistry,
+        IMessageSerializer messageSerializer)
     {
         _inner = new TransportInboxIngressHandler(inbox, contractRegistry, messageSerializer);
     }
@@ -79,8 +75,9 @@ public sealed class AmqpInboxIngressHandler
     /// </summary>
     /// <param name="message">The received AMQP delivery.</param>
     /// <returns>The transport message passed to the inner handler.</returns>
-    private static TransportMessage ToTransportMessage(AmqpReceivedMessage message) =>
-        new()
+    private static TransportMessage ToTransportMessage(AmqpReceivedMessage message)
+    {
+        return new TransportMessage
         {
             Body = message.Body,
             Headers = message.Headers,
@@ -92,4 +89,5 @@ public sealed class AmqpInboxIngressHandler
             AckAsync = message.AcceptAsync,
             NackAsync = (requeue, token) => message.NackDelegate(false, requeue, token)
         };
+    }
 }

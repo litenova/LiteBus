@@ -72,17 +72,20 @@ public sealed class OutboxMessagePurgeParameters
     ///     Converts the bound query values to an <see cref="OutboxMessageFilter" />.
     /// </summary>
     /// <returns>The filter used by outbox purge operations.</returns>
-    public OutboxMessageFilter ToFilter() => new()
+    public OutboxMessageFilter ToFilter()
     {
-        MessageId = MessageId,
-        MessageIds = MessageIds,
-        Statuses = Statuses,
-        ContractName = ContractName,
-        Topic = Topic,
-        CorrelationId = CorrelationId,
-        CausationId = CausationId,
-        TenantId = TenantId,
-        CreatedAfter = CreatedAfter,
-        CreatedBefore = CreatedBefore
-    };
+        return new OutboxMessageFilter
+        {
+            MessageId = MessageId,
+            MessageIds = MessageIds,
+            Statuses = Statuses,
+            ContractName = ContractName,
+            Topic = Topic,
+            CorrelationId = CorrelationId,
+            CausationId = CausationId,
+            TenantId = TenantId,
+            CreatedAfter = CreatedAfter,
+            CreatedBefore = CreatedBefore
+        };
+    }
 }

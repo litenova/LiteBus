@@ -1,12 +1,10 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Outbox.UnitTests;
 
@@ -26,15 +24,16 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
 
         await using var provider = BuildProvider(
             dispatcher,
-            configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(50));
+            options => options.PollInterval = TimeSpan.FromMilliseconds(50));
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var control = provider.GetRequiredService<IOutboxProcessorControl>();
 
         var firstOrderId = Guid.NewGuid();
-        await outbox.EnqueueAsync(
+
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
             new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = firstOrderId },
-            new OutboxOptions { Id = Guid.NewGuid() });
+            Guid.NewGuid()));
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
@@ -49,11 +48,13 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
         control.State.Should().Be(ProcessorState.Paused);
 
         var pausedOrderId = Guid.NewGuid();
-        await outbox.EnqueueAsync(
+
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
             new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = pausedOrderId },
-            new OutboxOptions { Id = Guid.NewGuid() });
+            Guid.NewGuid()));
 
         await Task.Delay(TimeSpan.FromMilliseconds(250));
+
         dispatcher.Instance.DispatchedMessages
             .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
             .Should()
@@ -81,15 +82,16 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
 
         await using var provider = BuildProvider(
             dispatcher,
-            configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(50));
+            options => options.PollInterval = TimeSpan.FromMilliseconds(50));
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var control = provider.GetRequiredService<IOutboxProcessorControl>();
 
         var orderId = Guid.NewGuid();
-        await outbox.EnqueueAsync(
+
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
             new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId },
-            new OutboxOptions { Id = Guid.NewGuid() });
+            Guid.NewGuid()));
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
@@ -98,6 +100,7 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
         await drainTask;
 
         control.State.Should().Be(ProcessorState.Draining);
+
         dispatcher.Instance!.DispatchedMessages
             .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
             .Should()
@@ -132,16 +135,21 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
             .AddSingleton(dispatcherHolder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddOutboxModule(outbox =>
                 {
-                    outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                    outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
+
                     outbox.UseProcessorOptions(new OutboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "test-worker",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     outbox.UseInMemoryStorage();
                     outbox.UseRecordingOutboxDispatcher(dispatcherHolder);
                     outbox.EnableOutboxProcessor(configureHost);
@@ -153,6 +161,7 @@ public sealed class OutboxProcessorControlTests : LiteBusTestBase
     private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
     {
         var deadline = DateTimeOffset.UtcNow + timeout;
+
         while (!condition() && DateTimeOffset.UtcNow < deadline)
         {
             await Task.Delay(50);

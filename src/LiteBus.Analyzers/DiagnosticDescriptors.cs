@@ -16,7 +16,8 @@ public static class DiagnosticDescriptors
         "Command type '{0}' has more than one command handler ('{1}' and '{2}'). Each command type must have exactly one handler.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        true,
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
     ///     A query handler depends on a side-effecting mediator or durable writer.
@@ -27,7 +28,7 @@ public static class DiagnosticDescriptors
         "Query handler '{0}' depends on '{1}'. Query handlers should be side-effect free and must not use command, event, inbox, or outbox APIs.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        true);
 
     /// <summary>
     ///     A command with a result type is stored through the inbox API.
@@ -38,7 +39,7 @@ public static class DiagnosticDescriptors
         "Type '{0}' implements ICommand<{1}> and cannot be stored through IInbox.AcceptAsync. Use a void command for inbox storage or send the command immediately through ICommandMediator.",
         "LiteBus.Inbox",
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        true);
 
     /// <summary>
     ///     An open generic handler type has an unsupported generic arity.
@@ -49,7 +50,7 @@ public static class DiagnosticDescriptors
         "Open generic handler '{0}' exposes {1} type parameters. LiteBus open generic handlers must expose exactly one type parameter that matches the handled message type.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        true);
 
     /// <summary>
     ///     A handled message type lacks a durable contract registration.
@@ -60,7 +61,8 @@ public static class DiagnosticDescriptors
         "Message type '{0}' is handled by '{1}' but has no durable contract registration. Apply [MessageContract(\"name\", version)] or call Contracts.Register<{2}>(...) during module configuration.",
         "LiteBus.Contracts",
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        true,
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
     ///     A command type has no main command handler in the compilation.
@@ -71,7 +73,8 @@ public static class DiagnosticDescriptors
         "Command type '{0}' has no command handler. Register ICommandHandler<{0}> or a handler for a base command type that covers it.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        true,
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
     ///     A query type has no main query handler in the compilation.
@@ -82,7 +85,8 @@ public static class DiagnosticDescriptors
         "Query type '{0}' has no query handler. Register IQueryHandler<{0}, TResult> or a handler for a base query type that covers it.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        true,
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
     ///     Two query handlers are registered for the same query type.
@@ -93,7 +97,8 @@ public static class DiagnosticDescriptors
         "Query type '{0}' has more than one query handler ('{1}' and '{2}'). Each query type must have exactly one handler.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        true,
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
     ///     A handler tag is not referenced by any command or event mediation filter in the compilation.
@@ -101,10 +106,11 @@ public static class DiagnosticDescriptors
     internal static readonly DiagnosticDescriptor OrphanHandlerTag = new(
         DiagnosticIds.OrphanHandlerTag,
         "Orphan handler tag",
-        "Handler '{0}' is tagged with '{1}', but no command or event mediation filter references that tag in this compilation.",
+        "Handler '{0}' is tagged with '{1}', but no command or event mediation filter references that tag in this compilation",
         "LiteBus.Handlers",
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        true,
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
     ///     The same handler type name appears in multiple assemblies and may be registered twice.
@@ -115,7 +121,8 @@ public static class DiagnosticDescriptors
         "Handler name '{0}' is declared in assemblies '{1}' and '{2}'. RegisterFromAssembly may register both handlers for the same message type.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        true,
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
     ///     A type depends on transactional outbox storage without a database context in the same constructor.
@@ -126,7 +133,7 @@ public static class DiagnosticDescriptors
         "Type '{0}' injects ITransactionalOutboxStore but does not inject a DbContext in the same constructor. Transactional outbox requires an active EF Core unit of work.",
         "LiteBus.Outbox",
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        true);
 
     /// <summary>
     ///     An inbox or outbox processor is enabled without a dispatcher registration.
@@ -137,7 +144,7 @@ public static class DiagnosticDescriptors
         "{0} enables the background processor but does not register a dispatcher in the same configuration scope. Call {2}, a broker-specific Use*Dispatch extension, or RegisterDispatcher before Enable{1}Processor.",
         "LiteBus.Configuration",
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        true);
 
     /// <summary>
     ///     Transactional EF storage setup omits the save-changes interceptor.
@@ -148,7 +155,7 @@ public static class DiagnosticDescriptors
         "{0} calls EnforceTransactionalSetup() without EnableSaveChangesInterceptor() in the same configuration scope. Transactional inbox and outbox require the EF Core save-changes interceptor.",
         "LiteBus.Configuration",
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        true);
 
     /// <summary>
     ///     A type depends on transactional inbox storage without a database context in the same constructor.
@@ -159,7 +166,7 @@ public static class DiagnosticDescriptors
         "Type '{0}' injects ITransactionalInboxStore but does not inject a DbContext in the same constructor. Transactional inbox requires an active EF Core unit of work.",
         "LiteBus.Inbox",
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        true);
 
     /// <summary>
     ///     A message type declares <c>[MessageContract]</c> but lacks explicit contract registration.
@@ -170,5 +177,6 @@ public static class DiagnosticDescriptors
         "Message type '{0}' declares [MessageContract] but has no explicit Contracts.Register<{0}> or RegisterFromAssembly configuration. Runtime on-demand resolution still works; register explicitly for predictable contract discovery.",
         "LiteBus.Contracts",
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        true,
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 }

@@ -1,6 +1,5 @@
 using System.Text;
 using AwesomeAssertions;
-using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.UnitTests;

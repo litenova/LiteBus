@@ -42,7 +42,8 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 ///         version describes payload shape; table schema version describes columns and indexes managed by LiteBus.
 ///     </para>
 ///     <para>
-///         Schema version 1 includes the full inbox column set, required indexes, and an optional insert notify trigger for
+///         Schema version 1 includes the full inbox column set, required indexes, and an optional insert notify trigger
+///         for
 ///         LISTEN/NOTIFY wake-up. Existing databases are not upgraded; recreate tables or apply
 ///         <see cref="GetCreateScript(PostgreSqlInboxStoreOptions?)" /> through your migration pipeline.
 ///     </para>
@@ -131,7 +132,8 @@ public static class PostgreSqlInboxSchema
     /// <returns>A task that completes when the schema reaches the expected version.</returns>
     /// <remarks>
     ///     Prefer <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlInboxStoreOptions?, CancellationToken)" /> for new
-    ///     code. This method delegates to <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlInboxStoreOptions?, CancellationToken)" />.
+    ///     code. This method delegates to
+    ///     <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlInboxStoreOptions?, CancellationToken)" />.
     /// </remarks>
     public static Task CreateIfNotExistsAsync(
         NpgsqlDataSource dataSource,

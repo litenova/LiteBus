@@ -10,19 +10,14 @@ namespace LiteBus.Inbox;
 public sealed class InboxRetentionCoordinator
 {
     /// <summary>
-    ///     The lock that serializes updates to retention status fields.
-    /// </summary>
-    private readonly object _sync = new();
-
-    /// <summary>
     ///     Gets the loop timing and retention options for cleanup.
     /// </summary>
     private readonly InboxCleanupHostOptions _hostOptions;
 
     /// <summary>
-    ///     The UTC timestamp of the last cleanup attempt.
+    ///     The lock that serializes updates to retention status fields.
     /// </summary>
-    private DateTimeOffset? _lastRunAt;
+    private readonly object _sync = new();
 
     /// <summary>
     ///     The number of rows deleted during the last successful pass.
@@ -33,6 +28,11 @@ public sealed class InboxRetentionCoordinator
     ///     The message from the last failed pass.
     /// </summary>
     private string? _lastError;
+
+    /// <summary>
+    ///     The UTC timestamp of the last cleanup attempt.
+    /// </summary>
+    private DateTimeOffset? _lastRunAt;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="InboxRetentionCoordinator" /> class.

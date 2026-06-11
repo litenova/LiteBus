@@ -1,6 +1,7 @@
-using System;
+using LiteBus.Storage.EntityFrameworkCore.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
 namespace LiteBus.Storage.EntityFrameworkCore;
 
 /// <summary>
@@ -18,11 +19,11 @@ public static class EfCoreRelationalModelColumnTypes
         return provider switch
         {
             EfCoreStorageProvider.PostgreSql => "jsonb",
-            EfCoreStorageProvider.SqlServer => "nvarchar(max)",
-            EfCoreStorageProvider.MySql => "json",
-            EfCoreStorageProvider.Sqlite => "TEXT",
-            EfCoreStorageProvider.InMemory => "TEXT",
-            _ => throw new Exceptions.EfCoreStorageNotSupportedException($"Payload column types are not defined for provider '{provider}'.")
+            EfCoreStorageProvider.SqlServer  => "nvarchar(max)",
+            EfCoreStorageProvider.MySql      => "json",
+            EfCoreStorageProvider.Sqlite     => "TEXT",
+            EfCoreStorageProvider.InMemory   => "TEXT",
+            _                                => throw new EfCoreStorageNotSupportedException($"Payload column types are not defined for provider '{provider}'.")
         };
     }
 

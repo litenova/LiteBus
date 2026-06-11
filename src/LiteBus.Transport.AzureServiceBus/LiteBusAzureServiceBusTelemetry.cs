@@ -16,4 +16,3 @@ public static class LiteBusAzureServiceBusTelemetry
     /// </summary>
     public const string MeterName = "LiteBus.Transport.AzureServiceBus";
 }
-

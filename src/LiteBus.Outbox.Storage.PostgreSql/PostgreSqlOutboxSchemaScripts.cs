@@ -60,10 +60,10 @@ internal static class PostgreSqlOutboxSchemaScripts
     /// </summary>
     internal static IReadOnlyList<PostgreSqlSchemaSqlFile> SqlFiles { get; } =
     [
-        new PostgreSqlSchemaSqlFile(
+        new(
             PostgreSqlOutboxSchemaSqlPaths.V1Create,
             "Creates the version 1 outbox table, indexes, and optional insert notify trigger."),
-        new PostgreSqlSchemaSqlFile(
+        new(
             PostgreSqlOutboxSchemaSqlPaths.V1EnsureIndexes,
             "Ensures outbox indexes exist for schema version 1.")
     ];

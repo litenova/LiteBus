@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Immutable;
 using System.Linq;
+using LiteBus.Analyzers.Analysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
-using LiteBus.Analyzers.Analysis;
 
 namespace LiteBus.Analyzers;
 

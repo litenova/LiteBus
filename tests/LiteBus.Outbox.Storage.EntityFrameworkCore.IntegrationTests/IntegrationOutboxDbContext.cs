@@ -1,4 +1,3 @@
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,14 +9,14 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests;
 internal sealed class IntegrationOutboxDbContext : DbContext, IOutboxDbContext
 {
     /// <summary>
-    ///     The store options that control schema mapping.
-    /// </summary>
-    private readonly EfCoreOutboxStoreOptions _storeOptions;
-
-    /// <summary>
     ///     The storage provider used for model configuration.
     /// </summary>
     private readonly EfCoreStorageProvider _storageProvider;
+
+    /// <summary>
+    ///     The store options that control schema mapping.
+    /// </summary>
+    private readonly EfCoreOutboxStoreOptions _storeOptions;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="IntegrationOutboxDbContext" /> class.

@@ -1,5 +1,4 @@
 using System.Text;
-using LiteBus.Transport.Amqp;
 using RabbitMQ.Client;
 
 namespace LiteBus.Inbox.Dispatch.Amqp.IntegrationTests;
@@ -26,28 +25,28 @@ internal static class AmqpTestInfrastructure
         CancellationToken cancellationToken = default)
     {
         var factory = new ConnectionFactory { Uri = connectionUri };
-        await using var connection = await factory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var connection = await factory.CreateConnectionAsync(cancellationToken);
+        await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
         await channel.ExchangeDeclareAsync(
-            exchange: exchange,
-            type: ExchangeType.Direct,
-            durable: true,
-            autoDelete: false,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+            exchange,
+            ExchangeType.Direct,
+            true,
+            false,
+            cancellationToken: cancellationToken);
 
         await channel.QueueDeclareAsync(
-            queue: queue,
-            durable: true,
-            exclusive: false,
-            autoDelete: false,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+            queue,
+            true,
+            false,
+            false,
+            cancellationToken: cancellationToken);
 
         await channel.QueueBindAsync(
-            queue: queue,
-            exchange: exchange,
-            routingKey: routingKey,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+            queue,
+            exchange,
+            routingKey,
+            cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -65,8 +64,8 @@ internal static class AmqpTestInfrastructure
         CancellationToken cancellationToken = default)
     {
         var factory = new ConnectionFactory { Uri = connectionUri };
-        await using var connection = await factory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var connection = await factory.CreateConnectionAsync(cancellationToken);
+        await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
         var deadline = DateTime.UtcNow + timeout;
 
@@ -74,7 +73,7 @@ internal static class AmqpTestInfrastructure
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var result = await channel.BasicGetAsync(queue, autoAck: true, cancellationToken).ConfigureAwait(false);
+            var result = await channel.BasicGetAsync(queue, true, cancellationToken);
 
             if (result is not null)
             {
@@ -83,7 +82,7 @@ internal static class AmqpTestInfrastructure
                 return (body, headers);
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
         }
 
         throw new TimeoutException($"No AMQP message arrived on queue '{queue}' within {timeout}.");
@@ -107,9 +106,9 @@ internal static class AmqpTestInfrastructure
         {
             normalized[key] = value switch
             {
-                byte[] bytes => Encoding.UTF8.GetString(bytes),
+                byte[] bytes                => Encoding.UTF8.GetString(bytes),
                 ReadOnlyMemory<byte> memory => Encoding.UTF8.GetString(memory.Span),
-                _ => value
+                _                           => value
             };
         }
 

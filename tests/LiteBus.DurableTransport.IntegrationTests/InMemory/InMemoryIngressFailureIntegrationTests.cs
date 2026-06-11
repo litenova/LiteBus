@@ -1,22 +1,21 @@
+using System.Text;
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InMemory;
-using LiteBus.Inbox.Ingress;
 using LiteBus.Inbox.Ingress.InMemory;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
-using LiteBus.Transport.InMemory;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.DurableTransport.IntegrationTests.InMemory;
 
 /// <summary>
-///     Verifies in-memory ingress failure acknowledgement behavior through <see cref="InboxModuleBuilderInMemoryIngressExtensions.UseInMemoryIngress" />.
+///     Verifies in-memory ingress failure acknowledgement behavior through
+///     <see cref="InboxModuleBuilderInMemoryIngressExtensions.UseInMemoryIngress" />.
 /// </summary>
 [Trait("Category", TransportTestTraits.Fast)]
 public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
@@ -31,10 +30,10 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
     public async Task UnknownContract_ShouldDiscardWithoutStoreWrite()
     {
         await RunFailureScenarioAsync(
-            body: "{}",
-            contractName: "unknown.contract",
-            contractVersion: 1,
-            expectedPendingCount: 0);
+            "{}",
+            "unknown.contract",
+            1,
+            0);
     }
 
     /// <summary>
@@ -45,10 +44,10 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
     public async Task InvalidJson_ShouldDiscardWithoutStoreWrite()
     {
         await RunFailureScenarioAsync(
-            body: "{not-valid-json",
-            contractName: ContractName,
-            contractVersion: 1,
-            expectedPendingCount: 0);
+            "{not-valid-json",
+            ContractName,
+            1,
+            0);
     }
 
     /// <summary>
@@ -60,14 +59,19 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
     {
         var ingressDestination = $"litebus-inmemory-ingress-fail-{Guid.NewGuid():N}";
 
-        await using var provider = BuildProvider(ingressDestination, capacity: 1);
+        await using var provider = BuildProvider(ingressDestination, 1);
         await StartIngressAsync(provider);
 
         var inbox = provider.GetRequiredService<IInbox>();
-        await inbox.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() });
+
+        await inbox.AcceptAsync(new InboxAcceptItem<ShipOrderCommand>
+        {
+            Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
+        });
 
         var publisher = provider.GetRequiredService<IMessageTransport>();
         var messageId = Guid.NewGuid();
+
         await publisher.PublishAsync(new TransportPublishRequest
         {
             Destination = ingressDestination,
@@ -99,7 +103,7 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
     {
         var ingressDestination = $"litebus-inmemory-ingress-fail-{Guid.NewGuid():N}";
 
-        await using var provider = BuildProvider(ingressDestination, capacity: 100);
+        await using var provider = BuildProvider(ingressDestination, 100);
         await StartIngressAsync(provider);
 
         var publisher = provider.GetRequiredService<IMessageTransport>();
@@ -108,7 +112,7 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
         await publisher.PublishAsync(new TransportPublishRequest
         {
             Destination = ingressDestination,
-            Body = System.Text.Encoding.UTF8.GetBytes(body),
+            Body = Encoding.UTF8.GetBytes(body),
             MessageId = messageId.ToString("D"),
             Headers = TransportTestHeaders.Create(messageId, contractName, contractVersion)
         });
@@ -129,15 +133,21 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                    inbox.Contracts.Register<ShipOrderCommand>(ContractName);
+
                     inbox.UseInMemoryStorage(builder => builder.UseOptions(new InMemoryInboxStoreOptions
                     {
                         Capacity = capacity
                     }));
+
                     inbox.UseInMemoryDispatch();
+
                     inbox.UseInMemoryIngress(ingress =>
                     {
                         ingress.UseOptions(new InMemoryInboxIngressOptions

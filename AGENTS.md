@@ -169,6 +169,103 @@ Packages ending in `.Abstractions` contain only interfaces, value objects, enums
 
 **Abstractions stay abstract on public surfaces.** Parameters, return types, properties, and fields exposed by `*.Abstractions` types must be interfaces, primitives, enums, records, or other abstractions from allowed lower layers. Do not surface concrete store, transport, ORM, broker SDK, or hosting types in public or internal API members consumers could depend on indirectly.
 
+### API and value object design
+
+Public APIs use a consistent suffix taxonomy so callers can tell a command unit from module configuration from per-invocation mediation tuning. When adding or renaming types, match an existing suffix before inventing a new one.
+
+#### Model taxonomy
+
+| Suffix | Responsibility | Examples |
+|--------|----------------|----------|
+| `*Item` | One command unit (message payload + metadata) | `InboxAcceptItem`, `OutboxEnqueueItem` |
+| `*Metadata` | Per-message durable annotations on an `*Item` | `InboxAcceptMetadata`, `OutboxEnqueueMetadata` |
+| `*Request` | Operation input without a message body | `InboxLeaseRequest`, `TransportPublishRequest` |
+| `*Settings` | Per-invocation mediation tuning | `CommandMediationSettings`, `EventMediationSettings` |
+| `*Options` | Module, host, processor, or adapter configuration | `ProcessorOptions`, `PostgreSqlInboxStoreOptions` |
+| `*HostOptions` | Background-service lifecycle | `InboxProcessorHostOptions` |
+| `*Filter` | Query or purge predicates | `InboxMessageFilter` |
+| (no suffix) | Small, shared value objects | `SagaCorrelation`, `MessageIdentity` |
+
+**Banned suffixes and shapes**
+
+- Do not introduce `*Specification` types. Use `*Item`, `*Metadata`, or `*Request` instead.
+- Do not use `*Options` for per-message writer input. `InboxOptions` and `OutboxOptions` are removed in v6; writers take `*Item` plus `*Metadata`.
+- Do not define parallel aligned parameter lists on writer methods (separate idempotency key, tenant id, trace context arguments). Fold durable annotations into `*Metadata`.
+- Do not embed `CancellationToken` inside `*Item`, `*Metadata`, or `*Request`. Pass cancellation as the final method parameter.
+
+**Mediation vs durable writers**
+
+- Mediation keeps `*Settings` (`CommandMediationSettings`, `EventMediationSettings`, `QueryMediationSettings`) for per-call pipeline tuning.
+- Durable writers use `*Item` plus `*Metadata`. Scheduling and visibility belong on metadata (`MessageVisibility`), not separate scheduler interfaces.
+
+#### Discriminated value objects
+
+Shared durable primitives live in `LiteBus.Messaging.Abstractions.DurableMessaging`:
+
+| Type | Role |
+| --- | --- |
+| `MessageIdentity` | Stable message id and correlation handles |
+| `Idempotency` | Idempotency key and deduplication scope |
+| `MessageVisibility` | Delayed or scheduled availability (`visible_after`) |
+| `MessageTrace` | Distributed trace context propagation |
+| `TenantScope` | Tenant partition for routing and lease filters |
+| `MessageContractReference` | Contract name and version for persisted envelopes |
+
+Outbox adds `PublicationTarget` in `LiteBus.Outbox.Abstractions` for destination routing.
+
+`*Item` types compose these value objects through `*Metadata`. Internal mappers (for example `DurableEnvelopeMetadataMapper`) project metadata fields onto envelope columns. Receipt types (`InboxReceipt`, `OutboxReceipt`) expose `MessageContractReference`, `MessageTrace`, and `TenantScope` rather than duplicating primitive fields.
+
+#### Method shape
+
+Writer facades use a small, predictable surface:
+
+```csharp
+Task<InboxReceipt> AcceptAsync<TMessage>(InboxAcceptItem<TMessage> item, CancellationToken cancellationToken)
+    where TMessage : notnull;
+
+Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
+    IReadOnlyList<InboxAcceptItem> items,
+    CancellationToken cancellationToken);
+```
+
+Outbox mirrors the pattern with `EnqueueAsync` / `EnqueueBatchAsync` and `OutboxEnqueueItem`.
+
+- The message body is the generic argument on `*Item<TMessage>` when typed; untyped batch paths use non-generic `InboxAcceptItem`.
+- `CancellationToken` is always the last parameter.
+- Batch methods accept `IReadOnlyList<*Item>`, not params arrays or parallel option bags.
+- Store, lease, and processor APIs use `*Request` for operation inputs that are not full message accepts.
+
+#### Placement
+
+| Kind | Package |
+| --- | --- |
+| Shared durable value objects | `LiteBus.Messaging.Abstractions` (`DurableMessaging` namespace) |
+| Axis-specific items, metadata, receipts | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` |
+| Mediation settings | `LiteBus.Commands.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Queries.Abstractions` |
+| Module and host options | Feature or adapter package that registers the service |
+| Internal envelope projection | Core feature package (`LiteBus.Messaging`, `LiteBus.Inbox`, `LiteBus.Outbox`) as `internal` helpers |
+
+Abstractions packages own the public value-object types. Adapters map them; they do not define alternate option bags for the same concern.
+
+#### Ergonomics
+
+- Prefer factory or static helpers on collection types (for example `InboxAcceptItems.From`) when constructing batches from heterogeneous messages, but keep the writer method signature on `IReadOnlyList<InboxAcceptItem>`.
+- Keep module-builder configuration on `*Options` types registered at compose time. Do not thread those options through accept or enqueue calls.
+- When a feature needs both mediation and durable persistence, call `ICommandMediator.SendAsync` with `*Settings` separately from `ITransactionalOutbox.EnqueueAsync` with `OutboxEnqueueItem`; do not merge the two concerns into one type.
+
+#### Alignment backlog (v6)
+
+The following surfaces predate this taxonomy and are **not** rewritten in the v6 writer pass. Align them when their area is next touched:
+
+| Surface | Target direction |
+| --- | --- |
+| `MediateOptions` | Rename or split toward `*Settings` or explicit request types |
+| `IAsyncMessageErrorHandler` | Consistent error-context value object if parameters grow |
+| `ILeaseRenewable` | Lease renewal as `*Request` where applicable |
+| `ISagaStore.SaveAsync` | Saga persistence item or metadata if save payload expands |
+
+Document new types in feature guides when the implementation lands; this section is the authoritative suffix reference.
+
 ### Composite module pattern
 
 Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs during `Register()` before any `Build()`. The builder action runs inside `DeclareChildren`. `Build()` registers core services only. Sub-modules check for a parent context marker as their first `Build()` operation. The registry inserts children depth-first after the parent, then topological sort runs. Duplicate registration of the same module type is a silent no-op.

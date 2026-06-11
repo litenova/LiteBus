@@ -1,5 +1,6 @@
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Dispatch.InProcess;
 using LiteBus.Saga.Abstractions;
@@ -9,7 +10,6 @@ using LiteBus.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-
 using IInboxProcessor = LiteBus.Inbox.Abstractions.IInboxProcessor;
 
 namespace LiteBus.Composition.UnitTests;
@@ -62,13 +62,13 @@ public sealed class LiteBusV6CompositionSmokeTests : LiteBusTestBase
 
         const string correlationId = "order-sample-smoke-1";
 
-        await inbox.AcceptAsync(
-            new AdvanceOrderSagaCommand(Guid.NewGuid()),
-            new InboxOptions { CorrelationId = correlationId });
+        var metadata = new InboxAcceptMetadata
+        {
+            Trace = new MessageTrace.Correlated(correlationId)
+        };
 
-        await inbox.AcceptAsync(
-            new AdvanceOrderSagaCommand(Guid.NewGuid()),
-            new InboxOptions { CorrelationId = correlationId });
+        await inbox.AcceptAsync(InboxAcceptItems.From(new AdvanceOrderSagaCommand(Guid.NewGuid()), metadata));
+        await inbox.AcceptAsync(InboxAcceptItems.From(new AdvanceOrderSagaCommand(Guid.NewGuid()), metadata));
 
         await processor.ProcessPendingAsync();
         await processor.ProcessPendingAsync();

@@ -22,14 +22,9 @@ public sealed class InboxModuleBuilder
     private readonly MessageContractBuilder _contracts = new();
 
     /// <summary>
-    ///     The configured storage sub-module, if any.
+    ///     Consumer-owned diagnostic probes registered for this inbox.
     /// </summary>
-    private IInboxStorageModule? _storageModule;
-
-    /// <summary>
-    ///     The configured dispatcher sub-module, if any.
-    /// </summary>
-    private IInboxDispatcherModule? _dispatcherModule;
+    private readonly List<DiagnosticCheckRegistration> _diagnosticChecks = [];
 
     /// <summary>
     ///     Ingress sub-modules registered for this inbox.
@@ -42,14 +37,14 @@ public sealed class InboxModuleBuilder
     private readonly List<IModule> _sagaModules = [];
 
     /// <summary>
-    ///     The optional payload encryptor registered through <see cref="UsePayloadEncryption" />.
+    ///     The configured dispatcher sub-module, if any.
     /// </summary>
-    private IPayloadEncryptor? _payloadEncryptor;
+    private IInboxDispatcherModule? _dispatcherModule;
 
     /// <summary>
-    ///     Consumer-owned diagnostic probes registered for this inbox.
+    ///     Whether <see cref="EnableCleanup" /> was called.
     /// </summary>
-    private readonly List<DiagnosticCheckRegistration> _diagnosticChecks = [];
+    private bool _enableCleanup;
 
     /// <summary>
     ///     Whether <see cref="EnableInboxProcessor" /> was called.
@@ -57,9 +52,14 @@ public sealed class InboxModuleBuilder
     private bool _enableInboxProcessor;
 
     /// <summary>
-    ///     Whether <see cref="EnableCleanup" /> was called.
+    ///     The optional payload encryptor registered through <see cref="UsePayloadEncryption" />.
     /// </summary>
-    private bool _enableCleanup;
+    private IPayloadEncryptor? _payloadEncryptor;
+
+    /// <summary>
+    ///     The configured storage sub-module, if any.
+    /// </summary>
+    private IInboxStorageModule? _storageModule;
 
     /// <summary>
     ///     Gets the deferred contract writer. Registrations are applied to the shared
@@ -75,12 +75,12 @@ public sealed class InboxModuleBuilder
     /// <summary>
     ///     Gets the options controlling the background service lifecycle and poll behaviour.
     /// </summary>
-    public InboxProcessorHostOptions ProcessorHostOptions { get; private set; } = new();
+    public InboxProcessorHostOptions ProcessorHostOptions { get; } = new();
 
     /// <summary>
     ///     Gets the options for the optional inbox retention cleanup loop.
     /// </summary>
-    public InboxCleanupHostOptions CleanupHostOptions { get; private set; } = new();
+    public InboxCleanupHostOptions CleanupHostOptions { get; } = new();
 
     /// <summary>
     ///     Gets a value indicating whether the inbox processor background service is registered.
@@ -101,6 +101,11 @@ public sealed class InboxModuleBuilder
     ///     Gets a value indicating whether a dispatcher sub-module was registered on this builder.
     /// </summary>
     public bool IsDispatcherConfigured => _dispatcherModule is not null;
+
+    /// <summary>
+    ///     Gets a value indicating whether payload encryption was configured on this builder.
+    /// </summary>
+    public bool IsPayloadEncryptionConfigured => _payloadEncryptor is not null;
 
     /// <summary>
     ///     Activates the background processor that polls for and dispatches
@@ -218,15 +223,13 @@ public sealed class InboxModuleBuilder
     }
 
     /// <summary>
-    ///     Gets a value indicating whether payload encryption was configured on this builder.
-    /// </summary>
-    public bool IsPayloadEncryptionConfigured => _payloadEncryptor is not null;
-
-    /// <summary>
     ///     Collects the configured payload encryptor, if any.
     /// </summary>
     /// <returns>The encryptor registered on this builder.</returns>
-    internal IPayloadEncryptor? CollectPayloadEncryptor() => _payloadEncryptor;
+    internal IPayloadEncryptor? CollectPayloadEncryptor()
+    {
+        return _payloadEncryptor;
+    }
 
     /// <summary>
     ///     Registers a consumer-owned diagnostic probe for this inbox.
@@ -247,7 +250,9 @@ public sealed class InboxModuleBuilder
     /// </summary>
     /// <returns>The diagnostic probe registrations declared on this builder.</returns>
     internal IReadOnlyList<DiagnosticCheckRegistration> CollectDiagnosticChecks()
-        => _diagnosticChecks;
+    {
+        return _diagnosticChecks;
+    }
 
     /// <summary>
     ///     Collects configured sub-modules in storage, dispatcher, then ingress order.
@@ -256,6 +261,7 @@ public sealed class InboxModuleBuilder
     public IReadOnlyList<IModule> CollectSubModules()
     {
         var modules = new List<IModule>();
+
         if (_storageModule is not null)
         {
             modules.Add(_storageModule);
@@ -277,5 +283,7 @@ public sealed class InboxModuleBuilder
     /// </summary>
     /// <param name="registry">The shared message contract registry.</param>
     public void ApplyContracts(IMessageContractRegistry registry)
-        => _contracts.ApplyTo(registry);
+    {
+        _contracts.ApplyTo(registry);
+    }
 }

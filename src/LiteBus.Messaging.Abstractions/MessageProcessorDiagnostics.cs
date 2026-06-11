@@ -52,7 +52,10 @@ public static class MessageProcessorDiagnostics
     /// </summary>
     /// <param name="traceContext">The trace context string persisted on an inbox or outbox envelope.</param>
     /// <param name="parentContext">When parsing succeeds, the W3C parent <see cref="ActivityContext" /> for processor spans.</param>
-    /// <returns><see langword="true" /> when <paramref name="traceContext" /> is a valid W3C trace parent; otherwise, <see langword="false" />.</returns>
+    /// <returns>
+    ///     <see langword="true" /> when <paramref name="traceContext" /> is a valid W3C trace parent; otherwise,
+    ///     <see langword="false" />.
+    /// </returns>
     public static bool TryGetParentActivityContext(string? traceContext, out ActivityContext parentContext)
     {
         parentContext = default;

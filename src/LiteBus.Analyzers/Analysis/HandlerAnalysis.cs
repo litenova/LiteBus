@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Threading;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace LiteBus.Analyzers.Analysis;
 
@@ -24,7 +27,7 @@ internal static class HandlerAnalysis
         ("LiteBus.Queries.Abstractions.IQueryPostHandler`1", "query post-handler"),
         ("LiteBus.Commands.Abstractions.ICommandErrorHandler`1", "command error-handler"),
         ("LiteBus.Events.Abstractions.IEventErrorHandler`1", "event error-handler"),
-        ("LiteBus.Queries.Abstractions.IQueryErrorHandler`1", "query error-handler"),
+        ("LiteBus.Queries.Abstractions.IQueryErrorHandler`1", "query error-handler")
     };
 
     /// <summary>
@@ -35,17 +38,18 @@ internal static class HandlerAnalysis
     /// <returns>All discovered handler registrations.</returns>
     internal static ImmutableArray<HandlerRegistration> CollectHandlerRegistrations(
         Compilation compilation,
-        System.Threading.CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
         var builder = ImmutableArray.CreateBuilder<HandlerRegistration>();
-        var processed = new System.Collections.Generic.HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        var processed = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
 
         foreach (var syntaxTree in compilation.SyntaxTrees)
         {
             foreach (var typeDeclaration in syntaxTree.GetRoot(cancellationToken).DescendantNodes()
-                         .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax>())
+                         .OfType<TypeDeclarationSyntax>())
             {
                 var model = compilation.GetSemanticModel(syntaxTree);
+
                 if (model.GetDeclaredSymbol(typeDeclaration, cancellationToken) is INamedTypeSymbol symbol)
                 {
                     TryAddHandlerRegistration(compilation, symbol, builder, processed);
@@ -85,16 +89,14 @@ internal static class HandlerAnalysis
         Compilation compilation,
         INamedTypeSymbol symbol,
         ImmutableArray<HandlerRegistration>.Builder builder,
-        System.Collections.Generic.HashSet<INamedTypeSymbol> processed)
+        HashSet<INamedTypeSymbol> processed)
     {
         if (symbol.TypeKind == TypeKind.Interface || !processed.Add(symbol))
         {
             return;
         }
 
-        var location = symbol.Locations.FirstOrDefault(locationCandidate => locationCandidate.IsInSource)
-            ?? symbol.Locations.FirstOrDefault()
-            ?? Location.None;
+        var location = symbol.Locations.FirstOrDefault(locationCandidate => locationCandidate.IsInSource) ?? symbol.Locations.FirstOrDefault() ?? Location.None;
 
         foreach (var handlerInterface in symbol.AllInterfaces)
         {
@@ -126,7 +128,7 @@ internal static class HandlerAnalysis
         Compilation compilation,
         INamespaceSymbol namespaceSymbol,
         ImmutableArray<HandlerRegistration>.Builder builder,
-        System.Collections.Generic.HashSet<INamedTypeSymbol> processed)
+        HashSet<INamedTypeSymbol> processed)
     {
         foreach (var member in namespaceSymbol.GetMembers())
         {

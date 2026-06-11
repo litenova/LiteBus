@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Outbox.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.Storage.InMemory.Exceptions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 
 namespace LiteBus.Outbox.Storage.InMemory;
@@ -39,14 +40,14 @@ public sealed class InMemoryOutboxStore :
     private readonly Dictionary<string, Guid> _idempotencyIndex = new(StringComparer.Ordinal);
 
     /// <summary>
-    ///     The lock that serializes mutations and lease scans.
-    /// </summary>
-    private readonly object _sync = new();
-
-    /// <summary>
     ///     The store options applied at construction time.
     /// </summary>
     private readonly InMemoryOutboxStoreOptions _options;
+
+    /// <summary>
+    ///     The lock that serializes mutations and lease scans.
+    /// </summary>
+    private readonly object _sync = new();
 
     /// <summary>
     ///     The clock used when lease requests omit an explicit timestamp.
@@ -57,7 +58,10 @@ public sealed class InMemoryOutboxStore :
     ///     Initializes a new instance of the <see cref="InMemoryOutboxStore" /> class.
     /// </summary>
     /// <param name="options">The store options.</param>
-    /// <param name="timeProvider">The clock used for lease expiry when a lease request omits <see cref="OutboxLeaseRequest.Now" />.</param>
+    /// <param name="timeProvider">
+    ///     The clock used for lease expiry when a lease request omits
+    ///     <see cref="OutboxLeaseRequest.Now" />.
+    /// </param>
     public InMemoryOutboxStore(InMemoryOutboxStoreOptions? options = null, TimeProvider? timeProvider = null)
     {
         _options = options ?? new InMemoryOutboxStoreOptions();
@@ -77,132 +81,19 @@ public sealed class InMemoryOutboxStore :
         }
     }
 
-    /// <inheritdoc />
-    public Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
+    /// <summary>
+    ///     Gets the number of messages currently stored.
+    /// </summary>
+    /// <returns>The stored message count.</returns>
+    public int Count
     {
-        ArgumentNullException.ThrowIfNull(envelope);
-
-        lock (_sync)
+        get
         {
-            return Task.FromResult(AddCore(envelope));
-        }
-    }
-
-    /// <inheritdoc />
-    public Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
-        IReadOnlyList<OutboxEnvelope> envelopes,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(envelopes);
-
-        if (envelopes.Count == 0)
-        {
-            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>(Array.Empty<OutboxEnvelope>());
-        }
-
-        lock (_sync)
-        {
-            var stored = new OutboxEnvelope[envelopes.Count];
-
-            for (var index = 0; index < envelopes.Count; index++)
+            lock (_sync)
             {
-                stored[index] = AddCore(envelopes[index]);
-            }
-
-            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>(stored);
-        }
-    }
-
-    /// <inheritdoc />
-    public Task<bool> RenewLeaseAsync(
-        Guid messageId,
-        string leaseOwner,
-        DateTimeOffset expiresAt,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(leaseOwner);
-
-        lock (_sync)
-        {
-            if (!_envelopes.TryGetValue(messageId, out var envelope) ||
-                envelope.Status != OutboxStatus.Publishing ||
-                !string.Equals(envelope.LeaseOwner, leaseOwner, StringComparison.Ordinal))
-            {
-                return Task.FromResult(false);
-            }
-
-            _envelopes[messageId] = envelope with { LeaseExpiresAt = expiresAt };
-            return Task.FromResult(true);
-        }
-    }
-
-    /// <inheritdoc />
-    public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
-        OutboxLeaseRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        var now = ResolveLeaseClock(request);
-        var leaseDuration = request.LeaseDuration > TimeSpan.Zero
-            ? request.LeaseDuration
-            : _options.DefaultLeaseDuration;
-
-        lock (_sync)
-        {
-            var leaseExpiresAt = now.Add(leaseDuration);
-            var staleCutoff = now.Add(-leaseDuration);
-            var leased = _envelopes.Values
-                .Where(envelope => MatchesTenantFilter(request.TenantId, envelope.TenantId))
-                .Where(envelope => IsAvailable(envelope, now, staleCutoff))
-                .OrderBy(envelope => envelope.CreatedAt)
-                .Take(request.BatchSize)
-                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt))
-                .ToArray();
-
-            foreach (var envelope in leased)
-            {
-                _envelopes[envelope.Id] = envelope;
-            }
-
-            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>(leased);
-        }
-    }
-
-    /// <inheritdoc />
-    public Task<PersistResult> PersistAsync(IReadOnlyList<OutboxEnvelope> envelopes, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(envelopes);
-
-        if (envelopes.Count == 0)
-        {
-            return Task.FromResult(PersistResult.Empty);
-        }
-
-        HashSet<Guid> persistedMessageIds;
-
-        lock (_sync)
-        {
-            persistedMessageIds = new HashSet<Guid>();
-
-            foreach (var envelope in envelopes)
-            {
-                if (!TryPersistTerminal(envelope))
-                {
-                    continue;
-                }
-
-                persistedMessageIds.Add(envelope.Id);
-
-                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
-                {
-                    _idempotencyIndex[envelope.IdempotencyKey] = envelope.Id;
-                }
+                return _envelopes.Count;
             }
         }
-
-        var messageIds = envelopes.Select(envelope => envelope.Id).ToArray();
-        return Task.FromResult(PersistResult.FromMessageIds(messageIds, persistedMessageIds));
     }
 
     /// <inheritdoc />
@@ -317,6 +208,136 @@ public sealed class InMemoryOutboxStore :
         }
     }
 
+    /// <inheritdoc />
+    public Task<bool> RenewLeaseAsync(
+        Guid messageId,
+        string leaseOwner,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(leaseOwner);
+
+        lock (_sync)
+        {
+            if (!_envelopes.TryGetValue(messageId, out var envelope) ||
+                envelope.Status != OutboxStatus.Publishing ||
+                !string.Equals(envelope.LeaseOwner, leaseOwner, StringComparison.Ordinal))
+            {
+                return Task.FromResult(false);
+            }
+
+            _envelopes[messageId] = envelope with { LeaseExpiresAt = expiresAt };
+            return Task.FromResult(true);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
+        OutboxLeaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var now = ResolveLeaseClock(request);
+
+        var leaseDuration = request.LeaseDuration > TimeSpan.Zero
+            ? request.LeaseDuration
+            : _options.DefaultLeaseDuration;
+
+        lock (_sync)
+        {
+            var leaseExpiresAt = now.Add(leaseDuration);
+            var staleCutoff = now.Add(-leaseDuration);
+
+            var leased = _envelopes.Values
+                .Where(envelope => MatchesTenantFilter(request.TenantId, envelope.TenantId))
+                .Where(envelope => IsAvailable(envelope, now, staleCutoff))
+                .OrderBy(envelope => envelope.CreatedAt)
+                .Take(request.BatchSize)
+                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt))
+                .ToArray();
+
+            foreach (var envelope in leased)
+            {
+                _envelopes[envelope.Id] = envelope;
+            }
+
+            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>(leased);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<PersistResult> PersistAsync(IReadOnlyList<OutboxEnvelope> envelopes, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelopes);
+
+        if (envelopes.Count == 0)
+        {
+            return Task.FromResult(PersistResult.Empty);
+        }
+
+        HashSet<Guid> persistedMessageIds;
+
+        lock (_sync)
+        {
+            persistedMessageIds = new HashSet<Guid>();
+
+            foreach (var envelope in envelopes)
+            {
+                if (!TryPersistTerminal(envelope))
+                {
+                    continue;
+                }
+
+                persistedMessageIds.Add(envelope.Id);
+
+                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
+                {
+                    _idempotencyIndex[envelope.IdempotencyKey] = envelope.Id;
+                }
+            }
+        }
+
+        var messageIds = envelopes.Select(envelope => envelope.Id).ToArray();
+        return Task.FromResult(PersistResult.FromMessageIds(messageIds, persistedMessageIds));
+    }
+
+    /// <inheritdoc />
+    public Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+
+        lock (_sync)
+        {
+            return Task.FromResult(AddCore(envelope));
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelopes);
+
+        if (envelopes.Count == 0)
+        {
+            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>(Array.Empty<OutboxEnvelope>());
+        }
+
+        lock (_sync)
+        {
+            var stored = new OutboxEnvelope[envelopes.Count];
+
+            for (var index = 0; index < envelopes.Count; index++)
+            {
+                stored[index] = AddCore(envelopes[index]);
+            }
+
+            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>(stored);
+        }
+    }
+
     /// <summary>
     ///     Gets the stored envelope for the given message identifier.
     /// </summary>
@@ -389,21 +410,6 @@ public sealed class InMemoryOutboxStore :
     }
 
     /// <summary>
-    ///     Gets the number of messages currently stored.
-    /// </summary>
-    /// <returns>The stored message count.</returns>
-    public int Count
-    {
-        get
-        {
-            lock (_sync)
-            {
-                return _envelopes.Count;
-            }
-        }
-    }
-
-    /// <summary>
     ///     Removes every stored envelope so a test can start from an empty store.
     /// </summary>
     public void Clear()
@@ -462,8 +468,7 @@ public sealed class InMemoryOutboxStore :
     /// <returns><see langword="true" /> when the row is visible to the lease request.</returns>
     private static bool MatchesTenantFilter(string? requestedTenantId, string? storedTenantId)
     {
-        return requestedTenantId is null
-            || string.Equals(storedTenantId, requestedTenantId, StringComparison.Ordinal);
+        return requestedTenantId is null || string.Equals(storedTenantId, requestedTenantId, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -475,14 +480,10 @@ public sealed class InMemoryOutboxStore :
     /// <returns><see langword="true" /> when the envelope is eligible for leasing; otherwise, <see langword="false" />.</returns>
     private static bool IsAvailable(OutboxEnvelope envelope, DateTimeOffset now, DateTimeOffset staleCutoff)
     {
-        return ((envelope.Status is OutboxStatus.Pending or OutboxStatus.Failed) &&
-                (envelope.VisibleAfter is null || envelope.VisibleAfter <= now)) ||
-               (envelope.Status == OutboxStatus.Publishing
-                && envelope.LeaseExpiresAt is not null
-                && envelope.LeaseExpiresAt <= now) ||
-               (envelope.Status == OutboxStatus.Publishing
-                && envelope.LeaseExpiresAt is null
-                && envelope.CreatedAt < staleCutoff);
+        return envelope.Status is OutboxStatus.Pending or OutboxStatus.Failed &&
+               (envelope.VisibleAfter is null || envelope.VisibleAfter <= now) ||
+               envelope.Status == OutboxStatus.Publishing && envelope.LeaseExpiresAt is not null && envelope.LeaseExpiresAt <= now ||
+               envelope.Status == OutboxStatus.Publishing && envelope.LeaseExpiresAt is null && envelope.CreatedAt < staleCutoff;
     }
 
     /// <summary>
@@ -570,7 +571,7 @@ public sealed class InMemoryOutboxStore :
 
         return source.Where(envelope =>
             envelope.CreatedAt > cursorCreatedAt ||
-            (envelope.CreatedAt == cursorCreatedAt && envelope.Id.CompareTo(cursorMessageId) > 0));
+            envelope.CreatedAt == cursorCreatedAt && envelope.Id.CompareTo(cursorMessageId) > 0);
     }
 
     /// <summary>
@@ -583,6 +584,7 @@ public sealed class InMemoryOutboxStore :
     {
         var hasMore = ordered.Count > pageSize;
         var items = hasMore ? ordered.Take(pageSize).ToList() : ordered;
+
         var nextCursor = hasMore
             ? OutboxMessagePageCursor.Encode(items[^1].CreatedAt, items[^1].Id)
             : null;
@@ -633,7 +635,7 @@ public sealed class InMemoryOutboxStore :
 
         if (_options.Capacity > 0 && _envelopes.Count >= _options.Capacity)
         {
-            throw new Exceptions.OutboxStorageException(
+            throw new OutboxStorageException(
                 $"The in-memory outbox store reached its capacity of {_options.Capacity} messages.");
         }
 

@@ -17,10 +17,17 @@ public interface IPostgreSqlTransactionProvider
     /// <summary>
     ///     Attempts to return the active PostgreSQL connection and transaction for the current scope.
     /// </summary>
-    /// <param name="connection">When this method returns <see langword="true" />, the open connection participating in the unit of work.</param>
-    /// <param name="transaction">When this method returns <see langword="true" />, the transaction that should contain messaging writes.</param>
+    /// <param name="connection">
+    ///     When this method returns <see langword="true" />, the open connection participating in the
+    ///     unit of work.
+    /// </param>
+    /// <param name="transaction">
+    ///     When this method returns <see langword="true" />, the transaction that should contain
+    ///     messaging writes.
+    /// </param>
     /// <returns>
-    ///     <see langword="true" /> when an active connection and transaction are available; otherwise, <see langword="false" />.
+    ///     <see langword="true" /> when an active connection and transaction are available; otherwise,
+    ///     <see langword="false" />.
     /// </returns>
     bool TryGetCurrent(
         [NotNullWhen(true)] out NpgsqlConnection? connection,

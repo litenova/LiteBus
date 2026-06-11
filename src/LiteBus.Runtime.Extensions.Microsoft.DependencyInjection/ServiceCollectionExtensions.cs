@@ -1,11 +1,11 @@
 using System;
 using System.Linq;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Runtime.Extensions.Microsoft.Hosting;
 using LiteBus.Runtime.Modules;
-using LiteBus.Messaging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
 // ReSharper disable once CheckNamespace
@@ -63,7 +63,10 @@ public static class ServiceCollectionExtensions
     ///     Adds LiteBus to the service collection with shared contract and module configuration.
     /// </summary>
     /// <param name="services">The service collection to add LiteBus to.</param>
-    /// <param name="configure">Action to configure shared contracts and LiteBus modules through <see cref="ILiteBusBuilder" />.</param>
+    /// <param name="configure">
+    ///     Action to configure shared contracts and LiteBus modules through <see cref="ILiteBusBuilder" />
+    ///     .
+    /// </param>
     /// <returns>The service collection for method chaining.</returns>
     /// <exception cref="ArgumentNullException">
     ///     Thrown when <paramref name="services" /> or <paramref name="configure" /> is <see langword="null" />.

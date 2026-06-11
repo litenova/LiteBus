@@ -7,7 +7,8 @@ namespace LiteBus.Messaging.Abstractions;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Inbox and outbox stores persist <see cref="Name" /> and <see cref="Version" /> with the serialized payload. They do
+///         Inbox and outbox stores persist <see cref="Name" /> and <see cref="Version" /> with the serialized payload.
+///         They do
 ///         not persist assembly-qualified type names. This lets applications rename or move CLR types while keeping the
 ///         storage contract explicit through startup registration.
 ///     </para>

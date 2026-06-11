@@ -28,16 +28,6 @@ internal sealed class MessageRegistry : IMessageRegistry
     private readonly List<MessageDescriptor> _committedMessages = [];
 
     /// <summary>
-    ///     Committed message descriptors keyed by normalized message type for O(1) exact lookup.
-    /// </summary>
-    private readonly Dictionary<Type, MessageDescriptor> _descriptorsByType = new();
-
-    /// <summary>
-    ///     Normalized message types registered in the current pass before commit.
-    /// </summary>
-    private readonly HashSet<Type> _pendingMessageTypes = [];
-
-    /// <summary>
     ///     Builders that discover handler descriptors from registered CLR types.
     /// </summary>
     private readonly List<IHandlerDescriptorBuilder> _descriptorBuilders =
@@ -47,6 +37,11 @@ internal sealed class MessageRegistry : IMessageRegistry
         new PostHandlerDescriptorBuilder(),
         new PreHandlerDescriptorBuilder()
     ];
+
+    /// <summary>
+    ///     Committed message descriptors keyed by normalized message type for O(1) exact lookup.
+    /// </summary>
+    private readonly Dictionary<Type, MessageDescriptor> _descriptorsByType = new();
 
     /// <summary>
     ///     Handler descriptors in registration order for module incremental DI registration.
@@ -59,14 +54,19 @@ internal sealed class MessageRegistry : IMessageRegistry
     private readonly object _lock = new();
 
     /// <summary>
+    ///     Open generic handler definitions waiting to be closed over concrete message types.
+    /// </summary>
+    private readonly List<Type> _openGenericHandlers = [];
+
+    /// <summary>
     ///     Message descriptors discovered during the current registration pass before commit.
     /// </summary>
     private readonly List<MessageDescriptor> _pendingMessages = [];
 
     /// <summary>
-    ///     Open generic handler definitions waiting to be closed over concrete message types.
+    ///     Normalized message types registered in the current pass before commit.
     /// </summary>
-    private readonly List<Type> _openGenericHandlers = [];
+    private readonly HashSet<Type> _pendingMessageTypes = [];
 
     /// <summary>
     ///     Tracks CLR types already analyzed to prevent duplicate registration work.
@@ -210,7 +210,7 @@ internal sealed class MessageRegistry : IMessageRegistry
         {
             foreach (var openGenericHandler in _openGenericHandlers.ToList())
             {
-                TryCloseOpenGenericHandler(openGenericHandler, descriptor, linkToMessageDescriptor: false);
+                TryCloseOpenGenericHandler(openGenericHandler, descriptor, false);
             }
         }
     }
@@ -264,22 +264,22 @@ internal sealed class MessageRegistry : IMessageRegistry
         // Close for committed messages - must add directly since LinkHandlersToPendingMessages won't touch them.
         foreach (var messageDescriptor in _committedMessages.ToList())
         {
-            TryCloseOpenGenericHandler(openGenericHandlerType, messageDescriptor, linkToMessageDescriptor: true);
+            TryCloseOpenGenericHandler(openGenericHandlerType, messageDescriptor, true);
         }
 
         // Close for pending messages - only add to _handlerDescriptorsInOrder.
         // LinkHandlersToPendingMessages (called later in Register) will link them.
         foreach (var messageDescriptor in _pendingMessages.ToList())
         {
-            TryCloseOpenGenericHandler(openGenericHandlerType, messageDescriptor, linkToMessageDescriptor: false);
+            TryCloseOpenGenericHandler(openGenericHandlerType, messageDescriptor, false);
         }
     }
 
     /// <summary>
     ///     Attempts to close an open generic handler type for a specific message type.
-    ///     Always adds closed descriptors to <see cref="_handlerDescriptorsInOrder"/> for DI registration.
+    ///     Always adds closed descriptors to <see cref="_handlerDescriptorsInOrder" /> for DI registration.
     ///     Optionally links them directly to the message descriptor (for committed messages only,
-    ///     since pending messages will be linked by <see cref="LinkHandlersToPendingMessages"/>).
+    ///     since pending messages will be linked by <see cref="LinkHandlersToPendingMessages" />).
     /// </summary>
     /// <param name="openGenericHandlerType">The open generic handler type definition.</param>
     /// <param name="messageDescriptor">The message descriptor to potentially add closed handler descriptors to.</param>
@@ -342,6 +342,7 @@ internal sealed class MessageRegistry : IMessageRegistry
     {
         // Check type constraints (e.g., where T : ICommand).
         var constraints = typeParameter.GetGenericParameterConstraints();
+
         foreach (var constraint in constraints)
         {
             if (!candidateType.IsAssignableTo(constraint))
@@ -357,9 +358,7 @@ internal sealed class MessageRegistry : IMessageRegistry
         if ((attributes & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0 && !candidateType.IsValueType)
             return false;
 
-        if ((attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0
-            && candidateType.GetConstructor(Type.EmptyTypes) == null
-            && !candidateType.IsValueType)
+        if ((attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0 && candidateType.GetConstructor(Type.EmptyTypes) == null && !candidateType.IsValueType)
             return false;
 
         return true;
@@ -369,7 +368,10 @@ internal sealed class MessageRegistry : IMessageRegistry
     ///     Determines whether a message type belongs to the BCL <c>System</c> namespace and should be ignored.
     /// </summary>
     /// <param name="messageType">The candidate message type.</param>
-    /// <returns><see langword="true" /> when the type is in <c>System</c> or <c>System.*</c>; otherwise, <see langword="false" />.</returns>
+    /// <returns>
+    ///     <see langword="true" /> when the type is in <c>System</c> or <c>System.*</c>; otherwise,
+    ///     <see langword="false" />.
+    /// </returns>
     private static bool IsSystemNamespace(Type messageType)
     {
         return messageType.Namespace is "System" ||

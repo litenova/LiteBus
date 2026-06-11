@@ -1,4 +1,3 @@
-using System;
 using LiteBus.Inbox.Abstractions;
 
 namespace LiteBus.Inbox.Ingress.Amqp;

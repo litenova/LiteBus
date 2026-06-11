@@ -33,21 +33,21 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="AnalyzerReleaseTracking\**\*" Pack="true" PackagePath="AnalyzerReleaseTracking\" />
+        <None Include="AnalyzerReleaseTracking\**\*" Pack="true" PackagePath="AnalyzerReleaseTracking\"/>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Remove="StyleCop.Analyzers" />
-        <PackageReference Remove="Microsoft.SourceLink.GitHub" />
+        <PackageReference Remove="StyleCop.Analyzers"/>
+        <PackageReference Remove="Microsoft.SourceLink.GitHub"/>
     </ItemGroup>
 
     <ItemGroup>
-        <InternalsVisibleTo Include="LiteBus.Analyzers.Tests" />
+        <InternalsVisibleTo Include="LiteBus.Analyzers.Tests"/>
     </ItemGroup>
 
     <Target Name="IncludeAnalyzersInPackage" DependsOnTargets="Build" BeforeTargets="_GetPackageFiles">
         <ItemGroup>
-            <None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+            <None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"/>
         </ItemGroup>
     </Target>
 

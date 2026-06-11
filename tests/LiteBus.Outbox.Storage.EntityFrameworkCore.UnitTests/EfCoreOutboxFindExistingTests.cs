@@ -1,5 +1,4 @@
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests;
@@ -16,6 +15,7 @@ public sealed class EfCoreOutboxFindExistingTests
     public async Task EnqueueAsync_when_id_and_idempotency_key_match_different_rows_should_prefer_message_id_row()
     {
         var databaseName = Guid.NewGuid().ToString("N");
+
         var options = new DbContextOptionsBuilder<FindExistingOutboxDbContext>()
             .UseInMemoryDatabase(databaseName)
             .Options;

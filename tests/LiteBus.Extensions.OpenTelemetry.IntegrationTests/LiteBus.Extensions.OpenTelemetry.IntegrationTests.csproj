@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 
-
     <ItemGroup>
 
         <PackageReference Include="AwesomeAssertions"/>
@@ -23,7 +22,6 @@
     </ItemGroup>
 
 
-
     <ItemGroup>
 
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Extensions.OpenTelemetry\LiteBus.Inbox.Extensions.OpenTelemetry.csproj"/>
@@ -35,7 +33,6 @@
         <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
 
     </ItemGroup>
-
 
 
 </Project>

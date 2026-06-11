@@ -23,6 +23,7 @@ public static class PayloadProtection
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(payload);
+
         return encryptor is null
             ? Task.FromResult(payload)
             : encryptor.EncryptAsync(payload, cancellationToken);
@@ -41,6 +42,7 @@ public static class PayloadProtection
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(payload);
+
         return encryptor is null
             ? Task.FromResult(payload)
             : encryptor.DecryptAsync(payload, cancellationToken);

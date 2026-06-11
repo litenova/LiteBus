@@ -1,6 +1,5 @@
 using System.Runtime.CompilerServices;
 using LiteBus.Queries.Abstractions;
-using LiteBus.QueryModule.UnitTests.UseCases;
 
 namespace LiteBus.QueryModule.UnitTests.UseCases.StreamErrorHandling;
 
@@ -12,13 +11,13 @@ public sealed class StreamErrorHandlingQuery : IAuditableQuery, IStreamQuery<Str
     /// <inheritdoc />
     public Guid CorrelationId { get; } = Guid.NewGuid();
 
-    /// <inheritdoc />
-    public List<Type> ExecutedTypes { get; } = [];
-
     /// <summary>
     ///     Gets or sets the message result observed by the error handler.
     /// </summary>
     public object? ObservedErrorHandlerMessageResult { get; set; }
+
+    /// <inheritdoc />
+    public List<Type> ExecutedTypes { get; } = [];
 }
 
 /// <summary>

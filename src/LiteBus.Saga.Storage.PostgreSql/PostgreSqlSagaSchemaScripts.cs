@@ -61,8 +61,7 @@ internal static class PostgreSqlSagaSchemaScripts
     /// <returns>The rendered SQL script.</returns>
     private static string RenderEmbedded(string resourceName, IReadOnlyDictionary<string, string> tokens)
     {
-        using var stream = Assembly.GetManifestResourceStream(resourceName)
-            ?? throw new InvalidOperationException($"Embedded saga SQL resource '{resourceName}' was not found.");
+        using var stream = Assembly.GetManifestResourceStream(resourceName) ?? throw new InvalidOperationException($"Embedded saga SQL resource '{resourceName}' was not found.");
 
         using var reader = new StreamReader(stream, Encoding.UTF8);
         var sql = reader.ReadToEnd();

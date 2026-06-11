@@ -56,7 +56,10 @@ public sealed record PersistResult
     /// </summary>
     /// <param name="count">The number of envelopes applied.</param>
     /// <returns>A persist result with the supplied applied count and zero skipped envelopes.</returns>
-    public static PersistResult AllApplied(int count) => new(count, 0);
+    public static PersistResult AllApplied(int count)
+    {
+        return new PersistResult(count, 0);
+    }
 
     /// <summary>
     ///     Creates a result from applied and skipped counts.
@@ -64,7 +67,10 @@ public sealed record PersistResult
     /// <param name="appliedCount">The number of envelopes persisted.</param>
     /// <param name="skippedCount">The number of envelopes skipped.</param>
     /// <returns>A persist result with the supplied counts.</returns>
-    public static PersistResult FromOutcome(int appliedCount, int skippedCount) => new(appliedCount, skippedCount);
+    public static PersistResult FromOutcome(int appliedCount, int skippedCount)
+    {
+        return new PersistResult(appliedCount, skippedCount);
+    }
 
     /// <summary>
     ///     Creates a result from the message identifiers supplied to persist and the subset that were written.

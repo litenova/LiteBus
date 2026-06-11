@@ -11,18 +11,18 @@ public static class DockerTestGate
     public const string StrictTransportEnvironmentVariable = "LITEBUS_CI_STRICT_TRANSPORT";
 
     /// <summary>
-    ///     Gets a value indicating whether broker tests must fail when Docker or the emulator is unavailable.
-    /// </summary>
-    public static bool IsStrictTransportMode =>
-        string.Equals(
-            Environment.GetEnvironmentVariable(StrictTransportEnvironmentVariable),
-            "true",
-            StringComparison.OrdinalIgnoreCase);
-    /// <summary>
     ///     Message shown when Docker-backed integration tests cannot start a container.
     /// </summary>
     public const string DockerRequiredMessage =
         "Broker integration tests require Docker. Start Docker Desktop (or the Docker daemon) and run the tests again.";
+
+    /// <summary>
+    ///     Gets a value indicating whether broker tests must fail when Docker or the emulator is unavailable.
+    /// </summary>
+    public static bool IsStrictTransportMode => string.Equals(
+        Environment.GetEnvironmentVariable(StrictTransportEnvironmentVariable),
+        "true",
+        StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     ///     Runs broker initialization and wraps Docker failures in <see cref="InvalidOperationException" />.
@@ -35,7 +35,7 @@ public static class DockerTestGate
 
         try
         {
-            await initialize().ConfigureAwait(false);
+            await initialize();
         }
         catch (Exception exception) when (IsDockerUnavailable(exception))
         {
@@ -69,9 +69,9 @@ public static class DockerTestGate
     {
         for (var current = exception; current is not null; current = current.InnerException)
         {
-            if (current.Message.Contains("Docker", StringComparison.OrdinalIgnoreCase)
-                || current.Message.Contains("pipe", StringComparison.OrdinalIgnoreCase)
-                || current.Message.Contains("container", StringComparison.OrdinalIgnoreCase))
+            if (current.Message.Contains("Docker", StringComparison.OrdinalIgnoreCase) ||
+                current.Message.Contains("pipe", StringComparison.OrdinalIgnoreCase) ||
+                current.Message.Contains("container", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

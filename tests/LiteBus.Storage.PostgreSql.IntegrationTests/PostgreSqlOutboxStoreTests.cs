@@ -23,11 +23,11 @@ public sealed class PostgreSqlOutboxStoreTests : ContractTests, IClassFixture<Po
     }
 
     /// <inheritdoc />
-    protected override ContractTests.OutboxStoreContracts CreateStore()
+    protected override OutboxStoreContracts CreateStore()
     {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
         PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, options).GetAwaiter().GetResult();
         var store = new PostgreSqlOutboxStore(_fixture.DataSource, options);
-        return new ContractTests.OutboxStoreContracts(store, store, store, store, store, store, store, store);
+        return new OutboxStoreContracts(store, store, store, store, store, store, store, store);
     }
 }

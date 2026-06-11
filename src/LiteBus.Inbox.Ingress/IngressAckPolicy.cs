@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using System.Text.Json;
 using LiteBus.Inbox.Abstractions.Exceptions;
 using LiteBus.Messaging.Abstractions;
 
@@ -32,7 +33,7 @@ public static class IngressAckPolicy
             or InvalidOperationException
             or ArgumentException
             or FormatException
-            or System.Text.Json.JsonException);
+            or JsonException);
     }
 
     /// <summary>

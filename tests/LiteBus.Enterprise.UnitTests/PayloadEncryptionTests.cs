@@ -1,14 +1,10 @@
 using AwesomeAssertions;
-using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
-using Xunit;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Enterprise.UnitTests;
 
@@ -28,12 +24,13 @@ public sealed class PayloadEncryptionTests
         var registry = new MessageContractRegistry();
         registry.Register<TestCommand>("test-command");
         var serializer = new SystemTextJsonMessageSerializer();
-        var inbox = new global::LiteBus.Inbox.Inbox(
+
+        var inbox = new Inbox.Inbox(
             store,
             new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, encryptor),
             TimeProvider.System);
 
-        await inbox.AcceptAsync(new TestCommand { Value = "secret" });
+        await inbox.AcceptAsync(InboxAcceptItems.From(new TestCommand { Value = "secret" }));
 
         var stored = store.GetAll().Single();
         stored.Payload.Should().StartWith("enc:");
@@ -58,21 +55,28 @@ public sealed class PayloadEncryptionTests
         ///     Initializes a new instance of the <see cref="PrefixPayloadEncryptor" /> class.
         /// </summary>
         /// <param name="prefix">The ciphertext prefix.</param>
-        public PrefixPayloadEncryptor(string prefix) => _prefix = prefix;
+        public PrefixPayloadEncryptor(string prefix)
+        {
+            _prefix = prefix;
+        }
 
         /// <inheritdoc />
         public Task<string> EncryptAsync(string plaintext, CancellationToken cancellationToken = default)
-            => Task.FromResult(_prefix + plaintext);
+        {
+            return Task.FromResult(_prefix + plaintext);
+        }
 
         /// <inheritdoc />
         public Task<string> DecryptAsync(string ciphertext, CancellationToken cancellationToken = default)
-            => Task.FromResult(ciphertext[_prefix.Length..]);
+        {
+            return Task.FromResult(ciphertext[_prefix.Length..]);
+        }
     }
 
     /// <summary>
     ///     Test command payload.
     /// </summary>
-    private sealed class TestCommand : Commands.Abstractions.ICommand
+    private sealed class TestCommand : ICommand
     {
         /// <summary>
         ///     Gets or sets the value.
@@ -86,19 +90,14 @@ public sealed class PayloadEncryptionTests
     private sealed class CapturingInboxDispatcher : IInboxDispatcher
     {
         /// <summary>
-        ///     Gets the last deserialized command value.
+        ///     Gets the encryptor used to decrypt stored payloads.
         /// </summary>
-        public static string LastValue { get; private set; } = string.Empty;
+        private readonly IInboxPayloadProtector _encryptor;
 
         /// <summary>
         ///     Gets the serializer used to hydrate payloads.
         /// </summary>
         private readonly IMessageSerializer _serializer;
-
-        /// <summary>
-        ///     Gets the encryptor used to decrypt stored payloads.
-        /// </summary>
-        private readonly IInboxPayloadProtector _encryptor;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="CapturingInboxDispatcher" /> class.
@@ -111,14 +110,21 @@ public sealed class PayloadEncryptionTests
             _encryptor = encryptor;
         }
 
+        /// <summary>
+        ///     Gets the last deserialized command value.
+        /// </summary>
+        public static string LastValue { get; private set; } = string.Empty;
+
         /// <inheritdoc />
         public async Task DispatchAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
         {
             var payload = await PayloadProtection.UnprotectAsync(envelope.Payload, _encryptor, cancellationToken)
-                .ConfigureAwait(false);
+                ;
+
             var command = await _serializer.DeserializeAsync(typeof(TestCommand), payload, cancellationToken)
-                .ConfigureAwait(false);
-            LastValue = ((TestCommand)command).Value;
+                ;
+
+            LastValue = ((TestCommand) command).Value;
         }
     }
 }

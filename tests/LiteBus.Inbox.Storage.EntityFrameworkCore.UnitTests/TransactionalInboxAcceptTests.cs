@@ -1,9 +1,8 @@
 using System.Text.Json;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests;
@@ -21,6 +20,7 @@ public sealed class TransactionalInboxAcceptTests
     {
         var databaseName = Guid.NewGuid().ToString("N");
         var interceptor = new LiteBusInboxSaveChangesInterceptor();
+
         var options = new DbContextOptionsBuilder<TransactionalInboxDbContext>()
             .UseInMemoryDatabase(databaseName)
             .AddLiteBusInboxInterceptor(interceptor)
@@ -40,21 +40,31 @@ public sealed class TransactionalInboxAcceptTests
             TimeProvider.System);
 
         var orderId = Guid.NewGuid();
+        var messageId = Guid.NewGuid();
+
         var receipt = await transactionalInbox.AcceptAsync(
-            new SubmitOrderCommand { OrderId = orderId },
-            new InboxOptions
+            new InboxAcceptItem<SubmitOrderCommand>
             {
-                Id = Guid.NewGuid(),
-                CorrelationId = "corr-1",
-                CausationId = "cause-1",
-                TenantId = "tenant-1",
-                IdempotencyKey = "idem-1",
-                TraceContext = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                Message = new SubmitOrderCommand { OrderId = orderId },
+                Metadata = new InboxAcceptMetadata
+                {
+                    Identity = new MessageIdentity.Supplied(messageId),
+                    Idempotency = new Idempotency.Keyed("idem-1"),
+                    Trace = new MessageTrace.Distributed(
+                        "corr-1",
+                        "cause-1",
+                        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
+                    Tenant = new TenantScope.Isolated("tenant-1")
+                }
             });
 
-        receipt.ContractName.Should().Be("orders.commands.submit");
-        receipt.ContractVersion.Should().Be(2);
-        receipt.CorrelationId.Should().Be("corr-1");
+        receipt.Contract.Name.Should().Be("orders.commands.submit");
+        receipt.Contract.Version.Should().Be(2);
+
+        receipt.Trace.Should().Be(new MessageTrace.Distributed(
+            "corr-1",
+            "cause-1",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"));
 
         var savedCount = await context.SaveChangesAsync();
         savedCount.Should().Be(1);
@@ -80,6 +90,7 @@ public sealed class TransactionalInboxAcceptTests
     {
         var databaseName = Guid.NewGuid().ToString("N");
         var interceptor = new LiteBusInboxSaveChangesInterceptor();
+
         var options = new DbContextOptionsBuilder<TransactionalInboxDbContext>()
             .UseInMemoryDatabase(databaseName)
             .AddLiteBusInboxInterceptor(interceptor)
@@ -88,7 +99,7 @@ public sealed class TransactionalInboxAcceptTests
         await using var context = new TransactionalInboxDbContext(options);
         await context.Database.EnsureCreatedAsync();
         var registry = new MessageContractRegistry();
-        registry.Register<SubmitOrderCommand>("orders.commands.submit", 1);
+        registry.Register<SubmitOrderCommand>("orders.commands.submit");
         var serializer = new SynchronousMessageSerializer();
         IInboxPayloadProtector protector = new PrefixPayloadProtector("tx-inbox:");
 
@@ -98,7 +109,11 @@ public sealed class TransactionalInboxAcceptTests
             new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector),
             TimeProvider.System);
 
-        await transactionalInbox.AcceptAsync(new SubmitOrderCommand { OrderId = Guid.NewGuid() });
+        await transactionalInbox.AcceptAsync(new InboxAcceptItem<SubmitOrderCommand>
+        {
+            Message = new SubmitOrderCommand { OrderId = Guid.NewGuid() }
+        });
+
         await context.SaveChangesAsync();
 
         var stored = await context.InboxMessages.SingleAsync();
@@ -127,15 +142,22 @@ public sealed class TransactionalInboxAcceptTests
         ///     Initializes a new instance of the <see cref="PrefixPayloadProtector" /> class.
         /// </summary>
         /// <param name="prefix">The ciphertext prefix.</param>
-        public PrefixPayloadProtector(string prefix) => _prefix = prefix;
+        public PrefixPayloadProtector(string prefix)
+        {
+            _prefix = prefix;
+        }
 
         /// <inheritdoc />
         public Task<string> EncryptAsync(string plaintext, CancellationToken cancellationToken = default)
-            => Task.FromResult(_prefix + plaintext);
+        {
+            return Task.FromResult(_prefix + plaintext);
+        }
 
         /// <inheritdoc />
         public Task<string> DecryptAsync(string ciphertext, CancellationToken cancellationToken = default)
-            => Task.FromResult(ciphertext[_prefix.Length..]);
+        {
+            return Task.FromResult(ciphertext[_prefix.Length..]);
+        }
     }
 
     private sealed class SynchronousMessageSerializer : IMessageSerializer

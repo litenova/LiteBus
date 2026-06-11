@@ -21,7 +21,8 @@ public sealed class MessageContractNotRegisteredException : Exception
     }
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="MessageContractNotRegisteredException" /> class for a persisted contract.
+    ///     Initializes a new instance of the <see cref="MessageContractNotRegisteredException" /> class for a persisted
+    ///     contract.
     /// </summary>
     /// <param name="contractName">The stable contract name.</param>
     /// <param name="contractVersion">The contract version.</param>

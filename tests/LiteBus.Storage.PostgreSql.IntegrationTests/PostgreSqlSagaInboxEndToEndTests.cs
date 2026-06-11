@@ -6,19 +6,18 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Saga;
 using LiteBus.Saga.Abstractions;
 using LiteBus.Saga.Storage.PostgreSql;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-
 using IInboxProcessor = LiteBus.Inbox.Abstractions.IInboxProcessor;
 
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 
 /// <summary>
-///     End-to-end tests for saga orchestration wired through <see cref="InboxModuleBuilderExtensions.EnableSaga" />.
+///     End-to-end tests for saga orchestration wired through <see cref="Saga.InboxModuleBuilderExtensions.EnableSaga" />.
 /// </summary>
 public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFixture<PostgreSqlFixture>
 {
@@ -39,7 +38,7 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
     [Fact]
     public async Task ProcessPendingAsync_with_EnableSaga_should_persist_state_in_postgresql()
     {
-        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions);
 
         var sagaOptions = new PostgreSqlSagaStoreOptions
@@ -55,9 +54,9 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
         var processor = provider.GetRequiredService<IInboxProcessor>();
         var sagaStore = provider.GetRequiredService<ISagaStore>();
 
-        await inbox.AcceptAsync(
+        await inbox.AcceptAsync(InboxAcceptItems.From(
             new AdvanceOrderSagaCommand(),
-            new InboxOptions { CorrelationId = "order-9001" });
+            new InboxAcceptMetadata { Trace = new MessageTrace.Correlated("order-9001") }));
 
         await processor.ProcessPendingAsync();
 
@@ -71,17 +70,21 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
     /// <summary>
     ///     Builds the service provider for saga inbox integration tests.
     /// </summary>
-    /// <param name="inboxOptions">The inbox PostgreSQL store options.</param>
+    /// <param name="InboxStoreOptions">The inbox PostgreSQL store options.</param>
     /// <param name="sagaOptions">The saga PostgreSQL store options.</param>
     /// <returns>The configured service provider.</returns>
     private ServiceProvider BuildProvider(
-        PostgreSqlInboxStoreOptions inboxOptions,
+        PostgreSqlInboxStoreOptions InboxStoreOptions,
         PostgreSqlSagaStoreOptions sagaOptions)
     {
         var services = new ServiceCollection();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddCommandModule(builder =>
             {
                 builder.Register<AdvanceOrderSagaCommand>();
@@ -93,17 +96,20 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
                 builder.UsePostgreSqlStorage(postgres =>
                 {
                     postgres.UseDataSource(_fixture.DataSource);
-                    postgres.UseOptions(inboxOptions);
+                    postgres.UseOptions(InboxStoreOptions);
                 });
 
-                builder.Contracts.Register<AdvanceOrderSagaCommand>("orders.saga.advance", 1);
+                builder.Contracts.Register<AdvanceOrderSagaCommand>("orders.saga.advance");
+
                 builder.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 10,
                     LeaseOwner = "pg-saga-e2e-worker"
                 });
+
                 builder.UseCommandInboxDispatcher();
                 builder.EnableSaga(registry => registry.MapState<OrderSagaState>("orders.saga.advance"));
+
                 builder.UsePostgreSqlSagaStorage(postgres =>
                 {
                     postgres.UseDataSource(_fixture.DataSource);

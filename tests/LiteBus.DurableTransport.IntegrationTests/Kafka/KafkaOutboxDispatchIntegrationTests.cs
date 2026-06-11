@@ -1,7 +1,7 @@
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Dispatch.Kafka;
@@ -53,16 +53,17 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
             var outbox = provider.GetRequiredService<IOutbox>();
             var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-            await outbox.EnqueueAsync(
-                new OrderSubmittedIntegrationEvent { OrderId = orderId },
-                new OutboxOptions
+            await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+            {
+                Event = new OrderSubmittedIntegrationEvent { OrderId = orderId },
+                Metadata = OutboxEnqueueMetadata.Immediate with
                 {
-                    Id = messageId,
-                    Topic = topic,
-                    CorrelationId = "corr-kafka-outbox",
-                    CausationId = "cause-kafka-outbox",
-                    TenantId = "tenant-kafka-east"
-                });
+                    Identity = new MessageIdentity.Supplied(messageId),
+                    Trace = new MessageTrace.Workflow("corr-kafka-outbox", "cause-kafka-outbox"),
+                    Tenant = new TenantScope.Isolated("tenant-kafka-east"),
+                    Target = new PublicationTarget.Topic(topic)
+                }
+            });
 
             await processor.ProcessPendingAsync();
 
@@ -76,6 +77,7 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
             var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
                 body,
                 new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
             payload!.OrderId.Should().Be(orderId);
             headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));
             headers[TransportHeaders.ContractName].Should().Be("orders.order-submitted");
@@ -109,9 +111,14 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
             var outbox = provider.GetRequiredService<IOutbox>();
             var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-            await outbox.EnqueueAsync(
-                new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-                new OutboxOptions { Id = messageId });
+            await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+            {
+                Event = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Metadata = OutboxEnqueueMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId)
+                }
+            });
 
             await processor.ProcessPendingAsync();
 
@@ -140,17 +147,22 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddOutboxModule(outbox =>
                 {
                     outbox.UseInMemoryStorage();
-                    outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted", 1);
+                    outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted");
+
                     outbox.UseProcessorOptions(new OutboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "kafka-outbox-test",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     outbox.UseKafkaDispatch(
                         transport => transport.DefaultDestination = topic,
                         _fixture.TransportOptions);

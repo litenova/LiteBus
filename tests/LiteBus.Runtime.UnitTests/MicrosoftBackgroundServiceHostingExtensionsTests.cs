@@ -78,6 +78,7 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
         RecordingStartupTaskState.StartupCompleted = false;
 
         var services = new ServiceCollection();
+
         services.RegisterBackgroundServices(
             [typeof(RecordingStartupTask)],
             [typeof(OrderedContinuousBackgroundService)]);

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Transport.Abstractions;
-using LiteBus.Transport;
+using LiteBus.Transport.Amqp.Exceptions;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
@@ -26,11 +26,6 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
 
     /// <summary>
-    ///     Signals when the active consume loop stops because of shutdown, cancellation, or channel failure.
-    /// </summary>
-    private TaskCompletionSource _stoppedTcs = CreateStoppedTaskSource();
-
-    /// <summary>
     ///     Gets the active consumer channel, if the consume loop has started.
     /// </summary>
     private IChannel? _consumerChannel;
@@ -41,41 +36,17 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     private string? _consumerTag;
 
     /// <summary>
+    ///     Signals when the active consume loop stops because of shutdown, cancellation, or channel failure.
+    /// </summary>
+    private TaskCompletionSource _stoppedTcs = CreateStoppedTaskSource();
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="AmqpConsumer" /> class.
     /// </summary>
     /// <param name="connectionManager">The connection manager used to open the consumer channel.</param>
     public AmqpConsumer(IAmqpConnectionManager connectionManager)
     {
         _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
-    }
-
-    /// <inheritdoc />
-    public Task StartAsync(
-        TransportConsumerOptions options,
-        Func<TransportMessage, CancellationToken, Task> handler,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(handler);
-
-        return StartAsync(
-            new AmqpConsumerOptions
-            {
-                QueueName = options.Destination,
-                PrefetchCount = options.PrefetchCount,
-                DeclareQueue = options.DeclareDestination,
-                DurableQueue = options.DurableDestination,
-                Exclusive = options.Exclusive,
-                ConsumerTag = options.ConsumerTag,
-                QueueArguments = options.DestinationArguments
-            },
-            (message, token) =>
-            {
-                var transportMessage = ToTransportMessage(message);
-                using var activity = TransportTracing.StartConsumeActivity(transportMessage);
-                return handler(transportMessage, token);
-            },
-            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -93,7 +64,7 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
         {
             if (_consumerChannel is not null)
             {
-                throw new Exceptions.AmqpTransportConfigurationException("The AMQP consumer is already started.");
+                throw new AmqpTransportConfigurationException("The AMQP consumer is already started.");
             }
 
             _stoppedTcs = CreateStoppedTaskSource();
@@ -104,11 +75,11 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
             {
                 await _consumerChannel
                     .QueueDeclareAsync(
-                        queue: options.QueueName,
-                        durable: options.DurableQueue,
-                        exclusive: false,
-                        autoDelete: false,
-                        arguments: CopyQueueArguments(options.QueueArguments),
+                        options.QueueName,
+                        options.DurableQueue,
+                        false,
+                        false,
+                        CopyQueueArguments(options.QueueArguments),
                         cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -116,11 +87,12 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
             if (options.PrefetchCount > 0)
             {
                 await _consumerChannel
-                    .BasicQosAsync(prefetchSize: 0, prefetchCount: options.PrefetchCount, global: false, cancellationToken)
+                    .BasicQosAsync(0, options.PrefetchCount, false, cancellationToken)
                     .ConfigureAwait(false);
             }
 
             var consumer = new AsyncEventingBasicConsumer(_consumerChannel);
+
             consumer.ReceivedAsync += async (_, delivery) =>
             {
                 if (_consumerChannel is null)
@@ -140,7 +112,7 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
                         try
                         {
                             await _consumerChannel
-                                .BasicNackAsync(delivery.DeliveryTag, multiple: false, requeue: true, cancellationToken)
+                                .BasicNackAsync(delivery.DeliveryTag, false, true, cancellationToken)
                                 .ConfigureAwait(false);
                         }
                         catch (AlreadyClosedException)
@@ -153,14 +125,14 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
 
             _consumerTag = await _consumerChannel
                 .BasicConsumeAsync(
-                    queue: options.QueueName,
-                    autoAck: false,
-                    consumerTag: options.ConsumerTag ?? string.Empty,
-                    noLocal: false,
-                    exclusive: options.Exclusive,
-                    arguments: null,
-                    consumer: consumer,
-                    cancellationToken: cancellationToken)
+                    options.QueueName,
+                    false,
+                    options.ConsumerTag ?? string.Empty,
+                    false,
+                    options.Exclusive,
+                    null,
+                    consumer,
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
         finally
@@ -212,8 +184,10 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     }
 
     /// <inheritdoc />
-    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default) =>
-        _stoppedTcs.Task.WaitAsync(cancellationToken);
+    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
+    {
+        return _stoppedTcs.Task.WaitAsync(cancellationToken);
+    }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
@@ -222,13 +196,43 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
         _lifecycleGate.Dispose();
     }
 
+    /// <inheritdoc />
+    public Task StartAsync(
+        TransportConsumerOptions options,
+        Func<TransportMessage, CancellationToken, Task> handler,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(handler);
+
+        return StartAsync(
+            new AmqpConsumerOptions
+            {
+                QueueName = options.Destination,
+                PrefetchCount = options.PrefetchCount,
+                DeclareQueue = options.DeclareDestination,
+                DurableQueue = options.DurableDestination,
+                Exclusive = options.Exclusive,
+                ConsumerTag = options.ConsumerTag,
+                QueueArguments = options.DestinationArguments
+            },
+            (message, token) =>
+            {
+                var transportMessage = ToTransportMessage(message);
+                using var activity = TransportTracing.StartConsumeActivity(transportMessage);
+                return handler(transportMessage, token);
+            },
+            cancellationToken);
+    }
+
     /// <summary>
     ///     Maps an AMQP delivery to the transport-neutral message model.
     /// </summary>
     /// <param name="message">The received AMQP delivery.</param>
     /// <returns>The transport message passed to generic consumer handlers.</returns>
-    private static TransportMessage ToTransportMessage(AmqpReceivedMessage message) =>
-        new()
+    private static TransportMessage ToTransportMessage(AmqpReceivedMessage message)
+    {
+        return new TransportMessage
         {
             Body = message.Body,
             Headers = message.Headers,
@@ -240,18 +244,24 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
             AckAsync = message.AcceptAsync,
             NackAsync = (requeue, token) => message.NackDelegate(false, requeue, token)
         };
+    }
 
     /// <summary>
     ///     Creates a new task source used to observe consumer shutdown.
     /// </summary>
     /// <returns>The task source for the current consume session.</returns>
-    private static TaskCompletionSource CreateStoppedTaskSource() =>
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static TaskCompletionSource CreateStoppedTaskSource()
+    {
+        return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
 
     /// <summary>
     ///     Marks the current consume session as stopped.
     /// </summary>
-    private void SignalStopped() => _stoppedTcs.TrySetResult();
+    private void SignalStopped()
+    {
+        _stoppedTcs.TrySetResult();
+    }
 
     /// <summary>
     ///     Handles broker-initiated channel shutdown so callers can restart the consumer.

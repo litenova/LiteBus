@@ -1,8 +1,7 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Messaging;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Storage.InMemory;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
@@ -32,12 +31,15 @@ public sealed class ModuleConfigurationDiagnosticCheckTests
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddInboxModule(inbox =>
-                {
-                    inbox.UseInMemoryStorage();
-                    inbox.AddDiagnosticCheck<SampleDiagnosticCheck>("litebus.sample");
-                });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddInboxModule(inbox =>
+            {
+                inbox.UseInMemoryStorage();
+                inbox.AddDiagnosticCheck<SampleDiagnosticCheck>("litebus.sample");
+            });
         });
 
         var manifest = services.BuildServiceProvider().GetRequiredService<LiteBusHostManifest>();

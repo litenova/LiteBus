@@ -1,9 +1,7 @@
 using System;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore;

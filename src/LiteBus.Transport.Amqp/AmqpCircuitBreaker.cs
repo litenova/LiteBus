@@ -1,5 +1,3 @@
-using LiteBus.Transport;
-
 namespace LiteBus.Transport.Amqp;
 
 /// <summary>
@@ -19,7 +17,9 @@ public sealed class AmqpCircuitBreaker : TransportCircuitBreaker
     {
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Throws when the circuit is open, translating the shared transport exception to the AMQP-specific type.
+    /// </summary>
     public new void ThrowIfOpen()
     {
         try

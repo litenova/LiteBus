@@ -6,50 +6,88 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- `IInboxEnvelopeFactory` / `IOutboxEnvelopeFactory` shared by auto-commit writers, store-bound transactional writers, and EF interceptors.
-- Non-generic `ITransactionalInbox` / `ITransactionalOutbox` with `StoreBoundTransactionalInbox` / `StoreBoundTransactionalOutbox`.
-- PostgreSQL `CreateTransactionalStore`, `EnableAmbientTransactionProvider()`, and `IPostgreSqlTransactionProvider` for ambient participation.
-- [Transactional messaging writes](docs/Transactional-Messaging-Writes.md) scenario guide; integration and unit tests (T-21–T-24).
+- `IInboxEnvelopeFactory` / `IOutboxEnvelopeFactory` shared by auto-commit writers, store-bound transactional writers,
+  and EF interceptors.
+- Non-generic `ITransactionalInbox` / `ITransactionalOutbox` with `StoreBoundTransactionalInbox` /
+  `StoreBoundTransactionalOutbox`.
+- PostgreSQL `CreateTransactionalStore`, `EnableAmbientTransactionProvider()`, and `IPostgreSqlTransactionProvider` for
+  ambient participation.
+- [Transactional messaging writes](docs/Transactional-Messaging-Writes.md) scenario guide; integration and unit tests (
+  T-21–T-24).
+- Writer item/metadata model: `InboxAcceptItem`, `InboxAcceptMetadata`, `OutboxEnqueueItem`, `OutboxEnqueueMetadata`,
+  and shared durable value objects in `LiteBus.Messaging.Abstractions.DurableMessaging`.
+- [v6 feature index](docs/v6-Feature-Index.md) and updated writer examples across inbox/outbox docs.
+
+### Changed
+
+- **Writer APIs:** `IInbox.AcceptAsync` and `IOutbox.EnqueueAsync` take `InboxAcceptItem` / `OutboxEnqueueItem` with
+  per-message metadata. Removed `InboxOptions`, `OutboxOptions`, `IInboxScheduler`, and `IOutboxScheduler`. Deferred
+  visibility uses `MessageVisibility` on metadata.
+- Analyzer LB1004 message targets `IInbox.AcceptAsync` and `InboxAcceptItem` rather than scheduler APIs.
 
 ## v6.0.0
 
-Greenfield release for durable messaging. Adopt v6 as a fresh integration: nested module builders, `AcceptAsync` / `EnqueueAsync`, pipelined processors only, and PostgreSQL **schema version 1** with no in-place upgrade from LiteBus v5 table shapes. Historical v4/v5 upgrade steps remain in [Migration Guide v4](docs/Migration-Guide-v4.md) and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
+Greenfield release for durable messaging. Adopt v6 as a fresh integration: nested module builders, `AcceptAsync` /
+`EnqueueAsync`, pipelined processors only, and PostgreSQL **schema version 1** with no in-place upgrade from LiteBus v5
+table shapes. Historical v4/v5 upgrade steps remain in [Migration Guide v4](docs/Migration-Guide-v4.md)
+and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
 
 ### Added
 
-- `ICompositeModule` and nested `InboxModuleBuilder` / `OutboxModuleBuilder` with `UsePostgreSqlStorage`, `UseEfCoreStorage`, `UseInMemoryStorage`, `UseCommandInboxDispatcher`, `UseEventOutboxDispatcher`, `UseAmqpDispatch`, and `UseAmqpIngress`.
-- Contract registry split: `IContractWriter` / `IContractReader` on `IMessageContractRegistry`; durable runtime depends on read surface only.
-- Message registry split: `IMessageWriter` / `IMessageReader` with O(1) `Find`; per-`IModuleConfiguration` registry instance (no `Clear()` or `MessageRegistryAccessor`).
-- Manifest hosting: `IStartupTask`, `IBackgroundService`, `IDiagnosticCheck` via `IModuleConfiguration`; generic host bridges in `LiteBus.Runtime.Extensions.*.Hosting`.
-- PostgreSQL storage at schema **v1** (`PostgreSqlInboxSchema.CurrentSchemaVersion = 1`): full inbox/outbox/saga column set, indexes, optional LISTEN/NOTIFY trigger; `GetCreateScript`, `EnsureAsync`, `ValidateAsync` (no upgrade scripts from v5).
+- `ICompositeModule` and nested `InboxModuleBuilder` / `OutboxModuleBuilder` with `UsePostgreSqlStorage`,
+  `UseEfCoreStorage`, `UseInMemoryStorage`, `UseCommandInboxDispatcher`, `UseEventOutboxDispatcher`, `UseAmqpDispatch`,
+  and `UseAmqpIngress`.
+- Contract registry split: `IContractWriter` / `IContractReader` on `IMessageContractRegistry`; durable runtime depends
+  on read surface only.
+- Message registry split: `IMessageWriter` / `IMessageReader` with O(1) `Find`; per-`IModuleConfiguration` registry
+  instance (no `Clear()` or `MessageRegistryAccessor`).
+- Manifest hosting: `IStartupTask`, `IBackgroundService`, `IDiagnosticCheck` via `IModuleConfiguration`; generic host
+  bridges in `LiteBus.Runtime.Extensions.*.Hosting`.
+- PostgreSQL storage at schema **v1** (`PostgreSqlInboxSchema.CurrentSchemaVersion = 1`): full inbox/outbox/saga column
+  set, indexes, optional LISTEN/NOTIFY trigger; `GetCreateScript`, `EnsureAsync`, `ValidateAsync` (no upgrade scripts
+  from v5).
 - EF Core and InMemory inbox/outbox storage; `LiteBus.Storage.Testing` contract harnesses.
-- Transport platform: `LiteBus.Transport.Amqp`, Kafka, AWS SQS, Azure Service Bus, InMemory; inbox/outbox dispatch and AMQP ingress packages.
-- `PipelinedInboxProcessor` / `PipelinedOutboxProcessor` with batch terminal updates, OpenTelemetry meters, retention cleanup, dead-letter replay APIs.
-- Transactional outbox: `LiteBusOutboxSaveChangesInterceptor`, `ITransactionalOutbox<TContext>`, aligned PostgreSQL connection and EF `UseExistingDbContext` participation APIs.
+- Transport platform: `LiteBus.Transport.Amqp`, Kafka, AWS SQS, Azure Service Bus, InMemory; inbox/outbox dispatch and
+  AMQP ingress packages.
+- `PipelinedInboxProcessor` / `PipelinedOutboxProcessor` with batch terminal updates, OpenTelemetry meters, retention
+  cleanup, dead-letter replay APIs.
+- Transactional outbox: `LiteBusOutboxSaveChangesInterceptor`, `ITransactionalOutbox<TContext>`, aligned PostgreSQL
+  connection and EF `UseExistingDbContext` participation APIs.
 - `LiteBus.Analyzers` rules LB1001, LB1003, LB1004, LB1005, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1013.
-- Saga inbox integration (`inbox.EnableSaga()`), payload encryption hooks, tenant lease filters, management and health extensions.
-- Docs corpus under `docs/` with [Home](docs/Home.md), [Migration Guide v6](docs/Migration-Guide-v6.md), and [v6 feature index](docs/v6-Feature-Index.md).
+- Saga inbox integration (`inbox.EnableSaga()`), payload encryption hooks, tenant lease filters, management and health
+  extensions.
+- Docs corpus under `docs/` with [Home](docs/Home.md), [Migration Guide v6](docs/Migration-Guide-v6.md),
+  and [v6 feature index](docs/v6-Feature-Index.md).
 
 ### Breaking changes
 
 - **Target framework:** `net10.0` only (.NET 8 and 9 dropped).
-- **Writer APIs:** `IInbox.AcceptAsync` and `IOutbox.EnqueueAsync` replace `AddAsync` / scheduler aliases. No obsolete shims.
-- **In-process dispatch:** `UseCommandInboxDispatcher()` and `UseEventOutboxDispatcher()` replace flat `AddInboxInProcessDispatcher` / event publisher dispatch paths.
+- **Writer APIs:** `IInbox.AcceptAsync` and `IOutbox.EnqueueAsync` replace `AddAsync` / scheduler aliases. No obsolete
+  shims.
+- **In-process dispatch:** `UseCommandInboxDispatcher()` and `UseEventOutboxDispatcher()` replace flat
+  `AddInboxInProcessDispatcher` / event publisher dispatch paths.
 - **Processors:** pipelined processors only; sequential legacy loops removed.
-- **PostgreSQL schema:** version **1** greenfield DDL. Drop legacy LiteBus tables and apply v1 create scripts; no `GetUpgradeScript` path from v5 shapes.
+- **PostgreSQL schema:** version **1** greenfield DDL. Drop legacy LiteBus tables and apply v1 create scripts; no
+  `GetUpgradeScript` path from v5 shapes.
 - **Store roles:** `IInboxTerminalStateStore`, retention, and diagnostics interfaces replace monolithic state stores.
 - **Registry:** process-wide `MessageRegistry` and `Clear()` removed; one registry per module configuration.
-- **Removed APIs:** `IEventPublisher`, `IIdempotentCommand`, v5 `ICommandScheduler` / `AddCommandInboxModule` aliases, `ISagaHandler<TCommand,TState>` (use `ISagaContext` in command handlers). See [Saga](docs/Saga.md).
-- **Registration:** flat storage/dispatch/ingress registrars removed; compose inside `AddInboxModule` / `AddOutboxModule` only.
+- **Removed APIs:** `IEventPublisher`, `IIdempotentCommand`, v5 `ICommandScheduler` / `AddCommandInboxModule` aliases,
+  `ISagaHandler<TCommand,TState>` (use `ISagaContext` in command handlers). See [Saga](docs/Saga.md).
+- **Registration:** flat storage/dispatch/ingress registrars removed; compose inside `AddInboxModule` /
+  `AddOutboxModule` only.
 
 ### Changed
 
-- Package layout: `LiteBus.Storage.PostgreSql`, `LiteBus.Inbox.Storage.*`, `LiteBus.Outbox.Storage.*`, `LiteBus.Transport.Amqp`, `*.Dispatch.InProcess`.
-- Neutral inbox/outbox naming: `litebus_inbox_messages.message_id`, `InboxEnvelope`, `OutboxEnvelope`, message-neutral processor and store XML.
+- Package layout: `LiteBus.Storage.PostgreSql`, `LiteBus.Inbox.Storage.*`, `LiteBus.Outbox.Storage.*`,
+  `LiteBus.Transport.Amqp`, `*.Dispatch.InProcess`.
+- Neutral inbox/outbox naming: `litebus_inbox_messages.message_id`, `InboxEnvelope`, `OutboxEnvelope`, message-neutral
+  processor and store XML.
 - `IEventMediator.PublishAsync` is the sole in-process event API.
-- `MessageContractAttribute` lives in `LiteBus.Messaging.Abstractions`; explicit `Contracts.Register` recommended for durable types.
+- `MessageContractAttribute` lives in `LiteBus.Messaging.Abstractions`; explicit `Contracts.Register` recommended for
+  durable types.
 - Module configuration throws when two modules register the same service type with different bindings.
-- PostgreSQL store options default `EnsureSchemaCreationOnStartup = true`; optional validate-only startup for migration-owned DDL.
+- PostgreSQL store options default `EnsureSchemaCreationOnStartup = true`; optional validate-only startup for
+  migration-owned DDL.
 
 ### Fixed
 
@@ -70,56 +108,77 @@ Greenfield release for durable messaging. Adopt v6 as a fresh integration: neste
 ### Changed
 
 - `ICommandMediator.SendAsync` now always executes commands immediately in process.
-- Durable command scheduling moved to `ICommandScheduler.ScheduleAsync`, which stores `ICommand` envelopes and returns `CommandReceipt<TCommand>`.
-- Durable event publication now uses `IOutboxWriter.AddAsync` or `IIntegrationOutbox.AddAsync`, which store event envelopes and return `OutboxReceipt<TEvent>`.
+- Durable command scheduling moved to `ICommandScheduler.ScheduleAsync`, which stores `ICommand` envelopes and returns
+  `CommandReceipt<TCommand>`.
+- Durable event publication now uses `IOutboxWriter.AddAsync` or `IIntegrationOutbox.AddAsync`, which store event
+  envelopes and return `OutboxReceipt<TEvent>`.
 - Durable inbox and outbox payloads now use stable message contracts with names and versions.
-- Durable inbox stores now expose `ICommandInboxWriter`, `ICommandInboxLeaseStore`, and `ICommandInboxStateStore` instead of one broad store contract.
-- Durable outbox stores now expose `IOutboxMessageWriter`, `IOutboxMessageLeaseStore`, and `IOutboxMessageStateStore` instead of one broad store contract.
+- Durable inbox stores now expose `ICommandInboxWriter`, `ICommandInboxLeaseStore`, and `ICommandInboxStateStore`
+  instead of one broad store contract.
+- Durable outbox stores now expose `IOutboxMessageWriter`, `IOutboxMessageLeaseStore`, and `IOutboxMessageStateStore`
+  instead of one broad store contract.
 - Stable outbox message ids now come from `OutboxOptions.MessageId`.
-- Event handler predicates now apply to both `PublishAsync(IEvent, settings)` and `PublishAsync<TEvent>(TEvent, settings)`.
+- Event handler predicates now apply to both `PublishAsync(IEvent, settings)` and
+  `PublishAsync<TEvent>(TEvent, settings)`.
 - Message descriptor resolution failures now throw `MessageDescriptorNotFoundException` with lookup details.
 - Message registry namespace filtering now skips only `System` and `System.*` namespaces.
 - Unsupported open generic handler shapes now throw `UnsupportedOpenGenericHandlerException`.
 - Durable contract registration now supports closed generic message types and rejects open generic message types.
-- Persisted contract registration and resolution now use `IMessageContractRegistry` only (`Register`, `GetContract`, `GetMessageType`).
+- Persisted contract registration and resolution now use `IMessageContractRegistry` only (`Register`, `GetContract`,
+  `GetMessageType`).
 - Closed generic messages with concrete handlers now resolve the registered handler type without closing it again.
 - The repository now uses `LiteBus.slnx` instead of `LiteBus.sln`.
-- CI workflows now restore, build, and test `LiteBus.slnx`, and report Docker availability before PostgreSQL Testcontainers tests.
+- CI workflows now restore, build, and test `LiteBus.slnx`, and report Docker availability before PostgreSQL
+  Testcontainers tests.
 
 ### Added
 
 - Added `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox`, and `LiteBus.Inbox.Storage.PostgreSql`.
 - Added `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox`, and `LiteBus.Outbox.Storage.PostgreSql`.
-- Added raw Npgsql inbox and outbox stores with leasing, retry visibility, dead-letter state, and Testcontainers coverage.
-- Added canonical `.sql` schema files in `LiteBus.Storage.PostgreSql`, `LiteBus.Inbox.Storage.PostgreSql`, and `LiteBus.Outbox.Storage.PostgreSql` for copy-paste migration ownership.
-- Added `IPostgreSqlSchemaLogger` to `LiteBus.Storage.PostgreSql` (Npgsql-only dependency) for optional schema operation logging.
-- Added `PostgreSqlInboxSchema` / `PostgreSqlOutboxSchema` APIs: `GetCreateScript`, `GetUpgradeScript`, `EnsureAsync`, and `ValidateAsync`.
-- Added `LiteBus.Inbox.Storage.PostgreSql.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.Storage.PostgreSql.Extensions.Microsoft.Hosting` for opt-in schema bootstrap on generic host startup.
-- Added `LiteBus.Inbox.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.Extensions.Microsoft.Hosting` for optional generic-host processor loops and health checks.
-- Added `LiteBus.Storage.PostgreSql.IntegrationTests` with Testcontainers coverage for inbox/outbox stores, schema bootstrap and upgrades, drift validation, module registration, and end-to-end processor flows.
-- Added `AGENTS.md`, `src/.editorconfig`, and StyleCop documentation analyzers (`GenerateDocumentationFile`) for all `src/` projects.
+- Added raw Npgsql inbox and outbox stores with leasing, retry visibility, dead-letter state, and Testcontainers
+  coverage.
+- Added canonical `.sql` schema files in `LiteBus.Storage.PostgreSql`, `LiteBus.Inbox.Storage.PostgreSql`, and
+  `LiteBus.Outbox.Storage.PostgreSql` for copy-paste migration ownership.
+- Added `IPostgreSqlSchemaLogger` to `LiteBus.Storage.PostgreSql` (Npgsql-only dependency) for optional schema operation
+  logging.
+- Added `PostgreSqlInboxSchema` / `PostgreSqlOutboxSchema` APIs: `GetCreateScript`, `GetUpgradeScript`, `EnsureAsync`,
+  and `ValidateAsync`.
+- Added `LiteBus.Inbox.Storage.PostgreSql.Extensions.Microsoft.Hosting` and
+  `LiteBus.Outbox.Storage.PostgreSql.Extensions.Microsoft.Hosting` for opt-in schema bootstrap on generic host startup.
+- Added `LiteBus.Inbox.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.Extensions.Microsoft.Hosting` for optional
+  generic-host processor loops and health checks.
+- Added `LiteBus.Storage.PostgreSql.IntegrationTests` with Testcontainers coverage for inbox/outbox stores, schema
+  bootstrap and upgrades, drift validation, module registration, and end-to-end processor flows.
+- Added `AGENTS.md`, `src/.editorconfig`, and StyleCop documentation analyzers (`GenerateDocumentationFile`) for all
+  `src/` projects.
 - Added XML documentation on all library types, members, and private/internal fields under `src/`.
 
 ### Removed
 
 - Removed the v4 attribute-based command inbox API and related command inbox abstractions.
 - Removed `LiteBus.Commands.Extensions.Microsoft.Hosting` because it was tied to the old inbox host.
-- Removed `LiteBus.Inbox.Extensions.Autofac` and `LiteBus.Outbox.Extensions.Autofac` because hosting registration lives in the Microsoft hosting extension packages (Autofac apps use the same hosting modules through the runtime adapter).
+- Removed `LiteBus.Inbox.Extensions.Autofac` and `LiteBus.Outbox.Extensions.Autofac` because hosting registration lives
+  in the Microsoft hosting extension packages (Autofac apps use the same hosting modules through the runtime adapter).
 - Removed `IIdentifiedIntegrationEvent`; event identity now belongs to outbox envelope options.
-- Removed inbox/outbox processor host interfaces and `UseProcessorHost`; hosting is configured through `AddInboxProcessorHosting` / `AddOutboxProcessorHosting` on the hosting extension packages.
+- Removed inbox/outbox processor host interfaces and `UseProcessorHost`; hosting is configured through
+  `AddInboxProcessorHosting` / `AddOutboxProcessorHosting` on the hosting extension packages.
 - Removed `IMessageContractRegistrar`; contract registration is part of `IMessageContractRegistry`.
 
 ### Changed (hosting)
 
-- Moved inbox and outbox processor hosting out of core modules into separate extension packages with self-contained `BackgroundService` loops.
-- Core inbox/outbox modules now register processors only; they no longer reference Microsoft hosting or health-check packages.
+- Moved inbox and outbox processor hosting out of core modules into separate extension packages with self-contained
+  `BackgroundService` loops.
+- Core inbox/outbox modules now register processors only; they no longer reference Microsoft hosting or health-check
+  packages.
 
 ### Docs
 
 - Added v5 reliability roadmap, domain event and unit-of-work guidance, and architecture decision records.
-- Updated command inbox docs for explicit scheduling semantics, storage metadata, retry, dead-letter, and idempotency guidance.
+- Updated command inbox docs for explicit scheduling semantics, storage metadata, retry, dead-letter, and idempotency
+  guidance.
 - Added durable outbox docs for writer, processor, dispatcher, PostgreSQL storage, and transaction boundaries.
-- Added [PostgreSQL Schema Management](docs/PostgreSQL-Schema-Management.md) covering migration-owned DDL, explicit bootstrap, opt-in host bootstrap, multi-instance safety, and future upgrade paths.
+- Added [PostgreSQL Schema Management](docs/PostgreSQL-Schema-Management.md) covering migration-owned DDL, explicit
+  bootstrap, opt-in host bootstrap, multi-instance safety, and future upgrade paths.
 - Added architecture, dependency graph, and v5 migration docs.
 - Added a cookbook recipe for PostgreSQL inbox and outbox registration with processor hosting.
 - Added `AGENTS.md` and Cursor rules for XML documentation standards on `src/**/*.cs`.
@@ -130,8 +189,12 @@ Greenfield release for durable messaging. Adopt v6 as a fresh integration: neste
 
 ### Notes
 
-- Inbox and outbox processors deliver **at-least-once** semantics. Handlers and dispatch targets must be idempotent, or you must enforce idempotency with application keys such as `CommandScheduleOptions.IdempotencyKey` and `OutboxOptions.MessageId`.
-- v5 ships durable storage for **PostgreSQL only** (`LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.Storage.PostgreSql`). Entity Framework Core and SQL Server store packages remain on the roadmap; bring your own store by implementing the writer, lease, and state role interfaces until those packages ship.
+- Inbox and outbox processors deliver **at-least-once** semantics. Handlers and dispatch targets must be idempotent, or
+  you must enforce idempotency with application keys such as `CommandScheduleOptions.IdempotencyKey` and
+  `OutboxOptions.MessageId`.
+- v5 ships durable storage for **PostgreSQL only** (`LiteBus.Inbox.Storage.PostgreSql`,
+  `LiteBus.Outbox.Storage.PostgreSql`). Entity Framework Core and SQL Server store packages remain on the roadmap; bring
+  your own store by implementing the writer, lease, and state role interfaces until those packages ship.
 
 ## v4.4.0
 

@@ -1,6 +1,5 @@
 using System;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch;
 using LiteBus.Transport.InMemory;
 
 namespace LiteBus.Inbox.Dispatch.InMemory;

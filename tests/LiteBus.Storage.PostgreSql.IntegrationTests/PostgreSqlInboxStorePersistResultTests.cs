@@ -21,7 +21,7 @@ public sealed class PostgreSqlInboxStorePersistResultTests : IClassFixture<Postg
     [Fact]
     public async Task PersistAsync_batch_completed_should_use_envelope_completed_at()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
         var store = new PostgreSqlInboxStore(_fixture.DataSource, options);
         var now = DateTimeOffset.UtcNow;
@@ -64,7 +64,7 @@ public sealed class PostgreSqlInboxStorePersistResultTests : IClassFixture<Postg
     [Fact]
     public async Task PersistAsync_when_lease_reclaimed_should_report_lease_lost()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
         var store = new PostgreSqlInboxStore(_fixture.DataSource, options);
         var now = DateTimeOffset.UtcNow;

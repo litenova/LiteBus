@@ -1,5 +1,4 @@
 using LiteBus.Commands.Abstractions;
-using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Testing;
 
@@ -43,5 +42,8 @@ public sealed class FakeCommandMediator : ICommandMediator
     /// <summary>
     ///     Clears recorded commands.
     /// </summary>
-    public void Clear() => _commands.Clear();
+    public void Clear()
+    {
+        _commands.Clear();
+    }
 }

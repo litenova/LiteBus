@@ -1,17 +1,13 @@
 using AwesomeAssertions;
-using LiteBus.Commands;
-using Xunit;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Orchestration.Abstractions;
-using LiteBus.Saga;
 using LiteBus.Saga.Abstractions;
-using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Saga.UnitTests;
@@ -51,6 +47,7 @@ public sealed class SagaProcessorHookTests
         services.AddSingleton<IInboxDispatcher, SagaMutatingDispatcher>();
         var options = new InboxProcessorOptions { BatchSize = 10, DispatcherConcurrency = 1 };
         services.AddSingleton(options);
+
         services.AddSingleton<IInboxProcessor>(sp => new PipelinedInboxProcessor(
             sp.GetRequiredService<IInboxLeaseStore>(),
             sp.GetRequiredService<IInboxStateWriter>(),
@@ -60,16 +57,18 @@ public sealed class SagaProcessorHookTests
             sp.GetServices<IProcessorEnvelopeHook>().ToArray()));
 
         var provider = services.BuildServiceProvider();
-        var inbox = new global::LiteBus.Inbox.Inbox(
+
+        var inbox = new Inbox.Inbox(
             store,
             new InboxEnvelopeFactory(
                 provider.GetRequiredService<IContractReader>(),
                 provider.GetRequiredService<IMessageSerializer>(),
                 TimeProvider.System),
             TimeProvider.System);
-        await inbox.AcceptAsync(
+
+        await inbox.AcceptAsync(InboxAcceptItems.From(
             new ProcessOrderCommand(),
-            new InboxOptions { CorrelationId = "order-42" });
+            new InboxAcceptMetadata { Trace = new MessageTrace.Correlated("order-42") }));
 
         var processor = provider.GetRequiredService<IInboxProcessor>();
         await processor.ProcessPendingAsync();

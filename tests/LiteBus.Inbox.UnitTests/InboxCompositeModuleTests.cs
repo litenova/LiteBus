@@ -1,7 +1,5 @@
 using LiteBus.Commands;
-using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
@@ -19,7 +17,9 @@ public sealed class InboxCompositeModuleTests
         var act = () =>
         {
             new ServiceCollection()
-                .AddLiteBus(registry => registry.Register(new InMemoryInboxStorageModule(_ => { })))
+                .AddLiteBus(registry => registry.Register(new InMemoryInboxStorageModule(_ =>
+                {
+                })))
                 .BuildServiceProvider();
         };
 
@@ -36,7 +36,10 @@ public sealed class InboxCompositeModuleTests
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ => { });
+                    registry.AddMessageModule(_ =>
+                    {
+                    });
+
                     registry.AddInboxModule();
                 })
                 .BuildServiceProvider();
@@ -53,7 +56,10 @@ public sealed class InboxCompositeModuleTests
         var services = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
@@ -62,7 +68,7 @@ public sealed class InboxCompositeModuleTests
 
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
+                    inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
                     inbox.UseInMemoryStorage();
                     inbox.UseCommandInboxDispatcher();
                 });
@@ -84,7 +90,10 @@ public sealed class InboxCompositeModuleTests
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
@@ -93,7 +102,7 @@ public sealed class InboxCompositeModuleTests
 
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
+                    inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
                     inbox.UseInMemoryStorage();
                     inbox.UseCommandInboxDispatcher();
                     inbox.EnableInboxProcessor(options => options.PollInterval = TimeSpan.FromMilliseconds(25));
@@ -104,11 +113,11 @@ public sealed class InboxCompositeModuleTests
         var inbox = provider.GetRequiredService<IInbox>();
         var orderId = Guid.NewGuid();
 
-        await inbox.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+        await inbox.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        });
+        }));
 
         var processor = provider.GetRequiredService<IInboxProcessor>();
         var pass = await processor.ProcessPendingAsync();

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Kafka;
@@ -46,10 +45,12 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
     {
         var ingressTopic = KafkaTransportTestInfrastructure.CreateTopic("ingress");
         var dispatchTopic = KafkaTransportTestInfrastructure.CreateTopic("dispatch");
+
         await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(
             _fixture.TransportOptions.BootstrapServers,
             ingressTopic,
             dispatchTopic);
+
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
 
@@ -85,9 +86,11 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
             headers[TransportHeaders.ContractName].Should().Be(ContractName);
 
             var store = provider.GetRequiredService<InMemoryInboxStore>();
+
             await PollingWait.UntilAsync(
                 () => store.Get(messageId).Status == InboxStatus.Completed,
                 TimeSpan.FromSeconds(15));
+
             store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
         }
         finally
@@ -108,18 +111,24 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                    inbox.Contracts.Register<ShipOrderCommand>(ContractName);
+
                     inbox.UseProcessorOptions(new InboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "kafka-ingress-test",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
                     inbox.UseInMemoryStorage();
+
                     inbox.UseKafkaDispatch(
                         transport =>
                         {
@@ -127,6 +136,7 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
                             transport.ResolveRoute = _ => dispatchTopic;
                         },
                         _fixture.TransportOptions);
+
                     inbox.UseKafkaIngress(ingress =>
                     {
                         ingress.UseOptions(new KafkaInboxIngressOptions

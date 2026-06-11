@@ -1,4 +1,3 @@
-using System;
 using LiteBus.Runtime.Abstractions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -25,7 +24,7 @@ public static class LiteBusHealthCheckExtensions
 
         return builder.AddCheck<LiteBusHealthCheck>(
             name,
-            failureStatus: HealthStatus.Unhealthy,
-            tags: ["litebus"]);
+            HealthStatus.Unhealthy,
+            ["litebus"]);
     }
 }

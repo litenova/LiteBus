@@ -30,6 +30,11 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
     public const string FailureQueueName = "litebus-fail";
 
     /// <summary>
+    ///     The running Service Bus emulator container.
+    /// </summary>
+    private ServiceBusContainer? _container;
+
+    /// <summary>
     ///     Gets the transport options for the started Service Bus emulator.
     /// </summary>
     public AzureServiceBusTransportOptions TransportOptions { get; private set; } = null!;
@@ -39,11 +44,6 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
     /// </summary>
     public bool IsAvailable { get; private set; }
 
-    /// <summary>
-    ///     The running Service Bus emulator container.
-    /// </summary>
-    private ServiceBusContainer? _container;
-
     /// <inheritdoc />
     public async Task InitializeAsync()
     {
@@ -52,19 +52,21 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
             await DockerTestGate.RunAsync(async () =>
             {
                 var configPath = Path.Combine(AppContext.BaseDirectory, "Azure", "servicebus-emulator-config.json");
+
                 _container = new ServiceBusBuilder()
                     .WithAcceptLicenseAgreement(true)
                     .WithConfig(configPath)
                     .Build();
 
-                await _container.StartAsync().ConfigureAwait(false);
+                await _container.StartAsync();
 
                 TransportOptions = new AzureServiceBusTransportOptions
                 {
                     ConnectionString = _container.GetConnectionString()
                 };
+
                 IsAvailable = true;
-            }).ConfigureAwait(false);
+            });
         }
         catch (InvalidOperationException exception) when (!DockerTestGate.IsStrictTransportMode)
         {
@@ -73,27 +75,29 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>
-    ///     Resolves a pre-declared emulator queue for the supplied scenario prefix.
-    /// </summary>
-    /// <param name="prefix">The prefix identifying the scenario under test.</param>
-    /// <returns>The queue name declared in the emulator configuration.</returns>
-    public string ResolveQueue(string prefix) =>
-        prefix switch
-        {
-            "ingress" => IngressQueueName,
-            "ingress-fail" or "ingress-store-full" => FailureQueueName,
-            "dispatch" or "inbox-dispatch" => DispatchQueueName,
-            "outbox-dispatch" or "outbox-route" => OutboxQueueName,
-            _ => FailureQueueName
-        };
-
     /// <inheritdoc />
     public async Task DisposeAsync()
     {
         if (_container is not null)
         {
-            await _container.DisposeAsync().ConfigureAwait(false);
+            await _container.DisposeAsync();
         }
+    }
+
+    /// <summary>
+    ///     Resolves a pre-declared emulator queue for the supplied scenario prefix.
+    /// </summary>
+    /// <param name="prefix">The prefix identifying the scenario under test.</param>
+    /// <returns>The queue name declared in the emulator configuration.</returns>
+    public string ResolveQueue(string prefix)
+    {
+        return prefix switch
+        {
+            "ingress"                              => IngressQueueName,
+            "ingress-fail" or "ingress-store-full" => FailureQueueName,
+            "dispatch" or "inbox-dispatch"         => DispatchQueueName,
+            "outbox-dispatch" or "outbox-route"    => OutboxQueueName,
+            _                                      => FailureQueueName
+        };
     }
 }

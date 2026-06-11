@@ -1,13 +1,14 @@
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
+using LiteBus.Commands.Abstractions;
+using LiteBus.Events.Abstractions;
+using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging.Abstractions;
+using LiteBus.Outbox.Abstractions;
+using LiteBus.Queries.Abstractions;
+using LiteBus.Transport.Abstractions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Testing;
-using Microsoft.CodeAnalysis.Testing.Verifiers;
-using NuGet.Versioning;
-using Xunit;
 
 namespace LiteBus.Analyzers.Tests;
 
@@ -56,10 +57,12 @@ internal static class AnalyzerTest
     {
         var test = CreateTest<TAnalyzer>();
         test.TestCode = source;
+
         test.ExpectedDiagnostics.Add(
             new DiagnosticResult(expectedDiagnostic)
                 .WithLocation(markupLocation)
                 .WithArguments(arguments));
+
         return test.RunAsync(CancellationToken.None);
     }
 
@@ -99,25 +102,32 @@ internal static class AnalyzerTest
     {
         var test = new CSharpAnalyzerTest<TAnalyzer, DefaultVerifier>
         {
-            ReferenceAssemblies = Net10ReferenceAssemblies,
+            ReferenceAssemblies = Net10ReferenceAssemblies
         };
 
         test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(
-            typeof(LiteBus.Commands.Abstractions.ICommand).Assembly.Location));
+            typeof(ICommand).Assembly.Location));
+
         test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(
-            typeof(LiteBus.Events.Abstractions.IEvent).Assembly.Location));
+            typeof(IEvent).Assembly.Location));
+
         test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(
-            typeof(LiteBus.Queries.Abstractions.IQuery<>).Assembly.Location));
+            typeof(IQuery<>).Assembly.Location));
+
         test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(
-            typeof(LiteBus.Inbox.Abstractions.IInbox).Assembly.Location));
+            typeof(IInbox).Assembly.Location));
+
         test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(
-            typeof(LiteBus.Outbox.Abstractions.IOutbox).Assembly.Location));
+            typeof(IOutbox).Assembly.Location));
+
         test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(
-            typeof(LiteBus.Messaging.Abstractions.HandlerPriorityAttribute).Assembly.Location));
+            typeof(HandlerPriorityAttribute).Assembly.Location));
+
         test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(
-            typeof(LiteBus.Messaging.Abstractions.MessageContractAttribute).Assembly.Location));
+            typeof(MessageContractAttribute).Assembly.Location));
+
         test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(
-            typeof(LiteBus.Transport.Abstractions.IMessageTransport).Assembly.Location));
+            typeof(IMessageTransport).Assembly.Location));
 
         return test;
     }

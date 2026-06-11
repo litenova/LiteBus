@@ -83,7 +83,7 @@ public static class ModuleRegistryExtensions
     /// </example>
     public static IModuleRegistry AddEventModule(this IModuleRegistry moduleRegistry)
     {
-        return AddEventModule(moduleRegistry, _ =>
+        return moduleRegistry.AddEventModule(_ =>
         {
         });
     }

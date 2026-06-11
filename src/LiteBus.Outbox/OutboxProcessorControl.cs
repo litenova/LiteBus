@@ -1,8 +1,8 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Outbox.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Outbox.Abstractions;
 
 namespace LiteBus.Outbox;
 
@@ -12,14 +12,19 @@ namespace LiteBus.Outbox;
 public sealed class OutboxProcessorControl : IOutboxProcessorControl, IProcessorBackgroundControl, IAsyncDisposable
 {
     /// <summary>
+    ///     Signals that the drain pass has completed and the loop has exited.
+    /// </summary>
+    private readonly SemaphoreSlim _drainComplete = new(0, 1);
+
+    /// <summary>
     ///     Serializes loop entry; pause holds the gate without releasing it.
     /// </summary>
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     /// <summary>
-    ///     Signals that the drain pass has completed and the loop has exited.
+    ///     Indicates whether a drain operation requested loop termination after one pass.
     /// </summary>
-    private readonly SemaphoreSlim _drainComplete = new(0, 1);
+    private volatile bool _drainSignalled;
 
     /// <summary>
     ///     The current processor loop state.
@@ -27,47 +32,21 @@ public sealed class OutboxProcessorControl : IOutboxProcessorControl, IProcessor
     private volatile ProcessorState _state = ProcessorState.Running;
 
     /// <summary>
-    ///     Indicates whether a drain operation requested loop termination after one pass.
-    /// </summary>
-    private volatile bool _drainSignalled;
-
-    /// <inheritdoc />
-    public ProcessorState State => _state;
-
-    /// <summary>
-    ///     Waits until the processor loop may enter the next pass.
-    /// </summary>
-    /// <param name="cancellationToken">A token used to cancel waiting for the gate.</param>
-    /// <returns>A task that completes when the loop may proceed.</returns>
-    internal async Task WaitIfPausedAsync(CancellationToken cancellationToken)
-    {
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        _gate.Release();
-    }
-
-    /// <summary>
     ///     Gets a value indicating whether the loop should perform one final pass and exit.
     /// </summary>
     /// <value><see langword="true" /> when <see cref="DrainAsync" /> has been requested; otherwise <see langword="false" />.</value>
     internal bool IsDraining => _drainSignalled;
 
-    /// <summary>
-    ///     Signals that the processor loop exited after completing the drain pass.
-    /// </summary>
-    internal void SignalDrainComplete()
+    /// <inheritdoc />
+    public ValueTask DisposeAsync()
     {
-        _drainComplete.Release();
+        _gate.Dispose();
+        _drainComplete.Dispose();
+        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />
-    Task IProcessorBackgroundControl.WaitIfPausedAsync(CancellationToken cancellationToken) =>
-        WaitIfPausedAsync(cancellationToken);
-
-    /// <inheritdoc />
-    bool IProcessorBackgroundControl.IsDraining => IsDraining;
-
-    /// <inheritdoc />
-    void IProcessorBackgroundControl.SignalDrainComplete() => SignalDrainComplete();
+    public ProcessorState State => _state;
 
     /// <inheritdoc />
     public async Task PauseAsync(CancellationToken cancellationToken = default)
@@ -104,10 +83,36 @@ public sealed class OutboxProcessorControl : IOutboxProcessorControl, IProcessor
     }
 
     /// <inheritdoc />
-    public ValueTask DisposeAsync()
+    Task IProcessorBackgroundControl.WaitIfPausedAsync(CancellationToken cancellationToken)
     {
-        _gate.Dispose();
-        _drainComplete.Dispose();
-        return ValueTask.CompletedTask;
+        return WaitIfPausedAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    bool IProcessorBackgroundControl.IsDraining => IsDraining;
+
+    /// <inheritdoc />
+    void IProcessorBackgroundControl.SignalDrainComplete()
+    {
+        SignalDrainComplete();
+    }
+
+    /// <summary>
+    ///     Waits until the processor loop may enter the next pass.
+    /// </summary>
+    /// <param name="cancellationToken">A token used to cancel waiting for the gate.</param>
+    /// <returns>A task that completes when the loop may proceed.</returns>
+    internal async Task WaitIfPausedAsync(CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        _gate.Release();
+    }
+
+    /// <summary>
+    ///     Signals that the processor loop exited after completing the drain pass.
+    /// </summary>
+    internal void SignalDrainComplete()
+    {
+        _drainComplete.Release();
     }
 }

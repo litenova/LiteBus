@@ -1,7 +1,6 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Transport;
 using RabbitMQ.Client;
 
 namespace LiteBus.Transport.Amqp;
@@ -12,9 +11,9 @@ namespace LiteBus.Transport.Amqp;
 public sealed class AmqpConnectionManager : IAmqpConnectionManager
 {
     /// <summary>
-    ///     Gets the connection settings used to connect to the broker.
+    ///     Gets the circuit breaker that guards broker connectivity.
     /// </summary>
-    private readonly AmqpConnectionOptions _options;
+    private readonly AmqpCircuitBreaker _circuitBreaker;
 
     /// <summary>
     ///     Serializes connection creation so only one shared connection is opened.
@@ -22,24 +21,14 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     private readonly SemaphoreSlim _connectionGate = new(1, 1);
 
     /// <summary>
+    ///     Gets the connection settings used to connect to the broker.
+    /// </summary>
+    private readonly AmqpConnectionOptions _options;
+
+    /// <summary>
     ///     Gets the lazily created shared connection, if one has been opened.
     /// </summary>
     private IConnection? _connection;
-
-    /// <summary>
-    ///     Gets the circuit breaker that guards broker connectivity.
-    /// </summary>
-    private readonly AmqpCircuitBreaker _circuitBreaker;
-
-    /// <summary>
-    ///     Gets the circuit breaker shared with publishers and consumers created from this connection manager.
-    /// </summary>
-    public AmqpCircuitBreaker CircuitBreaker => _circuitBreaker;
-
-    /// <summary>
-    ///     Gets the shared transport circuit breaker instance.
-    /// </summary>
-    public ITransportCircuitBreaker TransportCircuitBreaker => _circuitBreaker;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="AmqpConnectionManager" /> class.
@@ -50,6 +39,16 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _circuitBreaker = new AmqpCircuitBreaker(options.CircuitBreaker);
     }
+
+    /// <summary>
+    ///     Gets the circuit breaker shared with publishers and consumers created from this connection manager.
+    /// </summary>
+    public AmqpCircuitBreaker CircuitBreaker => _circuitBreaker;
+
+    /// <summary>
+    ///     Gets the shared transport circuit breaker instance.
+    /// </summary>
+    public ITransportCircuitBreaker TransportCircuitBreaker => _circuitBreaker;
 
     /// <inheritdoc />
     public async Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default)

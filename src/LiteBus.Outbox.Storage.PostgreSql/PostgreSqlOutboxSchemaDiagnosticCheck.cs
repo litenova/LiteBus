@@ -13,11 +13,6 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 public sealed class PostgreSqlOutboxSchemaDiagnosticCheck : IDiagnosticCheck
 {
     /// <summary>
-    ///     Gets the stable probe name reported to operators.
-    /// </summary>
-    public string Name => "outbox.postgresql.schema";
-
-    /// <summary>
     ///     The registered outbox store configuration consumed by the probe.
     /// </summary>
     private readonly PostgreSqlOutboxStoreRegistration _registration;
@@ -30,6 +25,11 @@ public sealed class PostgreSqlOutboxSchemaDiagnosticCheck : IDiagnosticCheck
     {
         _registration = registration ?? throw new ArgumentNullException(nameof(registration));
     }
+
+    /// <summary>
+    ///     Gets the stable probe name reported to operators.
+    /// </summary>
+    public string Name => "outbox.postgresql.schema";
 
     /// <inheritdoc />
     public async Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default)

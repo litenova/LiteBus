@@ -21,7 +21,7 @@ public sealed class PostgreSqlInboxWorkSignalNotifyTests : IClassFixture<Postgre
     [Fact]
     public async Task WaitForWorkOrDelayAsync_when_row_inserted_should_wake_before_poll_timeout()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
         var store = new PostgreSqlInboxStore(_fixture.DataSource, options);
 

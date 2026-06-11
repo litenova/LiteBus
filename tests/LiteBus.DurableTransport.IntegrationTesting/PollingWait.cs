@@ -16,11 +16,11 @@ public static class PollingWait
     {
         ArgumentNullException.ThrowIfNull(condition);
 
-        var deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
+        var deadline = Environment.TickCount64 + (long) timeout.TotalMilliseconds;
 
         while (!condition() && Environment.TickCount64 < deadline)
         {
-            await Task.Delay(25).ConfigureAwait(false);
+            await Task.Delay(25);
         }
 
         if (!condition())
@@ -40,19 +40,19 @@ public static class PollingWait
     {
         ArgumentNullException.ThrowIfNull(condition);
 
-        var deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
+        var deadline = Environment.TickCount64 + (long) timeout.TotalMilliseconds;
 
         while (Environment.TickCount64 < deadline)
         {
-            if (await condition().ConfigureAwait(false))
+            if (await condition())
             {
                 return;
             }
 
-            await Task.Delay(25).ConfigureAwait(false);
+            await Task.Delay(25);
         }
 
-        if (!await condition().ConfigureAwait(false))
+        if (!await condition())
         {
             throw new TimeoutException($"Condition was not met within {timeout}.");
         }

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Aws;
@@ -81,9 +80,11 @@ public sealed class AwsSqsInboxIngressEndToEndIntegrationTests : LiteBusTestBase
             headers[TransportHeaders.ContractName].Should().Be(ContractName);
 
             var store = provider.GetRequiredService<InMemoryInboxStore>();
+
             await PollingWait.UntilAsync(
                 () => store.Get(messageId).Status == InboxStatus.Completed,
                 TimeSpan.FromSeconds(15));
+
             store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
         }
         finally
@@ -103,21 +104,28 @@ public sealed class AwsSqsInboxIngressEndToEndIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                    inbox.Contracts.Register<ShipOrderCommand>(ContractName);
+
                     inbox.UseProcessorOptions(new InboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "sqs-ingress-test",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
                     inbox.UseInMemoryStorage();
+
                     inbox.UseAwsSqsDispatch(
                         transport => transport.DefaultDestination = dispatchQueueUrl,
                         _fixture.TransportOptions);
+
                     inbox.UseAwsSqsIngress(ingress =>
                     {
                         ingress.UseOptions(new AwsSqsInboxIngressOptions

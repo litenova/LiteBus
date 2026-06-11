@@ -1,13 +1,11 @@
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Aws;
 using LiteBus.Inbox.Ingress.Aws;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Aws;
@@ -46,7 +44,7 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
     public async Task RequeueDisabled_WithPoisonMessage_ShouldDrainQueue()
     {
         var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress-requeue-off");
-        await using var provider = BuildProvider(ingressQueueUrl, requeueOnFailure: false);
+        await using var provider = BuildProvider(ingressQueueUrl, false);
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
         await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
@@ -55,6 +53,7 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
         {
             var publisher = provider.GetRequiredService<IMessageTransport>();
             var messageId = Guid.NewGuid();
+
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressQueueUrl,
@@ -66,7 +65,7 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
             await SqsTransportTestInfrastructure.WaitForQueueDepthAsync(
                 _fixture.SqsClient,
                 ingressQueueUrl,
-                expectedCount: 0,
+                0,
                 TimeSpan.FromSeconds(20));
         }
         finally
@@ -83,7 +82,7 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
     public async Task RequeueEnabled_WithTransientStoreFailure_ShouldEventuallyAccept()
     {
         var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress-requeue-on");
-        await using var provider = BuildProvider(ingressQueueUrl, requeueOnFailure: true, useFlakyInbox: true);
+        await using var provider = BuildProvider(ingressQueueUrl, true, true);
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
         await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
@@ -93,6 +92,7 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
             var publisher = provider.GetRequiredService<IMessageTransport>();
             var messageId = Guid.NewGuid();
             var orderId = Guid.NewGuid();
+
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressQueueUrl,
@@ -124,14 +124,22 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
         bool useFlakyInbox = false)
     {
         var services = new ServiceCollection();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddInboxModule(inbox =>
             {
-                inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                inbox.Contracts.Register<ShipOrderCommand>(ContractName);
                 inbox.UseInMemoryStorage();
-                inbox.UseAwsSqsDispatch(_ => { }, CreateTestTransportOptions());
+
+                inbox.UseAwsSqsDispatch(_ =>
+                {
+                }, CreateTestTransportOptions());
+
                 inbox.UseAwsSqsIngress(ingress =>
                 {
                     ingress.UseOptions(new AwsSqsInboxIngressOptions
@@ -153,10 +161,12 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
                 var contracts = sp.GetRequiredService<IMessageContractRegistry>();
                 var serializer = sp.GetRequiredService<IMessageSerializer>();
                 var clock = sp.GetRequiredService<TimeProvider>();
-                var inner = new global::LiteBus.Inbox.Inbox(
+
+                var inner = new Inbox.Inbox(
                     store,
                     new InboxEnvelopeFactory(contracts, serializer, clock),
                     clock);
+
                 return new FlakyInbox(inner, new IOException("transient store failure"));
             });
         }
@@ -168,14 +178,17 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
     ///     Builds transport options tuned for fast SQS requeue integration tests.
     /// </summary>
     /// <returns>Transport options with a short requeue visibility timeout.</returns>
-    private AwsSqsTransportOptions CreateTestTransportOptions() => new()
+    private AwsSqsTransportOptions CreateTestTransportOptions()
     {
-        ServiceUrl = _fixture.TransportOptions.ServiceUrl,
-        Region = _fixture.TransportOptions.Region,
-        AccessKey = _fixture.TransportOptions.AccessKey,
-        SecretKey = _fixture.TransportOptions.SecretKey,
-        RequeueVisibilityTimeoutSeconds = 2,
-        LongPollWaitTimeSeconds = 1,
-        VisibilityTimeoutSeconds = 5
-    };
+        return new AwsSqsTransportOptions
+        {
+            ServiceUrl = _fixture.TransportOptions.ServiceUrl,
+            Region = _fixture.TransportOptions.Region,
+            AccessKey = _fixture.TransportOptions.AccessKey,
+            SecretKey = _fixture.TransportOptions.SecretKey,
+            RequeueVisibilityTimeoutSeconds = 2,
+            LongPollWaitTimeSeconds = 1,
+            VisibilityTimeoutSeconds = 5
+        };
+    }
 }

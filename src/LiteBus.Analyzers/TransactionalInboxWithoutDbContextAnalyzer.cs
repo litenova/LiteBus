@@ -72,8 +72,7 @@ public sealed class TransactionalInboxWithoutDbContextAnalyzer : DiagnosticAnaly
     /// <returns><see langword="true" /> when the type implements the interface.</returns>
     private static bool Implements(ITypeSymbol type, INamedTypeSymbol expected)
     {
-        return type.AllInterfaces.Any(candidate => SymbolEqualityComparer.Default.Equals(candidate, expected))
-               || SymbolEqualityComparer.Default.Equals(type, expected);
+        return type.AllInterfaces.Any(candidate => SymbolEqualityComparer.Default.Equals(candidate, expected)) || SymbolEqualityComparer.Default.Equals(type, expected);
     }
 
     /// <summary>

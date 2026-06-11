@@ -1,9 +1,11 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using LiteBus.Analyzers.Analysis;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
-using LiteBus.Analyzers.Analysis;
 
 namespace LiteBus.Analyzers;
 
@@ -22,90 +24,69 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterCompilationAction(AnalyzeCompilation);
-    }
-
-    /// <summary>
-    ///     Reports handler tags that are not referenced by mediation filters.
-    /// </summary>
-    /// <param name="context">The compilation analysis context.</param>
-    private static void AnalyzeCompilation(CompilationAnalysisContext context)
-    {
-        var referencedTags = TagReferenceAnalysis.CollectReferencedTags(context.Compilation);
-        var handlerTags = CollectHandlerTags(context.Compilation, context.CancellationToken);
-
-        foreach (var (handlerType, tag, location) in handlerTags)
+        context.RegisterCompilationStartAction(startContext =>
         {
-            if (referencedTags.Contains(tag))
-            {
-                continue;
-            }
+            var referencedTags = TagReferenceAnalysis.CollectReferencedTags(startContext.Compilation);
 
-            context.ReportDiagnostic(Diagnostic.Create(
-                DiagnosticDescriptors.OrphanHandlerTag,
-                location,
-                handlerType.Name,
-                tag));
-        }
-    }
-
-    /// <summary>
-    ///     Collects handler tags declared on handler types in the compilation.
-    /// </summary>
-    /// <param name="compilation">The compilation being analyzed.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>Handler type, tag, and location tuples.</returns>
-    private static ImmutableArray<(INamedTypeSymbol HandlerType, string Tag, Location Location)> CollectHandlerTags(
-        Compilation compilation,
-        System.Threading.CancellationToken cancellationToken)
-    {
-        var builder = ImmutableArray.CreateBuilder<(INamedTypeSymbol, string, Location)>();
-
-        foreach (var tree in compilation.SyntaxTrees)
-        {
-            var semanticModel = compilation.GetSemanticModel(tree);
-
-            foreach (var typeDeclaration in tree.GetRoot(cancellationToken).DescendantNodes().OfType<TypeDeclarationSyntax>())
-            {
-                var symbol = semanticModel.GetDeclaredSymbol(typeDeclaration, cancellationToken) as INamedTypeSymbol;
-
-                if (symbol is null || !HandlerAnalysis.IsHandlerType(symbol, compilation))
+            startContext.RegisterSyntaxNodeAction(
+                nodeContext =>
                 {
-                    continue;
-                }
-
-                foreach (var attribute in symbol.GetAttributes())
-                {
-                    if (!IsHandlerTagAttribute(attribute.AttributeClass))
+                    if (nodeContext.Node is not TypeDeclarationSyntax typeDeclaration)
                     {
-                        continue;
+                        return;
                     }
 
-                    foreach (var argument in attribute.ConstructorArguments)
+                    if (nodeContext.SemanticModel.GetDeclaredSymbol(typeDeclaration, nodeContext.CancellationToken) is not INamedTypeSymbol symbol)
                     {
-                        if (argument.Kind == TypedConstantKind.Primitive && argument.Value is string tag)
+                        return;
+                    }
+
+                    if (!HandlerAnalysis.IsHandlerType(symbol, startContext.Compilation))
+                    {
+                        return;
+                    }
+
+                    foreach (var attribute in symbol.GetAttributes())
+                    {
+                        if (!IsHandlerTagAttribute(attribute.AttributeClass))
                         {
-                            builder.Add((symbol, tag, symbol.Locations.FirstOrDefault() ?? Location.None));
+                            continue;
                         }
-                    }
 
-                    if (attribute.ConstructorArguments.Length == 1 &&
-                        attribute.ConstructorArguments[0].Kind == TypedConstantKind.Array &&
-                        attribute.ConstructorArguments[0].Values is { Length: > 0 } values)
-                    {
-                        foreach (var value in values)
+                        foreach (var argument in attribute.ConstructorArguments)
                         {
-                            if (value.Value is string tag)
+                            if (argument.Kind == TypedConstantKind.Primitive && argument.Value is string tag && !referencedTags.Contains(tag))
                             {
-                                builder.Add((symbol, tag, symbol.Locations.FirstOrDefault() ?? Location.None));
+                                nodeContext.ReportDiagnostic(Diagnostic.Create(
+                                    DiagnosticDescriptors.OrphanHandlerTag,
+                                    symbol.Locations.FirstOrDefault() ?? Location.None,
+                                    symbol.Name,
+                                    tag));
+                            }
+                        }
+
+                        if (attribute.ConstructorArguments.Length == 1 &&
+                            attribute.ConstructorArguments[0].Kind == TypedConstantKind.Array &&
+                            attribute.ConstructorArguments[0].Values is { Length: > 0 } values)
+                        {
+                            foreach (var value in values)
+                            {
+                                if (value.Value is string tag && !referencedTags.Contains(tag))
+                                {
+                                    nodeContext.ReportDiagnostic(Diagnostic.Create(
+                                        DiagnosticDescriptors.OrphanHandlerTag,
+                                        symbol.Locations.FirstOrDefault() ?? Location.None,
+                                        symbol.Name,
+                                        tag));
+                                }
                             }
                         }
                     }
-                }
-            }
-        }
-
-        return builder.ToImmutable();
+                },
+                SyntaxKind.ClassDeclaration,
+                SyntaxKind.StructDeclaration,
+                SyntaxKind.RecordDeclaration);
+        });
     }
 
     /// <summary>

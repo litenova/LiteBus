@@ -23,19 +23,19 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
     private readonly TimeProvider _clock;
 
     /// <summary>
-    ///     Gets the lease store used to claim and renew message ownership during processing.
-    /// </summary>
-    private readonly ILeaseRenewable _leaseStore;
-
-    /// <summary>
     ///     Gets the lease owner name assigned to messages claimed by this processor instance.
     /// </summary>
     private readonly string _leaseOwner;
 
     /// <summary>
-    ///     Gets the batch, lease, owner, and retry settings for this processor instance.
+    ///     Gets the lease store used to claim and renew message ownership during processing.
     /// </summary>
-    private readonly TOptions _options;
+    private readonly ILeaseRenewable _leaseStore;
+
+    /// <summary>
+    ///     Gets the logger used for lease, pass, and dispatch diagnostics.
+    /// </summary>
+    private readonly ILogger _logger;
 
     /// <summary>
     ///     Gets the axis-specific operations used for leasing, dispatch, and persistence.
@@ -43,9 +43,9 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
     private readonly IPipelinedMessageProcessorOperations<TEnvelope, TOptions> _operations;
 
     /// <summary>
-    ///     Gets the logger used for lease, pass, and dispatch diagnostics.
+    ///     Gets the batch, lease, owner, and retry settings for this processor instance.
     /// </summary>
-    private readonly ILogger _logger;
+    private readonly TOptions _options;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="PipelinedMessageProcessor{TEnvelope, TOptions}" /> class.
@@ -67,6 +67,7 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _operations = operations ?? throw new ArgumentNullException(nameof(operations));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
         _leaseOwner = string.IsNullOrWhiteSpace(_options.LeaseOwner)
             ? $"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}"
             : _options.LeaseOwner;
@@ -83,6 +84,7 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
 
         var stopwatch = ProcessorPassStopwatch.StartNew();
         var now = _clock.GetUtcNow();
+
         var leasedEnvelopes = await _operations.LeasePendingAsync(_leaseOwner, _options, now, cancellationToken)
             .ConfigureAwait(false);
 
@@ -171,17 +173,18 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
             try
             {
                 updated = await ProcessorLeaseHeartbeat.RunWithHeartbeatAsync(
-                    _operations.GetMessageId(envelope),
-                    _leaseOwner,
-                    _leaseStore,
-                    _options.LeaseDuration,
-                    _options.LeaseHeartbeatInterval,
-                    _clock,
+                    new LeaseHeartbeatContext(
+                        _operations.GetMessageId(envelope),
+                        _leaseOwner,
+                        _leaseStore,
+                        _options.LeaseDuration,
+                        _options.LeaseHeartbeatInterval,
+                        _clock,
+                        _operations.LeaseRenewalFailedMessage,
+                        _operations.RecordLeaseLost,
+                        _logger),
                     token => _operations.DispatchEnvelopeAsync(envelope, _options, token),
-                    cancellationToken,
-                    _operations.LeaseRenewalFailedMessage,
-                    _operations.RecordLeaseLost,
-                    _logger).ConfigureAwait(false);
+                    cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

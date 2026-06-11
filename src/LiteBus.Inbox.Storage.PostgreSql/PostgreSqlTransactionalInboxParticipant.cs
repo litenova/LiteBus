@@ -1,7 +1,6 @@
 using System;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Storage.PostgreSql;
-using Npgsql;
 
 namespace LiteBus.Inbox.Storage.PostgreSql;
 
@@ -66,7 +65,7 @@ public sealed class PostgreSqlTransactionalInboxParticipant
 
         if (_writeMode == TransactionalWriteMode.AllowImmediateCommit)
         {
-            return (ITransactionalInboxStore)_singletonStore;
+            return (ITransactionalInboxStore) _singletonStore;
         }
 
         throw new InvalidOperationException(

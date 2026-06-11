@@ -1,6 +1,4 @@
-using AwesomeAssertions;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Inbox.Dispatch.UnitTests;
@@ -17,6 +15,7 @@ public sealed class InboxTransportEnvelopeMapperTests
     public void BuildHeaders_ShouldMapAllMetadataFields()
     {
         var messageId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+
         var envelope = new InboxEnvelope
         {
             Id = messageId,

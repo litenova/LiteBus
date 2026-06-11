@@ -1,4 +1,3 @@
-using System;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Transport;

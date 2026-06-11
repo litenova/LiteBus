@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace LiteBus.Transport.Abstractions;
 
 /// <summary>
@@ -64,22 +59,28 @@ public sealed class TransportMessage
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the acknowledgement.</param>
     /// <returns>A task that completes when the broker has accepted the acknowledgement.</returns>
-    public Task AcceptAsync(CancellationToken cancellationToken = default) =>
-        AckAsync(cancellationToken);
+    public Task AcceptAsync(CancellationToken cancellationToken = default)
+    {
+        return AckAsync(cancellationToken);
+    }
 
     /// <summary>
     ///     Rejects the message and discards it from the queue.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the rejection.</param>
     /// <returns>A task that completes when the broker has accepted the rejection.</returns>
-    public Task DiscardAsync(CancellationToken cancellationToken = default) =>
-        NackAsync(false, cancellationToken);
+    public Task DiscardAsync(CancellationToken cancellationToken = default)
+    {
+        return NackAsync(false, cancellationToken);
+    }
 
     /// <summary>
     ///     Rejects the message and returns it to the queue for redelivery.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the rejection.</param>
     /// <returns>A task that completes when the broker has accepted the rejection.</returns>
-    public Task ReturnToQueueAsync(CancellationToken cancellationToken = default) =>
-        NackAsync(true, cancellationToken);
+    public Task ReturnToQueueAsync(CancellationToken cancellationToken = default)
+    {
+        return NackAsync(true, cancellationToken);
+    }
 }

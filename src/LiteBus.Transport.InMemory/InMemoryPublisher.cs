@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using LiteBus.Transport.Abstractions;
-using LiteBus.Transport;
 
 namespace LiteBus.Transport.InMemory;
 
@@ -48,6 +43,7 @@ public sealed class InMemoryPublisher : IMessageTransport
         try
         {
             var endpoint = _broker.GetOrCreateEndpoint(request.Destination);
+
             var delivery = new InMemoryPendingDelivery
             {
                 Body = request.Body,
@@ -83,4 +79,3 @@ public sealed class InMemoryPublisher : IMessageTransport
         return new Dictionary<string, object?>(headers, StringComparer.Ordinal);
     }
 }
-

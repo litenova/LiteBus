@@ -1,5 +1,4 @@
 using System.Text;
-using LiteBus.Transport.Amqp;
 
 namespace LiteBus.Transport.Amqp.IntegrationTests;
 
@@ -39,9 +38,9 @@ public sealed class AmqpHeaderValuesTests
         var headers = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["int"] = 7,
-            ["byte"] = (byte)3,
-            ["sbyte"] = (sbyte)-2,
-            ["short"] = (short)11,
+            ["byte"] = (byte) 3,
+            ["sbyte"] = (sbyte) -2,
+            ["short"] = (short) 11,
             ["long"] = 15L,
             ["text"] = "21",
             ["bytes-one"] = new byte[] { 9 },

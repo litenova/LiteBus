@@ -20,27 +20,6 @@ public abstract class InboxStoreContractTests
     protected abstract InboxStoreRoles CreateStore();
 
     /// <summary>
-    ///     Holds the inbox store roles implemented by one persistence backend.
-    /// </summary>
-    /// <param name="Writer">The append-only writer role.</param>
-    /// <param name="LeaseStore">The lease role used by the processor.</param>
-    /// <param name="StateWriter">The state writer role used by the processor.</param>
-    /// <param name="DeadLetterStore">The dead-letter replay role.</param>
-    /// <param name="RetentionStore">The retention role used by cleanup.</param>
-    /// <param name="DiagnosticsStore">The diagnostics role used by operators.</param>
-    /// <param name="MessageQuery">The message query role used by browse APIs.</param>
-    /// <param name="PurgeStore">The purge role used by operator cleanup.</param>
-    public sealed record InboxStoreRoles(
-        IInboxStore Writer,
-        IInboxLeaseStore LeaseStore,
-        IInboxStateWriter StateWriter,
-        IInboxDeadLetterStore DeadLetterStore,
-        IInboxRetentionStore RetentionStore,
-        IInboxDiagnosticsStore DiagnosticsStore,
-        IInboxMessageQuery MessageQuery,
-        IInboxPurgeStore PurgeStore);
-
-    /// <summary>
     ///     Verifies that duplicate idempotency keys return the original stored command.
     /// </summary>
     [Fact]
@@ -763,6 +742,7 @@ public abstract class InboxStoreContractTests
         var now = BaseTime;
 
         var first = await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now) with { IdempotencyKey = null });
+
         var batch = await roles.Writer.AddBatchAsync([
             first with { Payload = "{\"changed\":true}" }
         ]);
@@ -792,4 +772,25 @@ public abstract class InboxStoreContractTests
             IdempotencyKey = $"ship:{commandId:N}"
         };
     }
+
+    /// <summary>
+    ///     Holds the inbox store roles implemented by one persistence backend.
+    /// </summary>
+    /// <param name="Writer">The append-only writer role.</param>
+    /// <param name="LeaseStore">The lease role used by the processor.</param>
+    /// <param name="StateWriter">The state writer role used by the processor.</param>
+    /// <param name="DeadLetterStore">The dead-letter replay role.</param>
+    /// <param name="RetentionStore">The retention role used by cleanup.</param>
+    /// <param name="DiagnosticsStore">The diagnostics role used by operators.</param>
+    /// <param name="MessageQuery">The message query role used by browse APIs.</param>
+    /// <param name="PurgeStore">The purge role used by operator cleanup.</param>
+    public sealed record InboxStoreRoles(
+        IInboxStore Writer,
+        IInboxLeaseStore LeaseStore,
+        IInboxStateWriter StateWriter,
+        IInboxDeadLetterStore DeadLetterStore,
+        IInboxRetentionStore RetentionStore,
+        IInboxDiagnosticsStore DiagnosticsStore,
+        IInboxMessageQuery MessageQuery,
+        IInboxPurgeStore PurgeStore);
 }

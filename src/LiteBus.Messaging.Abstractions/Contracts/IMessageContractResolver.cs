@@ -7,7 +7,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         When no resolver is registered, inbox and outbox writers use <paramref name="message" />.GetType() for
+///         When no resolver is registered, inbox and outbox writers use the runtime message instance type for
 ///         contract lookup. Register a resolver when the declared parameter type should drive contract selection instead
 ///         of the runtime instance type.
 ///     </para>

@@ -16,17 +16,17 @@ public sealed class StoreBoundTransactionalOutboxTests
     {
         var store = new RecordingTransactionalOutboxStore();
         var registry = new MessageContractRegistry();
-        registry.Register<TestEvent>("orders.events.submitted", 1);
+        registry.Register<TestEvent>("orders.events.submitted");
         var serializer = new SystemTextJsonMessageSerializer();
         var factory = new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System);
         var writer = new StoreBoundTransactionalOutbox(store, factory, TimeProvider.System);
 
-        var receipt = await writer.EnqueueAsync(new TestEvent { OrderId = Guid.NewGuid() });
+        var receipt = await writer.EnqueueAsync(OutboxWriterTestFactory.Item(new TestEvent { OrderId = Guid.NewGuid() }));
 
         store.AddCalls.Should().Be(1);
         store.LastEnvelope.Should().NotBeNull();
         receipt.Id.Should().Be(store.LastEnvelope!.Id);
-        receipt.ContractName.Should().Be("orders.events.submitted");
+        receipt.Contract.Name.Should().Be("orders.events.submitted");
     }
 
     /// <summary>
@@ -66,7 +66,9 @@ public sealed class StoreBoundTransactionalOutboxTests
         /// <inheritdoc />
         public Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
             IReadOnlyList<OutboxEnvelope> envelopes,
-            CancellationToken cancellationToken = default) =>
+            CancellationToken cancellationToken = default)
+        {
             throw new NotSupportedException();
+        }
     }
 }

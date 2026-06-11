@@ -27,9 +27,14 @@ public sealed class PostgreSqlInboxWorkSignal : IInboxWorkSignal, IAsyncDisposab
     }
 
     /// <inheritdoc />
-    public Task WaitForWorkOrDelayAsync(TimeSpan pollInterval, CancellationToken cancellationToken = default) =>
-        _inner.WaitForWorkOrDelayAsync(pollInterval, cancellationToken);
+    public ValueTask DisposeAsync()
+    {
+        return _inner.DisposeAsync();
+    }
 
     /// <inheritdoc />
-    public ValueTask DisposeAsync() => _inner.DisposeAsync();
+    public Task WaitForWorkOrDelayAsync(TimeSpan pollInterval, CancellationToken cancellationToken = default)
+    {
+        return _inner.WaitForWorkOrDelayAsync(pollInterval, cancellationToken);
+    }
 }

@@ -43,4 +43,3 @@ public sealed class KafkaTransportOptions
     /// </summary>
     public double SeekFailureBackoffMultiplier { get; init; } = 2.0;
 }
-

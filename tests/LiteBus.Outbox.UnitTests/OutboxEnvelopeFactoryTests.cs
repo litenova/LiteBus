@@ -1,5 +1,4 @@
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Testing;
@@ -27,23 +26,24 @@ public sealed class OutboxEnvelopeFactoryTests
         var outbox = OutboxWriterTestFactory.Create(store, registry, serializer, clock);
 
         var messageId = Guid.NewGuid();
-        var options = new OutboxOptions
+
+        var metadata = OutboxEnqueueMetadata.Immediate with
         {
-            Id = messageId,
-            Topic = "orders",
-            IdempotencyKey = "idem-1",
-            CorrelationId = "corr-1",
-            CausationId = "cause-1",
-            TenantId = "tenant-1",
-            TraceContext = "trace-1"
+            Identity = new MessageIdentity.Supplied(messageId),
+            Idempotency = new Idempotency.Keyed("idem-1"),
+            Trace = new MessageTrace.Distributed("corr-1", "cause-1", "trace-1"),
+            Tenant = new TenantScope.Isolated("tenant-1"),
+            Target = new PublicationTarget.Topic("orders")
         };
 
-        var envelope = await factory.CreateAsync(new TestEvent { OrderId = Guid.NewGuid() }, options);
-        var receipt = await outbox.EnqueueAsync(new TestEvent { OrderId = Guid.NewGuid() }, options);
+        var item = OutboxWriterTestFactory.ItemWithMetadata(new TestEvent { OrderId = Guid.NewGuid() }, metadata);
+
+        var envelope = await factory.CreateAsync(item);
+        var receipt = await outbox.EnqueueAsync(item);
 
         envelope.Id.Should().Be(messageId);
-        envelope.ContractName.Should().Be(receipt.ContractName);
-        envelope.ContractVersion.Should().Be(receipt.ContractVersion);
+        envelope.ContractName.Should().Be(receipt.Contract.Name);
+        envelope.ContractVersion.Should().Be(receipt.Contract.Version);
         envelope.CreatedAt.Should().Be(receipt.StoredAt);
         envelope.Topic.Should().Be("orders");
         envelope.IdempotencyKey.Should().Be("idem-1");

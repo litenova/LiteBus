@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -14,14 +13,14 @@ namespace LiteBus.Inbox.Dispatch;
 public sealed class TransportInboxDispatchModule : IInboxDispatcherModule, IRequires<InboxModule>
 {
     /// <summary>
-    ///     Gets the optional transport module registered before the dispatcher.
-    /// </summary>
-    private readonly IModule? _transportModule;
-
-    /// <summary>
     ///     Gets the dispatcher options configured by the application.
     /// </summary>
     private readonly TransportInboxDispatcherOptions _options;
+
+    /// <summary>
+    ///     Gets the optional transport module registered before the dispatcher.
+    /// </summary>
+    private readonly IModule? _transportModule;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="TransportInboxDispatchModule" /> class.

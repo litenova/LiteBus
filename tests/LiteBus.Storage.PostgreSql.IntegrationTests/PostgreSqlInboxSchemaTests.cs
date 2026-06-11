@@ -1,5 +1,4 @@
 using LiteBus.Inbox.Storage.PostgreSql;
-using LiteBus.Storage.PostgreSql;
 
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 
@@ -15,7 +14,7 @@ public sealed class PostgreSqlInboxSchemaTests : IClassFixture<PostgreSqlFixture
     [Fact]
     public async Task EnsureAsync_ShouldCreateSchemaAndBeIdempotent()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
 
         await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options);
         await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options);
@@ -26,7 +25,7 @@ public sealed class PostgreSqlInboxSchemaTests : IClassFixture<PostgreSqlFixture
     [Fact]
     public async Task EnsureAsync_ShouldHandleConcurrentBootstrap()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
 
         var tasks = Enumerable.Range(0, 5)
             .Select(_ => PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options))
@@ -39,7 +38,7 @@ public sealed class PostgreSqlInboxSchemaTests : IClassFixture<PostgreSqlFixture
     [Fact]
     public async Task ValidateAsync_ShouldThrowWhenTableIsMissing()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
 
         var action = async () => await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options);
 
@@ -50,7 +49,7 @@ public sealed class PostgreSqlInboxSchemaTests : IClassFixture<PostgreSqlFixture
     [Fact]
     public async Task CreateIfNotExistsAsync_ShouldDelegateToEnsureAsync()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
 
         await PostgreSqlInboxSchema.CreateIfNotExistsAsync(_fixture.DataSource, options);
         await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options);

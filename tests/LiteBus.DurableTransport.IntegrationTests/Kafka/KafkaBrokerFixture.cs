@@ -10,14 +10,14 @@ namespace LiteBus.DurableTransport.IntegrationTests.Kafka;
 public sealed class KafkaBrokerFixture : IAsyncLifetime
 {
     /// <summary>
-    ///     Gets the transport options for the started Kafka container.
-    /// </summary>
-    public KafkaTransportOptions TransportOptions { get; private set; } = null!;
-
-    /// <summary>
     ///     The running Kafka test container.
     /// </summary>
     private KafkaContainer? _container;
+
+    /// <summary>
+    ///     Gets the transport options for the started Kafka container.
+    /// </summary>
+    public KafkaTransportOptions TransportOptions { get; private set; } = null!;
 
     /// <inheritdoc />
     public async Task InitializeAsync()
@@ -25,7 +25,7 @@ public sealed class KafkaBrokerFixture : IAsyncLifetime
         await DockerTestGate.RunAsync(async () =>
         {
             _container = new KafkaBuilder().Build();
-            await _container.StartAsync().ConfigureAwait(false);
+            await _container.StartAsync();
 
             TransportOptions = new KafkaTransportOptions
             {
@@ -33,7 +33,7 @@ public sealed class KafkaBrokerFixture : IAsyncLifetime
                 ConsumerGroupId = $"litebus-test-{Guid.NewGuid():N}",
                 ClientId = "litebus-durable-transport-integration-tests"
             };
-        }).ConfigureAwait(false);
+        });
     }
 
     /// <inheritdoc />
@@ -41,7 +41,7 @@ public sealed class KafkaBrokerFixture : IAsyncLifetime
     {
         if (_container is not null)
         {
-            await _container.DisposeAsync().ConfigureAwait(false);
+            await _container.DisposeAsync();
         }
     }
 }

@@ -1,13 +1,11 @@
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Storage.PostgreSql;
-using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Orchestration.Abstractions;
 using LiteBus.Saga.Abstractions;
 using LiteBus.Saga.Storage.PostgreSql;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-
 using IInboxProcessor = LiteBus.Inbox.Abstractions.IInboxProcessor;
 using static LiteBus.Storage.PostgreSql.IntegrationTests.SagaOrchestrationTestSupport;
 
@@ -38,7 +36,7 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
     public async Task ProcessPendingAsync_two_workflow_steps_should_advance_single_saga_instance()
     {
         var correlationId = $"order-{Guid.NewGuid():N}";
-        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         var sagaOptions = CreateSagaOptions();
 
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions);
@@ -49,13 +47,13 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
         var processor = provider.GetRequiredService<IInboxProcessor>();
         var sagaStore = provider.GetRequiredService<ISagaStore>();
 
-        await inbox.AcceptAsync(
+        await inbox.AcceptAsync(InboxAcceptItems.From(
             new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.ReserveInventory },
-            new InboxOptions { CorrelationId = correlationId });
+            new InboxAcceptMetadata { Trace = new MessageTrace.Correlated(correlationId) }));
 
-        await inbox.AcceptAsync(
+        await inbox.AcceptAsync(InboxAcceptItems.From(
             new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.CapturePayment },
-            new InboxOptions { CorrelationId = correlationId });
+            new InboxAcceptMetadata { Trace = new MessageTrace.Correlated(correlationId) }));
 
         await processor.ProcessPendingAsync();
         await processor.ProcessPendingAsync();
@@ -93,7 +91,7 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
     public async Task ProcessPendingAsync_when_capture_fails_compensation_should_restore_prior_saga_state()
     {
         var correlationId = $"order-{Guid.NewGuid():N}";
-        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         var sagaOptions = CreateSagaOptions();
 
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions);
@@ -105,17 +103,17 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
         var sagaStore = provider.GetRequiredService<ISagaStore>();
         var failureGate = provider.GetRequiredService<SagaStepFailureGate>();
 
-        var reserveReceipt = await inbox.AcceptAsync(
+        var reserveReceipt = await inbox.AcceptAsync(InboxAcceptItems.From(
             new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.ReserveInventory },
-            new InboxOptions { CorrelationId = correlationId });
+            new InboxAcceptMetadata { Trace = new MessageTrace.Correlated(correlationId) }));
 
         await processor.ProcessPendingAsync();
 
         failureGate.FailOn(OrderWorkflowStep.CapturePayment);
 
-        var captureReceipt = await inbox.AcceptAsync(
+        var captureReceipt = await inbox.AcceptAsync(InboxAcceptItems.From(
             new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.CapturePayment },
-            new InboxOptions { CorrelationId = correlationId });
+            new InboxAcceptMetadata { Trace = new MessageTrace.Correlated(correlationId) }));
 
         await processor.ProcessPendingAsync();
 
@@ -141,9 +139,9 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
 
         failureGate.Clear();
 
-        await inbox.AcceptAsync(
+        await inbox.AcceptAsync(InboxAcceptItems.From(
             new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.Compensate },
-            new InboxOptions { CorrelationId = correlationId });
+            new InboxAcceptMetadata { Trace = new MessageTrace.Correlated(correlationId) }));
 
         await processor.ProcessPendingAsync();
 
@@ -172,7 +170,7 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
     public async Task ProcessPendingAsync_parallel_workers_should_preserve_single_saga_version_increment()
     {
         var correlationId = $"order-{Guid.NewGuid():N}";
-        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         var sagaOptions = CreateSagaOptions();
 
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions);
@@ -203,13 +201,21 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
         var firstMessageId = Guid.NewGuid();
         var secondMessageId = Guid.NewGuid();
 
-        await inbox.AcceptAsync(
+        await inbox.AcceptAsync(InboxAcceptItems.From(
             new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.Increment },
-            new InboxOptions { CorrelationId = correlationId, Id = firstMessageId });
+            new InboxAcceptMetadata
+            {
+                Identity = new MessageIdentity.Supplied(firstMessageId),
+                Trace = new MessageTrace.Correlated(correlationId)
+            }));
 
-        await inbox.AcceptAsync(
+        await inbox.AcceptAsync(InboxAcceptItems.From(
             new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.Increment },
-            new InboxOptions { CorrelationId = correlationId, Id = secondMessageId });
+            new InboxAcceptMetadata
+            {
+                Identity = new MessageIdentity.Supplied(secondMessageId),
+                Trace = new MessageTrace.Correlated(correlationId)
+            }));
 
         var processors = Enumerable.Range(0, ConcurrentWorkerCount)
             .Select(workerIndex => new PipelinedInboxProcessor(
@@ -265,8 +271,7 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
         if (instance.State.Step == 1)
         {
             statuses.Count(status => status == InboxStatus.Completed).Should().Be(1);
-            statuses.Should().Contain(
-                status => status == InboxStatus.Failed || status == InboxStatus.DeadLettered);
+            statuses.Should().Contain(status => status == InboxStatus.Failed || status == InboxStatus.DeadLettered);
         }
         else
         {
@@ -284,6 +289,7 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
         for (var pass = 0; pass < 50; pass++)
         {
             var result = await processor.ProcessPendingAsync();
+
             if (result.LeasedCount == 0)
             {
                 return;

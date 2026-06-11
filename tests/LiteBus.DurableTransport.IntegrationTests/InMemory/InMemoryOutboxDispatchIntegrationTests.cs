@@ -1,7 +1,6 @@
-using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Dispatch.InMemory;
@@ -39,16 +38,17 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        await outbox.EnqueueAsync(
-            new OrderSubmittedIntegrationEvent { OrderId = orderId },
-            new OutboxOptions
+        await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+        {
+            Event = new OrderSubmittedIntegrationEvent { OrderId = orderId },
+            Metadata = OutboxEnqueueMetadata.Immediate with
             {
-                Id = messageId,
-                Topic = destination,
-                CorrelationId = "corr-outbox-inmemory",
-                CausationId = "cause-outbox-inmemory",
-                TenantId = "tenant-east"
-            });
+                Identity = new MessageIdentity.Supplied(messageId),
+                Trace = new MessageTrace.Workflow("corr-outbox-inmemory", "cause-outbox-inmemory"),
+                Tenant = new TenantScope.Isolated("tenant-east"),
+                Target = new PublicationTarget.Topic(destination)
+            }
+        });
 
         await processor.ProcessPendingAsync();
 
@@ -59,16 +59,22 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
 
         var json = TransportMessageAssertions.ReadBody(transportMessage);
         json.Should().Be(store.Get(messageId).Payload);
+
         TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.MessageId)
             .Should().Be(messageId.ToString("D"));
+
         TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.CorrelationId)
             .Should().Be("corr-outbox-inmemory");
+
         TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.ContractName)
             .Should().Be("orders.order-submitted");
+
         TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.ContractVersion)
             .Should().Be("1");
+
         TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.CausationId)
             .Should().Be("cause-outbox-inmemory");
+
         TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.TenantId)
             .Should().Be("tenant-east");
     }
@@ -93,9 +99,14 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        await outbox.EnqueueAsync(
-            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            new OutboxOptions { Id = messageId });
+        await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+        {
+            Event = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            Metadata = OutboxEnqueueMetadata.Immediate with
+            {
+                Identity = new MessageIdentity.Supplied(messageId)
+            }
+        });
 
         await processor.ProcessPendingAsync();
 
@@ -116,17 +127,22 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddOutboxModule(builder =>
                 {
                     builder.UseInMemoryStorage();
-                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted", 1);
+                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted");
+
                     builder.UseProcessorOptions(new OutboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "outbox-inmemory-test",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
                     builder.UseInMemoryDispatch(transport => transport.DefaultDestination = destination);
                 });
             })
@@ -138,8 +154,10 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
     /// </summary>
     /// <param name="prefix">The prefix identifying the scenario under test.</param>
     /// <returns>A destination name safe for in-memory transport routing.</returns>
-    private static string CreateDestination(string prefix) =>
-        $"litebus-inmemory-{prefix}-{Guid.NewGuid():N}";
+    private static string CreateDestination(string prefix)
+    {
+        return $"litebus-inmemory-{prefix}-{Guid.NewGuid():N}";
+    }
 
     /// <summary>
     ///     Starts a consumer that completes the supplied task source when one message arrives.
@@ -154,13 +172,14 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
         TaskCompletionSource<TransportMessage> received)
     {
         var consumer = new InMemoryConsumer(broker);
+
         await consumer.StartAsync(
             new TransportConsumerOptions { Destination = destination },
             async (message, cancellationToken) =>
             {
                 received.TrySetResult(message);
-                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
-            }).ConfigureAwait(false);
+                await message.AcceptAsync(cancellationToken);
+            });
 
         return consumer;
     }

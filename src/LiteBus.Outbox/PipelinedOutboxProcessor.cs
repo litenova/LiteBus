@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Messaging.Processing;
 using LiteBus.Orchestration.Abstractions;
@@ -20,7 +19,7 @@ namespace LiteBus.Outbox;
 /// <remarks>
 ///     <para>
 ///         Each pass writes leased messages to a bounded channel consumed by
-///         <see cref="OutboxProcessorOptions.DispatcherConcurrency" /> workers. Lease heartbeat renewal runs while
+///         <see cref="ProcessorOptions.DispatcherConcurrency" /> workers. Lease heartbeat renewal runs while
 ///         publication is in progress so slow dispatchers retain ownership until they finish.
 ///     </para>
 ///     <para>
@@ -66,6 +65,7 @@ public sealed class PipelinedOutboxProcessor : IOutboxProcessor
         OutboxProcessorFactory.ValidateOptions(options);
 
         var resolvedLogger = logger ?? NullLogger<PipelinedOutboxProcessor>.Instance;
+
         var operations = new OutboxPipelinedMessageProcessorOperations(
             leaseStore,
             stateWriter,
@@ -84,6 +84,8 @@ public sealed class PipelinedOutboxProcessor : IOutboxProcessor
     }
 
     /// <inheritdoc />
-    public Task<ProcessorPassResult> ProcessPendingAsync(CancellationToken cancellationToken = default) =>
-        _processor.ProcessPendingAsync(cancellationToken);
+    public Task<ProcessorPassResult> ProcessPendingAsync(CancellationToken cancellationToken = default)
+    {
+        return _processor.ProcessPendingAsync(cancellationToken);
+    }
 }

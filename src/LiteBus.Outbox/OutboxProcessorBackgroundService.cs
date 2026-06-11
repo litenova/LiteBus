@@ -1,7 +1,6 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
@@ -57,5 +56,8 @@ public sealed class OutboxProcessorBackgroundService : IBackgroundService
     }
 
     /// <inheritdoc />
-    public Task ExecuteAsync(CancellationToken stoppingToken) => _loop.ExecuteAsync(stoppingToken);
+    public Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        return _loop.ExecuteAsync(stoppingToken);
+    }
 }

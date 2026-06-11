@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -11,7 +10,8 @@ namespace LiteBus.Inbox.Dispatch.InProcess;
 ///     Module that registers <see cref="CommandInboxDispatcher" /> as <see cref="IInboxDispatcher" />.
 /// </summary>
 /// <remarks>
-///     Register this module through <see cref="InboxModuleBuilderCommandDispatchExtensions.UseCommandInboxDispatcher" /> inside
+///     Register this module through <see cref="InboxModuleBuilderCommandDispatchExtensions.UseCommandInboxDispatcher" />
+///     inside
 ///     <c>AddInboxModule</c> after <c>AddCommandModule</c>. The inbox module supplies contract registration and the
 ///     command module supplies <c>ICommandMediator</c> from <c>LiteBus.Commands.Abstractions</c>.
 /// </remarks>

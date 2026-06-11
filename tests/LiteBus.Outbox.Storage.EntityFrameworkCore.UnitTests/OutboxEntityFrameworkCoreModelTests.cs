@@ -1,4 +1,3 @@
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -65,9 +64,11 @@ public sealed class OutboxEntityFrameworkCoreModelTests
         entity.Should().NotBeNull();
         entity!.GetTableName().Should().Be("outbox");
         entity.GetSchema().Should().Be("app");
+
         var hasUniqueIdempotencyIndex = entity.GetIndexes().Any(index =>
             index.Properties.Select(property => property.Name).SequenceEqual(new[] { nameof(OutboxMessageEntity.IdempotencyKey) }) &&
             index.IsUnique);
+
         hasUniqueIdempotencyIndex.Should().BeTrue();
     }
 

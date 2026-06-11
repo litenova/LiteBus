@@ -7,7 +7,8 @@ using Microsoft.Extensions.Hosting;
 namespace LiteBus.Runtime.Extensions.Microsoft.Hosting;
 
 /// <summary>
-///     Applies startup task and background service registrations from module configuration to a Microsoft dependency injection service collection.
+///     Applies startup task and background service registrations from module configuration to a Microsoft dependency
+///     injection service collection.
 /// </summary>
 public static class MicrosoftBackgroundServiceHostingExtensions
 {
@@ -49,7 +50,7 @@ public static class MicrosoftBackgroundServiceHostingExtensions
 
                 foreach (var implementationType in startupTaskTypes)
                 {
-                    resolvedStartupTasks.Add((IStartupTask)serviceProvider.GetRequiredService(implementationType));
+                    resolvedStartupTasks.Add((IStartupTask) serviceProvider.GetRequiredService(implementationType));
                 }
 
                 return new StartupTaskPhaseHostedService(
@@ -76,7 +77,7 @@ public static class MicrosoftBackgroundServiceHostingExtensions
         {
             services.Add(ServiceDescriptor.Singleton<IHostedService>(serviceProvider =>
                 new BackgroundServiceHostAdapter(
-                    (IBackgroundService)serviceProvider.GetRequiredService(implementationType),
+                    (IBackgroundService) serviceProvider.GetRequiredService(implementationType),
                     serviceProvider.GetRequiredService<StartupTaskGate>())));
         }
     }

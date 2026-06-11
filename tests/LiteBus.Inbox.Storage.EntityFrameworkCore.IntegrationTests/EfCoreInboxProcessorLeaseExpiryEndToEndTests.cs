@@ -1,10 +1,7 @@
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using LiteBus.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-
 using IInboxProcessor = LiteBus.Inbox.Abstractions.IInboxProcessor;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests;
@@ -44,11 +41,12 @@ public sealed class EfCoreInboxProcessorLeaseExpiryEndToEndTests : LiteBusTestBa
         var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
 
         var orderId = Guid.NewGuid();
-        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand
+
+        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = "lease-expiry"
-        });
+        }));
 
         await leaseStore.LeasePendingAsync(new InboxLeaseRequest
         {

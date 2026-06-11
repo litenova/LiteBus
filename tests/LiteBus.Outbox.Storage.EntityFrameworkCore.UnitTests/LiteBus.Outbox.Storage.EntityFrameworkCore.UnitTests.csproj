@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 
-
     <ItemGroup>
 
         <PackageReference Include="AwesomeAssertions"/>
@@ -23,7 +22,6 @@
     </ItemGroup>
 
 
-
     <ItemGroup>
 
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
@@ -34,7 +32,6 @@
         <ProjectReference Include="..\LiteBus.Storage.Testing\LiteBus.Storage.Testing.csproj"/>
 
     </ItemGroup>
-
 
 
 </Project>

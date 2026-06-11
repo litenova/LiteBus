@@ -29,6 +29,12 @@ public sealed class InboxProcessorComponentHost : IAsyncDisposable
     /// </summary>
     public ServiceProvider Services { get; }
 
+    /// <inheritdoc />
+    public ValueTask DisposeAsync()
+    {
+        return Services.DisposeAsync();
+    }
+
     /// <summary>
     ///     Creates a host with in-memory storage, in-process dispatch, and an enabled inbox processor loop.
     /// </summary>
@@ -47,7 +53,10 @@ public sealed class InboxProcessorComponentHost : IAsyncDisposable
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddInboxModule(inbox =>
             {
                 inbox.UseInMemoryStorage();
@@ -72,36 +81,46 @@ public sealed class InboxProcessorComponentHost : IAsyncDisposable
     ///     Gets the inbox writer from the host.
     /// </summary>
     /// <returns>The configured <see cref="IInbox" /> instance.</returns>
-    public IInbox GetInbox() => Services.GetRequiredService<IInbox>();
+    public IInbox GetInbox()
+    {
+        return Services.GetRequiredService<IInbox>();
+    }
 
     /// <summary>
     ///     Gets the in-memory inbox store backing the host.
     /// </summary>
     /// <returns>The configured <see cref="InMemoryInboxStore" /> instance.</returns>
-    public InMemoryInboxStore GetStore() => Services.GetRequiredService<InMemoryInboxStore>();
+    public InMemoryInboxStore GetStore()
+    {
+        return Services.GetRequiredService<InMemoryInboxStore>();
+    }
 
     /// <summary>
     ///     Gets the inbox processor control surface used for drain and pause operations.
     /// </summary>
     /// <returns>The configured <see cref="IInboxProcessorControl" /> instance.</returns>
-    public IInboxProcessorControl GetProcessorControl() => Services.GetRequiredService<IInboxProcessorControl>();
+    public IInboxProcessorControl GetProcessorControl()
+    {
+        return Services.GetRequiredService<IInboxProcessorControl>();
+    }
 
     /// <summary>
     ///     Starts every LiteBus hosted service registered by <c>AddLiteBus</c>.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels host startup.</param>
     /// <returns>A task that completes after hosted services have started.</returns>
-    public Task StartHostedServicesAsync(CancellationToken cancellationToken) =>
-        LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(Services, cancellationToken);
+    public Task StartHostedServicesAsync(CancellationToken cancellationToken)
+    {
+        return LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(Services, cancellationToken);
+    }
 
     /// <summary>
     ///     Stops every LiteBus hosted service in reverse registration order.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels host shutdown.</param>
     /// <returns>A task that completes after hosted services have stopped.</returns>
-    public Task StopHostedServicesAsync(CancellationToken cancellationToken) =>
-        LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(Services, cancellationToken);
-
-    /// <inheritdoc />
-    public ValueTask DisposeAsync() => Services.DisposeAsync();
+    public Task StopHostedServicesAsync(CancellationToken cancellationToken)
+    {
+        return LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(Services, cancellationToken);
+    }
 }

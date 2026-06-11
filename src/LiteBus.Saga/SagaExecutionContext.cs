@@ -32,11 +32,10 @@ public sealed class SagaExecutionContext : ISagaContext, ISaga<object>
     /// </summary>
     internal bool IsDirty { get; private set; }
 
-    /// <inheritdoc />
-    public bool IsActive => _correlation is not null;
-
-    /// <inheritdoc />
-    public SagaCorrelation? Correlation => _correlation;
+    /// <summary>
+    ///     Gets the optimistic lock version observed when the saga was loaded.
+    /// </summary>
+    internal int Version => _version;
 
     /// <inheritdoc />
     object ISaga<object>.State
@@ -45,10 +44,11 @@ public sealed class SagaExecutionContext : ISagaContext, ISaga<object>
         set => SetState(value);
     }
 
-    /// <summary>
-    ///     Gets the optimistic lock version observed when the saga was loaded.
-    /// </summary>
-    internal int Version => _version;
+    /// <inheritdoc />
+    public bool IsActive => _correlation is not null;
+
+    /// <inheritdoc />
+    public SagaCorrelation? Correlation => _correlation;
 
     /// <inheritdoc />
     public TState GetState<TState>()
@@ -59,7 +59,7 @@ public sealed class SagaExecutionContext : ISagaContext, ISaga<object>
             throw new InvalidOperationException("No saga scope is active for the current dispatch.");
         }
 
-        return (TState)_state;
+        return (TState) _state;
     }
 
     /// <inheritdoc />

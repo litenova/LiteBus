@@ -1,5 +1,4 @@
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch;
@@ -30,7 +29,6 @@ using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Amqp;
 using LiteBus.Transport.Aws;
 using LiteBus.Transport.AzureServiceBus;
-using LiteBus.Transport.InMemory;
 using LiteBus.Transport.Kafka;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -53,7 +51,10 @@ public sealed class BrokerDispatchIngressRegistrationIntegrationTests : LiteBusT
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
                     inbox.UseInMemoryStorage();
@@ -68,7 +69,8 @@ public sealed class BrokerDispatchIngressRegistrationIntegrationTests : LiteBusT
     }
 
     /// <summary>
-    ///     Verifies outbox broker dispatch extensions register <see cref="TransportOutboxDispatcher" /> and transport services.
+    ///     Verifies outbox broker dispatch extensions register <see cref="TransportOutboxDispatcher" /> and transport
+    ///     services.
     /// </summary>
     /// <param name="configure">The outbox module configuration action.</param>
     [Theory]
@@ -78,7 +80,10 @@ public sealed class BrokerDispatchIngressRegistrationIntegrationTests : LiteBusT
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddOutboxModule(outbox =>
                 {
                     outbox.UseInMemoryStorage();
@@ -103,7 +108,10 @@ public sealed class BrokerDispatchIngressRegistrationIntegrationTests : LiteBusT
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
                     inbox.UseInMemoryStorage();
@@ -125,12 +133,20 @@ public sealed class BrokerDispatchIngressRegistrationIntegrationTests : LiteBusT
         return
         [
             inbox => inbox.UseInMemoryDispatch(),
-            inbox => inbox.UseAmqpDispatch(_ => { }, new AmqpConnectionOptions { HostName = "localhost" }),
+            inbox => inbox.UseAmqpDispatch(_ =>
+            {
+            }, new AmqpConnectionOptions { HostName = "localhost" }),
             inbox => inbox.UseAzureServiceBusDispatch(
-                _ => { },
+                _ =>
+                {
+                },
                 new AzureServiceBusTransportOptions { ConnectionString = "Endpoint=sb://example/;SharedAccessKeyName=a;SharedAccessKey=b" }),
-            inbox => inbox.UseAwsSqsDispatch(_ => { }, new AwsSqsTransportOptions { ServiceUrl = "http://localhost:4566" }),
-            inbox => inbox.UseKafkaDispatch(_ => { }, new KafkaTransportOptions { BootstrapServers = "localhost:9092" })
+            inbox => inbox.UseAwsSqsDispatch(_ =>
+            {
+            }, new AwsSqsTransportOptions { ServiceUrl = "http://localhost:4566" }),
+            inbox => inbox.UseKafkaDispatch(_ =>
+            {
+            }, new KafkaTransportOptions { BootstrapServers = "localhost:9092" })
         ];
     }
 
@@ -143,12 +159,20 @@ public sealed class BrokerDispatchIngressRegistrationIntegrationTests : LiteBusT
         return
         [
             outbox => outbox.UseInMemoryDispatch(),
-            outbox => outbox.UseAmqpDispatch(_ => { }, new AmqpConnectionOptions { HostName = "localhost" }),
+            outbox => outbox.UseAmqpDispatch(_ =>
+            {
+            }, new AmqpConnectionOptions { HostName = "localhost" }),
             outbox => outbox.UseAzureServiceBusDispatch(
-                _ => { },
+                _ =>
+                {
+                },
                 new AzureServiceBusTransportOptions { ConnectionString = "Endpoint=sb://example/;SharedAccessKeyName=a;SharedAccessKey=b" }),
-            outbox => outbox.UseAwsSqsDispatch(_ => { }, new AwsSqsTransportOptions { ServiceUrl = "http://localhost:4566" }),
-            outbox => outbox.UseKafkaDispatch(_ => { }, new KafkaTransportOptions { BootstrapServers = "localhost:9092" })
+            outbox => outbox.UseAwsSqsDispatch(_ =>
+            {
+            }, new AwsSqsTransportOptions { ServiceUrl = "http://localhost:4566" }),
+            outbox => outbox.UseKafkaDispatch(_ =>
+            {
+            }, new KafkaTransportOptions { BootstrapServers = "localhost:9092" })
         ];
     }
 
@@ -168,6 +192,7 @@ public sealed class BrokerDispatchIngressRegistrationIntegrationTests : LiteBusT
             inbox => inbox.UseAmqpIngress(ingress =>
             {
                 ingress.DisableIngressConsumer();
+
                 ingress.UseOptions(new AmqpInboxIngressOptions
                 {
                     QueueName = "commands",
@@ -177,6 +202,7 @@ public sealed class BrokerDispatchIngressRegistrationIntegrationTests : LiteBusT
             inbox => inbox.UseAzureServiceBusIngress(ingress =>
             {
                 ingress.DisableIngressConsumer();
+
                 ingress.UseOptions(new AzureServiceBusInboxIngressOptions
                 {
                     Destination = "commands",
@@ -189,6 +215,7 @@ public sealed class BrokerDispatchIngressRegistrationIntegrationTests : LiteBusT
             inbox => inbox.UseAwsSqsIngress(ingress =>
             {
                 ingress.DisableIngressConsumer();
+
                 ingress.UseOptions(new AwsSqsInboxIngressOptions
                 {
                     Destination = "http://localhost:4566/000000000000/commands",
@@ -198,6 +225,7 @@ public sealed class BrokerDispatchIngressRegistrationIntegrationTests : LiteBusT
             inbox => inbox.UseKafkaIngress(ingress =>
             {
                 ingress.DisableIngressConsumer();
+
                 ingress.UseOptions(new KafkaInboxIngressOptions
                 {
                     Destination = "commands",

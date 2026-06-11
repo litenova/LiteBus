@@ -1,13 +1,14 @@
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests;
 
 /// <summary>
-///     Verifies domain state and outbox rows commit or roll back together through <see cref="EfCoreOutboxStore.UseExistingDbContext{TContext}(TContext)" />.
+///     Verifies domain state and outbox rows commit or roll back together through
+///     <see cref="EfCoreOutboxStore.UseExistingDbContext{TContext}(TContext)" />.
 /// </summary>
 public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<PostgreSqlFixture>
 {
@@ -31,7 +32,7 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
     [Fact]
     public async Task UseExistingDbContext_ShouldRollbackDomainAndOutboxTogether()
     {
-        var (storeOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(false);
+        var (storeOptions, ordersTableName) = await CreateTablesAsync();
         var orderId = Guid.NewGuid();
         var envelope = CreateEnvelope();
 
@@ -40,17 +41,19 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
             var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), storeOptions);
             var transactionalStore = store.UseExistingDbContext(context);
 
-            await using var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
+            await using var transaction = await context.Database.BeginTransactionAsync();
             context.Orders.Add(new DomainOrderEntity { OrderId = orderId, Amount = 42m });
-            await transactionalStore.AddAsync(envelope).ConfigureAwait(false);
-            await context.SaveChangesAsync().ConfigureAwait(false);
-            await transaction.RollbackAsync().ConfigureAwait(false);
+            await transactionalStore.AddAsync(envelope);
+            await context.SaveChangesAsync();
+            await transaction.RollbackAsync();
         }
 
         await using var verificationContext = CreateTransactionalContext(storeOptions, ordersTableName);
-        (await verificationContext.Orders.CountAsync(order => order.OrderId == orderId).ConfigureAwait(false))
+
+        (await verificationContext.Orders.CountAsync(order => order.OrderId == orderId))
             .Should().Be(0);
-        (await verificationContext.OutboxMessages.CountAsync(message => message.Id == envelope.Id).ConfigureAwait(false))
+
+        (await verificationContext.OutboxMessages.CountAsync(message => message.Id == envelope.Id))
             .Should().Be(0);
     }
 
@@ -60,7 +63,7 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
     [Fact]
     public async Task UseExistingDbContext_ShouldCommitDomainAndOutboxTogether()
     {
-        var (storeOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(false);
+        var (storeOptions, ordersTableName) = await CreateTablesAsync();
         var orderId = Guid.NewGuid();
         var envelope = CreateEnvelope();
 
@@ -69,18 +72,20 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
             var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), storeOptions);
             var transactionalStore = store.UseExistingDbContext(context);
 
-            await using var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
+            await using var transaction = await context.Database.BeginTransactionAsync();
             context.Orders.Add(new DomainOrderEntity { OrderId = orderId, Amount = 99m });
-            await transactionalStore.AddAsync(envelope).ConfigureAwait(false);
-            await context.SaveChangesAsync().ConfigureAwait(false);
-            await transaction.CommitAsync().ConfigureAwait(false);
+            await transactionalStore.AddAsync(envelope);
+            await context.SaveChangesAsync();
+            await transaction.CommitAsync();
         }
 
         await using var verificationContext = CreateTransactionalContext(storeOptions, ordersTableName);
+
         var order = await verificationContext.Orders.SingleOrDefaultAsync(entity => entity.OrderId == orderId)
-            .ConfigureAwait(false);
+            ;
+
         var message = await verificationContext.OutboxMessages.SingleOrDefaultAsync(entity => entity.Id == envelope.Id)
-            .ConfigureAwait(false);
+            ;
 
         order.Should().NotBeNull();
         order!.Amount.Should().Be(99m);
@@ -95,14 +100,17 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
     private async Task<(EfCoreOutboxStoreOptions StoreOptions, string OrdersTableName)> CreateTablesAsync()
     {
         var suffix = Guid.NewGuid().ToString("N");
+
         var storeOptions = new EfCoreOutboxStoreOptions
         {
             SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
             TableName = $"outbox_ef_tx_{suffix}"
         };
+
         var ordersTableName = $"orders_ef_tx_{suffix}";
 
-        await using var dataSource = Npgsql.NpgsqlDataSource.Create(_fixture.ConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+
         await PostgreSqlOutboxSchema.EnsureAsync(
             dataSource,
             new PostgreSqlOutboxStoreOptions
@@ -110,15 +118,16 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
                 SchemaName = storeOptions.SchemaName,
                 TableName = storeOptions.TableName,
                 ValidateSchemaCreationOnStartup = false
-            }).ConfigureAwait(false);
+            });
 
         await using var context = CreateTransactionalContext(storeOptions, ordersTableName);
-        await context.Database.ExecuteSqlRawAsync(
+
+        await context.Database.ExecuteSqlInterpolatedAsync(
             $"""
              CREATE TABLE IF NOT EXISTS "{storeOptions.SchemaName}"."{ordersTableName}" (
                  order_id uuid NOT NULL PRIMARY KEY,
                  amount numeric NOT NULL);
-             """).ConfigureAwait(false);
+             """);
 
         return (storeOptions, ordersTableName);
     }
@@ -180,14 +189,14 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
     private sealed class TransactionalOutboxDbContext : DbContext, IOutboxDbContext
     {
         /// <summary>
-        ///     The outbox store options used for schema mapping.
-        /// </summary>
-        private readonly EfCoreOutboxStoreOptions _storeOptions;
-
-        /// <summary>
         ///     The domain orders table name.
         /// </summary>
         private readonly string _ordersTableName;
+
+        /// <summary>
+        ///     The outbox store options used for schema mapping.
+        /// </summary>
+        private readonly EfCoreOutboxStoreOptions _storeOptions;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="TransactionalOutboxDbContext" /> class.

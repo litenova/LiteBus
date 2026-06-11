@@ -1,8 +1,6 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
-using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,7 +18,10 @@ public sealed class EfCoreOutboxStorageModuleTests
             .AddDbContext<ModuleTestOutboxDbContext>(options => options.UseInMemoryDatabase(databaseName))
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddOutboxModule(outbox => outbox.UseEfCoreStorage(builder =>
                     builder.UseDbContext<ModuleTestOutboxDbContext>()));
             })
@@ -43,7 +44,10 @@ public sealed class EfCoreOutboxStorageModuleTests
                 .AddDbContext<ModuleTestOutboxDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString("N")))
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ => { });
+                    registry.AddMessageModule(_ =>
+                    {
+                    });
+
                     registry.AddOutboxModule(outbox => outbox.UseEfCoreStorage(builder =>
                         builder
                             .UseDbContext<ModuleTestOutboxDbContext>()

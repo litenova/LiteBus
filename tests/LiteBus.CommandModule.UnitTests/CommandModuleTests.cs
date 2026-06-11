@@ -24,7 +24,10 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(CreateProductCommand).Assembly);
@@ -58,7 +61,10 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(UpdateProductCommand).Assembly);
@@ -90,7 +96,10 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(LogActivityCommand<>).Assembly);
@@ -124,7 +133,10 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ProblematicCommandPreHandler).Assembly);
@@ -159,7 +171,10 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(CreateProductCommand).Assembly);
@@ -192,7 +207,10 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ProblematicCommandPreHandler).Assembly);
@@ -230,7 +248,10 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ProblematicCommandPreHandler).Assembly);
@@ -270,7 +291,10 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ProblematicCommandPreHandler).Assembly);
@@ -296,5 +320,4 @@ public sealed class CommandModuleTests : LiteBusTestBase
         // Assert
         await act.Should().ThrowAsync<MultipleHandlerFoundException>();
     }
-
 }

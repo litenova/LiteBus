@@ -1,4 +1,3 @@
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using LiteBus.Storage.Testing;
 
 namespace LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests;
@@ -30,11 +29,13 @@ public sealed class EfCoreOutboxStorePostgreSqlContractTests : OutboxStoreContra
             .GetAwaiter()
             .GetResult();
 
-        var options = EfCorePostgreSqlTestInfrastructure.OutboxOptions;
+        var options = EfCorePostgreSqlTestInfrastructure.OutboxStoreOptions;
+
         var store = new EfCoreOutboxStore(
             _ => Task.FromResult<IOutboxDbContext>(
                 EfCorePostgreSqlTestInfrastructure.CreateOutboxContext(_fixture.ConnectionString)),
             options);
+
         return new OutboxStoreContracts(store, store, store, store, store, store, store, store);
     }
 }

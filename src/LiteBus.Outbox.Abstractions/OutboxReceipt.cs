@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 
 namespace LiteBus.Outbox.Abstractions;
 
@@ -24,14 +25,9 @@ public sealed record OutboxReceipt
     public required Type MessageType { get; init; }
 
     /// <summary>
-    ///     Gets the stable event contract name stored with the payload.
+    ///     Gets the stable event contract reference stored with the payload.
     /// </summary>
-    public required string ContractName { get; init; }
-
-    /// <summary>
-    ///     Gets the event contract version used when the payload was serialized.
-    /// </summary>
-    public required int ContractVersion { get; init; }
+    public required MessageContractReference Contract { get; init; }
 
     /// <summary>
     ///     Gets the UTC timestamp when the event was accepted by the store.
@@ -39,19 +35,14 @@ public sealed record OutboxReceipt
     public required DateTimeOffset StoredAt { get; init; }
 
     /// <summary>
-    ///     Gets the optional correlation identifier copied from outbox options or from the stored duplicate row.
+    ///     Gets the distributed trace metadata copied from enqueue metadata or from the stored duplicate row.
     /// </summary>
-    public string? CorrelationId { get; init; }
+    public MessageTrace Trace { get; init; } = MessageTrace.None.Instance;
 
     /// <summary>
-    ///     Gets the optional causation identifier copied from outbox options or from the stored duplicate row.
+    ///     Gets the tenant isolation metadata copied from enqueue metadata or from the stored duplicate row.
     /// </summary>
-    public string? CausationId { get; init; }
-
-    /// <summary>
-    ///     Gets the optional tenant identifier copied from outbox options or from the stored duplicate row.
-    /// </summary>
-    public string? TenantId { get; init; }
+    public TenantScope Tenant { get; init; } = TenantScope.Unscoped.Instance;
 }
 
 /// <summary>
@@ -63,9 +54,9 @@ public sealed record OutboxReceipt
 ///         to its final target. Use the message id for diagnostics, replay tooling, or API acceptance responses.
 ///     </para>
 /// </remarks>
-/// <typeparam name="T">The message type associated with the receipt.</typeparam>
-public sealed record OutboxReceipt<T>
-    where T : notnull
+/// <typeparam name="TEvent">The message type associated with the receipt.</typeparam>
+public sealed record OutboxReceipt<TEvent>
+    where TEvent : notnull
 {
     /// <summary>
     ///     Gets the unique outbox message identifier used by processors and operational tooling.
@@ -78,14 +69,9 @@ public sealed record OutboxReceipt<T>
     public required Type MessageType { get; init; }
 
     /// <summary>
-    ///     Gets the stable event contract name stored with the payload.
+    ///     Gets the stable event contract reference stored with the payload.
     /// </summary>
-    public required string ContractName { get; init; }
-
-    /// <summary>
-    ///     Gets the event contract version used when the payload was serialized.
-    /// </summary>
-    public required int ContractVersion { get; init; }
+    public required MessageContractReference Contract { get; init; }
 
     /// <summary>
     ///     Gets the UTC timestamp when the event was accepted by the store.
@@ -93,17 +79,12 @@ public sealed record OutboxReceipt<T>
     public required DateTimeOffset StoredAt { get; init; }
 
     /// <summary>
-    ///     Gets the optional correlation identifier copied from outbox options or from the stored duplicate row.
+    ///     Gets the distributed trace metadata copied from enqueue metadata or from the stored duplicate row.
     /// </summary>
-    public string? CorrelationId { get; init; }
+    public MessageTrace Trace { get; init; } = MessageTrace.None.Instance;
 
     /// <summary>
-    ///     Gets the optional causation identifier copied from outbox options or from the stored duplicate row.
+    ///     Gets the tenant isolation metadata copied from enqueue metadata or from the stored duplicate row.
     /// </summary>
-    public string? CausationId { get; init; }
-
-    /// <summary>
-    ///     Gets the optional tenant identifier copied from outbox options or from the stored duplicate row.
-    /// </summary>
-    public string? TenantId { get; init; }
+    public TenantScope Tenant { get; init; } = TenantScope.Unscoped.Instance;
 }

@@ -1,6 +1,5 @@
 using Azure.Messaging.ServiceBus;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.DurableTransport.IntegrationTests.Azure;
 
@@ -27,13 +26,15 @@ internal static class AzureServiceBusTransportTestInfrastructure
 
         while (DateTime.UtcNow < deadline)
         {
-            var message = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+            var message = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(1));
+
             if (message is null)
             {
                 continue;
             }
 
             var headers = new Dictionary<string, object?>(StringComparer.Ordinal);
+
             foreach (var property in message.ApplicationProperties)
             {
                 headers[property.Key] = property.Value;
@@ -64,8 +65,8 @@ internal static class AzureServiceBusTransportTestInfrastructure
 
         await PollingWait.UntilAsync(async () =>
         {
-            var count = await receiver.PeekMessagesAsync(maxMessages: 100).ConfigureAwait(false);
+            var count = await receiver.PeekMessagesAsync(100);
             return count.Count == expectedCount;
-        }, timeout).ConfigureAwait(false);
+        }, timeout);
     }
 }

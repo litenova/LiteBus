@@ -1,9 +1,7 @@
-using System.Collections.Generic;
 using System.Text.Json;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch;
 using LiteBus.Inbox.Dispatch.InMemory;
 using LiteBus.Inbox.Ingress;
 using LiteBus.Inbox.Storage.InMemory;
@@ -11,7 +9,6 @@ using LiteBus.Messaging;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
-using LiteBus.Transport.InMemory;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Transport.InMemory.IntegrationTests;
@@ -36,23 +33,30 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
         var dispatchReceived = new TaskCompletionSource<TransportMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var services = new ServiceCollection();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddInboxModule(inbox =>
             {
-                inbox.Contracts.Register<ShipOrderCommand>(contractName, 1);
+                inbox.Contracts.Register<ShipOrderCommand>(contractName);
+
                 inbox.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 10,
                     LeaseOwner = "ingress-inmemory-test",
                     Retry = new RetryOptions { UseJitter = false }
                 });
+
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(50));
                 inbox.UseInMemoryStorage();
                 inbox.UseInMemoryDispatch(transport => transport.DefaultDestination = dispatchDestination);
             });
         });
+
         services.AddSingleton<TransportInboxIngressHandler>();
 
         await using var provider = services.BuildServiceProvider();
@@ -61,18 +65,20 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
 
         var broker = provider.GetRequiredService<InMemoryTransportBroker>();
         var ingressConsumer = new InMemoryConsumer(broker);
+
         await using var dispatchConsumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(
             broker,
             dispatchDestination,
             dispatchReceived);
+
         var ingressHandler = provider.GetRequiredService<TransportInboxIngressHandler>();
 
         await ingressConsumer.StartAsync(
             new TransportConsumerOptions { Destination = ingressDestination },
             async (message, cancellationToken) =>
             {
-                await ingressHandler.AcceptAsync(message, cancellationToken).ConfigureAwait(false);
-                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+                await ingressHandler.AcceptAsync(message, cancellationToken);
+                await message.AcceptAsync(cancellationToken);
             });
 
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -101,8 +107,10 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
             var dispatched = await dispatchReceived.Task.WaitAsync(receiveTimeout.Token);
 
             InMemoryTransportTestInfrastructure.ReadBody(dispatched).Should().Contain(orderId.ToString());
+
             InMemoryTransportTestInfrastructure.GetHeader(dispatched, TransportHeaders.MessageId)
                 .Should().Be(messageId.ToString("D"));
+
             InMemoryTransportTestInfrastructure.GetHeader(dispatched, TransportHeaders.ContractName)
                 .Should().Be(contractName);
 

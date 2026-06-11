@@ -1,5 +1,3 @@
-using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using LiteBus.Storage.Testing;
 using Microsoft.EntityFrameworkCore;
 

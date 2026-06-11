@@ -1,5 +1,3 @@
-using System;
-
 namespace LiteBus.Inbox.Ingress.Amqp.Exceptions;
 
 /// <summary>

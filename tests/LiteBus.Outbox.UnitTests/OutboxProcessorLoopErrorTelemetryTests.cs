@@ -1,6 +1,5 @@
 using System.Diagnostics.Metrics;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 
 namespace LiteBus.Outbox.UnitTests;

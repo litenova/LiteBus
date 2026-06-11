@@ -1,5 +1,4 @@
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Storage.InMemory;
 
 namespace LiteBus.Outbox.Storage.InMemory.UnitTests;
 

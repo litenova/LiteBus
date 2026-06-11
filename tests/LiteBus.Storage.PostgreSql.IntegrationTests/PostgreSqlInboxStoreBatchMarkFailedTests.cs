@@ -21,7 +21,7 @@ public sealed class PostgreSqlInboxStoreBatchMarkFailedTests : IClassFixture<Pos
     [Fact]
     public async Task PersistAsync_batch_with_null_visible_after_should_persist_failed_status()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
         var store = new PostgreSqlInboxStore(_fixture.DataSource, options);
         var now = DateTimeOffset.UtcNow;

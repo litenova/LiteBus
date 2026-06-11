@@ -10,6 +10,43 @@ namespace LiteBus.EventModule.UnitTests;
 
 public sealed class ParallelExecutionContextTests : LiteBusTestBase
 {
+    [Fact]
+    public async Task PublishAsync_WithParallelHandlers_PropagatesExecutionContextToEachHandler()
+    {
+        var serviceProvider = new ServiceCollection()
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessageModule(_ =>
+                {
+                });
+
+                registry.AddEventModule(builder =>
+                {
+                    builder.Register<ParallelContextEventHandler1>();
+                    builder.Register<ParallelContextEventHandler2>();
+                });
+            })
+            .BuildServiceProvider();
+
+        var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
+        var @event = new ParallelContextEvent();
+
+        var settings = new EventMediationSettings
+        {
+            Items = { ["Marker"] = "ContextValue" },
+            Execution = new EventMediationExecutionSettings
+            {
+                PriorityGroupsConcurrencyMode = ConcurrencyMode.Parallel,
+                HandlersWithinSamePriorityConcurrencyMode = ConcurrencyMode.Parallel
+            }
+        };
+
+        await eventMediator.PublishAsync(@event, settings);
+
+        @event.ObservedItems.Should().HaveCount(2);
+        @event.ObservedItems.Should().OnlyContain(item => item == "ContextValue");
+    }
+
     private sealed record ParallelContextEvent : IEvent
     {
         public List<string> ObservedItems { get; } = [];
@@ -45,39 +82,5 @@ public sealed class ParallelExecutionContextTests : LiteBusTestBase
 
             return Task.CompletedTask;
         }
-    }
-
-    [Fact]
-    public async Task PublishAsync_WithParallelHandlers_PropagatesExecutionContextToEachHandler()
-    {
-        var serviceProvider = new ServiceCollection()
-            .AddLiteBus(registry =>
-            {
-                registry.AddMessageModule(_ => { });
-                registry.AddEventModule(builder =>
-                {
-                    builder.Register<ParallelContextEventHandler1>();
-                    builder.Register<ParallelContextEventHandler2>();
-                });
-            })
-            .BuildServiceProvider();
-
-        var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
-        var @event = new ParallelContextEvent();
-
-        var settings = new EventMediationSettings
-        {
-            Items = { ["Marker"] = "ContextValue" },
-            Execution = new EventMediationExecutionSettings
-            {
-                PriorityGroupsConcurrencyMode = ConcurrencyMode.Parallel,
-                HandlersWithinSamePriorityConcurrencyMode = ConcurrencyMode.Parallel
-            }
-        };
-
-        await eventMediator.PublishAsync(@event, settings);
-
-        @event.ObservedItems.Should().HaveCount(2);
-        @event.ObservedItems.Should().OnlyContain(item => item == "ContextValue");
     }
 }

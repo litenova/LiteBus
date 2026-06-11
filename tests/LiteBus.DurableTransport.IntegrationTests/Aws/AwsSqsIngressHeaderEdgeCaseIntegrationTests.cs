@@ -1,6 +1,6 @@
+using System.Text;
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Dispatch.Aws;
 using LiteBus.Inbox.Ingress.Aws;
@@ -43,13 +43,13 @@ public sealed class AwsSqsIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBas
     public async Task MissingContractName_ShouldDiscardWithoutStoreWrite()
     {
         await RunScenarioAsync(
-            body: JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
-            headers: new Dictionary<string, object?>(StringComparer.Ordinal)
+            JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
+            new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 [TransportHeaders.ContractVersion] = "1",
                 [TransportHeaders.MessageId] = Guid.NewGuid().ToString("D")
             },
-            expectedStoreCount: 0);
+            0);
     }
 
     /// <summary>
@@ -60,10 +60,11 @@ public sealed class AwsSqsIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBas
     public async Task WrongContractVersion_ShouldDiscardWithoutStoreWrite()
     {
         var messageId = Guid.NewGuid();
+
         await RunScenarioAsync(
-            body: JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
-            headers: TransportTestHeaders.Create(messageId, ContractName, 99),
-            expectedStoreCount: 0);
+            JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
+            TransportTestHeaders.Create(messageId, ContractName, 99),
+            0);
     }
 
     /// <summary>
@@ -74,14 +75,14 @@ public sealed class AwsSqsIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBas
     public async Task InvalidMessageId_ShouldAcceptWithGeneratedInboxId()
     {
         await RunScenarioAsync(
-            body: JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
-            headers: new Dictionary<string, object?>(StringComparer.Ordinal)
+            JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
+            new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 [TransportHeaders.ContractName] = ContractName,
                 [TransportHeaders.ContractVersion] = "1",
                 [TransportHeaders.MessageId] = "not-a-guid"
             },
-            expectedStoreCount: 1);
+            1);
     }
 
     /// <summary>
@@ -105,10 +106,11 @@ public sealed class AwsSqsIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBas
         try
         {
             var publisher = provider.GetRequiredService<IMessageTransport>();
+
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressQueueUrl,
-                Body = System.Text.Encoding.UTF8.GetBytes(body),
+                Body = Encoding.UTF8.GetBytes(body),
                 Headers = headers
             });
 
@@ -132,12 +134,19 @@ public sealed class AwsSqsIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBas
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddInboxModule(inbox =>
                 {
-                    inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                    inbox.Contracts.Register<ShipOrderCommand>(ContractName);
                     inbox.UseInMemoryStorage();
-                    inbox.UseAwsSqsDispatch(_ => { }, _fixture.TransportOptions);
+
+                    inbox.UseAwsSqsDispatch(_ =>
+                    {
+                    }, _fixture.TransportOptions);
+
                     inbox.UseAwsSqsIngress(ingress =>
                     {
                         ingress.UseOptions(new AwsSqsInboxIngressOptions

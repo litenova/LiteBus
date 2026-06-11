@@ -22,6 +22,8 @@ internal static class InboxProcessorLogMessages
     /// </summary>
     /// <param name="logger">The logger receiving the event.</param>
     /// <param name="exception">The exception that aborted the pass.</param>
-    public static void LoopFailed(ILogger logger, Exception exception) =>
+    public static void LoopFailed(ILogger logger, Exception exception)
+    {
         LoopFailedMessage(logger, exception);
+    }
 }

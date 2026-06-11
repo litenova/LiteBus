@@ -31,11 +31,6 @@ public sealed class TransportOutboxDispatcher : IOutboxDispatcher
     private readonly TransportOutboxDispatcherOptions _options;
 
     /// <summary>
-    ///     Gets the transport used as the dispatch target.
-    /// </summary>
-    private readonly IMessageTransport _transport;
-
-    /// <summary>
     ///     Gets the optional outbox protector used to decrypt stored payloads before deserialization.
     /// </summary>
     private readonly IOutboxPayloadProtector? _payloadProtector;
@@ -44,6 +39,11 @@ public sealed class TransportOutboxDispatcher : IOutboxDispatcher
     ///     Gets the optional tenant routing strategy used to resolve transport routes.
     /// </summary>
     private readonly ITenantRoutingStrategy? _tenantRoutingStrategy;
+
+    /// <summary>
+    ///     Gets the transport used as the dispatch target.
+    /// </summary>
+    private readonly IMessageTransport _transport;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="TransportOutboxDispatcher" /> class.
@@ -76,8 +76,10 @@ public sealed class TransportOutboxDispatcher : IOutboxDispatcher
         ArgumentNullException.ThrowIfNull(message);
 
         var messageType = _contractRegistry.GetMessageType(message.ContractName, message.ContractVersion);
+
         var payload = await PayloadProtection.UnprotectAsync(message.Payload, _payloadProtector, cancellationToken)
             .ConfigureAwait(false);
+
         _ = await _messageSerializer.DeserializeAsync(messageType, payload, cancellationToken).ConfigureAwait(false);
 
         var route = ResolveRoute(message);

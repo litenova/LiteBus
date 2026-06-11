@@ -2,9 +2,8 @@ using LiteBus.Commands;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.InProcess;
-using LiteBus.Inbox.Dispatch;
 using LiteBus.Inbox.Dispatch.Amqp;
+using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Ingress;
 using LiteBus.Inbox.Ingress.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
@@ -34,12 +33,16 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
     [Fact]
     public void AddPostgreSqlInboxStorage_ShouldRegisterWriterLeaseAndStateRoles()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
 
         var services = new ServiceCollection();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddInboxModule(inbox => inbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
@@ -61,12 +64,16 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
     [Fact]
     public void AddPostgreSqlOutboxStorage_ShouldRegisterWriterLeaseAndStateRoles()
     {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
 
         var services = new ServiceCollection();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddOutboxModule(outbox => outbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
@@ -88,12 +95,16 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
     [Fact]
     public void DisableSchemaInitialization_OnInboxStorage_ShouldNotRegisterSchemaInitializer()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
 
         var services = new ServiceCollection();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddInboxModule(inbox => inbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
@@ -109,8 +120,10 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         var manifest = provider.GetRequiredService<LiteBusHostManifest>();
         manifest.StartupTasks.Should().NotContain(typeof(PostgreSqlInboxSchemaInitializer));
+
         manifest.StartupTasks.Should().ContainSingle()
             .Which.Name.Should().Be("InboxObservableMetricsInitializer");
+
         manifest.BackgroundServices.Should().BeEmpty();
         provider.GetServices<IHostedService>().Should().HaveCount(1);
     }
@@ -118,12 +131,16 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
     [Fact]
     public void DisableSchemaInitialization_OnOutboxStorage_ShouldNotRegisterSchemaInitializer()
     {
-        var options = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
 
         var services = new ServiceCollection();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddOutboxModule(outbox => outbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
@@ -139,8 +156,10 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         var manifest = provider.GetRequiredService<LiteBusHostManifest>();
         manifest.StartupTasks.Should().NotContain(typeof(PostgreSqlOutboxSchemaInitializer));
+
         manifest.StartupTasks.Should().ContainSingle()
             .Which.Name.Should().Be("OutboxObservableMetricsInitializer");
+
         manifest.BackgroundServices.Should().BeEmpty();
         provider.GetServices<IHostedService>().Should().HaveCount(1);
     }
@@ -153,13 +172,19 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ => { });
+                    registry.AddMessageModule(_ =>
+                    {
+                    });
+
                     registry.AddInboxModule(inbox =>
                     {
                         inbox.UseInMemoryStorage();
                         inbox.UseCommandInboxDispatcher();
+
                         inbox.UseAmqpDispatch(
-                            _ => { }, new AmqpConnectionOptions { HostName = "localhost" });
+                            _ =>
+                            {
+                            }, new AmqpConnectionOptions { HostName = "localhost" });
                     });
                 })
                 .BuildServiceProvider();
@@ -178,7 +203,10 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ => { });
+                    registry.AddMessageModule(_ =>
+                    {
+                    });
+
                     registry.AddInboxModule(inbox =>
                     {
                         inbox.UseInMemoryStorage();
@@ -197,17 +225,26 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
     public void DisableIngressConsumer_ShouldNotRegisterIngressHostedService()
     {
         var services = new ServiceCollection();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddInboxModule(inbox =>
             {
                 inbox.UseInMemoryStorage();
+
                 inbox.UseAmqpDispatch(
-                    _ => { }, new AmqpConnectionOptions { HostName = "localhost" });
+                    _ =>
+                    {
+                    }, new AmqpConnectionOptions { HostName = "localhost" });
+
                 inbox.UseAmqpIngress(ingress =>
                 {
                     ingress.DisableIngressConsumer();
+
                     ingress.UseOptions(new AmqpInboxIngressOptions
                     {
                         QueueName = "litebus.inbox.ingress.disabled",
@@ -229,10 +266,17 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
     public void EnableInboxProcessor_WithStorageAndDispatcher_ShouldRegisterProcessorBackgroundService()
     {
         var services = new ServiceCollection();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-            registry.AddCommandModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddCommandModule(_ =>
+            {
+            });
+
             registry.AddInboxModule(inbox =>
             {
                 inbox.UseInMemoryStorage();
@@ -246,7 +290,9 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         manifest.BackgroundServices.Should().ContainSingle()
             .Which.Should().Be(typeof(InboxProcessorBackgroundService));
+
         manifest.StartupTasks.Should().NotContain(typeof(PostgreSqlInboxSchemaInitializer));
+
         manifest.StartupTasks.Should().ContainSingle()
             .Which.Name.Should().Be("InboxObservableMetricsInitializer");
     }
@@ -257,20 +303,25 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
     [Fact]
     public void SharedDataSource_inbox_and_outbox_modules_should_resolve_same_instance()
     {
-        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxOptions();
-        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
+        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
 
         var services = new ServiceCollection();
         services.AddSingleton(_fixture.DataSource);
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddInboxModule(inbox => inbox.UsePostgreSqlStorage(pg =>
             {
                 pg.UseDataSource(_fixture.DataSource);
                 pg.UseOptions(inboxOptions);
                 pg.DisableSchemaInitialization();
             }));
+
             registry.AddOutboxModule(outbox => outbox.UsePostgreSqlStorage(pg =>
             {
                 pg.UseDataSource(_fixture.DataSource);
@@ -283,6 +334,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         provider.GetRequiredService<PostgreSqlInboxStoreRegistration>().DataSource
             .Should().BeSameAs(_fixture.DataSource);
+
         provider.GetRequiredService<PostgreSqlOutboxStoreRegistration>().DataSource
             .Should().BeSameAs(_fixture.DataSource);
     }

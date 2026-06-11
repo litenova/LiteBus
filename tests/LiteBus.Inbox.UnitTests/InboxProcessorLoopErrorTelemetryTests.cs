@@ -1,5 +1,4 @@
 using System.Diagnostics.Metrics;
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
 

@@ -57,8 +57,7 @@ public sealed class SystemTextJsonMessageSerializer : IMessageSerializer
 
         try
         {
-            var message = JsonSerializer.Deserialize(payload, messageType, _jsonSerializerOptions)
-                          ?? throw new JsonException("The deserialized payload was null.");
+            var message = JsonSerializer.Deserialize(payload, messageType, _jsonSerializerOptions) ?? throw new JsonException("The deserialized payload was null.");
 
             return Task.FromResult(message);
         }

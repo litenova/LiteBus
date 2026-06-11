@@ -1,8 +1,6 @@
-using System;
-using System.Linq;
 using Azure.Messaging.ServiceBus;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Transport;
+using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.AzureServiceBus;
 
@@ -32,7 +30,7 @@ public sealed class AzureServiceBusTransportModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(Abstractions.IMessageTransport)))
+        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageTransport)))
         {
             return;
         }
@@ -46,8 +44,8 @@ public sealed class AzureServiceBusTransportModule : IModule
             static serviceProvider =>
             {
                 var options = serviceProvider.GetService(typeof(AzureServiceBusTransportOptions))
-                    as AzureServiceBusTransportOptions
-                    ?? throw new InvalidOperationException($"{nameof(AzureServiceBusTransportOptions)} is not registered.");
+                                  as AzureServiceBusTransportOptions ??
+                              throw new InvalidOperationException($"{nameof(AzureServiceBusTransportOptions)} is not registered.");
 
                 return new ServiceBusClient(options.ConnectionString, new ServiceBusClientOptions
                 {
@@ -62,18 +60,19 @@ public sealed class AzureServiceBusTransportModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(Abstractions.IMessageTransport),
+            typeof(IMessageTransport),
             typeof(AzureServiceBusPublisher)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(Abstractions.IMessageConsumer),
+            typeof(IMessageConsumer),
             static serviceProvider =>
             {
-                var client = serviceProvider.GetService(typeof(ServiceBusClient)) as ServiceBusClient
-                    ?? throw new InvalidOperationException($"{nameof(ServiceBusClient)} is not registered.");
+                var client = serviceProvider.GetService(typeof(ServiceBusClient)) as ServiceBusClient ??
+                             throw new InvalidOperationException($"{nameof(ServiceBusClient)} is not registered.");
+
                 var options = serviceProvider.GetService(typeof(AzureServiceBusTransportOptions))
-                    as AzureServiceBusTransportOptions
-                    ?? throw new InvalidOperationException($"{nameof(AzureServiceBusTransportOptions)} is not registered.");
+                                  as AzureServiceBusTransportOptions ??
+                              throw new InvalidOperationException($"{nameof(AzureServiceBusTransportOptions)} is not registered.");
 
                 return new AzureServiceBusConsumer(client, options);
             },
@@ -82,4 +81,3 @@ public sealed class AzureServiceBusTransportModule : IModule
         TransportMetricsRegistration.RegisterIfNeeded(configuration);
     }
 }
-

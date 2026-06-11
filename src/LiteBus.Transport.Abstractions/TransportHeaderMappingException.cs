@@ -45,12 +45,14 @@ public sealed class TransportHeaderMappingException : Exception
     /// </summary>
     /// <param name="headerName">The required header name.</param>
     /// <returns>A mapping exception naming the header and publisher responsibility.</returns>
-    public static TransportHeaderMappingException MissingRequiredHeader(string headerName) =>
-        new(
+    public static TransportHeaderMappingException MissingRequiredHeader(string headerName)
+    {
+        return new TransportHeaderMappingException(
             headerName,
             $"Transport header '{headerName}' is required but missing or empty on the delivery. " +
             $"Publishers must set '{headerName}' when sending through IMessageTransport, " +
             "TransportOutboxDispatcher, TransportInboxDispatcher, or an equivalent transport adapter.");
+    }
 
     /// <summary>
     ///     Creates an exception for a required header whose value is invalid.
@@ -58,10 +60,12 @@ public sealed class TransportHeaderMappingException : Exception
     /// <param name="headerName">The required header name.</param>
     /// <param name="detail">The validation detail describing the invalid value.</param>
     /// <returns>A mapping exception naming the header and publisher responsibility.</returns>
-    public static TransportHeaderMappingException InvalidRequiredHeader(string headerName, string detail) =>
-        new(
+    public static TransportHeaderMappingException InvalidRequiredHeader(string headerName, string detail)
+    {
+        return new TransportHeaderMappingException(
             headerName,
             $"Transport header '{headerName}' is invalid: {detail} " +
             $"Publishers must set '{headerName}' correctly when sending through IMessageTransport, " +
             "TransportOutboxDispatcher, TransportInboxDispatcher, or an equivalent transport adapter.");
+    }
 }

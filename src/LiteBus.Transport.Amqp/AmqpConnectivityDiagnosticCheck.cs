@@ -12,11 +12,6 @@ namespace LiteBus.Transport.Amqp;
 public sealed class AmqpConnectivityDiagnosticCheck : IDiagnosticCheck
 {
     /// <summary>
-    ///     Gets the stable probe name reported to operators.
-    /// </summary>
-    public string Name => "transport.amqp.connectivity";
-
-    /// <summary>
     ///     The connection manager used to open the shared broker connection.
     /// </summary>
     private readonly IAmqpConnectionManager _connectionManager;
@@ -29,6 +24,11 @@ public sealed class AmqpConnectivityDiagnosticCheck : IDiagnosticCheck
     {
         _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
     }
+
+    /// <summary>
+    ///     Gets the stable probe name reported to operators.
+    /// </summary>
+    public string Name => "transport.amqp.connectivity";
 
     /// <inheritdoc />
     public async Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default)

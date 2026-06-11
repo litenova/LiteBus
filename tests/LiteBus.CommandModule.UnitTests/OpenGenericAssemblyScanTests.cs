@@ -1,4 +1,4 @@
-using LiteBus.CommandModule.UnitTests.UseCases;
+using LiteBus.CommandModule.UnitTests.UseCases.CreateProduct;
 using LiteBus.CommandModule.UnitTests.UseCases.OpenGenericAssemblyScan;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
@@ -23,7 +23,10 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ScanTestCommand).Assembly);
@@ -48,7 +51,10 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ScanTestCommand).Assembly);
@@ -73,7 +79,10 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ScanTestCommand).Assembly);
@@ -107,7 +116,10 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ScanTestCommand).Assembly);
@@ -139,7 +151,10 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ScanTestCommand).Assembly);
@@ -149,7 +164,7 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
 
         var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
 
-        var command = new UseCases.CreateProduct.CreateProductCommand();
+        var command = new CreateProductCommand();
 
         // Act
         var result = await commandMediator.SendAsync(command);
@@ -157,10 +172,12 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         // Assert: CreateProductCommand should NOT have the constrained open generic handlers.
         // We verify by checking that none of the executed types are closed forms of the scan-test open generics.
         result.Should().NotBeNull();
+
         command.ExecutedTypes
             .Where(t => t.IsGenericType)
             .Select(t => t.GetGenericTypeDefinition())
             .Should().NotContain(typeof(ScanTestOpenGenericPreHandler<>));
+
         command.ExecutedTypes
             .Where(t => t.IsGenericType)
             .Select(t => t.GetGenericTypeDefinition())
@@ -175,7 +192,10 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddCommandModule(builder =>
                 {
                     builder.RegisterFromAssembly(typeof(ScanTestCommand).Assembly);
@@ -195,9 +215,9 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         // Assert: both commands should have the full pipeline:
         // open generic pre-handler, then main handler, then open generic post-handler
         var command1Relevant = command1.ExecutedTypes
-            .Where(t => t == typeof(ScanTestCommandHandler)
-                     || (t.IsGenericType && (t.GetGenericTypeDefinition() == typeof(ScanTestOpenGenericPreHandler<>)
-                                          || t.GetGenericTypeDefinition() == typeof(ScanTestOpenGenericPostHandler<>))))
+            .Where(t => t == typeof(ScanTestCommandHandler) ||
+                        t.IsGenericType &&
+                        (t.GetGenericTypeDefinition() == typeof(ScanTestOpenGenericPreHandler<>) || t.GetGenericTypeDefinition() == typeof(ScanTestOpenGenericPostHandler<>)))
             .ToList();
 
         command1Relevant.Should().HaveCount(3);
@@ -206,9 +226,9 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         command1Relevant[2].Should().Be(typeof(ScanTestOpenGenericPostHandler<ScanTestCommand>));
 
         var command2Relevant = command2.ExecutedTypes
-            .Where(t => t == typeof(AnotherScanTestCommandHandler)
-                     || (t.IsGenericType && (t.GetGenericTypeDefinition() == typeof(ScanTestOpenGenericPreHandler<>)
-                                          || t.GetGenericTypeDefinition() == typeof(ScanTestOpenGenericPostHandler<>))))
+            .Where(t => t == typeof(AnotherScanTestCommandHandler) ||
+                        t.IsGenericType &&
+                        (t.GetGenericTypeDefinition() == typeof(ScanTestOpenGenericPreHandler<>) || t.GetGenericTypeDefinition() == typeof(ScanTestOpenGenericPostHandler<>)))
             .ToList();
 
         command2Relevant.Should().HaveCount(3);

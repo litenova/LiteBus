@@ -1,74 +1,80 @@
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 
 namespace LiteBus.Inbox.UnitTests;
 
 /// <summary>
-///     Verifies <see cref="IInboxScheduler" /> delayed acceptance semantics.
+///     Verifies <see cref="MessageVisibility" /> deferred acceptance semantics through <see cref="IInbox" />.
 /// </summary>
-public sealed class InboxSchedulerTests
+public sealed class MessageVisibilityTests
 {
     /// <summary>
-    ///     Verifies <see cref="IInboxScheduler.ScheduleAsync" /> stores a future visible-after timestamp.
+    ///     Verifies <see cref="MessageVisibility.At" /> stores a future visible-after timestamp.
     /// </summary>
     [Fact]
-    public async Task ScheduleAsync_ShouldPersistVisibleAfter()
+    public async Task AcceptAsync_with_At_visibility_should_persist_visible_after()
     {
         var now = new DateTimeOffset(2026, 6, 6, 9, 0, 0, TimeSpan.Zero);
         var visibleAfter = now.AddHours(2);
         var store = new InMemoryInboxStore();
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
+        contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
 
-        IInboxScheduler scheduler = InboxWriterTestFactory.Create(
+        var inbox = InboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
             new ManualTimeProvider(now));
 
         var orderId = Guid.NewGuid();
-        var receipt = await scheduler.ScheduleAsync(
+
+        var receipt = await inbox.AcceptAsync(InboxWriterTestFactory.Item(
             new InboxTestFixtures.ShipOrderCommand
             {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
             },
-            visibleAfter);
+            new InboxAcceptMetadata
+            {
+                Visibility = new MessageVisibility.At(visibleAfter)
+            }));
 
         receipt.AcceptedAt.Should().Be(now);
         store.Get(receipt.Id).VisibleAfter.Should().Be(visibleAfter);
     }
 
     /// <summary>
-    ///     Verifies <see cref="IInboxScheduler.ScheduleAfterAsync" /> applies a relative delay.
+    ///     Verifies <see cref="MessageVisibility.After" /> applies a relative delay at accept time.
     /// </summary>
     [Fact]
-    public async Task ScheduleAfterAsync_ShouldApplyRelativeDelay()
+    public async Task AcceptAsync_with_After_visibility_should_apply_relative_delay()
     {
         var now = new DateTimeOffset(2026, 6, 6, 9, 0, 0, TimeSpan.Zero);
         var delay = TimeSpan.FromMinutes(30);
         var store = new InMemoryInboxStore();
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship", 1);
+        contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
 
-        IInboxScheduler scheduler = InboxWriterTestFactory.Create(
+        var inbox = InboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
             new ManualTimeProvider(now));
 
         var orderId = Guid.NewGuid();
-        var receipt = await scheduler.ScheduleAfterAsync(
+
+        var receipt = await inbox.AcceptAsync(InboxWriterTestFactory.Item(
             new InboxTestFixtures.ShipOrderCommand
             {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
             },
-            delay);
+            new InboxAcceptMetadata
+            {
+                Visibility = new MessageVisibility.After(delay)
+            }));
 
         store.Get(receipt.Id).VisibleAfter.Should().Be(now.Add(delay));
     }

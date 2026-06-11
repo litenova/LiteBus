@@ -1,4 +1,3 @@
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using LiteBus.Storage.Testing;
 using Microsoft.EntityFrameworkCore;
 

@@ -1,12 +1,9 @@
-using System;
-using System.Linq;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Ingress;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
-using LiteBus.Transport.Amqp;
-using LiteBus.Transport.Abstractions;
 using LiteBus.Transport;
+using LiteBus.Transport.Abstractions;
+using LiteBus.Transport.Amqp;
 
 namespace LiteBus.Inbox.Ingress.Amqp;
 
@@ -60,9 +57,11 @@ public sealed class AmqpInboxIngressModule : IInboxIngressModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(AmqpInboxIngressOptions), options));
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(TransportInboxIngressOptions), ingressOptions));
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(TransportInboxIngressHandler),
             typeof(TransportInboxIngressHandler)));
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(AmqpInboxIngressHandler),
             typeof(AmqpInboxIngressHandler)));
@@ -84,7 +83,8 @@ public sealed class AmqpInboxIngressModule : IInboxIngressModule
     }
 
     /// <summary>
-    ///     Ensures <see cref="IMessageConsumer" /> is registered, bootstrapping AMQP transport from ingress options when needed.
+    ///     Ensures <see cref="IMessageConsumer" /> is registered, bootstrapping AMQP transport from ingress options when
+    ///     needed.
     /// </summary>
     /// <param name="configuration">The module configuration receiving dependency registrations.</param>
     /// <param name="options">The AMQP ingress options supplying connection settings when transport is not pre-registered.</param>

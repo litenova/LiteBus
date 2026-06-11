@@ -1,5 +1,4 @@
 using System;
-using LiteBus.Transport;
 
 namespace LiteBus.Transport.Amqp;
 
@@ -28,10 +27,12 @@ public sealed class AmqpCircuitBreakerOptions
     ///     Converts AMQP circuit breaker settings to the shared transport options type.
     /// </summary>
     /// <returns>The transport circuit breaker options.</returns>
-    internal TransportCircuitBreakerOptions ToTransportOptions() =>
-        new()
+    internal TransportCircuitBreakerOptions ToTransportOptions()
+    {
+        return new TransportCircuitBreakerOptions
         {
             FailureThreshold = FailureThreshold,
             BreakDuration = BreakDuration
         };
+    }
 }

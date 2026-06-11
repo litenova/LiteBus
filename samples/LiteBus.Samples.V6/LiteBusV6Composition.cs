@@ -9,11 +9,11 @@ using LiteBus.Messaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Dispatch.InProcess;
 using LiteBus.Outbox.Storage.InMemory;
+using LiteBus.Saga;
 using LiteBus.Samples.V6.Commands;
 using LiteBus.Samples.V6.Diagnostics;
 using LiteBus.Samples.V6.Events;
 using LiteBus.Samples.V6.Saga;
-using LiteBus.Saga;
 
 namespace LiteBus.Samples.V6;
 
@@ -37,19 +37,24 @@ public static class LiteBusV6Composition
         {
             var assembly = typeof(ProcessPaymentCommand).Assembly;
 
-            builder.Modules.AddMessageModule(_ => { });
+            builder.Modules.AddMessageModule(_ =>
+            {
+            });
+
             builder.Modules.AddCommandModule(c => c.RegisterFromAssembly(assembly));
             builder.Modules.AddEventModule(e => e.RegisterFromAssembly(assembly));
 
             builder.Modules.AddInboxModule(inbox =>
             {
-                inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
-                inbox.Contracts.Register<AdvanceOrderSagaCommand>("orders.saga.advance", 1);
+                inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment");
+                inbox.Contracts.Register<AdvanceOrderSagaCommand>("orders.saga.advance");
+
                 inbox.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 20,
                     LeaseDuration = TimeSpan.FromMinutes(1)
                 });
+
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
                 inbox.UseInMemoryStorage();
                 inbox.UseCommandInboxDispatcher();
@@ -86,7 +91,7 @@ public static class LiteBusV6Composition
 
             builder.Modules.AddOutboxModule(outbox =>
             {
-                outbox.Contracts.Register<PaymentProcessed>("payments.payment-processed", 1);
+                outbox.Contracts.Register<PaymentProcessed>("payments.payment-processed");
                 outbox.EnableOutboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
                 outbox.UseInMemoryStorage();
                 outbox.UseEventOutboxDispatcher();

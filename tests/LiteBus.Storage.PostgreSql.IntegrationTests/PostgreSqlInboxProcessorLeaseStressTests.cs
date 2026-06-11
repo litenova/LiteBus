@@ -8,10 +8,10 @@ using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Orchestration.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-
 using IInboxProcessor = LiteBus.Inbox.Abstractions.IInboxProcessor;
 
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
@@ -43,7 +43,7 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
     [Fact]
     public async Task ProcessPendingAsync_parallel_workers_should_produce_single_terminal_state_per_message()
     {
-        var options = PostgreSqlTestInfrastructure.CreateInboxOptions();
+        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
 
         var tracker = new InvocationTracker();
@@ -55,11 +55,14 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
         for (var index = 0; index < MessageCount; index++)
         {
             var messageId = Guid.NewGuid();
-            await scheduler.AcceptAsync(new ShipOrderCommand
-            {
-                OrderId = messageId,
-                IdempotencyKey = $"stress:{messageId:N}"
-            }, new InboxOptions { Id = messageId });
+
+            await scheduler.AcceptAsync(InboxAcceptItems.From(
+                new ShipOrderCommand
+                {
+                    OrderId = messageId,
+                    IdempotencyKey = $"stress:{messageId:N}"
+                },
+                new InboxAcceptMetadata { Identity = new MessageIdentity.Supplied(messageId) }));
 
             messageIds.Add(messageId);
         }
@@ -106,6 +109,7 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
         for (var pass = 0; pass < 50; pass++)
         {
             var result = await processor.ProcessPendingAsync();
+
             if (result.LeasedCount == 0)
             {
                 return;
@@ -125,8 +129,11 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-                registry.AddCommandModule(builder =>
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddCommandModule(builder =>
             {
                 builder.Register<ShipOrderCommand>();
                 builder.Register<SlowShipOrderCommandHandler>();
@@ -140,7 +147,8 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
                     postgres.UseOptions(options);
                 });
 
-                builder.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
+                builder.Contracts.Register<ShipOrderCommand>("orders.commands.ship");
+
                 builder.UseProcessorOptions(new InboxProcessorOptions
                 {
                     BatchSize = 8,
@@ -152,6 +160,7 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
                         InitialDelay = TimeSpan.FromMilliseconds(10)
                     }
                 });
+
                 builder.UseCommandInboxDispatcher();
             });
         });
@@ -194,7 +203,7 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
         public async Task HandleAsync(ShipOrderCommand message, CancellationToken cancellationToken = default)
         {
             _tracker.Record(message.OrderId);
-            await Task.Delay(TimeSpan.FromMilliseconds(120), cancellationToken).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(120), cancellationToken);
         }
     }
 }

@@ -34,6 +34,7 @@ public sealed class LavinMqFixture : IAsyncLifetime
                 .Build();
 
             await _container.StartAsync();
+
             ConnectionOptions = new AmqpConnectionOptions
             {
                 HostName = _container.Hostname,

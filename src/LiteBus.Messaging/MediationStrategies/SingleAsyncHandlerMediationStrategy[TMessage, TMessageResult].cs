@@ -44,7 +44,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                     $"Handler for {typeof(TMessage).Name} is not of the expected type.");
             }
 
-            messageResult = await (Task<TMessageResult>)handler.Handle(message);
+            messageResult = await (Task<TMessageResult>) handler.Handle(message);
 
             await messageDependencies.RunAsyncPostHandlers(message, messageResult);
 
@@ -52,7 +52,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
             // When present, it takes precedence over the value returned by the main handler.
             if (executionContext.MessageResult is not null)
             {
-                return (TMessageResult)executionContext.MessageResult;
+                return (TMessageResult) executionContext.MessageResult;
             }
         }
         catch (LiteBusExecutionAbortedException)
@@ -63,7 +63,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                     $"A Message result of type '{typeof(TMessageResult).Name}' is required when the execution is aborted as this message has a specific result.");
             }
 
-            return await Task.FromResult((TMessageResult)executionContext.MessageResult);
+            return await Task.FromResult((TMessageResult) executionContext.MessageResult);
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {

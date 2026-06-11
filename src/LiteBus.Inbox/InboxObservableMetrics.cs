@@ -16,25 +16,25 @@ internal sealed class InboxObservableMetrics
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(10);
 
     /// <summary>
-    ///     The service provider used to resolve inbox diagnostics dependencies at observation time.
-    /// </summary>
-    private readonly IServiceProvider _serviceProvider;
-
-    /// <summary>
     ///     Synchronizes access to cached queue counts.
     /// </summary>
     private readonly object _cacheLock = new();
 
     /// <summary>
-    ///     The UTC timestamp after which cached queue counts should be refreshed.
+    ///     The service provider used to resolve inbox diagnostics dependencies at observation time.
     /// </summary>
-    private DateTimeOffset _cacheExpiresAt;
+    private readonly IServiceProvider _serviceProvider;
 
     /// <summary>
     ///     The most recently observed queue counts grouped by status.
     /// </summary>
     private IReadOnlyDictionary<InboxStatus, int> _cachedCounts =
         new Dictionary<InboxStatus, int>();
+
+    /// <summary>
+    ///     The UTC timestamp after which cached queue counts should be refreshed.
+    /// </summary>
+    private DateTimeOffset _cacheExpiresAt;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="InboxObservableMetrics" /> class.
@@ -45,11 +45,12 @@ internal sealed class InboxObservableMetrics
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
         var meter = new Meter(LiteBusInboxTelemetry.MeterName);
+
         meter.CreateObservableGauge(
             LiteBusInboxTelemetry.QueueDepthInstrumentName,
             ObserveQueueDepth,
-            unit: "{message}",
-            description: "Number of inbox messages grouped by status.");
+            "{message}",
+            "Number of inbox messages grouped by status.");
 
         meter.CreateObservableGauge(
             LiteBusInboxTelemetry.ProcessorStateInstrumentName,
@@ -80,12 +81,13 @@ internal sealed class InboxObservableMetrics
     private IEnumerable<Measurement<int>> ObserveProcessorState()
     {
         var control = _serviceProvider.GetService(typeof(IInboxProcessorControl)) as IInboxProcessorControl;
+
         if (control is null)
         {
             yield break;
         }
 
-        yield return new Measurement<int>((int)control.State);
+        yield return new Measurement<int>((int) control.State);
     }
 
     /// <summary>
@@ -103,6 +105,7 @@ internal sealed class InboxObservableMetrics
         }
 
         var store = _serviceProvider.GetService(typeof(IInboxDiagnosticsStore)) as IInboxDiagnosticsStore;
+
         if (store is null)
         {
             return new Dictionary<InboxStatus, int>();

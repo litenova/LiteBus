@@ -27,9 +27,13 @@ internal sealed class InboxPayloadProtector : IInboxPayloadProtector
 
     /// <inheritdoc />
     public Task<string> EncryptAsync(string plaintext, CancellationToken cancellationToken = default)
-        => _encryptor.EncryptAsync(plaintext, cancellationToken);
+    {
+        return _encryptor.EncryptAsync(plaintext, cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task<string> DecryptAsync(string ciphertext, CancellationToken cancellationToken = default)
-        => _encryptor.DecryptAsync(ciphertext, cancellationToken);
+    {
+        return _encryptor.DecryptAsync(ciphertext, cancellationToken);
+    }
 }

@@ -1,6 +1,5 @@
 using AwesomeAssertions;
 using LiteBus.Inbox.Abstractions;
-using Xunit;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
@@ -79,8 +78,9 @@ public sealed class TenantLeaseFilterTests
     /// </summary>
     /// <param name="tenantId">The tenant identifier.</param>
     /// <returns>The inbox envelope.</returns>
-    private static InboxEnvelope CreateInboxEnvelope(string tenantId) =>
-        new()
+    private static InboxEnvelope CreateInboxEnvelope(string tenantId)
+    {
+        return new InboxEnvelope
         {
             Id = Guid.NewGuid(),
             ContractName = "test",
@@ -91,14 +91,16 @@ public sealed class TenantLeaseFilterTests
             AttemptCount = 0,
             TenantId = tenantId
         };
+    }
 
     /// <summary>
     ///     Creates one pending outbox envelope for a tenant.
     /// </summary>
     /// <param name="tenantId">The tenant identifier.</param>
     /// <returns>The outbox envelope.</returns>
-    private static OutboxEnvelope CreateOutboxEnvelope(string tenantId) =>
-        new()
+    private static OutboxEnvelope CreateOutboxEnvelope(string tenantId)
+    {
+        return new OutboxEnvelope
         {
             Id = Guid.NewGuid(),
             ContractName = "test",
@@ -109,6 +111,7 @@ public sealed class TenantLeaseFilterTests
             AttemptCount = 0,
             TenantId = tenantId
         };
+    }
 
     /// <summary>
     ///     Routes all traffic for one tenant to a deterministic destination.
@@ -124,13 +127,21 @@ public sealed class TenantLeaseFilterTests
         ///     Initializes a new instance of the <see cref="FixedTenantRoutingStrategy" /> class.
         /// </summary>
         /// <param name="tenantId">The tenant identifier served by this strategy.</param>
-        public FixedTenantRoutingStrategy(string tenantId) => _tenantId = tenantId;
+        public FixedTenantRoutingStrategy(string tenantId)
+        {
+            _tenantId = tenantId;
+        }
 
         /// <inheritdoc />
         public string ResolveDestination(string? tenantId, string contractName, string? topic)
-            => $"{tenantId}.{contractName}";
+        {
+            return $"{tenantId}.{contractName}";
+        }
 
         /// <inheritdoc />
-        public string? ResolveLeaseFilter(string? tenantId) => _tenantId;
+        public string ResolveLeaseFilter(string? tenantId)
+        {
+            return _tenantId;
+        }
     }
 }

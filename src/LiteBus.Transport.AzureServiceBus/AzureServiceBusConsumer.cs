@@ -1,8 +1,4 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Azure.Messaging.ServiceBus;
-using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.AzureServiceBus;
@@ -18,19 +14,14 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     private readonly ServiceBusClient _client;
 
     /// <summary>
-    ///     Gets the transport options controlling reconnect backoff.
-    /// </summary>
-    private readonly AzureServiceBusTransportOptions _options;
-
-    /// <summary>
     ///     Serializes start and stop operations on the processor.
     /// </summary>
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
 
     /// <summary>
-    ///     Signals when the active processor stops because of shutdown or failure.
+    ///     Gets the transport options controlling reconnect backoff.
     /// </summary>
-    private TaskCompletionSource _stoppedTcs = CreateStoppedTaskSource();
+    private readonly AzureServiceBusTransportOptions _options;
 
     /// <summary>
     ///     Gets the cancellation source used to stop the active recovery loop.
@@ -41,6 +32,11 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     ///     Gets the background task running the processor recovery loop.
     /// </summary>
     private Task? _consumeTask;
+
+    /// <summary>
+    ///     Signals when the active processor stops because of shutdown or failure.
+    /// </summary>
+    private TaskCompletionSource _stoppedTcs = CreateStoppedTaskSource();
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="AzureServiceBusConsumer" /> class.
@@ -120,8 +116,10 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     }
 
     /// <inheritdoc />
-    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default) =>
-        _stoppedTcs.Task.WaitAsync(cancellationToken);
+    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
+    {
+        return _stoppedTcs.Task.WaitAsync(cancellationToken);
+    }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
@@ -165,6 +163,7 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
                     }
 
                     await Task.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
+
                     retryDelay = TimeSpan.FromMilliseconds(
                         Math.Min(retryDelay.TotalMilliseconds * 2, _options.ConsumerErrorRetryMaxInterval.TotalMilliseconds));
                 }
@@ -201,12 +200,18 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
 
         processor.ProcessMessageAsync += async args =>
         {
+            var ackHandlers = new TransportConsumerAckHandlers
+            {
+                AckAsync = token => args.CompleteMessageAsync(args.Message, token),
+                NackAsync = (requeue, token) => requeue
+                    ? args.AbandonMessageAsync(args.Message, cancellationToken: token)
+                    : args.DeadLetterMessageAsync(args.Message, cancellationToken: token)
+            };
+
             var transportMessage = AzureServiceBusMessageMapper.ToTransportMessage(
                 args.Message,
                 options.Destination,
-                token => args.CompleteMessageAsync(args.Message, token),
-                token => args.AbandonMessageAsync(args.Message, cancellationToken: token),
-                token => args.DeadLetterMessageAsync(args.Message, cancellationToken: token));
+                ackHandlers);
 
             using var activity = TransportTracing.StartConsumeActivity(transportMessage);
 
@@ -235,11 +240,16 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     ///     Creates a new task source used to observe processor shutdown.
     /// </summary>
     /// <returns>The task source for the current consume session.</returns>
-    private static TaskCompletionSource CreateStoppedTaskSource() =>
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static TaskCompletionSource CreateStoppedTaskSource()
+    {
+        return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
 
     /// <summary>
     ///     Marks the current consume session as stopped.
     /// </summary>
-    private void SignalStopped() => _stoppedTcs.TrySetResult();
+    private void SignalStopped()
+    {
+        _stoppedTcs.TrySetResult();
+    }
 }

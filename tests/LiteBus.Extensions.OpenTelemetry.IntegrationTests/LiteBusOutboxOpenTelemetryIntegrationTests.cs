@@ -49,7 +49,11 @@ public sealed class LiteBusOutboxOpenTelemetryIntegrationTests
                 }
             }
         };
-        listener.SetMeasurementEventCallback<long>((_, _, _, _) => { });
+
+        listener.SetMeasurementEventCallback<long>((_, _, _, _) =>
+        {
+        });
+
         listener.Start();
 
         using var provider = Sdk.CreateMeterProviderBuilder()

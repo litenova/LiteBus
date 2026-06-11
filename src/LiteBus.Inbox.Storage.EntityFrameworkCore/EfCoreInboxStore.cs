@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +12,6 @@ using LiteBus.Storage.EntityFrameworkCore.Leasing;
 using LiteBus.Storage.EntityFrameworkCore.Stores;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 
@@ -44,11 +44,6 @@ public sealed class EfCoreInboxStore :
     IAsyncDisposable
 {
     /// <summary>
-    ///     Serializes in-memory and SQLite inbox leasing when multiple workers run in one process.
-    /// </summary>
-    private readonly SemaphoreSlim _inMemoryLeaseLock = new(1, 1);
-
-    /// <summary>
     ///     Resolves a database context for direct factory construction used in tests.
     /// </summary>
     private readonly Func<CancellationToken, Task<IInboxDbContext>>? _contextFactory;
@@ -64,12 +59,18 @@ public sealed class EfCoreInboxStore :
     private readonly IInboxDbContext? _existingContext;
 
     /// <summary>
+    ///     Serializes in-memory and SQLite inbox leasing when multiple workers run in one process.
+    /// </summary>
+    private readonly SemaphoreSlim _inMemoryLeaseLock = new(1, 1);
+
+    /// <summary>
     ///     Store options that define schema and table names for raw SQL leasing.
     /// </summary>
     private readonly EfCoreInboxStoreOptions _options;
 
     /// <summary>
-    ///     Gets a value indicating whether add operations call <see cref="DbContext.SaveChangesAsync(System.Threading.CancellationToken)" /> immediately.
+    ///     Gets a value indicating whether add operations call
+    ///     <see cref="DbContext.SaveChangesAsync(System.Threading.CancellationToken)" /> immediately.
     /// </summary>
     private readonly bool _saveChangesOnAdd = true;
 
@@ -124,7 +125,8 @@ public sealed class EfCoreInboxStore :
     /// <param name="context">The existing inbox database context.</param>
     /// <param name="options">The store options.</param>
     /// <param name="saveChangesOnAdd">
-    ///     <see langword="true" /> to call <see cref="DbContext.SaveChangesAsync(System.Threading.CancellationToken)" /> inside
+    ///     <see langword="true" /> to call <see cref="DbContext.SaveChangesAsync(System.Threading.CancellationToken)" />
+    ///     inside
     ///     <see cref="AddAsync(InboxEnvelope, CancellationToken)" />; otherwise, <see langword="false" />.
     /// </param>
     private EfCoreInboxStore(
@@ -137,210 +139,125 @@ public sealed class EfCoreInboxStore :
         _saveChangesOnAdd = saveChangesOnAdd;
     }
 
-    /// <summary>
-    ///     Returns a store instance that writes through an existing application <see cref="DbContext" />.
-    /// </summary>
-    /// <typeparam name="TContext">The concrete context type.</typeparam>
-    /// <param name="context">The existing context that owns the ambient transaction.</param>
-    /// <returns>
-    ///     A store bound to <paramref name="context" /> where <see cref="AddAsync(InboxEnvelope, CancellationToken)" />
-    ///     stages inserts and defers commit to the caller's <c>SaveChanges</c> call.
-    /// </returns>
-    public ITransactionalInboxStore UseExistingDbContext<TContext>(TContext context)
-        where TContext : DbContext, IInboxDbContext
+    /// <inheritdoc />
+    public ValueTask DisposeAsync()
     {
-        ArgumentNullException.ThrowIfNull(context);
-        return new EfCoreInboxStore(context, _options, saveChangesOnAdd: false);
+        _inMemoryLeaseLock.Dispose();
+        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />
-    public async Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
+    public Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(envelope);
+        ArgumentNullException.ThrowIfNull(messageIds);
 
-        return await ExecuteAsync(async (context, token) =>
+        return ExecuteAsync(async (context, token) =>
         {
-            var local = FindLocalEntity(context, envelope.Id, envelope.IdempotencyKey);
-            if (local is not null)
+            if (messageIds.Count == 0)
             {
-                return ToEnvelope(local);
+                return;
             }
 
-            var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
+            var entities = await context.InboxMessages
+                .Where(message => messageIds.Contains(message.Id) && message.Status == InboxStatus.DeadLettered)
+                .ToListAsync(token)
                 .ConfigureAwait(false);
 
-            if (existing is not null)
+            foreach (var entity in entities)
             {
-                return ToEnvelope(existing);
+                ApplyMutableState(entity, ToEnvelope(entity).AsRequeued());
             }
 
-            var entity = ToEntity(envelope);
-            context.InboxMessages.Add(entity);
-
-            if (!_saveChangesOnAdd)
-            {
-                return ToEnvelope(entity);
-            }
-
-            try
+            if (entities.Count > 0)
             {
                 await SaveChangesAsync(context, token).ConfigureAwait(false);
-                await ReloadEntityAsync(context, entity, token).ConfigureAwait(false);
-                return ToEnvelope(entity);
             }
-            catch (DbUpdateException)
-            {
-                var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
-                    .ConfigureAwait(false);
-
-                if (stored is null)
-                {
-                    throw;
-                }
-
-                DetachFailedInsert(context, entity);
-                return ToEnvelope(stored);
-            }
-        }, cancellationToken).ConfigureAwait(false);
+        }, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
-        IReadOnlyList<InboxEnvelope> envelopes,
+    public Task<int> DeleteCompletedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
+    {
+        return ExecuteAsync(async (context, token) =>
+        {
+            if (context is not DbContext dbContext)
+            {
+                throw new InvalidOperationException("Retention cleanup requires a DbContext-backed inbox database context.");
+            }
+
+            return await dbContext.Set<InboxMessageEntity>()
+                .Where(message => message.Status == InboxStatus.Completed &&
+                                  (message.CompletedAt ?? message.CreatedAt) < olderThan)
+                .ExecuteDeleteAsync(token)
+                .ConfigureAwait(false);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<InboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
+    {
+        return ExecuteAsync(async (context, token) =>
+        {
+            var counts = await context.InboxMessages
+                .GroupBy(message => message.Status)
+                .Select(group => new { Status = group.Key, Count = group.Count() })
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+
+            return (IReadOnlyDictionary<InboxStatus, int>) counts.ToDictionary(
+                entry => entry.Status,
+                entry => entry.Count);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
+    {
+        _ = cancellationToken;
+        return Task.FromResult(StoreSchemaInfo.ForLogicalStore("inbox", 1));
+    }
+
+    /// <inheritdoc />
+    public Task<InboxMessagePage> QueryAsync(
+        InboxMessageFilter filter,
+        InboxMessagePageRequest pageRequest,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(envelopes);
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(pageRequest);
+        ValidatePageSize(pageRequest.PageSize);
 
-        if (envelopes.Count == 0)
+        return ExecuteAsync(async (context, token) =>
         {
-            return Array.Empty<InboxEnvelope>();
-        }
+            var query = ApplyFilter(context.InboxMessages.AsQueryable(), filter);
+            query = ApplyCursor(query, pageRequest.Cursor);
 
-        return await ExecuteAsync(async (context, token) =>
+            var entities = await query
+                .OrderBy(message => message.CreatedAt)
+                .ThenBy(message => message.Id)
+                .Take(pageRequest.PageSize + 1)
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+
+            return BuildPage(entities.Select(ToEnvelope).ToList(), pageRequest.PageSize);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<int> PurgeAsync(InboxMessageFilter filter, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+
+        return ExecuteAsync(async (context, token) =>
         {
-            var results = new InboxEnvelope[envelopes.Count];
-            var pending = new List<(int Index, InboxEnvelope Envelope)>();
-            var seenIds = new Dictionary<Guid, InboxEnvelope>();
-            var seenIdempotencyKeys = new Dictionary<string, InboxEnvelope>(StringComparer.Ordinal);
-            var pendingIdempotencyKeys = new Dictionary<string, int>(StringComparer.Ordinal);
-            var pendingAliases = new Dictionary<int, int>();
-
-            for (var index = 0; index < envelopes.Count; index++)
+            if (context is not DbContext dbContext)
             {
-                var envelope = envelopes[index];
-
-                if (seenIds.TryGetValue(envelope.Id, out var duplicateById))
-                {
-                    results[index] = duplicateById;
-                    continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey)
-                    && seenIdempotencyKeys.TryGetValue(envelope.IdempotencyKey, out var duplicateByKey))
-                {
-                    results[index] = duplicateByKey;
-                    continue;
-                }
-
-                var local = FindLocalEntity(context, envelope.Id, envelope.IdempotencyKey);
-                if (local is not null)
-                {
-                    results[index] = ToEnvelope(local);
-                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
-                    continue;
-                }
-
-                var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
-                    .ConfigureAwait(false);
-
-                if (existing is not null)
-                {
-                    results[index] = ToEnvelope(existing);
-                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
-                    continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey)
-                    && pendingIdempotencyKeys.TryGetValue(envelope.IdempotencyKey, out var sourceIndex))
-                {
-                    pendingAliases[index] = sourceIndex;
-                    continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
-                {
-                    pendingIdempotencyKeys[envelope.IdempotencyKey] = index;
-                }
-
-                pending.Add((index, envelope));
+                throw new InvalidOperationException("Purge requires a DbContext-backed inbox database context.");
             }
 
-            if (pending.Count == 0)
-            {
-                return results;
-            }
-
-            var entities = pending.Select(entry => ToEntity(entry.Envelope)).ToList();
-            context.InboxMessages.AddRange(entities);
-
-            void ApplyPendingResults()
-            {
-                for (var index = 0; index < pending.Count; index++)
-                {
-                    var stored = ToEnvelope(entities[index]);
-                    results[pending[index].Index] = stored;
-                    RememberBatchResult(seenIds, seenIdempotencyKeys, pending[index].Envelope, stored);
-                }
-
-                foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
-                {
-                    results[duplicateIndex] = results[sourceIndex];
-                }
-            }
-
-            if (!_saveChangesOnAdd)
-            {
-                ApplyPendingResults();
-                return results;
-            }
-
-            try
-            {
-                await SaveChangesAsync(context, token).ConfigureAwait(false);
-
-                for (var index = 0; index < pending.Count; index++)
-                {
-                    await ReloadEntityAsync(context, entities[index], token).ConfigureAwait(false);
-                }
-
-                ApplyPendingResults();
-            }
-            catch (DbUpdateException)
-            {
-                foreach (var entity in entities)
-                {
-                    DetachFailedInsert(context, entity);
-                }
-
-                foreach (var (index, envelope) in pending)
-                {
-                    var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
-                        .ConfigureAwait(false)
-                        ?? throw new InvalidOperationException(
-                            "The inbox batch insert failed and the existing message could not be found.");
-
-                    results[index] = ToEnvelope(stored);
-                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
-                }
-
-                foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
-                {
-                    results[duplicateIndex] = results[sourceIndex];
-                }
-            }
-
-            return results;
-        }, cancellationToken).ConfigureAwait(false);
+            var query = ApplyFilter(context.InboxMessages.AsQueryable(), filter);
+            return await DeleteMatchingAsync(dbContext, query, token).ConfigureAwait(false);
+        }, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -455,7 +372,8 @@ public sealed class EfCoreInboxStore :
                     await ApplyDeadLetteredAsync(context, deadLettered, token).ConfigureAwait(false));
             }
 
-            if (persistedMessageIds.Count > 0 && context is DbContext trackedContext &&
+            if (persistedMessageIds.Count > 0 &&
+                context is DbContext trackedContext &&
                 trackedContext.ChangeTracker.HasChanges())
             {
                 await SaveChangesAsync(context, token).ConfigureAwait(false);
@@ -465,6 +383,212 @@ public sealed class EfCoreInboxStore :
             var appliedCount = messageIds.Count(persistedMessageIds.Contains);
             return PersistResult.FromOutcome(appliedCount, messageIds.Length - appliedCount);
         }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+
+        return await ExecuteAsync(async (context, token) =>
+        {
+            var local = FindLocalEntity(context, envelope.Id, envelope.IdempotencyKey);
+
+            if (local is not null)
+            {
+                return ToEnvelope(local);
+            }
+
+            var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
+                .ConfigureAwait(false);
+
+            if (existing is not null)
+            {
+                return ToEnvelope(existing);
+            }
+
+            var entity = ToEntity(envelope);
+            context.InboxMessages.Add(entity);
+
+            if (!_saveChangesOnAdd)
+            {
+                return ToEnvelope(entity);
+            }
+
+            try
+            {
+                await SaveChangesAsync(context, token).ConfigureAwait(false);
+                await ReloadEntityAsync(context, entity, token).ConfigureAwait(false);
+                return ToEnvelope(entity);
+            }
+            catch (DbUpdateException)
+            {
+                var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
+                    .ConfigureAwait(false);
+
+                if (stored is null)
+                {
+                    throw;
+                }
+
+                DetachFailedInsert(context, entity);
+                return ToEnvelope(stored);
+            }
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
+        IReadOnlyList<InboxEnvelope> envelopes,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelopes);
+
+        if (envelopes.Count == 0)
+        {
+            return Array.Empty<InboxEnvelope>();
+        }
+
+        return await ExecuteAsync(async (context, token) =>
+        {
+            var results = new InboxEnvelope[envelopes.Count];
+            var pending = new List<(int Index, InboxEnvelope Envelope)>();
+            var seenIds = new Dictionary<Guid, InboxEnvelope>();
+            var seenIdempotencyKeys = new Dictionary<string, InboxEnvelope>(StringComparer.Ordinal);
+            var pendingIdempotencyKeys = new Dictionary<string, int>(StringComparer.Ordinal);
+            var pendingAliases = new Dictionary<int, int>();
+
+            for (var index = 0; index < envelopes.Count; index++)
+            {
+                var envelope = envelopes[index];
+
+                if (seenIds.TryGetValue(envelope.Id, out var duplicateById))
+                {
+                    results[index] = duplicateById;
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey) && seenIdempotencyKeys.TryGetValue(envelope.IdempotencyKey, out var duplicateByKey))
+                {
+                    results[index] = duplicateByKey;
+                    continue;
+                }
+
+                var local = FindLocalEntity(context, envelope.Id, envelope.IdempotencyKey);
+
+                if (local is not null)
+                {
+                    results[index] = ToEnvelope(local);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
+                    continue;
+                }
+
+                var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
+                    .ConfigureAwait(false);
+
+                if (existing is not null)
+                {
+                    results[index] = ToEnvelope(existing);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey) && pendingIdempotencyKeys.TryGetValue(envelope.IdempotencyKey, out var sourceIndex))
+                {
+                    pendingAliases[index] = sourceIndex;
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
+                {
+                    pendingIdempotencyKeys[envelope.IdempotencyKey] = index;
+                }
+
+                pending.Add((index, envelope));
+            }
+
+            if (pending.Count == 0)
+            {
+                return results;
+            }
+
+            var entities = pending.Select(entry => ToEntity(entry.Envelope)).ToList();
+            context.InboxMessages.AddRange(entities);
+
+            void ApplyPendingResults()
+            {
+                for (var index = 0; index < pending.Count; index++)
+                {
+                    var stored = ToEnvelope(entities[index]);
+                    results[pending[index].Index] = stored;
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, pending[index].Envelope, stored);
+                }
+
+                foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
+                {
+                    results[duplicateIndex] = results[sourceIndex];
+                }
+            }
+
+            if (!_saveChangesOnAdd)
+            {
+                ApplyPendingResults();
+                return results;
+            }
+
+            try
+            {
+                await SaveChangesAsync(context, token).ConfigureAwait(false);
+
+                for (var index = 0; index < pending.Count; index++)
+                {
+                    await ReloadEntityAsync(context, entities[index], token).ConfigureAwait(false);
+                }
+
+                ApplyPendingResults();
+            }
+            catch (DbUpdateException)
+            {
+                foreach (var entity in entities)
+                {
+                    DetachFailedInsert(context, entity);
+                }
+
+                foreach (var (index, envelope) in pending)
+                {
+                    var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
+                                     .ConfigureAwait(false) ??
+                                 throw new InvalidOperationException(
+                                     "The inbox batch insert failed and the existing message could not be found.");
+
+                    results[index] = ToEnvelope(stored);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
+                }
+
+                foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
+                {
+                    results[duplicateIndex] = results[sourceIndex];
+                }
+            }
+
+            return results;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Returns a store instance that writes through an existing application <see cref="DbContext" />.
+    /// </summary>
+    /// <typeparam name="TContext">The concrete context type.</typeparam>
+    /// <param name="context">The existing context that owns the ambient transaction.</param>
+    /// <returns>
+    ///     A store bound to <paramref name="context" /> where <see cref="AddAsync(InboxEnvelope, CancellationToken)" />
+    ///     stages inserts and defers commit to the caller's <c>SaveChanges</c> call.
+    /// </returns>
+    public ITransactionalInboxStore UseExistingDbContext<TContext>(TContext context)
+        where TContext : DbContext, IInboxDbContext
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return new EfCoreInboxStore(context, _options, false);
     }
 
     /// <summary>
@@ -494,6 +618,7 @@ public sealed class EfCoreInboxStore :
         foreach (var envelope in envelopes)
         {
             var completedAt = envelope.CompletedAt ?? DateTimeOffset.UtcNow;
+
             var affected = await dbContext.Set<InboxMessageEntity>()
                 .Where(message =>
                     message.Id == envelope.Id &&
@@ -502,9 +627,9 @@ public sealed class EfCoreInboxStore :
                 .ExecuteUpdateAsync(
                     setters => setters
                         .SetProperty(message => message.Status, InboxStatus.Completed)
-                        .SetProperty(message => message.LeaseOwner, (string?)null)
-                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?)null)
-                        .SetProperty(message => message.LastError, (string?)null)
+                        .SetProperty(message => message.LeaseOwner, (string?) null)
+                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
+                        .SetProperty(message => message.LastError, (string?) null)
                         .SetProperty(message => message.CompletedAt, completedAt),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -531,6 +656,7 @@ public sealed class EfCoreInboxStore :
         CancellationToken cancellationToken)
     {
         var envelopeById = envelopes.ToDictionary(envelope => envelope.Id);
+
         var entities = await context.InboxMessages
             .Where(message => envelopeById.Keys.Contains(message.Id))
             .ToListAsync(cancellationToken)
@@ -550,6 +676,7 @@ public sealed class EfCoreInboxStore :
             ApplyMutableState(entity, source.Status == InboxStatus.Completed
                 ? source
                 : source.AsCompleted());
+
             persistedMessageIds.Add(entity.Id);
         }
 
@@ -592,8 +719,8 @@ public sealed class EfCoreInboxStore :
                         .SetProperty(message => message.Status, InboxStatus.Failed)
                         .SetProperty(message => message.VisibleAfter, envelope.VisibleAfter)
                         .SetProperty(message => message.AttemptCount, envelope.AttemptCount)
-                        .SetProperty(message => message.LeaseOwner, (string?)null)
-                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?)null)
+                        .SetProperty(message => message.LeaseOwner, (string?) null)
+                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
                         .SetProperty(message => message.LastError, envelope.LastError),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -620,6 +747,7 @@ public sealed class EfCoreInboxStore :
         CancellationToken cancellationToken)
     {
         var envelopeById = envelopes.ToDictionary(envelope => envelope.Id);
+
         var entities = await context.InboxMessages
             .Where(message => envelopeById.Keys.Contains(message.Id))
             .ToListAsync(cancellationToken)
@@ -678,8 +806,8 @@ public sealed class EfCoreInboxStore :
                     setters => setters
                         .SetProperty(message => message.Status, InboxStatus.DeadLettered)
                         .SetProperty(message => message.AttemptCount, envelope.AttemptCount)
-                        .SetProperty(message => message.LeaseOwner, (string?)null)
-                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?)null)
+                        .SetProperty(message => message.LeaseOwner, (string?) null)
+                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
                         .SetProperty(message => message.LastError, envelope.LastError),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -706,6 +834,7 @@ public sealed class EfCoreInboxStore :
         CancellationToken cancellationToken)
     {
         var envelopeById = envelopes.ToDictionary(envelope => envelope.Id);
+
         var entities = await context.InboxMessages
             .Where(message => envelopeById.Keys.Contains(message.Id))
             .ToListAsync(cancellationToken)
@@ -741,127 +870,6 @@ public sealed class EfCoreInboxStore :
                string.Equals(entity.LeaseOwner, envelope.LeaseOwner, StringComparison.Ordinal);
     }
 
-    /// <inheritdoc />
-    public Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(messageIds);
-
-        return ExecuteAsync(async (context, token) =>
-        {
-            if (messageIds.Count == 0)
-            {
-                return;
-            }
-
-            var entities = await context.InboxMessages
-                .Where(message => messageIds.Contains(message.Id) && message.Status == InboxStatus.DeadLettered)
-                .ToListAsync(token)
-                .ConfigureAwait(false);
-
-            foreach (var entity in entities)
-            {
-                ApplyMutableState(entity, ToEnvelope(entity).AsRequeued());
-            }
-
-            if (entities.Count > 0)
-            {
-                await SaveChangesAsync(context, token).ConfigureAwait(false);
-            }
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task<int> DeleteCompletedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
-    {
-        return ExecuteAsync(async (context, token) =>
-        {
-            if (context is not DbContext dbContext)
-            {
-                throw new InvalidOperationException("Retention cleanup requires a DbContext-backed inbox database context.");
-            }
-
-            return await dbContext.Set<InboxMessageEntity>()
-                .Where(message => message.Status == InboxStatus.Completed &&
-                                  (message.CompletedAt ?? message.CreatedAt) < olderThan)
-                .ExecuteDeleteAsync(token)
-                .ConfigureAwait(false);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task<IReadOnlyDictionary<InboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
-    {
-        return ExecuteAsync(async (context, token) =>
-        {
-            var counts = await context.InboxMessages
-                .GroupBy(message => message.Status)
-                .Select(group => new { Status = group.Key, Count = group.Count() })
-                .ToListAsync(token)
-                .ConfigureAwait(false);
-
-            return (IReadOnlyDictionary<InboxStatus, int>)counts.ToDictionary(
-                entry => entry.Status,
-                entry => entry.Count);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
-    {
-        _ = cancellationToken;
-        return Task.FromResult(StoreSchemaInfo.ForLogicalStore("inbox", 1));
-    }
-
-    /// <inheritdoc />
-    public Task<InboxMessagePage> QueryAsync(
-        InboxMessageFilter filter,
-        InboxMessagePageRequest pageRequest,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(filter);
-        ArgumentNullException.ThrowIfNull(pageRequest);
-        ValidatePageSize(pageRequest.PageSize);
-
-        return ExecuteAsync(async (context, token) =>
-        {
-            var query = ApplyFilter(context.InboxMessages.AsQueryable(), filter);
-            query = ApplyCursor(query, pageRequest.Cursor);
-
-            var entities = await query
-                .OrderBy(message => message.CreatedAt)
-                .ThenBy(message => message.Id)
-                .Take(pageRequest.PageSize + 1)
-                .ToListAsync(token)
-                .ConfigureAwait(false);
-
-            return BuildPage(entities.Select(ToEnvelope).ToList(), pageRequest.PageSize);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task<int> PurgeAsync(InboxMessageFilter filter, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(filter);
-
-        return ExecuteAsync(async (context, token) =>
-        {
-            if (context is not DbContext dbContext)
-            {
-                throw new InvalidOperationException("Purge requires a DbContext-backed inbox database context.");
-            }
-
-            var query = ApplyFilter(context.InboxMessages.AsQueryable(), filter);
-            return await DeleteMatchingAsync(dbContext, query, token).ConfigureAwait(false);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public ValueTask DisposeAsync()
-    {
-        _inMemoryLeaseLock.Dispose();
-        return ValueTask.CompletedTask;
-    }
-
     /// <summary>
     ///     Runs one store operation against a resolved database context.
     /// </summary>
@@ -890,7 +898,7 @@ public sealed class EfCoreInboxStore :
         }
 
         await using var scope = _scopeFactory.CreateAsyncScope();
-        var contextFromScope = (IInboxDbContext)scope.ServiceProvider.GetRequiredService(_dbContextType);
+        var contextFromScope = (IInboxDbContext) scope.ServiceProvider.GetRequiredService(_dbContextType);
         return await action(contextFromScope, cancellationToken).ConfigureAwait(false);
     }
 
@@ -927,7 +935,8 @@ public sealed class EfCoreInboxStore :
     {
         var leaseExpiresAt = request.Now.Add(request.LeaseDuration);
         var staleCutoff = request.Now.Add(-request.LeaseDuration);
-        List<InboxMessageLeaseRow> rows = provider switch
+
+        var rows = provider switch
         {
             EfCoreStorageProvider.PostgreSql => await EfCoreRelationalLeaseExecutor
                 .LeasePostgreSqlAsync<InboxMessageLeaseRow>(
@@ -936,10 +945,10 @@ public sealed class EfCoreInboxStore :
                     provider,
                     _options.SchemaName,
                     _options.TableName,
-                    (int)InboxStatus.Pending,
-                    (int)InboxStatus.Failed,
+                    (int) InboxStatus.Pending,
+                    (int) InboxStatus.Failed,
                     request.Now,
-                    (int)InboxStatus.Processing,
+                    (int) InboxStatus.Processing,
                     request.BatchSize,
                     request.LeaseOwner,
                     leaseExpiresAt,
@@ -954,10 +963,10 @@ public sealed class EfCoreInboxStore :
                     provider,
                     _options.SchemaName,
                     _options.TableName,
-                    (int)InboxStatus.Pending,
-                    (int)InboxStatus.Failed,
+                    (int) InboxStatus.Pending,
+                    (int) InboxStatus.Failed,
                     request.Now,
-                    (int)InboxStatus.Processing,
+                    (int) InboxStatus.Processing,
                     request.BatchSize,
                     request.LeaseOwner,
                     leaseExpiresAt,
@@ -972,10 +981,10 @@ public sealed class EfCoreInboxStore :
                     provider,
                     _options.SchemaName,
                     _options.TableName,
-                    (int)InboxStatus.Pending,
-                    (int)InboxStatus.Failed,
+                    (int) InboxStatus.Pending,
+                    (int) InboxStatus.Failed,
                     request.Now,
-                    (int)InboxStatus.Processing,
+                    (int) InboxStatus.Processing,
                     request.BatchSize,
                     request.LeaseOwner,
                     leaseExpiresAt,
@@ -1036,15 +1045,10 @@ public sealed class EfCoreInboxStore :
 
         var candidates = await context.InboxMessages
             .Where(message =>
-                (tenantId == null || message.TenantId == tenantId)
-                && (((message.Status == pendingStatus || message.Status == failedStatus)
-                     && (message.VisibleAfter == null || message.VisibleAfter <= now))
-                    || (message.Status == processingStatus
-                        && message.LeaseExpiresAt != null
-                        && message.LeaseExpiresAt <= now)
-                    || (message.Status == processingStatus
-                        && message.LeaseExpiresAt == null
-                        && message.CreatedAt < staleCutoff)))
+                (tenantId == null || message.TenantId == tenantId) &&
+                ((message.Status == pendingStatus || message.Status == failedStatus) && (message.VisibleAfter == null || message.VisibleAfter <= now) ||
+                 message.Status == processingStatus && message.LeaseExpiresAt != null && message.LeaseExpiresAt <= now ||
+                 message.Status == processingStatus && message.LeaseExpiresAt == null && message.CreatedAt < staleCutoff))
             .OrderBy(message => message.CreatedAt)
             .Take(request.BatchSize)
             .ToListAsync(cancellationToken)
@@ -1076,8 +1080,7 @@ public sealed class EfCoreInboxStore :
         string? idempotencyKey)
     {
         return context.InboxMessages.Local.FirstOrDefault(message =>
-            message.Id == messageId
-            || (!string.IsNullOrWhiteSpace(idempotencyKey) && message.IdempotencyKey == idempotencyKey));
+            message.Id == messageId || !string.IsNullOrWhiteSpace(idempotencyKey) && message.IdempotencyKey == idempotencyKey);
     }
 
     /// <summary>
@@ -1153,6 +1156,7 @@ public sealed class EfCoreInboxStore :
     /// <param name="context">The database context.</param>
     /// <param name="entity">The entity to reload.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that completes when the entity has been reloaded.</returns>
     private static async Task ReloadEntityAsync(
         IInboxDbContext context,
         InboxMessageEntity entity,
@@ -1222,7 +1226,7 @@ public sealed class EfCoreInboxStore :
             CreatedAt = row.CreatedAt,
             VisibleAfter = row.VisibleAfter,
             AttemptCount = row.AttemptCount,
-            Status = (InboxStatus)row.Status,
+            Status = (InboxStatus) row.Status,
             IdempotencyKey = row.IdempotencyKey,
             LeaseOwner = row.LeaseOwner,
             LeaseExpiresAt = row.LeaseExpiresAt,
@@ -1272,12 +1276,15 @@ public sealed class EfCoreInboxStore :
         entity.Status = envelope.Status;
         entity.VisibleAfter = envelope.VisibleAfter;
         entity.AttemptCount = envelope.AttemptCount;
+
         entity.LeaseOwner = envelope.Status is InboxStatus.Completed or InboxStatus.Failed or InboxStatus.DeadLettered
             ? null
             : envelope.LeaseOwner;
+
         entity.LeaseExpiresAt = envelope.Status is InboxStatus.Completed or InboxStatus.Failed or InboxStatus.DeadLettered
             ? null
             : envelope.LeaseExpiresAt;
+
         entity.LastError = envelope.LastError;
 
         if (envelope.Status == InboxStatus.Completed)
@@ -1310,7 +1317,7 @@ public sealed class EfCoreInboxStore :
 
         if (statusValues is not null)
         {
-            query = query.Where(message => statusValues.Contains((int)message.Status));
+            query = query.Where(message => statusValues.Contains((int) message.Status));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.ContractName))
@@ -1368,7 +1375,7 @@ public sealed class EfCoreInboxStore :
 
         return query.Where(message =>
             message.CreatedAt > cursorCreatedAt ||
-            (message.CreatedAt == cursorCreatedAt && message.Id > cursorMessageId));
+            message.CreatedAt == cursorCreatedAt && message.Id > cursorMessageId);
     }
 
     /// <summary>
@@ -1381,6 +1388,7 @@ public sealed class EfCoreInboxStore :
     {
         var hasMore = envelopes.Count > pageSize;
         var items = hasMore ? envelopes.Take(pageSize).ToList() : envelopes;
+
         var nextCursor = hasMore
             ? InboxMessagePageCursor.Encode(items[^1].CreatedAt, items[^1].Id)
             : null;
@@ -1447,7 +1455,7 @@ public sealed class EfCoreInboxStore :
 
         for (var index = 0; index < statuses.Count; index++)
         {
-            values[index] = (int)statuses[index];
+            values[index] = (int) statuses[index];
         }
 
         return values;
@@ -1465,10 +1473,10 @@ public sealed class EfCoreInboxStore :
         public Guid Id { get; set; }
 
         /// <summary>
-        ///     Gets or sets the contract name column.
+        ///     Gets the contract name column.
         /// </summary>
         [Column("contract_name")]
-        public string ContractName { get; set; } = string.Empty;
+        public string ContractName { get; } = string.Empty;
 
         /// <summary>
         ///     Gets or sets the contract version column.
@@ -1477,10 +1485,10 @@ public sealed class EfCoreInboxStore :
         public int ContractVersion { get; set; }
 
         /// <summary>
-        ///     Gets or sets the payload column.
+        ///     Gets the payload column.
         /// </summary>
         [Column("payload")]
-        public string Payload { get; set; } = string.Empty;
+        public string Payload { get; } = string.Empty;
 
         /// <summary>
         ///     Gets or sets the created timestamp column.

@@ -53,12 +53,12 @@ public static class PostgreSqlSchemaSqlPaths
     /// </summary>
     public static IReadOnlyList<PostgreSqlSchemaSqlFile> Files { get; } =
     [
-        new PostgreSqlSchemaSqlFile(MetadataCreate, "Creates the LiteBus schema version metadata table."),
-        new PostgreSqlSchemaSqlFile(MetadataSelectVersion, "Reads one schema version row. Used internally at runtime."),
-        new PostgreSqlSchemaSqlFile(MetadataUpsertVersion, "Writes one schema version row. Used internally at runtime."),
-        new PostgreSqlSchemaSqlFile(InspectorTableExists, "Checks whether a table exists. Used internally at runtime."),
-        new PostgreSqlSchemaSqlFile(InspectorListColumns, "Lists table columns. Used internally at runtime."),
-        new PostgreSqlSchemaSqlFile(InspectorIndexExists, "Checks whether one index exists. Used internally at runtime.")
+        new(MetadataCreate, "Creates the LiteBus schema version metadata table."),
+        new(MetadataSelectVersion, "Reads one schema version row. Used internally at runtime."),
+        new(MetadataUpsertVersion, "Writes one schema version row. Used internally at runtime."),
+        new(InspectorTableExists, "Checks whether a table exists. Used internally at runtime."),
+        new(InspectorListColumns, "Lists table columns. Used internally at runtime."),
+        new(InspectorIndexExists, "Checks whether one index exists. Used internally at runtime.")
     ];
 }
 

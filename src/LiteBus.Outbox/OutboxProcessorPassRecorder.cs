@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Messaging.Processing;
 using LiteBus.Outbox.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -35,6 +34,7 @@ internal static class OutboxProcessorPassRecorder
         passActivity?.SetTag("litebus.outbox.succeeded_count", result.SucceededCount);
         passActivity?.SetTag("litebus.outbox.failed_count", result.FailedCount);
         passActivity?.SetTag("litebus.outbox.dead_lettered_count", result.DeadLetteredCount);
+
         OutboxProcessorTelemetry.RecordPass(
             result.LeasedCount,
             result.SucceededCount,
@@ -74,6 +74,7 @@ internal static class OutboxProcessorPassRecorder
         passActivity?.SetTag("litebus.outbox.succeeded_count", result.SucceededCount);
         passActivity?.SetTag("litebus.outbox.failed_count", result.FailedCount);
         passActivity?.SetTag("litebus.outbox.dead_lettered_count", result.DeadLetteredCount);
+
         OutboxProcessorTelemetry.RecordPass(
             result.LeasedCount,
             result.SucceededCount,

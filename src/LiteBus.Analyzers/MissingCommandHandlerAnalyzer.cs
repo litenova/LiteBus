@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
 using System.Linq;
+using LiteBus.Analyzers.Analysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
-using LiteBus.Analyzers.Analysis;
 
 namespace LiteBus.Analyzers;
 
@@ -33,10 +33,12 @@ public sealed class MissingCommandHandlerAnalyzer : DiagnosticAnalyzer
         var handlers = HandlerAnalysis.CollectHandlerRegistrations(context.Compilation, context.CancellationToken)
             .Where(handler => handler.Pipeline == "command")
             .ToImmutableArray();
+
         var openGenericHandlers = MessageAnalysis.CollectOpenGenericMainHandlers(
             context.Compilation,
             MessageKind.Command,
             context.CancellationToken);
+
         var commands = MessageAnalysis.CollectMessageTypes(
             context.Compilation,
             MessageKind.Command,

@@ -1,6 +1,6 @@
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Dispatch.Aws;
@@ -44,9 +44,14 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
             var processor = provider.GetRequiredService<IOutboxProcessor>();
             var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-            await outbox.EnqueueAsync(
-                new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-                new OutboxOptions { Id = messageId });
+            await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+            {
+                Event = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Metadata = OutboxEnqueueMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId)
+                }
+            });
 
             await processor.ProcessPendingAsync();
 
@@ -81,6 +86,7 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
         try
         {
             var breaker = provider.GetRequiredService<ITransportCircuitBreaker>();
+
             for (var attempt = 0; attempt < 5; attempt++)
             {
                 breaker.RecordFailure();
@@ -90,9 +96,14 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
             var processor = provider.GetRequiredService<IOutboxProcessor>();
             var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-            await outbox.EnqueueAsync(
-                new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-                new OutboxOptions { Id = messageId });
+            await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+            {
+                Event = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Metadata = OutboxEnqueueMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId)
+                }
+            });
 
             await processor.ProcessPendingAsync();
 
@@ -118,6 +129,7 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
         TimeProvider? clock = null)
     {
         var services = new ServiceCollection();
+
         if (clock is not null)
         {
             services.AddSingleton(clock);
@@ -125,11 +137,15 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddOutboxModule(outbox =>
             {
                 outbox.UseInMemoryStorage();
-                outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted", 1);
+                outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted");
+
                 outbox.UseProcessorOptions(new OutboxProcessorOptions
                 {
                     BatchSize = 10,
@@ -141,6 +157,7 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
                         MaxAttempts = 5
                     }
                 });
+
                 outbox.UseAwsSqsDispatch(
                     transport => transport.DefaultDestination = "http://127.0.0.1:1/000000000000/unreachable",
                     transportOptions);

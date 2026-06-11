@@ -1,4 +1,3 @@
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Testing;
@@ -19,12 +18,14 @@ public sealed class InboxCleanupBackgroundServiceTests
         var now = new DateTimeOffset(2026, 6, 6, 12, 0, 0, TimeSpan.Zero);
         var clock = new ManualTimeProvider(now);
         var store = new InMemoryInboxStore(timeProvider: clock);
+
         var options = new InboxCleanupHostOptions
         {
             Enabled = true,
             Interval = TimeSpan.FromMilliseconds(50),
             Retention = TimeSpan.FromHours(1)
         };
+
         var coordinator = new InboxRetentionCoordinator(options);
 
         var oldCompletedId = Guid.NewGuid();

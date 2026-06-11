@@ -74,6 +74,7 @@ internal static class EfCoreMySqlLeaseSql
     internal static string BuildReload(EfCoreLeaseComponent component, string qualifiedTableName)
     {
         var idColumn = EfCoreLeaseTableMetadata.GetIdColumn(component);
+
         var selectList = component == EfCoreLeaseComponent.Inbox
             ? "`__ID_COLUMN__`, `contract_name`, `contract_version`, `payload`, `created_at`, `visible_after`, `attempt_count`, `status`, `idempotency_key`, `lease_owner`, `lease_expires_at`, `last_error`, `correlation_id`, `causation_id`, `tenant_id`, `trace_context`"
             : "`__ID_COLUMN__`, `contract_name`, `contract_version`, `payload`, `topic`, `created_at`, `visible_after`, `attempt_count`, `status`, `lease_owner`, `lease_expires_at`, `last_error`, `correlation_id`, `causation_id`, `tenant_id`, `trace_context`";

@@ -1,9 +1,7 @@
 using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Inbox.Dispatch.InMemory;
 using LiteBus.Inbox.Ingress;
 using LiteBus.Inbox.Ingress.InMemory;
@@ -11,7 +9,6 @@ using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
-using LiteBus.Transport.InMemory;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.DurableTransport.IntegrationTests.InMemory;
@@ -32,11 +29,12 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
     public async Task RequeueDisabled_WithPoisonMessage_ShouldDiscardWithoutStoreWrite()
     {
         var ingressDestination = $"litebus-inmemory-requeue-{Guid.NewGuid():N}";
-        await using var provider = BuildProvider(ingressDestination, requeueOnFailure: false);
+        await using var provider = BuildProvider(ingressDestination, false);
         await StartIngressAsync(provider);
 
         var publisher = provider.GetRequiredService<IMessageTransport>();
         var messageId = Guid.NewGuid();
+
         await publisher.PublishAsync(new TransportPublishRequest
         {
             Destination = ingressDestination,
@@ -58,12 +56,13 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
     public async Task RequeueEnabled_WithTransientStoreFailure_ShouldEventuallyAccept()
     {
         var ingressDestination = $"litebus-inmemory-requeue-{Guid.NewGuid():N}";
-        await using var provider = BuildProvider(ingressDestination, requeueOnFailure: true, useFlakyInbox: true);
+        await using var provider = BuildProvider(ingressDestination, true, true);
         await StartIngressAsync(provider);
 
         var publisher = provider.GetRequiredService<IMessageTransport>();
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
+
         await publisher.PublishAsync(new TransportPublishRequest
         {
             Destination = ingressDestination,
@@ -90,14 +89,19 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
         bool useFlakyInbox = false)
     {
         var services = new ServiceCollection();
+
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddInboxModule(inbox =>
             {
-                inbox.Contracts.Register<ShipOrderCommand>(ContractName, 1);
+                inbox.Contracts.Register<ShipOrderCommand>(ContractName);
                 inbox.UseInMemoryStorage();
                 inbox.UseInMemoryDispatch();
+
                 inbox.UseInMemoryIngress(ingress =>
                 {
                     ingress.UseOptions(new InMemoryInboxIngressOptions
@@ -118,10 +122,12 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
                 var contracts = sp.GetRequiredService<IMessageContractRegistry>();
                 var serializer = sp.GetRequiredService<IMessageSerializer>();
                 var clock = sp.GetRequiredService<TimeProvider>();
-                var inner = new global::LiteBus.Inbox.Inbox(
+
+                var inner = new Inbox.Inbox(
                     store,
                     new InboxEnvelopeFactory(contracts, serializer, clock),
                     clock);
+
                 return new FlakyInbox(inner, new IOException("transient store failure"));
             });
         }
@@ -146,6 +152,8 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
     /// </summary>
     /// <param name="provider">The LiteBus service provider.</param>
     /// <returns>The number of stored inbox envelopes.</returns>
-    private static int GetInboxStoreCount(ServiceProvider provider) =>
-        provider.GetRequiredService<InMemoryInboxStore>().Count;
+    private static int GetInboxStoreCount(ServiceProvider provider)
+    {
+        return provider.GetRequiredService<InMemoryInboxStore>().Count;
+    }
 }

@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using LiteBus.Transport.Abstractions;
@@ -13,9 +10,9 @@ namespace LiteBus.Transport.Aws;
 public sealed class SqsConsumer : IMessageConsumer
 {
     /// <summary>
-    ///     Gets the SQS client used to receive and acknowledge messages.
+    ///     Serializes start and stop operations on the consume loop.
     /// </summary>
-    private readonly IAmazonSQS _sqsClient;
+    private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
 
     /// <summary>
     ///     Gets the transport options controlling poll and visibility behavior.
@@ -23,14 +20,14 @@ public sealed class SqsConsumer : IMessageConsumer
     private readonly AwsSqsTransportOptions _options;
 
     /// <summary>
-    ///     Serializes start and stop operations on the consume loop.
+    ///     Gets the SQS client used to receive and acknowledge messages.
     /// </summary>
-    private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+    private readonly IAmazonSQS _sqsClient;
 
     /// <summary>
-    ///     Signals when the active consume loop stops because of shutdown or cancellation.
+    ///     Gets the number of consecutive receive batches where every handler failed.
     /// </summary>
-    private TaskCompletionSource _stoppedTcs = CreateStoppedTaskSource();
+    private int _consecutiveFullBatchFailures;
 
     /// <summary>
     ///     Gets the cancellation source used to stop the active consume loop.
@@ -43,9 +40,9 @@ public sealed class SqsConsumer : IMessageConsumer
     private Task? _consumeTask;
 
     /// <summary>
-    ///     Gets the number of consecutive receive batches where every handler failed.
+    ///     Signals when the active consume loop stops because of shutdown or cancellation.
     /// </summary>
-    private int _consecutiveFullBatchFailures;
+    private TaskCompletionSource _stoppedTcs = CreateStoppedTaskSource();
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="SqsConsumer" /> class.
@@ -125,8 +122,10 @@ public sealed class SqsConsumer : IMessageConsumer
     }
 
     /// <inheritdoc />
-    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default) =>
-        _stoppedTcs.Task.WaitAsync(cancellationToken);
+    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
+    {
+        return _stoppedTcs.Task.WaitAsync(cancellationToken);
+    }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
@@ -135,14 +134,14 @@ public sealed class SqsConsumer : IMessageConsumer
         _lifecycleGate.Dispose();
     }
 
-/// <summary>
-///     Long-polls the configured queue until cancellation is requested.
-/// </summary>
-/// <remarks>
-///     When a handler throws, the message visibility is extended using exponential backoff derived from
-///     <c>ApproximateReceiveCount</c>. When an entire received batch fails, poll backoff is applied before the next
-///     <c>ReceiveMessage</c> call.
-/// </remarks>
+    /// <summary>
+    ///     Long-polls the configured queue until cancellation is requested.
+    /// </summary>
+    /// <remarks>
+    ///     When a handler throws, the message visibility is extended using exponential backoff derived from
+    ///     <c>ApproximateReceiveCount</c>. When an entire received batch fails, poll backoff is applied before the next
+    ///     <c>ReceiveMessage</c> call.
+    /// </remarks>
     /// <param name="options">The consumer options for the active subscription.</param>
     /// <param name="handler">The handler invoked for each delivery.</param>
     /// <param name="cancellationToken">The token used to cancel the consume loop.</param>
@@ -152,7 +151,7 @@ public sealed class SqsConsumer : IMessageConsumer
         Func<TransportMessage, CancellationToken, Task> handler,
         CancellationToken cancellationToken)
     {
-        var maxMessages = options.PrefetchCount > 0 ? Math.Min(options.PrefetchCount, (ushort)10) : (ushort)1;
+        var maxMessages = options.PrefetchCount > 0 ? Math.Min(options.PrefetchCount, (ushort) 10) : (ushort) 1;
 
         try
         {
@@ -165,7 +164,7 @@ public sealed class SqsConsumer : IMessageConsumer
                     WaitTimeSeconds = _options.LongPollWaitTimeSeconds,
                     VisibilityTimeout = _options.VisibilityTimeoutSeconds,
                     MessageAttributeNames = ["All"],
-                    AttributeNames = ["ApproximateReceiveCount"]
+                    MessageSystemAttributeNames = ["ApproximateReceiveCount"]
                 };
 
                 var response = await _sqsClient.ReceiveMessageAsync(receiveRequest, cancellationToken)
@@ -181,25 +180,40 @@ public sealed class SqsConsumer : IMessageConsumer
 
                 foreach (var message in response.Messages)
                 {
-                    var transportMessage = SqsMessageMapper.ToTransportMessage(
-                        message,
-                        options.Destination,
-                        _options,
-                        token => _sqsClient.DeleteMessageAsync(
+                    var requeueVisibilityTimeout =
+                        SqsRequeueBackoff.ComputeRequeueVisibilityTimeout(message, _options);
+
+                    var ackHandlers = new TransportConsumerAckHandlers
+                    {
+                        AckAsync = token => _sqsClient.DeleteMessageAsync(
                             new DeleteMessageRequest
                             {
                                 QueueUrl = options.Destination,
                                 ReceiptHandle = message.ReceiptHandle
                             },
                             token),
-                        (visibilityTimeout, token) => _sqsClient.ChangeMessageVisibilityAsync(
-                            new ChangeMessageVisibilityRequest
-                            {
-                                QueueUrl = options.Destination,
-                                ReceiptHandle = message.ReceiptHandle,
-                                VisibilityTimeout = visibilityTimeout
-                            },
-                            token));
+                        NackAsync = (requeue, token) => requeue
+                            ? _sqsClient.ChangeMessageVisibilityAsync(
+                                new ChangeMessageVisibilityRequest
+                                {
+                                    QueueUrl = options.Destination,
+                                    ReceiptHandle = message.ReceiptHandle,
+                                    VisibilityTimeout = requeueVisibilityTimeout
+                                },
+                                token)
+                            : _sqsClient.DeleteMessageAsync(
+                                new DeleteMessageRequest
+                                {
+                                    QueueUrl = options.Destination,
+                                    ReceiptHandle = message.ReceiptHandle
+                                },
+                                token)
+                    };
+
+                    var transportMessage = SqsMessageMapper.ToTransportMessage(
+                        message,
+                        options.Destination,
+                        ackHandlers);
 
                     try
                     {
@@ -242,12 +256,16 @@ public sealed class SqsConsumer : IMessageConsumer
     ///     Creates a new task source used to observe consumer shutdown.
     /// </summary>
     /// <returns>The task source for the current consume session.</returns>
-    private static TaskCompletionSource CreateStoppedTaskSource() =>
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static TaskCompletionSource CreateStoppedTaskSource()
+    {
+        return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
 
     /// <summary>
     ///     Marks the current consume session as stopped.
     /// </summary>
-    private void SignalStopped() => _stoppedTcs.TrySetResult();
+    private void SignalStopped()
+    {
+        _stoppedTcs.TrySetResult();
+    }
 }
-

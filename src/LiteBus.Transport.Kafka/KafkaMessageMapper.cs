@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using Confluent.Kafka;
@@ -26,7 +24,7 @@ internal static class KafkaMessageMapper
 
         return new Message<string, byte[]>
         {
-            Key = request.Route,
+            Key = request.Route ?? string.Empty,
             Value = request.Body.ToArray(),
             Headers = headers
         };
@@ -37,8 +35,7 @@ internal static class KafkaMessageMapper
     /// </summary>
     /// <param name="result">The consumed Kafka record.</param>
     /// <param name="destination">The topic name configured for the consumer.</param>
-    /// <param name="commitAsync">The delegate that commits the consumed offset.</param>
-    /// <param name="seekToOffset">The delegate that rewinds the consumer to the failed offset for redelivery.</param>
+    /// <param name="ackHandlers">The acknowledgement handlers wired by the consumer.</param>
     /// <returns>The transport message passed to consumer handlers.</returns>
     /// <remarks>
     ///     <see cref="TransportMessage.ReturnToQueueAsync" /> seeks to the consumed offset so the record is read again
@@ -48,14 +45,10 @@ internal static class KafkaMessageMapper
     internal static TransportMessage ToTransportMessage(
         ConsumeResult<string, byte[]> result,
         string destination,
-        Func<CancellationToken, Task> commitAsync,
-        Action<TopicPartitionOffset> seekToOffset)
+        TransportConsumerAckHandlers ackHandlers)
     {
         ArgumentNullException.ThrowIfNull(result);
-        ArgumentNullException.ThrowIfNull(commitAsync);
-        ArgumentNullException.ThrowIfNull(seekToOffset);
-
-        var offset = result.TopicPartitionOffset;
+        ArgumentNullException.ThrowIfNull(ackHandlers);
 
         return new TransportMessage
         {
@@ -66,16 +59,8 @@ internal static class KafkaMessageMapper
             MessageId = GetHeader(result.Message.Headers, TransportHeaders.MessageId),
             CorrelationId = GetHeader(result.Message.Headers, TransportHeaders.CorrelationId),
             Redelivered = false,
-            AckAsync = commitAsync,
-            NackAsync = (requeue, _) =>
-            {
-                if (requeue)
-                {
-                    seekToOffset(offset);
-                }
-
-                return Task.CompletedTask;
-            }
+            AckAsync = ackHandlers.AckAsync,
+            NackAsync = ackHandlers.NackAsync
         };
     }
 
@@ -120,8 +105,10 @@ internal static class KafkaMessageMapper
     /// <param name="headers">The Kafka headers collection.</param>
     /// <param name="name">The header name.</param>
     /// <param name="value">The header value.</param>
-    private static void AddHeader(Headers headers, string name, string value) =>
+    private static void AddHeader(Headers headers, string name, string value)
+    {
         headers.Add(name, Encoding.UTF8.GetBytes(value));
+    }
 
     /// <summary>
     ///     Copies Kafka headers into a read-only dictionary for handlers.
@@ -166,4 +153,3 @@ internal static class KafkaMessageMapper
         return null;
     }
 }
-

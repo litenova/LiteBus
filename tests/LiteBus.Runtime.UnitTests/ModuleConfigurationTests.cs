@@ -41,50 +41,6 @@ public sealed class ModuleConfigurationTests
         act.Should().Throw<ArgumentException>();
     }
 
-    private sealed class RecordingStartupTask : IStartupTask
-    {
-        /// <inheritdoc />
-        public Task RunAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
-    }
-
-    private sealed class RecordingContinuousBackgroundService : IBackgroundService
-    {
-        /// <inheritdoc />
-        public Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            return Task.CompletedTask;
-        }
-    }
-
-    private sealed class TestMessageRegistry : IMessageRegistry
-    {
-        /// <inheritdoc />
-        public int Count => 0;
-
-        /// <inheritdoc />
-        public IReadOnlyList<IHandlerDescriptor> Handlers => [];
-
-        /// <inheritdoc />
-        public IMessageDescriptor? Find(Type messageType) => null;
-
-        /// <inheritdoc />
-        public void Register(Type type)
-        {
-        }
-
-        /// <inheritdoc />
-        public IEnumerator<IMessageDescriptor> GetEnumerator()
-        {
-            return Enumerable.Empty<IMessageDescriptor>().GetEnumerator();
-        }
-
-        /// <inheritdoc />
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-    }
-
     [Fact]
     public void GetContext_WhenMissing_ShouldThrowLiteBusConfigurationException()
     {
@@ -153,6 +109,7 @@ public sealed class ModuleConfigurationTests
             createCount++;
             return new FoundationModule();
         });
+
         var second = configuration.GetOrCreateContext(() =>
         {
             createCount++;
@@ -161,5 +118,55 @@ public sealed class ModuleConfigurationTests
 
         first.Should().BeSameAs(second);
         createCount.Should().Be(1);
+    }
+
+    private sealed class RecordingStartupTask : IStartupTask
+    {
+        /// <inheritdoc />
+        public Task RunAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingContinuousBackgroundService : IBackgroundService
+    {
+        /// <inheritdoc />
+        public Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class TestMessageRegistry : IMessageRegistry
+    {
+        /// <inheritdoc />
+        public int Count => 0;
+
+        /// <inheritdoc />
+        public IReadOnlyList<IHandlerDescriptor> Handlers => [];
+
+        /// <inheritdoc />
+        public IMessageDescriptor? Find(Type messageType)
+        {
+            return null;
+        }
+
+        /// <inheritdoc />
+        public void Register(Type type)
+        {
+        }
+
+        /// <inheritdoc />
+        public IEnumerator<IMessageDescriptor> GetEnumerator()
+        {
+            return Enumerable.Empty<IMessageDescriptor>().GetEnumerator();
+        }
+
+        /// <inheritdoc />
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
     }
 }

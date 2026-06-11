@@ -15,7 +15,9 @@ public sealed class OutboxCompositeModuleTests
         var act = () =>
         {
             new ServiceCollection()
-                .AddLiteBus(registry => registry.Register(new InMemoryOutboxStorageModule(_ => { })))
+                .AddLiteBus(registry => registry.Register(new InMemoryOutboxStorageModule(_ =>
+                {
+                })))
                 .BuildServiceProvider();
         };
 
@@ -30,12 +32,15 @@ public sealed class OutboxCompositeModuleTests
         var services = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
+                registry.AddMessageModule(_ =>
+                {
+                });
+
                 registry.AddOutboxModule(outbox =>
                 {
                     outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>(
-                        "orders.events.submitted",
-                        1);
+                        "orders.events.submitted");
+
                     outbox.UseInMemoryStorage();
                 });
             });

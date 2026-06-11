@@ -1,5 +1,5 @@
+using System.Collections.Concurrent;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests;
@@ -32,6 +32,7 @@ public sealed class LiteBusInboxSaveChangesInterceptorUnitTests
         await act.Should().ThrowAsync<InvalidOperationException>();
 
         var replayedEnvelope = envelope with { Id = Guid.NewGuid(), Payload = """{"replayed":false}""" };
+
         var inboxOptions = new DbContextOptionsBuilder<InterceptorInboxDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
             .AddLiteBusInboxInterceptor(interceptor)
@@ -59,6 +60,7 @@ public sealed class LiteBusInboxSaveChangesInterceptorUnitTests
     {
         const int contextCount = 8;
         var interceptor = new LiteBusInboxSaveChangesInterceptor();
+
         var envelopes = Enumerable.Range(0, contextCount)
             .Select(index => CreateFullEnvelope() with
             {
@@ -68,7 +70,7 @@ public sealed class LiteBusInboxSaveChangesInterceptorUnitTests
             })
             .ToArray();
 
-        var storedIds = new System.Collections.Concurrent.ConcurrentBag<Guid>();
+        var storedIds = new ConcurrentBag<Guid>();
 
         await Task.WhenAll(Enumerable.Range(0, contextCount).Select(async index =>
         {
@@ -95,6 +97,7 @@ public sealed class LiteBusInboxSaveChangesInterceptorUnitTests
     {
         const int envelopeCount = 8;
         var interceptor = new LiteBusInboxSaveChangesInterceptor();
+
         var envelopes = Enumerable.Range(0, envelopeCount)
             .Select(index => CreateFullEnvelope() with
             {
@@ -113,6 +116,7 @@ public sealed class LiteBusInboxSaveChangesInterceptorUnitTests
         await context.Database.EnsureCreatedAsync();
 
         var enqueueLock = new object();
+
         await Task.WhenAll(envelopes.Select(envelope => Task.Run(() =>
         {
             lock (enqueueLock)

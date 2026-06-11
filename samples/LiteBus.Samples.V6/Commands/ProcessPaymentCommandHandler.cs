@@ -1,6 +1,7 @@
 using LiteBus.Commands.Abstractions;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Samples.V6.Events;
 
@@ -31,12 +32,13 @@ public sealed class ProcessPaymentCommandHandler : ICommandHandler<ProcessPaymen
         }
 
         await _outbox.EnqueueAsync(
-            new PaymentProcessed(command.PaymentId, command.Amount),
-            new OutboxOptions
-            {
-                Topic = "payments.payment-processed",
-                CorrelationId = command.PaymentId.ToString()
-            },
+            OutboxEnqueueItems.WithMetadata(
+                new PaymentProcessed(command.PaymentId, command.Amount),
+                OutboxEnqueueMetadata.Immediate with
+                {
+                    Target = new PublicationTarget.Topic("payments.payment-processed"),
+                    Trace = new MessageTrace.Correlated(command.PaymentId.ToString())
+                }),
             cancellationToken).ConfigureAwait(false);
     }
 }

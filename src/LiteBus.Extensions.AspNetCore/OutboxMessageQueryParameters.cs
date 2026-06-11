@@ -84,27 +84,33 @@ public sealed class OutboxMessageQueryParameters
     ///     Converts the bound query values to an <see cref="OutboxMessageFilter" />.
     /// </summary>
     /// <returns>The filter used by outbox store queries.</returns>
-    public OutboxMessageFilter ToFilter() => new()
+    public OutboxMessageFilter ToFilter()
     {
-        MessageId = MessageId,
-        MessageIds = MessageIds,
-        Statuses = Statuses,
-        ContractName = ContractName,
-        Topic = Topic,
-        CorrelationId = CorrelationId,
-        CausationId = CausationId,
-        TenantId = TenantId,
-        CreatedAfter = CreatedAfter,
-        CreatedBefore = CreatedBefore
-    };
+        return new OutboxMessageFilter
+        {
+            MessageId = MessageId,
+            MessageIds = MessageIds,
+            Statuses = Statuses,
+            ContractName = ContractName,
+            Topic = Topic,
+            CorrelationId = CorrelationId,
+            CausationId = CausationId,
+            TenantId = TenantId,
+            CreatedAfter = CreatedAfter,
+            CreatedBefore = CreatedBefore
+        };
+    }
 
     /// <summary>
     ///     Converts the bound pagination values to an <see cref="OutboxMessagePageRequest" />.
     /// </summary>
     /// <returns>The page request used by outbox store queries.</returns>
-    public OutboxMessagePageRequest ToPageRequest() => new()
+    public OutboxMessagePageRequest ToPageRequest()
     {
-        PageSize = PageSize,
-        Cursor = Cursor
-    };
+        return new OutboxMessagePageRequest
+        {
+            PageSize = PageSize,
+            Cursor = Cursor
+        };
+    }
 }

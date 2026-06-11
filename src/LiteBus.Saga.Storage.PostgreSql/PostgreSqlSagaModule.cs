@@ -1,8 +1,8 @@
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
-using LiteBus.Saga;
 using LiteBus.Saga.Abstractions;
 using Npgsql;
 
@@ -59,8 +59,8 @@ public sealed class PostgreSqlSagaModule : ISagaStoreModule, IRequires<InboxModu
             typeof(ISagaStore),
             services => new PostgreSqlSagaStore(
                 registration.DataSource,
-                (LiteBus.Messaging.Abstractions.IMessageSerializer)services.GetService(
-                    typeof(LiteBus.Messaging.Abstractions.IMessageSerializer))!,
+                (IMessageSerializer) services.GetService(
+                    typeof(IMessageSerializer))!,
                 registration.Options,
                 services.GetService(typeof(TimeProvider)) as TimeProvider),
             InstanceLifetime.Singleton));
@@ -76,5 +76,4 @@ public sealed class PostgreSqlSagaModule : ISagaStoreModule, IRequires<InboxModu
             configuration.RegisterStartupTask(typeof(PostgreSqlSagaSchemaInitializer));
         }
     }
-
 }

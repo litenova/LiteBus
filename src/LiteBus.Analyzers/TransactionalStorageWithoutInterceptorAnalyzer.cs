@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
+using LiteBus.Analyzers.Analysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
-using LiteBus.Analyzers.Analysis;
 
 namespace LiteBus.Analyzers;
 
@@ -48,6 +48,7 @@ public sealed class TransactionalStorageWithoutInterceptorAnalyzer : DiagnosticA
 
         var method = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol as IMethodSymbol;
         var containingType = method?.ContainingType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
         var axis = containingType is
             "global::LiteBus.Inbox.Storage.EntityFrameworkCore.EfCoreInboxStorageModuleBuilder" or
             "LiteBus.Inbox.Storage.EntityFrameworkCore.EfCoreInboxStorageModuleBuilder"

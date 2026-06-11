@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
@@ -17,14 +16,24 @@ namespace LiteBus.Inbox.Ingress;
 public sealed class TransportInboxIngressConsumer : IBackgroundService
 {
     /// <summary>
-    ///     Gets the transport consumer used to subscribe to the ingress destination.
+    ///     The buffered deliveries waiting for a batch accept flush.
     /// </summary>
-    private readonly IMessageConsumer _consumer;
+    private readonly List<TransportMessage> _batchBuffer = [];
+
+    /// <summary>
+    ///     The lock that serializes access to the optional batch accept buffer.
+    /// </summary>
+    private readonly object _batchSync = new();
 
     /// <summary>
     ///     Gets the optional circuit breaker shared with the transport connection manager.
     /// </summary>
     private readonly ITransportCircuitBreaker? _circuitBreaker;
+
+    /// <summary>
+    ///     Gets the transport consumer used to subscribe to the ingress destination.
+    /// </summary>
+    private readonly IMessageConsumer _consumer;
 
     /// <summary>
     ///     Gets the handler that maps deliveries to <see cref="Abstractions.IInbox.AcceptAsync" />.
@@ -37,34 +46,25 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
     private readonly TransportInboxIngressHostOptions _hostOptions;
 
     /// <summary>
-    ///     Gets the ingress destination and consumer settings.
-    /// </summary>
-    private readonly TransportInboxIngressOptions _options;
-
-    /// <summary>
     ///     Gets the logger used for ingress restart diagnostics.
     /// </summary>
     private readonly ILogger<TransportInboxIngressConsumer> _logger;
 
     /// <summary>
-    ///     The lock that serializes access to the optional batch accept buffer.
+    ///     Gets the ingress destination and consumer settings.
     /// </summary>
-    private readonly object _batchSync = new();
+    private readonly TransportInboxIngressOptions _options;
 
     /// <summary>
-    ///     The buffered deliveries waiting for a batch accept flush.
+    ///     Limits buffered deliveries to <see cref="TransportInboxIngressOptions.PrefetchCount" /> while a flush is in
+    ///     progress.
     /// </summary>
-    private readonly List<TransportMessage> _batchBuffer = [];
+    private SemaphoreSlim? _batchAdmission;
 
     /// <summary>
     ///     The timer that flushes partial batches after <see cref="TransportInboxIngressOptions.BatchMaxWait" />.
     /// </summary>
     private Timer? _batchFlushTimer;
-
-    /// <summary>
-    ///     Limits buffered deliveries to <see cref="TransportInboxIngressOptions.PrefetchCount" /> while a flush is in progress.
-    /// </summary>
-    private SemaphoreSlim? _batchAdmission;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="TransportInboxIngressConsumer" /> class.
@@ -218,7 +218,7 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
         CancelBatchFlushTimerUnsafe();
 
         _batchFlushTimer = new Timer(
-            static state => _ = ((TransportInboxIngressConsumer)state!).OnBatchFlushTimerElapsedAsync(),
+            static state => _ = ((TransportInboxIngressConsumer) state!).OnBatchFlushTimerElapsedAsync(),
             this,
             _options.BatchMaxWait,
             Timeout.InfiniteTimeSpan);
@@ -383,8 +383,10 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
     ///     Gets the maximum number of deliveries that may wait in the batch buffer.
     /// </summary>
     /// <returns>The batch buffer capacity derived from prefetch settings.</returns>
-    private int GetBatchBufferCapacity() =>
-        _options.PrefetchCount > 0 ? _options.PrefetchCount : 1;
+    private int GetBatchBufferCapacity()
+    {
+        return _options.PrefetchCount > 0 ? _options.PrefetchCount : 1;
+    }
 
     /// <summary>
     ///     Blocks until a batch admission slot is available or cancellation is requested.

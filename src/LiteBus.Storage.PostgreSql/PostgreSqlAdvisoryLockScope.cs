@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Storage.PostgreSql.Exceptions;
 using Npgsql;
 
 namespace LiteBus.Storage.PostgreSql;
@@ -45,6 +46,23 @@ internal sealed class PostgreSqlAdvisoryLockScope : IAsyncDisposable
         _acquired = acquired;
     }
 
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (!_acquired)
+        {
+            return;
+        }
+
+        _acquired = false;
+
+        await using var command = _connection.CreateCommand();
+        command.CommandText = "SELECT pg_advisory_unlock(@key1, @key2);";
+        command.Parameters.AddWithValue("key1", _key1);
+        command.Parameters.AddWithValue("key2", _key2);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
     /// <summary>
     ///     Attempts to acquire a session advisory lock for the supplied key.
     /// </summary>
@@ -69,8 +87,8 @@ internal sealed class PostgreSqlAdvisoryLockScope : IAsyncDisposable
         command.Parameters.AddWithValue("key1", key1);
         command.Parameters.AddWithValue("key2", key2);
 
-        var acquired = (bool)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) ?? false);
-        return acquired ? new PostgreSqlAdvisoryLockScope(connection, key1, key2, acquired: true) : null;
+        var acquired = (bool) (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) ?? false);
+        return acquired ? new PostgreSqlAdvisoryLockScope(connection, key1, key2, true) : null;
     }
 
     /// <summary>
@@ -99,6 +117,7 @@ internal sealed class PostgreSqlAdvisoryLockScope : IAsyncDisposable
             cancellationToken.ThrowIfCancellationRequested();
 
             var scope = await TryAcquireAsync(connection, lockKey, cancellationToken).ConfigureAwait(false);
+
             if (scope is not null)
             {
                 return scope;
@@ -106,29 +125,12 @@ internal sealed class PostgreSqlAdvisoryLockScope : IAsyncDisposable
 
             if (DateTime.UtcNow >= deadline)
             {
-                throw new Exceptions.PostgreSqlStorageTimeoutException(
+                throw new PostgreSqlStorageTimeoutException(
                     $"Timed out after {timeout} waiting for PostgreSQL advisory lock '{lockKey}'.");
             }
 
             await Task.Delay(pollInterval, cancellationToken).ConfigureAwait(false);
         }
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
-    {
-        if (!_acquired)
-        {
-            return;
-        }
-
-        _acquired = false;
-
-        await using var command = _connection.CreateCommand();
-        command.CommandText = "SELECT pg_advisory_unlock(@key1, @key2);";
-        command.Parameters.AddWithValue("key1", _key1);
-        command.Parameters.AddWithValue("key2", _key2);
-        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -139,8 +141,8 @@ internal sealed class PostgreSqlAdvisoryLockScope : IAsyncDisposable
     internal static (int Key1, int Key2) CreateLockKeys(string lockKey)
     {
         const string key2Seed = "\u0000litebus:advisory:key2";
-        var key1 = (int)(PostgreSqlIdentifier.StableHash(lockKey) & 0x7FFFFFFF);
-        var key2 = (int)(PostgreSqlIdentifier.StableHash(lockKey + key2Seed) & 0x7FFFFFFF);
+        var key1 = (int) (PostgreSqlIdentifier.StableHash(lockKey) & 0x7FFFFFFF);
+        var key2 = (int) (PostgreSqlIdentifier.StableHash(lockKey + key2Seed) & 0x7FFFFFFF);
         return (key1, key2);
     }
 }

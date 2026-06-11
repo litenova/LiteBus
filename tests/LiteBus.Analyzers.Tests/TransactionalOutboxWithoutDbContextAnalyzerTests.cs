@@ -19,7 +19,7 @@ public sealed class TransactionalOutboxWithoutDbContextAnalyzerTests
         await AnalyzerTest.VerifyDiagnosticAsync<TransactionalOutboxWithoutDbContextAnalyzer>(
             source,
             DiagnosticDescriptors.TransactionalOutboxWithoutDbContext,
-            markupLocation: 4,
+            4,
             "OrderService");
     }
 }

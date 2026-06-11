@@ -2,14 +2,13 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using LiteBus.Commands.Abstractions;
-using LiteBus.Extensions.AspNetCore;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.PostgreSql;
-using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Messaging;
 using LiteBus.Outbox;
+using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -45,8 +44,8 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
     [Fact]
     public async Task QueryInboxMessages_ReturnsPersistedRows()
     {
-        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxOptions();
-        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
+        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions);
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions);
 
@@ -54,11 +53,12 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
         var inbox = host.Services.GetRequiredService<IInbox>();
 
         var orderId = Guid.NewGuid();
-        var receipt = await inbox.AcceptAsync(new ShipOrderCommand
+
+        var receipt = await inbox.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        });
+        }));
 
         using var client = host.GetTestClient();
         var response = await client.GetAsync("/litebus/inbox/messages?pageSize=50");
@@ -71,7 +71,7 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
         var item = payload.GetProperty("items")[0];
         item.GetProperty("id").GetGuid().Should().Be(receipt.Id);
         item.GetProperty("contractName").GetString().Should().Be("orders.commands.ship");
-        item.GetProperty("status").GetInt32().Should().Be((int)InboxStatus.Pending);
+        item.GetProperty("status").GetInt32().Should().Be((int) InboxStatus.Pending);
     }
 
     /// <summary>
@@ -81,30 +81,31 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
     [Fact]
     public async Task Purge_WithConfirm_DeletesRowsInStore()
     {
-        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxOptions();
-        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
+        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions);
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions);
 
         using var host = await CreateHostAsync(inboxOptions, outboxOptions);
         var inbox = host.Services.GetRequiredService<IInbox>();
 
-        await inbox.AcceptAsync(new ShipOrderCommand
+        await inbox.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = $"ship:{Guid.NewGuid():N}"
-        });
+        }));
 
-        await inbox.AcceptAsync(new ShipOrderCommand
+        await inbox.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = $"ship:{Guid.NewGuid():N}"
-        });
+        }));
 
         using var client = host.GetTestClient();
 
         var queryBeforePurge = await client.GetAsync("/litebus/inbox/messages?pageSize=50");
         queryBeforePurge.StatusCode.Should().Be(HttpStatusCode.OK);
+
         (await queryBeforePurge.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("items")
             .GetArrayLength()
@@ -115,12 +116,14 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
         {
             Content = JsonContent.Create(new { confirm = true })
         };
+
         var purgeResponse = await client.SendAsync(purgeRequest);
         purgeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         (await purgeResponse.Content.ReadFromJsonAsync<JsonElement>()).GetInt32().Should().Be(2);
 
         var queryAfterPurge = await client.GetAsync("/litebus/inbox/messages?pageSize=50");
         queryAfterPurge.StatusCode.Should().Be(HttpStatusCode.OK);
+
         (await queryAfterPurge.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("items")
             .GetArrayLength()
@@ -135,15 +138,15 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
     [Fact]
     public async Task Health_IncludesRegisteredDiagnosticProbe()
     {
-        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxOptions();
-        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxOptions();
+        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
+        var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions);
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions);
 
         using var host = await CreateHostAsync(
             inboxOptions,
             outboxOptions,
-            configureInbox: inbox => inbox.AddDiagnosticCheck<PostgreSqlInboxSchemaDiagnosticCheck>("litebus.inbox.schema"));
+            inbox => inbox.AddDiagnosticCheck<PostgreSqlInboxSchemaDiagnosticCheck>("litebus.inbox.schema"));
 
         using var client = host.GetTestClient();
         var response = await client.GetAsync("/litebus/health");
@@ -155,7 +158,7 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
         probes.Should().Contain(probe => probe.GetProperty("name").GetString() == "litebus.inbox.schema");
 
         var registeredProbe = probes.Single(probe => probe.GetProperty("name").GetString() == "litebus.inbox.schema");
-        registeredProbe.GetProperty("status").GetInt32().Should().Be((int)DiagnosticStatus.Healthy);
+        registeredProbe.GetProperty("status").GetInt32().Should().Be((int) DiagnosticStatus.Healthy);
         registeredProbe.GetProperty("description").GetString().Should().Contain("schema validation succeeded");
         registeredProbe.GetProperty("data").GetProperty("component").GetString().Should().Be("inbox");
     }
@@ -163,13 +166,13 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
     /// <summary>
     ///     Builds and starts a test host with PostgreSQL storage and management endpoints.
     /// </summary>
-    /// <param name="inboxOptions">The PostgreSQL inbox store options.</param>
-    /// <param name="outboxOptions">The PostgreSQL outbox store options.</param>
+    /// <param name="InboxStoreOptions">The PostgreSQL inbox store options.</param>
+    /// <param name="OutboxStoreOptions">The PostgreSQL outbox store options.</param>
     /// <param name="configureInbox">An optional callback that configures the inbox module builder.</param>
     /// <returns>The started host.</returns>
     private Task<IHost> CreateHostAsync(
-        PostgreSqlInboxStoreOptions inboxOptions,
-        PostgreSqlOutboxStoreOptions outboxOptions,
+        PostgreSqlInboxStoreOptions InboxStoreOptions,
+        PostgreSqlOutboxStoreOptions OutboxStoreOptions,
         Action<InboxModuleBuilder>? configureInbox = null)
     {
         var managementOptions = new LiteBusManagementOptions
@@ -182,6 +185,7 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
             .ConfigureWebHost(webBuilder =>
             {
                 webBuilder.UseTestServer();
+
                 webBuilder.ConfigureServices(services =>
                 {
                     services.AddRouting();
@@ -189,28 +193,33 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
 
                     services.AddLiteBus(registry =>
                     {
-                        registry.AddMessageModule(_ => { });
+                        registry.AddMessageModule(_ =>
+                        {
+                        });
+
                         registry.AddInboxModule(inbox =>
                         {
                             inbox.UsePostgreSqlStorage(postgres =>
                             {
                                 postgres.UseDataSource(_fixture.DataSource);
-                                postgres.UseOptions(inboxOptions);
+                                postgres.UseOptions(InboxStoreOptions);
                             });
 
-                            inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
+                            inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship");
                             configureInbox?.Invoke(inbox);
                         });
+
                         registry.AddOutboxModule(outbox =>
                         {
                             outbox.UsePostgreSqlStorage(postgres =>
                             {
                                 postgres.UseDataSource(_fixture.DataSource);
-                                postgres.UseOptions(outboxOptions);
+                                postgres.UseOptions(OutboxStoreOptions);
                             });
                         });
                     });
                 });
+
                 webBuilder.Configure(app =>
                 {
                     app.UseRouting();

@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
@@ -11,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using ProcessorState = LiteBus.Inbox.Abstractions.ProcessorState;
 
 namespace LiteBus.Extensions.AspNetCore;
 
@@ -111,9 +108,11 @@ public static class LiteBusManagementEndpointExtensions
     private static Task<IResult> QueryInboxMessagesAsync(
         IInboxManager manager,
         [AsParameters] InboxMessageQueryParameters parameters,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () => Results.Ok(
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () => Results.Ok(
             await manager.QueryAsync(parameters.ToFilter(), parameters.ToPageRequest(), cancellationToken).ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Returns one inbox message by identifier.
@@ -125,12 +124,14 @@ public static class LiteBusManagementEndpointExtensions
     private static Task<IResult> GetInboxMessageAsync(
         IInboxManager manager,
         Guid messageId,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () =>
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () =>
         {
             var message = await manager.GetMessageAsync(messageId, cancellationToken).ConfigureAwait(false);
             return message is null ? Results.NotFound() : Results.Ok(message);
         });
+    }
 
     /// <summary>
     ///     Requeues selected inbox messages by identifier.
@@ -142,8 +143,10 @@ public static class LiteBusManagementEndpointExtensions
     private static Task<IResult> RequeueInboxMessagesAsync(
         IInboxManager manager,
         [FromBody] RequeueMessagesRequest request,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () => Results.Ok(await manager.RequeueAsync(request.MessageIds, cancellationToken).ConfigureAwait(false)));
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () => Results.Ok(await manager.RequeueAsync(request.MessageIds, cancellationToken).ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Requeues all dead-lettered inbox messages.
@@ -153,8 +156,10 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>The number of messages requeued.</returns>
     private static Task<IResult> RequeueInboxDeadLettersAsync(
         IInboxManager manager,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () => Results.Ok(await manager.RequeueDeadLettersAsync(cancellationToken).ConfigureAwait(false)));
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () => Results.Ok(await manager.RequeueDeadLettersAsync(cancellationToken).ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Purges inbox messages that match the supplied filter.
@@ -168,13 +173,15 @@ public static class LiteBusManagementEndpointExtensions
         IInboxManager manager,
         [AsParameters] InboxMessagePurgeParameters parameters,
         [FromBody] PurgeConfirmRequest? confirmRequest,
-        CancellationToken cancellationToken) =>
-        ExecuteManagementAsync(async () => Results.Ok(
+        CancellationToken cancellationToken)
+    {
+        return ExecuteManagementAsync(async () => Results.Ok(
             await manager.PurgeAsync(
                     parameters.ToFilter(),
                     confirmRequest?.Confirm ?? false,
                     cancellationToken)
                 .ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Returns inbox status counts.
@@ -184,8 +191,10 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>Status counts grouped by <see cref="InboxStatus" />.</returns>
     private static Task<IResult> GetInboxStatusCountsAsync(
         IInboxManager manager,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () => Results.Ok(await manager.GetStatusCountsAsync(cancellationToken).ConfigureAwait(false)));
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () => Results.Ok(await manager.GetStatusCountsAsync(cancellationToken).ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Returns inbox schema version metadata.
@@ -195,8 +204,10 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>Expected and recorded schema versions.</returns>
     private static Task<IResult> GetInboxSchemaAsync(
         IInboxManager manager,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () => Results.Ok(await manager.GetSchemaInfoAsync(cancellationToken).ConfigureAwait(false)));
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () => Results.Ok(await manager.GetSchemaInfoAsync(cancellationToken).ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Returns inbox retention cleanup status.
@@ -206,8 +217,10 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>The configured retention policy and most recent cleanup outcome.</returns>
     private static Task<IResult> GetInboxRetentionStatusAsync(
         IInboxManager manager,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () => Results.Ok(await manager.GetRetentionStatusAsync(cancellationToken).ConfigureAwait(false)));
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () => Results.Ok(await manager.GetRetentionStatusAsync(cancellationToken).ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Triggers an immediate inbox retention purge.
@@ -217,22 +230,27 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>The number of rows deleted.</returns>
     private static Task<IResult> RunInboxRetentionPurgeAsync(
         IInboxManager manager,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () => Results.Ok(await manager.RunRetentionPurgeAsync(cancellationToken).ConfigureAwait(false)));
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () => Results.Ok(await manager.RunRetentionPurgeAsync(cancellationToken).ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Returns the inbox processor loop state.
     /// </summary>
     /// <param name="services">The request services.</param>
     /// <returns>The current processor state or a not-found response when the processor is disabled.</returns>
-    private static Task<IResult> GetInboxProcessorStateAsync(IServiceProvider services) =>
-        ExecuteAsync(() =>
+    private static Task<IResult> GetInboxProcessorStateAsync(IServiceProvider services)
+    {
+        return ExecuteAsync(() =>
         {
             var control = services.GetService<IInboxProcessorControl>();
+
             return Task.FromResult(control is null
                 ? Results.NotFound("Inbox processor is not enabled.")
                 : Results.Ok(new ProcessorStateResponse(control.State)));
         });
+    }
 
     /// <summary>
     ///     Pauses the inbox processor loop.
@@ -242,8 +260,9 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>A confirmation payload or a not-found response when the processor is disabled.</returns>
     private static Task<IResult> PauseInboxProcessorAsync(
         IServiceProvider services,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () =>
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () =>
         {
             if (services.GetService<IInboxProcessorControl>() is not { } control)
             {
@@ -253,6 +272,7 @@ public static class LiteBusManagementEndpointExtensions
             await control.PauseAsync(cancellationToken).ConfigureAwait(false);
             return Results.Ok(new ProcessorStateResponse(control.State));
         });
+    }
 
     /// <summary>
     ///     Resumes the inbox processor loop.
@@ -262,8 +282,9 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>A confirmation payload or a not-found response when the processor is disabled.</returns>
     private static Task<IResult> ResumeInboxProcessorAsync(
         IServiceProvider services,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () =>
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () =>
         {
             if (services.GetService<IInboxProcessorControl>() is not { } control)
             {
@@ -273,6 +294,7 @@ public static class LiteBusManagementEndpointExtensions
             await control.ResumeAsync(cancellationToken).ConfigureAwait(false);
             return Results.Ok(new ProcessorStateResponse(control.State));
         });
+    }
 
     /// <summary>
     ///     Drains the inbox processor loop once and stops leasing.
@@ -286,8 +308,9 @@ public static class LiteBusManagementEndpointExtensions
         IServiceProvider services,
         LiteBusManagementOptions options,
         [FromQuery] int? timeoutSeconds,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () =>
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () =>
         {
             if (services.GetService<IInboxProcessorControl>() is not { } control)
             {
@@ -301,6 +324,7 @@ public static class LiteBusManagementEndpointExtensions
             await control.DrainAsync(timeout, cancellationToken).ConfigureAwait(false);
             return Results.Ok(new ProcessorStateResponse(control.State));
         });
+    }
 
     /// <summary>
     ///     Queries outbox messages using the supplied filter and page request from the query string.
@@ -312,9 +336,11 @@ public static class LiteBusManagementEndpointExtensions
     private static Task<IResult> QueryOutboxMessagesAsync(
         IOutboxManager manager,
         [AsParameters] OutboxMessageQueryParameters parameters,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () => Results.Ok(
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () => Results.Ok(
             await manager.QueryAsync(parameters.ToFilter(), parameters.ToPageRequest(), cancellationToken).ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Returns one outbox message by identifier.
@@ -326,12 +352,14 @@ public static class LiteBusManagementEndpointExtensions
     private static Task<IResult> GetOutboxMessageAsync(
         IOutboxManager manager,
         Guid messageId,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () =>
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () =>
         {
             var message = await manager.GetMessageAsync(messageId, cancellationToken).ConfigureAwait(false);
             return message is null ? Results.NotFound() : Results.Ok(message);
         });
+    }
 
     /// <summary>
     ///     Requeues selected outbox messages by identifier.
@@ -343,8 +371,10 @@ public static class LiteBusManagementEndpointExtensions
     private static Task<IResult> RequeueOutboxMessagesAsync(
         IOutboxManager manager,
         [FromBody] RequeueMessagesRequest request,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () => Results.Ok(await manager.RequeueAsync(request.MessageIds, cancellationToken).ConfigureAwait(false)));
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () => Results.Ok(await manager.RequeueAsync(request.MessageIds, cancellationToken).ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Requeues all dead-lettered outbox messages.
@@ -354,8 +384,10 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>The number of messages requeued.</returns>
     private static Task<IResult> RequeueOutboxDeadLettersAsync(
         IOutboxManager manager,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () => Results.Ok(await manager.RequeueDeadLettersAsync(cancellationToken).ConfigureAwait(false)));
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () => Results.Ok(await manager.RequeueDeadLettersAsync(cancellationToken).ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Purges outbox messages that match the supplied filter.
@@ -369,13 +401,15 @@ public static class LiteBusManagementEndpointExtensions
         IOutboxManager manager,
         [AsParameters] OutboxMessagePurgeParameters parameters,
         [FromBody] PurgeConfirmRequest? confirmRequest,
-        CancellationToken cancellationToken) =>
-        ExecuteManagementAsync(async () => Results.Ok(
+        CancellationToken cancellationToken)
+    {
+        return ExecuteManagementAsync(async () => Results.Ok(
             await manager.PurgeAsync(
                     parameters.ToFilter(),
                     confirmRequest?.Confirm ?? false,
                     cancellationToken)
                 .ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Returns outbox status counts.
@@ -385,8 +419,10 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>Status counts grouped by <see cref="OutboxStatus" />.</returns>
     private static Task<IResult> GetOutboxStatusCountsAsync(
         IOutboxManager manager,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () => Results.Ok(await manager.GetStatusCountsAsync(cancellationToken).ConfigureAwait(false)));
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () => Results.Ok(await manager.GetStatusCountsAsync(cancellationToken).ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Returns outbox schema version metadata.
@@ -396,8 +432,10 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>Expected and recorded schema versions.</returns>
     private static Task<IResult> GetOutboxSchemaAsync(
         IOutboxManager manager,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () => Results.Ok(await manager.GetSchemaInfoAsync(cancellationToken).ConfigureAwait(false)));
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () => Results.Ok(await manager.GetSchemaInfoAsync(cancellationToken).ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Returns outbox retention cleanup status.
@@ -407,8 +445,10 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>The configured retention policy and most recent cleanup outcome.</returns>
     private static Task<IResult> GetOutboxRetentionStatusAsync(
         IOutboxManager manager,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () => Results.Ok(await manager.GetRetentionStatusAsync(cancellationToken).ConfigureAwait(false)));
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () => Results.Ok(await manager.GetRetentionStatusAsync(cancellationToken).ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Triggers an immediate outbox retention purge.
@@ -418,22 +458,27 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>The number of rows deleted.</returns>
     private static Task<IResult> RunOutboxRetentionPurgeAsync(
         IOutboxManager manager,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () => Results.Ok(await manager.RunRetentionPurgeAsync(cancellationToken).ConfigureAwait(false)));
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () => Results.Ok(await manager.RunRetentionPurgeAsync(cancellationToken).ConfigureAwait(false)));
+    }
 
     /// <summary>
     ///     Returns the outbox processor loop state.
     /// </summary>
     /// <param name="services">The request services.</param>
     /// <returns>The current processor state or a not-found response when the processor is disabled.</returns>
-    private static Task<IResult> GetOutboxProcessorStateAsync(IServiceProvider services) =>
-        ExecuteAsync(() =>
+    private static Task<IResult> GetOutboxProcessorStateAsync(IServiceProvider services)
+    {
+        return ExecuteAsync(() =>
         {
             var control = services.GetService<IOutboxProcessorControl>();
+
             return Task.FromResult(control is null
                 ? Results.NotFound("Outbox processor is not enabled.")
                 : Results.Ok(new OutboxProcessorStateResponse(control.State)));
         });
+    }
 
     /// <summary>
     ///     Pauses the outbox processor loop.
@@ -443,8 +488,9 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>A confirmation payload or a not-found response when the processor is disabled.</returns>
     private static Task<IResult> PauseOutboxProcessorAsync(
         IServiceProvider services,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () =>
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () =>
         {
             if (services.GetService<IOutboxProcessorControl>() is not { } control)
             {
@@ -454,6 +500,7 @@ public static class LiteBusManagementEndpointExtensions
             await control.PauseAsync(cancellationToken).ConfigureAwait(false);
             return Results.Ok(new OutboxProcessorStateResponse(control.State));
         });
+    }
 
     /// <summary>
     ///     Resumes the outbox processor loop.
@@ -463,8 +510,9 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>A confirmation payload or a not-found response when the processor is disabled.</returns>
     private static Task<IResult> ResumeOutboxProcessorAsync(
         IServiceProvider services,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () =>
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () =>
         {
             if (services.GetService<IOutboxProcessorControl>() is not { } control)
             {
@@ -474,6 +522,7 @@ public static class LiteBusManagementEndpointExtensions
             await control.ResumeAsync(cancellationToken).ConfigureAwait(false);
             return Results.Ok(new OutboxProcessorStateResponse(control.State));
         });
+    }
 
     /// <summary>
     ///     Drains the outbox processor loop once and stops leasing.
@@ -487,8 +536,9 @@ public static class LiteBusManagementEndpointExtensions
         IServiceProvider services,
         LiteBusManagementOptions options,
         [FromQuery] int? timeoutSeconds,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(async () =>
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () =>
         {
             if (services.GetService<IOutboxProcessorControl>() is not { } control)
             {
@@ -502,6 +552,7 @@ public static class LiteBusManagementEndpointExtensions
             await control.DrainAsync(timeout, cancellationToken).ConfigureAwait(false);
             return Results.Ok(new OutboxProcessorStateResponse(control.State));
         });
+    }
 
     /// <summary>
     ///     Runs registered <see cref="IDiagnosticCheck" /> probes from <see cref="LiteBusHostManifest" />.
@@ -540,12 +591,13 @@ public static class LiteBusManagementEndpointExtensions
 
         foreach (var descriptor in manifest.DiagnosticChecks)
         {
-            var check = (IDiagnosticCheck)services.GetRequiredService(descriptor.ImplementationType);
+            var check = (IDiagnosticCheck) services.GetRequiredService(descriptor.ImplementationType);
             var result = await check.CheckAsync(cancellationToken).ConfigureAwait(false);
             results.Add(new DiagnosticProbeResponse(descriptor.Name, result.Status, result.Description, result.Data));
         }
 
         var healthy = results.All(item => item.Status == DiagnosticStatus.Healthy);
+
         return healthy
             ? Results.Ok(results)
             : Results.Json(results, statusCode: StatusCodes.Status503ServiceUnavailable);
@@ -615,14 +667,14 @@ public static class LiteBusManagementEndpointExtensions
         /// <summary>
         ///     Gets the message identifiers to requeue when the request body omits the array.
         /// </summary>
-        public IReadOnlyList<Guid> MessageIds { get; init; } = Array.Empty<Guid>();
+        public IReadOnlyList<Guid> MessageIds { get; } = Array.Empty<Guid>();
     }
 
     /// <summary>
     ///     JSON payload for inbox processor state responses.
     /// </summary>
     /// <param name="State">The reported inbox processor state.</param>
-    private sealed record ProcessorStateResponse(Inbox.Abstractions.ProcessorState State);
+    private sealed record ProcessorStateResponse(ProcessorState State);
 
     /// <summary>
     ///     JSON payload for outbox processor state responses.

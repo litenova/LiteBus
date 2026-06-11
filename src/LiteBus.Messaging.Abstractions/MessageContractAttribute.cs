@@ -13,7 +13,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///     The attribute is read at runtime through assembly scanning, not only by compile-time analyzers.
 ///     When both an attribute and explicit registration are present, the name and version must match.
 /// </remarks>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
 public sealed class MessageContractAttribute : Attribute
 {
     /// <summary>

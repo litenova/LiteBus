@@ -1,6 +1,5 @@
 using Amazon.SQS.Model;
 using AwesomeAssertions;
-using LiteBus.Transport.Aws;
 
 namespace LiteBus.Transport.Aws.UnitTests;
 

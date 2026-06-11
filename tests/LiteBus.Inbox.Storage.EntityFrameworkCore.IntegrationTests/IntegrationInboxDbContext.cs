@@ -1,4 +1,3 @@
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,14 +9,14 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests;
 internal sealed class IntegrationInboxDbContext : DbContext, IInboxDbContext
 {
     /// <summary>
-    ///     The store options that control schema mapping.
-    /// </summary>
-    private readonly EfCoreInboxStoreOptions _storeOptions;
-
-    /// <summary>
     ///     The storage provider used for model configuration.
     /// </summary>
     private readonly EfCoreStorageProvider _storageProvider;
+
+    /// <summary>
+    ///     The store options that control schema mapping.
+    /// </summary>
+    private readonly EfCoreInboxStoreOptions _storeOptions;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="IntegrationInboxDbContext" /> class.

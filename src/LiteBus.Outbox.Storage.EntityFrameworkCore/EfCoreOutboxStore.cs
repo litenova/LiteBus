@@ -4,8 +4,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Outbox.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Storage.EntityFrameworkCore;
 using LiteBus.Storage.EntityFrameworkCore.Leasing;
@@ -44,11 +44,6 @@ public sealed class EfCoreOutboxStore :
     IAsyncDisposable
 {
     /// <summary>
-    ///     Serializes in-memory and SQLite outbox leasing when multiple workers run in one process.
-    /// </summary>
-    private readonly SemaphoreSlim _inMemoryLeaseLock = new(1, 1);
-
-    /// <summary>
     ///     Resolves a database context for direct factory construction used in tests.
     /// </summary>
     private readonly Func<CancellationToken, Task<IOutboxDbContext>>? _contextFactory;
@@ -64,12 +59,18 @@ public sealed class EfCoreOutboxStore :
     private readonly IOutboxDbContext? _existingContext;
 
     /// <summary>
+    ///     Serializes in-memory and SQLite outbox leasing when multiple workers run in one process.
+    /// </summary>
+    private readonly SemaphoreSlim _inMemoryLeaseLock = new(1, 1);
+
+    /// <summary>
     ///     Store options that define schema and table names for raw SQL leasing.
     /// </summary>
     private readonly EfCoreOutboxStoreOptions _options;
 
     /// <summary>
-    ///     Gets a value indicating whether add operations call <see cref="DbContext.SaveChangesAsync(System.Threading.CancellationToken)" /> immediately.
+    ///     Gets a value indicating whether add operations call
+    ///     <see cref="DbContext.SaveChangesAsync(System.Threading.CancellationToken)" /> immediately.
     /// </summary>
     private readonly bool _saveChangesOnAdd = true;
 
@@ -124,7 +125,8 @@ public sealed class EfCoreOutboxStore :
     /// <param name="context">The existing outbox database context.</param>
     /// <param name="options">The store options.</param>
     /// <param name="saveChangesOnAdd">
-    ///     <see langword="true" /> to call <see cref="DbContext.SaveChangesAsync(System.Threading.CancellationToken)" /> inside
+    ///     <see langword="true" /> to call <see cref="DbContext.SaveChangesAsync(System.Threading.CancellationToken)" />
+    ///     inside
     ///     <see cref="AddAsync(OutboxEnvelope, CancellationToken)" />; otherwise, <see langword="false" />.
     /// </param>
     private EfCoreOutboxStore(
@@ -137,207 +139,123 @@ public sealed class EfCoreOutboxStore :
         _saveChangesOnAdd = saveChangesOnAdd;
     }
 
-    /// <summary>
-    ///     Returns a store instance that writes through an existing application <see cref="DbContext" />.
-    /// </summary>
-    /// <typeparam name="TContext">The concrete context type.</typeparam>
-    /// <param name="context">The existing context that owns the ambient transaction.</param>
-    /// <returns>
-    ///     A store bound to <paramref name="context" /> where <see cref="AddAsync(OutboxEnvelope, CancellationToken)" />
-    ///     stages inserts and defers commit to the caller's <c>SaveChanges</c> call.
-    /// </returns>
-    public ITransactionalOutboxStore UseExistingDbContext<TContext>(TContext context)
-        where TContext : DbContext, IOutboxDbContext
+    /// <inheritdoc />
+    public ValueTask DisposeAsync()
     {
-        ArgumentNullException.ThrowIfNull(context);
-        return new EfCoreOutboxStore(context, _options, saveChangesOnAdd: false);
+        _inMemoryLeaseLock.Dispose();
+        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />
-    public async Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
+    public Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(envelope);
+        ArgumentNullException.ThrowIfNull(messageIds);
 
-        return await ExecuteAsync(async (context, token) =>
+        return ExecuteAsync(async (context, token) =>
         {
-            var local = FindLocalEntity(context, envelope.Id, envelope.IdempotencyKey);
-            if (local is not null)
+            if (messageIds.Count == 0)
             {
-                return ToEnvelope(local);
+                return;
             }
 
-            var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token).ConfigureAwait(false);
-            if (existing is not null)
+            var entities = await context.OutboxMessages
+                .Where(message => messageIds.Contains(message.Id) && message.Status == OutboxStatus.DeadLettered)
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+
+            foreach (var entity in entities)
             {
-                return ToEnvelope(existing);
+                ApplyMutableState(entity, ToEnvelope(entity).AsRequeued());
             }
 
-            var entity = ToEntity(envelope);
-            context.OutboxMessages.Add(entity);
-
-            if (!_saveChangesOnAdd)
-            {
-                return ToEnvelope(entity);
-            }
-
-            try
+            if (entities.Count > 0)
             {
                 await SaveChangesAsync(context, token).ConfigureAwait(false);
-                await ReloadEntityAsync(context, entity, token).ConfigureAwait(false);
-                return ToEnvelope(entity);
             }
-            catch (DbUpdateException)
-            {
-                var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token).ConfigureAwait(false);
-
-                if (stored is null)
-                {
-                    throw;
-                }
-
-                DetachFailedInsert(context, entity);
-                return ToEnvelope(stored);
-            }
-        }, cancellationToken).ConfigureAwait(false);
+        }, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
-        IReadOnlyList<OutboxEnvelope> envelopes,
+    public Task<int> DeletePublishedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
+    {
+        return ExecuteAsync(async (context, token) =>
+        {
+            if (context is not DbContext dbContext)
+            {
+                throw new InvalidOperationException("Retention cleanup requires a DbContext-backed outbox database context.");
+            }
+
+            return await dbContext.Set<OutboxMessageEntity>()
+                .Where(message => message.Status == OutboxStatus.Published &&
+                                  (message.PublishedAt ?? message.CreatedAt) < olderThan)
+                .ExecuteDeleteAsync(token)
+                .ConfigureAwait(false);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<OutboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
+    {
+        return ExecuteAsync(async (context, token) =>
+        {
+            var counts = await context.OutboxMessages
+                .GroupBy(message => message.Status)
+                .Select(group => new { Status = group.Key, Count = group.Count() })
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+
+            return (IReadOnlyDictionary<OutboxStatus, int>) counts.ToDictionary(entry => entry.Status, entry => entry.Count);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
+    {
+        _ = cancellationToken;
+        return Task.FromResult(StoreSchemaInfo.ForLogicalStore("outbox", 1));
+    }
+
+    /// <inheritdoc />
+    public Task<OutboxMessagePage> QueryAsync(
+        OutboxMessageFilter filter,
+        OutboxMessagePageRequest pageRequest,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(envelopes);
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(pageRequest);
+        ValidatePageSize(pageRequest.PageSize);
 
-        if (envelopes.Count == 0)
+        return ExecuteAsync(async (context, token) =>
         {
-            return Array.Empty<OutboxEnvelope>();
-        }
+            var query = ApplyFilter(context.OutboxMessages.AsQueryable(), filter);
+            query = ApplyCursor(query, pageRequest.Cursor);
 
-        return await ExecuteAsync(async (context, token) =>
+            var entities = await query
+                .OrderBy(message => message.CreatedAt)
+                .ThenBy(message => message.Id)
+                .Take(pageRequest.PageSize + 1)
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+
+            return BuildPage(entities.Select(ToEnvelope).ToList(), pageRequest.PageSize);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<int> PurgeAsync(OutboxMessageFilter filter, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+
+        return ExecuteAsync(async (context, token) =>
         {
-            var results = new OutboxEnvelope[envelopes.Count];
-            var pending = new List<(int Index, OutboxEnvelope Envelope)>();
-            var seenIds = new Dictionary<Guid, OutboxEnvelope>();
-            var seenIdempotencyKeys = new Dictionary<string, OutboxEnvelope>(StringComparer.Ordinal);
-            var pendingIdempotencyKeys = new Dictionary<string, int>(StringComparer.Ordinal);
-            var pendingAliases = new Dictionary<int, int>();
-
-            for (var index = 0; index < envelopes.Count; index++)
+            if (context is not DbContext dbContext)
             {
-                var envelope = envelopes[index];
-
-                if (seenIds.TryGetValue(envelope.Id, out var duplicateById))
-                {
-                    results[index] = duplicateById;
-                    continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey)
-                    && seenIdempotencyKeys.TryGetValue(envelope.IdempotencyKey, out var duplicateByKey))
-                {
-                    results[index] = duplicateByKey;
-                    continue;
-                }
-
-                var local = FindLocalEntity(context, envelope.Id, envelope.IdempotencyKey);
-                if (local is not null)
-                {
-                    results[index] = ToEnvelope(local);
-                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
-                    continue;
-                }
-
-                var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
-                    .ConfigureAwait(false);
-
-                if (existing is not null)
-                {
-                    results[index] = ToEnvelope(existing);
-                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
-                    continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey)
-                    && pendingIdempotencyKeys.TryGetValue(envelope.IdempotencyKey, out var sourceIndex))
-                {
-                    pendingAliases[index] = sourceIndex;
-                    continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
-                {
-                    pendingIdempotencyKeys[envelope.IdempotencyKey] = index;
-                }
-
-                pending.Add((index, envelope));
+                throw new InvalidOperationException("Purge requires a DbContext-backed outbox database context.");
             }
 
-            if (pending.Count == 0)
-            {
-                return results;
-            }
-
-            var entities = pending.Select(entry => ToEntity(entry.Envelope)).ToList();
-            context.OutboxMessages.AddRange(entities);
-
-            void ApplyPendingResults()
-            {
-                for (var index = 0; index < pending.Count; index++)
-                {
-                    var stored = ToEnvelope(entities[index]);
-                    results[pending[index].Index] = stored;
-                    RememberBatchResult(seenIds, seenIdempotencyKeys, pending[index].Envelope, stored);
-                }
-
-                foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
-                {
-                    results[duplicateIndex] = results[sourceIndex];
-                }
-            }
-
-            if (!_saveChangesOnAdd)
-            {
-                ApplyPendingResults();
-                return results;
-            }
-
-            try
-            {
-                await SaveChangesAsync(context, token).ConfigureAwait(false);
-
-                for (var index = 0; index < pending.Count; index++)
-                {
-                    await ReloadEntityAsync(context, entities[index], token).ConfigureAwait(false);
-                }
-
-                ApplyPendingResults();
-            }
-            catch (DbUpdateException)
-            {
-                foreach (var entity in entities)
-                {
-                    DetachFailedInsert(context, entity);
-                }
-
-                foreach (var (index, envelope) in pending)
-                {
-                    var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
-                        .ConfigureAwait(false)
-                        ?? throw new InvalidOperationException(
-                            "The outbox batch insert failed and the existing message could not be found.");
-
-                    results[index] = ToEnvelope(stored);
-                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
-                }
-
-                foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
-                {
-                    results[duplicateIndex] = results[sourceIndex];
-                }
-            }
-
-            return results;
-        }, cancellationToken).ConfigureAwait(false);
+            var query = ApplyFilter(context.OutboxMessages.AsQueryable(), filter);
+            return await DeleteMatchingAsync(dbContext, query, token).ConfigureAwait(false);
+        }, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -452,7 +370,8 @@ public sealed class EfCoreOutboxStore :
                     await ApplyDeadLetteredAsync(context, deadLettered, token).ConfigureAwait(false));
             }
 
-            if (persistedMessageIds.Count > 0 && context is DbContext trackedContext &&
+            if (persistedMessageIds.Count > 0 &&
+                context is DbContext trackedContext &&
                 trackedContext.ChangeTracker.HasChanges())
             {
                 await SaveChangesAsync(context, token).ConfigureAwait(false);
@@ -462,6 +381,210 @@ public sealed class EfCoreOutboxStore :
             var appliedCount = messageIds.Count(persistedMessageIds.Contains);
             return PersistResult.FromOutcome(appliedCount, messageIds.Length - appliedCount);
         }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+
+        return await ExecuteAsync(async (context, token) =>
+        {
+            var local = FindLocalEntity(context, envelope.Id, envelope.IdempotencyKey);
+
+            if (local is not null)
+            {
+                return ToEnvelope(local);
+            }
+
+            var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token).ConfigureAwait(false);
+
+            if (existing is not null)
+            {
+                return ToEnvelope(existing);
+            }
+
+            var entity = ToEntity(envelope);
+            context.OutboxMessages.Add(entity);
+
+            if (!_saveChangesOnAdd)
+            {
+                return ToEnvelope(entity);
+            }
+
+            try
+            {
+                await SaveChangesAsync(context, token).ConfigureAwait(false);
+                await ReloadEntityAsync(context, entity, token).ConfigureAwait(false);
+                return ToEnvelope(entity);
+            }
+            catch (DbUpdateException)
+            {
+                var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token).ConfigureAwait(false);
+
+                if (stored is null)
+                {
+                    throw;
+                }
+
+                DetachFailedInsert(context, entity);
+                return ToEnvelope(stored);
+            }
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelopes);
+
+        if (envelopes.Count == 0)
+        {
+            return Array.Empty<OutboxEnvelope>();
+        }
+
+        return await ExecuteAsync(async (context, token) =>
+        {
+            var results = new OutboxEnvelope[envelopes.Count];
+            var pending = new List<(int Index, OutboxEnvelope Envelope)>();
+            var seenIds = new Dictionary<Guid, OutboxEnvelope>();
+            var seenIdempotencyKeys = new Dictionary<string, OutboxEnvelope>(StringComparer.Ordinal);
+            var pendingIdempotencyKeys = new Dictionary<string, int>(StringComparer.Ordinal);
+            var pendingAliases = new Dictionary<int, int>();
+
+            for (var index = 0; index < envelopes.Count; index++)
+            {
+                var envelope = envelopes[index];
+
+                if (seenIds.TryGetValue(envelope.Id, out var duplicateById))
+                {
+                    results[index] = duplicateById;
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey) && seenIdempotencyKeys.TryGetValue(envelope.IdempotencyKey, out var duplicateByKey))
+                {
+                    results[index] = duplicateByKey;
+                    continue;
+                }
+
+                var local = FindLocalEntity(context, envelope.Id, envelope.IdempotencyKey);
+
+                if (local is not null)
+                {
+                    results[index] = ToEnvelope(local);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
+                    continue;
+                }
+
+                var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
+                    .ConfigureAwait(false);
+
+                if (existing is not null)
+                {
+                    results[index] = ToEnvelope(existing);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey) && pendingIdempotencyKeys.TryGetValue(envelope.IdempotencyKey, out var sourceIndex))
+                {
+                    pendingAliases[index] = sourceIndex;
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
+                {
+                    pendingIdempotencyKeys[envelope.IdempotencyKey] = index;
+                }
+
+                pending.Add((index, envelope));
+            }
+
+            if (pending.Count == 0)
+            {
+                return results;
+            }
+
+            var entities = pending.Select(entry => ToEntity(entry.Envelope)).ToList();
+            context.OutboxMessages.AddRange(entities);
+
+            void ApplyPendingResults()
+            {
+                for (var index = 0; index < pending.Count; index++)
+                {
+                    var stored = ToEnvelope(entities[index]);
+                    results[pending[index].Index] = stored;
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, pending[index].Envelope, stored);
+                }
+
+                foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
+                {
+                    results[duplicateIndex] = results[sourceIndex];
+                }
+            }
+
+            if (!_saveChangesOnAdd)
+            {
+                ApplyPendingResults();
+                return results;
+            }
+
+            try
+            {
+                await SaveChangesAsync(context, token).ConfigureAwait(false);
+
+                for (var index = 0; index < pending.Count; index++)
+                {
+                    await ReloadEntityAsync(context, entities[index], token).ConfigureAwait(false);
+                }
+
+                ApplyPendingResults();
+            }
+            catch (DbUpdateException)
+            {
+                foreach (var entity in entities)
+                {
+                    DetachFailedInsert(context, entity);
+                }
+
+                foreach (var (index, envelope) in pending)
+                {
+                    var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
+                                     .ConfigureAwait(false) ??
+                                 throw new InvalidOperationException(
+                                     "The outbox batch insert failed and the existing message could not be found.");
+
+                    results[index] = ToEnvelope(stored);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
+                }
+
+                foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
+                {
+                    results[duplicateIndex] = results[sourceIndex];
+                }
+            }
+
+            return results;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Returns a store instance that writes through an existing application <see cref="DbContext" />.
+    /// </summary>
+    /// <typeparam name="TContext">The concrete context type.</typeparam>
+    /// <param name="context">The existing context that owns the ambient transaction.</param>
+    /// <returns>
+    ///     A store bound to <paramref name="context" /> where <see cref="AddAsync(OutboxEnvelope, CancellationToken)" />
+    ///     stages inserts and defers commit to the caller's <c>SaveChanges</c> call.
+    /// </returns>
+    public ITransactionalOutboxStore UseExistingDbContext<TContext>(TContext context)
+        where TContext : DbContext, IOutboxDbContext
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return new EfCoreOutboxStore(context, _options, false);
     }
 
     /// <summary>
@@ -491,6 +614,7 @@ public sealed class EfCoreOutboxStore :
         foreach (var envelope in envelopes)
         {
             var publishedAt = envelope.PublishedAt ?? DateTimeOffset.UtcNow;
+
             var affected = await dbContext.Set<OutboxMessageEntity>()
                 .Where(message =>
                     message.Id == envelope.Id &&
@@ -499,9 +623,9 @@ public sealed class EfCoreOutboxStore :
                 .ExecuteUpdateAsync(
                     setters => setters
                         .SetProperty(message => message.Status, OutboxStatus.Published)
-                        .SetProperty(message => message.LeaseOwner, (string?)null)
-                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?)null)
-                        .SetProperty(message => message.LastError, (string?)null)
+                        .SetProperty(message => message.LeaseOwner, (string?) null)
+                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
+                        .SetProperty(message => message.LastError, (string?) null)
                         .SetProperty(message => message.PublishedAt, publishedAt),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -528,6 +652,7 @@ public sealed class EfCoreOutboxStore :
         CancellationToken cancellationToken)
     {
         var envelopeById = envelopes.ToDictionary(envelope => envelope.Id);
+
         var entities = await context.OutboxMessages
             .Where(message => envelopeById.Keys.Contains(message.Id))
             .ToListAsync(cancellationToken)
@@ -547,6 +672,7 @@ public sealed class EfCoreOutboxStore :
             ApplyMutableState(entity, source.Status == OutboxStatus.Published
                 ? source
                 : source.AsPublished());
+
             persistedMessageIds.Add(entity.Id);
         }
 
@@ -589,8 +715,8 @@ public sealed class EfCoreOutboxStore :
                         .SetProperty(message => message.Status, OutboxStatus.Failed)
                         .SetProperty(message => message.VisibleAfter, envelope.VisibleAfter)
                         .SetProperty(message => message.AttemptCount, envelope.AttemptCount)
-                        .SetProperty(message => message.LeaseOwner, (string?)null)
-                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?)null)
+                        .SetProperty(message => message.LeaseOwner, (string?) null)
+                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
                         .SetProperty(message => message.LastError, envelope.LastError),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -617,6 +743,7 @@ public sealed class EfCoreOutboxStore :
         CancellationToken cancellationToken)
     {
         var envelopeById = envelopes.ToDictionary(envelope => envelope.Id);
+
         var entities = await context.OutboxMessages
             .Where(message => envelopeById.Keys.Contains(message.Id))
             .ToListAsync(cancellationToken)
@@ -675,8 +802,8 @@ public sealed class EfCoreOutboxStore :
                     setters => setters
                         .SetProperty(message => message.Status, OutboxStatus.DeadLettered)
                         .SetProperty(message => message.AttemptCount, envelope.AttemptCount)
-                        .SetProperty(message => message.LeaseOwner, (string?)null)
-                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?)null)
+                        .SetProperty(message => message.LeaseOwner, (string?) null)
+                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
                         .SetProperty(message => message.LastError, envelope.LastError),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -703,6 +830,7 @@ public sealed class EfCoreOutboxStore :
         CancellationToken cancellationToken)
     {
         var envelopeById = envelopes.ToDictionary(envelope => envelope.Id);
+
         var entities = await context.OutboxMessages
             .Where(message => envelopeById.Keys.Contains(message.Id))
             .ToListAsync(cancellationToken)
@@ -738,125 +866,6 @@ public sealed class EfCoreOutboxStore :
                string.Equals(entity.LeaseOwner, envelope.LeaseOwner, StringComparison.Ordinal);
     }
 
-    /// <inheritdoc />
-    public Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(messageIds);
-
-        return ExecuteAsync(async (context, token) =>
-        {
-            if (messageIds.Count == 0)
-            {
-                return;
-            }
-
-            var entities = await context.OutboxMessages
-                .Where(message => messageIds.Contains(message.Id) && message.Status == OutboxStatus.DeadLettered)
-                .ToListAsync(token)
-                .ConfigureAwait(false);
-
-            foreach (var entity in entities)
-            {
-                ApplyMutableState(entity, ToEnvelope(entity).AsRequeued());
-            }
-
-            if (entities.Count > 0)
-            {
-                await SaveChangesAsync(context, token).ConfigureAwait(false);
-            }
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task<int> DeletePublishedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
-    {
-        return ExecuteAsync(async (context, token) =>
-        {
-            if (context is not DbContext dbContext)
-            {
-                throw new InvalidOperationException("Retention cleanup requires a DbContext-backed outbox database context.");
-            }
-
-            return await dbContext.Set<OutboxMessageEntity>()
-                .Where(message => message.Status == OutboxStatus.Published &&
-                                  (message.PublishedAt ?? message.CreatedAt) < olderThan)
-                .ExecuteDeleteAsync(token)
-                .ConfigureAwait(false);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task<IReadOnlyDictionary<OutboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
-    {
-        return ExecuteAsync(async (context, token) =>
-        {
-            var counts = await context.OutboxMessages
-                .GroupBy(message => message.Status)
-                .Select(group => new { Status = group.Key, Count = group.Count() })
-                .ToListAsync(token)
-                .ConfigureAwait(false);
-
-            return (IReadOnlyDictionary<OutboxStatus, int>)counts.ToDictionary(entry => entry.Status, entry => entry.Count);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
-    {
-        _ = cancellationToken;
-        return Task.FromResult(StoreSchemaInfo.ForLogicalStore("outbox", 1));
-    }
-
-    /// <inheritdoc />
-    public Task<OutboxMessagePage> QueryAsync(
-        OutboxMessageFilter filter,
-        OutboxMessagePageRequest pageRequest,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(filter);
-        ArgumentNullException.ThrowIfNull(pageRequest);
-        ValidatePageSize(pageRequest.PageSize);
-
-        return ExecuteAsync(async (context, token) =>
-        {
-            var query = ApplyFilter(context.OutboxMessages.AsQueryable(), filter);
-            query = ApplyCursor(query, pageRequest.Cursor);
-
-            var entities = await query
-                .OrderBy(message => message.CreatedAt)
-                .ThenBy(message => message.Id)
-                .Take(pageRequest.PageSize + 1)
-                .ToListAsync(token)
-                .ConfigureAwait(false);
-
-            return BuildPage(entities.Select(ToEnvelope).ToList(), pageRequest.PageSize);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public Task<int> PurgeAsync(OutboxMessageFilter filter, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(filter);
-
-        return ExecuteAsync(async (context, token) =>
-        {
-            if (context is not DbContext dbContext)
-            {
-                throw new InvalidOperationException("Purge requires a DbContext-backed outbox database context.");
-            }
-
-            var query = ApplyFilter(context.OutboxMessages.AsQueryable(), filter);
-            return await DeleteMatchingAsync(dbContext, query, token).ConfigureAwait(false);
-        }, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public ValueTask DisposeAsync()
-    {
-        _inMemoryLeaseLock.Dispose();
-        return ValueTask.CompletedTask;
-    }
-
     /// <summary>
     ///     Runs one store operation against a resolved database context.
     /// </summary>
@@ -885,7 +894,7 @@ public sealed class EfCoreOutboxStore :
         }
 
         await using var scope = _scopeFactory.CreateAsyncScope();
-        var contextFromScope = (IOutboxDbContext)scope.ServiceProvider.GetRequiredService(_dbContextType);
+        var contextFromScope = (IOutboxDbContext) scope.ServiceProvider.GetRequiredService(_dbContextType);
         return await action(contextFromScope, cancellationToken).ConfigureAwait(false);
     }
 
@@ -922,7 +931,8 @@ public sealed class EfCoreOutboxStore :
     {
         var leaseExpiresAt = request.Now.Add(request.LeaseDuration);
         var staleCutoff = request.Now.Add(-request.LeaseDuration);
-        List<OutboxMessageLeaseRow> rows = provider switch
+
+        var rows = provider switch
         {
             EfCoreStorageProvider.PostgreSql => await EfCoreRelationalLeaseExecutor
                 .LeasePostgreSqlAsync<OutboxMessageLeaseRow>(
@@ -931,10 +941,10 @@ public sealed class EfCoreOutboxStore :
                     provider,
                     _options.SchemaName,
                     _options.TableName,
-                    (int)OutboxStatus.Pending,
-                    (int)OutboxStatus.Failed,
+                    (int) OutboxStatus.Pending,
+                    (int) OutboxStatus.Failed,
                     request.Now,
-                    (int)OutboxStatus.Publishing,
+                    (int) OutboxStatus.Publishing,
                     request.BatchSize,
                     request.LeaseOwner,
                     leaseExpiresAt,
@@ -949,10 +959,10 @@ public sealed class EfCoreOutboxStore :
                     provider,
                     _options.SchemaName,
                     _options.TableName,
-                    (int)OutboxStatus.Pending,
-                    (int)OutboxStatus.Failed,
+                    (int) OutboxStatus.Pending,
+                    (int) OutboxStatus.Failed,
                     request.Now,
-                    (int)OutboxStatus.Publishing,
+                    (int) OutboxStatus.Publishing,
                     request.BatchSize,
                     request.LeaseOwner,
                     leaseExpiresAt,
@@ -967,10 +977,10 @@ public sealed class EfCoreOutboxStore :
                     provider,
                     _options.SchemaName,
                     _options.TableName,
-                    (int)OutboxStatus.Pending,
-                    (int)OutboxStatus.Failed,
+                    (int) OutboxStatus.Pending,
+                    (int) OutboxStatus.Failed,
                     request.Now,
-                    (int)OutboxStatus.Publishing,
+                    (int) OutboxStatus.Publishing,
                     request.BatchSize,
                     request.LeaseOwner,
                     leaseExpiresAt,
@@ -1031,15 +1041,10 @@ public sealed class EfCoreOutboxStore :
 
         var candidates = await context.OutboxMessages
             .Where(message =>
-                (tenantId == null || message.TenantId == tenantId)
-                && (((message.Status == pendingStatus || message.Status == failedStatus)
-                     && (message.VisibleAfter == null || message.VisibleAfter <= now))
-                    || (message.Status == publishingStatus
-                        && message.LeaseExpiresAt != null
-                        && message.LeaseExpiresAt <= now)
-                    || (message.Status == publishingStatus
-                        && message.LeaseExpiresAt == null
-                        && message.CreatedAt < staleCutoff)))
+                (tenantId == null || message.TenantId == tenantId) &&
+                ((message.Status == pendingStatus || message.Status == failedStatus) && (message.VisibleAfter == null || message.VisibleAfter <= now) ||
+                 message.Status == publishingStatus && message.LeaseExpiresAt != null && message.LeaseExpiresAt <= now ||
+                 message.Status == publishingStatus && message.LeaseExpiresAt == null && message.CreatedAt < staleCutoff))
             .OrderBy(message => message.CreatedAt)
             .Take(request.BatchSize)
             .ToListAsync(cancellationToken)
@@ -1071,8 +1076,7 @@ public sealed class EfCoreOutboxStore :
         string? idempotencyKey)
     {
         return context.OutboxMessages.Local.FirstOrDefault(message =>
-            message.Id == messageId
-            || (!string.IsNullOrWhiteSpace(idempotencyKey) && message.IdempotencyKey == idempotencyKey));
+            message.Id == messageId || !string.IsNullOrWhiteSpace(idempotencyKey) && message.IdempotencyKey == idempotencyKey);
     }
 
     /// <summary>
@@ -1219,7 +1223,7 @@ public sealed class EfCoreOutboxStore :
             Topic = row.Topic,
             CreatedAt = row.CreatedAt,
             VisibleAfter = row.VisibleAfter,
-            Status = (OutboxStatus)row.Status,
+            Status = (OutboxStatus) row.Status,
             AttemptCount = row.AttemptCount,
             LeaseOwner = row.LeaseOwner,
             LeaseExpiresAt = row.LeaseExpiresAt,
@@ -1270,12 +1274,15 @@ public sealed class EfCoreOutboxStore :
         entity.Status = envelope.Status;
         entity.VisibleAfter = envelope.VisibleAfter;
         entity.AttemptCount = envelope.AttemptCount;
+
         entity.LeaseOwner = envelope.Status is OutboxStatus.Published or OutboxStatus.Failed or OutboxStatus.DeadLettered
             ? null
             : envelope.LeaseOwner;
+
         entity.LeaseExpiresAt = envelope.Status is OutboxStatus.Published or OutboxStatus.Failed or OutboxStatus.DeadLettered
             ? null
             : envelope.LeaseExpiresAt;
+
         entity.LastError = envelope.LastError;
 
         if (envelope.Status == OutboxStatus.Published)
@@ -1308,7 +1315,7 @@ public sealed class EfCoreOutboxStore :
 
         if (statusValues is not null)
         {
-            query = query.Where(message => statusValues.Contains((int)message.Status));
+            query = query.Where(message => statusValues.Contains((int) message.Status));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.ContractName))
@@ -1371,7 +1378,7 @@ public sealed class EfCoreOutboxStore :
 
         return query.Where(message =>
             message.CreatedAt > cursorCreatedAt ||
-            (message.CreatedAt == cursorCreatedAt && message.Id > cursorMessageId));
+            message.CreatedAt == cursorCreatedAt && message.Id > cursorMessageId);
     }
 
     /// <summary>
@@ -1384,6 +1391,7 @@ public sealed class EfCoreOutboxStore :
     {
         var hasMore = envelopes.Count > pageSize;
         var items = hasMore ? envelopes.Take(pageSize).ToList() : envelopes;
+
         var nextCursor = hasMore
             ? OutboxMessagePageCursor.Encode(items[^1].CreatedAt, items[^1].Id)
             : null;
@@ -1450,7 +1458,7 @@ public sealed class EfCoreOutboxStore :
 
         for (var index = 0; index < statuses.Count; index++)
         {
-            values[index] = (int)statuses[index];
+            values[index] = (int) statuses[index];
         }
 
         return values;
@@ -1468,10 +1476,10 @@ public sealed class EfCoreOutboxStore :
         public Guid Id { get; set; }
 
         /// <summary>
-        ///     Gets or sets the contract name column.
+        ///     Gets the contract name column.
         /// </summary>
         [Column("contract_name")]
-        public string ContractName { get; set; } = string.Empty;
+        public string ContractName { get; } = string.Empty;
 
         /// <summary>
         ///     Gets or sets the contract version column.
@@ -1480,10 +1488,10 @@ public sealed class EfCoreOutboxStore :
         public int ContractVersion { get; set; }
 
         /// <summary>
-        ///     Gets or sets the payload column.
+        ///     Gets the payload column.
         /// </summary>
         [Column("payload")]
-        public string Payload { get; set; } = string.Empty;
+        public string Payload { get; } = string.Empty;
 
         /// <summary>
         ///     Gets or sets the topic column.

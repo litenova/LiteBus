@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
@@ -11,7 +12,7 @@ using LiteBus.Transport.Abstractions;
 namespace LiteBus.Inbox.Ingress;
 
 /// <summary>
-///     Maps transport deliveries into <see cref="IInbox.AcceptAsync" /> acceptance calls.
+///     Maps transport deliveries into <see cref="IInbox.AcceptAsync{TMessage}" /> acceptance calls.
 /// </summary>
 public sealed class TransportInboxIngressHandler
 {
@@ -60,16 +61,8 @@ public sealed class TransportInboxIngressHandler
 
         try
         {
-            var contractName = TransportInboxIngressMapper.GetRequiredHeader(message, TransportHeaders.ContractName);
-            var contractVersion = TransportInboxIngressMapper.GetRequiredContractVersion(message);
-            var messageType = _contractRegistry.GetMessageType(contractName, contractVersion);
-            var payload = System.Text.Encoding.UTF8.GetString(message.Body.Span);
-            var deserialized = await _messageSerializer
-                .DeserializeAsync(messageType, payload, cancellationToken)
-                .ConfigureAwait(false);
-
-            var options = TransportInboxIngressMapper.ToInboxOptions(message);
-            await _inbox.AcceptAsync(deserialized, messageType, options, cancellationToken).ConfigureAwait(false);
+            var item = await BuildAcceptItemAsync(message, cancellationToken).ConfigureAwait(false);
+            await _inbox.AcceptBatchAsync([item], cancellationToken).ConfigureAwait(false);
         }
         catch (TransportHeaderMappingException exception)
         {
@@ -96,32 +89,42 @@ public sealed class TransportInboxIngressHandler
 
         try
         {
-            var deserializedMessages = new object[messages.Count];
-            var messageTypes = new Type[messages.Count];
-            var options = new InboxOptions?[messages.Count];
+            var items = new InboxAcceptItem[messages.Count];
 
             for (var index = 0; index < messages.Count; index++)
             {
-                var message = messages[index];
-                var contractName = TransportInboxIngressMapper.GetRequiredHeader(message, TransportHeaders.ContractName);
-                var contractVersion = TransportInboxIngressMapper.GetRequiredContractVersion(message);
-                var messageType = _contractRegistry.GetMessageType(contractName, contractVersion);
-                var payload = System.Text.Encoding.UTF8.GetString(message.Body.Span);
-                var deserialized = await _messageSerializer
-                    .DeserializeAsync(messageType, payload, cancellationToken)
-                    .ConfigureAwait(false);
-
-                deserializedMessages[index] = deserialized;
-                messageTypes[index] = messageType;
-                options[index] = TransportInboxIngressMapper.ToInboxOptions(message);
+                items[index] = await BuildAcceptItemAsync(messages[index], cancellationToken).ConfigureAwait(false);
             }
 
-            await _inbox.AcceptBatchAsync(deserializedMessages, messageTypes, options, cancellationToken)
-                .ConfigureAwait(false);
+            await _inbox.AcceptBatchAsync(items, cancellationToken).ConfigureAwait(false);
         }
         catch (TransportHeaderMappingException exception)
         {
             throw new InboxDispatchException(exception.Message, exception);
         }
+    }
+
+    /// <summary>
+    ///     Deserializes one transport delivery and maps its headers to an inbox acceptance item.
+    /// </summary>
+    /// <param name="message">The received transport delivery.</param>
+    /// <param name="cancellationToken">The token used to cancel deserialization.</param>
+    /// <returns>An acceptance item ready for <see cref="IInbox.AcceptBatchAsync" />.</returns>
+    private async Task<InboxAcceptItem> BuildAcceptItemAsync(
+        TransportMessage message,
+        CancellationToken cancellationToken)
+    {
+        var contractName = TransportInboxIngressMapper.GetRequiredHeader(message, TransportHeaders.ContractName);
+        var contractVersion = TransportInboxIngressMapper.GetRequiredContractVersion(message);
+        var messageType = _contractRegistry.GetMessageType(contractName, contractVersion);
+        var payload = Encoding.UTF8.GetString(message.Body.Span);
+
+        var deserialized = await _messageSerializer
+            .DeserializeAsync(messageType, payload, cancellationToken)
+            .ConfigureAwait(false);
+
+        var metadata = TransportInboxIngressMapper.ToInboxAcceptMetadata(message);
+
+        return InboxAcceptItems.Untyped(deserialized, metadata);
     }
 }

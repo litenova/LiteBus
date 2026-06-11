@@ -72,7 +72,7 @@ internal static class OutboxProcessorTelemetry
     ///     Gets the histogram recording outbox publication duration in milliseconds.
     /// </summary>
     private static readonly Histogram<double> DispatchDurationHistogram =
-        Meter.CreateHistogram<double>(LiteBusOutboxTelemetry.ProcessorDispatchDurationInstrumentName, unit: "ms");
+        Meter.CreateHistogram<double>(LiteBusOutboxTelemetry.ProcessorDispatchDurationInstrumentName, "ms");
 
     /// <summary>
     ///     Records that the outbox processor background loop caught an unhandled exception.

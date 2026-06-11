@@ -1,6 +1,6 @@
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Dispatch.Kafka;
@@ -26,6 +26,7 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
     {
         var messageId = Guid.NewGuid();
         var clock = new ManualTimeProvider(DateTimeOffset.UtcNow);
+
         var provider = BuildProvider(
             new KafkaTransportOptions
             {
@@ -41,9 +42,14 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
             var processor = provider.GetRequiredService<IOutboxProcessor>();
             var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-            await outbox.EnqueueAsync(
-                new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-                new OutboxOptions { Id = messageId });
+            await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+            {
+                Event = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Metadata = OutboxEnqueueMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId)
+                }
+            });
 
             await processor.ProcessPendingAsync();
 
@@ -65,6 +71,7 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenCircuitBreakerOpen_ShouldNotPublish()
     {
         var messageId = Guid.NewGuid();
+
         var provider = BuildProvider(
             new KafkaTransportOptions
             {
@@ -76,6 +83,7 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
         try
         {
             var breaker = provider.GetRequiredService<ITransportCircuitBreaker>();
+
             for (var attempt = 0; attempt < 5; attempt++)
             {
                 breaker.RecordFailure();
@@ -85,9 +93,14 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
             var processor = provider.GetRequiredService<IOutboxProcessor>();
             var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-            await outbox.EnqueueAsync(
-                new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-                new OutboxOptions { Id = messageId });
+            await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+            {
+                Event = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Metadata = OutboxEnqueueMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId)
+                }
+            });
 
             await processor.ProcessPendingAsync();
 
@@ -111,34 +124,40 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
         TimeProvider? clock = null)
     {
         var services = new ServiceCollection();
+
         if (clock is not null)
         {
             services.AddSingleton(clock);
         }
 
         services.AddLiteBus(registry =>
+        {
+            registry.AddMessageModule(_ =>
             {
-                registry.AddMessageModule(_ => { });
-                registry.AddOutboxModule(outbox =>
-                {
-                    outbox.UseInMemoryStorage();
-                    outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted", 1);
-                    outbox.UseProcessorOptions(new OutboxProcessorOptions
-                    {
-                        BatchSize = 10,
-                        LeaseOwner = "kafka-dispatch-failure",
-                        Retry = new RetryOptions
-                        {
-                            UseJitter = false,
-                            InitialDelay = TimeSpan.FromMinutes(2),
-                            MaxAttempts = 5
-                        }
-                    });
-                    outbox.UseKafkaDispatch(
-                        transport => transport.DefaultDestination = "unreachable-topic",
-                        transportOptions);
-                });
             });
+
+            registry.AddOutboxModule(outbox =>
+            {
+                outbox.UseInMemoryStorage();
+                outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted");
+
+                outbox.UseProcessorOptions(new OutboxProcessorOptions
+                {
+                    BatchSize = 10,
+                    LeaseOwner = "kafka-dispatch-failure",
+                    Retry = new RetryOptions
+                    {
+                        UseJitter = false,
+                        InitialDelay = TimeSpan.FromMinutes(2),
+                        MaxAttempts = 5
+                    }
+                });
+
+                outbox.UseKafkaDispatch(
+                    transport => transport.DefaultDestination = "unreachable-topic",
+                    transportOptions);
+            });
+        });
 
         return services.BuildServiceProvider();
     }

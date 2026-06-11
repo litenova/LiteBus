@@ -16,6 +16,26 @@ internal sealed class ProcessorBackgroundService<TProcessor> : IBackgroundServic
     where TProcessor : class, IMessageProcessor
 {
     /// <summary>
+    ///     Gets the control surface used to pause, resume, and drain the processor loop.
+    /// </summary>
+    private readonly IProcessorBackgroundControl _control;
+
+    /// <summary>
+    ///     Gets the loop timing and adaptive polling options for the processor.
+    /// </summary>
+    private readonly ProcessorHostOptions _hostOptions;
+
+    /// <summary>
+    ///     Gets the logger used for processor loop diagnostics.
+    /// </summary>
+    private readonly ILogger _logger;
+
+    /// <summary>
+    ///     Gets the callback invoked to log loop failures.
+    /// </summary>
+    private readonly Action<ILogger, Exception> _logLoopFailed;
+
+    /// <summary>
     ///     Gets the processor that performs each pass.
     /// </summary>
     private readonly TProcessor _processor;
@@ -26,34 +46,14 @@ internal sealed class ProcessorBackgroundService<TProcessor> : IBackgroundServic
     private readonly ProcessorOptions _processorOptions;
 
     /// <summary>
-    ///     Gets the loop timing and adaptive polling options for the processor.
-    /// </summary>
-    private readonly ProcessorHostOptions _hostOptions;
-
-    /// <summary>
-    ///     Gets the signal used to wait for work notifications or polling delays.
-    /// </summary>
-    private readonly IProcessorWorkSignal _workSignal;
-
-    /// <summary>
-    ///     Gets the control surface used to pause, resume, and drain the processor loop.
-    /// </summary>
-    private readonly IProcessorBackgroundControl _control;
-
-    /// <summary>
     ///     Gets the callback invoked when the loop catches an unexpected exception.
     /// </summary>
     private readonly Action _recordLoopError;
 
     /// <summary>
-    ///     Gets the callback invoked to log loop failures.
+    ///     Gets the signal used to wait for work notifications or polling delays.
     /// </summary>
-    private readonly Action<ILogger, Exception> _logLoopFailed;
-
-    /// <summary>
-    ///     Gets the logger used for processor loop diagnostics.
-    /// </summary>
-    private readonly ILogger _logger;
+    private readonly IProcessorWorkSignal _workSignal;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="ProcessorBackgroundService{TProcessor}" /> class.

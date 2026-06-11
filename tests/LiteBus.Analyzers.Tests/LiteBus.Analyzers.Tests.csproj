@@ -12,13 +12,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2" />
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.8.0" />
-        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.8.0" />
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
-        <PackageReference Include="NuGet.Versioning" Version="6.14.0" />
-        <PackageReference Include="xunit" Version="2.9.3" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.8.0"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.8.0"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.5.1"/>
+        <PackageReference Include="NuGet.Versioning" Version="6.14.0"/>
+        <PackageReference Include="xunit" Version="2.9.3"/>
         <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
@@ -26,17 +26,17 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\LiteBus.Analyzers\LiteBus.Analyzers.csproj" />
+        <ProjectReference Include="..\..\src\LiteBus.Analyzers\LiteBus.Analyzers.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Analyzers\LiteBus.Analyzers.csproj"
                           OutputItemType="Analyzer"
-                          ReferenceOutputAssembly="false" />
-        <ProjectReference Include="..\..\src\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj" />
-        <ProjectReference Include="..\..\src\LiteBus.Events.Abstractions\LiteBus.Events.Abstractions.csproj" />
-        <ProjectReference Include="..\..\src\LiteBus.Queries.Abstractions\LiteBus.Queries.Abstractions.csproj" />
-        <ProjectReference Include="..\..\src\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj" />
-        <ProjectReference Include="..\..\src\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj" />
-        <ProjectReference Include="..\..\src\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj" />
-        <ProjectReference Include="..\..\src\LiteBus.Transport.Abstractions\LiteBus.Transport.Abstractions.csproj" />
+                          ReferenceOutputAssembly="false"/>
+        <ProjectReference Include="..\..\src\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Events.Abstractions\LiteBus.Events.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Queries.Abstractions\LiteBus.Queries.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.Abstractions\LiteBus.Transport.Abstractions.csproj"/>
     </ItemGroup>
 
 </Project>

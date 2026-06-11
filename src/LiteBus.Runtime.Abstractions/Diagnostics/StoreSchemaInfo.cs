@@ -23,6 +23,8 @@ public sealed record StoreSchemaInfo(
     /// <param name="component">The store component name.</param>
     /// <param name="version">The logical schema version.</param>
     /// <returns>Schema info for in-memory and Entity Framework backends.</returns>
-    public static StoreSchemaInfo ForLogicalStore(string component, int version) =>
-        new(component, version, version);
+    public static StoreSchemaInfo ForLogicalStore(string component, int version)
+    {
+        return new StoreSchemaInfo(component, version, version);
+    }
 }

@@ -1,8 +1,6 @@
-using System;
-using System.Linq;
 using Confluent.Kafka;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Transport;
+using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.Kafka;
 
@@ -31,7 +29,7 @@ public sealed class KafkaTransportModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(Abstractions.IMessageTransport)))
+        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageTransport)))
         {
             return;
         }
@@ -45,8 +43,8 @@ public sealed class KafkaTransportModule : IModule
             static serviceProvider =>
             {
                 var options = serviceProvider.GetService(typeof(KafkaTransportOptions))
-                    as KafkaTransportOptions
-                    ?? throw new InvalidOperationException($"{nameof(KafkaTransportOptions)} is not registered.");
+                                  as KafkaTransportOptions ??
+                              throw new InvalidOperationException($"{nameof(KafkaTransportOptions)} is not registered.");
 
                 var config = new ProducerConfig
                 {
@@ -71,8 +69,8 @@ public sealed class KafkaTransportModule : IModule
             static serviceProvider =>
             {
                 var options = serviceProvider.GetService(typeof(KafkaTransportOptions))
-                    as KafkaTransportOptions
-                    ?? throw new InvalidOperationException($"{nameof(KafkaTransportOptions)} is not registered.");
+                                  as KafkaTransportOptions ??
+                              throw new InvalidOperationException($"{nameof(KafkaTransportOptions)} is not registered.");
 
                 var config = new ConsumerConfig
                 {
@@ -93,14 +91,13 @@ public sealed class KafkaTransportModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(Abstractions.IMessageTransport),
+            typeof(IMessageTransport),
             typeof(KafkaPublisher)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(Abstractions.IMessageConsumer),
+            typeof(IMessageConsumer),
             typeof(KafkaConsumer)));
 
         TransportMetricsRegistration.RegisterIfNeeded(configuration);
     }
 }
-

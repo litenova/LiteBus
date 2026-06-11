@@ -1,21 +1,23 @@
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests;
 
 /// <summary>
-///     Unit tests for deferred inbox writes through <see cref="EfCoreInboxStore.UseExistingDbContext{TContext}(TContext)" />.
+///     Unit tests for deferred inbox writes through
+///     <see cref="EfCoreInboxStore.UseExistingDbContext{TContext}(TContext)" />.
 /// </summary>
 public sealed class EfCoreInboxTransactionalUnitTests
 {
     /// <summary>
-    ///     Confirms <see cref="EfCoreInboxStore.AddAsync(InboxEnvelope, CancellationToken)" /> does not persist until the caller saves changes.
+    ///     Confirms <see cref="EfCoreInboxStore.AddAsync(InboxEnvelope, CancellationToken)" /> does not persist until the
+    ///     caller saves changes.
     /// </summary>
     [Fact]
     public async Task UseExistingDbContext_defers_persistence_until_save_changes()
     {
         var databaseName = Guid.NewGuid().ToString("N");
+
         var options = new DbContextOptionsBuilder<TestInboxDbContext>()
             .UseInMemoryDatabase(databaseName)
             .Options;
@@ -24,7 +26,8 @@ public sealed class EfCoreInboxTransactionalUnitTests
         await context.Database.EnsureCreatedAsync();
 
         var store = new EfCoreInboxStore(_ => Task.FromResult<IInboxDbContext>(context), new EfCoreInboxStoreOptions());
-        ITransactionalInboxStore transactionalStore = store.UseExistingDbContext(context);
+        var transactionalStore = store.UseExistingDbContext(context);
+
         var envelope = new InboxEnvelope
         {
             Id = Guid.NewGuid(),

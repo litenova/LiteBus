@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Ingress;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Transport;
@@ -55,6 +54,7 @@ public sealed class InMemoryInboxIngressModule : IInboxIngressModule
         };
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(TransportInboxIngressOptions), ingressOptions));
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(TransportInboxIngressHandler),
             typeof(TransportInboxIngressHandler)));

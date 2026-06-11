@@ -1,10 +1,10 @@
 using System.Collections.Immutable;
 using System.Linq;
+using LiteBus.Analyzers.Analysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
-using LiteBus.Analyzers.Analysis;
 
 namespace LiteBus.Analyzers;
 
@@ -68,7 +68,8 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
     }
 
     /// <summary>
-    ///     Determines whether the method symbol is an inbox acceptance API on <see cref="LiteBus.Inbox.Abstractions.IInbox" />.
+    ///     Determines whether the method symbol is an inbox acceptance API on <see cref="LiteBus.Inbox.Abstractions.IInbox" />
+    ///     .
     /// </summary>
     /// <param name="method">The invoked method symbol.</param>
     /// <param name="compilation">The compilation being analyzed.</param>
@@ -87,8 +88,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
             return true;
         }
 
-        return method.ContainingType.AllInterfaces.Any(
-            candidate => SymbolEqualityComparer.Default.Equals(candidate, inboxInterface));
+        return method.ContainingType.AllInterfaces.Any(candidate => SymbolEqualityComparer.Default.Equals(candidate, inboxInterface));
     }
 
     /// <summary>
@@ -113,7 +113,17 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
             return null;
         }
 
-        return semanticModel.GetTypeInfo(invocation.ArgumentList.Arguments[0].Expression).Type;
+        var firstArgumentType = semanticModel.GetTypeInfo(invocation.ArgumentList.Arguments[0].Expression).Type;
+
+        if (firstArgumentType is INamedTypeSymbol namedType &&
+            namedType.IsGenericType &&
+            namedType.Name == "InboxAcceptItem" &&
+            namedType.TypeArguments.Length > 0)
+        {
+            return namedType.TypeArguments[0];
+        }
+
+        return firstArgumentType;
     }
 
     /// <summary>

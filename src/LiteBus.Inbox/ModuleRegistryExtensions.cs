@@ -46,7 +46,7 @@ public static class ModuleRegistryExtensions
     /// </exception>
     public static IModuleRegistry AddInboxModule(this IModuleRegistry moduleRegistry)
     {
-        return AddInboxModule(moduleRegistry, _ =>
+        return moduleRegistry.AddInboxModule(_ =>
         {
         });
     }

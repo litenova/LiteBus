@@ -1,6 +1,5 @@
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
-using LiteBus.Transport.Amqp;
 
 namespace LiteBus.Transport.Amqp.IntegrationTests;
 

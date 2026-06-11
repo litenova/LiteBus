@@ -24,7 +24,10 @@ internal sealed class MessageDispatchScopeFactory : IMessageDispatchScopeFactory
     }
 
     /// <inheritdoc />
-    public IMessageDispatchScope CreateScope() => new ServiceProviderMessageDispatchScope(_scopeFactory.CreateScope());
+    public IMessageDispatchScope CreateScope()
+    {
+        return new ServiceProviderMessageDispatchScope(_scopeFactory.CreateScope());
+    }
 
     /// <summary>
     ///     Adapts a host <see cref="IServiceScope" /> to <see cref="IMessageDispatchScope" />.
@@ -49,6 +52,9 @@ internal sealed class MessageDispatchScopeFactory : IMessageDispatchScopeFactory
         public IServiceProvider ServiceProvider => _scope.ServiceProvider;
 
         /// <inheritdoc />
-        public void Dispose() => _scope.Dispose();
+        public void Dispose()
+        {
+            _scope.Dispose();
+        }
     }
 }

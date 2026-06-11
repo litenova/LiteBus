@@ -2,10 +2,8 @@ using LiteBus.Events;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Dispatch.InProcess;
-using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using LiteBus.Outbox.Storage.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,6 +27,7 @@ internal static class EfCoreOutboxE2eSupport
     internal static async Task EnsureOutboxTableAsync(string connectionString, EfCoreOutboxStoreOptions storeOptions)
     {
         await using var dataSource = NpgsqlDataSource.Create(connectionString);
+
         await PostgreSqlOutboxSchema.EnsureAsync(
             dataSource,
             new PostgreSqlOutboxStoreOptions
@@ -61,12 +60,16 @@ internal static class EfCoreOutboxE2eSupport
         {
             var builder = new DbContextOptionsBuilder<TDbContext>()
                 .UseNpgsql(EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(connectionString, storeOptions));
-            return (TDbContext)Activator.CreateInstance(typeof(TDbContext), builder.Options, storeOptions)!;
+
+            return (TDbContext) Activator.CreateInstance(typeof(TDbContext), builder.Options, storeOptions)!;
         });
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
+            registry.AddMessageModule(_ =>
+            {
+            });
+
             registry.AddEventModule(module =>
             {
                 module.Register<OrderSubmittedEventHandler>();
@@ -80,7 +83,8 @@ internal static class EfCoreOutboxE2eSupport
                     builder.UseOptions(storeOptions);
                 });
 
-                outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted");
+
                 outbox.UseProcessorOptions(new OutboxProcessorOptions
                 {
                     BatchSize = 10,
@@ -102,7 +106,7 @@ internal static class EfCoreOutboxE2eSupport
 
         if (composition.Clock is not null)
         {
-            services.AddSingleton<TimeProvider>(composition.Clock);
+            services.AddSingleton(composition.Clock);
         }
 
         return services.BuildServiceProvider();

@@ -1,4 +1,4 @@
-using LiteBus.Inbox;
+using System.Diagnostics;
 
 namespace LiteBus.Inbox.UnitTests;
 
@@ -16,7 +16,7 @@ public sealed class InboxPollingWorkSignalTests
     public async Task WaitForWorkOrDelayAsync_positive_interval_waits()
     {
         var signal = new InboxPollingWorkSignal();
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
 
         await signal.WaitForWorkOrDelayAsync(TimeSpan.FromMilliseconds(50));
 

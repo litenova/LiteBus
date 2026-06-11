@@ -8,7 +8,8 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 ///     Holds the PostgreSQL data source and options registered for the outbox store.
 /// </summary>
 /// <remarks>
-///     This registration is consumed by optional schema bootstrap hosting, ambient transactional writers, and is registered
+///     This registration is consumed by optional schema bootstrap hosting, ambient transactional writers, and is
+///     registered
 ///     automatically by <see cref="PostgreSqlOutboxModule" />.
 /// </remarks>
 public sealed class PostgreSqlOutboxStoreRegistration

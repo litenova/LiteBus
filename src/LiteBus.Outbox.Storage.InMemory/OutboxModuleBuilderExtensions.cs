@@ -19,6 +19,10 @@ public static class OutboxModuleBuilderInMemoryExtensions
         Action<InMemoryOutboxStorageModuleBuilder>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        return builder.RegisterStorage(new InMemoryOutboxStorageModule(configure ?? (_ => { })));
+
+        return builder.RegisterStorage(new InMemoryOutboxStorageModule(configure ??
+                                                                       (_ =>
+                                                                       {
+                                                                       })));
     }
 }
