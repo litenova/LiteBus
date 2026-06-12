@@ -43,8 +43,26 @@ public sealed class InboxEntityFrameworkCoreModelTests
             "error_type"
         ];
 
-        var mappedColumns = entity!.GetProperties().Select(property => property.GetColumnName());
+        var mappedColumns = entity.GetProperties().Select(property => property.GetColumnName());
         mappedColumns.Should().BeEquivalentTo(expectedColumns);
+    }
+
+    [Fact]
+    public void GetModelBuilderConfiguration_ShouldMapTenantScopedIdempotencyIndex()
+    {
+        var modelBuilder = new ModelBuilder();
+        modelBuilder.GetModelBuilderConfiguration();
+
+        var entity = modelBuilder.Model.FindEntityType(typeof(InboxMessageEntity));
+        entity.Should().NotBeNull();
+
+        var hasTenantScopedIdempotencyIndex = entity.GetIndexes().Any(index =>
+            index.Properties.Select(property => property.Name).SequenceEqual(
+                [nameof(InboxMessageEntity.TenantId), nameof(InboxMessageEntity.IdempotencyKey)]) &&
+            index.IsUnique &&
+            index.GetFilter() == "idempotency_key IS NOT NULL");
+
+        hasTenantScopedIdempotencyIndex.Should().BeTrue();
     }
 
     [Fact]
@@ -55,7 +73,7 @@ public sealed class InboxEntityFrameworkCoreModelTests
 
         var entity = modelBuilder.Model.FindEntityType(typeof(InboxMessageEntity));
         entity.Should().NotBeNull();
-        entity!.GetSchema().Should().Be("public");
+        entity.GetSchema().Should().Be("public");
         entity.GetTableName().Should().Be("litebus_inbox_messages");
     }
 
@@ -73,7 +91,7 @@ public sealed class InboxEntityFrameworkCoreModelTests
 
         var entity = modelBuilder.Model.FindEntityType(typeof(InboxMessageEntity));
         entity.Should().NotBeNull();
-        entity!.GetSchema().Should().Be("app");
+        entity.GetSchema().Should().Be("app");
         entity.GetTableName().Should().Be("inbox_messages");
         entity.FindProperty(nameof(InboxMessageEntity.Id))!.GetColumnName().Should().Be("message_id");
     }
@@ -88,7 +106,7 @@ public sealed class InboxEntityFrameworkCoreModelTests
         var traceContext = entity!.FindProperty(nameof(InboxMessageEntity.TraceContext));
 
         traceContext.Should().NotBeNull();
-        traceContext!.GetColumnName().Should().Be("trace_context");
+        traceContext.GetColumnName().Should().Be("trace_context");
         traceContext.GetColumnType().Should().Be("jsonb");
         traceContext.IsNullable.Should().BeTrue();
     }
@@ -103,6 +121,6 @@ public sealed class InboxEntityFrameworkCoreModelTests
         var traceContext = entity!.FindProperty(nameof(InboxMessageEntity.TraceContext));
 
         traceContext.Should().NotBeNull();
-        traceContext!.GetColumnType().Should().BeNull();
+        traceContext.GetColumnType().Should().BeNull();
     }
 }

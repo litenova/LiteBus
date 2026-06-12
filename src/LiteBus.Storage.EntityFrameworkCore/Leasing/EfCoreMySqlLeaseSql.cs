@@ -58,7 +58,8 @@ internal static class EfCoreMySqlLeaseSql
                    `__ALIAS__`.`status` = {3},
                    `__ALIAS__`.`lease_owner` = {5},
                    `__ALIAS__`.`lease_expires_at` = {6},
-                   `__ALIAS__`.`attempt_count` = `__ALIAS__`.`attempt_count` + 1
+                   `__ALIAS__`.`attempt_count` = `__ALIAS__`.`attempt_count` + 1,
+                   `__ALIAS__`.`last_attempted_at` = {2}
                """
             .Replace("__TABLE__", qualifiedTableName, StringComparison.Ordinal)
             .Replace("__ID_COLUMN__", idColumn, StringComparison.Ordinal)

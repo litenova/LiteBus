@@ -18,7 +18,7 @@ public sealed class MediateAsyncTests
         var serviceProvider = new ServiceCollection()
             .AddTransient<MediateAsyncProbeHandler>()
             .BuildServiceProvider();
-        var mediator = new MessageMediator(registry, registry, serviceProvider);
+        var mediator = new MessageMediator(registry, registry, new RootMessageDispatchScopeFactory(serviceProvider));
 
         var request = new MessageMediationRequest<MediateAsyncProbeCommand, Task>
         {
@@ -27,7 +27,7 @@ public sealed class MediateAsyncTests
             Tags = []
         };
 
-        var result = await mediator.MediateAsync(new MediateAsyncProbeCommand(), request);
+        var result = await mediator.MediateAsync(new MediateAsyncProbeCommand(), request).ConfigureAwait(false);
 
         result.Should().BeSameAs(MediateAsyncProbeHandler.CompletedTask);
     }

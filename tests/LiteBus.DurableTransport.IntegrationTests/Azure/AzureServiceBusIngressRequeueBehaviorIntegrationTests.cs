@@ -46,10 +46,12 @@ public sealed class AzureServiceBusIngressRequeueBehaviorIntegrationTests : Lite
     public async Task RequeueEnabled_WithTransientStoreFailure_ShouldEventuallyAccept()
     {
         var ingressQueue = _fixture.ResolveQueue("ingress-requeue-on");
-        await using var provider = BuildProvider(ingressQueue);
+         var provider = BuildProvider(ingressQueue);
+         await using (provider.ConfigureAwait(false))
+         {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -62,15 +64,16 @@ public sealed class AzureServiceBusIngressRequeueBehaviorIntegrationTests : Lite
                 Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-            });
+            }).ConfigureAwait(false);
 
             await PollingWait.UntilAsync(
                 () => provider.GetRequiredService<InMemoryInboxStore>().Count == 1,
-                TimeSpan.FromSeconds(45));
+                TimeSpan.FromSeconds(45)).ConfigureAwait(false);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 

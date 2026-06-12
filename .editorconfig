@@ -25,3 +25,17 @@ resharper_wrap_before_extends_colon = false
 resharper_wrap_chained_binary_expressions = chop_if_long
 resharper_wrap_chained_method_calls = wrap_if_long
 resharper_wrap_object_and_collection_initializer_style = chop_always
+
+[*.cs]
+# ReSharper inspection severities (see AGENTS.md "Code style and analyzers").
+resharper_redundant_using_directive_highlighting = warning
+resharper_arrange_namespace_body_highlighting = warning
+resharper_configure_await_highlighting = warning
+resharper_redundant_explicit_array_creation_highlighting = warning
+resharper_redundant_default_member_initializer_highlighting = warning
+resharper_redundant_argument_default_value_highlighting = warning
+resharper_redundant_cast_highlighting = warning
+resharper_convert_to_using_declaration_highlighting = warning
+resharper_arrange_this_qualifier_highlighting = warning
+resharper_condition_is_always_true_or_false_highlighting = warning
+resharper_unused_member_local_highlighting = warning

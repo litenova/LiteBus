@@ -19,9 +19,10 @@ public static class InboxModuleBuilderSagaExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder.RegisterSaga(new SagaModule(configure ??
-                                                   (_ =>
-                                                   {
-                                                   })));
+        builder.RegisterSaga(new SagaModule(configure ?? (_ =>
+        {
+        })));
+
+        return builder.RegisterSaga(new SagaInboxCommandScopeModule());
     }
 }

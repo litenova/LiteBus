@@ -1,5 +1,4 @@
 using System;
-using LiteBus.Transport;
 using OpenTelemetry.Metrics;
 
 namespace LiteBus.Transport.Extensions.OpenTelemetry;

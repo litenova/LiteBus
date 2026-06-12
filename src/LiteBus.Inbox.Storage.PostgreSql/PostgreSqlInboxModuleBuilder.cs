@@ -82,7 +82,8 @@ public sealed class PostgreSqlInboxModuleBuilder
     /// </remarks>
     public PostgreSqlInboxModuleBuilder UseDataSource(NpgsqlDataSource dataSource)
     {
-        DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+        ArgumentNullException.ThrowIfNull(dataSource);
+        DataSource = dataSource;
         OwnsDataSource = false;
         return this;
     }
@@ -114,7 +115,8 @@ public sealed class PostgreSqlInboxModuleBuilder
     /// <returns>The current builder.</returns>
     public PostgreSqlInboxModuleBuilder UseOptions(PostgreSqlInboxStoreOptions options)
     {
-        Options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        Options = options;
         return this;
     }
 

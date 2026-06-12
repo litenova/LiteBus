@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 
 namespace LiteBus.Runtime.Abstractions.Hosting;
@@ -21,9 +20,13 @@ public sealed class LiteBusHostManifest
         IReadOnlyList<Type> backgroundServices,
         IReadOnlyList<DiagnosticCheckDescriptor> diagnosticChecks)
     {
-        StartupTasks = startupTasks ?? throw new ArgumentNullException(nameof(startupTasks));
-        BackgroundServices = backgroundServices ?? throw new ArgumentNullException(nameof(backgroundServices));
-        DiagnosticChecks = diagnosticChecks ?? throw new ArgumentNullException(nameof(diagnosticChecks));
+        ArgumentNullException.ThrowIfNull(startupTasks);
+        ArgumentNullException.ThrowIfNull(backgroundServices);
+        ArgumentNullException.ThrowIfNull(diagnosticChecks);
+
+        StartupTasks = startupTasks;
+        BackgroundServices = backgroundServices;
+        DiagnosticChecks = diagnosticChecks;
     }
 
     /// <summary>
@@ -57,8 +60,8 @@ public sealed class LiteBusHostManifest
         ArgumentNullException.ThrowIfNull(moduleConfiguration);
 
         return new LiteBusHostManifest(
-            moduleConfiguration.StartupTasks.ToList(),
-            moduleConfiguration.BackgroundServices.ToList(),
-            moduleConfiguration.DiagnosticChecks.ToList());
+            [.. moduleConfiguration.StartupTasks],
+            [.. moduleConfiguration.BackgroundServices],
+            [.. moduleConfiguration.DiagnosticChecks]);
     }
 }

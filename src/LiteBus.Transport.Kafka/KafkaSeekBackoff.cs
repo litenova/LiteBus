@@ -28,7 +28,8 @@ internal sealed class KafkaSeekBackoff
     /// <param name="options">The transport options supplying backoff tuning values.</param>
     public KafkaSeekBackoff(KafkaTransportOptions options)
     {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options;
     }
 
     /// <summary>

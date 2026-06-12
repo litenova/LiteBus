@@ -53,6 +53,81 @@ public abstract class InboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that the same idempotency key persists independently for different tenants.
+    /// </summary>
+    [Fact]
+    public async Task AddAsync_SameIdempotencyKeyDifferentTenants_ShouldPersistBoth()
+    {
+        var roles = CreateStore();
+        var now = BaseTime;
+        const string idempotencyKey = "ship-shared";
+
+        var tenantA = await roles.Writer.EnqueueAsync(new InboxEnvelope
+        {
+            Id = Guid.NewGuid(),
+            ContractName = "tests.commands.ship",
+            ContractVersion = 1,
+            Payload = """{"tenant":"a"}""",
+            CreatedAt = now,
+            AttemptCount = 0,
+            Status = InboxStatus.Pending,
+            TenantId = "tenant-a",
+            IdempotencyKey = idempotencyKey
+        });
+
+        var tenantB = await roles.Writer.EnqueueAsync(new InboxEnvelope
+        {
+            Id = Guid.NewGuid(),
+            ContractName = "tests.commands.ship",
+            ContractVersion = 1,
+            Payload = """{"tenant":"b"}""",
+            CreatedAt = now,
+            AttemptCount = 0,
+            Status = InboxStatus.Pending,
+            TenantId = "tenant-b",
+            IdempotencyKey = idempotencyKey
+        });
+
+        tenantA.Id.Should().NotBe(tenantB.Id);
+        JsonDocument.Parse(tenantA.Payload).RootElement.GetProperty("tenant").GetString().Should().Be("a");
+        JsonDocument.Parse(tenantB.Payload).RootElement.GetProperty("tenant").GetString().Should().Be("b");
+    }
+
+    /// <summary>
+    ///     Verifies that duplicate idempotency keys within one tenant return the original stored command.
+    /// </summary>
+    [Fact]
+    public async Task AddAsync_SameTenantSameIdempotencyKey_ShouldDedup()
+    {
+        var roles = CreateStore();
+        var now = BaseTime;
+        const string tenantId = "tenant-a";
+        const string idempotencyKey = "ship-tenant-a";
+
+        var first = await roles.Writer.EnqueueAsync(new InboxEnvelope
+        {
+            Id = Guid.NewGuid(),
+            ContractName = "tests.commands.ship",
+            ContractVersion = 1,
+            Payload = """{"n":1}""",
+            CreatedAt = now,
+            AttemptCount = 0,
+            Status = InboxStatus.Pending,
+            TenantId = tenantId,
+            IdempotencyKey = idempotencyKey
+        });
+
+        var duplicate = await roles.Writer.EnqueueAsync(first with
+        {
+            Id = Guid.NewGuid(),
+            Payload = """{"n":2}"""
+        });
+
+        duplicate.Id.Should().Be(first.Id);
+        duplicate.Payload.Should().Be(first.Payload);
+    }
+
+    /// <summary>
     ///     Verifies that duplicate command identifiers return the original stored row.
     /// </summary>
     [Fact]
@@ -579,7 +654,7 @@ public abstract class InboxStoreContractTests
         }
 
         await roles.DeadLetterStore.RequeueAsync(
-            new[] { firstId.ToString("D"), secondId.ToString("D") });
+            [firstId.ToString("D"), secondId.ToString("D")]);
 
         var counts = await roles.DiagnosticsStore.GetStatusCountsAsync();
         counts.Should().NotContainKey(InboxStatus.DeadLettered);

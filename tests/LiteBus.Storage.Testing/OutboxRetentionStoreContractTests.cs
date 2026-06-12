@@ -30,8 +30,8 @@ public abstract class OutboxRetentionStoreContractTests
         var deletedId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(retainedId, now));
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(deletedId, now.AddHours(-2)));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(retainedId, now)).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(deletedId, now.AddHours(-2))).ConfigureAwait(false);
 
         var retainedLease = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -39,9 +39,9 @@ public abstract class OutboxRetentionStoreContractTests
             LeaseOwner = "publisher-1",
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([retainedLease[0].AsPublished() with { PublishedAt = now }]);
+        await store.StateWriter.PersistAsync([retainedLease[0].AsPublished() with { PublishedAt = now }]).ConfigureAwait(false);
 
         var deletedLease = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -49,15 +49,15 @@ public abstract class OutboxRetentionStoreContractTests
             LeaseOwner = "publisher-2",
             Now = now.AddSeconds(2),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([deletedLease[0].AsPublished() with { PublishedAt = now.AddHours(-2) }]);
+        await store.StateWriter.PersistAsync([deletedLease[0].AsPublished() with { PublishedAt = now.AddHours(-2) }]).ConfigureAwait(false);
 
-        var deleted = await store.Retention.DeletePublishedOlderThanAsync(now.AddHours(-1));
+        var deleted = await store.Retention.DeletePublishedOlderThanAsync(now.AddHours(-1)).ConfigureAwait(false);
 
         deleted.Should().Be(1);
 
-        var counts = await store.Diagnostics.GetStatusCountsAsync();
+        var counts = await store.Diagnostics.GetStatusCountsAsync().ConfigureAwait(false);
         counts.Should().ContainKey(OutboxStatus.Published).WhoseValue.Should().Be(1);
     }
 
@@ -74,7 +74,7 @@ public abstract class OutboxRetentionStoreContractTests
         var publishedAt = BaseTime;
         var now = BaseTime;
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, createdAt));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, createdAt)).ConfigureAwait(false);
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -82,15 +82,15 @@ public abstract class OutboxRetentionStoreContractTests
             LeaseOwner = "publisher-1",
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsPublished() with { PublishedAt = publishedAt }]);
+        await store.StateWriter.PersistAsync([leased[0].AsPublished() with { PublishedAt = publishedAt }]).ConfigureAwait(false);
 
-        var deleted = await store.Retention.DeletePublishedOlderThanAsync(now.AddDays(-1));
+        var deleted = await store.Retention.DeletePublishedOlderThanAsync(now.AddDays(-1)).ConfigureAwait(false);
 
         deleted.Should().Be(0);
 
-        var counts = await store.Diagnostics.GetStatusCountsAsync();
+        var counts = await store.Diagnostics.GetStatusCountsAsync().ConfigureAwait(false);
         counts.Should().ContainKey(OutboxStatus.Published).WhoseValue.Should().Be(1);
     }
 
@@ -105,7 +105,7 @@ public abstract class OutboxRetentionStoreContractTests
         var messageId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -113,15 +113,15 @@ public abstract class OutboxRetentionStoreContractTests
             LeaseOwner = "publisher-1",
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsPublished()]);
+        await store.StateWriter.PersistAsync([leased[0].AsPublished()]).ConfigureAwait(false);
 
-        var deleted = await store.Retention.DeletePublishedOlderThanAsync(now.AddHours(-2));
+        var deleted = await store.Retention.DeletePublishedOlderThanAsync(now.AddHours(-2)).ConfigureAwait(false);
 
         deleted.Should().Be(0);
 
-        var counts = await store.Diagnostics.GetStatusCountsAsync();
+        var counts = await store.Diagnostics.GetStatusCountsAsync().ConfigureAwait(false);
         counts.Should().ContainKey(OutboxStatus.Published).WhoseValue.Should().Be(1);
     }
 

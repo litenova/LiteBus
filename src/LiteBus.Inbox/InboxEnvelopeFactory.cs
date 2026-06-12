@@ -83,7 +83,7 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
 
         if (items.Count == 0)
         {
-            return Array.Empty<InboxEnvelope>();
+            return [];
         }
 
         var tasks = new Task<InboxEnvelope>[items.Count];
@@ -126,6 +126,8 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
                 $"The supplied message instance is not assignable to '{messageType.FullName}'.",
                 nameof(message));
         }
+
+        InboxCommandMessageGuard.EnsureVoidCommand(messageType);
 
         var contract = _contractRegistry.GetContract(ResolveContractType(messageType, message));
         var acceptedAt = _clock.GetUtcNow();

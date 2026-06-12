@@ -41,9 +41,10 @@ public sealed class Inbox : IInbox
         IInboxStore store,
         IInboxEnvelopeFactory envelopeFactory)
     {
-        _store = store ?? throw new ArgumentNullException(nameof(store));
-        _acceptanceService = new InboxAcceptanceService(
-            envelopeFactory ?? throw new ArgumentNullException(nameof(envelopeFactory)));
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(envelopeFactory);
+        _store = store;
+        _acceptanceService = new InboxAcceptanceService(envelopeFactory);
     }
 
     /// <inheritdoc />

@@ -20,9 +20,9 @@ public sealed class InboxManagerTests
         var manager = CreateManager(store);
         var messageId = Guid.NewGuid();
 
-        await SeedDeadLetterAsync(store, messageId);
+        await SeedDeadLetterAsync(store, messageId).ConfigureAwait(true);
 
-        var requeued = await manager.RequeueAsync([messageId]);
+        var requeued = await manager.RequeueAsync([messageId]).ConfigureAwait(true);
 
         requeued.Requested.Should().Be(1);
         requeued.Requeued.Should().Be(1);
@@ -43,7 +43,7 @@ public sealed class InboxManagerTests
         var store = new InMemoryInboxStore();
         var manager = CreateManager(store);
 
-        var act = async () => await manager.PurgeAsync(new InboxMessageFilter(), false);
+        var act = async () => await manager.PurgeAsync(new InboxMessageFilter(), false).ConfigureAwait(true);
 
         await act.Should().ThrowAsync<InboxManagementException>();
     }
@@ -67,9 +67,10 @@ public sealed class InboxManagerTests
             CreatedAt = BaseTime,
             Status = InboxStatus.Pending,
             AttemptCount = 0
-        });
+        }).ConfigureAwait(true);
 
-        var message = await manager.GetMessageAsync(messageId);
+
+        var message = await manager.GetMessageAsync(messageId).ConfigureAwait(true);
 
         message.Should().NotBeNull();
         message!.Id.Should().Be(messageId);
@@ -108,7 +109,8 @@ public sealed class InboxManagerTests
             CreatedAt = BaseTime,
             Status = InboxStatus.Pending,
             AttemptCount = 0
-        });
+        }).ConfigureAwait(false);
+
 
         var leased = await store.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -116,8 +118,8 @@ public sealed class InboxManagerTests
             LeaseOwner = "worker",
             Now = BaseTime,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await store.PersistAsync([leased[0].AsDeadLettered("exhausted")]);
+        await store.PersistAsync([leased[0].AsDeadLettered("exhausted")]).ConfigureAwait(false);
     }
 }

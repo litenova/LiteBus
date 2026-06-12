@@ -5,6 +5,19 @@ namespace LiteBus.Inbox.Ingress.Amqp;
 /// <summary>
 ///     Configures the AMQP inbox ingress consumer and broker connection settings.
 /// </summary>
+/// <remarks>
+///     <para>
+///         AMQP ingress maps RabbitMQ message identifiers to broker-scoped inbox identity and idempotency through
+///         <see cref="TransportInboxIngressOptions.RequireStableIdentity" /> and
+///         <see cref="TrustApplicationHeaders" /> on the shared transport ingress options registered by this module.
+///         When <see cref="TrustApplicationHeaders" /> is <see langword="false" /> (the default), the broker delivery id
+///         drives deduplication even when publishers attach LiteBus application headers.
+///     </para>
+///     <para>
+///         When store accept succeeds but the AMQP acknowledgement fails, the ingress consumer requeues the delivery so
+///         RabbitMQ redelivery is idempotently absorbed by the existing inbox row.
+///     </para>
+/// </remarks>
 public sealed record AmqpInboxIngressOptions
 {
     /// <summary>

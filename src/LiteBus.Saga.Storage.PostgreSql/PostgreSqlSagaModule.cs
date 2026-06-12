@@ -23,7 +23,8 @@ public sealed class PostgreSqlSagaModule : ISagaStoreModule
     /// <param name="builder">The module configuration action.</param>
     public PostgreSqlSagaModule(Action<PostgreSqlSagaModuleBuilder> builder)
     {
-        _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+        ArgumentNullException.ThrowIfNull(builder);
+        _builder = builder;
     }
 
     /// <inheritdoc />

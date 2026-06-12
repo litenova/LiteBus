@@ -36,7 +36,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         {
             using (AmbientExecutionContext.CreateScope(executionContext))
             {
-                await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken);
+                await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken).ConfigureAwait(false);
 
                 var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
 
@@ -49,12 +49,12 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                 messageResult = await HandlerInvocation.InvokeMainHandlerAsync<TMessage, TMessageResult>(
                     handler,
                     message,
-                    executionContext.CancellationToken);
+                    executionContext.CancellationToken).ConfigureAwait(false);
 
                 await messageDependencies.RunAsyncPostHandlers(
                     message,
                     messageResult,
-                    executionContext.CancellationToken);
+                    executionContext.CancellationToken).ConfigureAwait(false);
             }
 
             // A post-handler may have written an override result to the execution context.
@@ -72,7 +72,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                     $"A Message result of type '{typeof(TMessageResult).Name}' is required when the execution is aborted as this message has a specific result.");
             }
 
-            return await Task.FromResult((TMessageResult) executionContext.MessageResult);
+            return await Task.FromResult((TMessageResult) executionContext.MessageResult).ConfigureAwait(false);
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
@@ -84,7 +84,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                     message,
                     messageResult,
                     ExceptionDispatchInfo.Capture(e),
-                    executionContext.CancellationToken);
+                    executionContext.CancellationToken).ConfigureAwait(false);
             }
 
             if (errorContext.HandledResult is TMessageResult handledResult)

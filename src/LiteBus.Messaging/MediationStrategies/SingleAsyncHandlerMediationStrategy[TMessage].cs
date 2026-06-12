@@ -50,19 +50,19 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         {
             using (AmbientExecutionContext.CreateScope(executionContext))
             {
-                await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken);
+                await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken).ConfigureAwait(false);
 
                 var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
 
                 await HandlerInvocation.InvokeMainHandlerAsync<TMessage>(
                     handler,
                     message,
-                    executionContext.CancellationToken);
+                    executionContext.CancellationToken).ConfigureAwait(false);
 
                 await messageDependencies.RunAsyncPostHandlers(
                     message,
                     messageResult,
-                    executionContext.CancellationToken);
+                    executionContext.CancellationToken).ConfigureAwait(false);
             }
         }
         catch (LiteBusExecutionAbortedException)
@@ -77,7 +77,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
                     message,
                     messageResult,
                     ExceptionDispatchInfo.Capture(e),
-                    executionContext.CancellationToken);
+                    executionContext.CancellationToken).ConfigureAwait(false);
             }
         }
     }

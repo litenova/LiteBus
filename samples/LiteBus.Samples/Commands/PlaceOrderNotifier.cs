@@ -16,7 +16,7 @@ public sealed class PlaceOrderNotifier : ICommandPostHandler<PlaceOrderCommand, 
     public async Task PostHandleAsync(PlaceOrderCommand command, Guid orderId, CancellationToken cancellationToken = default)
     {
         var @event = new OrderPlacedEvent(orderId);
-        await _eventPublisher.PublishAsync(@event, cancellationToken: cancellationToken);
+        await _eventPublisher.PublishAsync(@event, cancellationToken: cancellationToken).ConfigureAwait(false);
 
         Console.WriteLine(
             $"[PlaceOrderCommandHandler] Order {{{@event.OrderId}}} published at {{{DateTime.UtcNow}}}.");

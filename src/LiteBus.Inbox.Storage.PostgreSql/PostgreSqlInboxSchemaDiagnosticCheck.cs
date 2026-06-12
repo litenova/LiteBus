@@ -23,7 +23,8 @@ public sealed class PostgreSqlInboxSchemaDiagnosticCheck : IDiagnosticCheck
     /// <param name="registration">The registered PostgreSQL inbox store configuration.</param>
     public PostgreSqlInboxSchemaDiagnosticCheck(PostgreSqlInboxStoreRegistration registration)
     {
-        _registration = registration ?? throw new ArgumentNullException(nameof(registration));
+        ArgumentNullException.ThrowIfNull(registration);
+        _registration = registration;
     }
 
     /// <summary>

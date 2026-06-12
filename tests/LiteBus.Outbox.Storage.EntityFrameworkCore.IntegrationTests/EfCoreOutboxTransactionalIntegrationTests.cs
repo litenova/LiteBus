@@ -32,7 +32,7 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
     [Fact]
     public async Task UseExistingDbContext_ShouldRollbackDomainAndOutboxTogether()
     {
-        var (storeOptions, ordersTableName) = await CreateTablesAsync();
+        var (storeOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(true);
         var orderId = Guid.NewGuid();
         var envelope = CreateEnvelope();
 
@@ -41,20 +41,24 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
             var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), storeOptions);
             var transactionalStore = store.UseExistingDbContext(context);
 
-            await using var transaction = await context.Database.BeginTransactionAsync();
+             var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(true);
+             await using (transaction.ConfigureAwait(false))
+             {
             context.Orders.Add(new DomainOrderEntity { OrderId = orderId, Amount = 42m });
-            await transactionalStore.AddAsync(envelope);
-            await context.SaveChangesAsync();
-            await transaction.RollbackAsync();
+            await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
+            await context.SaveChangesAsync().ConfigureAwait(true);
+            await transaction.RollbackAsync().ConfigureAwait(true);
+            }
         }
 
-        await using var verificationContext = CreateTransactionalContext(storeOptions, ordersTableName);
+         var verificationContext = CreateTransactionalContext(storeOptions, ordersTableName);
+         await using (verificationContext.ConfigureAwait(false))
+         {
 
-        (await verificationContext.Orders.CountAsync(order => order.OrderId == orderId))
-            .Should().Be(0);
+        (await verificationContext.Orders.CountAsync(order => order.OrderId == orderId).ConfigureAwait(true)).Should().Be(0);
 
-        (await verificationContext.OutboxMessages.CountAsync(message => message.Id == envelope.Id))
-            .Should().Be(0);
+        (await verificationContext.OutboxMessages.CountAsync(message => message.Id == envelope.Id).ConfigureAwait(true)).Should().Be(0);
+        }
     }
 
     /// <summary>
@@ -63,7 +67,7 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
     [Fact]
     public async Task UseExistingDbContext_ShouldCommitDomainAndOutboxTogether()
     {
-        var (storeOptions, ordersTableName) = await CreateTablesAsync();
+        var (storeOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(true);
         var orderId = Guid.NewGuid();
         var envelope = CreateEnvelope();
 
@@ -72,25 +76,29 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
             var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), storeOptions);
             var transactionalStore = store.UseExistingDbContext(context);
 
-            await using var transaction = await context.Database.BeginTransactionAsync();
+             var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(true);
+             await using (transaction.ConfigureAwait(false))
+             {
             context.Orders.Add(new DomainOrderEntity { OrderId = orderId, Amount = 99m });
-            await transactionalStore.AddAsync(envelope);
-            await context.SaveChangesAsync();
-            await transaction.CommitAsync();
+            await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
+            await context.SaveChangesAsync().ConfigureAwait(true);
+            await transaction.CommitAsync().ConfigureAwait(true);
+            }
         }
 
-        await using var verificationContext = CreateTransactionalContext(storeOptions, ordersTableName);
+         var verificationContext = CreateTransactionalContext(storeOptions, ordersTableName);
+         await using (verificationContext.ConfigureAwait(false))
+         {
 
-        var order = await verificationContext.Orders.SingleOrDefaultAsync(entity => entity.OrderId == orderId)
-            ;
+        var order = await verificationContext.Orders.SingleOrDefaultAsync(entity => entity.OrderId == orderId).ConfigureAwait(true);
 
-        var message = await verificationContext.OutboxMessages.SingleOrDefaultAsync(entity => entity.Id == envelope.Id)
-            ;
+        var message = await verificationContext.OutboxMessages.SingleOrDefaultAsync(entity => entity.Id == envelope.Id).ConfigureAwait(true);
 
         order.Should().NotBeNull();
         order!.Amount.Should().Be(99m);
         message.Should().NotBeNull();
         message!.ContractName.Should().Be(envelope.ContractName);
+        }
     }
 
     /// <summary>
@@ -109,7 +117,9 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
 
         var ordersTableName = $"orders_ef_tx_{suffix}";
 
-        await using var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+         var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+         await using (dataSource.ConfigureAwait(false))
+         {
 
         await PostgreSqlOutboxSchema.EnsureAsync(
             dataSource,
@@ -118,18 +128,24 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
                 SchemaName = storeOptions.SchemaName,
                 TableName = storeOptions.TableName,
                 ValidateSchemaCreationOnStartup = false
-            });
+            }).ConfigureAwait(false);
 
-        await using var context = CreateTransactionalContext(storeOptions, ordersTableName);
+
+         var context = CreateTransactionalContext(storeOptions, ordersTableName);
+         await using (context.ConfigureAwait(false))
+         {
 
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"""
              CREATE TABLE IF NOT EXISTS "{storeOptions.SchemaName}"."{ordersTableName}" (
                  order_id uuid NOT NULL PRIMARY KEY,
                  amount numeric NOT NULL);
-             """);
+             """).ConfigureAwait(false);
+
 
         return (storeOptions, ordersTableName);
+        }
+        }
     }
 
     /// <summary>

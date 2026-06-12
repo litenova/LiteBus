@@ -254,13 +254,12 @@ internal static class ContractRegistrationAnalysis
             return type?.ContainingAssembly;
         }
 
-        if (semanticModel.GetTypeInfo(expression, cancellationToken).Type is { } typeInfo &&
-            typeInfo.Name == "Assembly" &&
+        if (semanticModel.GetTypeInfo(expression, cancellationToken).Type is { Name: "Assembly" } typeInfo &&
             typeInfo.ContainingNamespace?.ToDisplayString() == "System.Reflection")
         {
             var constant = semanticModel.GetConstantValue(expression, cancellationToken);
 
-            if (constant.HasValue && constant.Value is Assembly assembly)
+            if (constant is { HasValue: true, Value: Assembly assembly })
             {
                 return semanticModel.Compilation.GetAssemblyOrModuleSymbol(
                     MetadataReference.CreateFromFile(assembly.Location)) as IAssemblySymbol;

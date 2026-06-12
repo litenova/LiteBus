@@ -29,14 +29,16 @@ public sealed class PostgreSqlSagaStoreConnectionTests : IClassFixture<PostgreSq
             TableName = $"saga_{Guid.NewGuid():N}"
         };
 
-        await PostgreSqlSagaSchema.EnsureAsync(_fixture.DataSource, options);
+        await PostgreSqlSagaSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
 
         var limitedConnectionString = new NpgsqlConnectionStringBuilder(_fixture.ConnectionString)
         {
             MaxPoolSize = 4
         }.ConnectionString;
 
-        await using var limitedDataSource = NpgsqlDataSource.Create(limitedConnectionString);
+         var limitedDataSource = NpgsqlDataSource.Create(limitedConnectionString);
+         await using (limitedDataSource.ConfigureAwait(false))
+         {
 
         var store = new PostgreSqlSagaStore(
             limitedDataSource,
@@ -51,17 +53,18 @@ public sealed class PostgreSqlSagaStoreConnectionTests : IClassFixture<PostgreSq
 
         for (var iteration = 0; iteration < 40; iteration++)
         {
-            var instance = await store.LoadAsync<TestSagaState>(correlation);
+            var instance = await store.LoadAsync<TestSagaState>(correlation).ConfigureAwait(false);
             var version = instance?.Version ?? 0;
             var state = instance?.State ?? new TestSagaState();
 
             state.Counter = iteration + 1;
-            await store.SaveAsync(new SagaSaveItem<TestSagaState>(correlation, state, version));
+            await store.SaveAsync(new SagaSaveItem<TestSagaState>(correlation, state, version)).ConfigureAwait(false);
         }
 
-        var loaded = await store.LoadAsync<TestSagaState>(correlation);
+        var loaded = await store.LoadAsync<TestSagaState>(correlation).ConfigureAwait(false);
         loaded.Should().NotBeNull();
         loaded!.State.Counter.Should().Be(40);
+        }
     }
 
     /// <summary>

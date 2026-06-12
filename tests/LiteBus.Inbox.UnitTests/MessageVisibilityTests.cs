@@ -39,7 +39,7 @@ public sealed class MessageVisibilityTests
             InboxAcceptMetadata.Immediate with
             {
                 Visibility = new MessageVisibility.At(visibleAfter)
-            }));
+            })).ConfigureAwait(false);
 
         receipt.AcceptedAt.Should().Be(now);
         store.Get(receipt.Id).VisibleAfter.Should().Be(visibleAfter);
@@ -74,7 +74,7 @@ public sealed class MessageVisibilityTests
             InboxAcceptMetadata.Immediate with
             {
                 Visibility = new MessageVisibility.After(delay)
-            }));
+            })).ConfigureAwait(false);
 
         store.Get(receipt.Id).VisibleAfter.Should().Be(now.Add(delay));
     }

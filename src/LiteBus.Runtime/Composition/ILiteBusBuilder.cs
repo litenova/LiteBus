@@ -1,7 +1,7 @@
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 
-namespace LiteBus.Extensions.Microsoft.DependencyInjection;
+namespace LiteBus.Runtime.Composition;
 
 /// <summary>
 ///     Fluent builder for configuring LiteBus modules and shared message contracts.
@@ -10,7 +10,7 @@ public interface ILiteBusBuilder
 {
     /// <summary>
     ///     Gets the shared contract writer. Registrations are replayed when
-    ///     <see cref="MessageModule" /> builds and shares the module configuration
+    ///     <see cref="Messaging.MessageModule" /> builds and shares the module configuration
     ///     <see cref="IMessageContractRegistry" />.
     /// </summary>
     /// <value>The deferred contract writer for cross-module contract registration.</value>

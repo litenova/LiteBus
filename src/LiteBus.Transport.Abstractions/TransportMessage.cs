@@ -1,8 +1,11 @@
+using System.Diagnostics;
+
 namespace LiteBus.Transport.Abstractions;
 
 /// <summary>
 ///     Represents one inbound transport delivery received by a consumer.
 /// </summary>
+[DebuggerDisplay("Destination = {Destination}, MessageId = {MessageId}, Redelivered = {Redelivered}")]
 public sealed class TransportMessage
 {
     /// <summary>

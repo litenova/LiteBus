@@ -29,7 +29,8 @@ public sealed class TransportInboxDispatchModule : IInboxDispatcherModule, IRequ
     /// <param name="transportModule">The optional transport module that registers <see cref="IMessageTransport" />.</param>
     public TransportInboxDispatchModule(TransportInboxDispatcherOptions options, IModule? transportModule = null)
     {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options;
         _transportModule = transportModule;
     }
 

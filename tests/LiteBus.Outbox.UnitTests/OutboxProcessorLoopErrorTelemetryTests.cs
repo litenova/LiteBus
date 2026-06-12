@@ -48,7 +48,7 @@ public sealed class OutboxProcessorLoopErrorTelemetryTests
 
         try
         {
-            await service.ExecuteAsync(cts.Token);
+            await service.ExecuteAsync(cts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {

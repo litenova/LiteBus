@@ -1,3 +1,4 @@
+using System.Linq;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Modules;
@@ -12,7 +13,7 @@ public sealed class CompositeModuleRegistryTests
         var registry = new ModuleRegistry();
         registry.Register(new ParentCompositeModule());
 
-        var order = registry.Select(descriptor => descriptor.ModuleType).ToList();
+        var order = registry.BuildOrder().Select(descriptor => descriptor.ModuleType).ToList();
 
         order.Should().Equal(
             typeof(ParentCompositeModule),

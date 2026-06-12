@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -21,5 +22,11 @@ public interface IMessageWriter
     ///     is created and linked to handlers already registered.
     /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="type" /> is <see langword="null" />.</exception>
-    void Register(Type type);
+    [RequiresUnreferencedCode("Handler and message registration inspects CLR types via reflection.")]
+    void Register(
+        [DynamicallyAccessedMembers(
+            DynamicallyAccessedMemberTypes.PublicConstructors
+            | DynamicallyAccessedMemberTypes.PublicMethods
+            | DynamicallyAccessedMemberTypes.Interfaces)]
+        Type type);
 }

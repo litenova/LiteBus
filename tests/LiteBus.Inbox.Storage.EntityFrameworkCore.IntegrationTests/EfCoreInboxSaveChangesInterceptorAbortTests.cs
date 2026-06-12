@@ -31,28 +31,40 @@ public sealed class EfCoreInboxSaveChangesInterceptorAbortTests : IClassFixture<
     [Fact]
     public async Task SaveChangesAsync_WhenDuplicateIdempotencyKeyConflicts_ShouldAbortTransaction()
     {
-        var storeOptions = await CreateInboxTableAsync();
+        var storeOptions = await CreateInboxTableAsync().ConfigureAwait(true);
         var interceptor = new LiteBusInboxSaveChangesInterceptor();
         const string idempotencyKey = "duplicate-idem-key";
 
-        await using var seedContext = CreateContext(storeOptions, interceptor);
-        await seedContext.Database.EnsureCreatedAsync();
+         var seedContext = CreateContext(storeOptions, interceptor);
+         await using (seedContext.ConfigureAwait(false))
+         {
+        await seedContext.Database.EnsureCreatedAsync().ConfigureAwait(true);
         interceptor.Enqueue(seedContext, CreateEnvelope(idempotencyKey));
-        await seedContext.SaveChangesAsync();
+        await seedContext.SaveChangesAsync().ConfigureAwait(true);
 
-        await using var context = CreateContext(storeOptions, interceptor);
-        await context.Database.EnsureCreatedAsync();
-        await using var transaction = await context.Database.BeginTransactionAsync();
+         var context = CreateContext(storeOptions, interceptor);
+         await using (context.ConfigureAwait(false))
+         {
+        await context.Database.EnsureCreatedAsync().ConfigureAwait(true);
+         var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(true);
+         await using (transaction.ConfigureAwait(false))
+         {
 
         interceptor.Enqueue(context, CreateEnvelope(idempotencyKey) with { Id = Guid.NewGuid() });
 
         var act = () => context.SaveChangesAsync();
         await act.Should().ThrowAsync<DbUpdateException>();
 
-        await transaction.RollbackAsync();
+        await transaction.RollbackAsync().ConfigureAwait(true);
 
-        await using var verificationContext = CreateContext(storeOptions);
-        (await verificationContext.InboxMessages.CountAsync()).Should().Be(1);
+         var verificationContext = CreateContext(storeOptions);
+         await using (verificationContext.ConfigureAwait(false))
+         {
+        (await verificationContext.InboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(1);
+        }
+        }
+        }
+        }
     }
 
     /// <summary>
@@ -67,7 +79,9 @@ public sealed class EfCoreInboxSaveChangesInterceptorAbortTests : IClassFixture<
             TableName = $"inbox_ef_abort_{Guid.NewGuid():N}"
         };
 
-        await using var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+         var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+         await using (dataSource.ConfigureAwait(false))
+         {
 
         await PostgreSqlInboxSchema.EnsureAsync(
             dataSource,
@@ -76,9 +90,11 @@ public sealed class EfCoreInboxSaveChangesInterceptorAbortTests : IClassFixture<
                 SchemaName = options.SchemaName,
                 TableName = options.TableName,
                 ValidateSchemaCreationOnStartup = false
-            });
+            }).ConfigureAwait(false);
+
 
         return options;
+        }
     }
 
     /// <summary>

@@ -20,7 +20,9 @@ internal sealed class AutofacServiceProviderAdapter : IServiceProvider
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="lifetimeScope" /> is <see langword="null" />.</exception>
     public AutofacServiceProviderAdapter(ILifetimeScope lifetimeScope)
     {
-        _lifetimeScope = lifetimeScope ?? throw new ArgumentNullException(nameof(lifetimeScope));
+        ArgumentNullException.ThrowIfNull(lifetimeScope);
+
+        _lifetimeScope = lifetimeScope;
     }
 
     /// <summary>

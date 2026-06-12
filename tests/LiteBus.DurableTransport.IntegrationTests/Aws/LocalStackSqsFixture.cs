@@ -37,7 +37,7 @@ public sealed class LocalStackSqsFixture : IAsyncLifetime
                 .WithImage("localstack/localstack:4.2")
                 .Build();
 
-            await _container.StartAsync();
+            await _container.StartAsync().ConfigureAwait(false);
 
             var serviceUrl = _container.GetConnectionString();
 
@@ -56,7 +56,7 @@ public sealed class LocalStackSqsFixture : IAsyncLifetime
                     ServiceURL = serviceUrl,
                     AuthenticationRegion = RegionEndpoint.USEast1.SystemName
                 });
-        });
+        }).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -66,7 +66,7 @@ public sealed class LocalStackSqsFixture : IAsyncLifetime
 
         if (_container is not null)
         {
-            await _container.DisposeAsync();
+            await _container.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -80,7 +80,7 @@ public sealed class LocalStackSqsFixture : IAsyncLifetime
         var response = await SqsClient.CreateQueueAsync(new CreateQueueRequest
         {
             QueueName = $"litebus-{prefix}-{Guid.NewGuid():N}"
-        });
+        }).ConfigureAwait(false);
 
         return response.QueueUrl;
     }

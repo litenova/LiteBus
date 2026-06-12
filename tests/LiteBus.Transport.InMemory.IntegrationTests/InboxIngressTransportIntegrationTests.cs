@@ -66,17 +66,18 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
 
         services.AddSingleton<TransportInboxIngressHandler>();
 
-        await using var provider = services.BuildServiceProvider();
+         var provider = services.BuildServiceProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var manifest = provider.GetRequiredService<LiteBusHostManifest>();
         manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
 
         var broker = provider.GetRequiredService<InMemoryTransportBroker>();
         var ingressConsumer = new InMemoryConsumer(broker);
 
-        await using var dispatchConsumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(
-            broker,
-            dispatchDestination,
-            dispatchReceived);
+         var dispatchConsumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(             broker,             dispatchDestination,             dispatchReceived).ConfigureAwait(true);
+         await using (dispatchConsumer.ConfigureAwait(true))
+         {
 
         var ingressHandler = provider.GetRequiredService<TransportInboxIngressHandler>();
 
@@ -84,12 +85,12 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
             new TransportConsumerOptions { Destination = ingressDestination },
             async (message, cancellationToken) =>
             {
-                await ingressHandler.AcceptAsync(message, cancellationToken);
-                await message.AcceptAsync(cancellationToken);
-            });
+                await ingressHandler.AcceptAsync(message, cancellationToken).ConfigureAwait(false);
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -108,10 +109,10 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
                     [TransportHeaders.ContractName] = contractName,
                     [TransportHeaders.ContractVersion] = 1
                 }
-            });
+            }).ConfigureAwait(false);
 
             using var receiveTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-            var dispatched = await dispatchReceived.Task.WaitAsync(receiveTimeout.Token);
+            var dispatched = await dispatchReceived.Task.WaitAsync(receiveTimeout.Token).ConfigureAwait(false);
 
             InMemoryTransportTestInfrastructure.ReadBody(dispatched).Should().Contain(orderId.ToString());
 
@@ -131,16 +132,18 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
                     break;
                 }
 
-                await Task.Delay(TimeSpan.FromMilliseconds(50));
+                await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
             }
 
             store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
         }
         finally
         {
-            await ingressConsumer.StopAsync(CancellationToken.None);
-            await ingressConsumer.DisposeAsync();
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await ingressConsumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ingressConsumer.DisposeAsync().ConfigureAwait(false);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
+        }
         }
     }
 }

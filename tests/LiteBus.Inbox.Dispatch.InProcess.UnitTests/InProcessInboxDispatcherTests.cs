@@ -24,9 +24,9 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         contractRegistry.Register<ProcessOrderCommand>("orders.commands.process");
 
         var serializer = new SystemTextJsonMessageSerializer();
-        var payload = await serializer.SerializeAsync(new ProcessOrderCommand { OrderId = Guid.NewGuid() });
+        var payload = await serializer.SerializeAsync(new ProcessOrderCommand { OrderId = Guid.NewGuid() }).ConfigureAwait(true);
 
-        await using var provider = new ServiceCollection()
+        var provider = new ServiceCollection()
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
@@ -44,6 +44,8 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
                 });
             })
             .BuildServiceProvider();
+        await using (provider.ConfigureAwait(true))
+        {
 
         var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
 
@@ -54,9 +56,10 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
             payload,
             DateTimeOffset.UtcNow);
 
-        await dispatcher.DispatchAsync(envelope);
+        await dispatcher.DispatchAsync(envelope).ConfigureAwait(true);
 
         recorder.Commands.Should().ContainSingle();
+        }
     }
 
     [Fact]
@@ -66,7 +69,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         contractRegistry.Register<NonCommandPayload>("inbox.payload.non-command");
 
         var serializer = new SystemTextJsonMessageSerializer();
-        var payload = await serializer.SerializeAsync(new NonCommandPayload { Value = "not-a-command" });
+        var payload = await serializer.SerializeAsync(new NonCommandPayload { Value = "not-a-command" }).ConfigureAwait(true);
 
         var envelope = CreateEnvelope(
             contractRegistry,
@@ -95,7 +98,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         contractRegistry.Register<InboxProbeCommand>("inbox.commands.probe");
 
         var serializer = new SystemTextJsonMessageSerializer();
-        var payload = await serializer.SerializeAsync(new InboxProbeCommand());
+        var payload = await serializer.SerializeAsync(new InboxProbeCommand()).ConfigureAwait(true);
 
         var envelope = CreateEnvelope(
             contractRegistry,
@@ -107,7 +110,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
             "causation-7",
             "tenant-west");
 
-        await using var provider = new ServiceCollection()
+        var provider = new ServiceCollection()
             .AddSingleton(inboxCapture)
             .AddSingleton(traceCapture)
             .AddLiteBus(registry =>
@@ -129,14 +132,17 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
                 });
             })
             .BuildServiceProvider();
+        await using (provider.ConfigureAwait(true))
+        {
 
         var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
-        await dispatcher.DispatchAsync(envelope);
+        await dispatcher.DispatchAsync(envelope).ConfigureAwait(true);
 
         inboxCapture.IsInboxExecution.Should().BeTrue();
         traceCapture.CorrelationId.Should().Be("correlation-42");
         traceCapture.CausationId.Should().Be("causation-7");
         traceCapture.TenantId.Should().Be("tenant-west");
+        }
     }
 
     [Fact]
@@ -146,7 +152,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         contractRegistry.Register<InboxProbeCommand>("inbox.commands.probe");
 
         var serializer = new SystemTextJsonMessageSerializer();
-        var payload = await serializer.SerializeAsync(new InboxProbeCommand());
+        var payload = await serializer.SerializeAsync(new InboxProbeCommand()).ConfigureAwait(true);
 
         var envelope = CreateEnvelope(
             contractRegistry,
@@ -159,10 +165,11 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         var mediator = new CancellationRecordingMediator();
         var dispatcher = new CommandInboxDispatcher(mediator, contractRegistry, recordingSerializer);
         using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
+        await cts.CancelAsync().ConfigureAwait(true);
 
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            dispatcher.DispatchAsync(envelope, cts.Token));
+            dispatcher.DispatchAsync(envelope, cts.Token)).ConfigureAwait(true);
+
 
         recordingSerializer.LastCancellationToken.IsCancellationRequested.Should().BeTrue();
         mediator.WasSendCalled.Should().BeFalse();

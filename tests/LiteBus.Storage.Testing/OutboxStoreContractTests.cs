@@ -29,7 +29,7 @@ public abstract class OutboxStoreContractTests
         var messageId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -37,14 +37,14 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-1",
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().ContainSingle();
         leased[0].Id.Should().Be(messageId);
         leased[0].Status.Should().Be(OutboxStatus.Publishing);
         leased[0].AttemptCount.Should().Be(1);
 
-        await store.StateWriter.PersistAsync([leased[0].AsFailed("publisher unavailable", now.AddMinutes(5))]);
+        await store.StateWriter.PersistAsync([leased[0].AsFailed("publisher unavailable", now.AddMinutes(5))]).ConfigureAwait(false);
 
         var hidden = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -52,7 +52,7 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-2",
             Now = now.AddMinutes(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         hidden.Should().BeEmpty();
 
@@ -62,12 +62,12 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-2",
             Now = now.AddMinutes(6),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         visible.Should().ContainSingle();
         visible[0].AttemptCount.Should().Be(2);
 
-        await store.StateWriter.PersistAsync([visible[0].AsPublished()]);
+        await store.StateWriter.PersistAsync([visible[0].AsPublished()]).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -85,13 +85,13 @@ public abstract class OutboxStoreContractTests
         var first = await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now) with
         {
             IdempotencyKey = idempotencyKey
-        });
+        }).ConfigureAwait(false);
 
         var duplicate = await store.Writer.EnqueueAsync(first with
         {
             Id = Guid.NewGuid(),
             Payload = "{\"orderId\":\"2\"}"
-        });
+        }).ConfigureAwait(false);
 
         duplicate.Id.Should().Be(first.Id);
         duplicate.Payload.Should().Be(first.Payload);
@@ -109,8 +109,8 @@ public abstract class OutboxStoreContractTests
         var messageId = Guid.NewGuid();
         var now = BaseTime;
 
-        var first = await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
-        var duplicate = await store.Writer.EnqueueAsync(first with { Payload = "{\"orderId\":\"2\"}" });
+        var first = await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
+        var duplicate = await store.Writer.EnqueueAsync(first with { Payload = "{\"orderId\":\"2\"}" }).ConfigureAwait(false);
 
         duplicate.Id.Should().Be(first.Id);
         duplicate.Payload.Should().Be(first.Payload);
@@ -142,7 +142,7 @@ public abstract class OutboxStoreContractTests
             CausationId = "causation-1",
             TenantId = "tenant-1",
             TraceContext = "{\"traceparent\":\"00-def\"}"
-        });
+        }).ConfigureAwait(false);
 
         stored.Topic.Should().Be("orders");
         stored.VisibleAfter.Should().Be(visibleAfter);
@@ -164,7 +164,7 @@ public abstract class OutboxStoreContractTests
         await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now) with
         {
             VisibleAfter = now.AddHours(2)
-        });
+        }).ConfigureAwait(false);
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -172,7 +172,7 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-1",
             Now = now.AddMinutes(30),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().BeEmpty();
     }
@@ -190,9 +190,9 @@ public abstract class OutboxStoreContractTests
         var secondId = Guid.NewGuid();
         var thirdId = Guid.NewGuid();
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(firstId, now));
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1)));
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(thirdId, now.AddSeconds(2)));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(firstId, now)).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1))).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(thirdId, now.AddSeconds(2))).ConfigureAwait(false);
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -200,7 +200,7 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-1",
             Now = now.AddMinutes(1),
             LeaseDuration = TimeSpan.FromMinutes(5)
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().HaveCount(2);
         leased[0].Id.Should().Be(firstId);
@@ -219,7 +219,7 @@ public abstract class OutboxStoreContractTests
         var now = BaseTime;
         var visibleAfter = now.AddMinutes(15);
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -227,11 +227,11 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-1",
             Now = now,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().ContainSingle();
 
-        await store.StateWriter.PersistAsync([leased[0].AsFailed("broker down", visibleAfter)]);
+        await store.StateWriter.PersistAsync([leased[0].AsFailed("broker down", visibleAfter)]).ConfigureAwait(false);
 
         var visible = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -239,7 +239,7 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-2",
             Now = visibleAfter,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         visible.Should().ContainSingle();
         visible[0].Status.Should().Be(OutboxStatus.Publishing);
@@ -257,7 +257,7 @@ public abstract class OutboxStoreContractTests
         var messageId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -265,9 +265,9 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-1",
             Now = now,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered("poison message")]);
+        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered("poison message")]).ConfigureAwait(false);
 
         var afterDeadLetter = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -275,7 +275,7 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-2",
             Now = now.AddHours(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         afterDeadLetter.Should().BeEmpty();
     }
@@ -291,7 +291,7 @@ public abstract class OutboxStoreContractTests
         var messageId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
 
         await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -299,7 +299,7 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "stale-publisher",
             Now = now,
             LeaseDuration = TimeSpan.FromSeconds(20)
-        });
+        }).ConfigureAwait(false);
 
         var reclaimed = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -307,7 +307,7 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "fresh-publisher",
             Now = now.AddMinutes(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         reclaimed.Should().ContainSingle();
         reclaimed[0].LeaseOwner.Should().Be("fresh-publisher");
@@ -321,7 +321,7 @@ public abstract class OutboxStoreContractTests
     [Fact]
     public async Task LeasePendingAsync_ConcurrentPublishers_ShouldLeaseDisjointMessages()
     {
-        await AssertConcurrentLeasesAreDisjointAsync();
+        await AssertConcurrentLeasesAreDisjointAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -335,7 +335,7 @@ public abstract class OutboxStoreContractTests
 
         for (var index = 0; index < 6; index++)
         {
-            await store.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(index)));
+            await store.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(index))).ConfigureAwait(false);
         }
 
         var request = new OutboxLeaseRequest
@@ -348,9 +348,9 @@ public abstract class OutboxStoreContractTests
 
         var firstBatchTask = store.Lease.LeasePendingAsync(request with { LeaseOwner = "publisher-a" });
         var secondBatchTask = store.Lease.LeasePendingAsync(request with { LeaseOwner = "publisher-b" });
-        await Task.WhenAll(firstBatchTask, secondBatchTask);
-        var firstBatch = await firstBatchTask;
-        var secondBatch = await secondBatchTask;
+        await Task.WhenAll(firstBatchTask, secondBatchTask).ConfigureAwait(false);
+        var firstBatch = await firstBatchTask.ConfigureAwait(false);
+        var secondBatch = await secondBatchTask.ConfigureAwait(false);
 
         var leasedIds = firstBatch.Select(message => message.Id)
             .Concat(secondBatch.Select(message => message.Id))
@@ -372,8 +372,8 @@ public abstract class OutboxStoreContractTests
         var publishedId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now));
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(publishedId, now.AddSeconds(1)));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now)).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(publishedId, now.AddSeconds(1))).ConfigureAwait(false);
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -381,11 +381,11 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-1",
             Now = now.AddSeconds(2),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsPublished()]);
+        await store.StateWriter.PersistAsync([leased[0].AsPublished()]).ConfigureAwait(false);
 
-        var counts = await store.Diagnostics.GetStatusCountsAsync();
+        var counts = await store.Diagnostics.GetStatusCountsAsync().ConfigureAwait(false);
 
         counts[OutboxStatus.Pending].Should().Be(1);
         counts[OutboxStatus.Published].Should().Be(1);
@@ -402,7 +402,7 @@ public abstract class OutboxStoreContractTests
         var messageId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -410,7 +410,7 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-a",
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().ContainSingle();
         var publishing = leased[0];
@@ -421,10 +421,10 @@ public abstract class OutboxStoreContractTests
 
         var firstPersist = store.StateWriter.PersistAsync([winner]);
         var secondPersist = store.StateWriter.PersistAsync([stale]);
-        await Task.WhenAll(firstPersist, secondPersist);
+        await Task.WhenAll(firstPersist, secondPersist).ConfigureAwait(false);
 
-        var firstResult = await firstPersist;
-        var secondResult = await secondPersist;
+        var firstResult = await firstPersist.ConfigureAwait(false);
+        var secondResult = await secondPersist.ConfigureAwait(false);
 
         (firstResult.AppliedCount + secondResult.AppliedCount).Should().Be(1);
     }
@@ -440,7 +440,7 @@ public abstract class OutboxStoreContractTests
         var messageId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -448,11 +448,11 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-1",
             Now = now,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered("manual replay")]);
+        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered("manual replay")]).ConfigureAwait(false);
 
-        await store.DeadLetterStore.RequeueAsync(messageId);
+        await store.DeadLetterStore.RequeueAsync(messageId).ConfigureAwait(false);
 
         var requeued = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -460,7 +460,7 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-2",
             Now = now.AddMinutes(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         requeued.Should().ContainSingle();
         requeued[0].Id.Should().Be(messageId);
@@ -499,8 +499,8 @@ public abstract class OutboxStoreContractTests
         var thirdId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(firstId, now) with { ContractName = "tests.events.a", Topic = "topic.a" });
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1)) with { ContractName = "tests.events.b", Topic = "topic.b" });
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(firstId, now) with { ContractName = "tests.events.a", Topic = "topic.a" }).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1)) with { ContractName = "tests.events.b", Topic = "topic.b" }).ConfigureAwait(false);
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -508,14 +508,14 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-1",
             Now = now.AddSeconds(2),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsPublished()]);
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(thirdId, now.AddSeconds(3)) with { ContractName = "tests.events.a", Topic = "topic.a" });
+        await store.StateWriter.PersistAsync([leased[0].AsPublished()]).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(thirdId, now.AddSeconds(3)) with { ContractName = "tests.events.a", Topic = "topic.a" }).ConfigureAwait(false);
 
         var pendingPage = await store.MessageQuery.QueryAsync(
             new OutboxMessageFilter { Statuses = [OutboxStatus.Pending] },
-            new OutboxMessagePageRequest { PageSize = 1 });
+            new OutboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
 
         pendingPage.Items.Should().ContainSingle();
         pendingPage.Items[0].Id.Should().Be(secondId);
@@ -523,7 +523,7 @@ public abstract class OutboxStoreContractTests
 
         var topicPage = await store.MessageQuery.QueryAsync(
             new OutboxMessageFilter { Topic = "topic.a" },
-            new OutboxMessagePageRequest { PageSize = 10 });
+            new OutboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
 
         topicPage.Items.Should().HaveCount(2);
         topicPage.Items.Select(envelope => envelope.Id).Should().BeEquivalentTo([firstId, thirdId]);
@@ -540,8 +540,8 @@ public abstract class OutboxStoreContractTests
         var publishedId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now));
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(publishedId, now.AddSeconds(1)));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now)).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(publishedId, now.AddSeconds(1))).ConfigureAwait(false);
 
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -549,20 +549,20 @@ public abstract class OutboxStoreContractTests
             LeaseOwner = "publisher-1",
             Now = now.AddSeconds(2),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsPublished()]);
+        await store.StateWriter.PersistAsync([leased[0].AsPublished()]).ConfigureAwait(false);
 
         var deleted = await store.PurgeStore.PurgeAsync(new OutboxMessageFilter
         {
             Statuses = [OutboxStatus.Published]
-        });
+        }).ConfigureAwait(false);
 
         deleted.Should().Be(1);
 
         var remaining = await store.MessageQuery.QueryAsync(
             new OutboxMessageFilter(),
-            new OutboxMessagePageRequest { PageSize = 10 });
+            new OutboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
 
         remaining.Items.Should().ContainSingle();
         remaining.Items[0].Id.Should().Be(publishedId);

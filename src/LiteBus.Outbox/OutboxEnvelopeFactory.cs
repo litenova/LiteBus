@@ -56,9 +56,15 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
         IOutboxPayloadProtector? payloadProtector = null,
         IMessageContractResolver? contractTypeResolver = null)
     {
-        _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
-        _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
-        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        ArgumentNullException.ThrowIfNull(contractRegistry);
+
+        _contractRegistry = contractRegistry;
+        ArgumentNullException.ThrowIfNull(messageSerializer);
+
+        _messageSerializer = messageSerializer;
+        ArgumentNullException.ThrowIfNull(clock);
+
+        _clock = clock;
         _payloadProtector = payloadProtector;
         _contractTypeResolver = contractTypeResolver;
     }
@@ -94,7 +100,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
 
         if (items.Count == 0)
         {
-            return Array.Empty<OutboxEnvelope>();
+            return [];
         }
 
         var tasks = new Task<OutboxEnvelope>[items.Count];
@@ -122,7 +128,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
 
         if (items.Count == 0)
         {
-            return Array.Empty<OutboxEnvelope>();
+            return [];
         }
 
         var tasks = new Task<OutboxEnvelope>[items.Count];

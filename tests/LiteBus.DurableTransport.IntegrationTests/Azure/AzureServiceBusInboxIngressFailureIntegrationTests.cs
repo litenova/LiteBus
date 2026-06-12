@@ -46,13 +46,13 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
     public async Task UnknownContract_ShouldNotWriteToStore()
     {
         var ingressQueue = _fixture.ResolveQueue("ingress-fail");
-        await RunFailureScenarioAsync(ingressQueue, "{}", "unknown.contract", 1);
+        await RunFailureScenarioAsync(ingressQueue, "{}", "unknown.contract", 1).ConfigureAwait(false);
 
         await AzureServiceBusTransportTestInfrastructure.WaitForQueueDepthAsync(
             _fixture.TransportOptions.ConnectionString,
             ingressQueue,
             0,
-            TimeSpan.FromSeconds(30));
+            TimeSpan.FromSeconds(30)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -63,13 +63,13 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
     public async Task InvalidJson_ShouldNotWriteToStore()
     {
         var ingressQueue = _fixture.ResolveQueue("ingress-fail");
-        await RunFailureScenarioAsync(ingressQueue, "{not-json", ContractName, 1);
+        await RunFailureScenarioAsync(ingressQueue, "{not-json", ContractName, 1).ConfigureAwait(false);
 
         await AzureServiceBusTransportTestInfrastructure.WaitForQueueDepthAsync(
             _fixture.TransportOptions.ConnectionString,
             ingressQueue,
             0,
-            TimeSpan.FromSeconds(30));
+            TimeSpan.FromSeconds(30)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -80,10 +80,12 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
     public async Task StoreFull_ShouldDrainQueueAndKeepPrefilledRow()
     {
         var ingressQueue = _fixture.ResolveQueue("ingress-store-full");
-        await using var provider = BuildProvider(ingressQueue, 1);
+         var provider = BuildProvider(ingressQueue, 1);
+         await using (provider.ConfigureAwait(false))
+         {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -92,7 +94,7 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
             await inbox.AcceptAsync(new InboxAcceptItem<ShipOrderCommand>
             {
                 Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
-            });
+            }).ConfigureAwait(false);
 
             var publisher = provider.GetRequiredService<IMessageTransport>();
             var messageId = Guid.NewGuid();
@@ -103,21 +105,22 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
                 Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-            });
+            }).ConfigureAwait(false);
 
             await PollingWait.UntilAsync(
                 () => provider.GetRequiredService<InMemoryInboxStore>().Count == 1,
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
             await AzureServiceBusTransportTestInfrastructure.WaitForQueueDepthAsync(
                 _fixture.TransportOptions.ConnectionString,
                 ingressQueue,
                 0,
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 
@@ -135,10 +138,12 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
         string contractName,
         int contractVersion)
     {
-        await using var provider = BuildProvider(ingressQueue);
+         var provider = BuildProvider(ingressQueue);
+         await using (provider.ConfigureAwait(false))
+         {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -151,15 +156,16 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
                 Body = Encoding.UTF8.GetBytes(body),
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, contractName, contractVersion)
-            });
+            }).ConfigureAwait(false);
 
             await PollingWait.UntilAsync(
                 () => provider.GetRequiredService<InMemoryInboxStore>().Count == 0,
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 

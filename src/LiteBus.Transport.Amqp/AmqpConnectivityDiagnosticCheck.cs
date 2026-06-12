@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Runtime.Abstractions.Diagnostics;
+using RabbitMQ.Client.Exceptions;
 
 namespace LiteBus.Transport.Amqp;
 
@@ -22,7 +23,8 @@ public sealed class AmqpConnectivityDiagnosticCheck : IDiagnosticCheck
     /// <param name="connectionManager">The connection manager used to open the shared broker connection.</param>
     public AmqpConnectivityDiagnosticCheck(IAmqpConnectionManager connectionManager)
     {
-        _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
+        ArgumentNullException.ThrowIfNull(connectionManager);
+        _connectionManager = connectionManager;
     }
 
     /// <summary>
@@ -31,6 +33,11 @@ public sealed class AmqpConnectivityDiagnosticCheck : IDiagnosticCheck
     public string Name => "transport.amqp.connectivity";
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     Broker connectivity exceptions are mapped to unhealthy results explicitly. The final
+    ///     <see cref="Exception" /> handler covers unexpected failures because diagnostic probes must not throw to
+    ///     callers.
+    /// </remarks>
     public async Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -46,15 +53,39 @@ public sealed class AmqpConnectivityDiagnosticCheck : IDiagnosticCheck
                     ["isOpen"] = connection.IsOpen
                 });
         }
-        catch (Exception exception)
+        catch (OperationCanceledException exception)
         {
-            return new DiagnosticResult(
-                DiagnosticStatus.Unhealthy,
-                $"AMQP broker connection failed: {exception.Message}",
-                new Dictionary<string, object>
-                {
-                    ["errorType"] = exception.GetType().Name
-                });
+            return CreateUnhealthyResult(exception);
         }
+        catch (BrokerUnreachableException exception)
+        {
+            return CreateUnhealthyResult(exception);
+        }
+        catch (AlreadyClosedException exception)
+        {
+            return CreateUnhealthyResult(exception);
+        }
+#pragma warning disable CA1031 // Diagnostic probes must map unexpected failures to unhealthy results without throwing.
+        catch (Exception exception)
+#pragma warning restore CA1031
+        {
+            return CreateUnhealthyResult(exception);
+        }
+    }
+
+    /// <summary>
+    ///     Creates an unhealthy diagnostic result for a connection failure.
+    /// </summary>
+    /// <param name="exception">The exception observed while opening the broker connection.</param>
+    /// <returns>The unhealthy diagnostic result.</returns>
+    private static DiagnosticResult CreateUnhealthyResult(Exception exception)
+    {
+        return new DiagnosticResult(
+            DiagnosticStatus.Unhealthy,
+            $"AMQP broker connection failed: {exception.Message}",
+            new Dictionary<string, object>
+            {
+                ["errorType"] = exception.GetType().Name
+            });
     }
 }

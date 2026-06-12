@@ -120,7 +120,7 @@ internal static class InboxTestInfrastructure
             InboxLeaseRequest request,
             CancellationToken cancellationToken = default)
         {
-            var leased = await _inner.LeasePendingAsync(request, cancellationToken);
+            var leased = await _inner.LeasePendingAsync(request, cancellationToken).ConfigureAwait(false);
             return _onLease?.Invoke(request) ?? leased;
         }
 
@@ -174,7 +174,7 @@ internal static class InboxTestInfrastructure
             ArgumentNullException.ThrowIfNull(envelope);
 
             var messageType = _contractRegistry.GetMessageType(envelope.ContractName, envelope.ContractVersion);
-            var message = await _messageSerializer.DeserializeAsync(messageType, envelope.Payload, cancellationToken);
+            var message = await _messageSerializer.DeserializeAsync(messageType, envelope.Payload, cancellationToken).ConfigureAwait(false);
 
             if (message is not ICommand command)
             {
@@ -191,7 +191,7 @@ internal static class InboxTestInfrastructure
                 envelope.CausationId,
                 envelope.TenantId);
 
-            await _commandMediator.SendAsync(command, mediationSettings, cancellationToken);
+            await _commandMediator.SendAsync(command, mediationSettings, cancellationToken).ConfigureAwait(false);
         }
     }
 

@@ -32,6 +32,26 @@ internal static class OutboxProcessorHookRunner
     }
 
     /// <summary>
+    ///     Re-establishes hook-owned dispatch scope before the axis dispatcher runs.
+    /// </summary>
+    /// <param name="hooks">The registered orchestration hooks.</param>
+    /// <param name="envelope">The leased outbox envelope.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>A task that completes before dispatch begins.</returns>
+    internal static async Task RunPrepareDispatchScopeAsync(
+        IReadOnlyList<IProcessorEnvelopeHook> hooks,
+        OutboxEnvelope envelope,
+        CancellationToken cancellationToken)
+    {
+        var context = new OutboxProcessorEnvelopeAdapter(envelope);
+
+        foreach (var hook in hooks)
+        {
+            await hook.PrepareDispatchScopeAsync(context, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
     ///     Runs all hooks after dispatch completes successfully and terminal state is persisted.
     /// </summary>
     /// <param name="hooks">The registered orchestration hooks.</param>

@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 using ExecutionContext = LiteBus.Messaging.Contexts.Execution.ExecutionContext;
 
 namespace LiteBus.Messaging.Mediator;
@@ -39,24 +40,27 @@ internal sealed class MessageMediator : IMessageMediator
     private readonly IMessageWriter _messageWriter;
 
     /// <summary>
-    ///     The service provider used to resolve handler instances and dependencies.
+    ///     The factory that creates per-mediation dependency injection scopes for handler resolution.
     /// </summary>
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IMessageDispatchScopeFactory _dispatchScopeFactory;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="MessageMediator" /> class.
     /// </summary>
     /// <param name="messageReader">The reader containing message handler information.</param>
     /// <param name="messageWriter">The writer used for on-the-spot message registration.</param>
-    /// <param name="serviceProvider">The service provider used to resolve dependencies.</param>
+    /// <param name="dispatchScopeFactory">The factory that creates per-mediation dependency injection scopes.</param>
     public MessageMediator(
         IMessageReader messageReader,
         IMessageWriter messageWriter,
-        IServiceProvider serviceProvider)
+        IMessageDispatchScopeFactory dispatchScopeFactory)
     {
-        _messageReader = messageReader ?? throw new ArgumentNullException(nameof(messageReader));
-        _messageWriter = messageWriter ?? throw new ArgumentNullException(nameof(messageWriter));
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        ArgumentNullException.ThrowIfNull(messageReader);
+        _messageReader = messageReader;
+        ArgumentNullException.ThrowIfNull(messageWriter);
+        _messageWriter = messageWriter;
+        ArgumentNullException.ThrowIfNull(dispatchScopeFactory);
+        _dispatchScopeFactory = dispatchScopeFactory;
     }
 
     /// <summary>
@@ -85,8 +89,9 @@ internal sealed class MessageMediator : IMessageMediator
         // Create a new execution context for the current scope.
         var executionContext = new ExecutionContext(cancellationToken, request.Tags, request.Items);
 
-        // Retain the ambient scope until asynchronous mediation results complete.
-        var scope = AmbientExecutionContext.CreateScope(executionContext);
+        // Retain ambient and dispatch scopes until asynchronous mediation results complete.
+        var executionScope = AmbientExecutionContext.CreateScope(executionContext);
+        var dispatchScope = _dispatchScopeFactory.CreateScope();
 
         // Get the actual type of the message.
         var messageType = message.GetType();
@@ -115,17 +120,19 @@ internal sealed class MessageMediator : IMessageMediator
                 _messageReader.Count);
         }
 
-        // Resolve the dependencies in lazy mode.
+        // Resolve handlers from the per-mediation scope so scoped handlers get distinct instances.
         var messageDependencies = new MessageDependencies(messageType,
             descriptor,
-            _serviceProvider,
+            dispatchScope.ServiceProvider,
             request.Tags,
             request.HandlerPredicate);
 
         // Mediate the message using the specified strategy.
         var result = request.MessageMediationStrategy.Mediate(message, messageDependencies, executionContext);
 
-        return MediationScopeRetention.RetainUntilPipelineCompletes(result, scope);
+        return MediationScopeRetention.RetainUntilPipelineCompletes(
+            result,
+            new MediationResourceScope(executionScope, dispatchScope));
     }
 
     /// <inheritdoc />

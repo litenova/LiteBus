@@ -26,29 +26,33 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
     public async Task UnknownContract_ShouldNackWithoutRequeueAndSkipStore()
     {
         var fixture = new RabbitMqBrokerFixture();
-        await fixture.InitializeAsync();
+        await fixture.InitializeAsync().ConfigureAwait(true);
 
         try
         {
             var queueName = CreateQueueName();
-            await using var provider = BuildProvider(fixture.ConnectionOptions, queueName, 100);
-            await StartIngressAsync(provider);
+             var provider = BuildProvider(fixture.ConnectionOptions, queueName, 100);
+             await using (provider.ConfigureAwait(false))
+             {
+            await StartIngressAsync(provider).ConfigureAwait(true);
 
             await PublishAsync(
                 fixture.ConnectionOptions,
                 queueName,
                 "{}",
                 "unknown.contract",
-                "1");
+                "1").ConfigureAwait(true);
 
-            await WaitForQueueDepthAsync(fixture.ConnectionOptions, queueName, 0, TimeSpan.FromSeconds(15));
 
-            var pending = await CountPendingInboxRowsAsync(provider);
+            await WaitForQueueDepthAsync(fixture.ConnectionOptions, queueName, 0, TimeSpan.FromSeconds(15)).ConfigureAwait(true);
+
+            var pending = await CountPendingInboxRowsAsync(provider).ConfigureAwait(true);
             pending.Should().Be(0);
+            }
         }
         finally
         {
-            await fixture.DisposeAsync();
+            await fixture.DisposeAsync().ConfigureAwait(true);
         }
     }
 
@@ -60,29 +64,33 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
     public async Task InvalidJson_ShouldNackWithoutRequeueAndSkipStore()
     {
         var fixture = new RabbitMqBrokerFixture();
-        await fixture.InitializeAsync();
+        await fixture.InitializeAsync().ConfigureAwait(true);
 
         try
         {
             var queueName = CreateQueueName();
-            await using var provider = BuildProvider(fixture.ConnectionOptions, queueName, 100);
-            await StartIngressAsync(provider);
+             var provider = BuildProvider(fixture.ConnectionOptions, queueName, 100);
+             await using (provider.ConfigureAwait(false))
+             {
+            await StartIngressAsync(provider).ConfigureAwait(true);
 
             await PublishAsync(
                 fixture.ConnectionOptions,
                 queueName,
                 "{not-valid-json",
                 "orders.commands.ship",
-                "1");
+                "1").ConfigureAwait(true);
 
-            await WaitForQueueDepthAsync(fixture.ConnectionOptions, queueName, 0, TimeSpan.FromSeconds(15));
 
-            var pending = await CountPendingInboxRowsAsync(provider);
+            await WaitForQueueDepthAsync(fixture.ConnectionOptions, queueName, 0, TimeSpan.FromSeconds(15)).ConfigureAwait(true);
+
+            var pending = await CountPendingInboxRowsAsync(provider).ConfigureAwait(true);
             pending.Should().Be(0);
+            }
         }
         finally
         {
-            await fixture.DisposeAsync();
+            await fixture.DisposeAsync().ConfigureAwait(true);
         }
     }
 
@@ -95,32 +103,36 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
     public async Task StoreFull_ShouldNackWithoutRequeueWhenCapacityExceeded()
     {
         var fixture = new RabbitMqBrokerFixture();
-        await fixture.InitializeAsync();
+        await fixture.InitializeAsync().ConfigureAwait(true);
 
         try
         {
             var queueName = CreateQueueName();
-            await using var provider = BuildProvider(fixture.ConnectionOptions, queueName, 1);
-            await StartIngressAsync(provider);
+             var provider = BuildProvider(fixture.ConnectionOptions, queueName, 1);
+             await using (provider.ConfigureAwait(false))
+             {
+            await StartIngressAsync(provider).ConfigureAwait(true);
 
             var inbox = provider.GetRequiredService<IInbox>();
-            await inbox.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() });
+            await inbox.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() }).ConfigureAwait(true);
 
             await PublishAsync(
                 fixture.ConnectionOptions,
                 queueName,
                 JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
                 "orders.commands.ship",
-                "1");
+                "1").ConfigureAwait(true);
 
-            await WaitForQueueDepthAsync(fixture.ConnectionOptions, queueName, 0, TimeSpan.FromSeconds(15));
 
-            var pending = await CountPendingInboxRowsAsync(provider);
+            await WaitForQueueDepthAsync(fixture.ConnectionOptions, queueName, 0, TimeSpan.FromSeconds(15)).ConfigureAwait(true);
+
+            var pending = await CountPendingInboxRowsAsync(provider).ConfigureAwait(true);
             pending.Should().Be(1);
+            }
         }
         finally
         {
-            await fixture.DisposeAsync();
+            await fixture.DisposeAsync().ConfigureAwait(true);
         }
     }
 
@@ -176,8 +188,8 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
     private static async Task StartIngressAsync(ServiceProvider provider)
     {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(true);
+        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(true);
     }
 
     private static async Task PublishAsync(
@@ -187,7 +199,9 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
         string contractName,
         string contractVersion)
     {
-        await using var manager = new AmqpConnectionManager(connectionOptions);
+         var manager = new AmqpConnectionManager(connectionOptions);
+         await using (manager.ConfigureAwait(false))
+         {
         var publisher = new AmqpPublisher(manager);
 
         await publisher.PublishAsync(new AmqpPublishRequest
@@ -201,7 +215,9 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
                 [AmqpHeaders.ContractName] = contractName,
                 [AmqpHeaders.ContractVersion] = contractVersion
             }
-        });
+        }).ConfigureAwait(true);
+
+        }
     }
 
     private static async Task WaitForQueueDepthAsync(
@@ -214,17 +230,17 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
 
         while (DateTime.UtcNow < deadline)
         {
-            var count = await GetQueueDepthAsync(connectionOptions, queueName);
+            var count = await GetQueueDepthAsync(connectionOptions, queueName).ConfigureAwait(true);
 
             if (count == expectedCount)
             {
                 return;
             }
 
-            await Task.Delay(200);
+            await Task.Delay(200).ConfigureAwait(true);
         }
 
-        var actual = await GetQueueDepthAsync(connectionOptions, queueName);
+        var actual = await GetQueueDepthAsync(connectionOptions, queueName).ConfigureAwait(true);
         actual.Should().Be(expectedCount, $"queue '{queueName}' should reach depth {expectedCount} within {timeout}");
     }
 
@@ -235,10 +251,16 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
                       $"amqp://{Uri.EscapeDataString(connectionOptions.UserName)}:{Uri.EscapeDataString(connectionOptions.Password)}@{connectionOptions.HostName}:{connectionOptions.Port}{connectionOptions.VirtualHost}");
 
         var factory = new ConnectionFactory { Uri = uri };
-        await using var connection = await factory.CreateConnectionAsync();
-        await using var channel = await connection.CreateChannelAsync();
-        var declare = await channel.QueueDeclarePassiveAsync(queueName);
+         var connection = await factory.CreateConnectionAsync().ConfigureAwait(true);
+         await using (connection.ConfigureAwait(true))
+         {
+         var channel = await connection.CreateChannelAsync().ConfigureAwait(true);
+         await using (channel.ConfigureAwait(false))
+         {
+        var declare = await channel.QueueDeclarePassiveAsync(queueName).ConfigureAwait(true);
         return declare.MessageCount;
+        }
+        }
     }
 
     private static async Task<int> CountPendingInboxRowsAsync(ServiceProvider provider)
@@ -251,7 +273,7 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
             LeaseOwner = "ingress-failure-test",
             Now = DateTimeOffset.UtcNow,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         return leased.Count;
     }

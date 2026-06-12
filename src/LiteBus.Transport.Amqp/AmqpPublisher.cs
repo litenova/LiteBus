@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Transport.Abstractions;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 
 namespace LiteBus.Transport.Amqp;
 
@@ -38,7 +39,8 @@ public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport
     /// <param name="connectionManager">The connection manager used to open publish channels.</param>
     public AmqpPublisher(IAmqpConnectionManager connectionManager)
     {
-        _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
+        ArgumentNullException.ThrowIfNull(connectionManager);
+        _connectionManager = connectionManager;
 
         _circuitBreaker = connectionManager is AmqpConnectionManager manager
             ? manager.TransportCircuitBreaker
@@ -46,6 +48,11 @@ public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     <see cref="AlreadyClosedException" /> and <see cref="BrokerUnreachableException" /> are handled explicitly
+    ///     so broker failures increment the circuit breaker. The final <see cref="Exception" /> handler records any
+    ///     other non-cancellation failure before rethrowing.
+    /// </remarks>
     public async Task PublishAsync(AmqpPublishRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -78,9 +85,25 @@ public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport
 
                 _circuitBreaker?.RecordSuccess();
             }
-            catch (Exception)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (AlreadyClosedException)
             {
                 _circuitBreaker?.RecordFailure();
+                throw;
+            }
+            catch (BrokerUnreachableException)
+            {
+                _circuitBreaker?.RecordFailure();
+                throw;
+            }
+#pragma warning disable CA1031 // Last-resort publish boundary records circuit breaker failures before rethrowing.
+            catch (Exception exception)
+#pragma warning restore CA1031
+            {
+                TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
                 throw;
             }
         }

@@ -18,7 +18,8 @@ public sealed class TransportObservableMetrics
     /// <param name="serviceProvider">The service provider used to resolve transport dependencies.</param>
     public TransportObservableMetrics(IServiceProvider serviceProvider)
     {
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        _serviceProvider = serviceProvider;
 
         var meter = new Meter(LiteBusTransportTelemetry.MeterName);
 
@@ -46,7 +47,9 @@ public sealed class TransportObservableMetrics
             yield break;
         }
 
-        yield return new Measurement<int>(circuitBreaker.IsOpen ? 1 : 0);
+        yield return new Measurement<int>(
+            circuitBreaker.IsOpen ? 1 : 0,
+            CreateBrokerTags());
     }
 
     /// <summary>
@@ -62,7 +65,26 @@ public sealed class TransportObservableMetrics
             yield break;
         }
 
-        yield return new Measurement<long>(circuitBreaker.FailureCount);
+        yield return new Measurement<long>(
+            circuitBreaker.FailureCount,
+            CreateBrokerTags());
+    }
+
+    /// <summary>
+    ///     Creates the broker dimension tags applied to circuit breaker measurements.
+    /// </summary>
+    /// <returns>The broker tag collection when a broker identity is registered.</returns>
+    private KeyValuePair<string, object?>[] CreateBrokerTags()
+    {
+        if (_serviceProvider.GetService(typeof(TransportBrokerIdentity)) is TransportBrokerIdentity identity)
+        {
+            return
+            [
+                new KeyValuePair<string, object?>(LiteBusTransportTelemetry.BrokerTagName, identity.Broker)
+            ];
+        }
+
+        return [];
     }
 
     /// <summary>

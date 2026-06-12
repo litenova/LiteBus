@@ -17,7 +17,7 @@ internal sealed class AmqpTransportObservableMetricsInitializer : IStartupTask
     /// <param name="metrics">The AMQP observable metrics instance to activate.</param>
     public AmqpTransportObservableMetricsInitializer(AmqpTransportObservableMetrics metrics)
     {
-        _ = metrics ?? throw new ArgumentNullException(nameof(metrics));
+        ArgumentNullException.ThrowIfNull(metrics);
     }
 
     /// <inheritdoc />

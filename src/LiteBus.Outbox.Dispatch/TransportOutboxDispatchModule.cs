@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -12,6 +13,10 @@ namespace LiteBus.Outbox.Dispatch;
 /// </summary>
 public sealed class TransportOutboxDispatchModule : IOutboxDispatcherModule, IRequires<OutboxModule>
 {
+    /// <inheritdoc />
+    public ProcessorHookFailurePolicy DefaultHookFailurePolicy =>
+        ProcessorHookFailurePolicy.CompleteDespiteHookFailure;
+
     /// <summary>
     ///     Gets the dispatcher options configured by the application.
     /// </summary>
@@ -29,7 +34,9 @@ public sealed class TransportOutboxDispatchModule : IOutboxDispatcherModule, IRe
     /// <param name="transportModule">The optional transport module that registers <see cref="IMessageTransport" />.</param>
     public TransportOutboxDispatchModule(TransportOutboxDispatcherOptions options, IModule? transportModule = null)
     {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+
+        _options = options;
         _transportModule = transportModule;
     }
 

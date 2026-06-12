@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.InMemory;
@@ -24,11 +25,18 @@ public sealed class InMemoryPublisher : IMessageTransport
     /// <param name="circuitBreaker">The circuit breaker guarding publish operations.</param>
     public InMemoryPublisher(InMemoryTransportBroker broker, ITransportCircuitBreaker circuitBreaker)
     {
-        _broker = broker ?? throw new ArgumentNullException(nameof(broker));
-        _circuitBreaker = circuitBreaker ?? throw new ArgumentNullException(nameof(circuitBreaker));
+        ArgumentNullException.ThrowIfNull(broker);
+        ArgumentNullException.ThrowIfNull(circuitBreaker);
+        _broker = broker;
+        _circuitBreaker = circuitBreaker;
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     <see cref="ChannelClosedException" /> is handled explicitly so closed destinations increment the circuit
+    ///     breaker. The final <see cref="Exception" /> handler records any other non-cancellation failure before
+    ///     rethrowing.
+    /// </remarks>
     public async Task PublishAsync(TransportPublishRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -57,9 +65,20 @@ public sealed class InMemoryPublisher : IMessageTransport
             await endpoint.Writer.WriteAsync(delivery, cancellationToken).ConfigureAwait(false);
             _circuitBreaker.RecordSuccess();
         }
-        catch (Exception)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            _circuitBreaker.RecordFailure();
+            throw;
+        }
+        catch (ChannelClosedException exception)
+        {
+            TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
+            throw;
+        }
+#pragma warning disable CA1031 // Last-resort publish boundary records circuit breaker failures before rethrowing.
+        catch (Exception exception)
+#pragma warning restore CA1031
+        {
+            TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
             throw;
         }
     }

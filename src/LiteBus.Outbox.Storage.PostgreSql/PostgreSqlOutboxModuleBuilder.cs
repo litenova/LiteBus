@@ -83,7 +83,9 @@ public sealed class PostgreSqlOutboxModuleBuilder
     /// </remarks>
     public PostgreSqlOutboxModuleBuilder UseDataSource(NpgsqlDataSource dataSource)
     {
-        DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+        ArgumentNullException.ThrowIfNull(dataSource);
+
+        DataSource = dataSource;
         OwnsDataSource = false;
         return this;
     }
@@ -115,7 +117,9 @@ public sealed class PostgreSqlOutboxModuleBuilder
     /// <returns>The current builder.</returns>
     public PostgreSqlOutboxModuleBuilder UseOptions(PostgreSqlOutboxStoreOptions options)
     {
-        Options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+
+        Options = options;
         return this;
     }
 

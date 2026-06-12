@@ -32,10 +32,12 @@ public sealed class InMemoryIngressIdempotencyIntegrationTests : LiteBusTestBase
         var orderId = Guid.NewGuid();
         var payload = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = orderId });
 
-        await using var provider = BuildProvider(ingressDestination);
+         var provider = BuildProvider(ingressDestination);
+         await using (provider.ConfigureAwait(false))
+         {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(300), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(300), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -48,7 +50,7 @@ public sealed class InMemoryIngressIdempotencyIntegrationTests : LiteBusTestBase
                 Body = payload,
                 MessageId = messageId.ToString("D"),
                 Headers = headers
-            });
+            }).ConfigureAwait(false);
 
             await publisher.PublishAsync(new TransportPublishRequest
             {
@@ -56,17 +58,18 @@ public sealed class InMemoryIngressIdempotencyIntegrationTests : LiteBusTestBase
                 Body = payload,
                 MessageId = messageId.ToString("D"),
                 Headers = headers
-            });
+            }).ConfigureAwait(false);
 
             await PollingWait.UntilAsync(
                 () => provider.GetRequiredService<InMemoryInboxStore>().Count == 1,
-                TimeSpan.FromSeconds(10));
+                TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
             provider.GetRequiredService<InMemoryInboxStore>().Get(messageId).Status.Should().Be(InboxStatus.Pending);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 

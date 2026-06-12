@@ -1,8 +1,8 @@
 using System;
-using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Hosting;
+using LiteBus.Runtime.Composition;
 using LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Runtime.Extensions.Microsoft.Hosting;
 using LiteBus.Runtime.Modules;
@@ -48,7 +48,7 @@ public static class ServiceCollectionExtensions
 
         var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
 
-        foreach (var moduleDescriptor in moduleRegistry)
+        foreach (var moduleDescriptor in moduleRegistry.BuildOrder())
         {
             moduleDescriptor.Module.Build(moduleConfiguration);
         }
@@ -98,7 +98,7 @@ public static class ServiceCollectionExtensions
         var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
         moduleConfiguration.SetContext(sharedContracts);
 
-        foreach (var moduleDescriptor in moduleRegistry)
+        foreach (var moduleDescriptor in moduleRegistry.BuildOrder())
         {
             moduleDescriptor.Module.Build(moduleConfiguration);
         }

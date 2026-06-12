@@ -52,24 +52,27 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
         var services = new ServiceCollection();
         services.RegisterBackgroundServices([], [typeof(RecordingBackgroundService)]);
 
-        await using var provider = services.BuildServiceProvider();
+         var provider = services.BuildServiceProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var hostedServices = provider.GetServices<IHostedService>().ToList();
 
         using var cts = new CancellationTokenSource();
 
         foreach (var hostedService in hostedServices)
         {
-            await hostedService.StartAsync(cts.Token);
+            await hostedService.StartAsync(cts.Token).ConfigureAwait(false);
         }
 
-        await Task.Delay(50, cts.Token);
+        await Task.Delay(50, cts.Token).ConfigureAwait(false);
 
         foreach (var hostedService in hostedServices)
         {
-            await hostedService.StopAsync(CancellationToken.None);
+            await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
         }
 
         provider.GetRequiredService<RecordingBackgroundService>().ExecuteCount.Should().BeGreaterThan(0);
+        }
     }
 
     [Fact]
@@ -81,7 +84,9 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
             [typeof(FailingStartupTask)],
             [typeof(GateReleasedBackgroundService)]);
 
-        await using var provider = services.BuildServiceProvider();
+         var provider = services.BuildServiceProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var hostedServices = provider.GetServices<IHostedService>().ToList();
 
         using var cts = new CancellationTokenSource();
@@ -92,7 +97,7 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
         {
             try
             {
-                await hostedService.StartAsync(cts.Token);
+                await hostedService.StartAsync(cts.Token).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -102,13 +107,14 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
 
         startupFailure.Should().NotBeNull();
 
-        await Task.Delay(50, cts.Token);
+        await Task.Delay(50, cts.Token).ConfigureAwait(false);
 
         provider.GetRequiredService<GateReleasedBackgroundService>().StartedAfterStartup.Should().BeTrue();
 
         foreach (var hostedService in hostedServices)
         {
-            await hostedService.StopAsync(CancellationToken.None);
+            await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 
@@ -123,23 +129,26 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
             [typeof(RecordingStartupTask)],
             [typeof(OrderedContinuousBackgroundService)]);
 
-        await using var provider = services.BuildServiceProvider();
+         var provider = services.BuildServiceProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var hostedServices = provider.GetServices<IHostedService>().ToList();
 
         using var cts = new CancellationTokenSource();
 
         foreach (var hostedService in hostedServices)
         {
-            await hostedService.StartAsync(cts.Token);
+            await hostedService.StartAsync(cts.Token).ConfigureAwait(false);
         }
 
-        await Task.Delay(50, cts.Token);
+        await Task.Delay(50, cts.Token).ConfigureAwait(false);
 
         provider.GetRequiredService<OrderedContinuousBackgroundService>().StartedAfterStartup.Should().BeTrue();
 
         foreach (var hostedService in hostedServices)
         {
-            await hostedService.StopAsync(CancellationToken.None);
+            await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 
@@ -184,7 +193,7 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
 
             while (!stoppingToken.IsCancellationRequested)
             {
-                await Task.Delay(10, stoppingToken);
+                await Task.Delay(10, stoppingToken).ConfigureAwait(false);
             }
         }
     }
@@ -203,7 +212,7 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
 
             while (!stoppingToken.IsCancellationRequested)
             {
-                await Task.Delay(10, stoppingToken);
+                await Task.Delay(10, stoppingToken).ConfigureAwait(false);
             }
         }
     }
@@ -217,7 +226,7 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
             while (!stoppingToken.IsCancellationRequested)
             {
                 ExecuteCount++;
-                await Task.Delay(10, stoppingToken);
+                await Task.Delay(10, stoppingToken).ConfigureAwait(false);
             }
         }
     }

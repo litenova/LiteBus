@@ -64,7 +64,8 @@ public sealed class InboxAcceptOutcomeTests
         };
 
         await inbox.AcceptAsync(
-            InboxAcceptItem<OutcomeTestCommand>.From(new OutcomeTestCommand { Value = "first" }, strictMetadata));
+            InboxAcceptItem<OutcomeTestCommand>.From(new OutcomeTestCommand { Value = "first" }, strictMetadata)).ConfigureAwait(true);
+
 
         var act = () => inbox.AcceptAsync(
             InboxAcceptItem<OutcomeTestCommand>.From(new OutcomeTestCommand { Value = "second" }, strictMetadata));

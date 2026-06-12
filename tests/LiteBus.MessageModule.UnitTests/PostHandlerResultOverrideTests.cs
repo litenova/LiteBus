@@ -40,7 +40,7 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         var command = new OverrideResultCommand();
 
         // ACT
-        var result = await commandMediator.SendAsync(command);
+        var result = await commandMediator.SendAsync(command).ConfigureAwait(true);
 
         // ASSERT
         result.Should().Be("overridden");
@@ -69,7 +69,7 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         var command = new NoOverrideCommand();
 
         // ACT
-        var result = await commandMediator.SendAsync(command);
+        var result = await commandMediator.SendAsync(command).ConfigureAwait(true);
 
         // ASSERT
         result.Should().Be("original");
@@ -99,7 +99,7 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         var command = new MultiOverrideCommand();
 
         // ACT
-        var result = await commandMediator.SendAsync(command);
+        var result = await commandMediator.SendAsync(command).ConfigureAwait(true);
 
         // ASSERT
         result.Should().Be("second-override");
@@ -128,7 +128,7 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         var query = new OverrideResultQuery();
 
         // ACT
-        var result = await queryMediator.QueryAsync(query);
+        var result = await queryMediator.QueryAsync(query).ConfigureAwait(true);
 
         // ASSERT
         result.Should().Be(99);
@@ -157,7 +157,7 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         var command = new ImmutableResultCommand();
 
         // ACT
-        var result = await commandMediator.SendAsync(command);
+        var result = await commandMediator.SendAsync(command).ConfigureAwait(true);
 
         // ASSERT
         result.IsSuccess.Should().BeFalse();
@@ -187,7 +187,7 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         var command = new VoidCommand();
 
         // ACT
-        var act = async () => await commandMediator.SendAsync(command);
+        var act = async () => await commandMediator.SendAsync(command).ConfigureAwait(true);
 
         // ASSERT
         await act.Should().NotThrowAsync();
@@ -216,8 +216,8 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
 
         // ACT
-        var firstResult = await commandMediator.SendAsync(new FirstSequentialCommand());
-        var secondResult = await commandMediator.SendAsync(new SecondSequentialCommand());
+        var firstResult = await commandMediator.SendAsync(new FirstSequentialCommand()).ConfigureAwait(true);
+        var secondResult = await commandMediator.SendAsync(new SecondSequentialCommand()).ConfigureAwait(true);
 
         // ASSERT
         firstResult.Should().Be("first-override");

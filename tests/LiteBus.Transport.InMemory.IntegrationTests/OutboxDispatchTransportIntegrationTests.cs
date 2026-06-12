@@ -29,13 +29,14 @@ public sealed class OutboxDispatchTransportIntegrationTests : LiteBusTestBase
         var orderId = Guid.NewGuid();
         var received = new TaskCompletionSource<TransportMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await using var provider = BuildProvider(destination);
+         var provider = BuildProvider(destination);
+         await using (provider.ConfigureAwait(false))
+         {
         var broker = provider.GetRequiredService<InMemoryTransportBroker>();
 
-        await using var consumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(
-            broker,
-            destination,
-            received);
+         var consumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(             broker,             destination,             received).ConfigureAwait(true);
+         await using (consumer.ConfigureAwait(true))
+         {
 
         var store = provider.GetRequiredService<InMemoryOutboxStore>();
         var outbox = provider.GetRequiredService<IOutbox>();
@@ -51,15 +52,15 @@ public sealed class OutboxDispatchTransportIntegrationTests : LiteBusTestBase
                 Tenant = new TenantScope.Isolated("tenant-east"),
                 Target = new PublicationTarget.Topic(destination)
             }
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
         store.Get(messageId).AttemptCount.Should().Be(1);
 
         using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var transportMessage = await received.Task.WaitAsync(cancellationSource.Token);
+        var transportMessage = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
 
         var storedPayload = store.Get(messageId).Payload;
         var json = InMemoryTransportTestInfrastructure.ReadBody(transportMessage);
@@ -88,6 +89,8 @@ public sealed class OutboxDispatchTransportIntegrationTests : LiteBusTestBase
 
         InMemoryTransportTestInfrastructure.GetHeader(transportMessage, TransportHeaders.TenantId)
             .Should().Be("tenant-east");
+        }
+        }
     }
 
     /// <summary>
@@ -102,13 +105,14 @@ public sealed class OutboxDispatchTransportIntegrationTests : LiteBusTestBase
         var messageId = Guid.NewGuid();
         var received = new TaskCompletionSource<TransportMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await using var provider = BuildProvider(destination);
+         var provider = BuildProvider(destination);
+         await using (provider.ConfigureAwait(false))
+         {
         var broker = provider.GetRequiredService<InMemoryTransportBroker>();
 
-        await using var consumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(
-            broker,
-            destination,
-            received);
+         var consumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(             broker,             destination,             received).ConfigureAwait(true);
+         await using (consumer.ConfigureAwait(true))
+         {
 
         var store = provider.GetRequiredService<InMemoryOutboxStore>();
         var outbox = provider.GetRequiredService<IOutbox>();
@@ -121,15 +125,17 @@ public sealed class OutboxDispatchTransportIntegrationTests : LiteBusTestBase
             {
                 Identity = new MessageIdentity.Supplied(messageId)
             }
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
 
         using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var transportMessage = await received.Task.WaitAsync(cancellationSource.Token);
+        var transportMessage = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
         transportMessage.Route.Should().Be(contractRoute);
+        }
+        }
     }
 
     /// <summary>

@@ -44,7 +44,7 @@ public sealed class OutboxEntityFrameworkCoreModelTests
             "error_type"
         ];
 
-        var mappedColumns = entity!.GetProperties().Select(property => property.GetColumnName());
+        var mappedColumns = entity.GetProperties().Select(property => property.GetColumnName());
         mappedColumns.Should().BeEquivalentTo(expectedColumns);
     }
 
@@ -62,14 +62,16 @@ public sealed class OutboxEntityFrameworkCoreModelTests
         var entity = modelBuilder.Model.FindEntityType(typeof(OutboxMessageEntity));
 
         entity.Should().NotBeNull();
-        entity!.GetTableName().Should().Be("outbox");
+        entity.GetTableName().Should().Be("outbox");
         entity.GetSchema().Should().Be("app");
 
-        var hasUniqueIdempotencyIndex = entity.GetIndexes().Any(index =>
-            index.Properties.Select(property => property.Name).SequenceEqual(new[] { nameof(OutboxMessageEntity.IdempotencyKey) }) &&
-            index.IsUnique);
+        var hasTenantScopedIdempotencyIndex = entity.GetIndexes().Any(index =>
+            index.Properties.Select(property => property.Name).SequenceEqual(
+                [nameof(OutboxMessageEntity.TenantId), nameof(OutboxMessageEntity.IdempotencyKey)]) &&
+            index.IsUnique &&
+            index.GetFilter() == "idempotency_key IS NOT NULL");
 
-        hasUniqueIdempotencyIndex.Should().BeTrue();
+        hasTenantScopedIdempotencyIndex.Should().BeTrue();
     }
 
     [Fact]
@@ -82,7 +84,7 @@ public sealed class OutboxEntityFrameworkCoreModelTests
         var traceContext = entity!.FindProperty(nameof(OutboxMessageEntity.TraceContext));
 
         traceContext.Should().NotBeNull();
-        traceContext!.GetColumnName().Should().Be("trace_context");
+        traceContext.GetColumnName().Should().Be("trace_context");
         traceContext.GetColumnType().Should().Be("jsonb");
         traceContext.IsNullable.Should().BeTrue();
     }

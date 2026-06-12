@@ -30,7 +30,7 @@ internal static class PostgreSqlSchemaExecutor
 
         logger.Log(PostgreSqlSchemaLogLevel.Debug, "Executing PostgreSQL schema script batch.");
 
-        await using var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = sql;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }

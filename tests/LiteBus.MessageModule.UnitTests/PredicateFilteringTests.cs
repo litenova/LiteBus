@@ -45,7 +45,7 @@ public sealed class PredicateFilteringTests : LiteBusTestBase
         };
 
         // ACT
-        await eventMediator.PublishAsync(@event, settings);
+        await eventMediator.PublishAsync(@event, settings).ConfigureAwait(false);
 
         // ASSERT
         @event.ExecutedTypes.Should().HaveCount(2);
@@ -85,7 +85,7 @@ public sealed class PredicateFilteringTests : LiteBusTestBase
         };
 
         // ACT
-        await eventMediator.PublishAsync((FilteredEvent)@event, settings);
+        await eventMediator.PublishAsync((FilteredEvent)@event, settings).ConfigureAwait(false);
 
         // ASSERT
         var filteredEvent = (FilteredEvent) @event;

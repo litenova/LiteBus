@@ -26,15 +26,15 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
     public async Task PublishThroughRabbitMq_ShouldAcceptProcessAndDispatchCommand()
     {
         var fixture = new RabbitMqBrokerFixture();
-        await fixture.InitializeAsync();
+        await fixture.InitializeAsync().ConfigureAwait(false);
 
         try
         {
-            await RunEndToEndAsync(fixture.ConnectionOptions);
+            await RunEndToEndAsync(fixture.ConnectionOptions).ConfigureAwait(false);
         }
         finally
         {
-            await fixture.DisposeAsync();
+            await fixture.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -46,15 +46,15 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
     public async Task PublishThroughLavinMq_ShouldAcceptProcessAndDispatchCommand()
     {
         var fixture = new LavinMqBrokerFixture();
-        await fixture.InitializeAsync();
+        await fixture.InitializeAsync().ConfigureAwait(false);
 
         try
         {
-            await RunEndToEndAsync(fixture.ConnectionOptions);
+            await RunEndToEndAsync(fixture.ConnectionOptions).ConfigureAwait(false);
         }
         finally
         {
-            await fixture.DisposeAsync();
+            await fixture.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -71,8 +71,8 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
 
-        await AmqpTestInfrastructure.DeclareQueueAsync(connectionOptions, ingressQueue);
-        await AmqpTestInfrastructure.DeclareQueueAsync(connectionOptions, dispatchQueue);
+        await AmqpTestInfrastructure.DeclareQueueAsync(connectionOptions, ingressQueue).ConfigureAwait(false);
+        await AmqpTestInfrastructure.DeclareQueueAsync(connectionOptions, dispatchQueue).ConfigureAwait(false);
 
         var services = new ServiceCollection();
 
@@ -115,16 +115,18 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
             });
         });
 
-        await using var provider = services.BuildServiceProvider();
+         var provider = services.BuildServiceProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var manifest = provider.GetRequiredService<LiteBusHostManifest>();
         manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
         manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
 
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
         var hostedServices = provider.GetServices<IHostedService>().ToList();
 
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
+        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -143,12 +145,12 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
                     [AmqpHeaders.ContractName] = contractName,
                     [AmqpHeaders.ContractVersion] = "1"
                 }
-            });
+            }).ConfigureAwait(false);
 
             var (body, headers) = await AmqpTestInfrastructure.ReceiveOneAsync(
                 connectionOptions,
                 dispatchQueue,
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
             body.Should().Contain(orderId.ToString());
             AmqpHeaderValues.GetString(headers, AmqpHeaders.MessageId).Should().Be(messageId.ToString("D"));
@@ -159,7 +161,8 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 }

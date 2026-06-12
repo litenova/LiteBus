@@ -21,8 +21,10 @@ public sealed class PostgreSqlInboxStoreRegistration
     /// <param name="options">The inbox store options.</param>
     public PostgreSqlInboxStoreRegistration(NpgsqlDataSource dataSource, PostgreSqlInboxStoreOptions options)
     {
-        DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
-        Options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(dataSource);
+        DataSource = dataSource;
+        ArgumentNullException.ThrowIfNull(options);
+        Options = options;
     }
 
     /// <summary>

@@ -49,7 +49,7 @@ public sealed class SqlServerFixture : IAsyncLifetime
                     .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
                     .Build();
 
-                await _container.StartAsync();
+                await _container.StartAsync().ConfigureAwait(false);
                 ConnectionString = _container.GetConnectionString();
                 return;
             }
@@ -59,13 +59,13 @@ public sealed class SqlServerFixture : IAsyncLifetime
 
                 if (_container is not null)
                 {
-                    await _container.DisposeAsync();
+                    await _container.DisposeAsync().ConfigureAwait(false);
                     _container = null;
                 }
 
                 if (attempt < MaxAttempts)
                 {
-                    await Task.Delay(RetryDelay);
+                    await Task.Delay(RetryDelay).ConfigureAwait(false);
                 }
             }
         }
@@ -78,7 +78,7 @@ public sealed class SqlServerFixture : IAsyncLifetime
     {
         if (_container is not null)
         {
-            await _container.DisposeAsync();
+            await _container.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

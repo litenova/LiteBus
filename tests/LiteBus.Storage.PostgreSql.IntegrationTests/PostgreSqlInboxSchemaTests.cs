@@ -16,10 +16,10 @@ public sealed class PostgreSqlInboxSchemaTests : IClassFixture<PostgreSqlFixture
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
 
-        await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options);
-        await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options);
+        await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
+        await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
 
-        await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options);
+        await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(false);
     }
 
     [Fact]
@@ -31,8 +31,8 @@ public sealed class PostgreSqlInboxSchemaTests : IClassFixture<PostgreSqlFixture
             .Select(_ => PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options))
             .ToArray();
 
-        await Task.WhenAll(tasks);
-        await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options);
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+        await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(false);
     }
 
     [Fact]
@@ -40,10 +40,10 @@ public sealed class PostgreSqlInboxSchemaTests : IClassFixture<PostgreSqlFixture
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
 
-        var action = async () => await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options);
+        var action = async () => await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(false);
 
         await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>()
-            .Where(exception => exception.Component == PostgreSqlSchemaComponents.Inbox);
+            .Where(exception => exception.Component == PostgreSqlSchemaComponents.Inbox).ConfigureAwait(false);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class PostgreSqlInboxSchemaTests : IClassFixture<PostgreSqlFixture
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
 
-        await PostgreSqlInboxSchema.CreateIfNotExistsAsync(_fixture.DataSource, options);
-        await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options);
+        await PostgreSqlInboxSchema.CreateIfNotExistsAsync(_fixture.DataSource, options).ConfigureAwait(false);
+        await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(false);
     }
 }

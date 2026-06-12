@@ -38,9 +38,11 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
             connectionUri,
             exchangeName,
             queueName,
-            routingKey);
+            routingKey).ConfigureAwait(false);
 
-        await using var provider = BuildProvider(ConnectionOptions, exchangeName, routingKey);
+         var provider = BuildProvider(ConnectionOptions, exchangeName, routingKey);
+         await using (provider.ConfigureAwait(false))
+         {
         var inbox = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
@@ -54,14 +56,14 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
             {
                 Trace = new MessageTrace.Workflow("corr-dispatch", "cause-dispatch"),
                 Tenant = new TenantScope.Isolated("tenant-dispatch")
-            }));
+            })).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         var (body, headers) = await AmqpTestInfrastructure.ReceiveOneAsync(
             connectionUri,
             queueName,
-            TimeSpan.FromSeconds(30));
+            TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
         body.Should().Contain(workItemId.ToString());
         headers[AmqpHeaders.MessageId].Should().Be(receipt.Id.ToString("D"));
@@ -70,6 +72,7 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
         headers[AmqpHeaders.CorrelationId].Should().Be("corr-dispatch");
         headers[AmqpHeaders.CausationId].Should().Be("cause-dispatch");
         headers[AmqpHeaders.TenantId].Should().Be("tenant-dispatch");
+        }
     }
 
     /// <summary>

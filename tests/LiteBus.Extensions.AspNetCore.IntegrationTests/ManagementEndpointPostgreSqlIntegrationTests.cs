@@ -46,10 +46,10 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
     {
         var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
-        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions);
-        await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions);
+        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions).ConfigureAwait(true);
+        await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions).ConfigureAwait(true);
 
-        using var host = await CreateHostAsync(inboxOptions, outboxOptions);
+        using var host = await CreateHostAsync(inboxOptions, outboxOptions).ConfigureAwait(true);
         var inbox = host.Services.GetRequiredService<IInbox>();
 
         var orderId = Guid.NewGuid();
@@ -61,11 +61,11 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
         });
 
         using var client = host.GetTestClient();
-        var response = await client.GetAsync("/litebus/inbox/messages?pageSize=50");
+        var response = await client.GetAsync("/litebus/inbox/messages?pageSize=50").ConfigureAwait(true);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var payload = await response.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(true);
         payload.GetProperty("items").GetArrayLength().Should().Be(1);
 
         var item = payload.GetProperty("items")[0];
@@ -83,27 +83,29 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
     {
         var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
-        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions);
-        await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions);
+        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions).ConfigureAwait(true);
+        await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions).ConfigureAwait(true);
 
-        using var host = await CreateHostAsync(inboxOptions, outboxOptions);
+        using var host = await CreateHostAsync(inboxOptions, outboxOptions).ConfigureAwait(true);
         var inbox = host.Services.GetRequiredService<IInbox>();
 
         await inbox.AcceptAsync(new ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = $"ship:{Guid.NewGuid():N}"
-        });
+        }).ConfigureAwait(true);
+
 
         await inbox.AcceptAsync(new ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = $"ship:{Guid.NewGuid():N}"
-        });
+        }).ConfigureAwait(true);
+
 
         using var client = host.GetTestClient();
 
-        var queryBeforePurge = await client.GetAsync("/litebus/inbox/messages?pageSize=50");
+        var queryBeforePurge = await client.GetAsync("/litebus/inbox/messages?pageSize=50").ConfigureAwait(true);
         queryBeforePurge.StatusCode.Should().Be(HttpStatusCode.OK);
 
         (await queryBeforePurge.Content.ReadFromJsonAsync<JsonElement>())
@@ -117,11 +119,11 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
             Content = JsonContent.Create(new { confirm = true })
         };
 
-        var purgeResponse = await client.SendAsync(purgeRequest);
+        var purgeResponse = await client.SendAsync(purgeRequest).ConfigureAwait(true);
         purgeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         (await purgeResponse.Content.ReadFromJsonAsync<JsonElement>()).GetInt32().Should().Be(2);
 
-        var queryAfterPurge = await client.GetAsync("/litebus/inbox/messages?pageSize=50");
+        var queryAfterPurge = await client.GetAsync("/litebus/inbox/messages?pageSize=50").ConfigureAwait(true);
         queryAfterPurge.StatusCode.Should().Be(HttpStatusCode.OK);
 
         (await queryAfterPurge.Content.ReadFromJsonAsync<JsonElement>())
@@ -140,8 +142,8 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
     {
         var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
-        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions);
-        await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions);
+        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions).ConfigureAwait(true);
+        await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions).ConfigureAwait(true);
 
         using var host = await CreateHostAsync(
             inboxOptions,
@@ -149,11 +151,11 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
             inbox => inbox.AddDiagnosticCheck<PostgreSqlInboxSchemaDiagnosticCheck>("inbox.postgresql.schema"));
 
         using var client = host.GetTestClient();
-        var response = await client.GetAsync("/litebus/health");
+        var response = await client.GetAsync("/litebus/health").ConfigureAwait(true);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var payload = await response.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(true);
         var probes = payload.EnumerateArray().ToArray();
         probes.Should().Contain(probe => probe.GetProperty("name").GetString() == "inbox.postgresql.schema");
 

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -14,6 +15,7 @@ public static class IMessageContractRegistryExtensions
     /// <param name="registry">The contract registry to populate.</param>
     /// <param name="assembly">The assembly to scan.</param>
     /// <returns>The same registry instance for chaining.</returns>
+    [RequiresUnreferencedCode("Scans assemblies for MessageContractAttribute-decorated message types.")]
     public static IMessageContractRegistry RegisterFromAssembly(this IMessageContractRegistry registry, Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(registry);

@@ -12,9 +12,10 @@ public interface ITransportCircuitBreaker
     bool IsOpen { get; }
 
     /// <summary>
-    ///     Gets the number of consecutive failures recorded while the circuit is closed.
+    ///     Gets the number of consecutive failures recorded while the circuit is closed, or the configured failure
+    ///     threshold while the circuit is open.
     /// </summary>
-    /// <value>The current consecutive failure count.</value>
+    /// <value>The current failure count exposed to operators and telemetry.</value>
     int FailureCount { get; }
 
     /// <summary>

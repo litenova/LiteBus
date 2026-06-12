@@ -13,7 +13,7 @@
  LB1011  | LiteBus.Handlers      | Warning  | Orphan handler tag                                 
  LB1012  | LiteBus.Handlers      | Warning  | Duplicate handler across assemblies                
  LB1013  | LiteBus.Outbox        | Warning  | Transactional outbox without DbContext             
- LB1014  | LiteBus.Configuration | Warning  | Processor enabled without dispatcher               
+ LB1014  | LiteBus.Configuration | Error    | Processor enabled without dispatcher               
  LB1015  | LiteBus.Configuration | Warning  | Transactional storage without interceptor          
  LB1016  | LiteBus.Inbox         | Warning  | Transactional inbox without DbContext              
  LB1017  | LiteBus.Contracts     | Warning  | Explicit message contract registration recommended 

@@ -58,11 +58,21 @@ internal sealed class OutboxManager : IOutboxManager
         OutboxCleanupHostOptions cleanupHostOptions,
         TimeProvider timeProvider)
     {
-        _operationsStore = operationsStore ?? throw new ArgumentNullException(nameof(operationsStore));
-        _retentionStore = retentionStore ?? throw new ArgumentNullException(nameof(retentionStore));
-        _retentionCoordinator = retentionCoordinator ?? throw new ArgumentNullException(nameof(retentionCoordinator));
-        _cleanupHostOptions = cleanupHostOptions ?? throw new ArgumentNullException(nameof(cleanupHostOptions));
-        _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        ArgumentNullException.ThrowIfNull(operationsStore);
+
+        _operationsStore = operationsStore;
+        ArgumentNullException.ThrowIfNull(retentionStore);
+
+        _retentionStore = retentionStore;
+        ArgumentNullException.ThrowIfNull(retentionCoordinator);
+
+        _retentionCoordinator = retentionCoordinator;
+        ArgumentNullException.ThrowIfNull(cleanupHostOptions);
+
+        _cleanupHostOptions = cleanupHostOptions;
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
+        _timeProvider = timeProvider;
     }
 
     /// <inheritdoc />
@@ -195,6 +205,7 @@ internal sealed class OutboxManager : IOutboxManager
             _retentionCoordinator.RecordSuccess(deleted, runAt);
             return deleted;
         }
+        // Retention coordination records failures for operator visibility before rethrowing to callers.
         catch (Exception exception)
         {
             _retentionCoordinator.RecordFailure(exception.Message, runAt);

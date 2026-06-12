@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
@@ -12,6 +13,11 @@ namespace LiteBus.Messaging.Abstractions;
 /// </summary>
 internal static class PipelineHandlerInvocation
 {
+    /// <summary>
+    ///     Caches discovered asynchronous pipeline methods per handler runtime type.
+    /// </summary>
+    private static readonly ConcurrentDictionary<(Type HandlerType, string MethodName), MethodInfo?> AsyncPipelineMethods = new();
+
     /// <summary>
     ///     Invokes a pre-handler asynchronously with the supplied cancellation token.
     /// </summary>
@@ -84,7 +90,37 @@ internal static class PipelineHandlerInvocation
         Func<object> fallback,
         params object?[] additionalArguments)
     {
-        foreach (var handlerInterface in handler.GetType().GetInterfaces())
+        var method = AsyncPipelineMethods.GetOrAdd(
+            (handler.GetType(), asyncMethodName),
+            key => FindAsyncPipelineMethod(key.HandlerType, key.MethodName));
+
+        if (method is not null)
+        {
+            object?[] arguments = [message, ..additionalArguments, cancellationToken];
+
+            try
+            {
+                return (Task) method.Invoke(handler, arguments)!;
+            }
+            catch (TargetInvocationException ex) when (ex.InnerException is not null)
+            {
+                ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+                throw;
+            }
+        }
+
+        return (Task) fallback();
+    }
+
+    /// <summary>
+    ///     Finds the first declared asynchronous pipeline method on a handler type.
+    /// </summary>
+    /// <param name="handlerType">The concrete handler runtime type.</param>
+    /// <param name="asyncMethodName">The asynchronous method name to locate.</param>
+    /// <returns>The matching method when found; otherwise, <see langword="null" />.</returns>
+    private static MethodInfo? FindAsyncPipelineMethod(Type handlerType, string asyncMethodName)
+    {
+        foreach (var handlerInterface in handlerType.GetInterfaces())
         {
             if (!handlerInterface.IsGenericType)
             {
@@ -95,26 +131,12 @@ internal static class PipelineHandlerInvocation
                 asyncMethodName,
                 BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
-            if (method is null || method.ReturnType != typeof(Task))
+            if (method is not null && method.ReturnType == typeof(Task))
             {
-                continue;
-            }
-
-            var arguments = new List<object?> { message };
-            arguments.AddRange(additionalArguments);
-            arguments.Add(cancellationToken);
-
-            try
-            {
-                return (Task) method.Invoke(handler, arguments.ToArray())!;
-            }
-            catch (TargetInvocationException ex) when (ex.InnerException is not null)
-            {
-                ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
-                throw;
+                return method;
             }
         }
 
-        return (Task) fallback();
+        return null;
     }
 }

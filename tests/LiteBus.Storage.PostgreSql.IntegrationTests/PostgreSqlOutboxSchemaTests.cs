@@ -16,10 +16,10 @@ public sealed class PostgreSqlOutboxSchemaTests : IClassFixture<PostgreSqlFixtur
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
 
-        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options);
-        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options);
+        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
+        await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
 
-        await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options);
+        await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(false);
     }
 
     [Fact]
@@ -31,8 +31,8 @@ public sealed class PostgreSqlOutboxSchemaTests : IClassFixture<PostgreSqlFixtur
             .Select(_ => PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options))
             .ToArray();
 
-        await Task.WhenAll(tasks);
-        await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options);
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+        await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(false);
     }
 
     [Fact]
@@ -40,10 +40,10 @@ public sealed class PostgreSqlOutboxSchemaTests : IClassFixture<PostgreSqlFixtur
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
 
-        var action = async () => await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options);
+        var action = async () => await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(false);
 
         await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>()
-            .Where(exception => exception.Component == PostgreSqlSchemaComponents.Outbox);
+            .Where(exception => exception.Component == PostgreSqlSchemaComponents.Outbox).ConfigureAwait(false);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class PostgreSqlOutboxSchemaTests : IClassFixture<PostgreSqlFixtur
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
 
-        await PostgreSqlOutboxSchema.CreateIfNotExistsAsync(_fixture.DataSource, options);
-        await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options);
+        await PostgreSqlOutboxSchema.CreateIfNotExistsAsync(_fixture.DataSource, options).ConfigureAwait(false);
+        await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(false);
     }
 }

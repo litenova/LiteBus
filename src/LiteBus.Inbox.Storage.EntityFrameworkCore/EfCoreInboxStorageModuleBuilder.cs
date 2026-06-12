@@ -78,7 +78,8 @@ public sealed class EfCoreInboxStorageModuleBuilder
     /// <returns>The current builder.</returns>
     public EfCoreInboxStorageModuleBuilder UseOptions(EntityFrameworkCoreInboxStoreOptions options)
     {
-        Options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        Options = options;
         return this;
     }
 }

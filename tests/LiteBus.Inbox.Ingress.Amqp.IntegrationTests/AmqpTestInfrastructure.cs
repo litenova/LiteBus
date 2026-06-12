@@ -17,15 +17,22 @@ internal static class AmqpTestInfrastructure
     /// <returns>A task that completes when the queue exists.</returns>
     public static async Task DeclareQueueAsync(AmqpConnectionOptions connectionOptions, string queueName)
     {
-        await using var manager = new AmqpConnectionManager(connectionOptions);
-        await using var channel = await manager.CreateChannelAsync();
+         var manager = new AmqpConnectionManager(connectionOptions);
+         await using (manager.ConfigureAwait(false))
+         {
+         var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
+         await using (channel.ConfigureAwait(false))
+         {
 
         await channel.QueueDeclareAsync(
             queueName,
             true,
             false,
             false,
-            null);
+            null).ConfigureAwait(false);
+
+        }
+        }
     }
 
     /// <summary>
@@ -42,14 +49,18 @@ internal static class AmqpTestInfrastructure
     {
         var uri = ResolveConnectionUri(connectionOptions);
         var factory = new ConnectionFactory { Uri = uri };
-        await using var connection = await factory.CreateConnectionAsync();
-        await using var channel = await connection.CreateChannelAsync();
+         var connection = await factory.CreateConnectionAsync().ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var channel = await connection.CreateChannelAsync().ConfigureAwait(false);
+         await using (channel.ConfigureAwait(false))
+         {
 
         var deadline = DateTime.UtcNow + timeout;
 
         while (DateTime.UtcNow < deadline)
         {
-            var result = await channel.BasicGetAsync(queue, true);
+            var result = await channel.BasicGetAsync(queue, true).ConfigureAwait(false);
 
             if (result is not null)
             {
@@ -62,10 +73,12 @@ internal static class AmqpTestInfrastructure
                 return (body, headers);
             }
 
-            await Task.Delay(100);
+            await Task.Delay(100).ConfigureAwait(false);
         }
 
         throw new TimeoutException($"No message received on queue '{queue}' within {timeout}.");
+        }
+        }
     }
 
     /// <summary>

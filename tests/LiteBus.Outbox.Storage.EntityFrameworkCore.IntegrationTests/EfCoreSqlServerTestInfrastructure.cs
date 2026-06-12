@@ -44,12 +44,15 @@ internal static class EfCoreSqlServerTestInfrastructure
     /// <param name="connectionString">The SQL Server connection string.</param>
     internal static async Task ResetOutboxTableAsync(string connectionString)
     {
-        await EnsureOutboxSchemaOnceAsync(connectionString);
+        await EnsureOutboxSchemaOnceAsync(connectionString).ConfigureAwait(false);
 
-        await using var context = CreateOutboxContext(connectionString);
+         var context = CreateOutboxContext(connectionString);
+         await using (context.ConfigureAwait(false))
+         {
 
         await context.Database.ExecuteSqlRawAsync(
-            $"""DELETE FROM [{SchemaName}].[{OutboxTableName}];""");
+            $"""DELETE FROM [{SchemaName}].[{OutboxTableName}];""").ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -76,7 +79,7 @@ internal static class EfCoreSqlServerTestInfrastructure
             return;
         }
 
-        await OutboxSchemaLock.WaitAsync();
+        await OutboxSchemaLock.WaitAsync().ConfigureAwait(false);
 
         try
         {
@@ -85,7 +88,9 @@ internal static class EfCoreSqlServerTestInfrastructure
                 return;
             }
 
-            await using var context = CreateOutboxContext(connectionString);
+             var context = CreateOutboxContext(connectionString);
+             await using (context.ConfigureAwait(false))
+             {
 
             await context.Database.ExecuteSqlRawAsync(
                 $"""
@@ -93,10 +98,11 @@ internal static class EfCoreSqlServerTestInfrastructure
                  BEGIN
                      EXEC(N'CREATE SCHEMA [{SchemaName}]');
                  END
-                 """);
+                 """).ConfigureAwait(false);
 
-            await context.Database.EnsureCreatedAsync();
+            await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
             _outboxSchemaInitialized = true;
+            }
         }
         finally
         {

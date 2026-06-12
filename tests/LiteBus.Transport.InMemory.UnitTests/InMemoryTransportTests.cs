@@ -26,7 +26,7 @@ public sealed class InMemoryTransportTests
             {
                 received = message;
                 return message.AcceptAsync();
-            });
+            }).ConfigureAwait(false);
 
         await publisher.PublishAsync(new TransportPublishRequest
         {
@@ -39,9 +39,9 @@ public sealed class InMemoryTransportTests
             {
                 [TransportHeaders.ContractName] = "orders.commands.ship"
             }
-        });
+        }).ConfigureAwait(false);
 
-        await WaitForAsync(() => received is not null, TimeSpan.FromSeconds(2));
+        await WaitForAsync(() => received is not null, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
         received.Should().NotBeNull();
         received!.Route.Should().Be("ship");
@@ -49,8 +49,8 @@ public sealed class InMemoryTransportTests
         Encoding.UTF8.GetString(received.Body.Span).Should().Contain("orderId");
         received.Headers[TransportHeaders.ContractName].Should().Be("orders.commands.ship");
 
-        await consumer.StopAsync();
-        await consumer.DisposeAsync();
+        await consumer.StopAsync().ConfigureAwait(false);
+        await consumer.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -72,24 +72,24 @@ public sealed class InMemoryTransportTests
 
                 if (deliveryCount == 1)
                 {
-                    await message.ReturnToQueueAsync();
+                    await message.ReturnToQueueAsync().ConfigureAwait(false);
                     return;
                 }
 
-                await message.AcceptAsync();
-            });
+                await message.AcceptAsync().ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
         await publisher.PublishAsync(new TransportPublishRequest
         {
             Destination = "retry-queue",
             Body = Encoding.UTF8.GetBytes("payload")
-        });
+        }).ConfigureAwait(false);
 
-        await WaitForAsync(() => deliveryCount >= 2, TimeSpan.FromSeconds(2));
+        await WaitForAsync(() => deliveryCount >= 2, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
         deliveryCount.Should().BeGreaterThanOrEqualTo(2);
 
-        await consumer.StopAsync();
-        await consumer.DisposeAsync();
+        await consumer.StopAsync().ConfigureAwait(false);
+        await consumer.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -109,19 +109,19 @@ public sealed class InMemoryTransportTests
             {
                 deliveryCount++;
                 throw new InvalidOperationException("handler failed");
-            });
+            }).ConfigureAwait(false);
 
         await publisher.PublishAsync(new TransportPublishRequest
         {
             Destination = "fault-queue",
             Body = Encoding.UTF8.GetBytes("payload")
-        });
+        }).ConfigureAwait(false);
 
-        await WaitForAsync(() => deliveryCount >= 2, TimeSpan.FromSeconds(2));
+        await WaitForAsync(() => deliveryCount >= 2, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
         deliveryCount.Should().BeGreaterThanOrEqualTo(2);
 
-        await consumer.StopAsync();
-        await consumer.DisposeAsync();
+        await consumer.StopAsync().ConfigureAwait(false);
+        await consumer.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -136,7 +136,7 @@ public sealed class InMemoryTransportTests
 
         while (!condition() && Environment.TickCount64 < deadline)
         {
-            await Task.Delay(10);
+            await Task.Delay(10).ConfigureAwait(false);
         }
     }
 }

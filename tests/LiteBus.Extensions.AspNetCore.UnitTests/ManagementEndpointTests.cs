@@ -26,11 +26,11 @@ public sealed class ManagementEndpointTests
         {
             FailHealthWhenNoProbes = true,
             AllowAnonymousManagement = true
-        });
+        }).ConfigureAwait(false);
 
         using var client = host.GetTestClient();
 
-        var response = await client.GetAsync("/litebus/health");
+        var response = await client.GetAsync("/litebus/health").ConfigureAwait(false);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
@@ -42,11 +42,11 @@ public sealed class ManagementEndpointTests
         {
             FailHealthWhenNoProbes = false,
             AllowAnonymousManagement = true
-        });
+        }).ConfigureAwait(false);
 
         using var client = host.GetTestClient();
 
-        var response = await client.GetAsync("/litebus/health");
+        var response = await client.GetAsync("/litebus/health").ConfigureAwait(false);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -60,15 +60,15 @@ public sealed class ManagementEndpointTests
                 FailHealthWhenNoProbes = false,
                 AllowAnonymousManagement = true
             },
-            inbox => inbox.AddDiagnosticCheck<UnhealthyDiagnosticCheck>("test.unhealthy"));
+            inbox => inbox.AddDiagnosticCheck<UnhealthyDiagnosticCheck>("test.unhealthy")).ConfigureAwait(false);
 
         using var client = host.GetTestClient();
 
-        var response = await client.GetAsync("/litebus/health");
+        var response = await client.GetAsync("/litebus/health").ConfigureAwait(false);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
 
-        var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var payload = await response.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
         var firstProbe = payload.EnumerateArray().First();
         Assert.True(firstProbe.TryGetProperty("data", out var data));
         Assert.Equal("test", data.GetProperty("reason").GetString());
@@ -81,14 +81,14 @@ public sealed class ManagementEndpointTests
         {
             FailHealthWhenNoProbes = false,
             AllowAnonymousManagement = true
-        });
+        }).ConfigureAwait(false);
 
         using var client = host.GetTestClient();
         var messageId = Guid.NewGuid();
 
         var response = await client.PostAsJsonAsync(
             "/litebus/inbox/messages/requeue",
-            new { messageIds = new[] { messageId } });
+            new { messageIds = new[] { messageId } }).ConfigureAwait(false);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -100,11 +100,11 @@ public sealed class ManagementEndpointTests
         {
             FailHealthWhenNoProbes = false,
             AllowAnonymousManagement = true
-        });
+        }).ConfigureAwait(false);
 
         using var client = host.GetTestClient();
 
-        var response = await client.DeleteAsync("/litebus/inbox/messages");
+        var response = await client.DeleteAsync("/litebus/inbox/messages").ConfigureAwait(false);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -116,7 +116,7 @@ public sealed class ManagementEndpointTests
         {
             FailHealthWhenNoProbes = false,
             AllowAnonymousManagement = true
-        });
+        }).ConfigureAwait(false);
 
         using var client = host.GetTestClient();
 
@@ -125,7 +125,7 @@ public sealed class ManagementEndpointTests
             Content = JsonContent.Create(new { confirm = true })
         };
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request).ConfigureAwait(false);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

@@ -47,10 +47,14 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
         IMessageSerializer serializer,
         SagaExecutionContext context)
     {
-        _sagaStore = sagaStore ?? throw new ArgumentNullException(nameof(sagaStore));
-        _stateTypeRegistry = stateTypeRegistry ?? throw new ArgumentNullException(nameof(stateTypeRegistry));
-        _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-        _context = context ?? throw new ArgumentNullException(nameof(context));
+        ArgumentNullException.ThrowIfNull(sagaStore);
+        ArgumentNullException.ThrowIfNull(stateTypeRegistry);
+        ArgumentNullException.ThrowIfNull(serializer);
+        ArgumentNullException.ThrowIfNull(context);
+        _sagaStore = sagaStore;
+        _stateTypeRegistry = stateTypeRegistry;
+        _serializer = serializer;
+        _context = context;
     }
 
     /// <inheritdoc />
@@ -80,24 +84,39 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
         }
 
         var correlation = CreateCorrelation(envelope, sagaDefinitionId);
+        var initialState = Activator.CreateInstance(stateType)
+            ?? throw new InvalidOperationException($"Could not create saga state type '{stateType.FullName}'.");
+
+        _context.Begin(correlation, initialState, 0);
+
         var loaded = await SagaStoreInvoker.LoadAsync(_sagaStore, stateType, correlation, cancellationToken)
             .ConfigureAwait(false);
 
         if (loaded?.IsCompleted == true)
         {
+            _context.Reset();
             return;
         }
 
-        var state = loaded?.State ?? Activator.CreateInstance(stateType) ?? throw new InvalidOperationException($"Could not create saga state type '{stateType.FullName}'.");
-        var version = loaded?.Version ?? 0;
+        if (loaded is not null)
+        {
+            _context.RefreshLoadedState(loaded.Value.State, loaded.Value.Version);
+        }
+    }
 
-        _context.Begin(correlation, state, version);
+    /// <inheritdoc />
+    public Task PrepareDispatchScopeAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
+    {
+        TryAttachScope(envelope);
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc />
     public async Task AfterDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelope);
+
+        TryAttachScope(envelope);
 
         if (!_context.IsActive || _context.Correlation is null)
         {
@@ -117,6 +136,11 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
                 catch (SagaConcurrencyException) when (attempt < MaxConcurrencyRetries - 1)
                 {
                     await ReloadActiveScopeAsync(cancellationToken).ConfigureAwait(false);
+
+                    if (!_context.IsActive)
+                    {
+                        break;
+                    }
                 }
             }
         }
@@ -138,7 +162,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
             return;
         }
 
-        if (_context.IsDirty && _context.ShouldComplete)
+        if (_context is { IsDirty: true, ShouldComplete: true })
         {
             throw new InvalidOperationException(
                 "Saga scope cannot call Complete() and SetState() in the same dispatch. Persist final state first, then complete on a later message.");
@@ -146,7 +170,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
 
         if (_context.IsDirty)
         {
-            var state = _context.GetState<object>();
+            var state = _context.GetActiveState();
 
             await SagaStoreInvoker.SaveAsync(
                     _sagaStore,
@@ -170,7 +194,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
     }
 
     /// <summary>
-    ///     Reloads saga state after an optimistic concurrency conflict.
+    ///     Reloads saga state after an optimistic concurrency conflict and re-applies handler mutations.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>A task that completes when the active scope is refreshed.</returns>
@@ -181,6 +205,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
             return;
         }
 
+        var shadow = _context.CaptureDispatchShadow();
         var stateType = _stateTypeRegistry.ResolveStateType(_context.Correlation.SagaDefinitionId);
 
         if (stateType is null)
@@ -194,13 +219,30 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
 
         if (loaded?.IsCompleted == true)
         {
+            if (shadow.IsDirty)
+            {
+                throw new SagaConcurrencyException(_context.Correlation);
+            }
+
+            _context.Reset();
             return;
         }
 
-        var state = loaded?.State ?? Activator.CreateInstance(stateType) ?? throw new InvalidOperationException($"Could not create saga state type '{stateType.FullName}'.");
+        var state = loaded?.State ?? Activator.CreateInstance(stateType)
+            ?? throw new InvalidOperationException($"Could not create saga state type '{stateType.FullName}'.");
         var version = loaded?.Version ?? 0;
 
         _context.Begin(_context.Correlation, state, version);
+
+        if (shadow.IsDirty)
+        {
+            _context.ReapplyState(shadow.State);
+        }
+
+        if (shadow.ShouldComplete)
+        {
+            _context.Complete();
+        }
     }
 
     /// <summary>
@@ -217,5 +259,26 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
             SagaDefinitionId = sagaDefinitionId,
             TenantId = envelope.TenantId
         };
+    }
+
+    /// <summary>
+    ///     Re-attaches a dispatch scope created during <see cref="BeforeDispatchAsync" /> for one envelope.
+    /// </summary>
+    /// <param name="envelope">The processor envelope.</param>
+    private void TryAttachScope(IProcessorEnvelope envelope)
+    {
+        if (string.IsNullOrWhiteSpace(envelope.CorrelationId))
+        {
+            return;
+        }
+
+        var sagaDefinitionId = _stateTypeRegistry.ResolveDefinitionId(envelope.ContractName);
+
+        if (sagaDefinitionId is null)
+        {
+            return;
+        }
+
+        _context.TryAttach(CreateCorrelation(envelope, sagaDefinitionId));
     }
 }

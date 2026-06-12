@@ -49,7 +49,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
             return;
         }
 
-        await WaitForDockerDaemonAsync();
+        await WaitForDockerDaemonAsync().ConfigureAwait(false);
 
         Exception? lastException = null;
 
@@ -61,7 +61,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
                     .WithImage("postgres:16-alpine")
                     .Build();
 
-                await _container.StartAsync();
+                await _container.StartAsync().ConfigureAwait(false);
                 ConnectionString = _container.GetConnectionString();
                 DataSource = NpgsqlDataSource.Create(ConnectionString);
                 return;
@@ -72,13 +72,13 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
 
                 if (_container is not null)
                 {
-                    await _container.DisposeAsync();
+                    await _container.DisposeAsync().ConfigureAwait(false);
                     _container = null;
                 }
 
                 if (attempt < MaxAttempts)
                 {
-                    await Task.Delay(RetryDelay);
+                    await Task.Delay(RetryDelay).ConfigureAwait(false);
                 }
             }
         }
@@ -91,12 +91,12 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
     {
         if (DataSource is not null)
         {
-            await DataSource.DisposeAsync();
+            await DataSource.DisposeAsync().ConfigureAwait(false);
         }
 
         if (_container is not null)
         {
-            await _container.DisposeAsync();
+            await _container.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -118,9 +118,10 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         {
             try
             {
-                if (await CanConnectToDockerAsync())
+                if (await CanConnectToDockerAsync().ConfigureAwait(false))
                 {
                     return;
+
                 }
             }
             catch (Exception exception)
@@ -130,7 +131,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
 
             if (attempt < MaxAttempts)
             {
-                await Task.Delay(RetryDelay);
+                await Task.Delay(RetryDelay).ConfigureAwait(false);
             }
         }
 
@@ -158,7 +159,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         }
 
         var waitTask = process.WaitForExitAsync();
-        var completed = await Task.WhenAny(waitTask, Task.Delay(TimeSpan.FromSeconds(15))) == waitTask;
+        var completed = await Task.WhenAny(waitTask, Task.Delay(TimeSpan.FromSeconds(15))).ConfigureAwait(false) == waitTask;
 
         if (!completed)
         {

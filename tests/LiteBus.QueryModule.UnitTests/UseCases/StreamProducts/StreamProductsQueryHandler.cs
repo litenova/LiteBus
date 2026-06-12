@@ -16,7 +16,7 @@ public sealed class StreamProductsQueryHandler : IStreamQueryHandler<StreamProdu
 
         foreach (var result in results)
         {
-            yield return await Task.FromResult(result);
+            yield return await Task.FromResult(result).ConfigureAwait(false);
             count++;
         }
 

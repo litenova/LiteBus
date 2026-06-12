@@ -21,8 +21,12 @@ public sealed class PostgreSqlOutboxStoreRegistration
     /// <param name="options">The outbox store options.</param>
     public PostgreSqlOutboxStoreRegistration(NpgsqlDataSource dataSource, PostgreSqlOutboxStoreOptions options)
     {
-        DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
-        Options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(dataSource);
+
+        DataSource = dataSource;
+        ArgumentNullException.ThrowIfNull(options);
+
+        Options = options;
     }
 
     /// <summary>

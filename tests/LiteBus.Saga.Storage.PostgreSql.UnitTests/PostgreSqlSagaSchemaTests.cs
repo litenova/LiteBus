@@ -29,9 +29,9 @@ public sealed class PostgreSqlSagaSchemaTests : IClassFixture<PostgreSqlFixture>
             TableName = $"saga_test_{Guid.NewGuid():N}"
         };
 
-        await PostgreSqlSagaSchema.EnsureAsync(_fixture.DataSource, options);
+        await PostgreSqlSagaSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(true);
 
-        var action = async () => await PostgreSqlSagaSchema.ValidateAsync(_fixture.DataSource, options);
+        var action = async () => await PostgreSqlSagaSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(true);
         await action.Should().NotThrowAsync();
     }
 }

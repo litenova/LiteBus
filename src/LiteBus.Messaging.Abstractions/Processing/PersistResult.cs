@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace LiteBus.Messaging.Abstractions.Processing;
 
@@ -10,6 +11,7 @@ namespace LiteBus.Messaging.Abstractions.Processing;
 ///     Stores return explicit applied and skipped counts so processors can detect lease-lost no-ops
 ///     without inferring success from a silent zero-row update.
 /// </remarks>
+[DebuggerDisplay("Applied={AppliedCount}, Skipped={SkippedCount}")]
 public sealed record PersistResult
 {
     /// <summary>
@@ -19,15 +21,8 @@ public sealed record PersistResult
     /// <param name="skippedCount">The number of envelopes skipped because the lease was lost or invalid.</param>
     public PersistResult(int appliedCount, int skippedCount)
     {
-        if (appliedCount < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(appliedCount), appliedCount, "Applied count cannot be negative.");
-        }
-
-        if (skippedCount < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(skippedCount), skippedCount, "Skipped count cannot be negative.");
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(appliedCount, nameof(appliedCount));
+        ArgumentOutOfRangeException.ThrowIfNegative(skippedCount, nameof(skippedCount));
 
         AppliedCount = appliedCount;
         SkippedCount = skippedCount;

@@ -20,7 +20,7 @@ public static class PollingWait
 
         while (!condition() && Environment.TickCount64 < deadline)
         {
-            await Task.Delay(25);
+            await Task.Delay(25).ConfigureAwait(false);
         }
 
         if (!condition())
@@ -44,15 +44,15 @@ public static class PollingWait
 
         while (Environment.TickCount64 < deadline)
         {
-            if (await condition())
+            if (await condition().ConfigureAwait(false))
             {
                 return;
             }
 
-            await Task.Delay(25);
+            await Task.Delay(25).ConfigureAwait(false);
         }
 
-        if (!await condition())
+        if (!await condition().ConfigureAwait(false))
         {
             throw new TimeoutException($"Condition was not met within {timeout}.");
         }

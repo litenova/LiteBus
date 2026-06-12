@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using LiteBus.Saga.Abstractions;
 
 namespace LiteBus.Saga;
@@ -47,6 +48,7 @@ public sealed class SagaStateTypeRegistry : ISagaStateTypeRegistry
     }
 
     /// <inheritdoc />
+    [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
     public Type? ResolveStateType(string sagaDefinitionId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sagaDefinitionId);

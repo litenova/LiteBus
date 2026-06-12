@@ -51,9 +51,9 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
                 {
                     Identity = new MessageIdentity.Supplied(messageId)
                 }
-            });
+            }).ConfigureAwait(false);
 
-            await processor.ProcessPendingAsync();
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
             var row = store.Get(messageId);
             row.Status.Should().Be(OutboxStatus.Failed);
@@ -61,7 +61,7 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
         }
         finally
         {
-            await provider.DisposeAsync();
+            await provider.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -103,9 +103,9 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
                 {
                     Identity = new MessageIdentity.Supplied(messageId)
                 }
-            });
+            }).ConfigureAwait(false);
 
-            await processor.ProcessPendingAsync();
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
             var row = store.Get(messageId);
             row.Status.Should().Be(OutboxStatus.Failed);
@@ -113,7 +113,7 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
         }
         finally
         {
-            await provider.DisposeAsync();
+            await provider.DisposeAsync().ConfigureAwait(false);
         }
     }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -28,7 +29,11 @@ public interface IContractWriter
     /// <param name="name">The stable contract name stored in inbox and outbox envelopes.</param>
     /// <param name="version">The positive contract version stored with the payload.</param>
     /// <returns>The writer so module builders can chain registrations.</returns>
-    IContractWriter Register(Type messageType, string name, int version = 1);
+    IContractWriter Register(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+        Type messageType,
+        string name,
+        int version = 1);
 
     /// <summary>
     ///     Scans <paramref name="assembly" /> for types decorated with
@@ -38,5 +43,6 @@ public interface IContractWriter
     /// </summary>
     /// <param name="assembly">The assembly to scan for <see cref="MessageContractAttribute" />.</param>
     /// <returns>The writer so module builders can chain registrations.</returns>
+    [RequiresUnreferencedCode("Scans assemblies for MessageContractAttribute-decorated message types.")]
     IContractWriter AddFromAssembly(Assembly assembly);
 }

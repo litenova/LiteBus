@@ -28,7 +28,9 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
     /// <param name="configure">The module configuration action.</param>
     public OutboxModule(Action<OutboxModuleBuilder> configure)
     {
-        _configure = configure ?? throw new ArgumentNullException(nameof(configure));
+        ArgumentNullException.ThrowIfNull(configure);
+
+        _configure = configure;
     }
 
     /// <inheritdoc />

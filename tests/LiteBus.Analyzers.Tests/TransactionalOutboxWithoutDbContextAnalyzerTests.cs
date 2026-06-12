@@ -20,6 +20,6 @@ public sealed class TransactionalOutboxWithoutDbContextAnalyzerTests
             source,
             DiagnosticDescriptors.TransactionalOutboxWithoutDbContext,
             4,
-            "OrderService");
+            "OrderService").ConfigureAwait(false);
     }
 }

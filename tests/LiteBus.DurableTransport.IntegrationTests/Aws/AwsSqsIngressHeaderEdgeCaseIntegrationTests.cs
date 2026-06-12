@@ -49,7 +49,7 @@ public sealed class AwsSqsIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBas
                 [TransportHeaders.ContractVersion] = "1",
                 [TransportHeaders.MessageId] = Guid.NewGuid().ToString("D")
             },
-            0);
+            0).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -64,7 +64,7 @@ public sealed class AwsSqsIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBas
         await RunScenarioAsync(
             JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
             TransportTestHeaders.Create(messageId, ContractName, 99),
-            0);
+            0).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -82,7 +82,7 @@ public sealed class AwsSqsIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBas
                 [TransportHeaders.ContractVersion] = "1",
                 [TransportHeaders.MessageId] = "not-a-guid"
             },
-            1);
+            1).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -97,11 +97,13 @@ public sealed class AwsSqsIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBas
         IReadOnlyDictionary<string, object?> headers,
         int expectedStoreCount)
     {
-        var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress-header-edge");
-        await using var provider = BuildProvider(ingressQueueUrl);
+        var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress-header-edge").ConfigureAwait(false);
+         var provider = BuildProvider(ingressQueueUrl);
+         await using (provider.ConfigureAwait(false))
+         {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -112,15 +114,16 @@ public sealed class AwsSqsIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBas
                 Destination = ingressQueueUrl,
                 Body = Encoding.UTF8.GetBytes(body),
                 Headers = headers
-            });
+            }).ConfigureAwait(false);
 
             await PollingWait.UntilAsync(
                 () => provider.GetRequiredService<InMemoryInboxStore>().Count == expectedStoreCount,
-                TimeSpan.FromSeconds(15));
+                TimeSpan.FromSeconds(15)).ConfigureAwait(false);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 

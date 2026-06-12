@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Text;
 
 namespace LiteBus.Storage.PostgreSql;
@@ -32,7 +33,7 @@ public static class PostgreSqlIdentifier
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
-        if (identifier.IndexOf('\0', StringComparison.Ordinal) >= 0)
+        if (identifier.Contains('\0'))
         {
             throw new ArgumentException("PostgreSQL identifiers cannot contain null characters.", nameof(identifier));
         }
@@ -70,7 +71,7 @@ public static class PostgreSqlIdentifier
 
         if (name.Length > 60)
         {
-            name = name[..48] + "_" + StableHash(name).ToString("x8");
+            name = name[..48] + "_" + StableHash(name).ToString("x8", CultureInfo.InvariantCulture);
         }
 
         return name;

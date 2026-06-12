@@ -80,7 +80,7 @@ public sealed class KafkaMessageMapperTests
         transportMessage.Route.Should().Be("tenant-a");
         transportMessage.Headers[TransportHeaders.ContractName].Should().Be("orders.commands.ship");
 
-        await transportMessage.AcceptAsync();
+        await transportMessage.AcceptAsync().ConfigureAwait(false);
         committed.Should().BeTrue();
     }
 
@@ -123,7 +123,7 @@ public sealed class KafkaMessageMapperTests
             },
             redelivered: false);
 
-        await transportMessage.ReturnToQueueAsync();
+        await transportMessage.ReturnToQueueAsync().ConfigureAwait(false);
 
         seekedOffset.Should().Be(result.TopicPartitionOffset);
     }
@@ -167,7 +167,7 @@ public sealed class KafkaMessageMapperTests
             },
             redelivered: false);
 
-        await transportMessage.DiscardAsync();
+        await transportMessage.DiscardAsync().ConfigureAwait(false);
 
         seekCount.Should().Be(0);
     }

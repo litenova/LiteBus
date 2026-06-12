@@ -34,7 +34,7 @@ public sealed class InMemoryIngressHeaderEdgeCaseIntegrationTests : LiteBusTestB
                 [TransportHeaders.ContractVersion] = "1",
                 [TransportHeaders.MessageId] = Guid.NewGuid().ToString("D")
             },
-            0);
+            0).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ public sealed class InMemoryIngressHeaderEdgeCaseIntegrationTests : LiteBusTestB
                 [TransportHeaders.ContractName] = ContractName,
                 [TransportHeaders.MessageId] = Guid.NewGuid().ToString("D")
             },
-            0);
+            0).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -66,7 +66,7 @@ public sealed class InMemoryIngressHeaderEdgeCaseIntegrationTests : LiteBusTestB
         await RunScenarioAsync(
             JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
             TransportTestHeaders.Create(messageId, ContractName, 99),
-            0);
+            0).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -84,7 +84,7 @@ public sealed class InMemoryIngressHeaderEdgeCaseIntegrationTests : LiteBusTestB
                 [TransportHeaders.ContractVersion] = "1",
                 [TransportHeaders.MessageId] = "not-a-guid"
             },
-            0);
+            0).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -99,7 +99,7 @@ public sealed class InMemoryIngressHeaderEdgeCaseIntegrationTests : LiteBusTestB
         await RunScenarioAsync(
             """{"unexpectedField":1}""",
             TransportTestHeaders.Create(messageId, ContractName, 1),
-            0);
+            0).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -115,10 +115,12 @@ public sealed class InMemoryIngressHeaderEdgeCaseIntegrationTests : LiteBusTestB
         int expectedStoreCount)
     {
         var ingressDestination = $"litebus-inmemory-header-edge-{Guid.NewGuid():N}";
-        await using var provider = BuildProvider(ingressDestination);
+         var provider = BuildProvider(ingressDestination);
+         await using (provider.ConfigureAwait(false))
+         {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(300), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(300), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -129,15 +131,16 @@ public sealed class InMemoryIngressHeaderEdgeCaseIntegrationTests : LiteBusTestB
                 Destination = ingressDestination,
                 Body = Encoding.UTF8.GetBytes(body),
                 Headers = headers
-            });
+            }).ConfigureAwait(false);
 
             await PollingWait.UntilAsync(
                 () => provider.GetRequiredService<InMemoryInboxStore>().Count == expectedStoreCount,
-                TimeSpan.FromSeconds(10));
+                TimeSpan.FromSeconds(10)).ConfigureAwait(false);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 

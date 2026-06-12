@@ -24,9 +24,9 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
     {
         var recorder = new InboxTestFixtures.CommandRecorder();
 
-        await using var provider = BuildProvider(
-            recorder,
-            options => options.PollInterval = TimeSpan.FromMilliseconds(25));
+         var provider = BuildProvider(             recorder,             options => options.PollInterval = TimeSpan.FromMilliseconds(25));
+         await using (provider.ConfigureAwait(true))
+         {
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var control = provider.GetRequiredService<IInboxProcessorControl>();
@@ -36,15 +36,15 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
         await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = firstOrderId,
             IdempotencyKey = $"ship:{firstOrderId}"
-        });
+        }).ConfigureAwait(false);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(200));
+        await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(200)).ConfigureAwait(false);
 
         recorder.Commands.Should().ContainSingle(command => command.OrderId == firstOrderId);
 
-        await control.PauseAsync(CancellationToken.None);
+        await control.PauseAsync(CancellationToken.None).ConfigureAwait(false);
         control.State.Should().Be(ProcessorState.Paused);
 
         var pausedOrderId = Guid.NewGuid();
@@ -52,18 +52,19 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
         await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = pausedOrderId,
             IdempotencyKey = $"ship:{pausedOrderId}"
-        });
+        }).ConfigureAwait(false);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(250));
+        await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
         recorder.Commands.Should().NotContain(command => command.OrderId == pausedOrderId);
 
-        await control.ResumeAsync(CancellationToken.None);
+        await control.ResumeAsync(CancellationToken.None).ConfigureAwait(false);
         control.State.Should().Be(ProcessorState.Running);
 
-        await WaitUntilAsync(() => recorder.Commands.Any(command => command.OrderId == pausedOrderId), TimeSpan.FromSeconds(10));
+        await WaitUntilAsync(() => recorder.Commands.Any(command => command.OrderId == pausedOrderId), TimeSpan.FromSeconds(10)).ConfigureAwait(false);
         recorder.Commands.Should().Contain(command => command.OrderId == pausedOrderId);
 
-        await InboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+        await InboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -74,9 +75,9 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
     {
         var recorder = new InboxTestFixtures.CommandRecorder();
 
-        await using var provider = BuildProvider(
-            recorder,
-            options => options.PollInterval = TimeSpan.FromMilliseconds(50));
+         var provider = BuildProvider(             recorder,             options => options.PollInterval = TimeSpan.FromMilliseconds(50));
+         await using (provider.ConfigureAwait(true))
+         {
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var control = provider.GetRequiredService<IInboxProcessorControl>();
@@ -86,18 +87,19 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
         await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        });
+        }).ConfigureAwait(false);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
+        await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(false);
 
         var drainTask = control.DrainAsync(TimeSpan.FromSeconds(2), CancellationToken.None);
-        await drainTask;
+        await drainTask.ConfigureAwait(false);
 
         control.State.Should().Be(ProcessorState.Draining);
         recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
 
-        await InboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+        await InboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -108,14 +110,14 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
     {
         var control = new InboxProcessorControl();
 
-        await control.PauseAsync(CancellationToken.None);
+        await control.PauseAsync(CancellationToken.None).ConfigureAwait(false);
 
         var waitTask = control.WaitIfPausedAsync(CancellationToken.None);
-        await Task.Delay(TimeSpan.FromMilliseconds(50));
+        await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
         waitTask.IsCompleted.Should().BeFalse();
 
-        await control.ResumeAsync(CancellationToken.None);
-        await waitTask;
+        await control.ResumeAsync(CancellationToken.None).ConfigureAwait(false);
+        await waitTask.ConfigureAwait(false);
     }
 
     private static ServiceProvider BuildProvider(
@@ -161,7 +163,7 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
 
         while (!condition() && DateTimeOffset.UtcNow < deadline)
         {
-            await Task.Delay(50);
+            await Task.Delay(50).ConfigureAwait(false);
         }
     }
 }

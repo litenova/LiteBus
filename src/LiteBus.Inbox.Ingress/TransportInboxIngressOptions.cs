@@ -10,10 +10,24 @@ namespace LiteBus.Inbox.Ingress;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Ingress defaults to broker-scoped idempotency derived from the transport delivery id so broker redelivery
-///         after a successful store accept does not create duplicate inbox rows. Set
-///         <see cref="TrustApplicationHeaders" /> to <see langword="true" /> only when the broker binding is authenticated
-///         and upstream publishers are trusted to supply <c>litebus-idempotency-key</c> and <c>litebus-tenant-id</c>.
+///         Ingress defaults to broker-scoped identity and idempotency derived from the transport delivery id
+///         (<c>litebus-message-id</c> header or <see cref="TransportMessage.MessageId" />). When
+///         <see cref="RequireStableIdentity" /> is <see langword="true" /> (the default), missing broker delivery ids fail
+///         closed so redelivery after a successful store accept can resolve the existing inbox row instead of creating a
+///         duplicate. Set <see cref="RequireStableIdentity" /> to <see langword="false" /> only when generated identity
+///         is acceptable and duplicate rows on broker redelivery can be tolerated.
+///     </para>
+///     <para>
+///         Set <see cref="TrustApplicationHeaders" /> to <see langword="true" /> only when the broker binding is
+///         authenticated and upstream publishers are trusted. When trusted, <c>litebus-message-id</c> may supply identity,
+///         <c>litebus-idempotency-key</c> overrides broker-scoped deduplication, and <c>litebus-tenant-id</c> scopes the
+///         accepted envelope. When <see langword="false" /> (the default), identity and idempotency always derive from the
+///         broker delivery id regardless of application headers on the wire.
+///     </para>
+///     <para>
+///         When store accept succeeds but broker acknowledgement fails, the consumer negative-acknowledges with requeue so
+///         the broker redelivers the message. Stable broker-scoped idempotency absorbs the redelivery into the existing
+///         inbox row created on the first attempt.
 ///     </para>
 ///     <para>
 ///         Use <see cref="AuthorizeDeliveryAsync" /> to reject deliveries before deserialization when the host enforces

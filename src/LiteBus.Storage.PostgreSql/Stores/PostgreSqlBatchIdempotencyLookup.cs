@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using Npgsql;
 
 namespace LiteBus.Storage.PostgreSql.Stores;
@@ -22,6 +23,7 @@ internal static class PostgreSqlBatchIdempotencyLookup
     /// <param name="missingKeys">The inserts that did not appear in the batch RETURNING clause.</param>
     /// <param name="readEnvelope">Reads one envelope from the result set.</param>
     /// <param name="readMessageId">Reads the message identifier from one envelope.</param>
+    /// <param name="readTenantId">Reads the tenant identifier from one envelope.</param>
     /// <param name="readIdempotencyKey">Reads the idempotency key from one envelope.</param>
     /// <param name="cancellationToken">A token that cancels the lookup.</param>
     /// <returns>A dictionary keyed by attempted message identifier.</returns>
@@ -32,6 +34,7 @@ internal static class PostgreSqlBatchIdempotencyLookup
         IReadOnlyList<LookupKey> missingKeys,
         Func<NpgsqlDataReader, TEnvelope> readEnvelope,
         Func<TEnvelope, Guid> readMessageId,
+        Func<TEnvelope, string?> readTenantId,
         Func<TEnvelope, string?> readIdempotencyKey,
         CancellationToken cancellationToken)
     {
@@ -42,29 +45,37 @@ internal static class PostgreSqlBatchIdempotencyLookup
 
         var messageIds = missingKeys.Select(key => key.MessageId).Distinct().ToArray();
 
-        var idempotencyKeys = missingKeys
-            .Select(key => key.IdempotencyKey)
-            .Where(key => !string.IsNullOrWhiteSpace(key))
-            .Distinct(StringComparer.Ordinal)
-            .Cast<string>()
+        var scopedKeys = missingKeys
+            .Where(key => !string.IsNullOrWhiteSpace(key.IdempotencyKey))
+            .Select(key => new ScopedIdempotencyKey(DurableTenantId.Normalize(key.TenantId), key.IdempotencyKey!))
+            .Distinct()
             .ToArray();
 
         var sql = $"""
                    SELECT {selectColumnsSql}
                    FROM {tableName}
                    WHERE message_id = ANY(@message_ids)
-                      OR (cardinality(@idempotency_keys) > 0 AND idempotency_key = ANY(@idempotency_keys));
+                      OR (cardinality(@idempotency_keys) > 0 AND (idempotency_key, tenant_id) IN (
+                          SELECT scopes.idempotency_key, scopes.tenant_id
+                          FROM unnest(@idempotency_keys, @tenant_ids) AS scopes(idempotency_key, tenant_id)));
                    """;
 
-        await using var command = createCommand();
+        using var command = createCommand();
         command.CommandText = sql;
         PostgreSqlParameterExtensions.AddUuidArrayParameter(command, "message_ids", messageIds);
-        PostgreSqlParameterExtensions.AddTextArrayParameter(command, "idempotency_keys", idempotencyKeys);
+        PostgreSqlParameterExtensions.AddTextArrayParameter(
+            command,
+            "idempotency_keys",
+            scopedKeys.Select(key => key.IdempotencyKey).ToArray());
+        PostgreSqlParameterExtensions.AddTextArrayParameter(
+            command,
+            "tenant_ids",
+            scopedKeys.Select(key => key.TenantId).ToArray());
 
-        var byMessageId = new Dictionary<Guid, TEnvelope>();
-        var byIdempotencyKey = new Dictionary<string, TEnvelope>(StringComparer.Ordinal);
+        Dictionary<Guid, TEnvelope> byMessageId = [];
+        Dictionary<string, TEnvelope> byScope = new(StringComparer.Ordinal);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -76,7 +87,7 @@ internal static class PostgreSqlBatchIdempotencyLookup
 
             if (!string.IsNullOrWhiteSpace(idempotencyKey))
             {
-                byIdempotencyKey[idempotencyKey] = envelope;
+                byScope[DurableIdempotencyScope.CreateScopeKey(readTenantId(envelope), idempotencyKey)] = envelope;
             }
         }
 
@@ -91,7 +102,9 @@ internal static class PostgreSqlBatchIdempotencyLookup
             }
 
             if (!string.IsNullOrWhiteSpace(key.IdempotencyKey) &&
-                byIdempotencyKey.TryGetValue(key.IdempotencyKey, out var byKey))
+                byScope.TryGetValue(
+                    DurableIdempotencyScope.CreateScopeKey(key.TenantId, key.IdempotencyKey),
+                    out var byKey))
             {
                 resolved[key.MessageId] = byKey;
             }
@@ -104,6 +117,14 @@ internal static class PostgreSqlBatchIdempotencyLookup
     ///     Identifies one attempted insert that did not return from the batch insert statement.
     /// </summary>
     /// <param name="MessageId">The attempted message identifier.</param>
+    /// <param name="TenantId">The tenant identifier supplied with the insert.</param>
     /// <param name="IdempotencyKey">The optional idempotency key supplied with the insert.</param>
-    internal readonly record struct LookupKey(Guid MessageId, string? IdempotencyKey);
+    internal readonly record struct LookupKey(Guid MessageId, string? TenantId, string? IdempotencyKey);
+
+    /// <summary>
+    ///     Represents one tenant-scoped idempotency key used by batched lookups.
+    /// </summary>
+    /// <param name="TenantId">The normalized tenant identifier.</param>
+    /// <param name="IdempotencyKey">The idempotency key.</param>
+    private readonly record struct ScopedIdempotencyKey(string TenantId, string IdempotencyKey);
 }

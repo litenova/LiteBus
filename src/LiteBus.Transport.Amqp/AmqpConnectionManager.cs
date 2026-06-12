@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 
 namespace LiteBus.Transport.Amqp;
 
@@ -36,7 +37,8 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     /// <param name="options">The connection settings used to connect to the broker.</param>
     public AmqpConnectionManager(AmqpConnectionOptions options)
     {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options;
         _circuitBreaker = new AmqpCircuitBreaker(options.CircuitBreaker);
     }
 
@@ -51,6 +53,10 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     public ITransportCircuitBreaker TransportCircuitBreaker => _circuitBreaker;
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     Broker connectivity exceptions are handled explicitly so connection failures increment the circuit breaker.
+    ///     The final <see cref="Exception" /> handler records any other non-cancellation failure before rethrowing.
+    /// </remarks>
     public async Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default)
     {
         _circuitBreaker.ThrowIfOpen();
@@ -82,9 +88,30 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
                 _circuitBreaker.RecordSuccess();
                 return _connection;
             }
-            catch (Exception)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                _circuitBreaker.RecordFailure();
+                throw;
+            }
+            catch (BrokerUnreachableException exception)
+            {
+                TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
+                throw;
+            }
+            catch (AlreadyClosedException exception)
+            {
+                TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
+                throw;
+            }
+            catch (OperationInterruptedException exception)
+            {
+                TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
+                throw;
+            }
+#pragma warning disable CA1031 // Last-resort connection boundary records circuit breaker failures before rethrowing.
+            catch (Exception exception)
+#pragma warning restore CA1031
+            {
+                TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
                 throw;
             }
         }

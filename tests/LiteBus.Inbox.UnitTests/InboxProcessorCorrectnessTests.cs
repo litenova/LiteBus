@@ -58,7 +58,7 @@ public sealed class InboxProcessorCorrectnessTests
             accumulator,
             NullLogger.Instance,
             Array.Empty<IProcessorEnvelopeHook>(),
-            CancellationToken.None);
+            CancellationToken.None).ConfigureAwait(false);
 
         updated.Should().NotBeNull();
         updated!.Status.Should().Be(InboxStatus.Completed);
@@ -100,9 +100,9 @@ public sealed class InboxProcessorCorrectnessTests
             CreatedAt = BaseTime,
             AttemptCount = 0,
             Status = InboxStatus.Pending
-        });
+        }).ConfigureAwait(false);
 
-        var result = await processor.ProcessPendingAsync();
+        var result = await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         result.SucceededCount.Should().Be(0);
         result.FailedCount.Should().Be(1);
@@ -165,9 +165,9 @@ public sealed class InboxProcessorCorrectnessTests
             CreatedAt = BaseTime,
             AttemptCount = 0,
             Status = InboxStatus.Pending
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         measurementCount.Should().BeGreaterThan(0);
         meterListener.Dispose();
@@ -207,9 +207,9 @@ public sealed class InboxProcessorCorrectnessTests
             CreatedAt = BaseTime,
             AttemptCount = 0,
             Status = InboxStatus.Pending
-        });
+        }).ConfigureAwait(false);
 
-        var result = await processor.ProcessPendingAsync();
+        var result = await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         dispatchCount.Should().Be(1);
         result.DeadLetteredCount.Should().Be(1);
@@ -249,9 +249,9 @@ public sealed class InboxProcessorCorrectnessTests
             CreatedAt = BaseTime,
             AttemptCount = 0,
             Status = InboxStatus.Pending
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         store.PersistedStatuses.Should().Equal(InboxStatus.DeadLettered);
         store.Inner.Get(commandId).Status.Should().Be(InboxStatus.DeadLettered);
@@ -290,9 +290,9 @@ public sealed class InboxProcessorCorrectnessTests
             CreatedAt = BaseTime,
             AttemptCount = 0,
             Status = InboxStatus.Pending
-        });
+        }).ConfigureAwait(false);
 
-        var result = await processor.ProcessPendingAsync();
+        var result = await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         dispatchCount.Should().Be(1);
         result.SucceededCount.Should().Be(1);
@@ -351,9 +351,9 @@ public sealed class InboxProcessorCorrectnessTests
             CreatedAt = BaseTime,
             AttemptCount = 0,
             Status = InboxStatus.Pending
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         measurementCount.Should().Be(1);
         meterListener.Dispose();
@@ -390,10 +390,10 @@ public sealed class InboxProcessorCorrectnessTests
             CreatedAt = BaseTime,
             AttemptCount = 0,
             Status = InboxStatus.Pending
-        });
+        }).ConfigureAwait(false);
 
         using var cts = new CancellationTokenSource();
-        await processor.ProcessPendingAsync(cts.Token);
+        await processor.ProcessPendingAsync(cts.Token).ConfigureAwait(false);
 
         store.LastPersistToken.Should().Be(CancellationToken.None);
     }
@@ -429,10 +429,10 @@ public sealed class InboxProcessorCorrectnessTests
             CreatedAt = BaseTime,
             AttemptCount = 0,
             Status = InboxStatus.Pending
-        });
+        }).ConfigureAwait(false);
 
         using var cts = new CancellationTokenSource();
-        await processor.ProcessPendingAsync(cts.Token);
+        await processor.ProcessPendingAsync(cts.Token).ConfigureAwait(false);
 
         store.LastPersistToken.Should().Be(cts.Token);
     }
@@ -565,7 +565,7 @@ public sealed class InboxProcessorCorrectnessTests
                 PersistedStatuses.Add(envelope.Status);
             }
 
-            return await Inner.PersistAsync(envelopes, cancellationToken);
+            return await Inner.PersistAsync(envelopes, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -599,7 +599,7 @@ public sealed class InboxProcessorCorrectnessTests
             CancellationToken cancellationToken = default)
         {
             LastPersistToken = cancellationToken;
-            return await Inner.PersistAsync(envelopes, cancellationToken);
+            return await Inner.PersistAsync(envelopes, cancellationToken).ConfigureAwait(false);
         }
     }
 }

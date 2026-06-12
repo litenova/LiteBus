@@ -35,13 +35,13 @@ public sealed class PayloadEncryptionTests
             store,
             new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, encryptor));
 
-        await inbox.AcceptAsync(InboxAcceptItem<TestCommand>.From(new TestCommand { Value = "secret" }));
+        await inbox.AcceptAsync(InboxAcceptItem<TestCommand>.From(new TestCommand { Value = "secret" })).ConfigureAwait(false);
 
         var stored = store.GetAll().Single();
         stored.Payload.Should().StartWith("enc:");
 
         var dispatcher = new CapturingInboxDispatcher(serializer, encryptor);
-        await dispatcher.DispatchAsync(stored);
+        await dispatcher.DispatchAsync(stored).ConfigureAwait(false);
 
         CapturingInboxDispatcher.LastValue.Should().Be("secret");
     }
@@ -63,11 +63,11 @@ public sealed class PayloadEncryptionTests
             store,
             new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector));
 
-        await inbox.AcceptAsync(InboxAcceptItem<TestCommand>.From(new TestCommand { Value = "secret" }));
+        await inbox.AcceptAsync(InboxAcceptItem<TestCommand>.From(new TestCommand { Value = "secret" })).ConfigureAwait(false);
 
         var stored = store.GetAll().Single();
         var dispatcher = new CommandInboxDispatcher(mediator, registry, serializer, protector);
-        await dispatcher.DispatchAsync(stored);
+        await dispatcher.DispatchAsync(stored).ConfigureAwait(false);
 
         CapturingCommandMediator.LastValue.Should().Be("secret");
     }
@@ -89,11 +89,11 @@ public sealed class PayloadEncryptionTests
             store,
             new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector));
 
-        await outbox.EnqueueAsync(OutboxEnqueueItem<TestEvent>.From(new TestEvent { Value = "secret" }));
+        await outbox.EnqueueAsync(OutboxEnqueueItem<TestEvent>.From(new TestEvent { Value = "secret" })).ConfigureAwait(false);
 
         var stored = store.GetAll().Single();
         var dispatcher = new EventOutboxDispatcher(mediator, registry, serializer, protector);
-        await dispatcher.DispatchAsync(stored);
+        await dispatcher.DispatchAsync(stored).ConfigureAwait(false);
 
         CapturingEventMediator.LastValue.Should().Be("secret");
     }
@@ -175,11 +175,9 @@ public sealed class PayloadEncryptionTests
         /// <inheritdoc />
         public async Task DispatchAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
         {
-            var payload = await PayloadProtection.UnprotectAsync(envelope.Payload, _encryptor, cancellationToken)
-                ;
+            var payload = await PayloadProtection.UnprotectAsync(envelope.Payload, _encryptor, cancellationToken).ConfigureAwait(false);
 
-            var command = await _serializer.DeserializeAsync(typeof(TestCommand), payload, cancellationToken)
-                ;
+            var command = await _serializer.DeserializeAsync(typeof(TestCommand), payload, cancellationToken).ConfigureAwait(false);
 
             LastValue = ((TestCommand) command).Value;
         }

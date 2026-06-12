@@ -28,8 +28,10 @@ public sealed class TransactionalInboxAcceptTests
             .AddLiteBusInboxInterceptor(interceptor)
             .Options;
 
-        await using var context = new TransactionalInboxDbContext(options);
-        await context.Database.EnsureCreatedAsync();
+         var context = new TransactionalInboxDbContext(options);
+         await using (context.ConfigureAwait(false))
+         {
+        await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
         var registry = new MessageContractRegistry();
         registry.Register<SubmitOrderCommand>("orders.commands.submit", 2);
 
@@ -57,7 +59,7 @@ public sealed class TransactionalInboxAcceptTests
                         "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
                     Tenant = new TenantScope.Isolated("tenant-1")
                 }
-            });
+            }).ConfigureAwait(false);
 
         receipt.Contract.Name.Should().Be("orders.commands.submit");
         receipt.Contract.Version.Should().Be(2);
@@ -67,10 +69,10 @@ public sealed class TransactionalInboxAcceptTests
             "cause-1",
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"));
 
-        var savedCount = await context.SaveChangesAsync();
+        var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
         savedCount.Should().Be(1);
 
-        var stored = await context.InboxMessages.SingleAsync();
+        var stored = await context.InboxMessages.SingleAsync().ConfigureAwait(false);
         stored.Id.Should().Be(receipt.Id);
         stored.ContractName.Should().Be("orders.commands.submit");
         stored.ContractVersion.Should().Be(2);
@@ -81,6 +83,7 @@ public sealed class TransactionalInboxAcceptTests
         stored.TraceContext.Should().Be("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
         stored.Payload.Should().Contain(orderId.ToString("D"));
         stored.Status.Should().Be(InboxStatus.Pending);
+        }
     }
 
     /// <summary>
@@ -97,8 +100,10 @@ public sealed class TransactionalInboxAcceptTests
             .AddLiteBusInboxInterceptor(interceptor)
             .Options;
 
-        await using var context = new TransactionalInboxDbContext(options);
-        await context.Database.EnsureCreatedAsync();
+         var context = new TransactionalInboxDbContext(options);
+         await using (context.ConfigureAwait(false))
+         {
+        await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
         var registry = new MessageContractRegistry();
         registry.Register<SubmitOrderCommand>("orders.commands.submit");
         var serializer = new SynchronousMessageSerializer();
@@ -112,12 +117,13 @@ public sealed class TransactionalInboxAcceptTests
         await transactionalInbox.AcceptAsync(new InboxAcceptItem<SubmitOrderCommand>
         {
             Message = new SubmitOrderCommand { OrderId = Guid.NewGuid() }
-        });
+        }).ConfigureAwait(false);
 
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync().ConfigureAwait(false);
 
-        var stored = await context.InboxMessages.SingleAsync();
+        var stored = await context.InboxMessages.SingleAsync().ConfigureAwait(false);
         stored.Payload.Should().StartWith("tx-inbox:");
+        }
     }
 
     private sealed record SubmitOrderCommand

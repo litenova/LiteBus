@@ -43,24 +43,27 @@ public sealed class AutofacBackgroundServiceHostingExtensionsTests
         var builder = new ContainerBuilder();
         builder.RegisterBackgroundServices([], [typeof(RecordingBackgroundService)]);
 
-        await using var container = builder.Build();
+         var container = builder.Build();
+         await using (container.ConfigureAwait(false))
+         {
 
         var hostedServices = container.Resolve<IEnumerable<IHostedService>>().ToList();
         using var cts = new CancellationTokenSource();
 
         foreach (var hostedService in hostedServices)
         {
-            await hostedService.StartAsync(cts.Token);
+            await hostedService.StartAsync(cts.Token).ConfigureAwait(false);
         }
 
-        await Task.Delay(50, cts.Token);
+        await Task.Delay(50, cts.Token).ConfigureAwait(false);
 
         foreach (var hostedService in hostedServices)
         {
-            await hostedService.StopAsync(CancellationToken.None);
+            await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
         }
 
         container.Resolve<RecordingBackgroundService>().ExecuteCount.Should().BeGreaterThan(0);
+        }
     }
 
     private sealed class RecordingBackgroundService : IBackgroundService
@@ -72,7 +75,7 @@ public sealed class AutofacBackgroundServiceHostingExtensionsTests
             while (!stoppingToken.IsCancellationRequested)
             {
                 ExecuteCount++;
-                await Task.Delay(10, stoppingToken);
+                await Task.Delay(10, stoppingToken).ConfigureAwait(false);
             }
         }
     }

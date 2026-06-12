@@ -29,13 +29,14 @@ public sealed class InboxDispatchTransportIntegrationTests : LiteBusTestBase
         var destination = InMemoryTransportTestInfrastructure.CreateDestination("inbox-dispatch");
         var received = new TaskCompletionSource<TransportMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await using var provider = BuildProvider(destination);
+         var provider = BuildProvider(destination);
+         await using (provider.ConfigureAwait(false))
+         {
         var broker = provider.GetRequiredService<InMemoryTransportBroker>();
 
-        await using var consumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(
-            broker,
-            destination,
-            received);
+         var consumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(             broker,             destination,             received).ConfigureAwait(true);
+         await using (consumer.ConfigureAwait(true))
+         {
 
         var inbox = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -54,12 +55,12 @@ public sealed class InboxDispatchTransportIntegrationTests : LiteBusTestBase
                 Trace = new MessageTrace.Workflow("corr-dispatch", "cause-dispatch"),
                 Tenant = new TenantScope.Isolated("tenant-dispatch")
             }
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var message = await received.Task.WaitAsync(cancellationSource.Token);
+        var message = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
 
         InMemoryTransportTestInfrastructure.ReadBody(message).Should().Contain(workItemId.ToString());
 
@@ -83,6 +84,8 @@ public sealed class InboxDispatchTransportIntegrationTests : LiteBusTestBase
 
         var store = provider.GetRequiredService<InMemoryInboxStore>();
         store.Get(receipt.Id).Status.Should().Be(InboxStatus.Completed);
+        }
+        }
     }
 
     /// <summary>

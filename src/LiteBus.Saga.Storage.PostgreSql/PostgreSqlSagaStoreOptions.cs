@@ -1,9 +1,11 @@
+using LiteBus.Storage.PostgreSql;
+
 namespace LiteBus.Saga.Storage.PostgreSql;
 
 /// <summary>
 ///     Options for the PostgreSQL saga store table and schema bootstrap.
 /// </summary>
-public sealed record PostgreSqlSagaStoreOptions
+public sealed record PostgreSqlSagaStoreOptions : PostgreSqlSchemaStoreOptions, IPostgreSqlStoreTableOptions
 {
     /// <summary>
     ///     Gets the PostgreSQL schema that contains saga tables.

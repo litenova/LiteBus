@@ -22,8 +22,10 @@ public sealed class EfCoreInboxTransactionalUnitTests
             .UseInMemoryDatabase(databaseName)
             .Options;
 
-        await using var context = new TestInboxDbContext(options);
-        await context.Database.EnsureCreatedAsync();
+         var context = new TestInboxDbContext(options);
+         await using (context.ConfigureAwait(false))
+         {
+        await context.Database.EnsureCreatedAsync().ConfigureAwait(true);
 
         var store = new EfCoreInboxStore(_ => Task.FromResult<IInboxDbContext>(context), new EntityFrameworkCoreInboxStoreOptions());
         var transactionalStore = store.UseExistingDbContext(context);
@@ -39,14 +41,15 @@ public sealed class EfCoreInboxTransactionalUnitTests
             AttemptCount = 0
         };
 
-        await transactionalStore.AddAsync(envelope);
+        await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
 
         context.InboxMessages.Local.Should().ContainSingle(message => message.Id == envelope.Id);
-        (await context.InboxMessages.CountAsync()).Should().Be(0);
+        (await context.InboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(0);
 
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync().ConfigureAwait(true);
 
-        (await context.InboxMessages.CountAsync()).Should().Be(1);
+        (await context.InboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(1);
+        }
     }
 
     /// <summary>

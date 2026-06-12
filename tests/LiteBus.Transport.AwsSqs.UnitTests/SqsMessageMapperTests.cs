@@ -142,7 +142,7 @@ public sealed class SqsMessageMapperTests
         transportMessage.Redelivered.Should().BeTrue();
         transportMessage.Headers[TransportHeaders.ContractName].Should().Be("orders.commands.ship");
 
-        await transportMessage.AcceptAsync();
+        await transportMessage.AcceptAsync().ConfigureAwait(false);
         deleted.Should().BeTrue();
     }
 }

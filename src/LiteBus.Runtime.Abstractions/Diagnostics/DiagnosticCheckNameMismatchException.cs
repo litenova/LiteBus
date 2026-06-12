@@ -18,9 +18,13 @@ public sealed class DiagnosticCheckNameMismatchException : Exception
             $"Diagnostic check '{implementationType.FullName ?? implementationType.Name}' reported probe name '{checkName}', " +
             $"but the host manifest registered '{descriptorName}'. Align IDiagnosticCheck.Name with RegisterDiagnosticCheck.")
     {
-        ImplementationType = implementationType ?? throw new ArgumentNullException(nameof(implementationType));
-        DescriptorName = descriptorName ?? throw new ArgumentNullException(nameof(descriptorName));
-        CheckName = checkName ?? throw new ArgumentNullException(nameof(checkName));
+        ArgumentNullException.ThrowIfNull(implementationType);
+        ArgumentNullException.ThrowIfNull(descriptorName);
+        ArgumentNullException.ThrowIfNull(checkName);
+
+        ImplementationType = implementationType;
+        DescriptorName = descriptorName;
+        CheckName = checkName;
     }
 
     /// <summary>

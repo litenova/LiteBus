@@ -40,7 +40,7 @@ internal static class OutboxProcessorEnvelopeHandler
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        var updated = await DispatchAsync(envelope, dispatcher, options, clock, logger, Array.Empty<IProcessorEnvelopeHook>(), cancellationToken)
+        var updated = await DispatchAsync(envelope, dispatcher, options, clock, logger, [], cancellationToken)
             .ConfigureAwait(false);
 
         if (updated is null)
@@ -87,6 +87,9 @@ internal static class OutboxProcessorEnvelopeHandler
         try
         {
             await OutboxProcessorHookRunner.RunBeforeDispatchAsync(hooks, envelope, cancellationToken)
+                .ConfigureAwait(false);
+
+            await OutboxProcessorHookRunner.RunPrepareDispatchScopeAsync(hooks, envelope, cancellationToken)
                 .ConfigureAwait(false);
 
             var stopwatch = Stopwatch.StartNew();

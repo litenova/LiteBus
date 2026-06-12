@@ -72,9 +72,15 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         IMessageSerializer messageSerializer,
         IOutboxPayloadProtector? payloadProtector = null)
     {
-        _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
-        _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
-        _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
+        ArgumentNullException.ThrowIfNull(eventPublisher);
+
+        _eventPublisher = eventPublisher;
+        ArgumentNullException.ThrowIfNull(contractRegistry);
+
+        _contractRegistry = contractRegistry;
+        ArgumentNullException.ThrowIfNull(messageSerializer);
+
+        _messageSerializer = messageSerializer;
         _payloadProtector = payloadProtector;
     }
 

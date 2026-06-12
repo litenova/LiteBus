@@ -22,16 +22,11 @@ public sealed class EfCoreInboxProcessorUnknownContractEndToEndTests : LiteBusTe
     public async Task ProcessPendingAsync_WhenContractIsUnknown_ShouldMarkFailedInDatabase()
     {
         var storeOptions = EfCoreInboxE2eSupport.CreateStoreOptions(TableName);
-        await EfCoreInboxE2eSupport.EnsureInboxTableAsync(_fixture.ConnectionString, storeOptions);
+        await EfCoreInboxE2eSupport.EnsureInboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
-        await using var provider = EfCoreInboxE2eSupport.BuildProvider<UnknownContractInboxDbContext>(
-            _fixture.ConnectionString,
-            storeOptions,
-            new InboxE2eComposition
-            {
-                RegisterShipHandler = false,
-                LeaseOwner = "efcore-inbox-unknown-contract"
-            });
+         var provider = EfCoreInboxE2eSupport.BuildProvider<UnknownContractInboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new InboxE2eComposition             {                 RegisterShipHandler = false,                 LeaseOwner = "efcore-inbox-unknown-contract"             });
+         await using (provider.ConfigureAwait(true))
+         {
 
         var processor = provider.GetRequiredService<IInboxProcessor>();
         var writer = provider.GetRequiredService<IInboxStore>();
@@ -46,13 +41,14 @@ public sealed class EfCoreInboxProcessorUnknownContractEndToEndTests : LiteBusTe
             CreatedAt = EfCoreInboxE2eSupport.BaseTime,
             AttemptCount = 0,
             Status = InboxStatus.Pending
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, commandId);
+        var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, commandId).ConfigureAwait(false);
         row!.Status.Should().Be(InboxStatus.Failed);
         row.LastError.Should().Contain(nameof(MessageContractNotRegisteredException));
+        }
     }
 
     private sealed class UnknownContractInboxDbContext : EfCoreInboxE2eDbContext

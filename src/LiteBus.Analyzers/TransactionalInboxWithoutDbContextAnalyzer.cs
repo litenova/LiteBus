@@ -13,7 +13,7 @@ public sealed class TransactionalInboxWithoutDbContextAnalyzer : DiagnosticAnaly
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(DiagnosticDescriptors.TransactionalInboxWithoutDbContext);
+        [DiagnosticDescriptors.TransactionalInboxWithoutDbContext];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)

@@ -14,7 +14,7 @@ public class FakePlainMessageStreamHandler : IStreamMessageHandler<FakePlainMess
 
         for (var i = 0; i < 10; i++)
         {
-            yield return await Task.FromResult(i.ToString());
+            yield return await Task.FromResult(i.ToString()).ConfigureAwait(false);
         }
     }
 }

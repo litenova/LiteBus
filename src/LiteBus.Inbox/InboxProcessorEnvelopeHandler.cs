@@ -121,6 +121,8 @@ internal static class InboxProcessorEnvelopeHandler
         try
         {
             await InboxProcessorHookRunner.RunBeforeDispatchAsync(hooks, envelope, cancellationToken).ConfigureAwait(false);
+            await InboxProcessorHookRunner.RunPrepareDispatchScopeAsync(hooks, envelope, cancellationToken)
+                .ConfigureAwait(false);
             var stopwatch = Stopwatch.StartNew();
             await dispatcher.DispatchAsync(envelope, cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
@@ -131,6 +133,8 @@ internal static class InboxProcessorEnvelopeHandler
         {
             return null;
         }
+
+        // Handler, mediator, and hook failures surface as unrelated exception types; map them to retry or dead-letter transitions.
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             var error = MessageProcessorDiagnostics.FormatError(exception);

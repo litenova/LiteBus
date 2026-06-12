@@ -36,10 +36,10 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
     [InlineData("/litebus/inbox/processor/pause", "POST")]
     public async Task DestructiveEndpoints_ReturnUnauthorized_WhenAnonymousAndDefaultOptions(string path, string method)
     {
-        using var host = await CreateHostAsync(new LiteBusManagementOptions { FailHealthWhenNoProbes = false });
+        using var host = await CreateHostAsync(new LiteBusManagementOptions { FailHealthWhenNoProbes = false }).ConfigureAwait(false);
         using var client = host.GetTestClient();
 
-        var response = await SendAsync(client, method, path);
+        var response = await SendAsync(client, method, path).ConfigureAwait(false);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -55,11 +55,11 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
         {
             FailHealthWhenNoProbes = false,
             AuthorizationPolicy = "LiteBusOperator"
-        });
+        }).ConfigureAwait(false);
 
         using var client = host.GetTestClient();
 
-        var response = await client.PostAsJsonAsync("/litebus/inbox/messages/requeue", new { messageIds = Array.Empty<Guid>() });
+        var response = await client.PostAsJsonAsync("/litebus/inbox/messages/requeue", new { messageIds = Array.Empty<Guid>() }).ConfigureAwait(false);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -75,13 +75,13 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
         {
             FailHealthWhenNoProbes = false,
             AuthorizationPolicy = "LiteBusOperator"
-        });
+        }).ConfigureAwait(false);
 
         using var client = host.GetTestClient();
         TestAuthHandler.AuthenticationType = "authenticated";
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Test", "token");
 
-        var response = await client.PostAsJsonAsync("/litebus/inbox/messages/requeue", new { messageIds = Array.Empty<Guid>() });
+        var response = await client.PostAsJsonAsync("/litebus/inbox/messages/requeue", new { messageIds = Array.Empty<Guid>() }).ConfigureAwait(false);
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -97,11 +97,11 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
         {
             FailHealthWhenNoProbes = false,
             AllowAnonymousManagement = true
-        });
+        }).ConfigureAwait(false);
 
         using var client = host.GetTestClient();
 
-        var response = await client.PostAsJsonAsync("/litebus/inbox/messages/requeue", new { messageIds = Array.Empty<Guid>() });
+        var response = await client.PostAsJsonAsync("/litebus/inbox/messages/requeue", new { messageIds = Array.Empty<Guid>() }).ConfigureAwait(false);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }

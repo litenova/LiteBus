@@ -54,10 +54,14 @@ public sealed class TransportInboxIngressHandler
         IMessageSerializer messageSerializer,
         TransportInboxIngressOptions options)
     {
-        _inbox = inbox ?? throw new ArgumentNullException(nameof(inbox));
-        _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
-        _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(inbox);
+        _inbox = inbox;
+        ArgumentNullException.ThrowIfNull(contractRegistry);
+        _contractRegistry = contractRegistry;
+        ArgumentNullException.ThrowIfNull(messageSerializer);
+        _messageSerializer = messageSerializer;
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options;
         _mappingOptions = new TransportInboxIngressMappingOptions(
             _options.RequireStableIdentity,
             _options.TrustApplicationHeaders);
@@ -87,7 +91,7 @@ public sealed class TransportInboxIngressHandler
     }
 
     /// <summary>
-    ///     Accepts multiple transport deliveries into the inbox store, one store round trip per delivery.
+    ///     Accepts multiple transport deliveries into the inbox store in one batch store round trip.
     /// </summary>
     /// <param name="messages">The received transport deliveries.</param>
     /// <param name="cancellationToken">The token used to cancel deserialization or the store write.</param>
@@ -98,10 +102,24 @@ public sealed class TransportInboxIngressHandler
     {
         ArgumentNullException.ThrowIfNull(messages);
 
-        foreach (var message in messages)
+        if (messages.Count == 0)
         {
-            await AcceptAsync(message, cancellationToken).ConfigureAwait(false);
+            return;
         }
+
+        var items = new InboxAcceptItem[messages.Count];
+
+        for (var index = 0; index < messages.Count; index++)
+        {
+            var message = messages[index];
+
+            using (TransportTracing.StartConsumeActivity(message))
+            {
+                items[index] = await BuildAcceptItemAsync(message, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        await _inbox.AcceptBatchAsync(items, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

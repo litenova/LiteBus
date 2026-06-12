@@ -30,26 +30,32 @@ public sealed class PostgreSqlInboxTransactionalIntegrationTests : IClassFixture
     [Fact]
     public async Task CreateTransactionalStore_ShouldRollbackDomainAndInboxTogether()
     {
-        var (inboxOptions, ordersTableName) = await CreateTablesAsync();
+        var (inboxOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(true);
         var orderId = Guid.NewGuid();
         var envelope = CreateEnvelope();
         var registration = new PostgreSqlInboxStoreRegistration(_fixture.DataSource, inboxOptions);
 
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
-        await using var transaction = await connection.BeginTransactionAsync();
+         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(true);
+         await using (connection.ConfigureAwait(true))
+         {
+         var transaction = await connection.BeginTransactionAsync().ConfigureAwait(true);
+         await using (transaction.ConfigureAwait(false))
+         {
         var transactionalStore = registration.CreateTransactionalStore(connection, transaction);
 
-        await InsertOrderAsync(connection, transaction, inboxOptions.SchemaName, ordersTableName, orderId, 10m)
-            ;
+        await InsertOrderAsync(connection, transaction, inboxOptions.SchemaName, ordersTableName, orderId, 10m).ConfigureAwait(true);
 
-        await transactionalStore.AddAsync(envelope);
-        await transaction.RollbackAsync();
+
+        await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
+        await transaction.RollbackAsync().ConfigureAwait(true);
 
         (await CountOrdersAsync(inboxOptions.SchemaName, ordersTableName, orderId))
             .Should().Be(0);
 
         (await CountInboxMessagesAsync(inboxOptions, envelope.Id))
             .Should().Be(0);
+        }
+        }
     }
 
     /// <summary>
@@ -58,26 +64,32 @@ public sealed class PostgreSqlInboxTransactionalIntegrationTests : IClassFixture
     [Fact]
     public async Task CreateTransactionalStore_ShouldCommitDomainAndInboxTogether()
     {
-        var (inboxOptions, ordersTableName) = await CreateTablesAsync();
+        var (inboxOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(true);
         var orderId = Guid.NewGuid();
         var envelope = CreateEnvelope();
         var registration = new PostgreSqlInboxStoreRegistration(_fixture.DataSource, inboxOptions);
 
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
-        await using var transaction = await connection.BeginTransactionAsync();
+         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(true);
+         await using (connection.ConfigureAwait(true))
+         {
+         var transaction = await connection.BeginTransactionAsync().ConfigureAwait(true);
+         await using (transaction.ConfigureAwait(false))
+         {
         var transactionalStore = registration.CreateTransactionalStore(connection, transaction);
 
-        await InsertOrderAsync(connection, transaction, inboxOptions.SchemaName, ordersTableName, orderId, 25m)
-            ;
+        await InsertOrderAsync(connection, transaction, inboxOptions.SchemaName, ordersTableName, orderId, 25m).ConfigureAwait(true);
 
-        await transactionalStore.AddAsync(envelope);
-        await transaction.CommitAsync();
+
+        await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
+        await transaction.CommitAsync().ConfigureAwait(true);
 
         (await CountOrdersAsync(inboxOptions.SchemaName, ordersTableName, orderId))
             .Should().Be(1);
 
         (await CountInboxMessagesAsync(inboxOptions, envelope.Id))
             .Should().Be(1);
+        }
+        }
     }
 
     /// <summary>
@@ -90,11 +102,15 @@ public sealed class PostgreSqlInboxTransactionalIntegrationTests : IClassFixture
         var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions($"inbox_pg_tx_{suffix}");
         var ordersTableName = $"orders_pg_inbox_tx_{suffix}";
 
-        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions)
-            ;
+        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions).ConfigureAwait(false);
 
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
-        await using var command = connection.CreateCommand();
+
+         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var command = connection.CreateCommand();
+         await using (command.ConfigureAwait(false))
+         {
 
         command.CommandText =
             $"""
@@ -103,9 +119,11 @@ public sealed class PostgreSqlInboxTransactionalIntegrationTests : IClassFixture
                  amount numeric NOT NULL);
              """;
 
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 
         return (inboxOptions, ordersTableName);
+        }
+        }
     }
 
     /// <summary>
@@ -119,7 +137,9 @@ public sealed class PostgreSqlInboxTransactionalIntegrationTests : IClassFixture
         Guid orderId,
         decimal amount)
     {
-        await using var command = connection.CreateCommand();
+         var command = connection.CreateCommand();
+         await using (command.ConfigureAwait(false))
+         {
         command.Transaction = transaction;
 
         command.CommandText =
@@ -130,7 +150,8 @@ public sealed class PostgreSqlInboxTransactionalIntegrationTests : IClassFixture
 
         command.Parameters.AddWithValue("order_id", orderId);
         command.Parameters.AddWithValue("amount", amount);
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -138,8 +159,12 @@ public sealed class PostgreSqlInboxTransactionalIntegrationTests : IClassFixture
     /// </summary>
     private async Task<int> CountOrdersAsync(string schemaName, string ordersTableName, Guid orderId)
     {
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
-        await using var command = connection.CreateCommand();
+         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var command = connection.CreateCommand();
+         await using (command.ConfigureAwait(false))
+         {
 
         command.CommandText =
             $"""
@@ -148,8 +173,10 @@ public sealed class PostgreSqlInboxTransactionalIntegrationTests : IClassFixture
              """;
 
         command.Parameters.AddWithValue("order_id", orderId);
-        var result = await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync().ConfigureAwait(false);
         return Convert.ToInt32(result);
+        }
+        }
     }
 
     /// <summary>
@@ -157,8 +184,12 @@ public sealed class PostgreSqlInboxTransactionalIntegrationTests : IClassFixture
     /// </summary>
     private async Task<int> CountInboxMessagesAsync(PostgreSqlInboxStoreOptions options, Guid messageId)
     {
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
-        await using var command = connection.CreateCommand();
+         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var command = connection.CreateCommand();
+         await using (command.ConfigureAwait(false))
+         {
 
         command.CommandText =
             $"""
@@ -167,8 +198,10 @@ public sealed class PostgreSqlInboxTransactionalIntegrationTests : IClassFixture
              """;
 
         command.Parameters.AddWithValue("message_id", messageId);
-        var result = await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync().ConfigureAwait(false);
         return Convert.ToInt32(result);
+        }
+        }
     }
 
     /// <summary>

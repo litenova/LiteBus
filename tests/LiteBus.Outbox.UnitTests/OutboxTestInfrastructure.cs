@@ -49,7 +49,7 @@ internal static class OutboxTestInfrastructure
 
         foreach (var hostedService in provider.GetServices<IHostedService>())
         {
-            await hostedService.StartAsync(cancellationToken);
+            await hostedService.StartAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -69,7 +69,7 @@ internal static class OutboxTestInfrastructure
 
         for (var index = hostedServices.Count - 1; index >= 0; index--)
         {
-            await hostedServices[index].StopAsync(cancellationToken);
+            await hostedServices[index].StopAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -192,8 +192,7 @@ internal static class OutboxTestInfrastructure
 
             var messageType = _contractRegistry.GetMessageType(message.ContractName, message.ContractVersion);
 
-            var deserialized = await _messageSerializer.DeserializeAsync(messageType, message.Payload, cancellationToken)
-                ;
+            var deserialized = await _messageSerializer.DeserializeAsync(messageType, message.Payload, cancellationToken).ConfigureAwait(false);
 
             _dispatchedMessages.Add(deserialized);
         }

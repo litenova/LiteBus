@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -30,7 +31,11 @@ public sealed class MessageContractBuilder : IContractWriter
     }
 
     /// <inheritdoc />
-    public IContractWriter Register(Type messageType, string name, int version = 1)
+    public IContractWriter Register(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+        Type messageType,
+        string name,
+        int version = 1)
     {
         ArgumentNullException.ThrowIfNull(messageType);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -44,10 +49,7 @@ public sealed class MessageContractBuilder : IContractWriter
 
         if (version <= 0)
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(version),
-                version,
-                "Contract version must be greater than zero.");
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(version, 0, nameof(version));
         }
 
         _pending.Add(new PendingRegistration(messageType, name, version));
@@ -55,6 +57,7 @@ public sealed class MessageContractBuilder : IContractWriter
     }
 
     /// <inheritdoc />
+    [RequiresUnreferencedCode("Scans assemblies for MessageContractAttribute-decorated message types.")]
     public IContractWriter AddFromAssembly(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);

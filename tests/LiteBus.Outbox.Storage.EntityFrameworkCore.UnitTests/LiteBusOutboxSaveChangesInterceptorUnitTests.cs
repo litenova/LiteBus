@@ -23,31 +23,37 @@ public sealed class LiteBusOutboxSaveChangesInterceptorUnitTests
             .AddLiteBusOutboxInterceptor(interceptor)
             .Options;
 
-        await using var context = new NonOutboxDbContext(options);
-        await context.Database.EnsureCreatedAsync();
-        interceptor.Enqueue(context, envelope);
+        var context = new NonOutboxDbContext(options);
+        await using (context.ConfigureAwait(true))
+        {
+            await context.Database.EnsureCreatedAsync().ConfigureAwait(true);
+            interceptor.Enqueue(context, envelope);
 
-        var act = () => context.SaveChangesAsync();
-        await act.Should().ThrowAsync<InvalidOperationException>();
+            var act = () => context.SaveChangesAsync();
+            await act.Should().ThrowAsync<InvalidOperationException>();
 
-        var replayedEnvelope = envelope with { Id = Guid.NewGuid(), Payload = """{"replayed":false}""" };
+            var replayedEnvelope = envelope with { Id = Guid.NewGuid(), Payload = """{"replayed":false}""" };
 
-        var outboxOptions = new DbContextOptionsBuilder<InterceptorOutboxDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
-            .AddLiteBusOutboxInterceptor(interceptor)
-            .Options;
+            var outboxOptions = new DbContextOptionsBuilder<InterceptorOutboxDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+                .AddLiteBusOutboxInterceptor(interceptor)
+                .Options;
 
-        await using var outboxContext = new InterceptorOutboxDbContext(outboxOptions);
-        await outboxContext.Database.EnsureCreatedAsync();
-        interceptor.Enqueue(outboxContext, replayedEnvelope);
+            var outboxContext = new InterceptorOutboxDbContext(outboxOptions);
+            await using (outboxContext.ConfigureAwait(true))
+            {
+                await outboxContext.Database.EnsureCreatedAsync().ConfigureAwait(true);
+                interceptor.Enqueue(outboxContext, replayedEnvelope);
 
-        await outboxContext.SaveChangesAsync();
+                await outboxContext.SaveChangesAsync().ConfigureAwait(true);
 
-        var stored = await outboxContext.OutboxMessages.SingleAsync();
-        stored.Id.Should().Be(replayedEnvelope.Id);
-        stored.Payload.Should().Contain("replayed");
-        stored.IdempotencyKey.Should().Be(envelope.IdempotencyKey);
-        stored.TraceContext.Should().Be(envelope.TraceContext);
+                var stored = await outboxContext.OutboxMessages.SingleAsync().ConfigureAwait(true);
+                stored.Id.Should().Be(replayedEnvelope.Id);
+                stored.Payload.Should().Contain("replayed");
+                stored.IdempotencyKey.Should().Be(envelope.IdempotencyKey);
+                stored.TraceContext.Should().Be(envelope.TraceContext);
+            }
+        }
     }
 
     /// <summary>
@@ -77,11 +83,14 @@ public sealed class LiteBusOutboxSaveChangesInterceptorUnitTests
                 .AddLiteBusOutboxInterceptor(interceptor)
                 .Options;
 
-            await using var context = new InterceptorOutboxDbContext(options);
-            await context.Database.EnsureCreatedAsync();
-            interceptor.Enqueue(context, envelopes[index]);
-            await context.SaveChangesAsync();
-            storedIds.Add((await context.OutboxMessages.SingleAsync()).Id);
+            var context = new InterceptorOutboxDbContext(options);
+            await using (context.ConfigureAwait(true))
+            {
+                await context.Database.EnsureCreatedAsync().ConfigureAwait(true);
+                interceptor.Enqueue(context, envelopes[index]);
+                await context.SaveChangesAsync().ConfigureAwait(true);
+                storedIds.Add((await context.OutboxMessages.SingleAsync().ConfigureAwait(true)).Id);
+            }
         }));
 
         storedIds.Should().BeEquivalentTo(envelopes.Select(envelope => envelope.Id));
@@ -110,24 +119,28 @@ public sealed class LiteBusOutboxSaveChangesInterceptorUnitTests
             .AddLiteBusOutboxInterceptor(interceptor)
             .Options;
 
-        await using var context = new InterceptorOutboxDbContext(options);
-        await context.Database.EnsureCreatedAsync();
-
-        var enqueueLock = new object();
-
-        await Task.WhenAll(envelopes.Select(envelope => Task.Run(() =>
+        var context = new InterceptorOutboxDbContext(options);
+        await using (context.ConfigureAwait(true))
         {
-            lock (enqueueLock)
+            await context.Database.EnsureCreatedAsync().ConfigureAwait(true);
+
+            var enqueueLock = new object();
+
+            await Task.WhenAll(envelopes.Select(envelope => Task.Run(() =>
             {
-                interceptor.Enqueue(context, envelope);
-            }
-        })));
+                lock (enqueueLock)
+                {
+                    interceptor.Enqueue(context, envelope);
+                }
+            }))).ConfigureAwait(true);
 
-        await context.SaveChangesAsync();
 
-        var stored = await context.OutboxMessages.AsNoTracking().ToListAsync();
-        stored.Should().HaveCount(envelopeCount);
-        stored.Select(message => message.Id).Should().OnlyHaveUniqueItems();
+            await context.SaveChangesAsync().ConfigureAwait(true);
+
+            var stored = await context.OutboxMessages.AsNoTracking().ToListAsync().ConfigureAwait(true);
+            stored.Should().HaveCount(envelopeCount);
+            stored.Select(message => message.Id).Should().OnlyHaveUniqueItems();
+        }
     }
 
     private static OutboxEnvelope CreateFullEnvelope()

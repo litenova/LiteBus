@@ -54,7 +54,9 @@ public sealed class LiteBusV6CompositionSmokeTests : LiteBusTestBase
         var services = new ServiceCollection();
         services.AddLiteBusV6(new ConfigurationBuilder().Build());
 
-        await using var provider = services.BuildServiceProvider();
+         var provider = services.BuildServiceProvider();
+         await using (provider.ConfigureAwait(false))
+         {
 
         var inbox = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -67,16 +69,17 @@ public sealed class LiteBusV6CompositionSmokeTests : LiteBusTestBase
             Trace = new MessageTrace.Correlated(correlationId)
         };
 
-        await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(new AdvanceOrderSagaCommand(Guid.NewGuid()), metadata));
-        await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(new AdvanceOrderSagaCommand(Guid.NewGuid()), metadata));
+        await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(new AdvanceOrderSagaCommand(Guid.NewGuid()), metadata)).ConfigureAwait(false);
+        await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(new AdvanceOrderSagaCommand(Guid.NewGuid()), metadata)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         var instance = await sagaStore.LoadAsync<OrderSagaState>(
-            new SagaCorrelation { CorrelationId = correlationId, SagaDefinitionId = OrderSagaContractName });
+            new SagaCorrelation { CorrelationId = correlationId, SagaDefinitionId = OrderSagaContractName }).ConfigureAwait(false);
 
         Assert.NotNull(instance);
         instance.State.Step.Should().Be(2);
+        }
     }
 }

@@ -23,7 +23,7 @@ public sealed class PostgreSqlInboxStorePersistResultTests : IClassFixture<Postg
     public async Task PersistAsync_batch_completed_should_use_envelope_completed_at()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
-        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
+        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
         var store = new PostgreSqlInboxStore(_fixture.DataSource, options);
         var now = DateTimeOffset.UtcNow;
 
@@ -32,8 +32,8 @@ public sealed class PostgreSqlInboxStorePersistResultTests : IClassFixture<Postg
         var firstCompletedAt = now.AddMinutes(-7);
         var secondCompletedAt = now.AddMinutes(-3);
 
-        await store.AddAsync(CreatePending(firstId, now));
-        await store.AddAsync(CreatePending(secondId, now.AddSeconds(1)));
+        await store.AddAsync(CreatePending(firstId, now)).ConfigureAwait(false);
+        await store.AddAsync(CreatePending(secondId, now.AddSeconds(1))).ConfigureAwait(false);
 
         var leased = await store.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -41,19 +41,19 @@ public sealed class PostgreSqlInboxStorePersistResultTests : IClassFixture<Postg
             LeaseOwner = "batch-complete",
             Now = now.AddSeconds(2),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         var result = await store.PersistAsync(
         [
             leased.Single(envelope => envelope.Id == firstId).AsCompleted() with { CompletedAt = firstCompletedAt },
             leased.Single(envelope => envelope.Id == secondId).AsCompleted() with { CompletedAt = secondCompletedAt }
-        ]);
+        ]).ConfigureAwait(false);
 
         result.AppliedCount.Should().Be(2);
         result.SkippedCount.Should().Be(0);
 
-        var firstRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, firstId);
-        var secondRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, secondId);
+        var firstRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, firstId).ConfigureAwait(false);
+        var secondRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, secondId).ConfigureAwait(false);
 
         firstRow!.CompletedAt.Should().BeCloseTo(firstCompletedAt, TimeSpan.FromMicroseconds(1));
         secondRow!.CompletedAt.Should().BeCloseTo(secondCompletedAt, TimeSpan.FromMicroseconds(1));
@@ -66,12 +66,12 @@ public sealed class PostgreSqlInboxStorePersistResultTests : IClassFixture<Postg
     public async Task PersistAsync_when_lease_reclaimed_should_report_lease_lost()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
-        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
+        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
         var store = new PostgreSqlInboxStore(_fixture.DataSource, options);
         var now = DateTimeOffset.UtcNow;
         var messageId = Guid.NewGuid();
 
-        await store.AddAsync(CreatePending(messageId, now));
+        await store.AddAsync(CreatePending(messageId, now)).ConfigureAwait(false);
 
         var firstLease = await store.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -79,7 +79,7 @@ public sealed class PostgreSqlInboxStorePersistResultTests : IClassFixture<Postg
             LeaseOwner = "worker-a",
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromSeconds(10)
-        });
+        }).ConfigureAwait(false);
 
         await store.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -87,9 +87,9 @@ public sealed class PostgreSqlInboxStorePersistResultTests : IClassFixture<Postg
             LeaseOwner = "worker-b",
             Now = now.AddMinutes(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        var result = await store.PersistAsync([firstLease[0].AsCompleted()]);
+        var result = await store.PersistAsync([firstLease[0].AsCompleted()]).ConfigureAwait(false);
 
         result.AppliedCount.Should().Be(0);
         result.SkippedCount.Should().Be(1);

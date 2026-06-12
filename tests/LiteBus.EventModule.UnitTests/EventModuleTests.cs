@@ -37,7 +37,7 @@ public sealed class EventModuleTests : LiteBusTestBase
         var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
         var @event = new ProductUpdatedEvent();
 
-        await eventMediator.PublishAsync(@event);
+        await eventMediator.PublishAsync(@event).ConfigureAwait(true);
 
         @event.ExecutedTypes.Should().HaveCount(6);
         @event.ExecutedTypes[0].Should().Be<ProductUpdatedEventHandlerPreHandler>();
@@ -70,7 +70,7 @@ public sealed class EventModuleTests : LiteBusTestBase
         var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
         var @event = new ProductCreatedEvent();
 
-        await eventMediator.PublishAsync(@event);
+        await eventMediator.PublishAsync(@event).ConfigureAwait(true);
 
         @event.ExecutedTypes.Should().HaveCount(8);
         @event.ExecutedTypes[0].Should().Be<GlobalEventPreHandler>();
@@ -105,7 +105,7 @@ public sealed class EventModuleTests : LiteBusTestBase
             ViewSource = new Mobile()
         };
 
-        await eventMediator.PublishAsync(@event);
+        await eventMediator.PublishAsync(@event).ConfigureAwait(true);
 
         @event.ExecutedTypes.Should().HaveCount(8);
         @event.ExecutedTypes[0].Should().Be<GlobalEventPreHandler>();
@@ -149,7 +149,7 @@ public sealed class EventModuleTests : LiteBusTestBase
             }
         };
 
-        await eventMediator.PublishAsync(@event, settings);
+        await eventMediator.PublishAsync(@event, settings).ConfigureAwait(true);
 
         // Should maintain the same order as default behavior
         @event.ExecutedTypes.Should().HaveCount(8);
@@ -190,7 +190,7 @@ public sealed class EventModuleTests : LiteBusTestBase
             }
         };
 
-        await eventMediator.PublishAsync(@event, settings);
+        await eventMediator.PublishAsync(@event, settings).ConfigureAwait(true);
 
         // All handlers should still execute, but order within same priority may vary
         @event.ExecutedTypes.Should().HaveCount(8);
@@ -231,7 +231,7 @@ public sealed class EventModuleTests : LiteBusTestBase
             }
         };
 
-        await eventMediator.PublishAsync(@event, settings);
+        await eventMediator.PublishAsync(@event, settings).ConfigureAwait(true);
 
         // All handlers should execute, but priority order is not guaranteed
         @event.ExecutedTypes.Should().HaveCount(8);
@@ -272,7 +272,7 @@ public sealed class EventModuleTests : LiteBusTestBase
             }
         };
 
-        await eventMediator.PublishAsync(@event, settings);
+        await eventMediator.PublishAsync(@event, settings).ConfigureAwait(true);
 
         // All handlers should execute, no order guarantees
         @event.ExecutedTypes.Should().HaveCount(8);
@@ -316,7 +316,7 @@ public sealed class EventModuleTests : LiteBusTestBase
             }
         };
 
-        await eventMediator.PublishAsync(@event, settings);
+        await eventMediator.PublishAsync(@event, settings).ConfigureAwait(true);
 
         @event.ExecutedTypes.Should().HaveCount(7);
         @event.ExecutedTypes[0].Should().Be<GlobalEventPreHandler>();
@@ -354,7 +354,7 @@ public sealed class EventModuleTests : LiteBusTestBase
             }
         };
 
-        await eventMediator.PublishAsync(@event, settings);
+        await eventMediator.PublishAsync(@event, settings).ConfigureAwait(true);
 
         @event.ExecutedTypes.Should().HaveCount(10);
         @event.ExecutedTypes[0].Should().Be<GlobalEventPreHandler>();
@@ -396,7 +396,7 @@ public sealed class EventModuleTests : LiteBusTestBase
             }
         };
 
-        await eventMediator.PublishAsync(@event, settings);
+        await eventMediator.PublishAsync(@event, settings).ConfigureAwait(true);
 
         @event.ExecutedTypes.Should().HaveCount(6);
         @event.ExecutedTypes[0].Should().Be<GlobalEventPreHandler>();
@@ -434,7 +434,7 @@ public sealed class EventModuleTests : LiteBusTestBase
             AutoRegisterUnregisteredMessageTypes = true
         };
 
-        await eventMediator.PublishAsync(@event, settings);
+        await eventMediator.PublishAsync(@event, settings).ConfigureAwait(true);
 
         @event.ExecutedTypes.Should().HaveCount(0);
     }
@@ -517,7 +517,7 @@ public sealed class EventModuleTests : LiteBusTestBase
         var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
         var @event = new ProblematicEvent { ThrowExceptionInType = typeof(ProblematicEventPreHandler) };
 
-        await eventMediator.PublishAsync(@event);
+        await eventMediator.PublishAsync(@event).ConfigureAwait(true);
 
         @event.ExecutedTypes.Should().HaveCount(5);
         @event.ExecutedTypes[0].Should().Be<GlobalEventPreHandler>();
@@ -545,7 +545,7 @@ public sealed class EventModuleTests : LiteBusTestBase
         var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
         var @event = new ProblematicEvent { ThrowExceptionInType = typeof(ProblematicEventHandler) };
 
-        await eventMediator.PublishAsync(@event);
+        await eventMediator.PublishAsync(@event).ConfigureAwait(true);
 
         @event.ExecutedTypes.Should().HaveCount(6);
         @event.ExecutedTypes[0].Should().Be<GlobalEventPreHandler>();
@@ -643,7 +643,7 @@ public sealed class EventModuleTests : LiteBusTestBase
         };
 
         // ACT
-        await eventMediator.PublishAsync(@event, settings);
+        await eventMediator.PublishAsync(@event, settings).ConfigureAwait(true);
 
         // ASSERT
         // Pre-handler adds 1 item ("InitialValue")

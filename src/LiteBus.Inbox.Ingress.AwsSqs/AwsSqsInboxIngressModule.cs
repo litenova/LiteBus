@@ -25,7 +25,8 @@ public sealed class AwsSqsInboxIngressModule : IInboxIngressModule
     /// <param name="builder">The module configuration action.</param>
     public AwsSqsInboxIngressModule(Action<AwsSqsInboxIngressModuleBuilder> builder)
     {
-        _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+        ArgumentNullException.ThrowIfNull(builder);
+        _builder = builder;
     }
 
     /// <inheritdoc />

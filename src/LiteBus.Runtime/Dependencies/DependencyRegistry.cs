@@ -14,20 +14,15 @@ namespace LiteBus.Runtime.Dependencies;
 public sealed class DependencyRegistry : IDependencyRegistry
 {
     /// <summary>
-    ///     Stores unique dependency descriptors registered through this registry.
+    ///     Shared registration policy used to track descriptors and detect conflicts.
     /// </summary>
-    private readonly HashSet<DependencyDescriptor> _descriptors = [];
-
-    /// <summary>
-    ///     Tracks the first descriptor registered for each service type so conflicting module registrations fail early.
-    /// </summary>
-    private readonly Dictionary<Type, DependencyDescriptor> _descriptorsByServiceType = [];
+    private readonly DependencyRegistrationTracker _tracker = new();
 
     /// <summary>
     ///     Gets the total number of dependency descriptors registered in the registry.
     /// </summary>
     /// <value>The total count of registered dependency descriptors.</value>
-    public int Count => _descriptors.Count;
+    public int Count => _tracker.Count;
 
     /// <summary>
     ///     Registers a dependency in the registry when no other module has registered the same service type.
@@ -51,7 +46,7 @@ public sealed class DependencyRegistry : IDependencyRegistry
                 $"Use {nameof(RegisterCollection)} for multi-registration services such as IEnumerable<T> hooks.");
         }
 
-        RegisterCore(descriptor, true);
+        _tracker.TryTrack(descriptor, true);
     }
 
     /// <inheritdoc />
@@ -66,7 +61,7 @@ public sealed class DependencyRegistry : IDependencyRegistry
                 $"{nameof(DependencyDescriptor.ForCollection)} before calling {nameof(RegisterCollection)}.");
         }
 
-        RegisterCore(descriptor, false);
+        _tracker.TryTrack(descriptor, false);
     }
 
     /// <summary>
@@ -75,7 +70,7 @@ public sealed class DependencyRegistry : IDependencyRegistry
     /// <returns>An enumerator that can be used to iterate through the dependency descriptors.</returns>
     public IEnumerator<DependencyDescriptor> GetEnumerator()
     {
-        return _descriptors.GetEnumerator();
+        return _tracker.GetEnumerator();
     }
 
     /// <summary>
@@ -85,38 +80,5 @@ public sealed class DependencyRegistry : IDependencyRegistry
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();
-    }
-
-    /// <summary>
-    ///     Adds a descriptor to the registry and applies single-registration conflict rules when required.
-    /// </summary>
-    /// <param name="descriptor">The dependency descriptor to register.</param>
-    /// <param name="enforceSingleRegistration">
-    ///     When <see langword="true" />, rejects a second binding for the same
-    ///     <see cref="DependencyDescriptor.DependencyType" />.
-    /// </param>
-    private void RegisterCore(DependencyDescriptor descriptor, bool enforceSingleRegistration)
-    {
-        if (enforceSingleRegistration &&
-            _descriptorsByServiceType.TryGetValue(descriptor.DependencyType, out var existing))
-        {
-            if (existing.Equals(descriptor))
-            {
-                return;
-            }
-
-            throw new LiteBusConfigurationException(
-                $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' is already registered. " +
-                "Each LiteBus module may register a given service type only once. Remove the duplicate registration or consolidate modules.");
-        }
-
-        if (enforceSingleRegistration)
-        {
-            _descriptorsByServiceType[descriptor.DependencyType] = descriptor;
-        }
-
-        if (!_descriptors.Add(descriptor))
-        {
-        }
     }
 }

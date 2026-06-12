@@ -26,7 +26,8 @@ public sealed class ChaosLeaseExpiryFixture
     /// <param name="targetMessageId">The message identifier whose lease should expire mid-dispatch.</param>
     public ChaosLeaseExpiryFixture(InMemoryInboxStore inner, Guid targetMessageId)
     {
-        _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+        ArgumentNullException.ThrowIfNull(inner);
+        _inner = inner;
         _targetMessageId = targetMessageId;
     }
 
@@ -61,6 +62,7 @@ public sealed class ChaosLeaseExpiryFixture
         /// <param name="targetMessageId">The message whose lease renewal should fail.</param>
         public ChaosLeaseStore(InMemoryInboxStore inner, Guid targetMessageId)
         {
+            ArgumentNullException.ThrowIfNull(inner);
             _inner = inner;
             _targetMessageId = targetMessageId;
         }

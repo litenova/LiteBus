@@ -45,7 +45,7 @@ public sealed class AutofacIntegrationTests : LiteBusTestBase
         var command = new RegisterComponentCommand();
 
         // ACT
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(false);
 
         // ASSERT
         // Verify that all handlers were resolved from the Autofac container and executed in the correct order.

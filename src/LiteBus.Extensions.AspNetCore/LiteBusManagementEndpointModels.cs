@@ -1,4 +1,3 @@
-using LiteBus.Inbox.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using ProcessorState = LiteBus.Inbox.Abstractions.ProcessorState;
 
@@ -31,7 +30,7 @@ public static partial class LiteBusManagementEndpointExtensions
         /// <summary>
         ///     Gets or initializes the message identifiers to requeue.
         /// </summary>
-        public IReadOnlyList<Guid> MessageIds { get; init; } = Array.Empty<Guid>();
+        public IReadOnlyList<Guid> MessageIds { get; init; } = [];
     }
 
     /// <summary>

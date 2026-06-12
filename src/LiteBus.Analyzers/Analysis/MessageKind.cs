@@ -11,7 +11,12 @@ internal enum MessageKind
     Command,
 
     /// <summary>
-    ///     Query messages implementing <c>LiteBus.Queries.Abstractions.IQuery</c>.
+    ///     Query messages implementing <c>LiteBus.Queries.Abstractions.IQuery</c> without stream semantics.
     /// </summary>
-    Query
+    Query,
+
+    /// <summary>
+    ///     Stream query messages implementing <c>LiteBus.Queries.Abstractions.IStreamQuery&lt;TResult&gt;</c>.
+    /// </summary>
+    StreamQuery
 }

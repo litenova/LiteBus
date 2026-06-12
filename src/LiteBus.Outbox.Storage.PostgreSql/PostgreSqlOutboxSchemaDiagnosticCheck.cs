@@ -23,7 +23,9 @@ public sealed class PostgreSqlOutboxSchemaDiagnosticCheck : IDiagnosticCheck
     /// <param name="registration">The registered PostgreSQL outbox store configuration.</param>
     public PostgreSqlOutboxSchemaDiagnosticCheck(PostgreSqlOutboxStoreRegistration registration)
     {
-        _registration = registration ?? throw new ArgumentNullException(nameof(registration));
+        ArgumentNullException.ThrowIfNull(registration);
+
+        _registration = registration;
     }
 
     /// <summary>

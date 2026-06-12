@@ -15,7 +15,7 @@ public sealed class TransactionalStorageWithoutInterceptorAnalyzer : DiagnosticA
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(DiagnosticDescriptors.TransactionalStorageWithoutInterceptor);
+        [DiagnosticDescriptors.TransactionalStorageWithoutInterceptor];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)

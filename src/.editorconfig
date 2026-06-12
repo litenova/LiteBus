@@ -18,4 +18,22 @@ dotnet_diagnostic.SA1635.severity = none
 dotnet_diagnostic.SA1636.severity = none
 dotnet_diagnostic.SA1637.severity = none
 dotnet_diagnostic.SA1638.severity = none
+
+# Code style analyzers (see AGENTS.md "Code style and analyzers").
+dotnet_diagnostic.CA1510.severity = warning
+dotnet_diagnostic.CA1511.severity = warning
+dotnet_diagnostic.CA2007.severity = warning
+dotnet_diagnostic.CA1069.severity = warning
+dotnet_diagnostic.CA1031.severity = warning
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.SA1402.severity = warning
+dotnet_diagnostic.SA1649.severity = warning
+
+# Bracket generic filenames (for example LazyHandler[THandler, TDescriptor].cs) are intentional; StyleCop cannot match them.
+[**/*\[*\]*.cs]
 dotnet_diagnostic.SA1649.severity = none
+
+dotnet_diagnostic.IDE0161.severity = error
+dotnet_diagnostic.IDE0300.severity = warning
+dotnet_diagnostic.IDE0290.severity = none
+dotnet_diagnostic.IDE0007.severity = none

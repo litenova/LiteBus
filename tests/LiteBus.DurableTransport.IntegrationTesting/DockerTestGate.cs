@@ -35,7 +35,7 @@ public static class DockerTestGate
 
         try
         {
-            await initialize();
+            await initialize().ConfigureAwait(false);
         }
         catch (Exception exception) when (IsDockerUnavailable(exception))
         {

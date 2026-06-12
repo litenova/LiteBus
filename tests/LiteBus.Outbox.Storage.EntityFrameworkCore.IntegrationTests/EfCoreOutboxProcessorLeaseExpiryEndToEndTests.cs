@@ -24,17 +24,11 @@ public sealed class EfCoreOutboxProcessorLeaseExpiryEndToEndTests : LiteBusTestB
         var storeOptions = EfCoreOutboxE2eSupport.CreateStoreOptions(TableName);
         var recorder = new EventRecorder();
 
-        await EfCoreOutboxE2eSupport.EnsureOutboxTableAsync(_fixture.ConnectionString, storeOptions);
+        await EfCoreOutboxE2eSupport.EnsureOutboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
-        await using var provider = EfCoreOutboxE2eSupport.BuildProvider<LeaseExpiryOutboxDbContext>(
-            _fixture.ConnectionString,
-            storeOptions,
-            new OutboxE2eComposition
-            {
-                Recorder = recorder,
-                Clock = clock,
-                LeaseOwner = "efcore-outbox-lease-expiry"
-            });
+         var provider = EfCoreOutboxE2eSupport.BuildProvider<LeaseExpiryOutboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new OutboxE2eComposition             {                 Recorder = recorder,                 Clock = clock,                 LeaseOwner = "efcore-outbox-lease-expiry"             });
+         await using (provider.ConfigureAwait(true))
+         {
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
@@ -44,7 +38,7 @@ public sealed class EfCoreOutboxProcessorLeaseExpiryEndToEndTests : LiteBusTestB
 
         await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
             new OrderSubmittedIntegrationEvent { OrderId = orderId },
-            messageId));
+            messageId)).ConfigureAwait(false);
 
         await leaseStore.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -52,16 +46,17 @@ public sealed class EfCoreOutboxProcessorLeaseExpiryEndToEndTests : LiteBusTestB
             LeaseOwner = "stale-publisher",
             Now = EfCoreOutboxE2eSupport.BaseTime,
             LeaseDuration = TimeSpan.FromSeconds(20)
-        });
+        }).ConfigureAwait(false);
 
         clock.Advance(TimeSpan.FromMinutes(1));
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
 
-        var row = await EfCoreOutboxTableReaders.ReadOutboxAsync(_fixture.ConnectionString, storeOptions, messageId);
+        var row = await EfCoreOutboxTableReaders.ReadOutboxAsync(_fixture.ConnectionString, storeOptions, messageId).ConfigureAwait(false);
         row!.Status.Should().Be(OutboxStatus.Published);
         row.AttemptCount.Should().Be(2);
+        }
     }
 
     private sealed class LeaseExpiryOutboxDbContext : EfCoreOutboxE2eDbContext

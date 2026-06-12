@@ -51,14 +51,16 @@ public sealed class AzureServiceBusInboxIngressEndToEndIntegrationTests : LiteBu
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
 
-        await using var provider = BuildProvider(ingressQueue, dispatchQueue);
+         var provider = BuildProvider(ingressQueue, dispatchQueue);
+         await using (provider.ConfigureAwait(false))
+         {
 
         provider.GetRequiredService<LiteBusHostManifest>().BackgroundServices
             .Should().Contain(typeof(TransportInboxIngressConsumer));
 
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -70,23 +72,24 @@ public sealed class AzureServiceBusInboxIngressEndToEndIntegrationTests : LiteBu
                 Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = orderId }),
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-            });
+            }).ConfigureAwait(false);
 
             var (body, headers) = await AzureServiceBusTransportTestInfrastructure.ReceiveOneAsync(
                 _fixture.TransportOptions.ConnectionString,
                 dispatchQueue,
-                TimeSpan.FromSeconds(45));
+                TimeSpan.FromSeconds(45)).ConfigureAwait(false);
 
             body.Should().Contain(orderId.ToString());
             headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));
 
             await PollingWait.UntilAsync(
                 () => provider.GetRequiredService<InMemoryInboxStore>().Get(messageId).Status == InboxStatus.Completed,
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 

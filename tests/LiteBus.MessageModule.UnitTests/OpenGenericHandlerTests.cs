@@ -40,7 +40,7 @@ public sealed class OpenGenericHandlerTests : LiteBusTestBase
         var command = new SimpleCommand();
 
         // Act
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(false);
 
         // Assert
         command.ExecutedTypes.Should().HaveCount(2);
@@ -76,8 +76,8 @@ public sealed class OpenGenericHandlerTests : LiteBusTestBase
         var command2 = new AnotherSimpleCommand();
 
         // Act
-        await commandMediator.SendAsync(command1);
-        await commandMediator.SendAsync(command2);
+        await commandMediator.SendAsync(command1).ConfigureAwait(false);
+        await commandMediator.SendAsync(command2).ConfigureAwait(false);
 
         // Assert
         command1.ExecutedTypes.Should().HaveCount(2);
@@ -113,7 +113,7 @@ public sealed class OpenGenericHandlerTests : LiteBusTestBase
         var command = new SimpleCommand();
 
         // Act
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(false);
 
         // Assert
         command.ExecutedTypes.Should().HaveCount(2);
@@ -146,7 +146,7 @@ public sealed class OpenGenericHandlerTests : LiteBusTestBase
         var command = new SimpleCommand();
 
         // Act
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(false);
 
         // Assert
         command.ExecutedTypes.Should().HaveCount(3);
@@ -179,7 +179,7 @@ public sealed class OpenGenericHandlerTests : LiteBusTestBase
         var command = new SimpleCommand();
 
         // Act
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(false);
 
         // Assert
         command.ExecutedTypes.Should().HaveCount(2);
@@ -211,7 +211,7 @@ public sealed class OpenGenericHandlerTests : LiteBusTestBase
         var command = new SimpleCommand();
 
         // Act
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(false);
 
         // Assert
         command.ExecutedTypes.Should().HaveCount(2);

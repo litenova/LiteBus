@@ -81,7 +81,7 @@ public sealed class DuplicateHandlerAcrossAssembliesAnalyzerTests
             }
         };
 
-        await test.RunAsync(CancellationToken.None);
+        await test.RunAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -110,7 +110,7 @@ public sealed class DuplicateHandlerAcrossAssembliesAnalyzerTests
                               public sealed record CommandB : ICommand;
                               """;
 
-        await AnalyzerTest.VerifyNoDiagnosticsAsync<DuplicateHandlerAcrossAssembliesAnalyzer>(source);
+        await AnalyzerTest.VerifyNoDiagnosticsAsync<DuplicateHandlerAcrossAssembliesAnalyzer>(source).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -182,6 +182,6 @@ public sealed class DuplicateHandlerAcrossAssembliesAnalyzerTests
             }
         };
 
-        await test.RunAsync(CancellationToken.None);
+        await test.RunAsync(CancellationToken.None).ConfigureAwait(false);
     }
 }

@@ -30,6 +30,17 @@ public sealed class OutboxModuleBuilder
     private IOutboxDispatcherModule? _dispatcherModule;
 
     /// <summary>
+    ///     Whether a dispatcher registration has already applied hook failure defaults.
+    /// </summary>
+    private bool _dispatcherRegistered;
+
+    /// <summary>
+    ///     Whether <see cref="UseProcessorOptions" /> was called after dispatcher registration and should preserve hook
+    ///     failure policy overrides.
+    /// </summary>
+    private bool _hookFailurePolicyExplicitlySet;
+
+    /// <summary>
     ///     Whether <see cref="EnableCleanup" /> was called.
     /// </summary>
     private bool _enableCleanup;
@@ -122,7 +133,15 @@ public sealed class OutboxModuleBuilder
     /// <returns>The current builder.</returns>
     public OutboxModuleBuilder UseProcessorOptions(OutboxProcessorOptions options)
     {
-        ProcessorOptions = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+
+        ProcessorOptions = options;
+
+        if (_dispatcherRegistered)
+        {
+            _hookFailurePolicyExplicitlySet = true;
+        }
+
         return this;
     }
 
@@ -154,6 +173,11 @@ public sealed class OutboxModuleBuilder
     /// </summary>
     /// <param name="dispatcherModule">The dispatcher module to register as a child of the outbox module.</param>
     /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     Applies <see cref="IOutboxDispatcherModule.DefaultHookFailurePolicy" /> to
+    ///     <see cref="ProcessorOptions" /> unless <see cref="UseProcessorOptions" /> was called after dispatcher
+    ///     registration.
+    /// </remarks>
     public OutboxModuleBuilder RegisterDispatcher(IOutboxDispatcherModule dispatcherModule)
     {
         ArgumentNullException.ThrowIfNull(dispatcherModule);
@@ -165,7 +189,16 @@ public sealed class OutboxModuleBuilder
                 "Call only one outbox dispatcher registration method such as UseInProcessDispatch or a broker-specific Use*Dispatch extension.");
         }
 
+        if (!_hookFailurePolicyExplicitlySet)
+        {
+            ProcessorOptions = ProcessorOptions with
+            {
+                HookFailurePolicy = dispatcherModule.DefaultHookFailurePolicy
+            };
+        }
+
         _dispatcherModule = dispatcherModule;
+        _dispatcherRegistered = true;
         return this;
     }
 
@@ -176,7 +209,9 @@ public sealed class OutboxModuleBuilder
     /// <returns>The current builder.</returns>
     public OutboxModuleBuilder UsePayloadEncryption(IPayloadEncryptor encryptor)
     {
-        _payloadEncryptor = encryptor ?? throw new ArgumentNullException(nameof(encryptor));
+        ArgumentNullException.ThrowIfNull(encryptor);
+
+        _payloadEncryptor = encryptor;
         return this;
     }
 
@@ -218,19 +253,13 @@ public sealed class OutboxModuleBuilder
     /// <returns>The sub-modules declared on this builder.</returns>
     public IReadOnlyList<IModule> CollectSubModules()
     {
-        var modules = new List<IModule>();
-
-        if (_storageModule is not null)
+        return (_storageModule, _dispatcherModule) switch
         {
-            modules.Add(_storageModule);
-        }
-
-        if (_dispatcherModule is not null)
-        {
-            modules.Add(_dispatcherModule);
-        }
-
-        return modules;
+            (not null, not null) => [_storageModule, _dispatcherModule],
+            (not null, null) => [_storageModule],
+            (null, not null) => [_dispatcherModule],
+            _ => []
+        };
     }
 
     /// <summary>

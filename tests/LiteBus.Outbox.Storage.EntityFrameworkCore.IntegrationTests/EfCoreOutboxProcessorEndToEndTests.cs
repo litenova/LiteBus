@@ -32,18 +32,13 @@ public sealed class EfCoreOutboxProcessorEndToEndTests : LiteBusTestBase, IClass
     public async Task ProcessPendingAsync_ShouldPublishEventThroughEfCoreStore()
     {
         var storeOptions = EfCoreOutboxE2eSupport.CreateStoreOptions(TableName);
-        await EfCoreOutboxE2eSupport.EnsureOutboxTableAsync(_fixture.ConnectionString, storeOptions);
+        await EfCoreOutboxE2eSupport.EnsureOutboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
         var recorder = new EventRecorder();
 
-        await using var provider = EfCoreOutboxE2eSupport.BuildProvider<HappyPathOutboxDbContext>(
-            _fixture.ConnectionString,
-            storeOptions,
-            new OutboxE2eComposition
-            {
-                Recorder = recorder,
-                LeaseOwner = "efcore-outbox-happy-path"
-            });
+         var provider = EfCoreOutboxE2eSupport.BuildProvider<HappyPathOutboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new OutboxE2eComposition             {                 Recorder = recorder,                 LeaseOwner = "efcore-outbox-happy-path"             });
+         await using (provider.ConfigureAwait(true))
+         {
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
@@ -53,11 +48,12 @@ public sealed class EfCoreOutboxProcessorEndToEndTests : LiteBusTestBase, IClass
 
         await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
             new OrderSubmittedIntegrationEvent { OrderId = orderId },
-            messageId));
+            messageId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
+        }
     }
 
     private sealed class HappyPathOutboxDbContext : EfCoreOutboxE2eDbContext

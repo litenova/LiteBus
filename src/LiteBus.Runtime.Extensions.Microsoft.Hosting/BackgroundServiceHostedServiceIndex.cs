@@ -1,51 +1,52 @@
 using System;
 using System.Collections.Generic;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Extensions.Hosting;
 using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Runtime.Extensions.Microsoft.Hosting;
 
 /// <summary>
-///     Maps manifest background service implementation types to their generic-host adapters.
+///     Maps manifest background service implementation types to their resolved instances for manual host testing.
 /// </summary>
 internal sealed class BackgroundServiceHostedServiceIndex
 {
     /// <summary>
-    ///     Hosted service adapters keyed by background service implementation type.
+    ///     Background service instances keyed by implementation type.
     /// </summary>
-    private readonly Dictionary<Type, IHostedService> _hostedServicesByImplementationType = new();
+    private readonly Dictionary<Type, IBackgroundService> _backgroundServicesByImplementationType = [];
 
     /// <summary>
-    ///     Records the hosted service adapter for a background service implementation type.
+    ///     Records the background service instance for an implementation type.
     /// </summary>
     /// <param name="implementationType">The background service implementation type.</param>
-    /// <param name="hostedService">The generic-host adapter executing the background service.</param>
-    internal void Register(Type implementationType, IHostedService hostedService)
+    /// <param name="backgroundService">The resolved background service instance.</param>
+    internal void Register(Type implementationType, IBackgroundService backgroundService)
     {
         ArgumentNullException.ThrowIfNull(implementationType);
-        ArgumentNullException.ThrowIfNull(hostedService);
+        ArgumentNullException.ThrowIfNull(backgroundService);
 
-        _hostedServicesByImplementationType[implementationType] = hostedService;
+        _backgroundServicesByImplementationType[implementationType] = backgroundService;
     }
 
     /// <summary>
-    ///     Resolves the hosted service adapter for the specified background service implementation type.
+    ///     Resolves a hosted service wrapper for the specified background service implementation type.
     /// </summary>
     /// <typeparam name="TBackgroundService">The background service implementation type.</typeparam>
-    /// <returns>The generic-host adapter for <typeparamref name="TBackgroundService" />.</returns>
+    /// <returns>A generic-host wrapper that executes <typeparamref name="TBackgroundService" />.</returns>
     /// <exception cref="InvalidOperationException">
-    ///     Thrown when no hosted service adapter was registered for <typeparamref name="TBackgroundService" />.
+    ///     Thrown when no background service was registered for <typeparamref name="TBackgroundService" />.
     /// </exception>
     internal IHostedService GetHostedService<TBackgroundService>()
         where TBackgroundService : class, IBackgroundService
     {
-        if (_hostedServicesByImplementationType.TryGetValue(typeof(TBackgroundService), out var hostedService))
+        if (_backgroundServicesByImplementationType.TryGetValue(typeof(TBackgroundService), out var backgroundService))
         {
-            return hostedService;
+            return new BackgroundServiceHostWrapper(backgroundService);
         }
 
         throw new InvalidOperationException(
-            $"No hosted service adapter is registered for background service '{typeof(TBackgroundService).FullName}'. " +
+            $"No background service is registered for '{typeof(TBackgroundService).FullName}'. " +
             "Ensure the module registered the background service through the LiteBus host manifest.");
     }
 }

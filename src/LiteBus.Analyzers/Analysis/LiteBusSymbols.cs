@@ -11,7 +11,8 @@ internal static class LiteBusSymbols
     /// <summary>
     ///     Side-effecting dependency types that query handlers must not use.
     /// </summary>
-    internal static readonly ImmutableArray<string> ImpureDependencyMetadataNames = ImmutableArray.Create(
+    internal static readonly ImmutableArray<string> ImpureDependencyMetadataNames =
+    [
         "LiteBus.Commands.Abstractions.ICommandMediator",
         "LiteBus.Events.Abstractions.IEventMediator",
         "LiteBus.Queries.Abstractions.IQueryMediator",
@@ -22,7 +23,8 @@ internal static class LiteBusSymbols
         "LiteBus.Outbox.Abstractions.IOutbox",
         "LiteBus.Outbox.Abstractions.IOutboxStore",
         "LiteBus.Outbox.Abstractions.ITransactionalOutboxStore",
-        "LiteBus.Transport.Abstractions.IMessageTransport");
+        "LiteBus.Transport.Abstractions.IMessageTransport"
+    ];
 
     /// <summary>
     ///     Resolves a type symbol from the compilation using its metadata name.
@@ -115,5 +117,55 @@ internal static class LiteBusSymbols
         }
 
         return builder.ToImmutable();
+    }
+
+    /// <summary>
+    ///     Builds the CLR metadata name for a named type symbol.
+    /// </summary>
+    /// <param name="symbol">The named type symbol.</param>
+    /// <returns>The metadata name used by <see cref="Compilation.GetTypeByMetadataName(string)" />.</returns>
+    internal static string GetMetadataName(INamedTypeSymbol symbol)
+    {
+        if (symbol.ContainingType is not null)
+        {
+            return GetMetadataName(symbol.ContainingType) + "+" + symbol.MetadataName;
+        }
+
+        if (symbol.ContainingNamespace is { IsGlobalNamespace: false } containingNamespace)
+        {
+            return containingNamespace.ToDisplayString() + "." + symbol.MetadataName;
+        }
+
+        return symbol.MetadataName;
+    }
+
+    /// <summary>
+    ///     Retargets a named type symbol to the compilation's unified symbol model.
+    /// </summary>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="symbol">The candidate type symbol.</param>
+    /// <returns>The retargeted type symbol when found; otherwise, the original symbol.</returns>
+    internal static INamedTypeSymbol RetargetToCompilation(Compilation compilation, INamedTypeSymbol symbol)
+    {
+        var metadataName = GetMetadataName(symbol);
+        var retargeted = compilation.GetTypeByMetadataName(metadataName);
+
+        return retargeted ?? symbol;
+    }
+
+    /// <summary>
+    ///     Gets a diagnostic location that belongs to the compilation being analyzed.
+    /// </summary>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="location">The candidate location.</param>
+    /// <returns>The original location when it is in the compilation; otherwise, <see cref="Location.None" />.</returns>
+    internal static Location GetDiagnosticLocation(Compilation compilation, Location location)
+    {
+        if (location.SourceTree is not null && compilation.ContainsSyntaxTree(location.SourceTree))
+        {
+            return location;
+        }
+
+        return Location.None;
     }
 }

@@ -36,7 +36,7 @@ public sealed class RabbitMqBrokerFixture : IAsyncLifetime
                 .WithPassword("guest")
                 .Build();
 
-            await _container.StartAsync();
+            await _container.StartAsync().ConfigureAwait(false);
 
             ConnectionOptions = new AmqpConnectionOptions
             {
@@ -57,7 +57,7 @@ public sealed class RabbitMqBrokerFixture : IAsyncLifetime
     {
         if (_container is not null)
         {
-            await _container.DisposeAsync();
+            await _container.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

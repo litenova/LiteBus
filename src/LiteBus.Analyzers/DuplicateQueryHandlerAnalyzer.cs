@@ -7,14 +7,14 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace LiteBus.Analyzers;
 
 /// <summary>
-///     Reports duplicate query handlers for the same query type.
+///     Reports duplicate query and stream query handlers for the same query type.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class DuplicateQueryHandlerAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(DiagnosticDescriptors.DuplicateQueryHandler);
+        [DiagnosticDescriptors.DuplicateQueryHandler];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
@@ -25,13 +25,24 @@ public sealed class DuplicateQueryHandlerAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    ///     Reports duplicate query handlers within a compilation.
+    ///     Reports duplicate query and stream query handlers within a compilation.
     /// </summary>
     /// <param name="context">The compilation analysis context.</param>
     private static void AnalyzeCompilation(CompilationAnalysisContext context)
     {
+        ReportDuplicateHandlers(context, "query");
+        ReportDuplicateHandlers(context, "stream query");
+    }
+
+    /// <summary>
+    ///     Reports duplicate handlers for one query pipeline stage.
+    /// </summary>
+    /// <param name="context">The compilation analysis context.</param>
+    /// <param name="pipeline">The handler pipeline stage name.</param>
+    private static void ReportDuplicateHandlers(CompilationAnalysisContext context, string pipeline)
+    {
         var groups = HandlerAnalysis.CollectHandlerRegistrations(context.Compilation, context.CancellationToken)
-            .Where(handler => handler.Pipeline == "query")
+            .Where(handler => handler.Pipeline == pipeline)
             .GroupBy(handler => handler.MessageType, SymbolEqualityComparer.Default);
 
         foreach (var group in groups)

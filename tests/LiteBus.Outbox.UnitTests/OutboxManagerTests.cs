@@ -20,9 +20,9 @@ public sealed class OutboxManagerTests
         var manager = CreateManager(store);
         var messageId = Guid.NewGuid();
 
-        await SeedDeadLetterAsync(store, messageId);
+        await SeedDeadLetterAsync(store, messageId).ConfigureAwait(true);
 
-        var requeued = await manager.RequeueAsync([messageId]);
+        var requeued = await manager.RequeueAsync([messageId]).ConfigureAwait(true);
 
         requeued.Requested.Should().Be(1);
         requeued.Requeued.Should().Be(1);
@@ -43,7 +43,7 @@ public sealed class OutboxManagerTests
         var store = new InMemoryOutboxStore();
         var manager = CreateManager(store);
 
-        var act = async () => await manager.PurgeAsync(new OutboxMessageFilter(), false);
+        var act = async () => await manager.PurgeAsync(new OutboxMessageFilter(), false).ConfigureAwait(true);
 
         await act.Should().ThrowAsync<OutboxManagementException>();
     }
@@ -81,7 +81,8 @@ public sealed class OutboxManagerTests
             CreatedAt = BaseTime,
             Status = OutboxStatus.Pending,
             AttemptCount = 0
-        });
+        }).ConfigureAwait(false);
+
 
         var leased = await store.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -89,8 +90,8 @@ public sealed class OutboxManagerTests
             LeaseOwner = "publisher",
             Now = BaseTime,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await store.PersistAsync([leased[0].AsDeadLettered("exhausted")]);
+        await store.PersistAsync([leased[0].AsDeadLettered("exhausted")]).ConfigureAwait(false);
     }
 }

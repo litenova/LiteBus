@@ -26,6 +26,16 @@ public interface IProcessorEnvelopeHook
     Task BeforeDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     Re-establishes hook-owned dispatch scope after <see cref="BeforeDispatchAsync" /> completes and before the axis
+    ///     dispatcher runs.
+    /// </summary>
+    /// <param name="envelope">The axis-neutral leased envelope view.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>A task that completes before dispatch begins.</returns>
+    Task PrepareDispatchScopeAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    /// <summary>
     ///     Runs after dispatch completes successfully and before terminal state is persisted while the lease is active.
     /// </summary>
     /// <param name="envelope">The axis-neutral leased envelope view.</param>

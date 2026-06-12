@@ -15,7 +15,7 @@ public sealed class DuplicateHandlerAcrossAssembliesAnalyzer : DiagnosticAnalyze
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(DiagnosticDescriptors.DuplicateHandlerAcrossAssemblies);
+        [DiagnosticDescriptors.DuplicateHandlerAcrossAssemblies];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)

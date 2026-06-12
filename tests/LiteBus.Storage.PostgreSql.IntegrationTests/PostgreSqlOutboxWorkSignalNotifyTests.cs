@@ -22,14 +22,16 @@ public sealed class PostgreSqlOutboxWorkSignalNotifyTests : IClassFixture<Postgr
     public async Task WaitForWorkOrDelayAsync_when_row_inserted_should_wake_before_poll_timeout()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
-        await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, options);
+        await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
         var store = new PostgreSqlOutboxStore(_fixture.DataSource, options);
 
-        await using var signal = new PostgreSqlOutboxWorkSignal(_fixture.DataSource);
+         var signal = new PostgreSqlOutboxWorkSignal(_fixture.DataSource);
+         await using (signal.ConfigureAwait(false))
+         {
 
         var waitTask = signal.WaitForWorkOrDelayAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(250));
+        await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
 
         await store.AddAsync(new OutboxEnvelope
         {
@@ -40,11 +42,12 @@ public sealed class PostgreSqlOutboxWorkSignalNotifyTests : IClassFixture<Postgr
             CreatedAt = DateTimeOffset.UtcNow,
             AttemptCount = 0,
             Status = OutboxStatus.Pending
-        });
+        }).ConfigureAwait(false);
 
-        var completed = await Task.WhenAny(waitTask, Task.Delay(TimeSpan.FromSeconds(5))) == waitTask;
+        var completed = await Task.WhenAny(waitTask, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(true) == waitTask;
         completed.Should().BeTrue("the insert notify trigger should wake the listener before the poll timeout");
 
-        await waitTask;
+        await waitTask.ConfigureAwait(false);
+        }
     }
 }

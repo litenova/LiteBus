@@ -51,8 +51,10 @@ public sealed class SqsConsumer : IMessageConsumer
     /// <param name="options">The transport options controlling poll and visibility behavior.</param>
     public SqsConsumer(IAmazonSQS sqsClient, AwsSqsTransportOptions options)
     {
-        _sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(sqsClient);
+        ArgumentNullException.ThrowIfNull(options);
+        _sqsClient = sqsClient;
+        _options = options;
     }
 
     /// <inheritdoc />
@@ -122,9 +124,9 @@ public sealed class SqsConsumer : IMessageConsumer
     }
 
     /// <inheritdoc />
-    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
+    public async Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
     {
-        return _stoppedTcs.Task.WaitAsync(cancellationToken);
+        await _stoppedTcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -215,7 +217,8 @@ public sealed class SqsConsumer : IMessageConsumer
                         options.Destination,
                         ackHandlers);
 
-                    await handler(transportMessage, cancellationToken).ConfigureAwait(false);
+                    await TransportConsumerHandlerInvoker.InvokeAsync(transportMessage, handler, cancellationToken)
+                        .ConfigureAwait(false);
                     batchFailed = false;
                 }
 

@@ -22,7 +22,8 @@ internal sealed class InboxPayloadProtector : IInboxPayloadProtector
     /// <param name="encryptor">The encryptor used for inbox payload protection.</param>
     public InboxPayloadProtector(IPayloadEncryptor encryptor)
     {
-        _encryptor = encryptor ?? throw new ArgumentNullException(nameof(encryptor));
+        ArgumentNullException.ThrowIfNull(encryptor);
+        _encryptor = encryptor;
     }
 
     /// <inheritdoc />

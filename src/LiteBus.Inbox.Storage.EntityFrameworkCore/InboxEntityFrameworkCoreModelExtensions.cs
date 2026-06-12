@@ -124,7 +124,7 @@ public static class InboxEntityFrameworkCoreModelExtensions
         entity.Property(message => message.ErrorType)
             .HasColumnName("error_type");
 
-        entity.HasIndex(message => message.IdempotencyKey)
+        entity.HasIndex(message => new { message.TenantId, message.IdempotencyKey })
             .IsUnique()
             .HasFilter("idempotency_key IS NOT NULL");
 

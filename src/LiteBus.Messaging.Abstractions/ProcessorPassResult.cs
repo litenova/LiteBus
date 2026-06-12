@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -11,6 +12,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///         hosted processors apply adaptive polling when a full batch indicates more work may be waiting.
 ///     </para>
 /// </remarks>
+[DebuggerDisplay("Leased={LeasedCount}, Succeeded={SucceededCount}, Failed={FailedCount}, DeadLettered={DeadLetteredCount}")]
 public sealed record ProcessorPassResult
 {
     /// <summary>

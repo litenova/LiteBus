@@ -20,7 +20,8 @@ public sealed class SagaModule : IModule
     /// <param name="configure">The saga configuration callback.</param>
     public SagaModule(Action<SagaModuleBuilder> configure)
     {
-        _configure = configure ?? throw new ArgumentNullException(nameof(configure));
+        ArgumentNullException.ThrowIfNull(configure);
+        _configure = configure;
     }
 
     /// <inheritdoc />

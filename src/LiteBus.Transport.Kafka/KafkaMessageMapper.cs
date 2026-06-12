@@ -54,7 +54,7 @@ internal static class KafkaMessageMapper
 
         return new TransportMessage
         {
-            Body = result.Message.Value ?? Array.Empty<byte>(),
+            Body = result.Message.Value ?? [],
             Headers = CopyHeaders(result.Message.Headers),
             Destination = destination,
             Route = result.Message.Key,

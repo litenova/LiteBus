@@ -50,9 +50,9 @@ public sealed class ProcessorLeaseHeartbeatTests
             CreatedAt = BaseTime,
             AttemptCount = 0,
             Status = InboxStatus.Pending
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         var stored = store.Inner.Get(commandId);
         stored.Status.Should().Be(InboxStatus.Failed);

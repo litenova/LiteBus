@@ -54,7 +54,7 @@ public sealed class TransportInboxIngressHandlerTests
             NackAsync = (_, _) => Task.CompletedTask
         };
 
-        await handler.AcceptAsync(transportMessage);
+        await handler.AcceptAsync(transportMessage).ConfigureAwait(false);
 
         var stored = store.Get(messageId);
         stored.ContractName.Should().Be("orders.commands.ship");
@@ -103,8 +103,8 @@ public sealed class TransportInboxIngressHandlerTests
             NackAsync = (_, _) => Task.CompletedTask
         };
 
-        await handler.AcceptAsync(transportMessage);
-        await handler.AcceptAsync(transportMessage);
+        await handler.AcceptAsync(transportMessage).ConfigureAwait(false);
+        await handler.AcceptAsync(transportMessage).ConfigureAwait(false);
 
         store.GetAll().Should().ContainSingle();
         store.GetAll()[0].IdempotencyKey.Should().Be("ingress:commands.inbox:broker-msg-1001");
@@ -151,7 +151,7 @@ public sealed class TransportInboxIngressHandlerTests
         var act = () => handler.AcceptAsync(transportMessage);
 
         await act.Should().ThrowAsync<InboxIngressException>()
-            .WithMessage("*MaxMessageBytes*");
+            .WithMessage("*MaxMessageBytes*").ConfigureAwait(false);
     }
 
     /// <summary>
@@ -191,7 +191,7 @@ public sealed class TransportInboxIngressHandlerTests
             NackAsync = (_, _) => Task.CompletedTask
         };
 
-        await handler.AcceptBatchAsync([transportMessage]);
+        await handler.AcceptBatchAsync([transportMessage]).ConfigureAwait(false);
 
         var stored = store.Get(messageId);
         stored.ContractName.Should().Be("orders.commands.ship");

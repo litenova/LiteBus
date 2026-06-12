@@ -44,12 +44,15 @@ internal static class EfCorePostgreSqlTestInfrastructure
     /// <param name="connectionString">The PostgreSQL connection string.</param>
     internal static async Task ResetOutboxTableAsync(string connectionString)
     {
-        await EnsureOutboxSchemaOnceAsync(connectionString);
+        await EnsureOutboxSchemaOnceAsync(connectionString).ConfigureAwait(false);
 
-        await using var context = CreateOutboxContext(connectionString);
+         var context = CreateOutboxContext(connectionString);
+         await using (context.ConfigureAwait(false))
+         {
 
         await context.Database.ExecuteSqlRawAsync(
-            $"""TRUNCATE TABLE "{SchemaName}"."{OutboxTableName}";""");
+            $"""TRUNCATE TABLE "{SchemaName}"."{OutboxTableName}";""").ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -107,7 +110,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
             return;
         }
 
-        await OutboxSchemaLock.WaitAsync();
+        await OutboxSchemaLock.WaitAsync().ConfigureAwait(false);
 
         try
         {
@@ -116,7 +119,9 @@ internal static class EfCorePostgreSqlTestInfrastructure
                 return;
             }
 
-            await using var dataSource = NpgsqlDataSource.Create(connectionString);
+             var dataSource = NpgsqlDataSource.Create(connectionString);
+             await using (dataSource.ConfigureAwait(false))
+             {
 
             await PostgreSqlOutboxSchema.EnsureAsync(
                 dataSource,
@@ -125,7 +130,8 @@ internal static class EfCorePostgreSqlTestInfrastructure
                     SchemaName = SchemaName,
                     TableName = OutboxTableName,
                     ValidateSchemaCreationOnStartup = false
-                });
+                }).ConfigureAwait(false);
+            }
         }
         finally
         {

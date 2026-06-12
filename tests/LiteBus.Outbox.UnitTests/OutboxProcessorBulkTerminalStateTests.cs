@@ -48,10 +48,10 @@ public sealed class OutboxProcessorBulkTerminalStateTests
                 CreatedAt = clock.GetUtcNow(),
                 Status = OutboxStatus.Pending,
                 AttemptCount = 0
-            });
+            }).ConfigureAwait(false);
         }
 
-        var result = await processor.ProcessPendingAsync();
+        var result = await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         result.DeadLetteredCount.Should().Be(3);
         processingStore.PersistCallCount.Should().Be(3);

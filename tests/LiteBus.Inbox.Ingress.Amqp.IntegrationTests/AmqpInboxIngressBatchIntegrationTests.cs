@@ -24,28 +24,31 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
     public async Task EnableBatchAccept_AtPrefetchThreshold_ShouldFlushAllMessages()
     {
         var fixture = new RabbitMqBrokerFixture();
-        await fixture.InitializeAsync();
+        await fixture.InitializeAsync().ConfigureAwait(false);
 
         try
         {
             const int prefetch = 3;
             var queueName = CreateQueueName();
-            await using var provider = BuildProvider(fixture.ConnectionOptions, queueName, prefetch, TimeSpan.FromSeconds(5));
-            await StartIngressAsync(provider);
+             var provider = BuildProvider(fixture.ConnectionOptions, queueName, prefetch, TimeSpan.FromSeconds(5));
+             await using (provider.ConfigureAwait(false))
+             {
+            await StartIngressAsync(provider).ConfigureAwait(false);
 
             for (var index = 0; index < prefetch; index++)
             {
                 await PublishAsync(
                     fixture.ConnectionOptions,
                     queueName,
-                    JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() }));
+                    JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() })).ConfigureAwait(false);
             }
 
-            await WaitForStoreCountAsync(provider, prefetch, TimeSpan.FromSeconds(20));
+            await WaitForStoreCountAsync(provider, prefetch, TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+            }
         }
         finally
         {
-            await fixture.DisposeAsync();
+            await fixture.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -57,27 +60,30 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
     public async Task EnableBatchAccept_BeforePrefetchThreshold_ShouldFlushAfterBatchMaxWait()
     {
         var fixture = new RabbitMqBrokerFixture();
-        await fixture.InitializeAsync();
+        await fixture.InitializeAsync().ConfigureAwait(false);
 
         try
         {
             var queueName = CreateQueueName();
             var batchWait = TimeSpan.FromMilliseconds(400);
-            await using var provider = BuildProvider(fixture.ConnectionOptions, queueName, 10, batchWait);
-            await StartIngressAsync(provider);
+             var provider = BuildProvider(fixture.ConnectionOptions, queueName, 10, batchWait);
+             await using (provider.ConfigureAwait(false))
+             {
+            await StartIngressAsync(provider).ConfigureAwait(false);
 
             await PublishAsync(
                 fixture.ConnectionOptions,
                 queueName,
-                JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() }));
+                JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() })).ConfigureAwait(false);
 
-            await Task.Delay(batchWait + TimeSpan.FromMilliseconds(300));
+            await Task.Delay(batchWait + TimeSpan.FromMilliseconds(300)).ConfigureAwait(false);
 
-            await WaitForStoreCountAsync(provider, 1, TimeSpan.FromSeconds(15));
+            await WaitForStoreCountAsync(provider, 1, TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+            }
         }
         finally
         {
-            await fixture.DisposeAsync();
+            await fixture.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -135,8 +141,8 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
     private static async Task StartIngressAsync(ServiceProvider provider)
     {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -151,7 +157,9 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
         string queueName,
         string body)
     {
-        await using var manager = new AmqpConnectionManager(connectionOptions);
+         var manager = new AmqpConnectionManager(connectionOptions);
+         await using (manager.ConfigureAwait(false))
+         {
         var publisher = new AmqpPublisher(manager);
 
         await publisher.PublishAsync(new AmqpPublishRequest
@@ -165,7 +173,8 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
                 [AmqpHeaders.ContractName] = "orders.commands.ship",
                 [AmqpHeaders.ContractVersion] = "1"
             }
-        });
+        }).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -195,7 +204,7 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
                 return;
             }
 
-            await Task.Delay(100);
+            await Task.Delay(100).ConfigureAwait(false);
         }
 
         throw new TimeoutException($"Inbox store count did not reach {expectedCount} within {timeout}.");

@@ -44,10 +44,12 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
     public async Task ProcessPendingAsync_parallel_workers_should_produce_single_terminal_state_per_message()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
-        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
+        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
 
         var tracker = new InvocationTracker();
-        await using var provider = BuildProvider(_fixture, options, tracker);
+         var provider = BuildProvider(_fixture, options, tracker);
+         await using (provider.ConfigureAwait(false))
+         {
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var messageIds = new List<Guid>(MessageCount);
@@ -62,7 +64,7 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
                     OrderId = messageId,
                     IdempotencyKey = $"stress:{messageId:N}"
                 },
-                messageId));
+                messageId)).ConfigureAwait(false);
 
             messageIds.Add(messageId);
         }
@@ -88,11 +90,11 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
             .ToArray();
 
         var workerTasks = processors.Select(processor => RunUntilIdleAsync(processor)).ToArray();
-        await Task.WhenAll(workerTasks);
+        await Task.WhenAll(workerTasks).ConfigureAwait(false);
 
         foreach (var messageId in messageIds)
         {
-            var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId);
+            var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
             row.Should().NotBeNull();
             row!.Status.Should().Be(InboxStatus.Completed);
             row.AttemptCount.Should().BeInRange(1, MaxAttempts);
@@ -102,13 +104,14 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
         }
 
         tracker.TotalInvocations.Should().BeInRange(MessageCount, MessageCount * MaxAttempts);
+        }
     }
 
     private static async Task RunUntilIdleAsync(IInboxProcessor processor)
     {
         for (var pass = 0; pass < 50; pass++)
         {
-            var result = await processor.ProcessPendingAsync();
+            var result = await processor.ProcessPendingAsync().ConfigureAwait(false);
 
             if (result.LeasedCount == 0)
             {
@@ -203,7 +206,7 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
         public async Task HandleAsync(ShipOrderCommand message, CancellationToken cancellationToken = default)
         {
             _tracker.Record(message.OrderId);
-            await Task.Delay(TimeSpan.FromMilliseconds(120), cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(120), cancellationToken).ConfigureAwait(false);
         }
     }
 }

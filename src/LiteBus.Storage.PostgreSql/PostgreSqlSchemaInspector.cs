@@ -52,7 +52,7 @@ internal static class PostgreSqlSchemaInspector
 
         var sql = PostgreSqlSqlScriptLoader.Load(Assembly, PostgreSqlSchemaEmbeddedSql.InspectorTableExists);
 
-        await using var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = sql;
         command.Parameters.AddWithValue("schemaName", schemaName);
         command.Parameters.AddWithValue("tableName", tableName);
@@ -100,7 +100,7 @@ internal static class PostgreSqlSchemaInspector
 
         var sql = PostgreSqlSqlScriptLoader.Load(Assembly, PostgreSqlSchemaEmbeddedSql.InspectorIndexExists);
 
-        await using var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = sql;
         command.Parameters.AddWithValue("schemaName", schemaName);
         command.Parameters.AddWithValue("tableName", tableName);
@@ -144,14 +144,14 @@ internal static class PostgreSqlSchemaInspector
 
         var sql = PostgreSqlSqlScriptLoader.Load(Assembly, PostgreSqlSchemaEmbeddedSql.InspectorListColumns);
 
-        await using var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = sql;
         command.Parameters.AddWithValue("schemaName", schemaName);
         command.Parameters.AddWithValue("tableName", tableName);
 
         var columns = new HashSet<string>(StringComparer.Ordinal);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -206,7 +206,7 @@ internal static class PostgreSqlSchemaInspector
         ArgumentNullException.ThrowIfNull(columns);
         ArgumentNullException.ThrowIfNull(requiredColumns);
 
-        var missing = new List<string>();
+        List<string> missing = [];
 
         foreach (var requiredColumn in requiredColumns)
         {
@@ -231,12 +231,10 @@ internal static class PostgreSqlSchemaInspector
     {
         ArgumentNullException.ThrowIfNull(versionColumnSets);
 
-        if (version <= 0 || version > versionColumnSets.Count)
-        {
-            throw new ArgumentOutOfRangeException(nameof(version));
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThan(version, 1, nameof(version));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(version, versionColumnSets.Count, nameof(version));
 
-        var columns = new List<string>();
+        List<string> columns = [];
 
         for (var index = 0; index < version; index++)
         {

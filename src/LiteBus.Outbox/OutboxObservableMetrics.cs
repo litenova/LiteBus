@@ -28,8 +28,7 @@ internal sealed class OutboxObservableMetrics
     /// <summary>
     ///     The most recently observed queue counts grouped by status.
     /// </summary>
-    private IReadOnlyDictionary<OutboxStatus, int> _cachedCounts =
-        new Dictionary<OutboxStatus, int>();
+    private IReadOnlyDictionary<OutboxStatus, int> _cachedCounts = new Dictionary<OutboxStatus, int>();
 
     /// <summary>
     ///     The UTC timestamp after which cached queue counts should be refreshed.
@@ -42,7 +41,9 @@ internal sealed class OutboxObservableMetrics
     /// <param name="serviceProvider">The service provider used to resolve outbox diagnostics dependencies.</param>
     public OutboxObservableMetrics(IServiceProvider serviceProvider)
     {
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+
+        _serviceProvider = serviceProvider;
 
         var meter = new Meter(LiteBusOutboxTelemetry.MeterName);
 
@@ -122,9 +123,11 @@ internal sealed class OutboxObservableMetrics
                 return _cachedCounts;
             }
         }
-        catch
+#pragma warning disable CA1031 // Status count probes must tolerate any backing-store failure during metric export.
+        catch (Exception)
         {
             return new Dictionary<OutboxStatus, int>();
         }
+#pragma warning restore CA1031
     }
 }

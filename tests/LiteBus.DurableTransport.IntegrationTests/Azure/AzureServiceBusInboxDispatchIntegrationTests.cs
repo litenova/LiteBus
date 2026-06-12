@@ -45,7 +45,9 @@ public sealed class AzureServiceBusInboxDispatchIntegrationTests : LiteBusTestBa
     public async Task ProcessPendingAsync_ShouldPublishLeasedEnvelopeToServiceBusQueue()
     {
         var queueName = _fixture.ResolveQueue("inbox-dispatch");
-        await using var provider = BuildProvider(queueName);
+         var provider = BuildProvider(queueName);
+         await using (provider.ConfigureAwait(false))
+         {
 
         var inbox = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -64,14 +66,14 @@ public sealed class AzureServiceBusInboxDispatchIntegrationTests : LiteBusTestBa
                 Trace = new MessageTrace.Workflow("corr-azure-dispatch", "cause-azure-dispatch"),
                 Tenant = new TenantScope.Isolated("tenant-azure")
             }
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         var (body, headers) = await AzureServiceBusTransportTestInfrastructure.ReceiveOneAsync(
             _fixture.TransportOptions.ConnectionString,
             queueName,
-            TimeSpan.FromSeconds(45));
+            TimeSpan.FromSeconds(45)).ConfigureAwait(false);
 
         body.Should().Contain(workItemId.ToString());
         headers[TransportHeaders.MessageId].Should().Be(receipt.Id.ToString("D"));
@@ -80,6 +82,7 @@ public sealed class AzureServiceBusInboxDispatchIntegrationTests : LiteBusTestBa
         headers[TransportHeaders.CorrelationId].Should().Be("corr-azure-dispatch");
         headers[TransportHeaders.CausationId].Should().Be("cause-azure-dispatch");
         headers[TransportHeaders.TenantId].Should().Be("tenant-azure");
+        }
     }
 
     /// <summary>

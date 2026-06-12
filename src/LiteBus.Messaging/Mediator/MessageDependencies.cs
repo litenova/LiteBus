@@ -100,6 +100,7 @@ internal sealed class MessageDependencies : IMessageDependencies
             .Where(d => _handlerPredicate(d))
             .Where(d => d.Tags.Count == 0 || d.Tags.Intersect(_tags).Any())
             .OrderBy(d => d.Priority)
+            .ThenBy(d => d.RegistrationSequence)
             .Select(d => new LazyHandler<THandler, TDescriptor>
             {
                 Handler = new Lazy<THandler>(() => resolveFunc(GetHandlerType(d))),

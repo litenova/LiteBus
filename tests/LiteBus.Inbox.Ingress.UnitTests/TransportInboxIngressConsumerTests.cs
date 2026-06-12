@@ -36,7 +36,7 @@ public sealed class TransportInboxIngressConsumerTests
                 {
                     nackRequeue.Add(requeue);
                     return Task.CompletedTask;
-                }));
+                })).ConfigureAwait(false);
 
         ackCount.Should().Be(1);
         nackRequeue.Should().BeEmpty();
@@ -56,7 +56,7 @@ public sealed class TransportInboxIngressConsumerTests
 
         await handler.AcceptAsync(CreateValidMessage(
             () => Task.CompletedTask,
-            (_, _) => Task.CompletedTask));
+            (_, _) => Task.CompletedTask)).ConfigureAwait(false);
 
         await InvokeHandleDeliveryAsync(
             consumer,
@@ -70,7 +70,7 @@ public sealed class TransportInboxIngressConsumerTests
                 {
                     nackRequeue.Add(requeue);
                     return Task.CompletedTask;
-                }));
+                })).ConfigureAwait(false);
 
         ackCount.Should().Be(0);
         nackRequeue.Should().ContainSingle().Which.Should().BeFalse();
@@ -100,7 +100,7 @@ public sealed class TransportInboxIngressConsumerTests
                 {
                     nackRequeue.Add(requeue);
                     return Task.CompletedTask;
-                }));
+                })).ConfigureAwait(false);
 
         ackCount.Should().Be(0);
         nackRequeue.Should().ContainSingle().Which.Should().BeTrue();
@@ -124,7 +124,7 @@ public sealed class TransportInboxIngressConsumerTests
                 {
                     nackRequeue.Add(requeue);
                     return Task.CompletedTask;
-                }));
+                })).ConfigureAwait(false);
 
         nackRequeue.Should().BeEmpty();
     }
@@ -160,7 +160,7 @@ public sealed class TransportInboxIngressConsumerTests
                 () => Task.CompletedTask,
                 (_, _) => Task.CompletedTask));
 
-        await Task.Delay(100);
+        await Task.Delay(100).ConfigureAwait(false);
 
         var thirdCompleted = false;
 
@@ -170,17 +170,17 @@ public sealed class TransportInboxIngressConsumerTests
                 consumer,
                 CreateValidMessage(
                     () => Task.CompletedTask,
-                    (_, _) => Task.CompletedTask));
+                    (_, _) => Task.CompletedTask)).ConfigureAwait(false);
 
             thirdCompleted = true;
         });
 
-        await Task.Delay(100);
+        await Task.Delay(100).ConfigureAwait(false);
         thirdCompleted.Should().BeFalse();
 
         inbox.ReleaseAccept();
-        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(5));
-        await third.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        await third.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         thirdCompleted.Should().BeTrue();
         inbox.BatchAcceptCount.Should().Be(2);
     }
@@ -225,8 +225,8 @@ public sealed class TransportInboxIngressConsumerTests
             },
             (_, _) => Task.CompletedTask);
 
-        await InvokeHandleDeliveryAsync(consumer, failing);
-        await InvokeHandleDeliveryAsync(consumer, succeeding);
+        await InvokeHandleDeliveryAsync(consumer, failing).ConfigureAwait(false);
+        await InvokeHandleDeliveryAsync(consumer, succeeding).ConfigureAwait(false);
 
         ackCount.Should().Be(1);
         nackRequeue.Should().ContainSingle().Which.Should().BeFalse();
@@ -254,7 +254,7 @@ public sealed class TransportInboxIngressConsumerTests
 
         await InvokeHandleDeliveryAsync(consumer, CreateValidMessage(
             () => Task.CompletedTask,
-            (_, _) => Task.CompletedTask));
+            (_, _) => Task.CompletedTask)).ConfigureAwait(false);
 
         inbox.BatchAcceptCount.Should().Be(0);
 
@@ -262,7 +262,7 @@ public sealed class TransportInboxIngressConsumerTests
 
         while (DateTime.UtcNow < deadline && inbox.BatchAcceptCount == 0)
         {
-            await Task.Delay(25);
+            await Task.Delay(25).ConfigureAwait(false);
         }
 
         inbox.BatchAcceptCount.Should().Be(1);
@@ -408,7 +408,7 @@ public sealed class TransportInboxIngressConsumerTests
             InboxAcceptItem item,
             CancellationToken cancellationToken = default)
         {
-            await _acceptGate.Task.WaitAsync(cancellationToken);
+            await _acceptGate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
             BatchAcceptCount++;
             return new InboxReceipt
             {
@@ -426,7 +426,7 @@ public sealed class TransportInboxIngressConsumerTests
             IReadOnlyList<InboxAcceptItem> items,
             CancellationToken cancellationToken = default)
         {
-            await _acceptGate.Task.WaitAsync(cancellationToken);
+            await _acceptGate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
             BatchAcceptCount++;
             return [];
         }

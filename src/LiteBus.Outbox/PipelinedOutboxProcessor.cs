@@ -24,8 +24,10 @@ namespace LiteBus.Outbox;
 ///     </para>
 ///     <para>
 ///         Successful publication runs <c>AfterDispatch</c> hooks while the lease is still held, then persists terminal
-///         state. Hook failures dead-letter the message without re-publishing. Shutdown leaves in-flight messages in
-///         <c>Publishing</c> until the lease expires unless the host drains the processor loop first.
+///         state. Hook failures follow <see cref="ProcessorOptions.HookFailurePolicy" />: transport dispatchers default
+///         to completing publication despite hook failure; in-process dispatch defaults to dead-lettering without
+///         re-publishing. Shutdown leaves in-flight messages in <c>Publishing</c> until the lease expires unless the
+///         host drains the processor loop first.
 ///     </para>
 /// </remarks>
 public sealed class PipelinedOutboxProcessor : IOutboxProcessor

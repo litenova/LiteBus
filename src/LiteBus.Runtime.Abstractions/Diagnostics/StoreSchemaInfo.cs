@@ -1,3 +1,6 @@
+using System;
+using System.Diagnostics;
+
 namespace LiteBus.Runtime.Abstractions.Diagnostics;
 
 /// <summary>
@@ -10,6 +13,7 @@ namespace LiteBus.Runtime.Abstractions.Diagnostics;
 /// </param>
 /// <param name="SchemaName">The database schema name when applicable; otherwise <see langword="null" />.</param>
 /// <param name="TableName">The store table name when applicable; otherwise <see langword="null" />.</param>
+[DebuggerDisplay("{Component} v{RecordedVersion}/{ExpectedVersion}")]
 public sealed record StoreSchemaInfo(
     string Component,
     int ExpectedVersion,
@@ -25,6 +29,8 @@ public sealed record StoreSchemaInfo(
     /// <returns>Schema info for in-memory and Entity Framework backends.</returns>
     public static StoreSchemaInfo ForLogicalStore(string component, int version)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(component);
+
         return new StoreSchemaInfo(component, version, version);
     }
 }

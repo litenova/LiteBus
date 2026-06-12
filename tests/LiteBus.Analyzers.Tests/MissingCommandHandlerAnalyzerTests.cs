@@ -1,3 +1,7 @@
+using LiteBus.Commands.Abstractions;
+using LiteBus.Messaging.Abstractions;
+using Microsoft.CodeAnalysis;
+
 namespace LiteBus.Analyzers.Tests;
 
 /// <summary>
@@ -98,5 +102,85 @@ public sealed class MissingCommandHandlerAnalyzerTests
                               """;
 
         return AnalyzerTest.VerifyNoDiagnosticsAsync<MissingCommandHandlerAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies that a command declared in a referenced assembly with a handler in the main project produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandInReferencedAssemblyWithHandler_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed class CreateUserCommandHandler : ICommandHandler<Commands.CreateUserCommand>
+                              {
+                                  public Task HandleAsync(Commands.CreateUserCommand command, CancellationToken cancellationToken = default)
+                                      => Task.CompletedTask;
+                              }
+                              """;
+
+        const string referencedAssembly = """
+                                          using LiteBus.Commands.Abstractions;
+
+                                          namespace Commands;
+
+                                          public sealed record CreateUserCommand(string Name) : ICommand;
+                                          """;
+
+        var commandsReference = MetadataReference.CreateFromFile(typeof(ICommand).Assembly.Location);
+        var messagingReference = MetadataReference.CreateFromFile(typeof(HandlerPriorityAttribute).Assembly.Location);
+        var referencedProject = AnalyzerTest.CompileToMetadataReference(
+            "CommandsAssembly",
+            referencedAssembly,
+            commandsReference,
+            messagingReference);
+
+        return AnalyzerTest.VerifyNoDiagnosticsWithReferencesAsync<MissingCommandHandlerAnalyzer>(
+            source,
+            commandsReference,
+            messagingReference,
+            referencedProject);
+    }
+
+    /// <summary>
+    ///     Verifies that a command declared only in a referenced assembly without a handler produces LB1008.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandInReferencedAssemblyWithoutHandler_ProducesDiagnostic()
+    {
+        const string source = """
+                              public sealed class Placeholder
+                              {
+                              }
+                              """;
+
+        const string referencedAssembly = """
+                                          using LiteBus.Commands.Abstractions;
+
+                                          namespace Commands;
+
+                                          public sealed record CreateUserCommand(string Name) : ICommand;
+                                          """;
+
+        var commandsReference = MetadataReference.CreateFromFile(typeof(ICommand).Assembly.Location);
+        var messagingReference = MetadataReference.CreateFromFile(typeof(HandlerPriorityAttribute).Assembly.Location);
+        var referencedProject = AnalyzerTest.CompileToMetadataReference(
+            "CommandsAssembly",
+            referencedAssembly,
+            commandsReference,
+            messagingReference);
+
+        return AnalyzerTest.VerifyDiagnosticWithReferencesAsync<MissingCommandHandlerAnalyzer>(
+            source,
+            DiagnosticDescriptors.MissingCommandHandler,
+            ["CreateUserCommand"],
+            commandsReference,
+            messagingReference,
+            referencedProject);
     }
 }

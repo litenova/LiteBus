@@ -14,7 +14,7 @@ public sealed class MissingCommandHandlerAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(DiagnosticDescriptors.MissingCommandHandler);
+        [DiagnosticDescriptors.MissingCommandHandler];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
@@ -57,7 +57,7 @@ public sealed class MissingCommandHandlerAnalyzer : DiagnosticAnalyzer
 
             context.ReportDiagnostic(Diagnostic.Create(
                 DiagnosticDescriptors.MissingCommandHandler,
-                command.Location,
+                LiteBusSymbols.GetDiagnosticLocation(context.Compilation, command.Location),
                 HandlerAnalysis.GetMessageTypeDisplay(command.MessageType)));
         }
     }

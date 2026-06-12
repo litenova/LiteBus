@@ -21,8 +21,8 @@ public sealed class TenantLeaseFilterTests
         var store = new InMemoryInboxStore();
         var now = DateTimeOffset.UtcNow;
 
-        await store.AddAsync(CreateInboxEnvelope("tenant-a"));
-        await store.AddAsync(CreateInboxEnvelope("tenant-b"));
+        await store.AddAsync(CreateInboxEnvelope("tenant-a")).ConfigureAwait(false);
+        await store.AddAsync(CreateInboxEnvelope("tenant-b")).ConfigureAwait(false);
 
         var leased = await store.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -31,7 +31,7 @@ public sealed class TenantLeaseFilterTests
             Now = now,
             LeaseDuration = TimeSpan.FromMinutes(1),
             TenantId = "tenant-a"
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().ContainSingle();
         leased[0].TenantId.Should().Be("tenant-a");
@@ -46,8 +46,8 @@ public sealed class TenantLeaseFilterTests
         var store = new InMemoryOutboxStore();
         var now = DateTimeOffset.UtcNow;
 
-        await store.AddAsync(CreateOutboxEnvelope("tenant-a"));
-        await store.AddAsync(CreateOutboxEnvelope("tenant-b"));
+        await store.AddAsync(CreateOutboxEnvelope("tenant-a")).ConfigureAwait(false);
+        await store.AddAsync(CreateOutboxEnvelope("tenant-b")).ConfigureAwait(false);
 
         var leased = await store.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -56,7 +56,7 @@ public sealed class TenantLeaseFilterTests
             Now = now,
             LeaseDuration = TimeSpan.FromMinutes(1),
             TenantId = "tenant-b"
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().ContainSingle();
         leased[0].TenantId.Should().Be("tenant-b");

@@ -40,7 +40,8 @@ public sealed class TransportOutboxDispatcherTests
             Status = OutboxStatus.Publishing,
             AttemptCount = 1,
             CorrelationId = "corr-1"
-        });
+        }).ConfigureAwait(true);
+
 
         transport.Published.Should().ContainSingle();
         var published = transport.Published.Single();
@@ -79,7 +80,8 @@ public sealed class TransportOutboxDispatcherTests
             CreatedAt = DateTimeOffset.UtcNow,
             Status = OutboxStatus.Publishing,
             AttemptCount = 1
-        });
+        }).ConfigureAwait(true);
+
 
         transport.Published.Should().ContainSingle();
     }
@@ -113,7 +115,7 @@ public sealed class TransportOutboxDispatcherTests
             CreatedAt = DateTimeOffset.UtcNow,
             Status = OutboxStatus.Publishing,
             AttemptCount = 1
-        });
+        }).ConfigureAwait(true);
 
         await act.Should().ThrowAsync<Exception>();
         transport.Published.Should().BeEmpty();

@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using ProcessorState = LiteBus.Inbox.Abstractions.ProcessorState;
 
 namespace LiteBus.Extensions.AspNetCore;
 
@@ -17,8 +16,8 @@ namespace LiteBus.Extensions.AspNetCore;
 public static partial class LiteBusManagementEndpointExtensions
 {
     /// <summary>
-    ///     Maps inbox and outbox management endpoints backed by <see cref="IInboxManager" /> and
-    ///     <see cref="IOutboxManager" />.
+    ///     Maps inbox and outbox management endpoints when the matching manager is registered, or returns
+    ///     <c>404 Not Found</c> for an axis that is not configured on the host.
     /// </summary>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="options">Optional route and authorization settings.</param>
@@ -31,10 +30,47 @@ public static partial class LiteBusManagementEndpointExtensions
 
         options ??= endpoints.ServiceProvider.GetService<LiteBusManagementOptions>() ?? new LiteBusManagementOptions();
         var prefix = options.RoutePrefix.Trim('/');
+        var services = endpoints.ServiceProvider;
+        var hasInbox = services.GetService(typeof(IInboxManager)) is not null;
+        var hasOutbox = services.GetService(typeof(IOutboxManager)) is not null;
 
         var inboxGroup = ApplyManagementAuthorization(endpoints.MapGroup(BuildManagementRoute(prefix, "inbox")), options);
         var outboxGroup = ApplyManagementAuthorization(endpoints.MapGroup(BuildManagementRoute(prefix, "outbox")), options);
 
+        if (hasInbox)
+        {
+            MapInboxManagementEndpoints(inboxGroup);
+        }
+        else
+        {
+            MapAxisNotConfigured(inboxGroup, "Inbox");
+        }
+
+        if (hasOutbox)
+        {
+            MapOutboxManagementEndpoints(outboxGroup);
+        }
+        else
+        {
+            MapAxisNotConfigured(outboxGroup, "Outbox");
+        }
+
+        ApplyManagementAuthorization(
+            endpoints.MapGet(
+                BuildManagementRoute(prefix, "health"),
+                (LiteBusHostManifest manifest, IServiceProvider serviceProvider, CancellationToken cancellationToken) =>
+                    RunDiagnosticChecksAsync(manifest, serviceProvider, options, cancellationToken)),
+            options);
+
+        return endpoints;
+    }
+
+    /// <summary>
+    ///     Maps inbox management routes when <see cref="IInboxManager" /> is registered.
+    /// </summary>
+    /// <param name="inboxGroup">The inbox route group.</param>
+    private static void MapInboxManagementEndpoints(RouteGroupBuilder inboxGroup)
+    {
         inboxGroup.MapGet("/messages", QueryInboxMessagesAsync);
         inboxGroup.MapGet("/messages/{messageId:guid}", GetInboxMessageAsync);
         inboxGroup.MapPost("/messages/requeue", RequeueInboxMessagesAsync);
@@ -48,7 +84,14 @@ public static partial class LiteBusManagementEndpointExtensions
         inboxGroup.MapPost("/processor/pause", PauseInboxProcessorAsync);
         inboxGroup.MapPost("/processor/resume", ResumeInboxProcessorAsync);
         inboxGroup.MapPost("/processor/drain", DrainInboxProcessorAsync);
+    }
 
+    /// <summary>
+    ///     Maps outbox management routes when <see cref="IOutboxManager" /> is registered.
+    /// </summary>
+    /// <param name="outboxGroup">The outbox route group.</param>
+    private static void MapOutboxManagementEndpoints(RouteGroupBuilder outboxGroup)
+    {
         outboxGroup.MapGet("/messages", QueryOutboxMessagesAsync);
         outboxGroup.MapGet("/messages/{messageId:guid}", GetOutboxMessageAsync);
         outboxGroup.MapPost("/messages/requeue", RequeueOutboxMessagesAsync);
@@ -62,15 +105,16 @@ public static partial class LiteBusManagementEndpointExtensions
         outboxGroup.MapPost("/processor/pause", PauseOutboxProcessorAsync);
         outboxGroup.MapPost("/processor/resume", ResumeOutboxProcessorAsync);
         outboxGroup.MapPost("/processor/drain", DrainOutboxProcessorAsync);
+    }
 
-        ApplyManagementAuthorization(
-            endpoints.MapGet(
-                BuildManagementRoute(prefix, "health"),
-                (LiteBusHostManifest manifest, IServiceProvider services, CancellationToken cancellationToken) =>
-                    RunDiagnosticChecksAsync(manifest, services, options, cancellationToken)),
-            options);
-
-        return endpoints;
+    /// <summary>
+    ///     Maps a fallback route that reports an axis is not configured on the host.
+    /// </summary>
+    /// <param name="group">The route group for the unconfigured axis.</param>
+    /// <param name="axisName">The axis name included in the not-found response.</param>
+    private static void MapAxisNotConfigured(RouteGroupBuilder group, string axisName)
+    {
+        group.MapFallback(() => Results.NotFound($"{axisName} is not configured."));
     }
 
     /// <summary>
@@ -579,45 +623,24 @@ public static partial class LiteBusManagementEndpointExtensions
         LiteBusManagementOptions options,
         CancellationToken cancellationToken)
     {
-        if (manifest.DiagnosticChecks.Count == 0)
-        {
-            if (options.FailHealthWhenNoProbes)
+        var runResult = await DiagnosticCheckRunner.RunAsync(
+                manifest,
+                services,
+                options.FailHealthWhenNoProbes,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        List<DiagnosticProbeResponse> results = [
+            ..runResult.Probes.Select(probe => new DiagnosticProbeResponse
             {
-                var degraded = new[]
-                {
-                    new DiagnosticProbeResponse
-                    {
-                        Name = "litebus.probes",
-                        Status = DiagnosticStatus.Degraded,
-                        Description = "No diagnostic probes are registered.",
-                        Data = null
-                    }
-                };
+                Name = probe.Name,
+                Status = probe.Status,
+                Description = probe.Description,
+                Data = probe.Data
+            })
+        ];
 
-                return Results.Json(degraded, statusCode: StatusCodes.Status503ServiceUnavailable);
-            }
-
-            return Results.Ok(Array.Empty<DiagnosticProbeResponse>());
-        }
-
-        var results = new List<DiagnosticProbeResponse>();
-
-        foreach (var descriptor in manifest.DiagnosticChecks)
-        {
-            var check = (IDiagnosticCheck) services.GetRequiredService(descriptor.ImplementationType);
-            var result = await DiagnosticCheckExecution.CheckAsync(descriptor, check, cancellationToken).ConfigureAwait(false);
-            results.Add(new DiagnosticProbeResponse
-            {
-                Name = descriptor.Name,
-                Status = result.Status,
-                Description = result.Description,
-                Data = result.Data
-            });
-        }
-
-        var healthy = results.All(item => item.Status == DiagnosticStatus.Healthy);
-
-        return healthy
+        return runResult.Status == DiagnosticAggregateStatus.Healthy
             ? Results.Ok(results)
             : Results.Json(results, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
@@ -625,6 +648,10 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Executes an endpoint handler and maps unexpected exceptions to problem responses.
     /// </summary>
+    /// <remarks>
+    ///     Catches <see cref="Exception" /> at the ASP.NET management edge because handlers may surface
+    ///     store, transport, or domain failures that must become HTTP 500 responses instead of crashing the host.
+    /// </remarks>
     /// <param name="handler">The endpoint handler.</param>
     /// <returns>The HTTP result.</returns>
     private static async Task<IResult> ExecuteAsync(Func<Task<IResult>> handler)
@@ -633,15 +660,21 @@ public static partial class LiteBusManagementEndpointExtensions
         {
             return await handler().ConfigureAwait(false);
         }
+#pragma warning disable CA1031 // ASP.NET management edge maps unhandled failures to HTTP 500 responses.
         catch (Exception exception)
         {
             return Results.Problem(exception.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
+#pragma warning restore CA1031
     }
 
     /// <summary>
     ///     Executes a management endpoint handler and maps operator safety exceptions to bad requests.
     /// </summary>
+    /// <remarks>
+    ///     Catches <see cref="Exception" /> after domain-specific management exceptions because remaining
+    ///     failures from inbox or outbox managers must become HTTP 500 responses at this ASP.NET boundary.
+    /// </remarks>
     /// <param name="handler">The endpoint handler.</param>
     /// <returns>The HTTP result.</returns>
     private static async Task<IResult> ExecuteManagementAsync(Func<Task<IResult>> handler)
@@ -658,10 +691,12 @@ public static partial class LiteBusManagementEndpointExtensions
         {
             return Results.BadRequest(exception.Message);
         }
+#pragma warning disable CA1031 // Remaining inbox/outbox manager failures become HTTP 500 at this boundary.
         catch (Exception exception)
         {
             return Results.Problem(exception.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
+#pragma warning restore CA1031
     }
 
 }

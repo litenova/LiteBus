@@ -1,6 +1,5 @@
 using Azure.Messaging.ServiceBus;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.AzureServiceBus;
@@ -22,7 +21,8 @@ public sealed class AzureServiceBusTransportModule : IModule
     /// <param name="options">The connection settings configured by the application.</param>
     public AzureServiceBusTransportModule(AzureServiceBusTransportOptions options)
     {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options;
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.ConnectionString);
     }
 
@@ -76,6 +76,6 @@ public sealed class AzureServiceBusTransportModule : IModule
             },
             InstanceLifetime.Singleton));
 
-        TransportMetricsRegistration.RegisterIfNeeded(configuration);
+        TransportMetricsRegistration.RegisterIfNeeded(configuration, "azure_service_bus");
     }
 }

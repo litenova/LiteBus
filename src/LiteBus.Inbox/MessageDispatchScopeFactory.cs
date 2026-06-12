@@ -20,7 +20,8 @@ internal sealed class MessageDispatchScopeFactory : IMessageDispatchScopeFactory
     /// <param name="scopeFactory">The scope factory supplied by the host container.</param>
     public MessageDispatchScopeFactory(IServiceScopeFactory scopeFactory)
     {
-        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+        ArgumentNullException.ThrowIfNull(scopeFactory);
+        _scopeFactory = scopeFactory;
     }
 
     /// <inheritdoc />
@@ -45,7 +46,8 @@ internal sealed class MessageDispatchScopeFactory : IMessageDispatchScopeFactory
         /// <param name="scope">The host scope created for one dispatch operation.</param>
         public ServiceProviderMessageDispatchScope(IServiceScope scope)
         {
-            _scope = scope ?? throw new ArgumentNullException(nameof(scope));
+            ArgumentNullException.ThrowIfNull(scope);
+            _scope = scope;
         }
 
         /// <inheritdoc />

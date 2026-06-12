@@ -5,7 +5,6 @@ using System.Text;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Abstractions.Exceptions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
-using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Inbox.Ingress;

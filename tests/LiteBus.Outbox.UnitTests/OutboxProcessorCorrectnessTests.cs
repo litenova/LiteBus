@@ -52,7 +52,7 @@ public sealed class OutboxProcessorCorrectnessTests
                 Retry = new RetryOptions { UseJitter = false }
             },
             clock,
-            Array.Empty<IProcessorEnvelopeHook>());
+            []);
 
         var messageId = Guid.NewGuid();
 
@@ -119,7 +119,7 @@ public sealed class OutboxProcessorCorrectnessTests
                 DispatcherConcurrency = 1
             },
             clock,
-            Array.Empty<IProcessorEnvelopeHook>());
+            []);
 
         await store.Inner.AddAsync(new OutboxEnvelope
         {
@@ -222,6 +222,48 @@ public sealed class OutboxProcessorCorrectnessTests
     }
 
     [Fact]
+    public async Task PipelinedProcessor_when_hook_failure_policy_is_complete_despite_hook_failure_should_mark_published()
+    {
+        var store = new InMemoryOutboxStore();
+        var dispatchCount = 0;
+
+        var processor = new PipelinedOutboxProcessor(
+            store,
+            store,
+            new CountingOutboxDispatcher(() => Interlocked.Increment(ref dispatchCount)),
+            new OutboxProcessorOptions
+            {
+                BatchSize = 1,
+                LeaseOwner = "hook-complete-worker",
+                LeaseDuration = TimeSpan.FromMinutes(1),
+                DispatcherConcurrency = 1,
+                Retry = new RetryOptions { UseJitter = false },
+                HookFailurePolicy = ProcessorHookFailurePolicy.CompleteDespiteHookFailure
+            },
+            TimeProvider.System,
+            [new ThrowingAfterDispatchHook()]);
+
+        var messageId = Guid.NewGuid();
+
+        await store.AddAsync(new OutboxEnvelope
+        {
+            Id = messageId,
+            ContractName = "orders.events.submitted",
+            ContractVersion = 1,
+            Payload = "{}",
+            CreatedAt = BaseTime,
+            AttemptCount = 0,
+            Status = OutboxStatus.Pending
+        });
+
+        var result = await processor.ProcessPendingAsync();
+
+        dispatchCount.Should().Be(1);
+        result.SucceededCount.Should().Be(1);
+        store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
+    }
+
+    [Fact]
     public async Task PipelinedProcessor_when_persist_skipped_should_increment_persist_skipped_metric()
     {
         long measurementCount = 0;
@@ -262,7 +304,7 @@ public sealed class OutboxProcessorCorrectnessTests
                 DispatcherConcurrency = 1
             },
             TimeProvider.System,
-            Array.Empty<IProcessorEnvelopeHook>());
+            []);
 
         await store.Inner.AddAsync(new OutboxEnvelope
         {
@@ -301,7 +343,7 @@ public sealed class OutboxProcessorCorrectnessTests
                 HonorShutdownTokenOnPersist = false
             },
             TimeProvider.System,
-            Array.Empty<IProcessorEnvelopeHook>());
+            []);
 
         await store.Inner.AddAsync(new OutboxEnvelope
         {
@@ -340,7 +382,7 @@ public sealed class OutboxProcessorCorrectnessTests
                 HonorShutdownTokenOnPersist = true
             },
             TimeProvider.System,
-            Array.Empty<IProcessorEnvelopeHook>());
+            []);
 
         await store.Inner.AddAsync(new OutboxEnvelope
         {

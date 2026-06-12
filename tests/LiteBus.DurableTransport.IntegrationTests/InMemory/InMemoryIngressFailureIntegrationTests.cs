@@ -33,7 +33,7 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
             "{}",
             "unknown.contract",
             1,
-            0);
+            0).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -47,7 +47,7 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
             "{not-valid-json",
             ContractName,
             1,
-            0);
+            0).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -59,15 +59,17 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
     {
         var ingressDestination = $"litebus-inmemory-ingress-fail-{Guid.NewGuid():N}";
 
-        await using var provider = BuildProvider(ingressDestination, 1);
-        await StartIngressAsync(provider);
+         var provider = BuildProvider(ingressDestination, 1);
+         await using (provider.ConfigureAwait(false))
+         {
+        await StartIngressAsync(provider).ConfigureAwait(false);
 
         var inbox = provider.GetRequiredService<IInbox>();
 
         await inbox.AcceptAsync(new InboxAcceptItem<ShipOrderCommand>
         {
             Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
-        });
+        }).ConfigureAwait(false);
 
         var publisher = provider.GetRequiredService<IMessageTransport>();
         var messageId = Guid.NewGuid();
@@ -78,13 +80,14 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
             Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
             MessageId = messageId.ToString("D"),
             Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-        });
+        }).ConfigureAwait(false);
 
         await PollingWait.UntilAsync(
             () => GetInboxStoreCount(provider) == 1,
-            TimeSpan.FromSeconds(10));
+            TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
         GetInboxStoreCount(provider).Should().Be(1);
+        }
     }
 
     /// <summary>
@@ -103,8 +106,10 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
     {
         var ingressDestination = $"litebus-inmemory-ingress-fail-{Guid.NewGuid():N}";
 
-        await using var provider = BuildProvider(ingressDestination, 100);
-        await StartIngressAsync(provider);
+         var provider = BuildProvider(ingressDestination, 100);
+         await using (provider.ConfigureAwait(false))
+         {
+        await StartIngressAsync(provider).ConfigureAwait(false);
 
         var publisher = provider.GetRequiredService<IMessageTransport>();
         var messageId = Guid.NewGuid();
@@ -115,11 +120,12 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
             Body = Encoding.UTF8.GetBytes(body),
             MessageId = messageId.ToString("D"),
             Headers = TransportTestHeaders.Create(messageId, contractName, contractVersion)
-        });
+        }).ConfigureAwait(false);
 
         await PollingWait.UntilAsync(
             () => GetInboxStoreCount(provider) == expectedPendingCount,
-            TimeSpan.FromSeconds(10));
+            TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -170,8 +176,8 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
     private static async Task StartIngressAsync(ServiceProvider provider)
     {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(300), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(300), runCts.Token).ConfigureAwait(false);
     }
 
     /// <summary>

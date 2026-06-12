@@ -18,8 +18,10 @@ public sealed class AmbiguousMessageResolveException : Exception
             $"using resolve strategy '{resolveStrategyType.FullName ?? resolveStrategyType.Name}'. " +
             "Register handlers for a single most-derived message type or use a more specific resolve strategy.")
     {
-        MessageType = messageType ?? throw new ArgumentNullException(nameof(messageType));
-        ResolveStrategyType = resolveStrategyType ?? throw new ArgumentNullException(nameof(resolveStrategyType));
+        ArgumentNullException.ThrowIfNull(messageType);
+        MessageType = messageType;
+        ArgumentNullException.ThrowIfNull(resolveStrategyType);
+        ResolveStrategyType = resolveStrategyType;
     }
 
     /// <summary>

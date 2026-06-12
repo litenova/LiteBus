@@ -40,7 +40,7 @@ public sealed class TransportInboxDispatcherTests
             Status = InboxStatus.Processing,
             AttemptCount = 1,
             CorrelationId = "corr-1"
-        });
+        }).ConfigureAwait(false);
 
         transport.Published.Should().ContainSingle();
         var published = transport.Published.Single();

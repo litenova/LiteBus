@@ -1,3 +1,4 @@
+using System.Linq;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Modules;
@@ -47,7 +48,7 @@ public sealed class ModuleRegistryTests
         registry.Register(new ChainBModule());
         registry.Register(new ChainCModule());
 
-        var order = registry.Select(descriptor => descriptor.ModuleType).ToList();
+        var order = registry.BuildOrder().Select(descriptor => descriptor.ModuleType).ToList();
 
         order.IndexOf(typeof(ChainCModule)).Should().BeLessThan(order.IndexOf(typeof(ChainBModule)));
         order.IndexOf(typeof(ChainBModule)).Should().BeLessThan(order.IndexOf(typeof(ChainAModule)));
@@ -60,7 +61,7 @@ public sealed class ModuleRegistryTests
         registry.Register(new CycleAModule());
         registry.Register(new CycleBModule());
 
-        var act = () => registry.ToList();
+        var act = () => registry.BuildOrder();
 
         act.Should()
             .Throw<LiteBusConfigurationException>()
@@ -73,7 +74,7 @@ public sealed class ModuleRegistryTests
         var registry = new ModuleRegistry();
         registry.Register(new MissingDependencyModule());
 
-        var act = () => registry.ToList();
+        var act = () => registry.BuildOrder();
 
         act.Should()
             .Throw<LiteBusConfigurationException>()
@@ -85,11 +86,11 @@ public sealed class ModuleRegistryTests
     {
         var registry = new ModuleRegistry();
         registry.Register(new FoundationModule());
-        _ = registry.ToList();
+        _ = registry.BuildOrder();
 
         registry.Register(new DependentModule());
 
-        var order = registry.Select(descriptor => descriptor.ModuleType).ToList();
+        var order = registry.BuildOrder().Select(descriptor => descriptor.ModuleType).ToList();
         order.IndexOf(typeof(FoundationModule)).Should().BeLessThan(order.IndexOf(typeof(DependentModule)));
     }
 

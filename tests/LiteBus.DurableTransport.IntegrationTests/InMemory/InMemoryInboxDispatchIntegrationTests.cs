@@ -31,9 +31,13 @@ public sealed class InMemoryInboxDispatchIntegrationTests : LiteBusTestBase
         var destination = CreateDestination("inbox-dispatch");
         var received = new TaskCompletionSource<TransportMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await using var provider = BuildProvider(destination);
+         var provider = BuildProvider(destination);
+         await using (provider.ConfigureAwait(false))
+         {
         var broker = provider.GetRequiredService<InMemoryTransportBroker>();
-        await using var consumer = await StartReceiveOneAsync(broker, destination, received);
+         var consumer = await StartReceiveOneAsync(broker, destination, received).ConfigureAwait(false);
+         await using (consumer.ConfigureAwait(false))
+         {
 
         var inbox = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -52,12 +56,12 @@ public sealed class InMemoryInboxDispatchIntegrationTests : LiteBusTestBase
                 Trace = new MessageTrace.Workflow("corr-dispatch", "cause-dispatch"),
                 Tenant = new TenantScope.Isolated("tenant-dispatch")
             }
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var message = await received.Task.WaitAsync(cancellationSource.Token);
+        var message = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
 
         TransportMessageAssertions.ReadBody(message).Should().Contain(workItemId.ToString());
 
@@ -80,6 +84,8 @@ public sealed class InMemoryInboxDispatchIntegrationTests : LiteBusTestBase
             .Should().Be("tenant-dispatch");
 
         provider.GetRequiredService<InMemoryInboxStore>().Get(receipt.Id).Status.Should().Be(InboxStatus.Completed);
+        }
+        }
     }
 
     /// <summary>
@@ -147,8 +153,8 @@ public sealed class InMemoryInboxDispatchIntegrationTests : LiteBusTestBase
             async (message, cancellationToken) =>
             {
                 received.TrySetResult(message);
-                await message.AcceptAsync(cancellationToken);
-            });
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
         return consumer;
     }

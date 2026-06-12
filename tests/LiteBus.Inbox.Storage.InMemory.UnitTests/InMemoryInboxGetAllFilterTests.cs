@@ -20,7 +20,7 @@ public sealed class InMemoryInboxGetAllFilterTests
         var pendingOtherContractId = Guid.NewGuid();
         var completedMatchId = Guid.NewGuid();
 
-        await store.EnqueueAsync(CreateEnvelope(completedMatchId, "contract.a", InboxStatus.Pending, now));
+        await store.EnqueueAsync(CreateEnvelope(completedMatchId, "contract.a", InboxStatus.Pending, now)).ConfigureAwait(false);
 
         var completedLease = await store.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -28,12 +28,12 @@ public sealed class InMemoryInboxGetAllFilterTests
             LeaseOwner = "test",
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await store.PersistAsync([completedLease[0].AsCompleted()]);
+        await store.PersistAsync([completedLease[0].AsCompleted()]).ConfigureAwait(false);
 
-        await store.EnqueueAsync(CreateEnvelope(pendingMatchId, "contract.a", InboxStatus.Pending, now));
-        await store.EnqueueAsync(CreateEnvelope(pendingOtherContractId, "contract.b", InboxStatus.Pending, now));
+        await store.EnqueueAsync(CreateEnvelope(pendingMatchId, "contract.a", InboxStatus.Pending, now)).ConfigureAwait(false);
+        await store.EnqueueAsync(CreateEnvelope(pendingOtherContractId, "contract.b", InboxStatus.Pending, now)).ConfigureAwait(false);
 
         store.GetAll(InboxStatus.Pending, "contract.a")
             .Should()

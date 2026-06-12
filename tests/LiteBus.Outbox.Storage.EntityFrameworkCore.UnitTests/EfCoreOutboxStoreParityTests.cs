@@ -18,8 +18,8 @@ public sealed class EfCoreOutboxStoreParityTests
         var store = CreateStore(databaseName);
         var now = new DateTimeOffset(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);
 
-        await store.AddAsync(CreatePendingEnvelope("tenant-a", now));
-        await store.AddAsync(CreatePendingEnvelope("tenant-b", now));
+        await store.AddAsync(CreatePendingEnvelope("tenant-a", now)).ConfigureAwait(true);
+        await store.AddAsync(CreatePendingEnvelope("tenant-b", now)).ConfigureAwait(true);
 
         var leased = await store.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -45,8 +45,8 @@ public sealed class EfCoreOutboxStoreParityTests
         var now = new DateTimeOffset(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);
         var envelope = CreatePendingEnvelope("tenant-a", now.AddHours(-2));
 
-        await store.AddAsync(envelope);
-        await SeedPublishingWithNullLeaseAsync(databaseName, envelope.Id, now.AddHours(-1));
+        await store.AddAsync(envelope).ConfigureAwait(true);
+        await SeedPublishingWithNullLeaseAsync(databaseName, envelope.Id, now.AddHours(-1)).ConfigureAwait(true);
 
         var leased = await store.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -83,8 +83,11 @@ public sealed class EfCoreOutboxStoreParityTests
         batch[0].Id.Should().Be(firstId);
         batch[1].Id.Should().Be(firstId);
 
-        await using var context = CreateContext(databaseName);
-        (await context.OutboxMessages.CountAsync()).Should().Be(1);
+         var context = CreateContext(databaseName);
+         await using (context.ConfigureAwait(false))
+         {
+        (await context.OutboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(1);
+        }
     }
 
     /// <summary>
@@ -98,7 +101,7 @@ public sealed class EfCoreOutboxStoreParityTests
         var now = new DateTimeOffset(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);
         var envelope = CreatePendingEnvelope("tenant-a", now);
 
-        await store.AddAsync(envelope);
+        await store.AddAsync(envelope).ConfigureAwait(true);
 
         var leased = (await store.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -106,7 +109,7 @@ public sealed class EfCoreOutboxStoreParityTests
             LeaseOwner = "worker-1",
             Now = now,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        })).Single();
+        }).ConfigureAwait(false)).Single();
 
         var result = await store.PersistAsync([
             leased.AsPublished() with { LeaseOwner = "other-worker" }
@@ -151,14 +154,17 @@ public sealed class EfCoreOutboxStoreParityTests
     /// <returns>A task that represents the asynchronous seed operation.</returns>
     private static async Task SeedPublishingWithNullLeaseAsync(string databaseName, Guid messageId, DateTimeOffset createdAt)
     {
-        await using var context = CreateContext(databaseName);
-        var entity = await context.OutboxMessages.SingleAsync(message => message.Id == messageId);
+         var context = CreateContext(databaseName);
+         await using (context.ConfigureAwait(false))
+         {
+        var entity = await context.OutboxMessages.SingleAsync(message => message.Id == messageId).ConfigureAwait(false);
         entity.Status = OutboxStatus.Publishing;
         entity.AttemptCount = 1;
         entity.LeaseOwner = "stale-publisher";
         entity.LeaseExpiresAt = null;
         entity.CreatedAt = createdAt;
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync().ConfigureAwait(false);
+        }
     }
 
     /// <summary>

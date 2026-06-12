@@ -38,7 +38,8 @@ internal static class EfCorePostgreSqlLeaseSql
                    status = {3}::integer,
                    lease_owner = {5}::text,
                    lease_expires_at = {6}::timestamptz,
-                   attempt_count = __ALIAS__.attempt_count + 1
+                   attempt_count = __ALIAS__.attempt_count + 1,
+                   last_attempted_at = {2}::timestamptz
                FROM candidates
                WHERE __ALIAS__.__ID_COLUMN__ = candidates.__ID_COLUMN__
                RETURNING

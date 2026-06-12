@@ -25,7 +25,8 @@ public sealed class KafkaInboxIngressModule : IInboxIngressModule
     /// <param name="builder">The module configuration action.</param>
     public KafkaInboxIngressModule(Action<KafkaInboxIngressModuleBuilder> builder)
     {
-        _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+        ArgumentNullException.ThrowIfNull(builder);
+        _builder = builder;
     }
 
     /// <inheritdoc />

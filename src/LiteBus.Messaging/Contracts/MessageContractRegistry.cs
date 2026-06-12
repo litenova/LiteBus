@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
 
@@ -33,7 +34,11 @@ internal sealed class MessageContractRegistry : IMessageContractRegistry
     }
 
     /// <inheritdoc />
-    public IContractWriter Register(Type messageType, string name, int version = 1)
+    public IContractWriter Register(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+        Type messageType,
+        string name,
+        int version = 1)
     {
         ArgumentNullException.ThrowIfNull(messageType);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -47,7 +52,7 @@ internal sealed class MessageContractRegistry : IMessageContractRegistry
 
         if (version <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(version), version, "Contract version must be greater than zero.");
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(version, 0, nameof(version));
         }
 
         ValidateAgainstAttribute(messageType, name, version);
@@ -68,7 +73,9 @@ internal sealed class MessageContractRegistry : IMessageContractRegistry
     }
 
     /// <inheritdoc />
-    public MessageContract GetContract(Type messageType)
+    public MessageContract GetContract(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+        Type messageType)
     {
         ArgumentNullException.ThrowIfNull(messageType);
 
@@ -84,7 +91,9 @@ internal sealed class MessageContractRegistry : IMessageContractRegistry
     }
 
     /// <inheritdoc />
-    public MessageContract? TryGetContract(Type messageType)
+    public MessageContract? TryGetContract(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+        Type messageType)
     {
         ArgumentNullException.ThrowIfNull(messageType);
 
@@ -108,6 +117,7 @@ internal sealed class MessageContractRegistry : IMessageContractRegistry
     }
 
     /// <inheritdoc />
+    [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
     public Type GetMessageType(string contractName, int contractVersion)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contractName);
@@ -124,6 +134,7 @@ internal sealed class MessageContractRegistry : IMessageContractRegistry
     }
 
     /// <inheritdoc />
+    [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
     public Type? TryGetMessageType(string contractName, int contractVersion)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contractName);
@@ -140,6 +151,7 @@ internal sealed class MessageContractRegistry : IMessageContractRegistry
     }
 
     /// <inheritdoc />
+    [RequiresUnreferencedCode("Scans assemblies for MessageContractAttribute-decorated message types.")]
     public IContractWriter AddFromAssembly(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);

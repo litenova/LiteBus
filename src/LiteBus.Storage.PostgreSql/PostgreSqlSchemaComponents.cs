@@ -14,4 +14,9 @@ public static class PostgreSqlSchemaComponents
     ///     The outbox store component name.
     /// </summary>
     public const string Outbox = "outbox";
+
+    /// <summary>
+    ///     The saga store component name.
+    /// </summary>
+    public const string Saga = "saga";
 }

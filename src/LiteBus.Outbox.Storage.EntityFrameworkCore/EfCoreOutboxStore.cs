@@ -188,10 +188,11 @@ public sealed class EfCoreOutboxStore :
                 throw new InvalidOperationException("Retention cleanup requires a DbContext-backed outbox database context.");
             }
 
-            return await dbContext.Set<OutboxMessageEntity>()
+            var query = dbContext.Set<OutboxMessageEntity>()
                 .Where(message => message.Status == OutboxStatus.Published &&
-                                  (message.PublishedAt ?? message.CreatedAt) < olderThan)
-                .ExecuteDeleteAsync(token)
+                                  (message.PublishedAt ?? message.CreatedAt) < olderThan);
+
+            return await EfCoreDurableStoreOperations.DeleteMatchingAsync(dbContext, query, token)
                 .ConfigureAwait(false);
         }, cancellationToken);
     }
@@ -257,7 +258,8 @@ public sealed class EfCoreOutboxStore :
             }
 
             var query = ApplyFilter(context.OutboxMessages.AsQueryable(), filter);
-            return await DeleteMatchingAsync(dbContext, query, token).ConfigureAwait(false);
+            return await EfCoreDurableStoreOperations.DeleteMatchingAsync(dbContext, query, token)
+                .ConfigureAwait(false);
         }, cancellationToken);
     }
 
@@ -276,17 +278,20 @@ public sealed class EfCoreOutboxStore :
                 throw new InvalidOperationException("Lease renewal requires a DbContext-backed outbox database context.");
             }
 
-            var affected = await dbContext.Set<OutboxMessageEntity>()
+            var renewalQuery = dbContext.Set<OutboxMessageEntity>()
                 .Where(message =>
                     message.Id == request.MessageId &&
                     message.Status == OutboxStatus.Publishing &&
-                    message.LeaseOwner == request.LeaseOwner)
-                .ExecuteUpdateAsync(
-                    setters => setters.SetProperty(message => message.LeaseExpiresAt, request.ExpiresAt),
-                    token)
-                .ConfigureAwait(false);
+                    message.LeaseOwner == request.LeaseOwner);
 
-            return affected > 0;
+            return await EfCoreDurableStoreOperations.ExecuteUpdateOrTrackAsync(
+                dbContext,
+                () => renewalQuery.ExecuteUpdateAsync(
+                    setters => setters.SetProperty(message => message.LeaseExpiresAt, request.ExpiresAt),
+                    token),
+                renewalQuery,
+                entity => entity.LeaseExpiresAt = request.ExpiresAt,
+                token).ConfigureAwait(false);
         }, cancellationToken);
     }
 
@@ -392,14 +397,14 @@ public sealed class EfCoreOutboxStore :
 
         return await ExecuteAsync(async (context, token) =>
         {
-            var local = FindLocalEntity(context, envelope.Id, envelope.IdempotencyKey);
+            var local = FindLocalEntity(context, envelope.Id, envelope.TenantId, envelope.IdempotencyKey);
 
             if (local is not null)
             {
                 return ToEnvelope(local);
             }
 
-            var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token).ConfigureAwait(false);
+            var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.TenantId, envelope.IdempotencyKey, token).ConfigureAwait(false);
 
             if (existing is not null)
             {
@@ -423,7 +428,7 @@ public sealed class EfCoreOutboxStore :
             }
             catch (DbUpdateException)
             {
-                var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token).ConfigureAwait(false);
+                var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.TenantId, envelope.IdempotencyKey, token).ConfigureAwait(false);
 
                 if (stored is null)
                 {
@@ -446,7 +451,7 @@ public sealed class EfCoreOutboxStore :
 
         if (envelopes.Count == 0)
         {
-            return Array.Empty<OutboxEnvelope>();
+            return [];
         }
 
         return await ExecuteAsync(async (context, token) =>
@@ -468,13 +473,18 @@ public sealed class EfCoreOutboxStore :
                     continue;
                 }
 
-                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey) && seenIdempotencyKeys.TryGetValue(envelope.IdempotencyKey, out var duplicateByKey))
+                if (EfCoreIdempotencyResolution.TryGetBatchDuplicate(
+                        seenIdempotencyKeys,
+                        envelope,
+                        envelope => envelope.TenantId,
+                        envelope => envelope.IdempotencyKey,
+                        out var duplicateByKey))
                 {
                     results[index] = duplicateByKey;
                     continue;
                 }
 
-                var local = FindLocalEntity(context, envelope.Id, envelope.IdempotencyKey);
+                var local = FindLocalEntity(context, envelope.Id, envelope.TenantId, envelope.IdempotencyKey);
 
                 if (local is not null)
                 {
@@ -483,7 +493,7 @@ public sealed class EfCoreOutboxStore :
                     continue;
                 }
 
-                var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
+                var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.TenantId, envelope.IdempotencyKey, token)
                     .ConfigureAwait(false);
 
                 if (existing is not null)
@@ -493,7 +503,10 @@ public sealed class EfCoreOutboxStore :
                     continue;
                 }
 
-                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey) && pendingIdempotencyKeys.TryGetValue(envelope.IdempotencyKey, out var sourceIndex))
+                if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey) &&
+                    pendingIdempotencyKeys.TryGetValue(
+                        EfCoreIdempotencyResolution.CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey),
+                        out var sourceIndex))
                 {
                     pendingAliases[index] = sourceIndex;
                     continue;
@@ -501,7 +514,8 @@ public sealed class EfCoreOutboxStore :
 
                 if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
                 {
-                    pendingIdempotencyKeys[envelope.IdempotencyKey] = index;
+                    pendingIdempotencyKeys[
+                        EfCoreIdempotencyResolution.CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey)] = index;
                 }
 
                 pending.Add((index, envelope));
@@ -556,7 +570,7 @@ public sealed class EfCoreOutboxStore :
 
                 foreach (var (index, envelope) in pending)
                 {
-                    var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.IdempotencyKey, token)
+                    var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.TenantId, envelope.IdempotencyKey, token)
                                      .ConfigureAwait(false) ??
                                  throw new InvalidOperationException(
                                      "The outbox batch insert failed and the existing message could not be found.");
@@ -897,7 +911,7 @@ public sealed class EfCoreOutboxStore :
             throw new InvalidOperationException("The outbox store is not configured with a context factory or scope factory.");
         }
 
-        await using var scope = _scopeFactory.CreateAsyncScope();
+        using var scope = _scopeFactory.CreateAsyncScope();
         var contextFromScope = (IOutboxDbContext) scope.ServiceProvider.GetRequiredService(_dbContextType);
         return await action(contextFromScope, cancellationToken).ConfigureAwait(false);
     }
@@ -1056,7 +1070,7 @@ public sealed class EfCoreOutboxStore :
 
         foreach (var message in candidates)
         {
-            ApplyMutableState(message, ToEnvelope(message).AsLeased(request.LeaseOwner, leaseExpiresAt));
+            ApplyMutableState(message, ToEnvelope(message).AsLeased(request.LeaseOwner, leaseExpiresAt), now);
         }
 
         if (context is DbContext dbContext)
@@ -1072,49 +1086,60 @@ public sealed class EfCoreOutboxStore :
     /// </summary>
     /// <param name="context">The database context.</param>
     /// <param name="messageId">The message identifier.</param>
+    /// <param name="tenantId">The tenant identifier.</param>
     /// <param name="idempotencyKey">The optional idempotency key.</param>
     /// <returns>The tracked entity when found; otherwise, <see langword="null" />.</returns>
     private static OutboxMessageEntity? FindLocalEntity(
         IOutboxDbContext context,
         Guid messageId,
+        string? tenantId,
         string? idempotencyKey)
     {
+        var normalizedTenantId = EfCoreIdempotencyResolution.NormalizeTenantId(tenantId);
+
         return context.OutboxMessages.Local.FirstOrDefault(message =>
-            message.Id == messageId || !string.IsNullOrWhiteSpace(idempotencyKey) && message.IdempotencyKey == idempotencyKey);
+            message.Id == messageId ||
+            !string.IsNullOrWhiteSpace(idempotencyKey) &&
+            message.IdempotencyKey == idempotencyKey &&
+            EfCoreIdempotencyResolution.NormalizeTenantId(message.TenantId) == normalizedTenantId);
     }
 
     /// <summary>
     ///     Records one batch result so later duplicate identifiers resolve to the same envelope.
     /// </summary>
     /// <param name="seenIds">The message identifiers already resolved in the batch.</param>
-    /// <param name="seenIdempotencyKeys">The idempotency keys already resolved in the batch.</param>
+    /// <param name="seenIdempotencyScopes">The tenant-scoped idempotency keys already resolved in the batch.</param>
     /// <param name="envelope">The source envelope from the batch request.</param>
     /// <param name="result">The resolved envelope returned for the batch slot.</param>
     private static void RememberBatchResult(
         Dictionary<Guid, OutboxEnvelope> seenIds,
-        Dictionary<string, OutboxEnvelope> seenIdempotencyKeys,
+        Dictionary<string, OutboxEnvelope> seenIdempotencyScopes,
         OutboxEnvelope envelope,
         OutboxEnvelope result)
     {
-        seenIds[envelope.Id] = result;
-
-        if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
-        {
-            seenIdempotencyKeys[envelope.IdempotencyKey] = result;
-        }
+        EfCoreIdempotencyResolution.RememberBatchResult(
+            seenIds,
+            seenIdempotencyScopes,
+            envelope,
+            result,
+            envelope => envelope.Id,
+            envelope => envelope.TenantId,
+            envelope => envelope.IdempotencyKey);
     }
 
     /// <summary>
-    ///     Finds an existing outbox row by message id or idempotency key.
+    ///     Finds an existing outbox row by message id or tenant-scoped idempotency key.
     /// </summary>
     /// <param name="context">The database context.</param>
     /// <param name="messageId">The message identifier from the attempted insert.</param>
+    /// <param name="tenantId">The tenant identifier from the attempted insert.</param>
     /// <param name="idempotencyKey">The optional idempotency key from the attempted insert.</param>
     /// <param name="cancellationToken">A token that cancels the lookup.</param>
     /// <returns>The existing entity when found; otherwise, <see langword="null" />.</returns>
     private static async Task<OutboxMessageEntity?> FindExistingEntityAsync(
         IOutboxDbContext context,
         Guid messageId,
+        string? tenantId,
         string? idempotencyKey,
         CancellationToken cancellationToken)
     {
@@ -1126,9 +1151,14 @@ public sealed class EfCoreOutboxStore :
                 .ConfigureAwait(false);
         }
 
+        var normalizedTenantId = EfCoreIdempotencyResolution.NormalizeTenantId(tenantId);
+
         return await context.OutboxMessages
             .AsNoTracking()
-            .Where(message => message.Id == messageId || message.IdempotencyKey == idempotencyKey)
+            .Where(message =>
+                message.Id == messageId ||
+                message.IdempotencyKey == idempotencyKey &&
+                message.TenantId == normalizedTenantId)
             .OrderBy(message => message.Id == messageId ? 0 : 1)
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -1262,7 +1292,7 @@ public sealed class EfCoreOutboxStore :
             LastError = envelope.LastError,
             CorrelationId = envelope.CorrelationId,
             CausationId = envelope.CausationId,
-            TenantId = envelope.TenantId,
+            TenantId = EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
             IdempotencyKey = envelope.IdempotencyKey,
             TraceContext = envelope.TraceContext
         };
@@ -1273,7 +1303,11 @@ public sealed class EfCoreOutboxStore :
     /// </summary>
     /// <param name="entity">The entity to update.</param>
     /// <param name="envelope">The envelope produced by a transition method.</param>
-    private static void ApplyMutableState(OutboxMessageEntity entity, OutboxEnvelope envelope)
+    /// <param name="leasedAt">The lease timestamp recorded as <c>last_attempted_at</c> when supplied.</param>
+    private static void ApplyMutableState(
+        OutboxMessageEntity entity,
+        OutboxEnvelope envelope,
+        DateTimeOffset? leasedAt = null)
     {
         entity.Status = envelope.Status;
         entity.VisibleAfter = envelope.VisibleAfter;
@@ -1288,6 +1322,11 @@ public sealed class EfCoreOutboxStore :
             : envelope.LeaseExpiresAt;
 
         entity.LastError = envelope.LastError;
+
+        if (envelope.Status == OutboxStatus.Publishing && leasedAt is not null)
+        {
+            entity.LastAttemptedAt = leasedAt;
+        }
 
         if (envelope.Status == OutboxStatus.Published)
         {
@@ -1413,37 +1452,6 @@ public sealed class EfCoreOutboxStore :
         {
             throw new ArgumentOutOfRangeException(nameof(pageSize), pageSize, "Page size must be greater than zero.");
         }
-    }
-
-    /// <summary>
-    ///     Deletes rows matched by a filtered query, using bulk delete when the provider supports it.
-    /// </summary>
-    /// <typeparam name="TEntity">The outbox entity type.</typeparam>
-    /// <param name="dbContext">The database context executing the delete.</param>
-    /// <param name="query">The filtered entity query.</param>
-    /// <param name="cancellationToken">A token that cancels the delete operation.</param>
-    /// <returns>The number of deleted rows.</returns>
-    private static async Task<int> DeleteMatchingAsync<TEntity>(
-        DbContext dbContext,
-        IQueryable<TEntity> query,
-        CancellationToken cancellationToken)
-        where TEntity : class
-    {
-        if (dbContext.Database.ProviderName?.Contains("InMemory", StringComparison.Ordinal) == true)
-        {
-            var matches = await query.ToListAsync(cancellationToken).ConfigureAwait(false);
-
-            if (matches.Count == 0)
-            {
-                return 0;
-            }
-
-            dbContext.Set<TEntity>().RemoveRange(matches);
-            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            return matches.Count;
-        }
-
-        return await query.ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

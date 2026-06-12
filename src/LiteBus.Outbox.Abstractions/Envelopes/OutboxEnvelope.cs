@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 
 namespace LiteBus.Outbox.Abstractions;
@@ -11,6 +12,7 @@ namespace LiteBus.Outbox.Abstractions;
 ///     serialized message; the contract fields identify the CLR type used for deserialization or transport mapping.
 ///     Processors update status, attempt count, lease, and error fields as the message moves through publication.
 /// </remarks>
+[DebuggerDisplay("Id = {Id}, Status = {Status}, AttemptCount = {AttemptCount}")]
 public sealed record OutboxEnvelope
 {
     /// <summary>

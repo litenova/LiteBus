@@ -41,7 +41,7 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
     public async Task ProcessPendingAsync_ShouldPublishToAmqpAndMarkPostgreSqlEnvelopeCompleted()
     {
         var storeOptions = CreateInboxStoreOptions();
-        await PostgreSqlInboxSchema.EnsureAsync(_postgresFixture.DataSource, storeOptions);
+        await PostgreSqlInboxSchema.EnsureAsync(_postgresFixture.DataSource, storeOptions).ConfigureAwait(true);
 
         var exchangeName = $"litebus.inbox.pg.dispatch.{Guid.NewGuid():N}";
         var queueName = $"litebus.inbox.pg.dispatch.queue.{Guid.NewGuid():N}";
@@ -52,9 +52,12 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
             connectionUri,
             exchangeName,
             queueName,
-            routingKey);
+            routingKey).ConfigureAwait(true);
 
-        await using var provider = BuildProvider(storeOptions, exchangeName, routingKey);
+
+         var provider = BuildProvider(storeOptions, exchangeName, routingKey);
+         await using (provider.ConfigureAwait(false))
+         {
         var inbox = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
@@ -70,9 +73,10 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
                 Identity = new MessageIdentity.Supplied(messageId),
                 Trace = new MessageTrace.Workflow("corr-pg-dispatch", "cause-pg-dispatch"),
                 Tenant = new TenantScope.Isolated("tenant-pg")
-            }));
+            })).ConfigureAwait(true);
 
-        await processor.ProcessPendingAsync();
+
+        await processor.ProcessPendingAsync().ConfigureAwait(true);
 
         var (body, headers) = await AmqpTestInfrastructure.ReceiveOneAsync(
             connectionUri,
@@ -82,10 +86,11 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
         body.Should().Contain(workItemId.ToString());
         headers[AmqpHeaders.MessageId].Should().Be(messageId.ToString("D"));
 
-        var row = await ReadInboxAsync(storeOptions, messageId);
+        var row = await ReadInboxAsync(storeOptions, messageId).ConfigureAwait(true);
         row.Should().NotBeNull();
         row!.Value.Status.Should().Be(InboxStatus.Completed);
         row.Value.AttemptCount.Should().Be(1);
+        }
     }
 
     private ServiceProvider BuildProvider(
@@ -147,8 +152,12 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-        await using var connection = await _postgresFixture.DataSource.OpenConnectionAsync();
-        await using var command = connection.CreateCommand();
+         var connection = await _postgresFixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var command = connection.CreateCommand();
+         await using (command.ConfigureAwait(false))
+         {
 
         command.CommandText = $"""
                                SELECT status, attempt_count
@@ -158,14 +167,20 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
 
         command.Parameters.AddWithValue("message_id", messageId);
 
-        await using var reader = await command.ExecuteReaderAsync();
+         var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
+         await using (reader.ConfigureAwait(false))
+         {
 
-        if (!await reader.ReadAsync())
+        if (!await reader.ReadAsync().ConfigureAwait(false))
         {
             return null;
+
         }
 
         return ((InboxStatus) reader.GetInt32(0), reader.GetInt32(1));
+        }
+        }
+        }
     }
 
     private static Uri ResolveConnectionUri(AmqpConnectionOptions connectionOptions)

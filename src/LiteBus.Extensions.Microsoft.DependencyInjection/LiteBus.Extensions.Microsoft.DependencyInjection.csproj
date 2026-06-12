@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <RootNamespace>LiteBus.Extensions.MicrosoftDependencyInjection</RootNamespace>
+        <Description>Convenience meta-package that references LiteBus.Extensions.All and every semantic mediator Microsoft DI extension package.</Description>
+        <PackageTags>$(PackageTags);dependency-injection;composition</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>

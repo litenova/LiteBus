@@ -29,7 +29,7 @@ public sealed class QueryMediatorValidationTests : LiteBusTestBase
 
         var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
 
-        var act = async () => await queryMediator.QueryAsync<GetProductQueryResult>(null!);
+        var act = async () => await queryMediator.QueryAsync<GetProductQueryResult>(null!).ConfigureAwait(true);
 
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
@@ -53,7 +53,7 @@ public sealed class QueryMediatorValidationTests : LiteBusTestBase
 
         var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
 
-        var act = async () => await queryMediator.StreamAsync<GetProductQueryResult>(null!).ToListAsync();
+        var act = async () => await queryMediator.StreamAsync<GetProductQueryResult>(null!).ToListAsync().ConfigureAwait(true);
 
         await act.Should().ThrowAsync<ArgumentNullException>();
     }

@@ -11,9 +11,12 @@ public sealed class LiteBusDependencyResolutionException : Exception
     ///     Initializes a new instance of the <see cref="LiteBusDependencyResolutionException" /> class.
     /// </summary>
     /// <param name="serviceType">The unresolved service type.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceType" /> is <see langword="null" />.</exception>
     public LiteBusDependencyResolutionException(Type serviceType)
         : base($"Service of type '{serviceType.FullName ?? serviceType.Name}' is not registered.")
     {
+        ArgumentNullException.ThrowIfNull(serviceType);
+
         ServiceType = serviceType;
     }
 

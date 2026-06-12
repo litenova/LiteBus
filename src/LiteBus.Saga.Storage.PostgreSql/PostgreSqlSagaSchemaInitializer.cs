@@ -18,7 +18,8 @@ public sealed class PostgreSqlSagaSchemaInitializer : IStartupTask
     /// <param name="registration">The registered PostgreSQL saga store configuration.</param>
     public PostgreSqlSagaSchemaInitializer(PostgreSqlSagaStoreRegistration registration)
     {
-        _registration = registration ?? throw new ArgumentNullException(nameof(registration));
+        ArgumentNullException.ThrowIfNull(registration);
+        _registration = registration;
     }
 
     /// <inheritdoc />

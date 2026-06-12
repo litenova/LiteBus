@@ -43,16 +43,18 @@ public sealed class KafkaIngressIdempotencyIntegrationTests : LiteBusTestBase
     public async Task DuplicateMessageId_ShouldCreateSingleInboxRow()
     {
         var ingressTopic = KafkaTransportTestInfrastructure.CreateTopic("ingress-idem");
-        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, ingressTopic);
+        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, ingressTopic).ConfigureAwait(false);
 
         var messageId = Guid.NewGuid();
         var payload = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() });
         var headers = TransportTestHeaders.Create(messageId, ContractName, 1);
 
-        await using var provider = BuildProvider(ingressTopic);
+         var provider = BuildProvider(ingressTopic);
+         await using (provider.ConfigureAwait(false))
+         {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -64,7 +66,7 @@ public sealed class KafkaIngressIdempotencyIntegrationTests : LiteBusTestBase
                 Body = payload,
                 MessageId = messageId.ToString("D"),
                 Headers = headers
-            });
+            }).ConfigureAwait(false);
 
             await publisher.PublishAsync(new TransportPublishRequest
             {
@@ -72,17 +74,18 @@ public sealed class KafkaIngressIdempotencyIntegrationTests : LiteBusTestBase
                 Body = payload,
                 MessageId = messageId.ToString("D"),
                 Headers = headers
-            });
+            }).ConfigureAwait(false);
 
             await PollingWait.UntilAsync(
                 () => provider.GetRequiredService<InMemoryInboxStore>().Count == 1,
-                TimeSpan.FromSeconds(15));
+                TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
             provider.GetRequiredService<InMemoryInboxStore>().Get(messageId).Status.Should().Be(InboxStatus.Pending);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 

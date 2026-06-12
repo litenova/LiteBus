@@ -12,11 +12,17 @@ internal static class EfCoreInboxTableReaders
         Guid messageId,
         CancellationToken cancellationToken = default)
     {
-        await using var dataSource = NpgsqlDataSource.Create(connectionString);
+         var dataSource = NpgsqlDataSource.Create(connectionString);
+         await using (dataSource.ConfigureAwait(false))
+         {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = connection.CreateCommand();
+         var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var command = connection.CreateCommand();
+         await using (command.ConfigureAwait(false))
+         {
 
         command.CommandText = $"""
                                SELECT
@@ -43,11 +49,14 @@ internal static class EfCoreInboxTableReaders
 
         command.Parameters.AddWithValue("message_id", messageId);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+         await using (reader.ConfigureAwait(false))
+         {
 
-        if (!await reader.ReadAsync(cancellationToken))
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             return null;
+
         }
 
         return new InboxEnvelope
@@ -70,6 +79,10 @@ internal static class EfCoreInboxTableReaders
             TraceContext = ReadNullableString(reader, 15),
             CompletedAt = ReadNullableDateTimeOffset(reader, 16)
         };
+        }
+        }
+        }
+        }
     }
 
     private static string? ReadNullableString(NpgsqlDataReader reader, int ordinal)

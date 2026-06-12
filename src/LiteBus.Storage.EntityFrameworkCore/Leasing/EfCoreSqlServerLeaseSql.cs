@@ -36,7 +36,8 @@ internal static class EfCoreSqlServerLeaseSql
                    [status] = {3},
                    [lease_owner] = {5},
                    [lease_expires_at] = {6},
-                   [attempt_count] = [__ALIAS__].[attempt_count] + 1
+                   [attempt_count] = [__ALIAS__].[attempt_count] + 1,
+                   [last_attempted_at] = {2}
                OUTPUT
                    __OUTPUT__
                FROM __TABLE__ AS [__ALIAS__]

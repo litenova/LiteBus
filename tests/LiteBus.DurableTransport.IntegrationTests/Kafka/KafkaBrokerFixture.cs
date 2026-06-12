@@ -25,7 +25,7 @@ public sealed class KafkaBrokerFixture : IAsyncLifetime
         await DockerTestGate.RunAsync(async () =>
         {
             _container = new KafkaBuilder().Build();
-            await _container.StartAsync();
+            await _container.StartAsync().ConfigureAwait(false);
 
             TransportOptions = new KafkaTransportOptions
             {
@@ -33,7 +33,7 @@ public sealed class KafkaBrokerFixture : IAsyncLifetime
                 ConsumerGroupId = $"litebus-test-{Guid.NewGuid():N}",
                 ClientId = "litebus-durable-transport-integration-tests"
             };
-        });
+        }).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -41,7 +41,7 @@ public sealed class KafkaBrokerFixture : IAsyncLifetime
     {
         if (_container is not null)
         {
-            await _container.DisposeAsync();
+            await _container.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

@@ -20,7 +20,9 @@ internal sealed class OutboxProcessorEnvelopeAdapter : IProcessorEnvelope
     /// <param name="envelope">The outbox envelope to expose through the orchestration contract.</param>
     public OutboxProcessorEnvelopeAdapter(OutboxEnvelope envelope)
     {
-        _envelope = envelope ?? throw new ArgumentNullException(nameof(envelope));
+        ArgumentNullException.ThrowIfNull(envelope);
+
+        _envelope = envelope;
     }
 
     /// <inheritdoc />

@@ -57,7 +57,9 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
     /// </exception>
     public ModuleConfiguration(IDependencyRegistry dependencyRegistry)
     {
-        DependencyRegistry = dependencyRegistry ?? throw new ArgumentNullException(nameof(dependencyRegistry));
+        ArgumentNullException.ThrowIfNull(dependencyRegistry);
+
+        DependencyRegistry = dependencyRegistry;
     }
 
     /// <inheritdoc />

@@ -16,7 +16,7 @@ internal sealed class InboxObservableMetricsInitializer : IStartupTask
     /// <param name="metrics">The inbox observable metrics instance to activate.</param>
     public InboxObservableMetricsInitializer(InboxObservableMetrics metrics)
     {
-        _ = metrics ?? throw new ArgumentNullException(nameof(metrics));
+        ArgumentNullException.ThrowIfNull(metrics);
     }
 
     /// <inheritdoc />

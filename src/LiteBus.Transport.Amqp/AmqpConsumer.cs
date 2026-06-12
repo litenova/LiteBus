@@ -36,6 +36,11 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     private string? _consumerTag;
 
     /// <summary>
+    ///     Gets the queue name for the active subscription when consuming through <see cref="IMessageConsumer" />.
+    /// </summary>
+    private string? _activeQueueName;
+
+    /// <summary>
     ///     Signals when the active consume loop stops because of shutdown, cancellation, or channel failure.
     /// </summary>
     private TaskCompletionSource _stoppedTcs = CreateStoppedTaskSource();
@@ -46,7 +51,8 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     /// <param name="connectionManager">The connection manager used to open the consumer channel.</param>
     public AmqpConsumer(IAmqpConnectionManager connectionManager)
     {
-        _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
+        ArgumentNullException.ThrowIfNull(connectionManager);
+        _connectionManager = connectionManager;
     }
 
     /// <inheritdoc />
@@ -68,6 +74,7 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
             }
 
             _stoppedTcs = CreateStoppedTaskSource();
+            _activeQueueName = options.QueueName;
             _consumerChannel = await _connectionManager.CreateChannelAsync(cancellationToken).ConfigureAwait(false);
             _consumerChannel.ChannelShutdownAsync += OnChannelShutdownAsync;
 
@@ -105,7 +112,13 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
                     var message = CreateReceivedMessage(_consumerChannel, delivery);
                     await handler(message, cancellationToken).ConfigureAwait(false);
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Graceful shutdown: do not nack so unacknowledged deliveries follow channel-close semantics.
+                }
+#pragma warning disable CA1031 // Handler failures are intentionally broad; nack policy filters graceful shutdown.
                 catch (Exception exception) when (AmqpConsumerAckPolicy.ShouldNack(exception, cancellationToken))
+#pragma warning restore CA1031
                 {
                     if (_consumerChannel.IsOpen)
                     {
@@ -175,6 +188,7 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
 
             await _consumerChannel.DisposeAsync().ConfigureAwait(false);
             _consumerChannel = null;
+            _activeQueueName = null;
             SignalStopped();
         }
         finally
@@ -184,9 +198,9 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     }
 
     /// <inheritdoc />
-    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
+    public async Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
     {
-        return _stoppedTcs.Task.WaitAsync(cancellationToken);
+        await _stoppedTcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -220,7 +234,7 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
             {
                 var transportMessage = ToTransportMessage(message);
                 using var activity = TransportTracing.StartConsumeActivity(transportMessage);
-                return handler(transportMessage, token);
+                return TransportConsumerHandlerInvoker.InvokeAsync(transportMessage, handler, token);
             },
             cancellationToken);
     }
@@ -230,13 +244,13 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     /// </summary>
     /// <param name="message">The received AMQP delivery.</param>
     /// <returns>The transport message passed to generic consumer handlers.</returns>
-    private static TransportMessage ToTransportMessage(AmqpReceivedMessage message)
+    private TransportMessage ToTransportMessage(AmqpReceivedMessage message)
     {
         return new TransportMessage
         {
             Body = message.Body,
             Headers = message.Headers,
-            Destination = message.Exchange,
+            Destination = _activeQueueName ?? message.Exchange,
             Route = message.RoutingKey,
             MessageId = message.MessageId,
             CorrelationId = message.CorrelationId,

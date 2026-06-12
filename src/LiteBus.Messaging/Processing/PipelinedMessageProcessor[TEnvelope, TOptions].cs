@@ -62,11 +62,16 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
         IPipelinedMessageProcessorOperations<TEnvelope, TOptions> operations,
         ILogger logger)
     {
-        _leaseStore = leaseStore ?? throw new ArgumentNullException(nameof(leaseStore));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-        _operations = operations ?? throw new ArgumentNullException(nameof(operations));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(leaseStore);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(operations);
+        ArgumentNullException.ThrowIfNull(logger);
+        _leaseStore = leaseStore;
+        _options = options;
+        _clock = clock;
+        _operations = operations;
+        _logger = logger;
 
         _leaseOwner = string.IsNullOrWhiteSpace(_options.LeaseOwner)
             ? $"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}"
@@ -207,13 +212,30 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
                 continue;
             }
 
-            await _operations.PersistTerminalOutcomeAsync(
-                envelope,
-                updated,
-                accumulator,
-                _options,
-                _logger,
-                cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await _operations.PersistTerminalOutcomeAsync(
+                    envelope,
+                    updated,
+                    accumulator,
+                    _options,
+                    _logger,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+#pragma warning disable CA1031 // Do not catch general exception types
+            catch (Exception exception)
+            {
+                // One envelope persistence failure must not abort the entire processor pass.
+                _logger.LogError(
+                    exception,
+                    "Terminal persistence failed for message {MessageId}. Continuing the pass with remaining envelopes.",
+                    _operations.GetMessageId(envelope));
+            }
+#pragma warning restore CA1031
         }
     }
 }

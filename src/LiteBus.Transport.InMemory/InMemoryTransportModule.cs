@@ -1,5 +1,4 @@
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.InMemory;
@@ -34,6 +33,6 @@ public sealed class InMemoryTransportModule : IModule
             typeof(IMessageConsumer),
             typeof(InMemoryConsumer)));
 
-        TransportMetricsRegistration.RegisterIfNeeded(configuration);
+        TransportMetricsRegistration.RegisterIfNeeded(configuration, "inmemory");
     }
 }

@@ -34,7 +34,8 @@ public sealed class PostgreSqlSagaModuleBuilder
     /// <returns>The current builder.</returns>
     public PostgreSqlSagaModuleBuilder UseDataSource(NpgsqlDataSource dataSource)
     {
-        DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+        ArgumentNullException.ThrowIfNull(dataSource);
+        DataSource = dataSource;
         OwnsDataSource = false;
         return this;
     }
@@ -59,7 +60,8 @@ public sealed class PostgreSqlSagaModuleBuilder
     /// <returns>The current builder.</returns>
     public PostgreSqlSagaModuleBuilder UseOptions(PostgreSqlSagaStoreOptions options)
     {
-        Options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        Options = options;
         return this;
     }
 

@@ -45,7 +45,8 @@ public sealed class MessageModuleBuilder
     /// <returns>The current builder.</returns>
     public MessageModuleBuilder UseTimeProvider(TimeProvider timeProvider)
     {
-        TimeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        TimeProvider = timeProvider;
         return this;
     }
 

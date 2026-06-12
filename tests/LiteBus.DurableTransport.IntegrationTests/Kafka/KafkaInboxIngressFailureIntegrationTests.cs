@@ -44,7 +44,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
     [Fact]
     public async Task UnknownContract_ShouldNotWriteToStore()
     {
-        await RunFailureScenarioAsync("{}", "unknown.contract", 1, 0);
+        await RunFailureScenarioAsync("{}", "unknown.contract", 1, 0).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -55,12 +55,14 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
     public async Task StoreFull_ShouldNotIncreasePendingRowsBeyondCapacity()
     {
         var ingressTopic = KafkaTransportTestInfrastructure.CreateTopic("ingress-store-full");
-        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, ingressTopic);
+        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, ingressTopic).ConfigureAwait(false);
 
-        await using var provider = BuildProvider(ingressTopic, 1);
+         var provider = BuildProvider(ingressTopic, 1);
+         await using (provider.ConfigureAwait(false))
+         {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -69,7 +71,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
             await inbox.AcceptAsync(new InboxAcceptItem<ShipOrderCommand>
             {
                 Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
-            });
+            }).ConfigureAwait(false);
 
             var publisher = provider.GetRequiredService<IMessageTransport>();
             var messageId = Guid.NewGuid();
@@ -80,21 +82,22 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
                 Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-            });
+            }).ConfigureAwait(false);
 
             await PollingWait.UntilAsync(
                 () => GetInboxStoreCount(provider) == 1,
-                TimeSpan.FromSeconds(15));
+                TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
             await KafkaTransportTestInfrastructure.WaitForStableStoreCountAsync(
                 () => GetInboxStoreCount(provider),
                 1,
                 TimeSpan.FromSeconds(2),
-                TimeSpan.FromSeconds(10));
+                TimeSpan.FromSeconds(10)).ConfigureAwait(false);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 
@@ -105,7 +108,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
     [Fact]
     public async Task InvalidJson_ShouldNotWriteToStore()
     {
-        await RunFailureScenarioAsync("{not-json", ContractName, 1, 0);
+        await RunFailureScenarioAsync("{not-json", ContractName, 1, 0).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -119,13 +122,15 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
 
         await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(
             _fixture.TransportOptions.BootstrapServers,
-            ingressTopic);
+            ingressTopic).ConfigureAwait(false);
 
         var messageId = Guid.NewGuid();
         var attempts = 0;
         var observedMessageIds = new List<string>();
 
-        await using var provider = BuildTransportOnlyProvider();
+         var provider = BuildTransportOnlyProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var publisher = provider.GetRequiredService<IMessageTransport>();
         var consumer = provider.GetRequiredService<IMessageConsumer>();
 
@@ -135,7 +140,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
             Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
             MessageId = messageId.ToString("D"),
             Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-        });
+        }).ConfigureAwait(false);
 
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
@@ -155,27 +160,28 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
 
                 if (currentAttempt == 1)
                 {
-                    await message.ReturnToQueueAsync(cancellationToken);
+                    await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
                     return;
                 }
 
-                await message.AcceptAsync(cancellationToken);
-                await runCts.CancelAsync();
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+                await runCts.CancelAsync().ConfigureAwait(false);
             },
-            runCts.Token);
+            runCts.Token).ConfigureAwait(false);
 
         try
         {
-            await PollingWait.UntilAsync(() => Volatile.Read(ref attempts) >= 2, TimeSpan.FromSeconds(15));
+            await PollingWait.UntilAsync(() => Volatile.Read(ref attempts) >= 2, TimeSpan.FromSeconds(15)).ConfigureAwait(false);
         }
         finally
         {
-            await consumer.StopAsync(CancellationToken.None);
+            await consumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
         }
 
         observedMessageIds.Should().HaveCountGreaterThanOrEqualTo(2);
         observedMessageIds.Should().OnlyContain(id => id == messageId.ToString("D"));
         attempts.Should().BeGreaterThanOrEqualTo(2);
+        }
     }
 
     /// <summary>
@@ -193,12 +199,14 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
         int expectedPendingCount)
     {
         var ingressTopic = KafkaTransportTestInfrastructure.CreateTopic("ingress-fail");
-        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, ingressTopic);
+        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, ingressTopic).ConfigureAwait(false);
 
-        await using var provider = BuildProvider(ingressTopic);
+         var provider = BuildProvider(ingressTopic);
+         await using (provider.ConfigureAwait(false))
+         {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -211,21 +219,22 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
                 Body = Encoding.UTF8.GetBytes(body),
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, contractName, contractVersion)
-            });
+            }).ConfigureAwait(false);
 
             await PollingWait.UntilAsync(
                 () => GetInboxStoreCount(provider) == expectedPendingCount,
-                TimeSpan.FromSeconds(15));
+                TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
             await KafkaTransportTestInfrastructure.WaitForStableStoreCountAsync(
                 () => GetInboxStoreCount(provider),
                 expectedPendingCount,
                 TimeSpan.FromSeconds(2),
-                TimeSpan.FromSeconds(10));
+                TimeSpan.FromSeconds(10)).ConfigureAwait(false);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 

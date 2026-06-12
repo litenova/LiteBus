@@ -189,7 +189,7 @@ internal static class ModuleConfigurationAnalysis
             return true;
         }
 
-        if (method.IsExtensionMethod && method.Parameters.Length > 0)
+        if (method is { IsExtensionMethod: true, Parameters.Length: > 0 })
         {
             var firstParameterType = method.Parameters[0].Type;
 
@@ -204,7 +204,7 @@ internal static class ModuleConfigurationAnalysis
 
         var reducedFrom = method.ReducedFrom;
 
-        if (reducedFrom?.IsExtensionMethod == true && reducedFrom.Parameters.Length > 0)
+        if (reducedFrom is { IsExtensionMethod: true, Parameters.Length: > 0 })
         {
             var firstParameterType = reducedFrom.Parameters[0].Type;
 
@@ -247,7 +247,7 @@ internal static class ModuleConfigurationAnalysis
             return true;
         }
 
-        if (method.IsExtensionMethod && method.Parameters.Length > 0)
+        if (method is { IsExtensionMethod: true, Parameters.Length: > 0 })
         {
             var firstParameterType = method.Parameters[0].Type;
 
@@ -262,7 +262,7 @@ internal static class ModuleConfigurationAnalysis
 
         var reducedFrom = method.ReducedFrom;
 
-        if (reducedFrom?.IsExtensionMethod == true && reducedFrom.Parameters.Length > 0)
+        if (reducedFrom is { IsExtensionMethod: true, Parameters.Length: > 0 })
         {
             var firstParameterType = reducedFrom.Parameters[0].Type;
 

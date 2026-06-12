@@ -86,7 +86,7 @@ public sealed class InboxCompositeModuleTests
     {
         var recorder = new InboxTestFixtures.CommandRecorder();
 
-        await using var provider = new ServiceCollection()
+        var provider = new ServiceCollection()
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
@@ -109,6 +109,8 @@ public sealed class InboxCompositeModuleTests
                 });
             })
             .BuildServiceProvider();
+        await using (provider.ConfigureAwait(true))
+        {
 
         var inbox = provider.GetRequiredService<IInbox>();
         var orderId = Guid.NewGuid();
@@ -116,12 +118,13 @@ public sealed class InboxCompositeModuleTests
         await inbox.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        });
+        }).ConfigureAwait(true);
 
         var processor = provider.GetRequiredService<IInboxProcessor>();
-        var pass = await processor.ProcessPendingAsync();
+        var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
         pass.LeasedCount.Should().Be(1);
 
         recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
+        }
     }
 }

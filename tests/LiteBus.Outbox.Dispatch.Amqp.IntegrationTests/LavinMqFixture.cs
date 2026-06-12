@@ -33,7 +33,7 @@ public sealed class LavinMqFixture : IAsyncLifetime
                 .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
                 .Build();
 
-            await _container.StartAsync();
+            await _container.StartAsync().ConfigureAwait(false);
 
             ConnectionOptions = new AmqpConnectionOptions
             {
@@ -56,7 +56,7 @@ public sealed class LavinMqFixture : IAsyncLifetime
     {
         if (_container is not null)
         {
-            await _container.DisposeAsync();
+            await _container.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

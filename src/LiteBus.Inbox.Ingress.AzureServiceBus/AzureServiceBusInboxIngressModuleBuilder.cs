@@ -39,7 +39,8 @@ public sealed class AzureServiceBusInboxIngressModuleBuilder
     /// <returns>The current builder.</returns>
     public AzureServiceBusInboxIngressModuleBuilder UseOptions(AzureServiceBusInboxIngressOptions options)
     {
-        Options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        Options = options;
         return this;
     }
 }

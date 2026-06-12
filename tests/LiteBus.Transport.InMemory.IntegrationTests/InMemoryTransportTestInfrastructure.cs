@@ -41,8 +41,8 @@ internal static class InMemoryTransportTestInfrastructure
             async (message, cancellationToken) =>
             {
                 received.TrySetResult(message);
-                await message.AcceptAsync(cancellationToken);
-            });
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
         return consumer;
     }
@@ -61,7 +61,7 @@ internal static class InMemoryTransportTestInfrastructure
 
         while (!condition() && Environment.TickCount64 < deadline)
         {
-            await Task.Delay(10);
+            await Task.Delay(10).ConfigureAwait(false);
         }
     }
 

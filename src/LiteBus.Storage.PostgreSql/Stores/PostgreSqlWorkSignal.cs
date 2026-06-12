@@ -63,7 +63,8 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     /// <param name="channelName">The notification channel name used by insert triggers.</param>
     public PostgreSqlWorkSignal(NpgsqlDataSource dataSource, string channelName)
     {
-        _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+        ArgumentNullException.ThrowIfNull(dataSource);
+        _dataSource = dataSource;
         ArgumentException.ThrowIfNullOrWhiteSpace(channelName);
         _channelName = channelName;
     }
@@ -154,6 +155,10 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     /// <summary>
     ///     Blocks on <c>WaitAsync</c> and reconnects when the listener connection breaks.
     /// </summary>
+    /// <remarks>
+    ///     The listener loop catches <see cref="Exception" /> after broker-specific failures because
+    ///     notification wait can surface BCL exceptions that are not typed as <see cref="NpgsqlException" />.
+    /// </remarks>
     /// <param name="cancellationToken">A token that stops the background loop.</param>
     /// <returns>A task that represents the listener loop.</returns>
     private async Task RunListenerLoopAsync(CancellationToken cancellationToken)
@@ -182,6 +187,20 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
             {
                 break;
             }
+            catch (NpgsqlException)
+            {
+                InvalidateListenerConnection();
+
+                try
+                {
+                    await Task.Delay(ReconnectDelay, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
+#pragma warning disable CA1031 // Last-resort boundary: listener failures can surface as BCL exceptions outside NpgsqlException.
             catch (Exception) when (!cancellationToken.IsCancellationRequested)
             {
                 InvalidateListenerConnection();
@@ -195,6 +214,7 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
                     break;
                 }
             }
+#pragma warning restore CA1031
         }
     }
 
@@ -229,7 +249,7 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
             var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             connection.Notification += OnNotification;
             connection.StateChange += OnListenerConnectionStateChange;
-            await using var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText = $"LISTEN {_channelName}";
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             _listenerConnection = connection;

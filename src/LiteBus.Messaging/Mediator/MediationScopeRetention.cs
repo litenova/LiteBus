@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Mediator;
 
@@ -16,14 +15,14 @@ internal static class MediationScopeRetention
     /// </summary>
     /// <typeparam name="TResult">The mediation result type.</typeparam>
     /// <param name="result">The mediation result returned by the strategy.</param>
-    /// <param name="scope">The ambient scope to dispose when mediation completes.</param>
+    /// <param name="resourceScope">The mediation resources to dispose when mediation completes.</param>
     /// <returns>The mediation result with scope retention attached when required.</returns>
-    public static TResult RetainUntilPipelineCompletes<TResult>(TResult result, AmbientExecutionContext.ExecutionContextScope scope)
+    public static TResult RetainUntilPipelineCompletes<TResult>(TResult result, MediationResourceScope resourceScope)
     {
         if (result is Task task)
         {
             _ = task.ContinueWith(
-                _ => scope.Dispose(),
+                _ => resourceScope.Dispose(),
                 CancellationToken.None,
                 TaskContinuationOptions.ExecuteSynchronously,
                 TaskScheduler.Default);
@@ -36,12 +35,12 @@ internal static class MediationScopeRetention
         if (asyncEnumerableType is not null)
         {
             var wrapperType = typeof(ScopeRetainedAsyncEnumerable<>).MakeGenericType(asyncEnumerableType);
-            var wrapped = Activator.CreateInstance(wrapperType, result, scope);
+            var wrapped = Activator.CreateInstance(wrapperType, result, resourceScope);
 
             return (TResult) wrapped!;
         }
 
-        scope.Dispose();
+        resourceScope.Dispose();
         return result;
     }
 
@@ -81,25 +80,25 @@ internal static class MediationScopeRetention
         private readonly IAsyncEnumerable<T> _source;
 
         /// <summary>
-        ///     The ambient scope disposed when enumeration completes.
+        ///     The mediation resources disposed when enumeration completes.
         /// </summary>
-        private readonly AmbientExecutionContext.ExecutionContextScope _scope;
+        private readonly MediationResourceScope _resourceScope;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="ScopeRetainedAsyncEnumerable{T}" /> class.
         /// </summary>
         /// <param name="source">The source asynchronous enumerable returned by mediation.</param>
-        /// <param name="scope">The ambient scope to dispose when enumeration completes.</param>
-        public ScopeRetainedAsyncEnumerable(IAsyncEnumerable<T> source, AmbientExecutionContext.ExecutionContextScope scope)
+        /// <param name="resourceScope">The mediation resources to dispose when enumeration completes.</param>
+        public ScopeRetainedAsyncEnumerable(IAsyncEnumerable<T> source, MediationResourceScope resourceScope)
         {
             _source = source;
-            _scope = scope;
+            _resourceScope = resourceScope;
         }
 
         /// <inheritdoc />
         public IAsyncEnumerator<T> GetAsyncEnumerator(System.Threading.CancellationToken cancellationToken = default)
         {
-            return new ScopeRetainedAsyncEnumerator(_source.GetAsyncEnumerator(cancellationToken), _scope);
+            return new ScopeRetainedAsyncEnumerator(_source.GetAsyncEnumerator(cancellationToken), _resourceScope);
         }
 
         /// <summary>
@@ -113,24 +112,24 @@ internal static class MediationScopeRetention
             private readonly IAsyncEnumerator<T> _source;
 
             /// <summary>
-            ///     The ambient scope disposed when enumeration completes.
+            ///     The mediation resources disposed when enumeration completes.
             /// </summary>
-            private readonly AmbientExecutionContext.ExecutionContextScope _scope;
+            private readonly MediationResourceScope _resourceScope;
 
             /// <summary>
-            ///     Indicates whether the ambient scope has already been disposed.
+            ///     Indicates whether the mediation resources have already been disposed.
             /// </summary>
-            private bool _scopeDisposed;
+            private bool _resourceScopeDisposed;
 
             /// <summary>
             ///     Initializes a new instance of the <see cref="ScopeRetainedAsyncEnumerator" /> class.
             /// </summary>
             /// <param name="source">The source asynchronous enumerator returned by mediation.</param>
-            /// <param name="scope">The ambient scope to dispose when enumeration completes.</param>
-            public ScopeRetainedAsyncEnumerator(IAsyncEnumerator<T> source, AmbientExecutionContext.ExecutionContextScope scope)
+            /// <param name="resourceScope">The mediation resources to dispose when enumeration completes.</param>
+            public ScopeRetainedAsyncEnumerator(IAsyncEnumerator<T> source, MediationResourceScope resourceScope)
             {
                 _source = source;
-                _scope = scope;
+                _resourceScope = resourceScope;
             }
 
             /// <inheritdoc />
@@ -157,18 +156,18 @@ internal static class MediationScopeRetention
             }
 
             /// <summary>
-            ///     Disposes the ambient scope once.
+            ///     Disposes the mediation resources once.
             /// </summary>
             /// <returns>A value task representing the dispose operation.</returns>
             private ValueTask DisposeScopeAsync()
             {
-                if (_scopeDisposed)
+                if (_resourceScopeDisposed)
                 {
                     return ValueTask.CompletedTask;
                 }
 
-                _scopeDisposed = true;
-                _scope.Dispose();
+                _resourceScopeDisposed = true;
+                _resourceScope.Dispose();
                 return ValueTask.CompletedTask;
             }
         }

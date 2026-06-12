@@ -7,14 +7,14 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace LiteBus.Analyzers;
 
 /// <summary>
-///     Reports query types that have no main query handler in the compilation.
+///     Reports query and stream query types that have no main handler in the compilation.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class MissingQueryHandlerAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(DiagnosticDescriptors.MissingQueryHandler);
+        [DiagnosticDescriptors.MissingQueryHandler];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
@@ -25,23 +25,45 @@ public sealed class MissingQueryHandlerAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    ///     Reports query types without a main handler within a compilation.
+    ///     Reports query and stream query types without a main handler within a compilation.
     /// </summary>
     /// <param name="context">The compilation analysis context.</param>
     private static void AnalyzeCompilation(CompilationAnalysisContext context)
     {
+        ReportMissingHandlers(
+            context,
+            MessageKind.Query,
+            "query");
+
+        ReportMissingHandlers(
+            context,
+            MessageKind.StreamQuery,
+            "stream query");
+    }
+
+    /// <summary>
+    ///     Reports message types of the supplied kind that lack a main handler.
+    /// </summary>
+    /// <param name="context">The compilation analysis context.</param>
+    /// <param name="kind">The message kind to inspect.</param>
+    /// <param name="pipeline">The handler pipeline stage name.</param>
+    private static void ReportMissingHandlers(
+        CompilationAnalysisContext context,
+        MessageKind kind,
+        string pipeline)
+    {
         var handlers = HandlerAnalysis.CollectHandlerRegistrations(context.Compilation, context.CancellationToken)
-            .Where(handler => handler.Pipeline == "query")
+            .Where(handler => handler.Pipeline == pipeline)
             .ToImmutableArray();
 
         var openGenericHandlers = MessageAnalysis.CollectOpenGenericMainHandlers(
             context.Compilation,
-            MessageKind.Query,
+            kind,
             context.CancellationToken);
 
         var queries = MessageAnalysis.CollectMessageTypes(
             context.Compilation,
-            MessageKind.Query,
+            kind,
             context.CancellationToken);
 
         foreach (var query in queries)
@@ -57,7 +79,7 @@ public sealed class MissingQueryHandlerAnalyzer : DiagnosticAnalyzer
 
             context.ReportDiagnostic(Diagnostic.Create(
                 DiagnosticDescriptors.MissingQueryHandler,
-                query.Location,
+                LiteBusSymbols.GetDiagnosticLocation(context.Compilation, query.Location),
                 HandlerAnalysis.GetMessageTypeDisplay(query.MessageType)));
         }
     }

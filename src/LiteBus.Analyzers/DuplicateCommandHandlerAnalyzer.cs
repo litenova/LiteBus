@@ -14,7 +14,7 @@ public sealed class DuplicateCommandHandlerAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(DiagnosticDescriptors.DuplicateCommandHandler);
+        [DiagnosticDescriptors.DuplicateCommandHandler];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)

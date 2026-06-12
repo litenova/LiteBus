@@ -25,28 +25,37 @@ internal static class AmqpTestInfrastructure
         CancellationToken cancellationToken = default)
     {
         var factory = new ConnectionFactory { Uri = connectionUri };
-        await using var connection = await factory.CreateConnectionAsync(cancellationToken);
-        await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
+         var connection = await factory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+         await using (channel.ConfigureAwait(false))
+         {
 
         await channel.ExchangeDeclareAsync(
             exchange,
             ExchangeType.Direct,
             true,
             false,
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
 
         await channel.QueueDeclareAsync(
             queue,
             true,
             false,
             false,
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
 
         await channel.QueueBindAsync(
             queue,
             exchange,
             routingKey,
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        }
+        }
     }
 
     /// <summary>
@@ -64,8 +73,12 @@ internal static class AmqpTestInfrastructure
         CancellationToken cancellationToken = default)
     {
         var factory = new ConnectionFactory { Uri = connectionUri };
-        await using var connection = await factory.CreateConnectionAsync(cancellationToken);
-        await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
+         var connection = await factory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+         await using (channel.ConfigureAwait(false))
+         {
 
         var deadline = DateTime.UtcNow + timeout;
 
@@ -73,7 +86,7 @@ internal static class AmqpTestInfrastructure
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var result = await channel.BasicGetAsync(queue, true, cancellationToken);
+            var result = await channel.BasicGetAsync(queue, true, cancellationToken).ConfigureAwait(false);
 
             if (result is not null)
             {
@@ -82,10 +95,12 @@ internal static class AmqpTestInfrastructure
                 return (body, headers);
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken).ConfigureAwait(false);
         }
 
         throw new TimeoutException($"No AMQP message arrived on queue '{queue}' within {timeout}.");
+        }
+        }
     }
 
     /// <summary>

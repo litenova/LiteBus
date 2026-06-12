@@ -24,27 +24,35 @@ public sealed class EfCoreInboxSaveChangesInterceptorRollbackTests : IClassFixtu
     [Fact]
     public async Task SaveChangesAsync_ShouldNotPersistInboxMessage_WhenTransactionRollsBack()
     {
-        var storeOptions = await CreateInboxTableAsync();
+        var storeOptions = await CreateInboxTableAsync().ConfigureAwait(false);
         var interceptor = new LiteBusInboxSaveChangesInterceptor();
 
-        await using var context = CreateContext(storeOptions, interceptor);
+         var context = CreateContext(storeOptions, interceptor);
+         await using (context.ConfigureAwait(false))
+         {
         var envelope = CreateEnvelope();
 
-        await using var transaction = await context.Database.BeginTransactionAsync();
+         var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
+         await using (transaction.ConfigureAwait(false))
+         {
         interceptor.Enqueue(context, envelope);
 
-        var savedCount = await context.SaveChangesAsync();
+        var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
         savedCount.Should().Be(1);
 
-        await transaction.RollbackAsync();
+        await transaction.RollbackAsync().ConfigureAwait(false);
 
-        await using var verificationContext = CreateContext(storeOptions);
+         var verificationContext = CreateContext(storeOptions);
+         await using (verificationContext.ConfigureAwait(false))
+         {
 
         var storedCount = await verificationContext.InboxMessages
-            .CountAsync(message => message.Id == envelope.Id)
-            ;
+            .CountAsync(message => message.Id == envelope.Id).ConfigureAwait(false);
 
         storedCount.Should().Be(0);
+        }
+        }
+        }
     }
 
     private async Task<EntityFrameworkCoreInboxStoreOptions> CreateInboxTableAsync()
@@ -55,7 +63,9 @@ public sealed class EfCoreInboxSaveChangesInterceptorRollbackTests : IClassFixtu
             TableName = $"inbox_ef_rollback_{Guid.NewGuid():N}"
         };
 
-        await using var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+         var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+         await using (dataSource.ConfigureAwait(false))
+         {
 
         await PostgreSqlInboxSchema.EnsureAsync(
             dataSource,
@@ -64,9 +74,10 @@ public sealed class EfCoreInboxSaveChangesInterceptorRollbackTests : IClassFixtu
                 SchemaName = options.SchemaName,
                 TableName = options.TableName,
                 ValidateSchemaCreationOnStartup = false
-            });
+            }).ConfigureAwait(false);
 
         return options;
+        }
     }
 
     private IntegrationInboxRollbackDbContext CreateContext(

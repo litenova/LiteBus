@@ -10,8 +10,9 @@ namespace LiteBus.Messaging;
 /// <remarks>
 ///     This strategy is useful for handling inheritance and interface implementation in the messaging system.
 ///     It allows messages to be handled by handlers registered for their exact type or for any base type or interface
-///     that they implement. When multiple assignable types share the same derivation depth, an
-///     <see cref="AmbiguousMessageResolveException" /> is thrown.
+///     that they implement. Resolution order is exact type first, then the most-derived assignable registered type
+///     using an inheritance depth score (base-type chain length plus implemented interface count). When multiple
+///     assignable types share the same depth score, an <see cref="AmbiguousMessageResolveException" /> is thrown.
 /// </remarks>
 public sealed class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMessageResolveStrategy
 {

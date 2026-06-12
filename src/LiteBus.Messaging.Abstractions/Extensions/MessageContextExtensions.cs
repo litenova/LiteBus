@@ -27,12 +27,12 @@ public static class MessageContextExtensions
     {
         foreach (var preHandler in messageDependencies.IndirectPreHandlers)
         {
-            await InvokePreHandlerAsync(preHandler.Handler.Value, message, cancellationToken);
+            await InvokePreHandlerAsync(preHandler.Handler.Value, message, cancellationToken).ConfigureAwait(false);
         }
 
         foreach (var preHandler in messageDependencies.PreHandlers)
         {
-            await InvokePreHandlerAsync(preHandler.Handler.Value, message, cancellationToken);
+            await InvokePreHandlerAsync(preHandler.Handler.Value, message, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -70,12 +70,12 @@ public static class MessageContextExtensions
 
         foreach (var errorHandler in messageDependencies.IndirectErrorHandlers)
         {
-            await InvokeErrorHandlerAsync(errorHandler.Handler.Value, context, cancellationToken);
+            await InvokeErrorHandlerAsync(errorHandler.Handler.Value, context, cancellationToken).ConfigureAwait(false);
         }
 
         foreach (var errorHandler in messageDependencies.ErrorHandlers)
         {
-            await InvokeErrorHandlerAsync(errorHandler.Handler.Value, context, cancellationToken);
+            await InvokeErrorHandlerAsync(errorHandler.Handler.Value, context, cancellationToken).ConfigureAwait(false);
         }
 
         if (context.Outcome == MessageErrorOutcome.Unhandled)
@@ -103,12 +103,12 @@ public static class MessageContextExtensions
     {
         foreach (var postHandler in messageDependencies.PostHandlers)
         {
-            await InvokePostHandlerAsync(postHandler.Handler.Value, message, messageResult, cancellationToken);
+            await InvokePostHandlerAsync(postHandler.Handler.Value, message, messageResult, cancellationToken).ConfigureAwait(false);
         }
 
         foreach (var postHandler in messageDependencies.IndirectPostHandlers)
         {
-            await InvokePostHandlerAsync(postHandler.Handler.Value, message, messageResult, cancellationToken);
+            await InvokePostHandlerAsync(postHandler.Handler.Value, message, messageResult, cancellationToken).ConfigureAwait(false);
         }
     }
 

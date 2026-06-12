@@ -1,11 +1,9 @@
-using System.Globalization;
-using System.Text;
-
 namespace LiteBus.Transport;
 
 /// <summary>
-///     Reads typed values from transport application headers.
+///     Forwards to <see cref="Abstractions.TransportHeaderValues" /> for backward-compatible call sites.
 /// </summary>
+[Obsolete("Use LiteBus.Transport.Abstractions.TransportHeaderValues instead.")]
 public static class TransportHeaderValues
 {
     /// <summary>
@@ -16,15 +14,7 @@ public static class TransportHeaderValues
     /// <returns>The string value, or <see langword="null" /> when the header is absent.</returns>
     public static string? GetString(IReadOnlyDictionary<string, object?> headers, string name)
     {
-        ArgumentNullException.ThrowIfNull(headers);
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-
-        if (!headers.TryGetValue(name, out var value))
-        {
-            return null;
-        }
-
-        return ConvertToString(value);
+        return Abstractions.TransportHeaderValues.GetString(headers, name);
     }
 
     /// <summary>
@@ -35,25 +25,7 @@ public static class TransportHeaderValues
     /// <returns>The integer value, or <see langword="null" /> when the header is absent or not numeric.</returns>
     public static int? GetInt32(IReadOnlyDictionary<string, object?> headers, string name)
     {
-        ArgumentNullException.ThrowIfNull(headers);
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-
-        if (!headers.TryGetValue(name, out var value) || value is null)
-        {
-            return null;
-        }
-
-        return value switch
-        {
-            int number                                                                                              => number,
-            byte singleByte                                                                                         => singleByte,
-            sbyte signedByte                                                                                        => signedByte,
-            short number                                                                                            => number,
-            long number when number >= int.MinValue && number <= int.MaxValue                                       => (int) number,
-            string text when int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) => parsed,
-            byte[] bytes when bytes.Length <= 4 && TryParseBytesAsInt32(bytes, out var parsed)                      => parsed,
-            _                                                                                                       => null
-        };
+        return Abstractions.TransportHeaderValues.GetInt32(headers, name);
     }
 
     /// <summary>
@@ -63,38 +35,6 @@ public static class TransportHeaderValues
     /// <returns>The string representation, or <see langword="null" /> when the value is absent.</returns>
     public static string? ConvertToString(object? value)
     {
-        return value switch
-        {
-            null                        => null,
-            string text                 => text,
-            byte[] bytes                => Encoding.UTF8.GetString(bytes),
-            ReadOnlyMemory<byte> memory => Encoding.UTF8.GetString(memory.Span),
-            Memory<byte> memory         => Encoding.UTF8.GetString(memory.Span),
-            _                           => Convert.ToString(value, CultureInfo.InvariantCulture)
-        };
-    }
-
-    /// <summary>
-    ///     Parses a little-endian integer encoded in a byte array header value.
-    /// </summary>
-    /// <param name="bytes">The encoded bytes.</param>
-    /// <param name="value">The parsed integer when conversion succeeds.</param>
-    /// <returns><see langword="true" /> when the bytes represent an integer; otherwise <see langword="false" />.</returns>
-    private static bool TryParseBytesAsInt32(byte[] bytes, out int value)
-    {
-        if (bytes.Length == 1)
-        {
-            value = bytes[0];
-            return true;
-        }
-
-        if (bytes.Length == 4)
-        {
-            value = BitConverter.ToInt32(bytes, 0);
-            return true;
-        }
-
-        value = default;
-        return false;
+        return Abstractions.TransportHeaderValues.ConvertToString(value);
     }
 }

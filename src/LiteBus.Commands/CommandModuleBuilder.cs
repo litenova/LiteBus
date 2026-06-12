@@ -25,7 +25,8 @@ public sealed class CommandModuleBuilder
     public CommandModuleBuilder(IMessageRegistry messageRegistry, IContractWriter contracts)
     {
         _messageRegistry = messageRegistry;
-        Contracts = contracts ?? throw new ArgumentNullException(nameof(contracts));
+        ArgumentNullException.ThrowIfNull(contracts);
+        Contracts = contracts;
     }
 
     /// <summary>

@@ -33,7 +33,7 @@ public sealed class RabbitMqBrokerFixture : IAsyncLifetime
                 .WithPassword("guest")
                 .Build();
 
-            await _container.StartAsync();
+            await _container.StartAsync().ConfigureAwait(false);
 
             ConnectionOptions = new AmqpConnectionOptions
             {
@@ -51,7 +51,7 @@ public sealed class RabbitMqBrokerFixture : IAsyncLifetime
     {
         if (_container is not null)
         {
-            await _container.DisposeAsync();
+            await _container.DisposeAsync().ConfigureAwait(false);
         }
     }
 }
@@ -84,7 +84,7 @@ public sealed class LavinMqBrokerFixture : IAsyncLifetime
                 .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
                 .Build();
 
-            await _container.StartAsync();
+            await _container.StartAsync().ConfigureAwait(false);
 
             ConnectionOptions = new AmqpConnectionOptions
             {
@@ -106,7 +106,7 @@ public sealed class LavinMqBrokerFixture : IAsyncLifetime
     {
         if (_container is not null)
         {
-            await _container.DisposeAsync();
+            await _container.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

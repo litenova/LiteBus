@@ -41,8 +41,10 @@ public sealed class AwsSqsInboxDispatchIntegrationTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldPublishLeasedEnvelopeToSqsQueue()
     {
-        var queueUrl = await _fixture.CreateQueueAsync("inbox-dispatch");
-        await using var provider = BuildProvider(queueUrl);
+        var queueUrl = await _fixture.CreateQueueAsync("inbox-dispatch").ConfigureAwait(false);
+         var provider = BuildProvider(queueUrl);
+         await using (provider.ConfigureAwait(false))
+         {
 
         var inbox = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -60,19 +62,20 @@ public sealed class AwsSqsInboxDispatchIntegrationTests : LiteBusTestBase
             {
                 Trace = new MessageTrace.Correlated("corr-sqs-dispatch")
             }
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         var (body, headers) = await SqsTransportTestInfrastructure.ReceiveOneAsync(
             _fixture.SqsClient,
             queueUrl,
-            TimeSpan.FromSeconds(30));
+            TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
         body.Should().Contain(workItemId.ToString());
         headers[TransportHeaders.MessageId].Should().Be(receipt.Id.ToString("D"));
         headers[TransportHeaders.ContractName].Should().Be(ContractName);
         headers[TransportHeaders.CorrelationId].Should().Be("corr-sqs-dispatch");
+        }
     }
 
     /// <summary>

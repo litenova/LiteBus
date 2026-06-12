@@ -44,7 +44,8 @@ public sealed class InMemoryConsumer : IMessageConsumer
     /// <param name="broker">The shared broker supplying channel readers.</param>
     public InMemoryConsumer(InMemoryTransportBroker broker)
     {
-        _broker = broker ?? throw new ArgumentNullException(nameof(broker));
+        ArgumentNullException.ThrowIfNull(broker);
+        _broker = broker;
     }
 
     /// <inheritdoc />
@@ -115,9 +116,9 @@ public sealed class InMemoryConsumer : IMessageConsumer
     }
 
     /// <inheritdoc />
-    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
+    public async Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
     {
-        return _stoppedTcs.Task.WaitAsync(cancellationToken);
+        await _stoppedTcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -150,18 +151,8 @@ public sealed class InMemoryConsumer : IMessageConsumer
                     var transportMessage = CreateTransportMessage(endpoint, delivery);
                     using var activity = TransportTracing.StartConsumeActivity(transportMessage);
 
-                    try
-                    {
-                        await handler(transportMessage, cancellationToken).ConfigureAwait(false);
-                    }
-                    catch (Exception)
-                    {
-                        if (!cancellationToken.IsCancellationRequested)
-                        {
-                            await RequeueIfNeededAsync(endpoint, delivery, true, cancellationToken)
-                                .ConfigureAwait(false);
-                        }
-                    }
+                    await TransportConsumerHandlerInvoker.InvokeAsync(transportMessage, handler, cancellationToken)
+                        .ConfigureAwait(false);
                 }
             }
         }

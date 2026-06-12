@@ -78,7 +78,9 @@ public sealed class EfCoreOutboxStorageModuleBuilder
     /// <returns>The current builder.</returns>
     public EfCoreOutboxStorageModuleBuilder UseOptions(EntityFrameworkCoreOutboxStoreOptions options)
     {
-        Options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+
+        Options = options;
         return this;
     }
 }

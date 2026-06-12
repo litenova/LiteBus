@@ -24,7 +24,9 @@ public sealed class InMemoryOutboxStorageModuleBuilder
     /// <returns>The current builder.</returns>
     public InMemoryOutboxStorageModuleBuilder UseOptions(InMemoryOutboxStoreOptions options)
     {
-        Options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+
+        Options = options;
         return this;
     }
 
@@ -35,7 +37,9 @@ public sealed class InMemoryOutboxStorageModuleBuilder
     /// <returns>The current builder.</returns>
     public InMemoryOutboxStorageModuleBuilder UseTimeProvider(TimeProvider timeProvider)
     {
-        TimeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
+        TimeProvider = timeProvider;
         return this;
     }
 }

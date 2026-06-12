@@ -26,17 +26,11 @@ public sealed class EfCoreOutboxProcessorDeferredVisibilityEndToEndTests : LiteB
         var recorder = new EventRecorder();
         var visibleAfter = EfCoreOutboxE2eSupport.BaseTime.AddHours(1);
 
-        await EfCoreOutboxE2eSupport.EnsureOutboxTableAsync(_fixture.ConnectionString, storeOptions);
+        await EfCoreOutboxE2eSupport.EnsureOutboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
-        await using var provider = EfCoreOutboxE2eSupport.BuildProvider<DeferredVisibilityOutboxDbContext>(
-            _fixture.ConnectionString,
-            storeOptions,
-            new OutboxE2eComposition
-            {
-                Recorder = recorder,
-                Clock = clock,
-                LeaseOwner = "efcore-outbox-deferred-visibility"
-            });
+         var provider = EfCoreOutboxE2eSupport.BuildProvider<DeferredVisibilityOutboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new OutboxE2eComposition             {                 Recorder = recorder,                 Clock = clock,                 LeaseOwner = "efcore-outbox-deferred-visibility"             });
+         await using (provider.ConfigureAwait(true))
+         {
 
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
@@ -48,15 +42,16 @@ public sealed class EfCoreOutboxProcessorDeferredVisibilityEndToEndTests : LiteB
             {
                 Identity = new MessageIdentity.Supplied(messageId),
                 Visibility = new MessageVisibility.At(visibleAfter)
-            }));
+            })).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
         recorder.Events.Should().BeEmpty();
 
         clock.Advance(TimeSpan.FromHours(1));
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         recorder.Events.Should().ContainSingle();
+        }
     }
 
     private sealed class DeferredVisibilityOutboxDbContext : EfCoreOutboxE2eDbContext

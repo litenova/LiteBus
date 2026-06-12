@@ -43,14 +43,14 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
     [Fact]
     public async Task UnknownContract_ShouldNotWriteToStore()
     {
-        var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress-fail");
-        await RunFailureScenarioAsync(ingressQueueUrl, "{}", "unknown.contract", 1);
+        var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress-fail").ConfigureAwait(false);
+        await RunFailureScenarioAsync(ingressQueueUrl, "{}", "unknown.contract", 1).ConfigureAwait(false);
 
         await SqsTransportTestInfrastructure.WaitForQueueDepthAsync(
             _fixture.SqsClient,
             ingressQueueUrl,
             0,
-            TimeSpan.FromSeconds(20));
+            TimeSpan.FromSeconds(20)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -60,14 +60,14 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
     [Fact]
     public async Task InvalidJson_ShouldNotWriteToStore()
     {
-        var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress-fail");
-        await RunFailureScenarioAsync(ingressQueueUrl, "{not-json", ContractName, 1);
+        var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress-fail").ConfigureAwait(false);
+        await RunFailureScenarioAsync(ingressQueueUrl, "{not-json", ContractName, 1).ConfigureAwait(false);
 
         await SqsTransportTestInfrastructure.WaitForQueueDepthAsync(
             _fixture.SqsClient,
             ingressQueueUrl,
             0,
-            TimeSpan.FromSeconds(20));
+            TimeSpan.FromSeconds(20)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -77,11 +77,13 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
     [Fact]
     public async Task StoreFull_ShouldDrainQueueAndKeepPrefilledRow()
     {
-        var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress-store-full");
-        await using var provider = BuildProvider(ingressQueueUrl, 1);
+        var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress-store-full").ConfigureAwait(false);
+         var provider = BuildProvider(ingressQueueUrl, 1);
+         await using (provider.ConfigureAwait(false))
+         {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -90,7 +92,7 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
             await inbox.AcceptAsync(new InboxAcceptItem<ShipOrderCommand>
             {
                 Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
-            });
+            }).ConfigureAwait(false);
 
             var publisher = provider.GetRequiredService<IMessageTransport>();
             var messageId = Guid.NewGuid();
@@ -101,21 +103,22 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
                 Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-            });
+            }).ConfigureAwait(false);
 
             await PollingWait.UntilAsync(
                 () => GetInboxStoreCount(provider) == 1,
-                TimeSpan.FromSeconds(15));
+                TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
             await SqsTransportTestInfrastructure.WaitForQueueDepthAsync(
                 _fixture.SqsClient,
                 ingressQueueUrl,
                 0,
-                TimeSpan.FromSeconds(20));
+                TimeSpan.FromSeconds(20)).ConfigureAwait(false);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 
@@ -133,10 +136,12 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
         string contractName,
         int contractVersion)
     {
-        await using var provider = BuildProvider(ingressQueueUrl);
+         var provider = BuildProvider(ingressQueueUrl);
+         await using (provider.ConfigureAwait(false))
+         {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -149,15 +154,16 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
                 Body = Encoding.UTF8.GetBytes(body),
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, contractName, contractVersion)
-            });
+            }).ConfigureAwait(false);
 
             await PollingWait.UntilAsync(
                 () => GetInboxStoreCount(provider) == 0,
-                TimeSpan.FromSeconds(15));
+                TimeSpan.FromSeconds(15)).ConfigureAwait(false);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 

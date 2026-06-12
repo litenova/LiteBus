@@ -31,7 +31,7 @@ public sealed class RabbitMqFixture : IAsyncLifetime
                 .WithPassword("guest")
                 .Build();
 
-            await _container.StartAsync();
+            await _container.StartAsync().ConfigureAwait(false);
             ConnectionOptions = CreateConnectionOptions(_container);
         }
         catch (Exception exception)
@@ -45,7 +45,7 @@ public sealed class RabbitMqFixture : IAsyncLifetime
     {
         if (_container is not null)
         {
-            await _container.DisposeAsync();
+            await _container.DisposeAsync().ConfigureAwait(false);
         }
     }
 

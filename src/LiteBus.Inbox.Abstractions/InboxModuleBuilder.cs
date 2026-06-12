@@ -139,7 +139,8 @@ public sealed class InboxModuleBuilder
     /// <returns>The current builder.</returns>
     public InboxModuleBuilder UseProcessorOptions(InboxProcessorOptions options)
     {
-        ProcessorOptions = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        ProcessorOptions = options;
         return this;
     }
 
@@ -218,7 +219,8 @@ public sealed class InboxModuleBuilder
     /// <returns>The current builder.</returns>
     public InboxModuleBuilder UsePayloadEncryption(IPayloadEncryptor encryptor)
     {
-        _payloadEncryptor = encryptor ?? throw new ArgumentNullException(nameof(encryptor));
+        ArgumentNullException.ThrowIfNull(encryptor);
+        _payloadEncryptor = encryptor;
         return this;
     }
 
@@ -260,7 +262,7 @@ public sealed class InboxModuleBuilder
     /// <returns>The sub-modules declared on this builder.</returns>
     public IReadOnlyList<IModule> CollectSubModules()
     {
-        var modules = new List<IModule>();
+        List<IModule> modules = [];
 
         if (_storageModule is not null)
         {

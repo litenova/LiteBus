@@ -48,7 +48,7 @@ public sealed record MessageMediationRequest<TMessage, TMessageResult> where TMe
     ///     When this option is enabled, such messages will be automatically registered in the registry
     ///     when they are first encountered during mediation.
     /// </remarks>
-    public bool RegisterPlainMessagesOnSpot { get; init; } = false;
+    public bool RegisterPlainMessagesOnSpot { get; init; }
 
     /// <summary>
     ///     Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.

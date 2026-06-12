@@ -28,7 +28,7 @@ public sealed class InMemoryOutboxStoreLeaseAvailabilityTests
             LeaseExpiresAt = null
         };
 
-        await store.AddAsync(envelope);
+        await store.AddAsync(envelope).ConfigureAwait(false);
 
         var leased = await store.LeasePendingAsync(
             new OutboxLeaseRequest
@@ -37,7 +37,7 @@ public sealed class InMemoryOutboxStoreLeaseAvailabilityTests
                 LeaseDuration = TimeSpan.FromMinutes(1),
                 BatchSize = 10,
                 LeaseOwner = "worker"
-            });
+            }).ConfigureAwait(false);
 
         leased.Should().BeEmpty();
     }
@@ -63,7 +63,7 @@ public sealed class InMemoryOutboxStoreLeaseAvailabilityTests
             Status = OutboxStatus.Publishing,
             LeaseOwner = "stale-publisher",
             LeaseExpiresAt = null
-        });
+        }).ConfigureAwait(false);
 
         var reclaimed = await store.LeasePendingAsync(
             new OutboxLeaseRequest
@@ -72,7 +72,7 @@ public sealed class InMemoryOutboxStoreLeaseAvailabilityTests
                 LeaseDuration = TimeSpan.FromMinutes(1),
                 BatchSize = 10,
                 LeaseOwner = "fresh-publisher"
-            });
+            }).ConfigureAwait(false);
 
         reclaimed.Should().ContainSingle();
         reclaimed[0].Id.Should().Be(messageId);

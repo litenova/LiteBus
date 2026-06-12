@@ -1,7 +1,5 @@
 using System;
-using System.Linq;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.Amqp;
@@ -22,7 +20,8 @@ public sealed class AmqpTransportModule : IModule
     /// <param name="options">The connection settings configured by the application.</param>
     public AmqpTransportModule(AmqpConnectionOptions options)
     {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options;
     }
 
     /// <inheritdoc />
@@ -66,7 +65,7 @@ public sealed class AmqpTransportModule : IModule
             typeof(IAmqpConsumer),
             typeof(AmqpConsumer)));
 
-        AmqpTransportMetricsRegistration.RegisterIfNeeded(configuration);
+        TransportMetricsRegistration.RegisterIfNeeded(configuration, "amqp");
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(AmqpConnectivityDiagnosticCheck),

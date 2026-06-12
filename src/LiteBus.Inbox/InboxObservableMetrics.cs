@@ -16,6 +16,12 @@ internal sealed class InboxObservableMetrics
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(10);
 
     /// <summary>
+    ///     Empty status counts returned when diagnostics are unavailable or probing fails.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<InboxStatus, int> EmptyStatusCounts =
+        new Dictionary<InboxStatus, int>();
+
+    /// <summary>
     ///     Synchronizes access to cached queue counts.
     /// </summary>
     private readonly object _cacheLock = new();
@@ -28,8 +34,7 @@ internal sealed class InboxObservableMetrics
     /// <summary>
     ///     The most recently observed queue counts grouped by status.
     /// </summary>
-    private IReadOnlyDictionary<InboxStatus, int> _cachedCounts =
-        new Dictionary<InboxStatus, int>();
+    private IReadOnlyDictionary<InboxStatus, int> _cachedCounts = EmptyStatusCounts;
 
     /// <summary>
     ///     The UTC timestamp after which cached queue counts should be refreshed.
@@ -42,7 +47,8 @@ internal sealed class InboxObservableMetrics
     /// <param name="serviceProvider">The service provider used to resolve inbox diagnostics dependencies.</param>
     public InboxObservableMetrics(IServiceProvider serviceProvider)
     {
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        _serviceProvider = serviceProvider;
 
         var meter = new Meter(LiteBusInboxTelemetry.MeterName);
 
@@ -108,7 +114,7 @@ internal sealed class InboxObservableMetrics
 
         if (store is null)
         {
-            return new Dictionary<InboxStatus, int>();
+            return EmptyStatusCounts;
         }
 
         try
@@ -122,9 +128,11 @@ internal sealed class InboxObservableMetrics
                 return _cachedCounts;
             }
         }
-        catch
+#pragma warning disable CA1031 // Status count probes must tolerate any backing-store failure during metric export.
+        catch (Exception)
         {
-            return new Dictionary<InboxStatus, int>();
+            return EmptyStatusCounts;
         }
+#pragma warning restore CA1031
     }
 }

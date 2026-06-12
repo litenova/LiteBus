@@ -45,7 +45,7 @@ public sealed class StreamErrorHandlingQueryHandler
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         message.ExecutedTypes.Add(GetType());
-        yield return await Task.FromResult(new StreamErrorHandlingQueryResult { CorrelationId = message.CorrelationId });
+        yield return await Task.FromResult(new StreamErrorHandlingQueryResult { CorrelationId = message.CorrelationId }).ConfigureAwait(false);
         throw new InvalidOperationException("Stream enumeration failed.");
     }
 }

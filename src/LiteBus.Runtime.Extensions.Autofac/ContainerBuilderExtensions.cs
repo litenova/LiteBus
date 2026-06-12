@@ -1,10 +1,9 @@
 using System;
-using System.Linq;
 using Autofac;
-using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Hosting;
+using LiteBus.Runtime.Composition;
 using LiteBus.Runtime.Extensions.Autofac;
 using LiteBus.Runtime.Extensions.Autofac.Hosting;
 using LiteBus.Runtime.Modules;
@@ -55,7 +54,7 @@ public static class ContainerBuilderExtensions
 
         var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
 
-        foreach (var moduleDescriptor in moduleRegistry)
+        foreach (var moduleDescriptor in moduleRegistry.BuildOrder())
         {
             moduleDescriptor.Module.Build(moduleConfiguration);
         }
@@ -95,7 +94,7 @@ public static class ContainerBuilderExtensions
         var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
         moduleConfiguration.SetContext(sharedContracts);
 
-        foreach (var moduleDescriptor in moduleRegistry)
+        foreach (var moduleDescriptor in moduleRegistry.BuildOrder())
         {
             moduleDescriptor.Module.Build(moduleConfiguration);
         }

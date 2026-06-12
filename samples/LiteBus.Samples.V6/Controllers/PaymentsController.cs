@@ -47,10 +47,3 @@ public sealed class PaymentsController : ControllerBase
         return Accepted(new { receipt.Id, receipt.Contract.Name, receipt.AcceptedAt });
     }
 }
-
-/// <summary>
-///     Request body for accepting a payment into the inbox.
-/// </summary>
-/// <param name="PaymentId">The payment identifier.</param>
-/// <param name="Amount">The payment amount.</param>
-public sealed record AcceptPaymentRequest(Guid PaymentId, decimal Amount);

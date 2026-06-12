@@ -33,7 +33,7 @@ internal static class SqsTransportTestInfrastructure
                 MaxNumberOfMessages = 1,
                 WaitTimeSeconds = 1,
                 MessageAttributeNames = ["All"]
-            });
+            }).ConfigureAwait(false);
 
             if (response.Messages.Count == 0)
             {
@@ -71,10 +71,9 @@ internal static class SqsTransportTestInfrastructure
         await PollingWait.UntilAsync(async () =>
         {
             var attributes = await sqsClient
-                .GetQueueAttributesAsync(queueUrl, ["ApproximateNumberOfMessages"])
-                ;
+                .GetQueueAttributesAsync(queueUrl, ["ApproximateNumberOfMessages"]).ConfigureAwait(false);
 
             return attributes.ApproximateNumberOfMessages == expectedCount;
-        }, timeout);
+        }, timeout).ConfigureAwait(false);
     }
 }

@@ -60,7 +60,7 @@ public sealed class EfCoreOutboxStoreSqlServerContractTests : OutboxStoreContrac
 
         for (var index = 0; index < 6; index++)
         {
-            await writer.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(index)));
+            await writer.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(index))).ConfigureAwait(false);
         }
 
         var request = new OutboxLeaseRequest
@@ -75,8 +75,8 @@ public sealed class EfCoreOutboxStoreSqlServerContractTests : OutboxStoreContrac
         var leaseStoreB = CreateStore(false);
 
         // SQL Server READPAST lease under Docker is validated sequentially; PostgreSQL contract covers concurrent workers.
-        var firstBatch = await leaseStoreA.Lease.LeasePendingAsync(request with { LeaseOwner = "publisher-a" });
-        var secondBatch = await leaseStoreB.Lease.LeasePendingAsync(request with { LeaseOwner = "publisher-b" });
+        var firstBatch = await leaseStoreA.Lease.LeasePendingAsync(request with { LeaseOwner = "publisher-a" }).ConfigureAwait(false);
+        var secondBatch = await leaseStoreB.Lease.LeasePendingAsync(request with { LeaseOwner = "publisher-b" }).ConfigureAwait(false);
 
         var leasedIds = firstBatch.Select(message => message.Id)
             .Concat(secondBatch.Select(message => message.Id))

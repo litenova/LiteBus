@@ -49,7 +49,7 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
         await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(
             _fixture.TransportOptions.BootstrapServers,
             ingressTopic,
-            dispatchTopic);
+            dispatchTopic).ConfigureAwait(false);
 
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
@@ -62,8 +62,8 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
             manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
 
             using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
-            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-            await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
+            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
             var publisher = provider.GetRequiredService<IMessageTransport>();
             var command = new ShipOrderCommand { OrderId = orderId };
             var payload = JsonSerializer.SerializeToUtf8Bytes(command);
@@ -74,12 +74,12 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
                 Body = payload,
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-            });
+            }).ConfigureAwait(false);
 
             var (body, headers) = await KafkaTransportTestInfrastructure.ConsumeOneAsync(
                 _fixture.TransportOptions.BootstrapServers,
                 dispatchTopic,
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
             body.Should().Contain(orderId.ToString());
             headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));
@@ -89,14 +89,14 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
 
             await PollingWait.UntilAsync(
                 () => store.Get(messageId).Status == InboxStatus.Completed,
-                TimeSpan.FromSeconds(15));
+                TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
             store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
-            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
         }
     }
 

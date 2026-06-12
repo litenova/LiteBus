@@ -28,7 +28,7 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
         var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
         var command = new DeferredAmbientCommand();
 
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(true);
 
         command.AmbientAvailableDuringContinuation.Should().BeTrue();
     }
@@ -45,7 +45,7 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
 
         var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
 
-        await commandMediator.SendAsync(new CancellationObservingCommand(), cancellationToken: cts.Token);
+        await commandMediator.SendAsync(new CancellationObservingCommand(), cancellationToken: cts.Token).ConfigureAwait(true);
 
         CancellationObservingCommandHandler.ReceivedToken.Should().Be(cts.Token);
     }
@@ -86,7 +86,7 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
 
         var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
 
-        await commandMediator.SendAsync(new FailingCommand());
+        await commandMediator.SendAsync(new FailingCommand()).ConfigureAwait(true);
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
 
         var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
 
-        var result = await commandMediator.SendAsync(new FailingResultCommand());
+        var result = await commandMediator.SendAsync(new FailingResultCommand()).ConfigureAwait(true);
 
         result.Should().Be("fallback");
     }

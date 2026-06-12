@@ -43,18 +43,20 @@ public sealed class AwsSqsInboxIngressEndToEndIntegrationTests : LiteBusTestBase
     [Fact]
     public async Task PublishThroughSqs_ShouldAcceptProcessAndDispatchCommand()
     {
-        var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress");
-        var dispatchQueueUrl = await _fixture.CreateQueueAsync("dispatch");
+        var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress").ConfigureAwait(false);
+        var dispatchQueueUrl = await _fixture.CreateQueueAsync("dispatch").ConfigureAwait(false);
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
 
-        await using var provider = BuildProvider(ingressQueueUrl, dispatchQueueUrl);
+         var provider = BuildProvider(ingressQueueUrl, dispatchQueueUrl);
+         await using (provider.ConfigureAwait(false))
+         {
         var manifest = provider.GetRequiredService<LiteBusHostManifest>();
         manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
 
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -68,12 +70,12 @@ public sealed class AwsSqsInboxIngressEndToEndIntegrationTests : LiteBusTestBase
                 Body = payload,
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-            });
+            }).ConfigureAwait(false);
 
             var (body, headers) = await SqsTransportTestInfrastructure.ReceiveOneAsync(
                 _fixture.SqsClient,
                 dispatchQueueUrl,
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
             body.Should().Contain(orderId.ToString());
             headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));
@@ -83,13 +85,14 @@ public sealed class AwsSqsInboxIngressEndToEndIntegrationTests : LiteBusTestBase
 
             await PollingWait.UntilAsync(
                 () => store.Get(messageId).Status == InboxStatus.Completed,
-                TimeSpan.FromSeconds(15));
+                TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
             store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 

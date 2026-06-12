@@ -29,8 +29,10 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
     public async Task RequeueDisabled_WithPoisonMessage_ShouldDiscardWithoutStoreWrite()
     {
         var ingressDestination = $"litebus-inmemory-requeue-{Guid.NewGuid():N}";
-        await using var provider = BuildProvider(ingressDestination, false);
-        await StartIngressAsync(provider);
+         var provider = BuildProvider(ingressDestination, false);
+         await using (provider.ConfigureAwait(false))
+         {
+        await StartIngressAsync(provider).ConfigureAwait(false);
 
         var publisher = provider.GetRequiredService<IMessageTransport>();
         var messageId = Guid.NewGuid();
@@ -41,11 +43,12 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
             Body = "{not-json"u8.ToArray(),
             MessageId = messageId.ToString("D"),
             Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-        });
+        }).ConfigureAwait(false);
 
         await PollingWait.UntilAsync(
             () => GetInboxStoreCount(provider) == 0,
-            TimeSpan.FromSeconds(10));
+            TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -56,8 +59,10 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
     public async Task RequeueEnabled_WithTransientStoreFailure_ShouldEventuallyAccept()
     {
         var ingressDestination = $"litebus-inmemory-requeue-{Guid.NewGuid():N}";
-        await using var provider = BuildProvider(ingressDestination, true, true);
-        await StartIngressAsync(provider);
+         var provider = BuildProvider(ingressDestination, true, true);
+         await using (provider.ConfigureAwait(false))
+         {
+        await StartIngressAsync(provider).ConfigureAwait(false);
 
         var publisher = provider.GetRequiredService<IMessageTransport>();
         var messageId = Guid.NewGuid();
@@ -69,11 +74,12 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
             Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = orderId }),
             MessageId = messageId.ToString("D"),
             Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-        });
+        }).ConfigureAwait(false);
 
         await PollingWait.UntilAsync(
             () => GetInboxStoreCount(provider) == 1,
-            TimeSpan.FromSeconds(15));
+            TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -142,8 +148,8 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
     private static async Task StartIngressAsync(ServiceProvider provider)
     {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(300), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(300), runCts.Token).ConfigureAwait(false);
     }
 
     /// <summary>

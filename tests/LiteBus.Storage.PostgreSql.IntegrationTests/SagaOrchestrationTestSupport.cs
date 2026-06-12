@@ -264,7 +264,7 @@ internal static class SagaOrchestrationTestSupport
 
             if (command.Step == OrderWorkflowStep.Increment && _delayGate.IncrementDelay > TimeSpan.Zero)
             {
-                await Task.Delay(_delayGate.IncrementDelay, cancellationToken);
+                await Task.Delay(_delayGate.IncrementDelay, cancellationToken).ConfigureAwait(false);
             }
 
             var state = _sagaContext.GetState<OrderWorkflowSagaState>();

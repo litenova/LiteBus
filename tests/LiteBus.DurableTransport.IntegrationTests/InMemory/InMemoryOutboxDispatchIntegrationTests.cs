@@ -30,9 +30,13 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
         var orderId = Guid.NewGuid();
         var received = new TaskCompletionSource<TransportMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await using var provider = BuildProvider(destination);
+         var provider = BuildProvider(destination);
+         await using (provider.ConfigureAwait(false))
+         {
         var broker = provider.GetRequiredService<InMemoryTransportBroker>();
-        await using var consumer = await StartReceiveOneAsync(broker, destination, received);
+         var consumer = await StartReceiveOneAsync(broker, destination, received).ConfigureAwait(false);
+         await using (consumer.ConfigureAwait(false))
+         {
 
         var store = provider.GetRequiredService<InMemoryOutboxStore>();
         var outbox = provider.GetRequiredService<IOutbox>();
@@ -48,14 +52,14 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
                 Tenant = new TenantScope.Isolated("tenant-east"),
                 Target = new PublicationTarget.Topic(destination)
             }
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
 
         using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var transportMessage = await received.Task.WaitAsync(cancellationSource.Token);
+        var transportMessage = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
 
         var json = TransportMessageAssertions.ReadBody(transportMessage);
         json.Should().Be(store.Get(messageId).Payload);
@@ -77,6 +81,8 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
 
         TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.TenantId)
             .Should().Be("tenant-east");
+        }
+        }
     }
 
     /// <summary>
@@ -91,9 +97,13 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
         var messageId = Guid.NewGuid();
         var received = new TaskCompletionSource<TransportMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await using var provider = BuildProvider(destination);
+         var provider = BuildProvider(destination);
+         await using (provider.ConfigureAwait(false))
+         {
         var broker = provider.GetRequiredService<InMemoryTransportBroker>();
-        await using var consumer = await StartReceiveOneAsync(broker, destination, received);
+         var consumer = await StartReceiveOneAsync(broker, destination, received).ConfigureAwait(false);
+         await using (consumer.ConfigureAwait(false))
+         {
 
         var store = provider.GetRequiredService<InMemoryOutboxStore>();
         var outbox = provider.GetRequiredService<IOutbox>();
@@ -106,15 +116,17 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
             {
                 Identity = new MessageIdentity.Supplied(messageId)
             }
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
 
         using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var transportMessage = await received.Task.WaitAsync(cancellationSource.Token);
+        var transportMessage = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
         transportMessage.Route.Should().Be(contractRoute);
+        }
+        }
     }
 
     /// <summary>
@@ -178,8 +190,8 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
             async (message, cancellationToken) =>
             {
                 received.TrySetResult(message);
-                await message.AcceptAsync(cancellationToken);
-            });
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
         return consumer;
     }

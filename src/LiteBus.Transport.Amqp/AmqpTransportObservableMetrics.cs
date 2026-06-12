@@ -7,6 +7,10 @@ namespace LiteBus.Transport.Amqp;
 /// <summary>
 ///     Registers observable OpenTelemetry gauges for AMQP circuit breaker state.
 /// </summary>
+/// <remarks>
+///     Superseded by shared transport observable metrics on <see cref="LiteBusTransportTelemetry" />.
+/// </remarks>
+[Obsolete("Use TransportObservableMetrics on LiteBusTransportTelemetry with the litebus.transport.broker tag.")]
 public sealed class AmqpTransportObservableMetrics
 {
     /// <summary>
@@ -20,7 +24,8 @@ public sealed class AmqpTransportObservableMetrics
     /// <param name="serviceProvider">The service provider used to resolve AMQP transport dependencies.</param>
     public AmqpTransportObservableMetrics(IServiceProvider serviceProvider)
     {
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        _serviceProvider = serviceProvider;
 
         var meter = new Meter(LiteBusTransportAmqpTelemetry.MeterName);
 

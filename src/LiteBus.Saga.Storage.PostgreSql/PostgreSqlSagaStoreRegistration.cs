@@ -14,8 +14,10 @@ public sealed class PostgreSqlSagaStoreRegistration
     /// <param name="options">The saga store options.</param>
     public PostgreSqlSagaStoreRegistration(NpgsqlDataSource dataSource, PostgreSqlSagaStoreOptions options)
     {
-        DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
-        Options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(dataSource);
+        ArgumentNullException.ThrowIfNull(options);
+        DataSource = dataSource;
+        Options = options;
     }
 
     /// <summary>

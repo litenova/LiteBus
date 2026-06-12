@@ -15,7 +15,7 @@ public sealed class ProcessorEnabledWithoutDispatcherAnalyzer : DiagnosticAnalyz
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(DiagnosticDescriptors.ProcessorEnabledWithoutDispatcher);
+        [DiagnosticDescriptors.ProcessorEnabledWithoutDispatcher];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)

@@ -40,11 +40,13 @@ public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldPublishEnvelopeToSqsQueue()
     {
-        var queueUrl = await _fixture.CreateQueueAsync("outbox-dispatch");
+        var queueUrl = await _fixture.CreateQueueAsync("outbox-dispatch").ConfigureAwait(false);
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-        await using var provider = BuildProvider(queueUrl);
+         var provider = BuildProvider(queueUrl);
+         await using (provider.ConfigureAwait(false))
+         {
         var store = provider.GetRequiredService<InMemoryOutboxStore>();
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
@@ -59,16 +61,16 @@ public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
                 Tenant = new TenantScope.Isolated("tenant-sqs-east"),
                 Target = new PublicationTarget.Topic(queueUrl)
             }
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
 
         var (body, headers) = await SqsTransportTestInfrastructure.ReceiveOneAsync(
             _fixture.SqsClient,
             queueUrl,
-            TimeSpan.FromSeconds(30));
+            TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
         var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
             body,
@@ -81,6 +83,7 @@ public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
         headers[TransportHeaders.CorrelationId].Should().Be("corr-sqs-outbox");
         headers[TransportHeaders.CausationId].Should().Be("cause-sqs-outbox");
         headers[TransportHeaders.TenantId].Should().Be("tenant-sqs-east");
+        }
     }
 
     /// <summary>
@@ -91,10 +94,12 @@ public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenTopicMissing_ShouldUseContractNameAsRoute()
     {
         const string contractRoute = "orders.order-submitted";
-        var queueUrl = await _fixture.CreateQueueAsync("outbox-route");
+        var queueUrl = await _fixture.CreateQueueAsync("outbox-route").ConfigureAwait(false);
         var messageId = Guid.NewGuid();
 
-        await using var provider = BuildProvider(queueUrl);
+         var provider = BuildProvider(queueUrl);
+         await using (provider.ConfigureAwait(false))
+         {
         var store = provider.GetRequiredService<InMemoryOutboxStore>();
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
@@ -106,18 +111,19 @@ public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
             {
                 Identity = new MessageIdentity.Supplied(messageId)
             }
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
 
         var (_, headers) = await SqsTransportTestInfrastructure.ReceiveOneAsync(
             _fixture.SqsClient,
             queueUrl,
-            TimeSpan.FromSeconds(30));
+            TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
         headers[TransportHeaders.ContractName].Should().Be(contractRoute);
+        }
     }
 
     /// <summary>

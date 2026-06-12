@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
+using static LiteBus.Messaging.Abstractions.DurableMessaging.DurableIdempotencyScope;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory.Exceptions;
@@ -204,7 +205,7 @@ public sealed class InMemoryOutboxStore :
                 if (_envelopes.TryGetValue(messageId, out var envelope) &&
                     !string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
                 {
-                    _idempotencyIndex.Remove(envelope.IdempotencyKey);
+                    _idempotencyIndex.Remove(CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey));
                 }
 
                 _envelopes.Remove(messageId);
@@ -285,7 +286,7 @@ public sealed class InMemoryOutboxStore :
 
         lock (_sync)
         {
-            persistedMessageIds = new HashSet<Guid>();
+            persistedMessageIds = [];
 
             foreach (var envelope in envelopes)
             {
@@ -298,7 +299,7 @@ public sealed class InMemoryOutboxStore :
 
                 if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
                 {
-                    _idempotencyIndex[envelope.IdempotencyKey] = envelope.Id;
+                    _idempotencyIndex[CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey)] = envelope.Id;
                 }
             }
         }
@@ -327,7 +328,7 @@ public sealed class InMemoryOutboxStore :
 
         if (envelopes.Count == 0)
         {
-            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>(Array.Empty<OutboxEnvelope>());
+            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>([]);
         }
 
         lock (_sync)
@@ -461,7 +462,7 @@ public sealed class InMemoryOutboxStore :
         if (_envelopes.TryGetValue(messageId, out var envelope) &&
             !string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
         {
-            _idempotencyIndex.Remove(envelope.IdempotencyKey);
+            _idempotencyIndex.Remove(CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey));
         }
 
         _envelopes.Remove(messageId);
@@ -489,8 +490,8 @@ public sealed class InMemoryOutboxStore :
     {
         return envelope.Status is OutboxStatus.Pending or OutboxStatus.Failed &&
                (envelope.VisibleAfter is null || envelope.VisibleAfter <= now) ||
-               envelope.Status == OutboxStatus.Publishing && envelope.LeaseExpiresAt is not null && envelope.LeaseExpiresAt <= now ||
-               envelope.Status == OutboxStatus.Publishing && envelope.LeaseExpiresAt is null && envelope.CreatedAt < staleCutoff;
+               envelope is { Status: OutboxStatus.Publishing, LeaseExpiresAt: not null } && envelope.LeaseExpiresAt <= now ||
+               envelope is { Status: OutboxStatus.Publishing, LeaseExpiresAt: null } && envelope.CreatedAt < staleCutoff;
     }
 
     /// <summary>
@@ -635,7 +636,7 @@ public sealed class InMemoryOutboxStore :
         }
 
         if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey) &&
-            _idempotencyIndex.TryGetValue(envelope.IdempotencyKey, out var existingId) &&
+            _idempotencyIndex.TryGetValue(CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey), out var existingId) &&
             _envelopes.TryGetValue(existingId, out var existingByKey))
         {
             ThrowIfStrictConflict(envelope, existingByKey.Id);
@@ -652,7 +653,7 @@ public sealed class InMemoryOutboxStore :
 
         if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
         {
-            _idempotencyIndex[envelope.IdempotencyKey] = envelope.Id;
+            _idempotencyIndex[CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey)] = envelope.Id;
         }
 
         return envelope;

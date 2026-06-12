@@ -49,7 +49,7 @@ internal static class PostgreSqlTestInfrastructure
     /// <param name="options">The inbox store options.</param>
     internal static async Task EnsureInboxSchemaAsync(NpgsqlDataSource dataSource, PostgreSqlInboxStoreOptions options)
     {
-        await PostgreSqlInboxSchema.EnsureAsync(dataSource, options);
+        await PostgreSqlInboxSchema.EnsureAsync(dataSource, options).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -59,6 +59,6 @@ internal static class PostgreSqlTestInfrastructure
     /// <param name="options">The outbox store options.</param>
     internal static async Task EnsureOutboxSchemaAsync(NpgsqlDataSource dataSource, PostgreSqlOutboxStoreOptions options)
     {
-        await PostgreSqlOutboxSchema.EnsureAsync(dataSource, options);
+        await PostgreSqlOutboxSchema.EnsureAsync(dataSource, options).ConfigureAwait(false);
     }
 }

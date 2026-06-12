@@ -37,7 +37,7 @@ public sealed class ContextPropagationTests : LiteBusTestBase
         var command = new ContextPropagationCommand();
 
         // ACT
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(false);
 
         // ASSERT
         // Both the main handler and post-handler should have been able to access the item set by the pre-handler.

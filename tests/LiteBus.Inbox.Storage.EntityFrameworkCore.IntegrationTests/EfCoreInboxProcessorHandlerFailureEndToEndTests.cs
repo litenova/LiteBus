@@ -22,31 +22,23 @@ public sealed class EfCoreInboxProcessorHandlerFailureEndToEndTests : LiteBusTes
     {
         var clock = new ManualTimeProvider(EfCoreInboxE2eSupport.BaseTime);
         var storeOptions = EfCoreInboxE2eSupport.CreateStoreOptions(TableName);
-        await EfCoreInboxE2eSupport.EnsureInboxTableAsync(_fixture.ConnectionString, storeOptions);
+        await EfCoreInboxE2eSupport.EnsureInboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
-        await using var provider = EfCoreInboxE2eSupport.BuildProvider<HandlerFailureInboxDbContext>(
-            _fixture.ConnectionString,
-            storeOptions,
-            new InboxE2eComposition
-            {
-                Clock = clock,
-                RegisterShipHandler = false,
-                RegisterFaultyHandler = true,
-                MaxAttempts = 5,
-                InitialDelay = TimeSpan.FromSeconds(30),
-                LeaseOwner = "efcore-inbox-handler-failure"
-            });
+         var provider = EfCoreInboxE2eSupport.BuildProvider<HandlerFailureInboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new InboxE2eComposition             {                 Clock = clock,                 RegisterShipHandler = false,                 RegisterFaultyHandler = true,                 MaxAttempts = 5,                 InitialDelay = TimeSpan.FromSeconds(30),                 LeaseOwner = "efcore-inbox-handler-failure"             });
+         await using (provider.ConfigureAwait(true))
+         {
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(new FaultyCommand());
-        await processor.ProcessPendingAsync();
+        var receipt = await scheduler.AcceptAsync(new FaultyCommand()).ConfigureAwait(false);
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, receipt.Id);
+        var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, receipt.Id).ConfigureAwait(false);
         row!.Status.Should().Be(InboxStatus.Failed);
         row.LastError.Should().NotBeNullOrWhiteSpace();
         row.VisibleAfter.Should().Be(EfCoreInboxE2eSupport.BaseTime.AddSeconds(30));
+        }
     }
 
     private sealed class HandlerFailureInboxDbContext : EfCoreInboxE2eDbContext

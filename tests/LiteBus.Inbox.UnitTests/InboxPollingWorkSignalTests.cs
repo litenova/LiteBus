@@ -9,7 +9,7 @@ public sealed class InboxPollingWorkSignalTests
     {
         var signal = new InboxPollingWorkSignal();
 
-        await signal.WaitForWorkOrDelayAsync(TimeSpan.Zero);
+        await signal.WaitForWorkOrDelayAsync(TimeSpan.Zero).ConfigureAwait(false);
     }
 
     [Fact]
@@ -18,7 +18,7 @@ public sealed class InboxPollingWorkSignalTests
         var signal = new InboxPollingWorkSignal();
         var stopwatch = Stopwatch.StartNew();
 
-        await signal.WaitForWorkOrDelayAsync(TimeSpan.FromMilliseconds(50));
+        await signal.WaitForWorkOrDelayAsync(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
         stopwatch.Elapsed.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(40));
     }

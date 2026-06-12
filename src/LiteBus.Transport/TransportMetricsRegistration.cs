@@ -11,13 +11,21 @@ public static class TransportMetricsRegistration
     ///     Registers transport observable metrics when they have not already been configured.
     /// </summary>
     /// <param name="configuration">The module configuration receiving the metrics registration.</param>
-    public static void RegisterIfNeeded(IModuleConfiguration configuration)
+    /// <param name="broker">The optional stable broker name recorded on transport metrics.</param>
+    public static void RegisterIfNeeded(IModuleConfiguration configuration, string? broker = null)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
         if (configuration.TryGetContext<TransportMetricsRegisteredMarker>(out _))
         {
             return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(broker))
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(TransportBrokerIdentity),
+                new TransportBrokerIdentity(broker)));
         }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

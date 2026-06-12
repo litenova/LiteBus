@@ -25,7 +25,8 @@ public sealed class InMemorySagaStore : ISagaStore
     /// <param name="serializer">The serializer used to convert state objects to JSON.</param>
     public InMemorySagaStore(IMessageSerializer serializer)
     {
-        _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+        ArgumentNullException.ThrowIfNull(serializer);
+        _serializer = serializer;
     }
 
     /// <inheritdoc />

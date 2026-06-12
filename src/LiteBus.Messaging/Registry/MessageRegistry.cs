@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
@@ -73,6 +74,11 @@ internal sealed class MessageRegistry : IMessageRegistry
     /// </summary>
     private readonly HashSet<Type> _processedTypes = [];
 
+    /// <summary>
+    ///     The next registration sequence value assigned to committed handler descriptors.
+    /// </summary>
+    private int _nextRegistrationSequence;
+
     /// <inheritdoc />
     public IReadOnlyList<IHandlerDescriptor> Handlers => _handlerDescriptorsInOrder.AsReadOnly();
 
@@ -120,7 +126,13 @@ internal sealed class MessageRegistry : IMessageRegistry
     }
 
     /// <inheritdoc />
-    public void Register(Type type)
+    [RequiresUnreferencedCode("Handler and message registration inspects CLR types via reflection.")]
+    public void Register(
+        [DynamicallyAccessedMembers(
+            DynamicallyAccessedMemberTypes.PublicConstructors
+            | DynamicallyAccessedMemberTypes.PublicMethods
+            | DynamicallyAccessedMemberTypes.Interfaces)]
+        Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
 
@@ -169,17 +181,21 @@ internal sealed class MessageRegistry : IMessageRegistry
     /// <param name="newDescriptors">The handler descriptors to process.</param>
     private void ProcessHandlerDescriptors(IList<IHandlerDescriptor> newDescriptors)
     {
+        var committedDescriptors = new List<IHandlerDescriptor>(newDescriptors.Count);
+
         foreach (var descriptor in newDescriptors)
         {
             // Ensure the handler's message type is registered.
             RegisterMessageType(descriptor.MessageType);
 
             // Add to ordered list for indexed access.
-            _handlerDescriptorsInOrder.Add(descriptor);
+            var committed = CommitHandlerDescriptor(descriptor);
+            _handlerDescriptorsInOrder.Add(committed);
+            committedDescriptors.Add(committed);
         }
 
         // Link new handlers to existing committed messages.
-        LinkHandlersToCommittedMessages(newDescriptors);
+        LinkHandlersToCommittedMessages(committedDescriptors);
     }
 
     /// <summary>
@@ -324,21 +340,37 @@ internal sealed class MessageRegistry : IMessageRegistry
                 .ToList();
 
             // Add to the ordered handler list for DI registration.
+            var committedDescriptors = new List<IHandlerDescriptor>(closedDescriptors.Count);
+
             foreach (var descriptor in closedDescriptors)
             {
-                _handlerDescriptorsInOrder.Add(descriptor);
+                var committed = CommitHandlerDescriptor(descriptor);
+                committedDescriptors.Add(committed);
+                _handlerDescriptorsInOrder.Add(committed);
             }
 
             // Link to the message descriptor only if requested (for committed messages)
             if (linkToMessageDescriptor)
             {
-                messageDescriptor.AddDescriptors(closedDescriptors);
+                messageDescriptor.AddDescriptors(committedDescriptors);
             }
         }
         catch (ArgumentException)
         {
-            // MakeGenericType may throw if constraints can't be satisfied at runtime.
+            // Constraints were pre-checked; surface unexpected closure failures for diagnosis.
+            throw;
         }
+    }
+
+    /// <summary>
+    ///     Assigns a stable registration sequence and returns the committed handler descriptor.
+    /// </summary>
+    /// <param name="descriptor">The handler descriptor discovered during module registration.</param>
+    /// <returns>The descriptor annotated with its registration sequence.</returns>
+    private IHandlerDescriptor CommitHandlerDescriptor(IHandlerDescriptor descriptor)
+    {
+        var sequence = _nextRegistrationSequence++;
+        return HandlerDescriptorRegistration.WithRegistrationSequence(descriptor, sequence);
     }
 
     /// <summary>

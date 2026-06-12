@@ -110,8 +110,7 @@ internal static class TagReferenceAnalysis
             return;
         }
 
-        if (semanticModel.GetSymbolInfo(memberAccess.Name).Symbol is IMethodSymbol methodSymbol &&
-            methodSymbol.IsExtensionMethod &&
+        if (semanticModel.GetSymbolInfo(memberAccess.Name).Symbol is IMethodSymbol { IsExtensionMethod: true } methodSymbol &&
             IsTagExtensionContainingType(methodSymbol.ContainingType))
         {
             var tagParameterIndex = GetTagParameterIndex(methodSymbol);
@@ -207,9 +206,7 @@ internal static class TagReferenceAnalysis
             return false;
         }
 
-        if (initializer.Parent is AssignmentExpressionSyntax assignment &&
-            assignment.Left is MemberAccessExpressionSyntax memberAccess &&
-            memberAccess.Name.Identifier.Text == "Tags")
+        if (initializer.Parent is AssignmentExpressionSyntax { Left: MemberAccessExpressionSyntax { Name.Identifier.Text: "Tags" } memberAccess })
         {
             var symbol = semanticModel.GetSymbolInfo(memberAccess.Name).Symbol as IPropertySymbol;
 

@@ -39,7 +39,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         var query = new GetProductQuery();
 
         // Act
-        var queryResult = await queryMediator.QueryAsync(query);
+        var queryResult = await queryMediator.QueryAsync(query).ConfigureAwait(true);
 
         // Assert
         queryResult.Should().NotBeNull();
@@ -74,7 +74,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         var query = new GetProductByCriteriaQuery<PriceCriteria> { Payload = queryPayload };
 
         // Act
-        var queryResult = await queryMediator.QueryAsync(query);
+        var queryResult = await queryMediator.QueryAsync(query).ConfigureAwait(true);
 
         // Assert
         queryResult.Should().NotBeNull();
@@ -110,7 +110,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         var query = new StreamProductsQuery();
 
         // Act
-        var queryResult = await queryMediator.StreamAsync(query).ToListAsync();
+        var queryResult = await queryMediator.StreamAsync(query).ToListAsync().ConfigureAwait(true);
 
         // Assert
         queryResult.First().CorrelationId.Should().Be(query.CorrelationId);
@@ -142,7 +142,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         var query = new ProblematicQuery { ThrowExceptionInType = typeof(ProblematicQueryPreHandler) };
 
         // Act
-        await queryMediator.QueryAsync(query);
+        await queryMediator.QueryAsync(query).ConfigureAwait(true);
 
         // Assert
         query.ExecutedTypes.Should().HaveCount(5);
@@ -172,7 +172,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         var query = new ProblematicQuery { ThrowExceptionInType = typeof(GlobalQueryPostHandler) };
 
         // Act
-        await queryMediator.QueryAsync(query);
+        await queryMediator.QueryAsync(query).ConfigureAwait(true);
 
         // Assert
         query.ExecutedTypes.Should().HaveCount(8);
@@ -206,7 +206,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         var settings = new QueryMediationSettings { Filters = { Tags = [Tags.Tag1] } };
 
         // Act
-        await queryMediator.QueryAsync(query, settings);
+        await queryMediator.QueryAsync(query, settings).ConfigureAwait(true);
 
         // Assert
         query.ExecutedTypes.Should().HaveCount(7);
@@ -239,7 +239,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         var settings = new QueryMediationSettings { Filters = { Tags = [Tags.Tag1, Tags.Tag2] } };
 
         // Act
-        Func<Task> act = async () => await queryMediator.QueryAsync(query, settings);
+        Func<Task> act = async () => await queryMediator.QueryAsync(query, settings).ConfigureAwait(true);
 
         // Assert
         await act.Should().ThrowAsync<MultipleHandlerFoundException>();
@@ -265,7 +265,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         var query = new StreamProductsQuery { AbortInPreHandler = true };
 
         // Act
-        var queryResult = await queryMediator.StreamAsync(query).ToListAsync();
+        var queryResult = await queryMediator.StreamAsync(query).ToListAsync().ConfigureAwait(true);
 
         // Assert
         queryResult.Should().BeEmpty();
@@ -295,7 +295,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         var query = new StreamProductsQuery();
 
         // Act
-        await queryMediator.StreamAsync(query).ToListAsync();
+        await queryMediator.StreamAsync(query).ToListAsync().ConfigureAwait(true);
 
         // Assert
         // The post-handler should have retrieved the count from the execution context
@@ -322,7 +322,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
         var query = new IndirectStreamProductsQuery();
 
-        var results = await queryMediator.StreamAsync(query).ToListAsync();
+        var results = await queryMediator.StreamAsync(query).ToListAsync().ConfigureAwait(true);
 
         results.Should().ContainSingle();
 
@@ -348,7 +348,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
         var query = new EmptyStreamQuery();
 
-        var act = async () => await queryMediator.StreamAsync(query).ToListAsync();
+        var act = async () => await queryMediator.StreamAsync(query).ToListAsync().ConfigureAwait(true);
 
         var exception = await act.Should().ThrowAsync<NoHandlerFoundException>();
         exception.Which.Message.Should().Contain("RegisterFromAssembly");
@@ -374,7 +374,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
         var query = new StreamErrorHandlingQuery();
 
-        await queryMediator.StreamAsync(query).ToListAsync();
+        await queryMediator.StreamAsync(query).ToListAsync().ConfigureAwait(true);
 
         query.ExecutedTypes.Should().Contain(typeof(StreamErrorHandlingQueryErrorHandler));
         query.ObservedErrorHandlerMessageResult.Should().NotBeNull();

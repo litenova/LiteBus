@@ -76,14 +76,22 @@ internal sealed class ProcessorBackgroundService<TProcessor> : IBackgroundServic
         Action<ILogger, Exception> logLoopFailed,
         ILogger logger)
     {
-        _processor = processor ?? throw new ArgumentNullException(nameof(processor));
-        _processorOptions = processorOptions ?? throw new ArgumentNullException(nameof(processorOptions));
-        _hostOptions = hostOptions ?? throw new ArgumentNullException(nameof(hostOptions));
-        _workSignal = workSignal ?? throw new ArgumentNullException(nameof(workSignal));
-        _control = control ?? throw new ArgumentNullException(nameof(control));
-        _recordLoopError = recordLoopError ?? throw new ArgumentNullException(nameof(recordLoopError));
-        _logLoopFailed = logLoopFailed ?? throw new ArgumentNullException(nameof(logLoopFailed));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(processor);
+        ArgumentNullException.ThrowIfNull(processorOptions);
+        ArgumentNullException.ThrowIfNull(hostOptions);
+        ArgumentNullException.ThrowIfNull(workSignal);
+        ArgumentNullException.ThrowIfNull(control);
+        ArgumentNullException.ThrowIfNull(recordLoopError);
+        ArgumentNullException.ThrowIfNull(logLoopFailed);
+        ArgumentNullException.ThrowIfNull(logger);
+        _processor = processor;
+        _processorOptions = processorOptions;
+        _hostOptions = hostOptions;
+        _workSignal = workSignal;
+        _control = control;
+        _recordLoopError = recordLoopError;
+        _logLoopFailed = logLoopFailed;
+        _logger = logger;
     }
 
     /// <inheritdoc />
@@ -130,12 +138,15 @@ internal sealed class ProcessorBackgroundService<TProcessor> : IBackgroundServic
             {
                 break;
             }
+#pragma warning disable CA1031 // Do not catch general exception types
             catch (Exception exception)
             {
+                // Background processor loops must survive transient store or dispatch failures and continue polling.
                 _recordLoopError();
                 _logLoopFailed(_logger, exception);
                 await _workSignal.WaitForWorkOrDelayAsync(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
             }
+#pragma warning restore CA1031
         }
     }
 

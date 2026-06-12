@@ -28,7 +28,8 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
     /// <param name="configure">The module configuration action.</param>
     public InboxModule(Action<InboxModuleBuilder> configure)
     {
-        _configure = configure ?? throw new ArgumentNullException(nameof(configure));
+        ArgumentNullException.ThrowIfNull(configure);
+        _configure = configure;
     }
 
     /// <inheritdoc />

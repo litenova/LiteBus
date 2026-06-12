@@ -57,9 +57,9 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
         var orderId = Guid.NewGuid();
 
         await outbox.EnqueueAsync(
-            OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(new OrderSubmittedIntegrationEvent { OrderId = orderId }, eventId));
+            OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(new OrderSubmittedIntegrationEvent { OrderId = orderId }, eventId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
 
@@ -107,9 +107,9 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
         var messageId = Guid.NewGuid();
 
         await writer.EnqueueAsync(
-            OutboxEnqueueItem<PocoIntegrationEvent>.WithIdentity(new PocoIntegrationEvent { Value = "poco-test" }, messageId));
+            OutboxEnqueueItem<PocoIntegrationEvent>.WithIdentity(new PocoIntegrationEvent { Value = "poco-test" }, messageId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         recorder.Values.Should().ContainSingle("poco-test");
     }
@@ -160,9 +160,9 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
                     Trace = new MessageTrace.Workflow("correlation-42", "causation-7"),
                     Tenant = new TenantScope.Isolated("tenant-west"),
                     Target = PublicationTarget.ContractDefault.Instance
-                }));
+                })).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         capture.CorrelationId.Should().Be("correlation-42");
         capture.CausationId.Should().Be("causation-7");

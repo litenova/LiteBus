@@ -45,8 +45,10 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     /// <param name="options">The transport options controlling reconnect backoff.</param>
     public AzureServiceBusConsumer(ServiceBusClient client, AzureServiceBusTransportOptions options)
     {
-        _client = client ?? throw new ArgumentNullException(nameof(client));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(client);
+        _client = client;
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options;
     }
 
     /// <inheritdoc />
@@ -116,9 +118,9 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     }
 
     /// <inheritdoc />
-    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
+    public async Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
     {
-        return _stoppedTcs.Task.WaitAsync(cancellationToken);
+        await _stoppedTcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -131,6 +133,10 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     /// <summary>
     ///     Runs the Service Bus processor until cancellation, restarting with exponential backoff after recoverable errors.
     /// </summary>
+    /// <remarks>
+    ///     <see cref="ServiceBusException" /> and <see cref="ObjectDisposedException" /> are handled explicitly before
+    ///     the final <see cref="Exception" /> handler, which retries on any other unexpected processor failure.
+    /// </remarks>
     /// <param name="options">The consumer options for the active subscription.</param>
     /// <param name="handler">The handler invoked for each delivery.</param>
     /// <param name="cancellationToken">The token used to cancel the recovery loop.</param>
@@ -155,8 +161,27 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
                 {
                     break;
                 }
-                catch (Exception)
+                catch (ServiceBusException)
                 {
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    await Task.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
+
+                    retryDelay = TimeSpan.FromMilliseconds(
+                        Math.Min(retryDelay.TotalMilliseconds * 2, _options.ConsumerErrorRetryMaxInterval.TotalMilliseconds));
+                }
+                catch (ObjectDisposedException)
+                {
+                    break;
+                }
+#pragma warning disable CA1031 // Last-resort recovery boundary: unexpected processor failures restart the session with backoff.
+                catch (Exception)
+#pragma warning restore CA1031
+                {
+                    // Last-resort recovery boundary: unexpected processor failures restart the session with backoff.
                     if (cancellationToken.IsCancellationRequested)
                     {
                         break;
@@ -189,7 +214,7 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     {
         var sessionStopped = CreateStoppedTaskSource();
 
-        await using var processor = _client.CreateProcessor(
+        var processor = _client.CreateProcessor(
             options.Destination,
             new ServiceBusProcessorOptions
             {
@@ -198,42 +223,43 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
                 ReceiveMode = ServiceBusReceiveMode.PeekLock
             });
 
-        processor.ProcessMessageAsync += async args =>
+        try
         {
-            var ackHandlers = new TransportConsumerAckHandlers
+            processor.ProcessMessageAsync += async args =>
             {
-                AckAsync = token => args.CompleteMessageAsync(args.Message, token),
-                NackAsync = (requeue, token) => requeue
-                    ? args.AbandonMessageAsync(args.Message, cancellationToken: token)
-                    : args.DeadLetterMessageAsync(args.Message, cancellationToken: token)
+                var ackHandlers = new TransportConsumerAckHandlers
+                {
+                    AckAsync = token => args.CompleteMessageAsync(args.Message, token),
+                    NackAsync = (requeue, token) => requeue
+                        ? args.AbandonMessageAsync(args.Message, cancellationToken: token)
+                        : args.DeadLetterMessageAsync(args.Message, cancellationToken: token)
+                };
+
+                var transportMessage = AzureServiceBusMessageMapper.ToTransportMessage(
+                    args.Message,
+                    options.Destination,
+                    ackHandlers);
+
+                using var activity = TransportTracing.StartConsumeActivity(transportMessage);
+
+                await TransportConsumerHandlerInvoker.InvokeAsync(transportMessage, handler, cancellationToken)
+                    .ConfigureAwait(false);
             };
 
-            var transportMessage = AzureServiceBusMessageMapper.ToTransportMessage(
-                args.Message,
-                options.Destination,
-                ackHandlers);
-
-            using var activity = TransportTracing.StartConsumeActivity(transportMessage);
-
-            try
+            processor.ProcessErrorAsync += _ =>
             {
-                await handler(transportMessage, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception) when (!cancellationToken.IsCancellationRequested)
-            {
-                await transportMessage.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
-            }
-        };
+                sessionStopped.TrySetResult();
+                return Task.CompletedTask;
+            };
 
-        processor.ProcessErrorAsync += _ =>
+            await processor.StartProcessingAsync(cancellationToken).ConfigureAwait(false);
+            await sessionStopped.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await processor.StopProcessingAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        finally
         {
-            sessionStopped.TrySetResult();
-            return Task.CompletedTask;
-        };
-
-        await processor.StartProcessingAsync(cancellationToken).ConfigureAwait(false);
-        await sessionStopped.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
-        await processor.StopProcessingAsync(CancellationToken.None).ConfigureAwait(false);
+            await processor.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     /// <summary>

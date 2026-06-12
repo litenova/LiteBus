@@ -38,7 +38,7 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         var command = new ScanTestCommand();
 
         // Act
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(false);
 
         // Assert: open generic pre-handler should have been discovered and executed
         command.ExecutedTypes.Should().Contain(typeof(ScanTestOpenGenericPreHandler<ScanTestCommand>));
@@ -66,7 +66,7 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         var command = new ScanTestCommand();
 
         // Act
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(false);
 
         // Assert: open generic post-handler should have been discovered and executed
         command.ExecutedTypes.Should().Contain(typeof(ScanTestOpenGenericPostHandler<ScanTestCommand>));
@@ -94,7 +94,7 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         var command = new ScanTestCommand();
 
         // Act
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(false);
 
         // Assert: pre-handler runs before main handler, post-handler runs after
         var preIndex = command.ExecutedTypes.IndexOf(typeof(ScanTestOpenGenericPreHandler<ScanTestCommand>));
@@ -133,8 +133,8 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         var command2 = new AnotherScanTestCommand();
 
         // Act
-        await commandMediator.SendAsync(command1);
-        await commandMediator.SendAsync(command2);
+        await commandMediator.SendAsync(command1).ConfigureAwait(false);
+        await commandMediator.SendAsync(command2).ConfigureAwait(false);
 
         // Assert: open generic handlers should be closed for both command types
         command1.ExecutedTypes.Should().Contain(typeof(ScanTestOpenGenericPreHandler<ScanTestCommand>));
@@ -167,7 +167,7 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         var command = new CreateProductCommand();
 
         // Act
-        var result = await commandMediator.SendAsync(command);
+        var result = await commandMediator.SendAsync(command).ConfigureAwait(false);
 
         // Assert: CreateProductCommand should NOT have the constrained open generic handlers.
         // We verify by checking that none of the executed types are closed forms of the scan-test open generics.
@@ -209,8 +209,8 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
         var command2 = new AnotherScanTestCommand();
 
         // Act
-        await commandMediator.SendAsync(command1);
-        await commandMediator.SendAsync(command2);
+        await commandMediator.SendAsync(command1).ConfigureAwait(false);
+        await commandMediator.SendAsync(command2).ConfigureAwait(false);
 
         // Assert: both commands should have the full pipeline:
         // open generic pre-handler, then main handler, then open generic post-handler

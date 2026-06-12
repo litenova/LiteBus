@@ -48,10 +48,10 @@ public sealed class InboxProcessorBulkTerminalStateTests
                 CreatedAt = clock.GetUtcNow(),
                 Status = InboxStatus.Pending,
                 AttemptCount = 0
-            });
+            }).ConfigureAwait(false);
         }
 
-        var result = await processor.ProcessPendingAsync();
+        var result = await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         result.DeadLetteredCount.Should().Be(3);
         processingStore.PersistCallCount.Should().Be(3);
@@ -104,7 +104,7 @@ public sealed class InboxProcessorBulkTerminalStateTests
         {
             PersistCallCount++;
             LastPersistedDeadLetterCount = envelopes.Count(envelope => envelope.Status == InboxStatus.DeadLettered);
-            return await _inner.PersistAsync(envelopes, cancellationToken);
+            return await _inner.PersistAsync(envelopes, cancellationToken).ConfigureAwait(false);
         }
     }
 }

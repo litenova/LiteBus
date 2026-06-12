@@ -39,7 +39,7 @@ public sealed class OutboxTests : LiteBusTestBase
             {
                 OrderId = Guid.NewGuid()
             },
-            metadata));
+            metadata)).ConfigureAwait(false);
 
         receipt.Id.Should().Be(eventId);
         receipt.MessageType.Should().Be(typeof(OrderSubmittedIntegrationEvent));
@@ -98,9 +98,9 @@ public sealed class OutboxTests : LiteBusTestBase
             {
                 OrderId = orderId
             },
-            eventId));
+            eventId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         dispatcher.DispatchedMessages
             .OfType<OrderSubmittedIntegrationEvent>()
@@ -157,9 +157,9 @@ public sealed class OutboxTests : LiteBusTestBase
             {
                 Value = 42
             },
-            messageId));
+            messageId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         dispatcher.DispatchedMessages
             .OfType<GenericIntegrationEvent<int>>()
@@ -224,9 +224,9 @@ public sealed class OutboxTests : LiteBusTestBase
             {
                 OrderId = Guid.NewGuid()
             },
-            messageId));
+            messageId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         var envelope = store.Get(messageId);
         envelope.Status.Should().Be(OutboxStatus.Failed);
@@ -278,13 +278,13 @@ public sealed class OutboxTests : LiteBusTestBase
             {
                 OrderId = Guid.NewGuid()
             },
-            messageId));
+            messageId)).ConfigureAwait(false);
 
         // Attempt 1 of 2: AttemptCount reaches 1 which is < MaxAttempts (2), so envelope is retried.
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         // Attempt 2 of 2: AttemptCount reaches 2 which is >= MaxAttempts (2), so envelope is dead-lettered.
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         store.Get(messageId).Status.Should().Be(OutboxStatus.DeadLettered);
     }
@@ -312,7 +312,7 @@ public sealed class OutboxTests : LiteBusTestBase
             {
                 Identity = new MessageIdentity.Supplied(messageId),
                 Visibility = new MessageVisibility.At(visibleAfter)
-            }));
+            })).ConfigureAwait(false);
 
         store.Get(messageId).VisibleAfter.Should().Be(visibleAfter);
     }
@@ -359,9 +359,9 @@ public sealed class OutboxTests : LiteBusTestBase
                 Identity = new MessageIdentity.Supplied(messageId),
                 Trace = new MessageTrace.Workflow("correlation-99", "causation-99"),
                 Tenant = new TenantScope.Isolated("tenant-99")
-            }));
+            })).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         var envelope = dispatcher.DispatchedEnvelopes.Should().ContainSingle().Subject;
         envelope.CorrelationId.Should().Be("correlation-99");
@@ -391,7 +391,7 @@ public sealed class OutboxTests : LiteBusTestBase
             OutboxEnqueueItem.From(
                 new GenericIntegrationEvent<string> { Value = "batch" },
                 typeof(GenericIntegrationEvent<string>))
-        ]);
+        ]).ConfigureAwait(false);
 
         receipts.Should().HaveCount(2);
         receipts[0].Contract.Name.Should().Be("orders.events.submitted");

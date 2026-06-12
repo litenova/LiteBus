@@ -42,15 +42,17 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
     public async Task ProcessPendingAsync_ShouldPublishToAmqpAndMarkPostgreSqlEnvelopePublished()
     {
         var storeOptions = CreateOutboxStoreOptions();
-        await PostgreSqlOutboxSchema.EnsureAsync(_postgresFixture.DataSource, storeOptions);
+        await PostgreSqlOutboxSchema.EnsureAsync(_postgresFixture.DataSource, storeOptions).ConfigureAwait(true);
 
         var queueName = CreateUniqueName("pg-dispatch");
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-        await DeclareDirectQueueAsync(queueName);
+        await DeclareDirectQueueAsync(queueName).ConfigureAwait(true);
 
-        await using var provider = BuildProvider(storeOptions, string.Empty);
+         var provider = BuildProvider(storeOptions, string.Empty);
+         await using (provider.ConfigureAwait(false))
+         {
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
@@ -65,16 +67,17 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
                     Trace = new MessageTrace.Workflow("corr-pg-outbox-amqp", "cause-pg-outbox-amqp"),
                     Tenant = new TenantScope.Isolated("tenant-pg"),
                     Target = new PublicationTarget.Topic(queueName)
-                }));
+                })).ConfigureAwait(true);
 
-        await processor.ProcessPendingAsync();
 
-        var row = await ReadOutboxAsync(storeOptions, messageId);
+        await processor.ProcessPendingAsync().ConfigureAwait(true);
+
+        var row = await ReadOutboxAsync(storeOptions, messageId).ConfigureAwait(true);
         row.Should().NotBeNull();
         row!.Value.Status.Should().Be(OutboxStatus.Published);
         row.Value.AttemptCount.Should().Be(1);
 
-        var amqpMessage = await ConsumeOneAsync(queueName);
+        var amqpMessage = await ConsumeOneAsync(queueName).ConfigureAwait(true);
         var json = Encoding.UTF8.GetString(amqpMessage.Body);
 
         var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
@@ -84,6 +87,7 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
         payload!.OrderId.Should().Be(orderId);
         amqpMessage.MessageId.Should().Be(messageId.ToString("D"));
         AmqpHeaderValues.GetString(amqpMessage.Headers, AmqpHeaders.ContractName).Should().Be("orders.order-submitted");
+        }
     }
 
     private ServiceProvider BuildProvider(PostgreSqlOutboxStoreOptions storeOptions, string exchangeName)
@@ -122,21 +126,32 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
 
     private async Task DeclareDirectQueueAsync(string queueName)
     {
-        await using var manager = new AmqpConnectionManager(_rabbitMqFixture.ConnectionOptions);
-        await using var channel = await manager.CreateChannelAsync();
+         var manager = new AmqpConnectionManager(_rabbitMqFixture.ConnectionOptions);
+         await using (manager.ConfigureAwait(false))
+         {
+         var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
+         await using (channel.ConfigureAwait(false))
+         {
 
         await channel.QueueDeclareAsync(
             queueName,
             true,
             false,
             false,
-            null);
+            null).ConfigureAwait(false);
+
+        }
+        }
     }
 
     private async Task<ConsumedAmqpMessage> ConsumeOneAsync(string queueName)
     {
-        await using var manager = new AmqpConnectionManager(_rabbitMqFixture.ConnectionOptions);
-        await using var consumer = new AmqpConsumer(manager);
+         var manager = new AmqpConnectionManager(_rabbitMqFixture.ConnectionOptions);
+         await using (manager.ConfigureAwait(false))
+         {
+         var consumer = new AmqpConsumer(manager);
+         await using (consumer.ConfigureAwait(false))
+         {
         var received = new TaskCompletionSource<ConsumedAmqpMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await consumer.StartAsync(
@@ -148,20 +163,26 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
             async (message, cancellationToken) =>
             {
                 var bodyCopy = message.Body.ToArray();
-                await message.AcceptAsync(cancellationToken);
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
                 received.TrySetResult(new ConsumedAmqpMessage(message, bodyCopy));
-            });
+            }).ConfigureAwait(false);
 
         using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        return await received.Task.WaitAsync(cancellationSource.Token);
+        return await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
+        }
+        }
     }
 
     private async Task<(OutboxStatus Status, int AttemptCount)?> ReadOutboxAsync(PostgreSqlOutboxStoreOptions options, Guid messageId)
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-        await using var connection = await _postgresFixture.DataSource.OpenConnectionAsync();
-        await using var command = connection.CreateCommand();
+         var connection = await _postgresFixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var command = connection.CreateCommand();
+         await using (command.ConfigureAwait(false))
+         {
 
         command.CommandText = $"""
                                SELECT status, attempt_count
@@ -171,14 +192,20 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
 
         command.Parameters.AddWithValue("message_id", messageId);
 
-        await using var reader = await command.ExecuteReaderAsync();
+         var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
+         await using (reader.ConfigureAwait(false))
+         {
 
-        if (!await reader.ReadAsync())
+        if (!await reader.ReadAsync().ConfigureAwait(false))
         {
             return null;
+
         }
 
         return ((OutboxStatus) reader.GetInt32(0), reader.GetInt32(1));
+        }
+        }
+        }
     }
 
     private static PostgreSqlOutboxStoreOptions CreateOutboxStoreOptions()

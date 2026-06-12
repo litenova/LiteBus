@@ -38,17 +38,21 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
         var messageId = Guid.NewGuid();
         var dispatchReceived = new TaskCompletionSource<TransportMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await using var provider = BuildProvider(ingressDestination, dispatchDestination);
+         var provider = BuildProvider(ingressDestination, dispatchDestination);
+         await using (provider.ConfigureAwait(false))
+         {
         var manifest = provider.GetRequiredService<LiteBusHostManifest>();
         manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
         manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
 
         var broker = provider.GetRequiredService<InMemoryTransportBroker>();
-        await using var dispatchConsumer = await StartReceiveOneAsync(broker, dispatchDestination, dispatchReceived);
+         var dispatchConsumer = await StartReceiveOneAsync(broker, dispatchDestination, dispatchReceived).ConfigureAwait(false);
+         await using (dispatchConsumer.ConfigureAwait(false))
+         {
 
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(200), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(200), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -62,10 +66,10 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
                 Body = payload,
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-            });
+            }).ConfigureAwait(false);
 
             using var receiveTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var dispatched = await dispatchReceived.Task.WaitAsync(receiveTimeout.Token);
+            var dispatched = await dispatchReceived.Task.WaitAsync(receiveTimeout.Token).ConfigureAwait(false);
 
             TransportMessageAssertions.ReadBody(dispatched).Should().Contain(orderId.ToString());
 
@@ -79,13 +83,15 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
 
             await PollingWait.UntilAsync(
                 () => store.Get(messageId).Status == InboxStatus.Completed,
-                TimeSpan.FromSeconds(10));
+                TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
             store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
+        }
         }
     }
 
@@ -155,8 +161,8 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
             async (message, cancellationToken) =>
             {
                 received.TrySetResult(message);
-                await message.AcceptAsync(cancellationToken);
-            });
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
         return consumer;
     }

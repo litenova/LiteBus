@@ -36,7 +36,7 @@ public sealed class PolymorphicDispatchTests : LiteBusTestBase
         var command = new SpecializedPolymorphicCommand([]);
 
         // ACT
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(false);
 
         // ASSERT
         command.ExecutedTypes.Should().HaveCount(1);

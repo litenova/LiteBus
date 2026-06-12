@@ -24,7 +24,9 @@ public sealed class PostgreSqlOutboxModule : IOutboxStorageModule, IRequires<Out
     /// <param name="builder">The module configuration action.</param>
     public PostgreSqlOutboxModule(Action<PostgreSqlOutboxModuleBuilder> builder)
     {
-        _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+        ArgumentNullException.ThrowIfNull(builder);
+
+        _builder = builder;
     }
 
     /// <inheritdoc />

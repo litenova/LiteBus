@@ -1,9 +1,11 @@
 using System;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Messaging.Mediator;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Messaging;
 
@@ -25,7 +27,8 @@ public sealed class MessageModule : IModule
     /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="builder" /> is <see langword="null" />.</exception>
     public MessageModule(Action<MessageModuleBuilder> builder)
     {
-        _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+        ArgumentNullException.ThrowIfNull(builder);
+        _builder = builder;
     }
 
     /// <inheritdoc />
@@ -91,6 +94,11 @@ public sealed class MessageModule : IModule
             typeof(TimeProvider),
             timeProvider ?? TimeProvider.System));
 
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IMessageDispatchScopeFactory),
+            ResolveMessageDispatchScopeFactory,
+            InstanceLifetime.Singleton));
+
         // Register message mediator as transient.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageMediator),
@@ -101,6 +109,24 @@ public sealed class MessageModule : IModule
         {
             sharedContracts.ApplyTo(messageContractRegistry);
         }
+    }
+
+    /// <summary>
+    ///     Resolves <see cref="IMessageDispatchScopeFactory" /> from the host container.
+    /// </summary>
+    /// <param name="services">The root service provider built by the host.</param>
+    /// <returns>
+    ///     A scope factory backed by <see cref="IServiceScopeFactory" /> when available; otherwise a root-provider
+    ///     adapter for scopeless hosts.
+    /// </returns>
+    private static object ResolveMessageDispatchScopeFactory(IServiceProvider services)
+    {
+        if (services.GetService(typeof(IServiceScopeFactory)) is IServiceScopeFactory scopeFactory)
+        {
+            return new MessageDispatchScopeFactory(scopeFactory);
+        }
+
+        return new RootMessageDispatchScopeFactory(services);
     }
 
     /// <summary>

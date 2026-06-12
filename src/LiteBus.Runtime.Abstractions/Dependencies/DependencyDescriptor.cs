@@ -58,8 +58,11 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
         InstanceLifetime lifetime,
         bool isCollectionRegistration)
     {
-        DependencyType = dependencyType ?? throw new ArgumentNullException(nameof(dependencyType));
-        ImplementationType = implementationType ?? throw new ArgumentNullException(nameof(implementationType));
+        ArgumentNullException.ThrowIfNull(dependencyType);
+        ArgumentNullException.ThrowIfNull(implementationType);
+
+        DependencyType = dependencyType;
+        ImplementationType = implementationType;
         Lifetime = lifetime;
         IsCollectionRegistration = isCollectionRegistration;
     }
@@ -90,8 +93,11 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// </exception>
     internal DependencyDescriptor(Type dependencyType, object instance, bool isCollectionRegistration)
     {
-        DependencyType = dependencyType ?? throw new ArgumentNullException(nameof(dependencyType));
-        Instance = instance ?? throw new ArgumentNullException(nameof(instance));
+        ArgumentNullException.ThrowIfNull(dependencyType);
+        ArgumentNullException.ThrowIfNull(instance);
+
+        DependencyType = dependencyType;
+        Instance = instance;
         Lifetime = InstanceLifetime.Singleton;
         IsCollectionRegistration = isCollectionRegistration;
     }
@@ -146,8 +152,11 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
         InstanceLifetime lifetime,
         bool isCollectionRegistration)
     {
-        DependencyType = dependencyType ?? throw new ArgumentNullException(nameof(dependencyType));
-        Factory = factory ?? throw new ArgumentNullException(nameof(factory));
+        ArgumentNullException.ThrowIfNull(dependencyType);
+        ArgumentNullException.ThrowIfNull(factory);
+
+        DependencyType = dependencyType;
+        Factory = factory;
         Lifetime = lifetime;
         IsCollectionRegistration = isCollectionRegistration;
     }

@@ -20,13 +20,17 @@ internal static class AzureServiceBusTransportTestInfrastructure
         string queueName,
         TimeSpan timeout)
     {
-        await using var client = new ServiceBusClient(connectionString);
-        await using var receiver = client.CreateReceiver(queueName);
+         var client = new ServiceBusClient(connectionString);
+         await using (client.ConfigureAwait(false))
+         {
+         var receiver = client.CreateReceiver(queueName);
+         await using (receiver.ConfigureAwait(false))
+         {
         var deadline = DateTime.UtcNow + timeout;
 
         while (DateTime.UtcNow < deadline)
         {
-            var message = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(1));
+            var message = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 
             if (message is null)
             {
@@ -44,6 +48,8 @@ internal static class AzureServiceBusTransportTestInfrastructure
         }
 
         throw new TimeoutException($"No Service Bus message was received from '{queueName}' within {timeout}.");
+        }
+        }
     }
 
     /// <summary>
@@ -60,13 +66,19 @@ internal static class AzureServiceBusTransportTestInfrastructure
         int expectedCount,
         TimeSpan timeout)
     {
-        await using var client = new ServiceBusClient(connectionString);
-        await using var receiver = client.CreateReceiver(queueName);
+         var client = new ServiceBusClient(connectionString);
+         await using (client.ConfigureAwait(false))
+         {
+         var receiver = client.CreateReceiver(queueName);
+         await using (receiver.ConfigureAwait(false))
+         {
 
         await PollingWait.UntilAsync(async () =>
         {
-            var count = await receiver.PeekMessagesAsync(100);
+            var count = await receiver.PeekMessagesAsync(100).ConfigureAwait(false);
             return count.Count == expectedCount;
-        }, timeout);
+        }, timeout).ConfigureAwait(false);
+        }
+        }
     }
 }

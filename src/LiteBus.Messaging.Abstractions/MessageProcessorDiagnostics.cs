@@ -95,12 +95,6 @@ public static class MessageProcessorDiagnostics
     {
         ArgumentNullException.ThrowIfNull(retry);
 
-        if (retry.MaxAttempts <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                optionsParameterName,
-                retry.MaxAttempts,
-                "Retry max attempts must be greater than zero.");
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(retry.MaxAttempts, 0, optionsParameterName);
     }
 }

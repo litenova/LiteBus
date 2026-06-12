@@ -26,17 +26,11 @@ public sealed class EfCoreInboxProcessorDeferredVisibilityEndToEndTests : LiteBu
         var recorder = new CommandRecorder();
         var visibleAfter = EfCoreInboxE2eSupport.BaseTime.AddMinutes(30);
 
-        await EfCoreInboxE2eSupport.EnsureInboxTableAsync(_fixture.ConnectionString, storeOptions);
+        await EfCoreInboxE2eSupport.EnsureInboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
-        await using var provider = EfCoreInboxE2eSupport.BuildProvider<DeferredVisibilityInboxDbContext>(
-            _fixture.ConnectionString,
-            storeOptions,
-            new InboxE2eComposition
-            {
-                Recorder = recorder,
-                Clock = clock,
-                LeaseOwner = "efcore-inbox-deferred-visibility"
-            });
+         var provider = EfCoreInboxE2eSupport.BuildProvider<DeferredVisibilityInboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new InboxE2eComposition             {                 Recorder = recorder,                 Clock = clock,                 LeaseOwner = "efcore-inbox-deferred-visibility"             });
+         await using (provider.ConfigureAwait(true))
+         {
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -49,15 +43,16 @@ public sealed class EfCoreInboxProcessorDeferredVisibilityEndToEndTests : LiteBu
         }, InboxAcceptMetadata.Immediate with
         {
             Visibility = new MessageVisibility.At(visibleAfter)
-        }));
+        })).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
         recorder.Commands.Should().BeEmpty();
 
         clock.Advance(TimeSpan.FromMinutes(30));
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
+        }
     }
 
     private sealed class DeferredVisibilityInboxDbContext : EfCoreInboxE2eDbContext

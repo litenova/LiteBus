@@ -39,9 +39,11 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-        await DeclareDirectQueueAsync(queueName);
+        await DeclareDirectQueueAsync(queueName).ConfigureAwait(false);
 
-        await using var provider = BuildProvider(string.Empty);
+         var provider = BuildProvider(string.Empty);
+         await using (provider.ConfigureAwait(false))
+         {
         var store = provider.GetRequiredService<InMemoryOutboxStore>();
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
@@ -57,15 +59,15 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
                     Trace = new MessageTrace.Workflow("corr-outbox-amqp", "cause-outbox-amqp"),
                     Tenant = new TenantScope.Isolated("tenant-east"),
                     Target = new PublicationTarget.Topic(queueName)
-                }));
+                })).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         var envelope = store.Get(messageId);
         envelope.Status.Should().Be(OutboxStatus.Published);
         envelope.AttemptCount.Should().Be(1);
 
-        var amqpMessage = await ConsumeOneAsync(queueName);
+        var amqpMessage = await ConsumeOneAsync(queueName).ConfigureAwait(false);
 
         var storedPayload = store.Get(messageId).Payload;
         var json = Encoding.UTF8.GetString(amqpMessage.Body);
@@ -82,6 +84,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         AmqpHeaderValues.GetInt32(amqpMessage.Headers, AmqpHeaders.ContractVersion).Should().Be(1);
         AmqpHeaderValues.GetString(amqpMessage.Headers, AmqpHeaders.CausationId).Should().Be("cause-outbox-amqp");
         AmqpHeaderValues.GetString(amqpMessage.Headers, AmqpHeaders.TenantId).Should().Be("tenant-east");
+        }
     }
 
     /// <summary>
@@ -96,9 +99,11 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         var queueName = CreateUniqueName("contract-route");
         var messageId = Guid.NewGuid();
 
-        await DeclareTopicBindingAsync(exchangeName, queueName, routingKey);
+        await DeclareTopicBindingAsync(exchangeName, queueName, routingKey).ConfigureAwait(false);
 
-        await using var provider = BuildProvider(exchangeName);
+         var provider = BuildProvider(exchangeName);
+         await using (provider.ConfigureAwait(false))
+         {
         var store = provider.GetRequiredService<InMemoryOutboxStore>();
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
@@ -106,14 +111,15 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         await outbox.EnqueueAsync(
             OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
                 new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-                messageId));
+                messageId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
 
-        var amqpMessage = await ConsumeOneAsync(queueName);
+        var amqpMessage = await ConsumeOneAsync(queueName).ConfigureAwait(false);
         amqpMessage.RoutingKey.Should().Be(routingKey);
+        }
     }
 
     /// <summary>
@@ -156,15 +162,21 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
     /// <returns>A task that completes when the queue exists.</returns>
     private async Task DeclareDirectQueueAsync(string queueName)
     {
-        await using var manager = new AmqpConnectionManager(ConnectionOptions);
-        await using var channel = await manager.CreateChannelAsync();
+         var manager = new AmqpConnectionManager(ConnectionOptions);
+         await using (manager.ConfigureAwait(false))
+         {
+         var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
+         await using (channel.ConfigureAwait(false))
+         {
 
         await channel.QueueDeclareAsync(
             queueName,
             true,
             false,
             false,
-            null);
+            null).ConfigureAwait(false);
+        }
+        }
     }
 
     /// <summary>
@@ -176,27 +188,33 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
     /// <returns>A task that completes when the topology is ready.</returns>
     private async Task DeclareTopicBindingAsync(string exchangeName, string queueName, string routingKey)
     {
-        await using var manager = new AmqpConnectionManager(ConnectionOptions);
-        await using var channel = await manager.CreateChannelAsync();
+         var manager = new AmqpConnectionManager(ConnectionOptions);
+         await using (manager.ConfigureAwait(false))
+         {
+         var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
+         await using (channel.ConfigureAwait(false))
+         {
 
         await channel.ExchangeDeclareAsync(
             exchangeName,
             ExchangeType.Topic,
             true,
             false,
-            null);
+            null).ConfigureAwait(false);
 
         await channel.QueueDeclareAsync(
             queueName,
             true,
             false,
             false,
-            null);
+            null).ConfigureAwait(false);
 
         await channel.QueueBindAsync(
             queueName,
             exchangeName,
-            routingKey);
+            routingKey).ConfigureAwait(false);
+        }
+        }
     }
 
     /// <summary>
@@ -206,8 +224,12 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
     /// <returns>The received AMQP message with a copied body safe for use after the consumer disposes.</returns>
     private async Task<ConsumedAmqpMessage> ConsumeOneAsync(string queueName)
     {
-        await using var manager = new AmqpConnectionManager(ConnectionOptions);
-        await using var consumer = new AmqpConsumer(manager);
+         var manager = new AmqpConnectionManager(ConnectionOptions);
+         await using (manager.ConfigureAwait(false))
+         {
+         var consumer = new AmqpConsumer(manager);
+         await using (consumer.ConfigureAwait(false))
+         {
         var received = new TaskCompletionSource<ConsumedAmqpMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await consumer.StartAsync(
@@ -219,12 +241,14 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
             async (message, cancellationToken) =>
             {
                 var bodyCopy = message.Body.ToArray();
-                await message.AcceptAsync(cancellationToken);
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
                 received.TrySetResult(new ConsumedAmqpMessage(message, bodyCopy));
-            });
+            }).ConfigureAwait(false);
 
         using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        return await received.Task.WaitAsync(cancellationSource.Token);
+        return await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
+        }
+        }
     }
 
     /// <summary>

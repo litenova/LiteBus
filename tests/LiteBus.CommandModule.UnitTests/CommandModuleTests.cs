@@ -39,7 +39,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var command = new CreateProductCommand();
 
         // Act
-        var commandResult = await commandMediator.SendAsync(command);
+        var commandResult = await commandMediator.SendAsync(command).ConfigureAwait(true);
 
         // Assert
         commandResult.Should().NotBeNull();
@@ -76,7 +76,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var command = new UpdateProductCommand();
 
         // Act
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(true);
 
         // Assert
         command.ExecutedTypes.Should().HaveCount(6);
@@ -115,7 +115,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
         };
 
         // Act
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(true);
 
         // Assert
         command.ExecutedTypes.Should().HaveCount(5);
@@ -152,7 +152,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
         };
 
         // Act
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(true);
 
         // Assert
         command.ExecutedTypes.Should().HaveCount(5);
@@ -190,7 +190,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
         };
 
         // Act
-        var commandResult = await commandMediator.SendAsync(command);
+        var commandResult = await commandMediator.SendAsync(command).ConfigureAwait(true);
 
         // Assert
         commandResult.Should().NotBeNull();
@@ -227,7 +227,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
         };
 
         // Act
-        await commandMediator.SendAsync(command);
+        await commandMediator.SendAsync(command).ConfigureAwait(true);
 
         // Assert
         command.ExecutedTypes.Should().HaveCount(8);
@@ -272,7 +272,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
         };
 
         // Act
-        await commandMediator.SendAsync(command, settings);
+        await commandMediator.SendAsync(command, settings).ConfigureAwait(true);
 
         // Assert
         command.ExecutedTypes.Should().HaveCount(7);
@@ -315,7 +315,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
         };
 
         // Act
-        var act = async () => await commandMediator.SendAsync(command, settings);
+        var act = async () => await commandMediator.SendAsync(command, settings).ConfigureAwait(true);
 
         // Assert
         await act.Should().ThrowAsync<MultipleHandlerFoundException>();

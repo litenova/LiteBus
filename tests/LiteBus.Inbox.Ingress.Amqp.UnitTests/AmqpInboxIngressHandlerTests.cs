@@ -24,7 +24,9 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
         var visibleAfter = DateTimeOffset.UtcNow.AddMinutes(-1);
         var command = new ShipOrderCommand { OrderId = Guid.NewGuid() };
 
-        await using var provider = BuildProvider();
+         var provider = BuildProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
 
         await handler.AcceptAsync(CreateMessage(
@@ -38,7 +40,8 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
                 headers[AmqpHeaders.TenantId] = "tenant-west";
                 headers["litebus-visible-after"] = visibleAfter.ToString("O");
             },
-            "property-correlation"));
+            "property-correlation")).ConfigureAwait(true);
+
 
         var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
 
@@ -57,12 +60,15 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
         leased[0].CausationId.Should().Be("causation-2");
         leased[0].TenantId.Should().BeNull();
         leased[0].VisibleAfter.Should().Be(visibleAfter);
+        }
     }
 
     [Fact]
     public async Task AcceptAsync_WhenContractHeaderMissing_ShouldThrow()
     {
-        await using var provider = BuildProvider();
+         var provider = BuildProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
 
         var message = CreateMessage(
@@ -73,12 +79,15 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
 
         await act.Should().ThrowAsync<InboxIngressException>()
             .WithMessage("*litebus-contract-name*required*");
+        }
     }
 
     [Fact]
     public async Task AcceptAsync_WhenContractVersionIsInvalid_ShouldThrow()
     {
-        await using var provider = BuildProvider();
+         var provider = BuildProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
 
         var act = () => handler.AcceptAsync(CreateMessage(
@@ -87,12 +96,15 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
 
         await act.Should().ThrowAsync<InboxIngressException>()
             .WithMessage("*positive integer*");
+        }
     }
 
     [Fact]
     public async Task AcceptAsync_WhenContractVersionIsZero_ShouldThrow()
     {
-        await using var provider = BuildProvider();
+         var provider = BuildProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
 
         var act = () => handler.AcceptAsync(CreateMessage(
@@ -101,23 +113,29 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
 
         await act.Should().ThrowAsync<InboxIngressException>()
             .WithMessage("*positive integer*");
+        }
     }
 
     [Fact]
     public async Task AcceptAsync_WhenMessageIsNull_ShouldThrow()
     {
-        await using var provider = BuildProvider();
+         var provider = BuildProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
 
         var act = () => handler.AcceptAsync(null!);
 
         await act.Should().ThrowAsync<ArgumentNullException>();
+        }
     }
 
     [Fact]
     public async Task AcceptAsync_ShouldConvertByteArrayAndMemoryHeaders()
     {
-        await using var provider = BuildProvider();
+         var provider = BuildProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
         var command = new ShipOrderCommand { OrderId = Guid.NewGuid() };
 
@@ -128,7 +146,8 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
                 headers[AmqpHeaders.CorrelationId] = Encoding.UTF8.GetBytes("bytes-correlation");
                 headers[AmqpHeaders.TenantId] = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes("memory-tenant"));
                 headers[AmqpHeaders.CausationId] = new Memory<byte>(Encoding.UTF8.GetBytes("memory-causation"));
-            }));
+            })).ConfigureAwait(true);
+
 
         var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
 
@@ -144,17 +163,21 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
         leased[0].CorrelationId.Should().Be("bytes-correlation");
         leased[0].TenantId.Should().BeNull();
         leased[0].CausationId.Should().Be("memory-causation");
+        }
     }
 
     [Fact]
     public async Task AcceptAsync_WhenMessageIdHeaderInvalid_ShouldLeaveInboxIdUnset()
     {
-        await using var provider = BuildProvider();
+         var provider = BuildProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
 
         await handler.AcceptAsync(CreateMessage(
             new ShipOrderCommand { OrderId = Guid.NewGuid() },
-            headers => headers[AmqpHeaders.MessageId] = "not-a-guid"));
+            headers => headers[AmqpHeaders.MessageId] = "not-a-guid")).ConfigureAwait(true);
+
 
         var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
 
@@ -168,17 +191,21 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
 
         leased.Should().ContainSingle();
         leased[0].Id.Should().NotBe(Guid.Empty);
+        }
     }
 
     [Fact]
     public async Task AcceptAsync_WhenVisibleAfterHeaderInvalid_ShouldIgnoreVisibleAfter()
     {
-        await using var provider = BuildProvider();
+         var provider = BuildProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
 
         await handler.AcceptAsync(CreateMessage(
             new ShipOrderCommand { OrderId = Guid.NewGuid() },
-            headers => headers["litebus-visible-after"] = "not-a-date"));
+            headers => headers["litebus-visible-after"] = "not-a-date")).ConfigureAwait(true);
+
 
         var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
 
@@ -192,6 +219,7 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
 
         leased.Should().ContainSingle();
         leased[0].VisibleAfter.Should().BeNull();
+        }
     }
 
     private static ServiceProvider BuildProvider()

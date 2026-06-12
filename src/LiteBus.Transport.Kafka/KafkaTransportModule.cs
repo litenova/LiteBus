@@ -1,6 +1,5 @@
 using Confluent.Kafka;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.Kafka;
@@ -21,7 +20,8 @@ public sealed class KafkaTransportModule : IModule
     /// <param name="options">The connection settings configured by the application.</param>
     public KafkaTransportModule(KafkaTransportOptions options)
     {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options;
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.BootstrapServers);
     }
 
@@ -96,6 +96,6 @@ public sealed class KafkaTransportModule : IModule
             typeof(IMessageConsumer),
             typeof(KafkaConsumer)));
 
-        TransportMetricsRegistration.RegisterIfNeeded(configuration);
+        TransportMetricsRegistration.RegisterIfNeeded(configuration, "kafka");
     }
 }

@@ -49,9 +49,9 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
                 {
                     Identity = new MessageIdentity.Supplied(messageId)
                 }
-            });
+            }).ConfigureAwait(false);
 
-            await processor.ProcessPendingAsync();
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
             var row = store.Get(messageId);
             row.Status.Should().Be(OutboxStatus.Failed);
@@ -59,7 +59,7 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
         }
         finally
         {
-            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider);
+            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
         }
     }
 
@@ -100,9 +100,9 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
                 {
                     Identity = new MessageIdentity.Supplied(messageId)
                 }
-            });
+            }).ConfigureAwait(false);
 
-            await processor.ProcessPendingAsync();
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
             var row = store.Get(messageId);
             row.Status.Should().Be(OutboxStatus.Failed);
@@ -110,7 +110,7 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
         }
         finally
         {
-            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider);
+            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
         }
     }
 

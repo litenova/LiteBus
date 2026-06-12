@@ -1,5 +1,3 @@
-using LiteBus.Messaging.Abstractions;
-
 namespace LiteBus.Testing;
 
 /// <summary>

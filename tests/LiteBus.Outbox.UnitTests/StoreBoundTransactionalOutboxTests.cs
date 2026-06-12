@@ -21,7 +21,7 @@ public sealed class StoreBoundTransactionalOutboxTests
         var factory = new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System);
         var writer = new StoreBoundTransactionalOutbox(store, factory);
 
-        var receipt = await writer.EnqueueAsync(OutboxWriterTestFactory.Item(new TestEvent { OrderId = Guid.NewGuid() }));
+        var receipt = await writer.EnqueueAsync(OutboxWriterTestFactory.Item(new TestEvent { OrderId = Guid.NewGuid() })).ConfigureAwait(false);
 
         store.AddCalls.Should().Be(1);
         store.LastEnvelope.Should().NotBeNull();

@@ -47,7 +47,7 @@ internal static class PostgreSqlSchemaManager
             PostgreSqlSchemaLogLevel.Information,
             $"Ensuring {definition.Component} schema creation for '{storeTable.QualifiedName}'.");
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         var context = PostgreSqlSchemaOperationContext.ForComponent(connection, options, definition, logger);
         await EnsureWithLockAsync(context, cancellationToken).ConfigureAwait(false);
 
@@ -81,7 +81,7 @@ internal static class PostgreSqlSchemaManager
             PostgreSqlSchemaLogLevel.Debug,
             $"Validating {definition.Component} schema for '{storeTable.QualifiedName}'.");
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         var context = PostgreSqlSchemaOperationContext.ForComponent(connection, options, definition, logger);
         await ValidateCoreAsync(context, cancellationToken).ConfigureAwait(false);
 
@@ -104,44 +104,54 @@ internal static class PostgreSqlSchemaManager
 
         var lockKey = definition.CreateLockKey(context.Options);
 
-        await using var lockScope = await PostgreSqlAdvisoryLockScope.TryAcquireAsync(
+        var lockScope = await PostgreSqlAdvisoryLockScope.TryAcquireAsync(
                 context.Connection,
                 lockKey,
                 cancellationToken)
             .ConfigureAwait(false);
 
-        if (lockScope is not null)
+        try
         {
-            context.Logger.Log(PostgreSqlSchemaLogLevel.Debug, $"Acquired advisory lock '{lockKey}'.");
-            await ApplyEnsureAsync(context, cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
-        context.Logger.Log(
-            PostgreSqlSchemaLogLevel.Debug,
-            $"Advisory lock '{lockKey}' is held by another session. Waiting for schema version {definition.CurrentSchemaVersion}.");
-
-        var deadline = DateTime.UtcNow + DefaultLockTimeout;
-
-        while (DateTime.UtcNow < deadline)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (await IsAtExpectedVersionAsync(context, cancellationToken).ConfigureAwait(false))
+            if (lockScope is not null)
             {
-                context.Logger.Log(
-                    PostgreSqlSchemaLogLevel.Debug,
-                    $"Schema version {definition.CurrentSchemaVersion} is available without acquiring lock '{lockKey}'.");
-
+                context.Logger.Log(PostgreSqlSchemaLogLevel.Debug, $"Acquired advisory lock '{lockKey}'.");
+                await ApplyEnsureAsync(context, cancellationToken).ConfigureAwait(false);
                 return;
             }
 
-            await Task.Delay(DefaultLockPollInterval, cancellationToken).ConfigureAwait(false);
-        }
+            context.Logger.Log(
+                PostgreSqlSchemaLogLevel.Debug,
+                $"Advisory lock '{lockKey}' is held by another session. Waiting for schema version {definition.CurrentSchemaVersion}.");
 
-        throw new PostgreSqlStorageTimeoutException(
-            $"Timed out after {DefaultLockTimeout} waiting for {definition.Component} schema " +
-            $"'{context.StoreTable.QualifiedName}' to reach version {definition.CurrentSchemaVersion}.");
+            var deadline = DateTime.UtcNow + DefaultLockTimeout;
+
+            while (DateTime.UtcNow < deadline)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (await IsAtExpectedVersionAsync(context, cancellationToken).ConfigureAwait(false))
+                {
+                    context.Logger.Log(
+                        PostgreSqlSchemaLogLevel.Debug,
+                        $"Schema version {definition.CurrentSchemaVersion} is available without acquiring lock '{lockKey}'.");
+
+                    return;
+                }
+
+                await Task.Delay(DefaultLockPollInterval, cancellationToken).ConfigureAwait(false);
+            }
+
+            throw new PostgreSqlStorageTimeoutException(
+                $"Timed out after {DefaultLockTimeout} waiting for {definition.Component} schema " +
+                $"'{context.StoreTable.QualifiedName}' to reach version {definition.CurrentSchemaVersion}.");
+        }
+        finally
+        {
+            if (lockScope is not null)
+            {
+                await lockScope.DisposeAsync().ConfigureAwait(false);
+            }
+        }
     }
 
     /// <summary>
@@ -346,7 +356,7 @@ internal static class PostgreSqlSchemaManager
     {
         var definition = context.Definition ?? throw new InvalidOperationException("Index validation requires a component schema definition.");
 
-        var missingIndexes = new List<string>();
+        List<string> missingIndexes = [];
 
         foreach (var indexName in definition.GetRequiredIndexNames(context.Options))
         {

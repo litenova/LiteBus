@@ -22,4 +22,9 @@ public static class InboxExecutionContextKeys
     ///     Identifies messages currently being executed from an inbox replay.
     /// </summary>
     public const string IsInboxExecution = "__LiteBus.Inbox.IsInboxExecution";
+
+    /// <summary>
+    ///     Stores the durable contract name for the inbox envelope currently being dispatched.
+    /// </summary>
+    public const string ContractName = "__LiteBus.Inbox.ContractName";
 }

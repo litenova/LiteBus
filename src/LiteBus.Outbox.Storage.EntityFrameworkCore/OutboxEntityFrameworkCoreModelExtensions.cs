@@ -104,7 +104,7 @@ public static class OutboxEntityFrameworkCoreModelExtensions
         entity.Property(message => message.IdempotencyKey)
             .HasColumnName("idempotency_key");
 
-        entity.HasIndex(message => message.IdempotencyKey)
+        entity.HasIndex(message => new { message.TenantId, message.IdempotencyKey })
             .IsUnique()
             .HasFilter("idempotency_key IS NOT NULL");
 

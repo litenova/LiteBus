@@ -49,7 +49,7 @@ public sealed class KafkaIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBase
                 [TransportHeaders.ContractVersion] = "1",
                 [TransportHeaders.MessageId] = Guid.NewGuid().ToString("D")
             },
-            0);
+            0).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -64,7 +64,7 @@ public sealed class KafkaIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBase
         await RunScenarioAsync(
             JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
             TransportTestHeaders.Create(messageId, ContractName, 99),
-            0);
+            0).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -82,7 +82,7 @@ public sealed class KafkaIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBase
                 [TransportHeaders.ContractVersion] = "1",
                 [TransportHeaders.MessageId] = "not-a-guid"
             },
-            1);
+            1).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -101,12 +101,14 @@ public sealed class KafkaIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBase
 
         await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(
             _fixture.TransportOptions.BootstrapServers,
-            ingressTopic);
+            ingressTopic).ConfigureAwait(false);
 
-        await using var provider = BuildProvider(ingressTopic);
+         var provider = BuildProvider(ingressTopic);
+         await using (provider.ConfigureAwait(false))
+         {
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -117,21 +119,22 @@ public sealed class KafkaIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBase
                 Destination = ingressTopic,
                 Body = Encoding.UTF8.GetBytes(body),
                 Headers = headers
-            });
+            }).ConfigureAwait(false);
 
             await PollingWait.UntilAsync(
                 () => provider.GetRequiredService<InMemoryInboxStore>().Count == expectedStoreCount,
-                TimeSpan.FromSeconds(15));
+                TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
             await KafkaTransportTestInfrastructure.WaitForStableStoreCountAsync(
                 () => provider.GetRequiredService<InMemoryInboxStore>().Count,
                 expectedStoreCount,
                 TimeSpan.FromSeconds(2),
-                TimeSpan.FromSeconds(10));
+                TimeSpan.FromSeconds(10)).ConfigureAwait(false);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 

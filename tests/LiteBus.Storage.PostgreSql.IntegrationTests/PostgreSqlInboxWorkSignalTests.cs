@@ -24,17 +24,17 @@ public sealed class PostgreSqlInboxWorkSignalTests : IClassFixture<PostgreSqlFix
     [Fact]
     public async Task WaitForWorkOrDelayAsync_after_listener_breaks_should_open_new_connection()
     {
-        await using var signal = new PostgreSqlWorkSignal(
-            _fixture.DataSource,
-            PostgreSqlInboxNotifyChannel.ChannelName);
+         var signal = new PostgreSqlWorkSignal(             _fixture.DataSource,             PostgreSqlInboxNotifyChannel.ChannelName);
+         await using (signal.ConfigureAwait(true))
+         {
 
-        await signal.WaitForWorkOrDelayAsync(TimeSpan.FromMilliseconds(50), CancellationToken.None);
+        await signal.WaitForWorkOrDelayAsync(TimeSpan.FromMilliseconds(50), CancellationToken.None).ConfigureAwait(true);
 
         var firstConnection = GetListenerConnection(signal);
         firstConnection.Should().NotBeNull();
         firstConnection!.State.Should().Be(ConnectionState.Open);
 
-        await TerminateBackendAsync(firstConnection.ProcessID);
+        await TerminateBackendAsync(firstConnection.ProcessID).ConfigureAwait(true);
 
         NpgsqlConnection? secondConnection = null;
 
@@ -49,15 +49,22 @@ public sealed class PostgreSqlInboxWorkSignalTests : IClassFixture<PostgreSqlFix
         reconnected.Should().BeTrue("the work signal should replace a terminated listener connection");
         secondConnection.Should().NotBeNull();
         secondConnection!.State.Should().Be(ConnectionState.Open);
+        }
     }
 
     private async Task TerminateBackendAsync(int backendProcessId)
     {
-        await using var connection = await _fixture.DataSource.OpenConnectionAsync();
-        await using var command = connection.CreateCommand();
+         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var command = connection.CreateCommand();
+         await using (command.ConfigureAwait(false))
+         {
         command.CommandText = "SELECT pg_terminate_backend(@pid)";
         command.Parameters.AddWithValue("pid", backendProcessId);
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+        }
+        }
     }
 
     private static NpgsqlConnection? GetListenerConnection(PostgreSqlWorkSignal signal)

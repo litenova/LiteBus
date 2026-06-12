@@ -31,8 +31,8 @@ public sealed class InboxCleanupBackgroundServiceTests
         var oldCompletedId = Guid.NewGuid();
         var recentCompletedId = Guid.NewGuid();
 
-        await store.AddAsync(CreateEnvelope(oldCompletedId, now.AddHours(-3), InboxStatus.Completed));
-        await store.AddAsync(CreateEnvelope(recentCompletedId, now.AddMinutes(-10), InboxStatus.Completed));
+        await store.AddAsync(CreateEnvelope(oldCompletedId, now.AddHours(-3), InboxStatus.Completed)).ConfigureAwait(false);
+        await store.AddAsync(CreateEnvelope(recentCompletedId, now.AddMinutes(-10), InboxStatus.Completed)).ConfigureAwait(false);
 
         var cleanup = new InboxCleanupBackgroundService(
             store,
@@ -41,7 +41,7 @@ public sealed class InboxCleanupBackgroundServiceTests
             coordinator);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await cleanup.ExecuteAsync(cts.Token);
+        await cleanup.ExecuteAsync(cts.Token).ConfigureAwait(false);
 
         store.GetAll(InboxStatus.Completed).Should().ContainSingle(envelope => envelope.Id == recentCompletedId);
         store.GetAll(InboxStatus.Completed).Should().NotContain(envelope => envelope.Id == oldCompletedId);

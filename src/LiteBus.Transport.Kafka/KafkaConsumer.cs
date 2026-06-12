@@ -55,8 +55,9 @@ public sealed class KafkaConsumer : IMessageConsumer
     /// <param name="options">The connection settings controlling seek backoff behavior.</param>
     public KafkaConsumer(IConsumer<string, byte[]> consumer, KafkaTransportOptions options)
     {
-        _consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
+        ArgumentNullException.ThrowIfNull(consumer);
         ArgumentNullException.ThrowIfNull(options);
+        _consumer = consumer;
         _seekBackoff = new KafkaSeekBackoff(options);
     }
 
@@ -129,9 +130,9 @@ public sealed class KafkaConsumer : IMessageConsumer
     }
 
     /// <inheritdoc />
-    public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
+    public async Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
     {
-        return _stoppedTcs.Task.WaitAsync(cancellationToken);
+        await _stoppedTcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -205,7 +206,7 @@ public sealed class KafkaConsumer : IMessageConsumer
                     ackHandlers,
                     _seekBackoff.IsRedelivery(offset));
 
-                await handler(transportMessage, cancellationToken).ConfigureAwait(false);
+                await TransportConsumerHandlerInvoker.InvokeAsync(transportMessage, handler, cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

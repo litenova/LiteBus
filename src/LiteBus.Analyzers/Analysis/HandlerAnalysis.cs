@@ -14,7 +14,7 @@ namespace LiteBus.Analyzers.Analysis;
 internal static class HandlerAnalysis
 {
     private static readonly (string MetadataName, string Pipeline)[] HandlerInterfaceMap =
-    {
+    [
         ("LiteBus.Commands.Abstractions.ICommandHandler`1", "command"),
         ("LiteBus.Commands.Abstractions.ICommandHandler`2", "command"),
         ("LiteBus.Events.Abstractions.IEventHandler`1", "event"),
@@ -31,7 +31,7 @@ internal static class HandlerAnalysis
         ("LiteBus.Events.Abstractions.IEventErrorHandler`1", "event error-handler"),
         ("LiteBus.Queries.Abstractions.IQueryErrorHandler`1", "query error-handler"),
         ("LiteBus.Queries.Abstractions.IQueryErrorHandler`2", "query error-handler")
-    };
+    ];
 
     /// <summary>
     ///     Collects handler registrations declared in the compilation.
@@ -152,7 +152,7 @@ internal static class HandlerAnalysis
     /// <param name="assemblySymbol">The referenced assembly symbol.</param>
     /// <param name="compilationAssembly">The assembly under analysis.</param>
     /// <returns><see langword="true" /> when the referenced assembly may contain application handlers.</returns>
-    private static bool ShouldScanReferencedAssembly(IAssemblySymbol assemblySymbol, IAssemblySymbol compilationAssembly)
+    internal static bool ShouldScanReferencedAssembly(IAssemblySymbol assemblySymbol, IAssemblySymbol compilationAssembly)
     {
         if (SymbolEqualityComparer.Default.Equals(assemblySymbol, compilationAssembly))
         {

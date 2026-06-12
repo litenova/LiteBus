@@ -83,10 +83,14 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
         ITransportCircuitBreaker? circuitBreaker = null,
         ILogger<TransportInboxIngressConsumer>? logger = null)
     {
-        _consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
-        _handler = handler ?? throw new ArgumentNullException(nameof(handler));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-        _hostOptions = hostOptions ?? throw new ArgumentNullException(nameof(hostOptions));
+        ArgumentNullException.ThrowIfNull(consumer);
+        _consumer = consumer;
+        ArgumentNullException.ThrowIfNull(handler);
+        _handler = handler;
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options;
+        ArgumentNullException.ThrowIfNull(hostOptions);
+        _hostOptions = hostOptions;
         _circuitBreaker = circuitBreaker;
         _logger = logger ?? NullLogger<TransportInboxIngressConsumer>.Instance;
     }
@@ -120,11 +124,14 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
             {
                 break;
             }
+
+#pragma warning disable CA1031 // Ingress restart boundary records broker faults and retries the consumer loop.
             catch (Exception exception)
             {
                 _circuitBreaker?.RecordFailure();
                 TransportInboxIngressLogMessages.IngressRestarting(_logger, exception);
             }
+#pragma warning restore CA1031
             finally
             {
                 CancelBatchFlushTimer();
@@ -234,10 +241,12 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
         {
             await FlushBatchBufferAsync(CancellationToken.None).ConfigureAwait(false);
         }
+#pragma warning disable CA1031 // Batch flush timer failures can originate from any store or broker fault.
         catch (Exception exception)
         {
             TransportInboxIngressLogMessages.BatchFlushFailed(_logger, exception);
         }
+#pragma warning restore CA1031
     }
 
     /// <summary>
@@ -303,23 +312,46 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
             await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
+
+#pragma warning disable CA1031 // Non-requeue acceptance failures are discarded so poison deliveries do not block the loop.
         catch (Exception)
         {
             await message.DiscardAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
+#pragma warning restore CA1031
 
+        await AcknowledgeDeliveryAsync(message, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Acknowledges a broker delivery after the inbox store has accepted it.
+    /// </summary>
+    /// <param name="message">The transport delivery whose broker acknowledgement should be sent.</param>
+    /// <param name="cancellationToken">The token used to cancel the acknowledgement.</param>
+    /// <returns>A task that completes when the delivery has been acknowledged or returned to the queue.</returns>
+    /// <remarks>
+    ///     When acknowledgement fails after a successful store accept, the delivery is returned to the queue so broker
+    ///     redelivery is absorbed idempotently by the existing inbox row when
+    ///     <see cref="TransportInboxIngressOptions.RequireStableIdentity" /> supplies broker-scoped identity and idempotency.
+    /// </remarks>
+    private async Task AcknowledgeDeliveryAsync(TransportMessage message, CancellationToken cancellationToken)
+    {
         try
         {
             await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
             _circuitBreaker?.RecordSuccess();
         }
+
+#pragma warning disable CA1031 // Broker acknowledgement failures can originate from any transport SDK.
         catch (Exception exception)
         {
             _circuitBreaker?.RecordFailure();
             TransportInboxIngressTelemetry.RecordAckFailedAfterAccept();
             TransportInboxIngressLogMessages.AckFailedAfterAccept(_logger, exception);
+            await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
         }
+#pragma warning restore CA1031
     }
 
     /// <summary>
@@ -334,11 +366,35 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
     {
         _circuitBreaker?.ThrowIfOpen();
 
+        try
+        {
+            await _handler.AcceptBatchAsync(messages, cancellationToken).ConfigureAwait(false);
+        }
+
+#pragma warning disable CA1031 // Batch accept failures fall back to per-message acceptance for isolated poison handling.
+        catch (Exception)
+        {
+            foreach (var message in messages)
+            {
+                try
+                {
+                    await AcceptAndAcknowledgeAsync(message, cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    ReleaseBatchAdmission();
+                }
+            }
+
+            return;
+        }
+#pragma warning restore CA1031
+
         foreach (var message in messages)
         {
             try
             {
-                await AcceptAndAcknowledgeAsync(message, cancellationToken).ConfigureAwait(false);
+                await AcknowledgeDeliveryAsync(message, cancellationToken).ConfigureAwait(false);
             }
             finally
             {

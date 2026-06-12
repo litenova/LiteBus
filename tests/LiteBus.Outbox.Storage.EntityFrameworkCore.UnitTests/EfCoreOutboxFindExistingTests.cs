@@ -20,8 +20,10 @@ public sealed class EfCoreOutboxFindExistingTests
             .UseInMemoryDatabase(databaseName)
             .Options;
 
-        await using var context = new FindExistingOutboxDbContext(options);
-        await context.Database.EnsureCreatedAsync();
+         var context = new FindExistingOutboxDbContext(options);
+         await using (context.ConfigureAwait(false))
+         {
+        await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
 
         var idRowId = Guid.NewGuid();
         var keyRowId = Guid.NewGuid();
@@ -52,7 +54,7 @@ public sealed class EfCoreOutboxFindExistingTests
             IdempotencyKey = idempotencyKey
         });
 
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync().ConfigureAwait(false);
 
         var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), new EntityFrameworkCoreOutboxStoreOptions());
 
@@ -66,10 +68,11 @@ public sealed class EfCoreOutboxFindExistingTests
             Status = OutboxStatus.Pending,
             AttemptCount = 0,
             IdempotencyKey = idempotencyKey
-        });
+        }).ConfigureAwait(false);
 
         resolved.Id.Should().Be(idRowId);
         resolved.Payload.Should().Contain("by\":\"id");
+        }
     }
 
     /// <summary>

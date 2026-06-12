@@ -16,7 +16,7 @@ public sealed class ExplicitMessageContractRegistrationAnalyzer : DiagnosticAnal
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(DiagnosticDescriptors.ExplicitMessageContractRegistration);
+        [DiagnosticDescriptors.ExplicitMessageContractRegistration];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)

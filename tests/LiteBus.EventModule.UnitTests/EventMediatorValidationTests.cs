@@ -29,7 +29,7 @@ public sealed class EventMediatorValidationTests : LiteBusTestBase
 
         var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
 
-        var act = async () => await eventMediator.PublishAsync(null!);
+        var act = async () => await eventMediator.PublishAsync(null!).ConfigureAwait(true);
 
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
@@ -53,7 +53,7 @@ public sealed class EventMediatorValidationTests : LiteBusTestBase
 
         var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
 
-        var act = async () => await eventMediator.PublishAsync<ProductCreatedEvent>(null!);
+        var act = async () => await eventMediator.PublishAsync<ProductCreatedEvent>(null!).ConfigureAwait(true);
 
         await act.Should().ThrowAsync<ArgumentNullException>();
     }

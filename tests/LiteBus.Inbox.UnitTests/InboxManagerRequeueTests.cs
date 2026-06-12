@@ -30,7 +30,7 @@ public sealed class InboxManagerRequeueTests
             CreatedAt = DateTimeOffset.UtcNow,
             AttemptCount = 0,
             Status = InboxStatus.DeadLettered
-        });
+        }).ConfigureAwait(false);
 
         await store.AddAsync(new InboxEnvelope
         {
@@ -41,9 +41,9 @@ public sealed class InboxManagerRequeueTests
             CreatedAt = DateTimeOffset.UtcNow,
             AttemptCount = 0,
             Status = InboxStatus.Pending
-        });
+        }).ConfigureAwait(false);
 
-        var result = await manager.RequeueAsync([deadLetterId, pendingId, Guid.NewGuid()]);
+        var result = await manager.RequeueAsync([deadLetterId, pendingId, Guid.NewGuid()]).ConfigureAwait(false);
 
         result.Requested.Should().Be(3);
         result.Requeued.Should().Be(1);

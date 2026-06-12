@@ -2,7 +2,6 @@ using Amazon;
 using Amazon.Runtime;
 using Amazon.SQS;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.AwsSqs;
@@ -23,7 +22,8 @@ public sealed class AwsSqsTransportModule : IModule
     /// <param name="options">The connection settings configured by the application.</param>
     public AwsSqsTransportModule(AwsSqsTransportOptions options)
     {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options;
     }
 
     /// <inheritdoc />
@@ -79,6 +79,6 @@ public sealed class AwsSqsTransportModule : IModule
             typeof(IMessageConsumer),
             typeof(SqsConsumer)));
 
-        TransportMetricsRegistration.RegisterIfNeeded(configuration);
+        TransportMetricsRegistration.RegisterIfNeeded(configuration, "sqs");
     }
 }

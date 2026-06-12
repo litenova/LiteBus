@@ -42,8 +42,10 @@ public sealed class PostgreSqlTransactionalInboxParticipant
         IPostgreSqlTransactionProvider? transactionProvider,
         TransactionalWriteMode writeMode)
     {
-        _registration = registration ?? throw new ArgumentNullException(nameof(registration));
-        _singletonStore = singletonStore ?? throw new ArgumentNullException(nameof(singletonStore));
+        ArgumentNullException.ThrowIfNull(registration);
+        _registration = registration;
+        ArgumentNullException.ThrowIfNull(singletonStore);
+        _singletonStore = singletonStore;
         _transactionProvider = transactionProvider;
         _writeMode = writeMode;
     }

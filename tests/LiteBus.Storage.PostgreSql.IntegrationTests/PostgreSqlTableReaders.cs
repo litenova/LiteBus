@@ -18,8 +18,12 @@ internal static class PostgreSqlTableReaders
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = connection.CreateCommand();
+         var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var command = connection.CreateCommand();
+         await using (command.ConfigureAwait(false))
+         {
 
         command.CommandText = $"""
                                SELECT
@@ -46,11 +50,14 @@ internal static class PostgreSqlTableReaders
 
         command.Parameters.AddWithValue("message_id", messageId);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+         await using (reader.ConfigureAwait(false))
+         {
 
-        if (!await reader.ReadAsync(cancellationToken))
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             return null;
+
         }
 
         return new InboxEnvelope
@@ -73,6 +80,9 @@ internal static class PostgreSqlTableReaders
             TraceContext = ReadNullableString(reader, 15),
             CompletedAt = ReadNullableDateTimeOffset(reader, 16)
         };
+        }
+        }
+        }
     }
 
     internal static async Task<OutboxEnvelope?> ReadOutboxAsync(
@@ -83,8 +93,12 @@ internal static class PostgreSqlTableReaders
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = connection.CreateCommand();
+         var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var command = connection.CreateCommand();
+         await using (command.ConfigureAwait(false))
+         {
 
         command.CommandText = $"""
                                SELECT
@@ -109,11 +123,14 @@ internal static class PostgreSqlTableReaders
 
         command.Parameters.AddWithValue("message_id", messageId);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+         await using (reader.ConfigureAwait(false))
+         {
 
-        if (!await reader.ReadAsync(cancellationToken))
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             return null;
+
         }
 
         return new OutboxEnvelope
@@ -134,6 +151,9 @@ internal static class PostgreSqlTableReaders
             CausationId = ReadNullableString(reader, 13),
             TenantId = ReadNullableString(reader, 14)
         };
+        }
+        }
+        }
     }
 
     internal static async Task<int> CountInboxRowsAsync(
@@ -143,10 +163,16 @@ internal static class PostgreSqlTableReaders
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = connection.CreateCommand();
+         var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var command = connection.CreateCommand();
+         await using (command.ConfigureAwait(false))
+         {
         command.CommandText = $"SELECT COUNT(*) FROM {tableName};";
-        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
+        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
+        }
+        }
     }
 
     internal static async Task<SagaTableRow?> ReadSagaAsync(
@@ -158,8 +184,12 @@ internal static class PostgreSqlTableReaders
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = connection.CreateCommand();
+         var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var command = connection.CreateCommand();
+         await using (command.ConfigureAwait(false))
+         {
 
         command.CommandText = $"""
                                SELECT
@@ -176,11 +206,14 @@ internal static class PostgreSqlTableReaders
         command.Parameters.AddWithValue("correlation_id", correlationId);
         command.Parameters.AddWithValue("saga_type", sagaType);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+         await using (reader.ConfigureAwait(false))
+         {
 
-        if (!await reader.ReadAsync(cancellationToken))
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             return null;
+
         }
 
         return new SagaTableRow
@@ -191,6 +224,9 @@ internal static class PostgreSqlTableReaders
             OptimisticLockVersion = reader.GetInt32(3),
             IsCompleted = reader.GetBoolean(4)
         };
+        }
+        }
+        }
     }
 
     internal static async Task<int> CountSagaRowsAsync(
@@ -200,10 +236,16 @@ internal static class PostgreSqlTableReaders
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = connection.CreateCommand();
+         var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var command = connection.CreateCommand();
+         await using (command.ConfigureAwait(false))
+         {
         command.CommandText = $"SELECT COUNT(*) FROM {tableName};";
-        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
+        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
+        }
+        }
     }
 
     private static string? ReadNullableString(NpgsqlDataReader reader, int ordinal)

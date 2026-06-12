@@ -29,9 +29,11 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
     public async Task ProcessPendingAsync_when_after_dispatch_hook_fails_should_dead_letter_from_processing()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
-        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
+        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
 
-        await using var provider = BuildProvider(_fixture, options);
+         var provider = BuildProvider(_fixture, options);
+         await using (provider.ConfigureAwait(false))
+         {
         var scheduler = provider.GetRequiredService<IInbox>();
         var processingStore = provider.GetRequiredService<IInboxProcessingStore>();
         var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
@@ -50,22 +52,23 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
 
         await scheduler.AcceptAsync(InboxAcceptItem<ShipOrderCommand>.WithIdentity(
             new ShipOrderCommand { OrderId = messageId },
-            messageId));
+            messageId)).ConfigureAwait(false);
 
-        var result = await processor.ProcessPendingAsync();
+        var result = await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         result.DeadLetteredCount.Should().Be(1);
 
-        var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId);
+        var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
         row!.Status.Should().Be(InboxStatus.DeadLettered);
         row.LastError.Should().Contain("AfterDispatch failed");
+        }
     }
 
     [Fact]
     public async Task PersistAsync_when_completed_already_persisted_should_skip_dead_letter_transition()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
-        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options);
+        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
         var store = new PostgreSqlInboxStore(_fixture.DataSource, options);
         var now = DateTimeOffset.UtcNow;
         var messageId = Guid.NewGuid();
@@ -79,7 +82,7 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
             CreatedAt = now,
             Status = InboxStatus.Pending,
             AttemptCount = 0
-        });
+        }).ConfigureAwait(false);
 
         var leased = await store.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -87,10 +90,10 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
             LeaseOwner = "fsm-worker",
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         var completed = leased[0].AsCompleted();
-        var completedResult = await store.PersistAsync([completed]);
+        var completedResult = await store.PersistAsync([completed]).ConfigureAwait(false);
         completedResult.AppliedCount.Should().Be(1);
 
         var deadLettered = completed with
@@ -99,12 +102,12 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
             LastError = "hook failure"
         };
 
-        var deadLetterResult = await store.PersistAsync([deadLettered]);
+        var deadLetterResult = await store.PersistAsync([deadLettered]).ConfigureAwait(false);
 
         deadLetterResult.AppliedCount.Should().Be(0);
         deadLetterResult.SkippedCount.Should().Be(1);
 
-        var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId);
+        var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
         row!.Status.Should().Be(InboxStatus.Completed);
     }
 

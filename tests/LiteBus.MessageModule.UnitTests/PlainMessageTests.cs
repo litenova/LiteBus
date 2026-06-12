@@ -41,7 +41,7 @@ public sealed class PlainMessageTests : LiteBusTestBase
         await eventPublisher.PublishAsync(plainMessage, new EventMediationSettings
         {
             AutoRegisterUnregisteredMessageTypes = true
-        });
+        }).ConfigureAwait(false);
 
         // Assert
         plainMessage.ExecutedTypes.Should().HaveCount(3);

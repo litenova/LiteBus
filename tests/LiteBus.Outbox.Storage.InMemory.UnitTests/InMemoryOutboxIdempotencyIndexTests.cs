@@ -29,7 +29,7 @@ public sealed class InMemoryOutboxIdempotencyIndexTests
             Status = OutboxStatus.Pending,
             AttemptCount = 0,
             IdempotencyKey = idempotencyKey
-        });
+        }).ConfigureAwait(false);
 
         var leased = await store.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -37,11 +37,11 @@ public sealed class InMemoryOutboxIdempotencyIndexTests
             LeaseOwner = "test",
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await store.PersistAsync([leased[0].AsPublished() with { PublishedAt = now.AddHours(-2) }]);
+        await store.PersistAsync([leased[0].AsPublished() with { PublishedAt = now.AddHours(-2) }]).ConfigureAwait(false);
 
-        var deleted = await store.DeletePublishedOlderThanAsync(now.AddHours(1));
+        var deleted = await store.DeletePublishedOlderThanAsync(now.AddHours(1)).ConfigureAwait(false);
         deleted.Should().Be(1);
 
         var secondId = Guid.NewGuid();
@@ -56,7 +56,7 @@ public sealed class InMemoryOutboxIdempotencyIndexTests
             Status = OutboxStatus.Pending,
             AttemptCount = 0,
             IdempotencyKey = idempotencyKey
-        });
+        }).ConfigureAwait(false);
 
         stored.Id.Should().Be(secondId);
     }
@@ -81,7 +81,7 @@ public sealed class InMemoryOutboxIdempotencyIndexTests
             Status = OutboxStatus.Pending,
             AttemptCount = 0,
             IdempotencyKey = idempotencyKey
-        });
+        }).ConfigureAwait(false);
 
         store.Clear();
 
@@ -97,7 +97,7 @@ public sealed class InMemoryOutboxIdempotencyIndexTests
             Status = OutboxStatus.Pending,
             AttemptCount = 0,
             IdempotencyKey = idempotencyKey
-        });
+        }).ConfigureAwait(false);
 
         stored.Id.Should().Be(secondId);
     }

@@ -62,10 +62,14 @@ public sealed class TransportInboxDispatcher : IInboxDispatcher
         IInboxPayloadProtector? payloadProtector = null,
         ITenantRoutingStrategy? tenantRoutingStrategy = null)
     {
-        _transport = transport ?? throw new ArgumentNullException(nameof(transport));
-        _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
-        _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(transport);
+        _transport = transport;
+        ArgumentNullException.ThrowIfNull(contractRegistry);
+        _contractRegistry = contractRegistry;
+        ArgumentNullException.ThrowIfNull(messageSerializer);
+        _messageSerializer = messageSerializer;
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options;
         _payloadProtector = payloadProtector;
         _tenantRoutingStrategy = tenantRoutingStrategy;
     }

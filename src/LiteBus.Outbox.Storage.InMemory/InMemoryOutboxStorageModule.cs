@@ -20,7 +20,9 @@ public sealed class InMemoryOutboxStorageModule : IOutboxStorageModule, IRequire
     /// <param name="builder">The module configuration action.</param>
     public InMemoryOutboxStorageModule(Action<InMemoryOutboxStorageModuleBuilder> builder)
     {
-        _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+        ArgumentNullException.ThrowIfNull(builder);
+
+        _builder = builder;
     }
 
     /// <inheritdoc />

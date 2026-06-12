@@ -9,7 +9,7 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 /// <summary>
 ///     Registers the Entity Framework Core outbox store with LiteBus dependency injection.
 /// </summary>
-public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule
+public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<OutboxModule>
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -22,7 +22,9 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule
     /// <param name="builder">The module configuration action.</param>
     public EfCoreOutboxStorageModule(Action<EfCoreOutboxStorageModuleBuilder> builder)
     {
-        _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+        ArgumentNullException.ThrowIfNull(builder);
+
+        _builder = builder;
     }
 
     /// <inheritdoc />
@@ -39,7 +41,7 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule
                 "An outbox database context must be configured. Call UseDbContext<TContext>() on the EF Core outbox storage builder.");
         }
 
-        if (moduleBuilder.RequireTransactionalSetup && !moduleBuilder.RegisterSaveChangesInterceptor)
+        if (moduleBuilder is { RequireTransactionalSetup: true, RegisterSaveChangesInterceptor: false })
         {
             throw new LiteBusConfigurationException(
                 "EnforceTransactionalSetup() is enabled but EnableSaveChangesInterceptor() was not called. " +

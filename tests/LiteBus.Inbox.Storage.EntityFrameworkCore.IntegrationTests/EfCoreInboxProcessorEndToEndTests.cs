@@ -33,18 +33,13 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
     public async Task ProcessPendingAsync_ShouldExecuteScheduledCommandThroughEfCoreStore()
     {
         var storeOptions = EfCoreInboxE2eSupport.CreateStoreOptions(TableName);
-        await EfCoreInboxE2eSupport.EnsureInboxTableAsync(_fixture.ConnectionString, storeOptions);
+        await EfCoreInboxE2eSupport.EnsureInboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
         var recorder = new CommandRecorder();
 
-        await using var provider = EfCoreInboxE2eSupport.BuildProvider<HappyPathInboxDbContext>(
-            _fixture.ConnectionString,
-            storeOptions,
-            new InboxE2eComposition
-            {
-                Recorder = recorder,
-                LeaseOwner = "efcore-inbox-happy-path"
-            });
+         var provider = EfCoreInboxE2eSupport.BuildProvider<HappyPathInboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new InboxE2eComposition             {                 Recorder = recorder,                 LeaseOwner = "efcore-inbox-happy-path"             });
+         await using (provider.ConfigureAwait(true))
+         {
 
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -54,11 +49,12 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
         await scheduler.AcceptAsync(new ShipOrderCommand {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
+        }
     }
 
     private sealed class HappyPathInboxDbContext : EfCoreInboxE2eDbContext

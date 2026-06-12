@@ -164,7 +164,7 @@ internal static class EfCoreRelationalLeaseExecutor
         var updateSqlTemplate = EfCoreMySqlLeaseSql.BuildUpdate(component, qualifiedTableName);
         var reloadSqlTemplate = EfCoreMySqlLeaseSql.BuildReload(component, qualifiedTableName);
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken)
+        using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
 
         try

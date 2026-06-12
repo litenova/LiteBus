@@ -67,9 +67,14 @@ private void LinkHandlersToCommittedMessages(IList<IHandlerDescriptor> newDescri
 
 ### Out of scope
 
-- `tests/`, `samples/`, and `benchmarks/` are not required to follow this rule unless a task explicitly says otherwise.
+- `benchmarks/` are not required to follow documentation rules unless a task explicitly says otherwise.
 - Do not add XML comments that restate the identifier without adding meaning (for example, `/// <summary>Gets the count.</summary>` on `Count` is acceptable; `/// <summary>Count.</summary>` is not).
 - Do not add file header blocks (`// <copyright>`, license banners). LiteBus uses per-member `///` documentation only.
+
+### Tests and samples
+
+- **`tests/` and `samples/`**: require XML documentation on **public** types and members in test helpers, shared fixtures, and sample host entry points. Private test methods and nested types do not require `///` unless a task says otherwise.
+- StyleCop documentation warnings apply via `tests/.editorconfig` and `samples/.editorconfig`.
 
 ### Verification
 
@@ -79,7 +84,117 @@ After editing `src/`:
 dotnet build LiteBus.slnx
 ```
 
-`StyleCop.Analyzers` is referenced from `src/Directory.Build.props`. Only **documentation** rule categories are warnings (`src/.editorconfig`); other StyleCop categories are disabled so layout and naming rules do not churn existing code. Fix documentation analyzer warnings (SA1600 through SA1629) before finishing a documentation task. File header rules (SA1633 and related) are disabled.
+`StyleCop.Analyzers` is referenced from `src/Directory.Build.props`. Fix documentation analyzer warnings (SA1600 through SA1629) before finishing a documentation task. File header rules (SA1633 and related) are disabled. See **Code style and analyzers** for the full analyzer inventory on `src/`, `tests/`, and `samples/`.
+
+## Code style and analyzers
+
+Conventions below apply during cleanup and to all new code. Analyzer severities live in `src/.editorconfig`, `tests/.editorconfig`, `samples/.editorconfig`, and ReSharper inspection keys in the root `.editorconfig`. `src/Directory.Build.props` enables `AnalysisLevel`, `AnalysisMode`, and `EnforceCodeStyleInBuild`.
+
+### Null and argument validation (.NET 6+ helpers)
+
+- **Always** use static throw helpers:
+  - `ArgumentNullException.ThrowIfNull(...)`
+  - `ArgumentException.ThrowIfNullOrWhiteSpace(...)` / `ThrowIfNullOrEmpty(...)` where applicable
+  - `ArgumentOutOfRangeException.ThrowIfLessThan` / `ThrowIfNegative` for range checks
+- Reserve `throw new ArgumentNullException(nameof(x))` only when a **custom message** is required.
+
+### File layout and naming
+
+- **One top-level type per file** (class, interface, record, struct, enum, delegate).
+- **Allowed exceptions** (document explicitly):
+  - `private`/`internal` nested types inside a `partial` class (for example HTTP JSON DTOs in `LiteBusManagementEndpointModels.cs`).
+- **Generic filenames**: bracket arity — `ICommandHandler[TCommand, TCommandResult].cs`. Not CLR backtick names.
+- **Non-generic and generic variants are separate files** (split pairs like `InboxAcceptItem` + `InboxAcceptItem<TMessage>`).
+
+### Namespaces (required)
+
+- **File-scoped namespaces only**: `namespace Foo.Bar;`
+- Block-scoped `namespace Foo.Bar { ... }` is **not allowed** (`IDE0161` is **error** on `src/`, **warning** on `tests/` and `samples/`).
+
+### Class construction (no primary constructors on classes)
+
+- **Do not** use C# 12 primary constructors on `class` types. They clutter the type header and hurt readability in a public library.
+- Use explicit fields/properties plus a conventional constructor body (existing LiteBus pattern).
+- **Positional records** for immutable DTOs/value objects remain fine (`public sealed record Foo(string Bar);`).
+- Do not introduce new primary-constructor classes during cleanup; convert any found to explicit constructors. `IDE0290` is disabled so Roslyn does not suggest primary constructors.
+
+### Property mutability
+
+- **Records and immutable DTOs**: `{ get; init; }` or positional records.
+- **Documented exceptions** where `set` stays:
+  - EF Core entity / projection types.
+  - Intentionally mutable pipeline state (for example `MessageErrorContext`).
+  - ASP.NET two-way binding types (rare).
+
+### Collection expressions (required)
+
+- Use collection expressions `[]`, `[x]`, `[..items]` instead of:
+  - `Array.Empty<T>()`
+  - `new List<T>()` / `new T[] { }` when building inline collections
+  - `Enumerable.Empty<T>()` for empty returns
+- Apply on every touched file during cleanup; grep for legacy patterns and convert.
+
+### Collection parameters vs strongly typed collections
+
+- Prefer **`params` read-only spans/arrays** for **variadic convenience** APIs where callers pass a small, inline list:
+  - Module registration helpers (`RegisterDiagnosticCheck`, tag lists, module type lists).
+  - Internal builder wiring with 2–5 homogeneous arguments.
+- **Keep `IReadOnlyList<T>`** for **batch/domain writer APIs** per existing [API Design](docs/API-Design.md) rules (`AcceptBatchAsync`, `EnqueueAsync` batch entries, parallel business data). Do not replace batch contracts with `params`.
+- When converting, use `params ReadOnlySpan<T>` or `params T[]` and wrap to `IReadOnlyList` internally only at the public batch boundary if needed.
+
+### Enums
+
+- `[Flags]` only when values are combined with `|`, `&`, or `~`.
+- No bitwise ops on plain enums (`CA1069`).
+
+### Library async discipline
+
+- All `await` in library code (`src/`, and tests/samples where async) must use `.ConfigureAwait(false)` unless documented host-context requirement (layer-5 ASP.NET edge only) (`CA2007`).
+
+### Exception handling at transport boundaries
+
+- **In scope**: rewrite `catch (Exception)` at transport ingress, publishers, consumers, and dispatch adapters.
+- Replace with **specific catches** where the SDK documents them (`OperationCanceledException`, broker-specific exceptions, `JsonException`, and similar).
+- When a broad catch is unavoidable at a boundary, catch `Exception`, **log with context**, map to a **domain transport/dispatch exception**, and never swallow silently.
+- Add XML `<remarks>` on the catch block explaining why the boundary remains broad if specificity is impossible.
+- `CA1031` warns on general `catch (Exception)`; suppress only with justification.
+
+### Standard attributes (public library)
+
+Add where missing on public surfaces touched during cleanup:
+
+| Attribute | When |
+|-----------|------|
+| `[EnumeratorCancellation]` | `CancellationToken` parameter on `IAsyncEnumerable` / async-iterator methods |
+| `[DebuggerDisplay]` | High-churn public value types (envelopes, receipts, key options) — concise, no PII |
+| `[DynamicallyAccessedMembers]` / `[RequiresUnreferencedCode]` | Reflection paths (`MessageRegistry`, contract resolution, saga state discovery) |
+| `[EditorBrowsable(Never)]` | Advanced/internal registration hooks exposed as public for framework reasons |
+| `[Obsolete(message, error: false)]` | Already used for telemetry renames; keep pattern consistent |
+
+Do not add attributes that duplicate compiler/NRT behavior or bloat every type.
+
+### Analyzer inventory (`src/.editorconfig`)
+
+| Rule | ID | Severity | Purpose |
+|------|-----|----------|---------|
+| Use `ThrowIfNull` | CA1510 | warning | Null argument validation |
+| Use `ThrowIfNullOrEmpty` | CA1511 | warning | String/collection null-or-empty |
+| ConfigureAwait | CA2007 | warning | Library async discipline |
+| Non-Flags enum bitwise | CA1069 | warning | Enum misuse |
+| One type per file | SA1402 | warning | File layout |
+| File name matches type | SA1649 | warning | Generic `[T]` naming |
+| File-scoped namespace | IDE0161 | **error** | Block-scoped namespaces forbidden |
+| Collection expression | IDE0300 | warning | Prefer `[]` syntax |
+| Primary constructor on class | IDE0290 | **none** | Explicitly disabled |
+| Catch general Exception | CA1031 | warning | Transport/boundary review |
+
+Keep disabled: StyleCop layout/spacing categories, SA1633 file headers, IDE0007/`var` wars, CA1062 (redundant with NRT + CA1510).
+
+### ReSharper inspections (Cursor IDE)
+
+Root `.editorconfig` sets `resharper_*_highlighting = warning` for redundant usings, file-scoped namespaces, ConfigureAwait, collection/array style, redundant defaults, casts, `using` declarations, `this.` qualification, always-true/false conditions, and unused private members. Do not enable inspections that recommend primary constructors on classes or bulk LINQ simplifications that hurt hot-path readability.
+
+After editing a batch, call `ReadLints` on touched paths and fix ReSharper warnings at warning severity.
 
 ## Architecture principles
 

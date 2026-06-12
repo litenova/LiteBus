@@ -42,15 +42,15 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
     public async Task PublishThroughRabbitMq_ShouldStoreInPostgreSqlAndDispatchCommand()
     {
         var rabbitMqFixture = new RabbitMqBrokerFixture();
-        await rabbitMqFixture.InitializeAsync();
+        await rabbitMqFixture.InitializeAsync().ConfigureAwait(true);
 
         try
         {
-            await RunEndToEndAsync(rabbitMqFixture.ConnectionOptions);
+            await RunEndToEndAsync(rabbitMqFixture.ConnectionOptions).ConfigureAwait(true);
         }
         finally
         {
-            await rabbitMqFixture.DisposeAsync();
+            await rabbitMqFixture.DisposeAsync().ConfigureAwait(true);
         }
     }
 
@@ -58,15 +58,15 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
     {
         const string contractName = "orders.commands.ship";
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
-        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, options);
+        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, options).ConfigureAwait(false);
 
         var ingressQueue = $"litebus.inbox.pg.ingress.{Guid.NewGuid():N}";
         var dispatchQueue = $"litebus.inbox.pg.dispatch.{Guid.NewGuid():N}";
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
 
-        await DeclareQueueAsync(connectionOptions, ingressQueue);
-        await DeclareQueueAsync(connectionOptions, dispatchQueue);
+        await DeclareQueueAsync(connectionOptions, ingressQueue).ConfigureAwait(false);
+        await DeclareQueueAsync(connectionOptions, dispatchQueue).ConfigureAwait(false);
 
         var services = new ServiceCollection();
 
@@ -120,16 +120,18 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
             });
         });
 
-        await using var provider = services.BuildServiceProvider();
+         var provider = services.BuildServiceProvider();
+         await using (provider.ConfigureAwait(false))
+         {
         var manifest = provider.GetRequiredService<LiteBusHostManifest>();
         manifest.StartupTasks.Select(task => task.Name).Should().Contain("InboxObservableMetricsInitializer");
         manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
         manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
 
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
+        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
 
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token);
+        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
 
         try
         {
@@ -148,33 +150,42 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
                     [AmqpHeaders.ContractName] = contractName,
                     [AmqpHeaders.ContractVersion] = "1"
                 }
-            });
+            }).ConfigureAwait(false);
 
-            var body = await ReceiveOneAsync(connectionOptions, dispatchQueue, TimeSpan.FromSeconds(30));
+
+            var body = await ReceiveOneAsync(connectionOptions, dispatchQueue, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
             body.Should().Contain(orderId.ToString());
 
-            var row = await PostgreSqlTableReaders.ReadInboxAsync(_postgresFixture.DataSource, options, messageId);
+            var row = await PostgreSqlTableReaders.ReadInboxAsync(_postgresFixture.DataSource, options, messageId).ConfigureAwait(false);
             row.Should().NotBeNull();
             row!.Status.Should().Be(InboxStatus.Completed);
             row.AttemptCount.Should().Be(1);
         }
         finally
         {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None);
+            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
         }
     }
 
     private static async Task DeclareQueueAsync(AmqpConnectionOptions connectionOptions, string queueName)
     {
-        await using var manager = new AmqpConnectionManager(connectionOptions);
-        await using var channel = await manager.CreateChannelAsync();
+         var manager = new AmqpConnectionManager(connectionOptions);
+         await using (manager.ConfigureAwait(false))
+         {
+         var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
+         await using (channel.ConfigureAwait(false))
+         {
 
         await channel.QueueDeclareAsync(
             queueName,
             true,
             false,
             false,
-            null);
+            null).ConfigureAwait(false);
+
+        }
+        }
     }
 
     private static async Task<string> ReceiveOneAsync(
@@ -187,23 +198,29 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
                       $"amqp://{Uri.EscapeDataString(connectionOptions.UserName)}:{Uri.EscapeDataString(connectionOptions.Password)}@{connectionOptions.HostName}:{connectionOptions.Port}{connectionOptions.VirtualHost}");
 
         var factory = new ConnectionFactory { Uri = uri };
-        await using var connection = await factory.CreateConnectionAsync();
-        await using var channel = await connection.CreateChannelAsync();
+         var connection = await factory.CreateConnectionAsync().ConfigureAwait(false);
+         await using (connection.ConfigureAwait(false))
+         {
+         var channel = await connection.CreateChannelAsync().ConfigureAwait(false);
+         await using (channel.ConfigureAwait(false))
+         {
 
         var deadline = DateTime.UtcNow + timeout;
 
         while (DateTime.UtcNow < deadline)
         {
-            var result = await channel.BasicGetAsync(queue, true);
+            var result = await channel.BasicGetAsync(queue, true).ConfigureAwait(false);
 
             if (result is not null)
             {
                 return Encoding.UTF8.GetString(result.Body.ToArray());
             }
 
-            await Task.Delay(100);
+            await Task.Delay(100).ConfigureAwait(false);
         }
 
         throw new TimeoutException($"No message received on queue '{queue}' within {timeout}.");
+        }
+        }
     }
 }

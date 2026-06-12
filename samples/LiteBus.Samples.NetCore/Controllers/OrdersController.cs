@@ -31,7 +31,7 @@ public sealed class OrdersController : ControllerBase
             request.LineItems.Select(x =>
                 new PlaceOrderLineItemDto(x.ProductId, x.Quantity, x.UnitPrice)).ToList());
 
-        var orderId = await _commandMediator.SendAsync(command, cancellationToken);
+        var orderId = await _commandMediator.SendAsync(command, cancellationToken).ConfigureAwait(false);
         return CreatedAtAction(nameof(GetOrderById), new { id = orderId }, orderId);
     }
 
@@ -41,7 +41,7 @@ public sealed class OrdersController : ControllerBase
     public async Task<IActionResult> ConfirmOrder(Guid orderId, CancellationToken cancellationToken)
     {
         var command = new ConfirmOrderCommand(orderId);
-        await _commandMediator.SendAsync(command, cancellationToken);
+        await _commandMediator.SendAsync(command, cancellationToken).ConfigureAwait(false);
         return NoContent();
     }
 
@@ -51,7 +51,7 @@ public sealed class OrdersController : ControllerBase
     public async Task<IActionResult> GetOrderById(Guid id, CancellationToken cancellationToken)
     {
         var query = new GetOrderByIdQuery(id);
-        var result = await _queryMediator.QueryAsync(query, cancellationToken);
+        var result = await _queryMediator.QueryAsync(query, cancellationToken).ConfigureAwait(false);
         return Ok(result);
     }
 
@@ -60,7 +60,7 @@ public sealed class OrdersController : ControllerBase
     public async Task<IActionResult> GetOrdersByCustomer(string customerId, CancellationToken cancellationToken)
     {
         var query = new GetOrdersByCustomerQuery(customerId);
-        var results = await _queryMediator.QueryAsync(query, cancellationToken);
+        var results = await _queryMediator.QueryAsync(query, cancellationToken).ConfigureAwait(false);
         return Ok(results);
     }
 }

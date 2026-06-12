@@ -57,14 +57,14 @@ public sealed class SagaProcessorHookTests
 
         var envelope = new TestProcessorEnvelope("process-order", "order-42");
 
-        await hook.BeforeDispatchAsync(envelope);
+        await hook.BeforeDispatchAsync(envelope).ConfigureAwait(true);
 
         context.IsActive.Should().BeTrue("BeforeDispatch should activate saga scope for correlated process-order messages");
 
         context.SetState(new OrderSagaState { Step = 1 });
         context.Complete();
 
-        var action = async () => await hook.AfterDispatchAsync(envelope);
+        var action = async () => await hook.AfterDispatchAsync(envelope).ConfigureAwait(true);
 
         await action.Should().ThrowAsync<InvalidOperationException>();
     }
@@ -119,10 +119,11 @@ public sealed class SagaProcessorHookTests
 
         await inbox.AcceptAsync(InboxAcceptItem<ProcessOrderCommand>.From(
             new ProcessOrderCommand(),
-            InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated("order-42") }));
+            InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated("order-42") })).ConfigureAwait(true);
+
 
         var processor = provider.GetRequiredService<IInboxProcessor>();
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(true);
 
         var instance = await sagaStore.LoadAsync<OrderSagaState>(
             new SagaCorrelation { CorrelationId = "order-42", SagaDefinitionId = "process-order" });

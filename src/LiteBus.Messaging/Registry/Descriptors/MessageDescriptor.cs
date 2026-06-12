@@ -12,42 +12,42 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// <summary>
     ///     Direct error handlers registered for <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IErrorHandlerDescriptor> _errorHandlers = new();
+    private readonly List<IErrorHandlerDescriptor> _errorHandlers = [];
 
     /// <summary>
     ///     Direct main handlers registered for <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IMainHandlerDescriptor> _handlers = new();
+    private readonly List<IMainHandlerDescriptor> _handlers = [];
 
     /// <summary>
     ///     Error handlers registered for a base type or interface of <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IErrorHandlerDescriptor> _indirectErrorHandlers = new();
+    private readonly List<IErrorHandlerDescriptor> _indirectErrorHandlers = [];
 
     /// <summary>
     ///     Main handlers registered for a base type or interface of <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IMainHandlerDescriptor> _indirectHandlers = new();
+    private readonly List<IMainHandlerDescriptor> _indirectHandlers = [];
 
     /// <summary>
     ///     Post-handlers registered for a base type or interface of <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IPostHandlerDescriptor> _indirectPostHandlers = new();
+    private readonly List<IPostHandlerDescriptor> _indirectPostHandlers = [];
 
     /// <summary>
     ///     Pre-handlers registered for a base type or interface of <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IPreHandlerDescriptor> _indirectPreHandlers = new();
+    private readonly List<IPreHandlerDescriptor> _indirectPreHandlers = [];
 
     /// <summary>
     ///     Direct post-handlers registered for <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IPostHandlerDescriptor> _postHandlers = new();
+    private readonly List<IPostHandlerDescriptor> _postHandlers = [];
 
     /// <summary>
     ///     Direct pre-handlers registered for <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IPreHandlerDescriptor> _preHandlers = new();
+    private readonly List<IPreHandlerDescriptor> _preHandlers = [];
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="MessageDescriptor" /> class.

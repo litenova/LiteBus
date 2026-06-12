@@ -41,7 +41,7 @@ public sealed class ParallelExecutionContextTests : LiteBusTestBase
             }
         };
 
-        await eventMediator.PublishAsync(@event, settings);
+        await eventMediator.PublishAsync(@event, settings).ConfigureAwait(false);
 
         @event.ObservedItems.Should().HaveCount(2);
         @event.ObservedItems.Should().OnlyContain(item => item == "ContextValue");

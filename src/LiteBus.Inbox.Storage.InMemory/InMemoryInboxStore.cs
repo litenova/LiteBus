@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Abstractions.Exceptions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
+using static LiteBus.Messaging.Abstractions.DurableMessaging.DurableIdempotencyScope;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 
@@ -139,7 +140,7 @@ public sealed class InMemoryInboxStore :
                 if (_envelopes.TryGetValue(messageId, out var envelope) &&
                     !string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
                 {
-                    _idempotencyIndex.Remove(envelope.IdempotencyKey);
+                    _idempotencyIndex.Remove(CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey));
                 }
 
                 _envelopes.Remove(messageId);
@@ -210,7 +211,7 @@ public sealed class InMemoryInboxStore :
                 if (_envelopes.TryGetValue(messageId, out var envelope) &&
                     !string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
                 {
-                    _idempotencyIndex.Remove(envelope.IdempotencyKey);
+                    _idempotencyIndex.Remove(CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey));
                 }
 
                 _envelopes.Remove(messageId);
@@ -291,7 +292,7 @@ public sealed class InMemoryInboxStore :
 
         lock (_sync)
         {
-            persistedMessageIds = new HashSet<Guid>();
+            persistedMessageIds = [];
 
             foreach (var envelope in envelopes)
             {
@@ -304,7 +305,7 @@ public sealed class InMemoryInboxStore :
 
                 if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
                 {
-                    _idempotencyIndex[envelope.IdempotencyKey] = envelope.Id;
+                    _idempotencyIndex[CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey)] = envelope.Id;
                 }
             }
         }
@@ -333,7 +334,7 @@ public sealed class InMemoryInboxStore :
 
         if (envelopes.Count == 0)
         {
-            return Task.FromResult<IReadOnlyList<InboxEnvelope>>(Array.Empty<InboxEnvelope>());
+            return Task.FromResult<IReadOnlyList<InboxEnvelope>>([]);
         }
 
         lock (_sync)
@@ -490,11 +491,9 @@ public sealed class InMemoryInboxStore :
     {
         return envelope.Status is InboxStatus.Pending or InboxStatus.Failed &&
                (envelope.VisibleAfter is null || envelope.VisibleAfter <= now) ||
-               envelope.Status == InboxStatus.Processing &&
-               envelope.LeaseExpiresAt is not null &&
+               envelope is { Status: InboxStatus.Processing, LeaseExpiresAt: not null } &&
                envelope.LeaseExpiresAt <= now ||
-               envelope.Status == InboxStatus.Processing &&
-               envelope.LeaseExpiresAt is null &&
+               envelope is { Status: InboxStatus.Processing, LeaseExpiresAt: null } &&
                envelope.CreatedAt < staleCutoff;
     }
 
@@ -625,7 +624,7 @@ public sealed class InMemoryInboxStore :
         }
 
         if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey) &&
-            _idempotencyIndex.TryGetValue(envelope.IdempotencyKey, out var existingId) &&
+            _idempotencyIndex.TryGetValue(CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey), out var existingId) &&
             _envelopes.TryGetValue(existingId, out var existingByKey))
         {
             ThrowIfStrictConflict(envelope, existingByKey.Id);
@@ -642,7 +641,7 @@ public sealed class InMemoryInboxStore :
 
         if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
         {
-            _idempotencyIndex[envelope.IdempotencyKey] = envelope.Id;
+            _idempotencyIndex[CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey)] = envelope.Id;
         }
 
         return envelope;

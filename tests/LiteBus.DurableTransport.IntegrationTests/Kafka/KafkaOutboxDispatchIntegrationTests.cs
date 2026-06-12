@@ -41,7 +41,7 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
     public async Task ProcessPendingAsync_ShouldPublishEnvelopeToKafkaTopic()
     {
         var topic = KafkaTransportTestInfrastructure.CreateTopic("outbox-dispatch");
-        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, topic);
+        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, topic).ConfigureAwait(false);
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
@@ -63,16 +63,16 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
                     Tenant = new TenantScope.Isolated("tenant-kafka-east"),
                     Target = new PublicationTarget.Topic(topic)
                 }
-            });
+            }).ConfigureAwait(false);
 
-            await processor.ProcessPendingAsync();
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
             store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
 
             var (body, headers) = await KafkaTransportTestInfrastructure.ConsumeOneAsync(
                 _fixture.TransportOptions.BootstrapServers,
                 topic,
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
             var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
                 body,
@@ -88,7 +88,7 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
         }
         finally
         {
-            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider);
+            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
         }
     }
 
@@ -101,7 +101,7 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
     {
         const string contractRoute = "orders.order-submitted";
         var topic = KafkaTransportTestInfrastructure.CreateTopic("outbox-route");
-        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, topic);
+        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, topic).ConfigureAwait(false);
         var messageId = Guid.NewGuid();
         var provider = BuildProvider(topic);
 
@@ -118,22 +118,22 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
                 {
                     Identity = new MessageIdentity.Supplied(messageId)
                 }
-            });
+            }).ConfigureAwait(false);
 
-            await processor.ProcessPendingAsync();
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
             store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
 
             var (_, headers) = await KafkaTransportTestInfrastructure.ConsumeOneAsync(
                 _fixture.TransportOptions.BootstrapServers,
                 topic,
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
             headers[TransportHeaders.ContractName].Should().Be(contractRoute);
         }
         finally
         {
-            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider);
+            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
         }
     }
 

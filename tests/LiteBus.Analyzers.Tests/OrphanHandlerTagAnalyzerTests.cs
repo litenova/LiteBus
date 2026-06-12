@@ -25,7 +25,7 @@ public sealed class OrphanHandlerTagAnalyzerTests
             DiagnosticDescriptors.OrphanHandlerTag,
             2,
             "OrphanTaggedHandler",
-            "orphan");
+            "orphan").ConfigureAwait(false);
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public sealed class OrphanHandlerTagAnalyzerTests
                               public sealed record SampleCommand : ICommand;
                               """;
 
-        await AnalyzerTest.VerifyNoDiagnosticsAsync<OrphanHandlerTagAnalyzer>(source);
+        await AnalyzerTest.VerifyNoDiagnosticsAsync<OrphanHandlerTagAnalyzer>(source).ConfigureAwait(false);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class OrphanHandlerTagAnalyzerTests
                               public sealed record SampleQuery : IQuery<string>;
                               """;
 
-        await AnalyzerTest.VerifyNoDiagnosticsAsync<OrphanHandlerTagAnalyzer>(source);
+        await AnalyzerTest.VerifyNoDiagnosticsAsync<OrphanHandlerTagAnalyzer>(source).ConfigureAwait(false);
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public sealed class OrphanHandlerTagAnalyzerTests
                               public sealed record SampleCommand : ICommand;
                               """;
 
-        await AnalyzerTest.VerifyNoDiagnosticsAsync<OrphanHandlerTagAnalyzer>(source);
+        await AnalyzerTest.VerifyNoDiagnosticsAsync<OrphanHandlerTagAnalyzer>(source).ConfigureAwait(false);
     }
 
     [Fact]
@@ -156,6 +156,6 @@ public sealed class OrphanHandlerTagAnalyzerTests
                               public sealed record SampleEvent : IEvent;
                               """;
 
-        await AnalyzerTest.VerifyNoDiagnosticsAsync<OrphanHandlerTagAnalyzer>(source);
+        await AnalyzerTest.VerifyNoDiagnosticsAsync<OrphanHandlerTagAnalyzer>(source).ConfigureAwait(false);
     }
 }

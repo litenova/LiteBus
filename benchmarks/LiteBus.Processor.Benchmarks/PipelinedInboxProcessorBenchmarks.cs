@@ -69,7 +69,7 @@ public class PipelinedInboxProcessorBenchmarks
                 Retry = new RetryOptions { MaxAttempts = 3, UseJitter = false }
             },
             TimeProvider.System,
-            Array.Empty<IProcessorEnvelopeHook>());
+            []);
 
         for (var index = 0; index < BatchSize; index++)
         {

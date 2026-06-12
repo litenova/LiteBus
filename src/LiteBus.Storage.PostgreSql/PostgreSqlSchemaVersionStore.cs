@@ -114,7 +114,7 @@ internal static class PostgreSqlSchemaVersionStore
 
         var sql = GetMetadataSelectVersionScript(context.Options);
 
-        await using var command = context.Connection.CreateCommand();
+        using var command = context.Connection.CreateCommand();
         command.CommandText = sql;
         command.Parameters.AddWithValue("component", context.Component);
         command.Parameters.AddWithValue("schemaName", context.StoreTable.SchemaName);
@@ -140,10 +140,7 @@ internal static class PostgreSqlSchemaVersionStore
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (version <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(version), version, "Schema version must be positive.");
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThan(version, 1, nameof(version));
 
         context.Logger.Log(
             PostgreSqlSchemaLogLevel.Information,
@@ -151,7 +148,7 @@ internal static class PostgreSqlSchemaVersionStore
 
         var sql = GetMetadataUpsertVersionScript(context.Options);
 
-        await using var command = context.Connection.CreateCommand();
+        using var command = context.Connection.CreateCommand();
         command.CommandText = sql;
         command.Parameters.AddWithValue("component", context.Component);
         command.Parameters.AddWithValue("schemaName", context.StoreTable.SchemaName);

@@ -39,7 +39,7 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
     public async Task ProcessPendingAsync_with_EnableSaga_should_persist_state_in_postgresql()
     {
         var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
-        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions);
+        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions).ConfigureAwait(false);
 
         var sagaOptions = new PostgreSqlSagaStoreOptions
         {
@@ -47,24 +47,27 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
             TableName = $"saga_{Guid.NewGuid():N}"
         };
 
-        await PostgreSqlSagaSchema.EnsureAsync(_fixture.DataSource, sagaOptions);
+        await PostgreSqlSagaSchema.EnsureAsync(_fixture.DataSource, sagaOptions).ConfigureAwait(false);
 
-        await using var provider = BuildProvider(inboxOptions, sagaOptions);
+         var provider = BuildProvider(inboxOptions, sagaOptions);
+         await using (provider.ConfigureAwait(false))
+         {
         var inbox = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
         var sagaStore = provider.GetRequiredService<ISagaStore>();
 
         await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(
             new AdvanceOrderSagaCommand(),
-            InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated("order-9001") }));
+            InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated("order-9001") })).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         var instance = await sagaStore.LoadAsync<OrderSagaState>(
-            new SagaCorrelation { CorrelationId = "order-9001", SagaDefinitionId = "orders.saga.advance" });
+            new SagaCorrelation { CorrelationId = "order-9001", SagaDefinitionId = "orders.saga.advance" }).ConfigureAwait(false);
 
         instance.Should().NotBeNull();
         instance!.State.Step.Should().Be(1);
+        }
     }
 
     /// <summary>

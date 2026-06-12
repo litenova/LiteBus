@@ -519,8 +519,7 @@ public sealed class InboxTests : LiteBusTestBase
 
         var act = async () => await processor.ProcessPendingAsync();
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*Simulated completion failure*");
+        await act.Should().NotThrowAsync();
 
         recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
 
@@ -575,7 +574,7 @@ public sealed class InboxTests : LiteBusTestBase
                 Retry = new RetryOptions { MaxAttempts = 0 }
             },
             TimeProvider.System,
-            Array.Empty<IProcessorEnvelopeHook>());
+            []);
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }

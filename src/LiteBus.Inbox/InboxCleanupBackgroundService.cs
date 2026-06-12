@@ -65,10 +65,14 @@ public sealed class InboxCleanupBackgroundService : IBackgroundService
         InboxRetentionCoordinator retentionCoordinator,
         ILogger<InboxCleanupBackgroundService>? logger = null)
     {
-        _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
-        _hostOptions = hostOptions ?? throw new ArgumentNullException(nameof(hostOptions));
-        _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
-        _retentionCoordinator = retentionCoordinator ?? throw new ArgumentNullException(nameof(retentionCoordinator));
+        ArgumentNullException.ThrowIfNull(stateStore);
+        _stateStore = stateStore;
+        ArgumentNullException.ThrowIfNull(hostOptions);
+        _hostOptions = hostOptions;
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        _timeProvider = timeProvider;
+        ArgumentNullException.ThrowIfNull(retentionCoordinator);
+        _retentionCoordinator = retentionCoordinator;
         _logger = logger ?? NullLogger<InboxCleanupBackgroundService>.Instance;
     }
 
@@ -101,6 +105,8 @@ public sealed class InboxCleanupBackgroundService : IBackgroundService
             {
                 break;
             }
+
+#pragma warning disable CA1031 // Retention cleanup must backoff and retry across any store or network failure.
             catch (Exception exception)
             {
                 CleanupErrorCounter.Add(1);
@@ -109,6 +115,7 @@ public sealed class InboxCleanupBackgroundService : IBackgroundService
                 await Task.Delay(backoff, stoppingToken).ConfigureAwait(false);
                 backoff = TimeSpan.FromMilliseconds(Math.Min(backoff.TotalMilliseconds * 2, TimeSpan.FromMinutes(5).TotalMilliseconds));
             }
+#pragma warning restore CA1031
         }
     }
 }

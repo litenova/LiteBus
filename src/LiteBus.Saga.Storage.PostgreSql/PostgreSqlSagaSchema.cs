@@ -6,90 +6,117 @@ namespace LiteBus.Saga.Storage.PostgreSql;
 /// <summary>
 ///     Creates and validates the PostgreSQL saga schema used by <see cref="PostgreSqlSagaStore" />.
 /// </summary>
+/// <remarks>
+///     <para>
+///         LiteBus supports three schema ownership models:
+///     </para>
+///     <list type="number">
+///         <item>
+///             <description>
+///                 <strong>Migration-owned (recommended for production).</strong> Copy the SQL files listed in
+///                 <see cref="SqlFiles" /> or call <see cref="GetCreateScript(PostgreSqlSagaStoreOptions?)" /> in your
+///                 migration pipeline.
+///             </description>
+///         </item>
+///         <item>
+///             <description>
+///                 <strong>Explicit bootstrap.</strong> Call
+///                 <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlSagaStoreOptions?, CancellationToken)" />
+///                 during application startup or a deploy job.
+///             </description>
+///         </item>
+///         <item>
+///             <description>
+///                 <strong>Opt-in host bootstrap.</strong> Set
+///                 <see cref="PostgreSqlSagaStoreOptions.EnsureSchemaCreationOnStartup" /> to <see langword="true" /> and
+///                 register the PostgreSQL saga schema hosting module.
+///             </description>
+///         </item>
+///     </list>
+///     <para>
+///         Schema version 1 includes the full saga column set, tenant-scoped primary key, required indexes, and shared
+///         schema version metadata. Existing databases are not upgraded; recreate tables or apply
+///         <see cref="GetCreateScript(PostgreSqlSagaStoreOptions?)" /> through your migration pipeline.
+///     </para>
+/// </remarks>
 public static class PostgreSqlSagaSchema
 {
     /// <summary>
     ///     Gets the saga table schema version implemented by this package release.
     /// </summary>
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 1;
 
     /// <summary>
-    ///     Ensures the saga schema exists.
+    ///     Gets the canonical SQL files shipped with the saga PostgreSQL package.
     /// </summary>
-    /// <param name="dataSource">The PostgreSQL data source.</param>
-    /// <param name="options">The saga store options.</param>
-    /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>A task that completes when schema creation finishes.</returns>
-    public static async Task EnsureAsync(
-        NpgsqlDataSource dataSource,
-        PostgreSqlSagaStoreOptions? options = null,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(dataSource);
-        options ??= new PostgreSqlSagaStoreOptions();
+    /// <remarks>
+    ///     Paths are relative to the repository root, for example
+    ///     <c>src/LiteBus.Saga.Storage.PostgreSql/Sql/saga/v1/create.sql</c>. Replace
+    ///     <c>{{TokenName}}</c> placeholders with quoted identifiers for your schema and table names before running the
+    ///     scripts manually, or call <see cref="GetCreateScript(PostgreSqlSagaStoreOptions?)" /> to render them.
+    /// </remarks>
+    public static IReadOnlyList<PostgreSqlSchemaSqlFile> SqlFiles => PostgreSqlSagaSchemaScripts.SqlFiles;
 
-        var sql = PostgreSqlSagaSchemaScripts.GetCreateScript(options);
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new NpgsqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    /// <summary>
+    ///     Returns the SQL script that creates the saga schema version 1 table, indexes, and metadata table.
+    /// </summary>
+    /// <param name="options">The schema and table options. Defaults create <c>public.litebus_saga_instances</c>.</param>
+    /// <returns>The canonical create script for <see cref="CurrentSchemaVersion" />.</returns>
+    public static string GetCreateScript(PostgreSqlSagaStoreOptions? options = null)
+    {
+        return PostgreSqlSagaSchemaScripts.GetCreateScript(options);
     }
 
     /// <summary>
-    ///     Validates that the saga table exists with required columns.
+    ///     Creates the saga schema when required.
     /// </summary>
     /// <param name="dataSource">The PostgreSQL data source.</param>
-    /// <param name="options">The saga store options.</param>
-    /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>A task that completes when validation finishes.</returns>
-    public static async Task ValidateAsync(
+    /// <param name="options">The schema and table options.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>A task that completes when the schema reaches the expected version.</returns>
+    /// <remarks>
+    ///     The operation is idempotent and safe to run from multiple application instances. One instance acquires a
+    ///     PostgreSQL advisory lock while creating the schema; the others wait until the schema reaches the expected version.
+    /// </remarks>
+    public static Task EnsureAsync(
         NpgsqlDataSource dataSource,
         PostgreSqlSagaStoreOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
+
         options ??= new PostgreSqlSagaStoreOptions();
 
-        var qualifiedTableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
+        return PostgreSqlSchemaManager.EnsureAsync(
+            dataSource,
+            options,
+            PostgreSqlSagaSchemaScripts.Definition,
+            cancellationToken);
+    }
 
-        var sql = """
-                  SELECT column_name
-                  FROM information_schema.columns
-                  WHERE table_schema = @schema_name
-                      AND table_name = @table_name;
-                  """;
+    /// <summary>
+    ///     Validates that the saga table matches <see cref="CurrentSchemaVersion" />.
+    /// </summary>
+    /// <param name="dataSource">The PostgreSQL data source.</param>
+    /// <param name="options">The schema and table options.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>A task that completes when validation succeeds.</returns>
+    /// <exception cref="PostgreSqlSchemaDriftException">
+    ///     Thrown when the table is missing, incomplete, or recorded at an unexpected schema version.
+    /// </exception>
+    public static Task ValidateAsync(
+        NpgsqlDataSource dataSource,
+        PostgreSqlSagaStoreOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dataSource);
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("schema_name", options.SchemaName);
-        command.Parameters.AddWithValue("table_name", options.TableName);
+        options ??= new PostgreSqlSagaStoreOptions();
 
-        var columns = new HashSet<string>(StringComparer.Ordinal);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            columns.Add(reader.GetString(0));
-        }
-
-        string[] required =
-        [
-            "correlation_id",
-            "saga_type",
-            "tenant_id",
-            "state_json",
-            "optimistic_lock_version",
-            "is_completed",
-            "created_at",
-            "updated_at"
-        ];
-
-        foreach (var column in required)
-        {
-            if (!columns.Contains(column))
-            {
-                throw new InvalidOperationException(
-                    $"Saga table '{qualifiedTableName}' is missing required column '{column}'.");
-            }
-        }
+        return PostgreSqlSchemaManager.ValidateAsync(
+            dataSource,
+            options,
+            PostgreSqlSagaSchemaScripts.Definition,
+            cancellationToken);
     }
 }

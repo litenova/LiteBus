@@ -23,7 +23,8 @@ public sealed class AmqpInboxIngressModule : IInboxIngressModule
     /// <param name="builder">The module configuration action.</param>
     public AmqpInboxIngressModule(Action<AmqpInboxIngressModuleBuilder> builder)
     {
-        _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+        ArgumentNullException.ThrowIfNull(builder);
+        _builder = builder;
     }
 
     /// <inheritdoc />

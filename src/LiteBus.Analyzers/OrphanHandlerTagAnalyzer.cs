@@ -16,7 +16,7 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(DiagnosticDescriptors.OrphanHandlerTag);
+        [DiagnosticDescriptors.OrphanHandlerTag];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
@@ -51,7 +51,7 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
 
                         foreach (var argument in attribute.ConstructorArguments)
                         {
-                            if (argument.Kind == TypedConstantKind.Primitive && argument.Value is string tag && !referencedTags.Contains(tag))
+                            if (argument is { Kind: TypedConstantKind.Primitive, Value: string tag } && !referencedTags.Contains(tag))
                             {
                                 nodeContext.ReportDiagnostic(Diagnostic.Create(
                                     DiagnosticDescriptors.OrphanHandlerTag,
@@ -61,9 +61,8 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
                             }
                         }
 
-                        if (attribute.ConstructorArguments.Length == 1 &&
-                            attribute.ConstructorArguments[0].Kind == TypedConstantKind.Array &&
-                            attribute.ConstructorArguments[0].Values is { Length: > 0 } values)
+                        if (attribute.ConstructorArguments.Length == 1
+                            && attribute.ConstructorArguments[0] is { Kind: TypedConstantKind.Array, Values: { Length: > 0 } values })
                         {
                             foreach (var value in values)
                             {

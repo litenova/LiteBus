@@ -8,53 +8,53 @@ namespace LiteBus.Transport.Amqp;
 public sealed class AmqpConnectionOptions
 {
     /// <summary>
-    ///     Gets or sets the optional AMQP URI used instead of discrete host, port, and credential fields.
+    ///     Gets the optional AMQP URI used instead of discrete host, port, and credential fields.
     /// </summary>
     /// <value>
     ///     When set, the URI overrides <see cref="HostName" />, <see cref="Port" />, <see cref="UserName" />,
     ///     <see cref="Password" />, and <see cref="VirtualHost" />.
     /// </value>
-    public Uri? Uri { get; set; }
+    public Uri? Uri { get; init; }
 
     /// <summary>
-    ///     Gets or sets the broker host name.
+    ///     Gets the broker host name.
     /// </summary>
-    public string HostName { get; set; } = "localhost";
+    public string HostName { get; init; } = "localhost";
 
     /// <summary>
-    ///     Gets or sets the broker port.
+    ///     Gets the broker port.
     /// </summary>
-    public int Port { get; set; } = 5672;
+    public int Port { get; init; } = 5672;
 
     /// <summary>
-    ///     Gets or sets the AMQP virtual host.
+    ///     Gets the AMQP virtual host.
     /// </summary>
-    public string VirtualHost { get; set; } = "/";
+    public string VirtualHost { get; init; } = "/";
 
     /// <summary>
-    ///     Gets or sets the username used to authenticate with the broker.
+    ///     Gets the username used to authenticate with the broker.
     /// </summary>
-    public string UserName { get; set; } = "guest";
+    public string UserName { get; init; } = "guest";
 
     /// <summary>
-    ///     Gets or sets the password used to authenticate with the broker.
+    ///     Gets the password used to authenticate with the broker.
     /// </summary>
-    public string Password { get; set; } = "guest";
+    public string Password { get; init; } = "guest";
 
     /// <summary>
-    ///     Gets or sets the optional client-provided connection name shown in broker management tools.
+    ///     Gets the optional client-provided connection name shown in broker management tools.
     /// </summary>
-    public string? ClientProvidedName { get; set; }
+    public string? ClientProvidedName { get; init; }
 
     /// <summary>
-    ///     Gets or sets a value indicating whether the client should automatically recover dropped connections.
+    ///     Gets a value indicating whether the client should automatically recover dropped connections.
     /// </summary>
-    public bool AutomaticRecoveryEnabled { get; set; } = true;
+    public bool AutomaticRecoveryEnabled { get; init; } = true;
 
     /// <summary>
-    ///     Gets or sets the interval between network recovery attempts.
+    ///     Gets the interval between network recovery attempts.
     /// </summary>
-    public TimeSpan NetworkRecoveryInterval { get; set; } = TimeSpan.FromSeconds(5);
+    public TimeSpan NetworkRecoveryInterval { get; init; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
     ///     Gets the circuit breaker settings applied to connection and publish operations.

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -13,6 +14,7 @@ public static class IContractWriterExtensions
     /// <param name="writer">The contract writer to populate.</param>
     /// <param name="assembly">The assembly to scan.</param>
     /// <returns>The same writer instance for chaining.</returns>
+    [RequiresUnreferencedCode("Scans assemblies for MessageContractAttribute-decorated message types.")]
     public static IContractWriter RegisterFromAssembly(this IContractWriter writer, Assembly assembly)
     {
         return writer.AddFromAssembly(assembly);

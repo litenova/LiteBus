@@ -20,6 +20,6 @@ public sealed class IndirectStreamProductsQueryHandler
         yield return await Task.FromResult(new StreamProductsQueryResult
         {
             CorrelationId = message.CorrelationId
-        });
+        }).ConfigureAwait(false);
     }
 }

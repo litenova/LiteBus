@@ -1,14 +1,12 @@
 using System;
-using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 
-namespace LiteBus.Extensions.Microsoft.DependencyInjection;
+namespace LiteBus.Runtime.Composition;
 
 /// <summary>
 ///     Default implementation of <see cref="ILiteBusBuilder" /> that collects shared contracts
-///     and module registrations for the <see cref="ILiteBusBuilder" />-based
-///     <c>AddLiteBus</c> overload on <see cref="ServiceCollectionExtensions" />.
+///     and module registrations for <c>AddLiteBus</c> configuration callbacks.
 /// </summary>
 public sealed class LiteBusBuilder : ILiteBusBuilder
 {
@@ -24,8 +22,11 @@ public sealed class LiteBusBuilder : ILiteBusBuilder
     /// <param name="sharedContracts">The shared contract builder populated during configuration.</param>
     public LiteBusBuilder(IModuleRegistry modules, MessageContractBuilder sharedContracts)
     {
-        Modules = modules ?? throw new ArgumentNullException(nameof(modules));
-        _sharedContracts = sharedContracts ?? throw new ArgumentNullException(nameof(sharedContracts));
+        ArgumentNullException.ThrowIfNull(modules);
+        ArgumentNullException.ThrowIfNull(sharedContracts);
+
+        Modules = modules;
+        _sharedContracts = sharedContracts;
     }
 
     /// <inheritdoc />
@@ -33,5 +34,4 @@ public sealed class LiteBusBuilder : ILiteBusBuilder
 
     /// <inheritdoc />
     public IModuleRegistry Modules { get; }
-
 }

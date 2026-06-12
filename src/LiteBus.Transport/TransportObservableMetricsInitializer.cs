@@ -18,7 +18,8 @@ public sealed class TransportObservableMetricsInitializer : IStartupTask
     /// <param name="serviceProvider">The service provider used to resolve transport metrics.</param>
     public TransportObservableMetricsInitializer(IServiceProvider serviceProvider)
     {
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        _serviceProvider = serviceProvider;
     }
 
     /// <inheritdoc />

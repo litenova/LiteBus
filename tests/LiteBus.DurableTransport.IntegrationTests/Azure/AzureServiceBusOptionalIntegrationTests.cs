@@ -39,7 +39,9 @@ public sealed class AzureServiceBusOptionalIntegrationTests : LiteBusTestBase
         Skip.If(string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(queueName));
 
         var transportOptions = new AzureServiceBusTransportOptions { ConnectionString = connectionString! };
-        await using var provider = BuildProvider(transportOptions, queueName!);
+         var provider = BuildProvider(transportOptions, queueName!);
+         await using (provider.ConfigureAwait(false))
+         {
 
         var inbox = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
@@ -53,15 +55,22 @@ public sealed class AzureServiceBusOptionalIntegrationTests : LiteBusTestBase
                 WorkItemId = workItemId,
                 IdempotencyKey = $"work:{workItemId}"
             }
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        await using var client = new ServiceBusClient(connectionString!);
-        await using var receiver = client.CreateReceiver(queueName!);
-        var received = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(30));
+         var client = new ServiceBusClient(connectionString!);
+         await using (client.ConfigureAwait(false))
+         {
+         var receiver = client.CreateReceiver(queueName!);
+         await using (receiver.ConfigureAwait(false))
+         {
+        var received = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
         received.Should().NotBeNull();
         received!.Body.ToString().Should().Contain(workItemId.ToString());
+        }
+        }
+        }
     }
 
     /// <summary>

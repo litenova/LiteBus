@@ -1,8 +1,11 @@
+using System.Diagnostics;
+
 namespace LiteBus.Transport.Abstractions;
 
 /// <summary>
 ///     Describes one outbound transport message publication.
 /// </summary>
+[DebuggerDisplay("Destination = {Destination}, Route = {Route}, MessageId = {MessageId}")]
 public sealed class TransportPublishRequest
 {
     /// <summary>

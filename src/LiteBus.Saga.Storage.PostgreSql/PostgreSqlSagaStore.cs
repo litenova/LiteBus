@@ -71,11 +71,11 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                    LIMIT 1;
                    """;
 
-        await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = CreateCommand(connection, sql);
+        using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        using var command = CreateCommand(connection, sql);
         AddCorrelationKeyParameters(command, correlation);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
         if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -108,7 +108,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         var now = _clock.GetUtcNow();
         var stateJson = await _serializer.SerializeAsync(item.State, cancellationToken).ConfigureAwait(false);
 
-        await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         if (item.ExpectedVersion == 0)
         {
@@ -134,7 +134,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                              ON CONFLICT (correlation_id, saga_type, tenant_id) DO NOTHING;
                              """;
 
-            await using var insertCommand = CreateCommand(connection, insertSql);
+            using var insertCommand = CreateCommand(connection, insertSql);
             AddCorrelationParameters(insertCommand, item.Correlation, stateJson, now);
             var inserted = await insertCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
@@ -159,7 +159,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                              AND is_completed = false;
                          """;
 
-        await using var updateCommand = CreateCommand(connection, updateSql);
+        using var updateCommand = CreateCommand(connection, updateSql);
         AddCorrelationParameters(updateCommand, item.Correlation, stateJson, now);
         updateCommand.Parameters.AddWithValue("expected_version", item.ExpectedVersion);
 
@@ -191,8 +191,8 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                        AND is_completed = false;
                    """;
 
-        await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = CreateCommand(connection, sql);
+        using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        using var command = CreateCommand(connection, sql);
         AddCorrelationKeyParameters(command, item.Correlation);
         command.Parameters.AddWithValue("expected_version", item.ExpectedVersion);
         command.Parameters.AddWithValue("now", now);
@@ -223,16 +223,16 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                    LIMIT @take;
                    """;
 
-        await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = CreateCommand(connection, sql);
+        using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        using var command = CreateCommand(connection, sql);
         command.Parameters.AddWithValue("saga_type", (object?) filter.SagaDefinitionId ?? DBNull.Value);
         command.Parameters.AddWithValue("correlation_id", (object?) filter.CorrelationId ?? DBNull.Value);
         command.Parameters.AddWithValue("tenant_id", (object?) NormalizeTenantId(filter.TenantId) ?? DBNull.Value);
         command.Parameters.AddWithValue("is_completed", (object?) filter.IsCompleted ?? DBNull.Value);
         command.Parameters.AddWithValue("take", filter.Take);
 
-        var results = new List<SagaInstanceSummary>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        List<SagaInstanceSummary> results = [];
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -270,8 +270,8 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                        AND (@completed_before IS NULL OR (is_completed = true AND updated_at < @completed_before));
                    """;
 
-        await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = CreateCommand(connection, sql);
+        using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        using var command = CreateCommand(connection, sql);
         command.Parameters.AddWithValue("saga_type", (object?) filter.SagaDefinitionId ?? DBNull.Value);
         command.Parameters.AddWithValue("correlation_id", (object?) filter.CorrelationId ?? DBNull.Value);
         command.Parameters.AddWithValue("tenant_id", (object?) NormalizeTenantId(filter.TenantId) ?? DBNull.Value);

@@ -40,7 +40,9 @@ public sealed class OutboxRetentionCoordinator
     /// <param name="hostOptions">The loop timing and retention options for cleanup.</param>
     public OutboxRetentionCoordinator(OutboxCleanupHostOptions hostOptions)
     {
-        _hostOptions = hostOptions ?? throw new ArgumentNullException(nameof(hostOptions));
+        ArgumentNullException.ThrowIfNull(hostOptions);
+
+        _hostOptions = hostOptions;
     }
 
     /// <summary>

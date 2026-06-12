@@ -38,8 +38,8 @@ public sealed class OutboxEnvelopeFactoryTests
 
         var item = OutboxWriterTestFactory.ItemWithMetadata(new TestEvent { OrderId = Guid.NewGuid() }, metadata);
 
-        var envelope = await factory.CreateAsync(item);
-        var receipt = await outbox.EnqueueAsync(item);
+        var envelope = await factory.CreateAsync(item).ConfigureAwait(false);
+        var receipt = await outbox.EnqueueAsync(item).ConfigureAwait(false);
 
         envelope.Id.Should().Be(messageId);
         envelope.ContractName.Should().Be(receipt.Contract.Name);

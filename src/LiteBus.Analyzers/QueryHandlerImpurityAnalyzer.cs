@@ -17,13 +17,15 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
     /// <summary>
     ///     Open generic handler interfaces analyzed for impure dependencies.
     /// </summary>
-    private static readonly ImmutableArray<string> QueryHandlerInterfaceMetadataNames = ImmutableArray.Create(
+    private static readonly ImmutableArray<string> QueryHandlerInterfaceMetadataNames =
+    [
         "LiteBus.Queries.Abstractions.IQueryHandler`2",
-        "LiteBus.Queries.Abstractions.IStreamQueryHandler`2");
+        "LiteBus.Queries.Abstractions.IStreamQueryHandler`2"
+    ];
 
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(DiagnosticDescriptors.QueryHandlerImpurity);
+        [DiagnosticDescriptors.QueryHandlerImpurity];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
@@ -58,7 +60,7 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
                 case IMethodSymbol { MethodKind: MethodKind.Constructor } constructor:
                     AnalyzeParameters(context, handlerType, constructor.Parameters, reportedDependencies);
                     break;
-                case IMethodSymbol method when method.MethodKind is MethodKind.Ordinary or MethodKind.LocalFunction:
+                case IMethodSymbol { MethodKind: MethodKind.Ordinary or MethodKind.LocalFunction } method:
                     AnalyzeParameters(context, handlerType, method.Parameters, reportedDependencies);
                     break;
                 case IFieldSymbol field:

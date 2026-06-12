@@ -32,7 +32,8 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="settings" /> is <see langword="null" />.</exception>
     public AsyncBroadcastMediationStrategy(EventMediationSettings settings)
     {
-        _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        ArgumentNullException.ThrowIfNull(settings);
+        _settings = settings;
     }
 
     /// <summary>
@@ -60,7 +61,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
         if (messageDependencies.MainHandlers.Count == 0 && messageDependencies.IndirectMainHandlers.Count == 0)
         {
-            await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken);
+            await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken).ConfigureAwait(false);
 
             if (_settings.ThrowIfNoHandlerFound)
             {
@@ -74,20 +75,24 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
         try
         {
-            await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken);
+            await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken).ConfigureAwait(false);
 
-            var allMainHandlers = messageDependencies.MainHandlers.Concat(messageDependencies.IndirectMainHandlers).ToList();
+            var allMainHandlers = messageDependencies.MainHandlers
+                .Concat(messageDependencies.IndirectMainHandlers)
+                .OrderBy(h => h.Descriptor.Priority)
+                .ThenBy(h => h.Descriptor.RegistrationSequence)
+                .ToList();
 
             if (allMainHandlers.Count > 0)
             {
                 executionTaskOfAllHandlers = ExecuteHandlersByPriority(message, allMainHandlers, executionContext);
-                await executionTaskOfAllHandlers;
+                await executionTaskOfAllHandlers.ConfigureAwait(false);
             }
 
             await messageDependencies.RunAsyncPostHandlers(
                 message,
                 executionTaskOfAllHandlers,
-                executionContext.CancellationToken);
+                executionContext.CancellationToken).ConfigureAwait(false);
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
@@ -95,7 +100,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
                 message,
                 executionTaskOfAllHandlers,
                 ExceptionDispatchInfo.Capture(e),
-                executionContext.CancellationToken);
+                executionContext.CancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -119,13 +124,13 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         if (_settings.Execution.PriorityGroupsConcurrencyMode == ConcurrencyMode.Parallel)
         {
             var allGroupTasks = priorityGroups.Select(group => ExecuteHandlersInGroup(message, group.ToList(), executionContext)).ToArray();
-            await AwaitParallelTasksAsync(allGroupTasks);
+            await AwaitParallelTasksAsync(allGroupTasks).ConfigureAwait(false);
         }
         else
         {
             foreach (var priorityGroup in priorityGroups)
             {
-                await ExecuteHandlersInGroup(message, priorityGroup.ToList(), executionContext);
+                await ExecuteHandlersInGroup(message, priorityGroup.ToList(), executionContext).ConfigureAwait(false);
             }
         }
     }
@@ -142,16 +147,20 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
                                               IReadOnlyList<LazyHandler<IMessageHandler, IMainHandlerDescriptor>> handlersInGroup,
                                               IExecutionContext executionContext)
     {
+        var orderedHandlers = handlersInGroup
+            .OrderBy(h => h.Descriptor.RegistrationSequence)
+            .ToList();
+
         if (_settings.Execution.HandlersWithinSamePriorityConcurrencyMode == ConcurrencyMode.Parallel)
         {
-            var handlerTasks = handlersInGroup.Select(lazyHandler => ExecuteSingleHandler(message, lazyHandler, executionContext)).ToArray();
-            await AwaitParallelTasksAsync(handlerTasks);
+            var handlerTasks = orderedHandlers.Select(lazyHandler => ExecuteSingleHandler(message, lazyHandler, executionContext)).ToArray();
+            await AwaitParallelTasksAsync(handlerTasks).ConfigureAwait(false);
         }
         else
         {
-            foreach (var lazyHandler in handlersInGroup)
+            foreach (var lazyHandler in orderedHandlers)
             {
-                await ExecuteSingleHandler(message, lazyHandler, executionContext);
+                await ExecuteSingleHandler(message, lazyHandler, executionContext).ConfigureAwait(false);
             }
         }
     }
@@ -173,10 +182,13 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
                 {
                     await task.ConfigureAwait(false);
                 }
+#pragma warning disable CA1031 // Do not catch general exception types
                 catch (Exception exception)
                 {
+                    // AggregateAll fault mode collects every handler failure before surfacing a combined exception.
                     exceptions.Add(exception);
                 }
+#pragma warning restore CA1031
             }
 
             if (exceptions.Count > 0)
@@ -209,13 +221,13 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
         if (handler is IAsyncMessageHandler<TMessage> asyncHandler)
         {
-            await asyncHandler.HandleAsync(message, executionContext.CancellationToken);
+            await asyncHandler.HandleAsync(message, executionContext.CancellationToken).ConfigureAwait(false);
             return;
         }
 
         if (handler is IMessageHandler<TMessage, Task> typedHandler)
         {
-            await typedHandler.Handle(message);
+            await typedHandler.Handle(message).ConfigureAwait(false);
         }
     }
 }

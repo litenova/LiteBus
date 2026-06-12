@@ -16,7 +16,9 @@ internal sealed class OutboxObservableMetricsInitializer : IStartupTask
     /// <param name="metrics">The outbox observable metrics instance to activate.</param>
     public OutboxObservableMetricsInitializer(OutboxObservableMetrics metrics)
     {
-        _ = metrics ?? throw new ArgumentNullException(nameof(metrics));
+        ArgumentNullException.ThrowIfNull(metrics);
+
+        _ = metrics;
     }
 
     /// <inheritdoc />

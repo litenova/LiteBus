@@ -22,7 +22,8 @@ internal sealed class InboxAcceptanceService
     /// <param name="envelopeFactory">The factory used to create envelopes before persistence.</param>
     public InboxAcceptanceService(IInboxEnvelopeFactory envelopeFactory)
     {
-        _envelopeFactory = envelopeFactory ?? throw new ArgumentNullException(nameof(envelopeFactory));
+        ArgumentNullException.ThrowIfNull(envelopeFactory);
+        _envelopeFactory = envelopeFactory;
     }
 
     /// <summary>

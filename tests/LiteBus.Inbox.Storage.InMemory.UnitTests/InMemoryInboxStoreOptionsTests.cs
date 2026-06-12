@@ -17,12 +17,12 @@ public sealed class InMemoryInboxStoreOptionsTests
         var store = new InMemoryInboxStore(new InMemoryInboxStoreOptions { Capacity = 1 });
         var now = BaseTime;
 
-        await store.AddAsync(CreatePendingEnvelope(Guid.NewGuid(), now));
+        await store.AddAsync(CreatePendingEnvelope(Guid.NewGuid(), now)).ConfigureAwait(false);
 
         var act = () => store.AddAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(1)));
 
         await act.Should().ThrowAsync<InboxStorageException>()
-            .WithMessage("*capacity of 1*");
+            .WithMessage("*capacity of 1*").ConfigureAwait(false);
     }
 
     [Fact]
@@ -42,13 +42,13 @@ public sealed class InMemoryInboxStoreOptionsTests
             AttemptCount = 0,
             Status = InboxStatus.Pending,
             IdempotencyKey = idempotencyKey
-        });
+        }).ConfigureAwait(false);
 
         var duplicate = await store.AddAsync(first with
         {
             Id = Guid.NewGuid(),
             Payload = "{\"orderId\":\"2\"}"
-        });
+        }).ConfigureAwait(false);
 
         duplicate.Id.Should().Be(first.Id);
         store.Count.Should().Be(1);
@@ -65,7 +65,7 @@ public sealed class InMemoryInboxStoreOptionsTests
         var commandId = Guid.NewGuid();
         var now = BaseTime;
 
-        await store.AddAsync(CreatePendingEnvelope(commandId, now));
+        await store.AddAsync(CreatePendingEnvelope(commandId, now)).ConfigureAwait(false);
 
         var leased = await store.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -73,7 +73,7 @@ public sealed class InMemoryInboxStoreOptionsTests
             LeaseOwner = "worker-1",
             Now = now,
             LeaseDuration = TimeSpan.Zero
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().ContainSingle();
         leased[0].LeaseExpiresAt.Should().Be(now.AddMinutes(5));
@@ -86,7 +86,7 @@ public sealed class InMemoryInboxStoreOptionsTests
         var store = new InMemoryInboxStore(timeProvider: clock);
         var commandId = Guid.NewGuid();
 
-        await store.AddAsync(CreatePendingEnvelope(commandId, BaseTime));
+        await store.AddAsync(CreatePendingEnvelope(commandId, BaseTime)).ConfigureAwait(false);
 
         await store.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -94,7 +94,7 @@ public sealed class InMemoryInboxStoreOptionsTests
             LeaseOwner = "stale-worker",
             Now = BaseTime,
             LeaseDuration = TimeSpan.FromSeconds(30)
-        });
+        }).ConfigureAwait(false);
 
         clock.Advance(TimeSpan.FromMinutes(1));
 
@@ -104,7 +104,7 @@ public sealed class InMemoryInboxStoreOptionsTests
             LeaseOwner = "fresh-worker",
             Now = default,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         reclaimed.Should().ContainSingle();
         reclaimed[0].LeaseOwner.Should().Be("fresh-worker");

@@ -18,7 +18,7 @@ internal static class HostingRegistrationHelpers
         ArgumentNullException.ThrowIfNull(types);
 
         var result = new List<Type>(types.Count);
-        var registeredTypes = new HashSet<Type>();
+        HashSet<Type> registeredTypes = [];
 
         foreach (var implementationType in types)
         {

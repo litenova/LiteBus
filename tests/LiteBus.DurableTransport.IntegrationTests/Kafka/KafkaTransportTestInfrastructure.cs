@@ -61,7 +61,7 @@ internal static class KafkaTransportTestInfrastructure
 
         try
         {
-            await admin.CreateTopicsAsync(specifications);
+            await admin.CreateTopicsAsync(specifications).ConfigureAwait(false);
         }
         catch (CreateTopicsException exception)
         {
@@ -133,7 +133,7 @@ internal static class KafkaTransportTestInfrastructure
 
         try
         {
-            await provider.DisposeAsync();
+            await provider.DisposeAsync().ConfigureAwait(false);
         }
         catch (ObjectDisposedException)
         {
@@ -152,7 +152,7 @@ internal static class KafkaTransportTestInfrastructure
         int expectedCount,
         TimeSpan timeout)
     {
-        return PollingWait.UntilAsync(async () => await countPending() == expectedCount, timeout);
+        return PollingWait.UntilAsync(async () => await countPending().ConfigureAwait(false) == expectedCount, timeout);
     }
 
     /// <summary>
@@ -195,7 +195,7 @@ internal static class KafkaTransportTestInfrastructure
                 return;
             }
 
-            await Task.Delay(250);
+            await Task.Delay(250).ConfigureAwait(false);
         }
 
         throw new TimeoutException(
@@ -237,7 +237,7 @@ internal static class KafkaTransportTestInfrastructure
                 stableSince = null;
             }
 
-            await Task.Delay(100);
+            await Task.Delay(100).ConfigureAwait(false);
         }
 
         throw new TimeoutException(

@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace LiteBus.Saga.Abstractions;
 
 /// <summary>
@@ -34,5 +36,6 @@ public interface ISagaStateTypeRegistry
     /// </summary>
     /// <param name="sagaDefinitionId">The saga definition identifier to resolve.</param>
     /// <returns>The registered state type, or <see langword="null" /> when the definition is unknown.</returns>
+    [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
     Type? ResolveStateType(string sagaDefinitionId);
 }

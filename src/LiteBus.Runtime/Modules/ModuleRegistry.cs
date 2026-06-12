@@ -1,6 +1,6 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -9,7 +9,7 @@ namespace LiteBus.Runtime.Modules;
 
 /// <summary>
 ///     Default implementation of <see cref="IModuleRegistry" /> that stores module descriptors
-///     and provides them in dependency-resolved order through enumeration.
+///     and resolves them in dependency order through <see cref="BuildOrder" />.
 /// </summary>
 internal sealed class ModuleRegistry : IModuleRegistry
 {
@@ -28,10 +28,22 @@ internal sealed class ModuleRegistry : IModuleRegistry
     /// </summary>
     private IReadOnlyList<ModuleDescriptor>? _cachedOrderedModules;
 
+    /// <summary>
+    ///     Indicates whether <see cref="BuildOrder" /> has frozen further registration.
+    /// </summary>
+    private bool _isFrozen;
+
     /// <inheritdoc />
     public IModuleRegistry Register(IModule module)
     {
         ArgumentNullException.ThrowIfNull(module);
+
+        if (_isFrozen)
+        {
+            throw new LiteBusConfigurationException(
+                "Cannot register modules after BuildOrder() has been called. " +
+                "Complete all module registration before building the module graph.");
+        }
 
         var moduleType = module.GetType();
 
@@ -61,28 +73,24 @@ internal sealed class ModuleRegistry : IModuleRegistry
         return _registeredTypes.Contains(typeof(T));
     }
 
-    /// <summary>
-    ///     Gets the ordered module descriptors, using caching for performance.
-    /// </summary>
-    /// <returns>Module descriptors in dependency order.</returns>
-    /// <exception cref="LiteBusConfigurationException">
-    ///     Thrown when circular dependencies are detected or when required dependencies are missing.
-    /// </exception>
-    private IReadOnlyList<ModuleDescriptor> GetOrderedModules()
+    /// <inheritdoc />
+    public IReadOnlyList<ModuleDescriptor> BuildOrder()
     {
         if (_cachedOrderedModules is not null)
+        {
             return _cachedOrderedModules;
+        }
 
         if (_orderedModules.Count == 0)
         {
             _cachedOrderedModules = [];
+            _isFrozen = true;
             return _cachedOrderedModules;
         }
 
         var descriptors = _orderedModules.Select(ModuleDescriptor.Create).ToList();
-
-        // Perform topological sort to determine dependency order.
         _cachedOrderedModules = TopologicalSort(descriptors);
+        _isFrozen = true;
         return _cachedOrderedModules;
     }
 
@@ -94,15 +102,14 @@ internal sealed class ModuleRegistry : IModuleRegistry
     /// <exception cref="LiteBusConfigurationException">
     ///     Thrown when circular dependencies are detected or when a dependency is missing.
     /// </exception>
-    private static IReadOnlyList<ModuleDescriptor> TopologicalSort(
+    private static ReadOnlyCollection<ModuleDescriptor> TopologicalSort(
         IReadOnlyList<ModuleDescriptor> descriptors)
     {
         var descriptorsByType = descriptors.ToDictionary(static d => d.ModuleType, static d => d);
-        var result = new List<ModuleDescriptor>();
-        var visited = new HashSet<Type>();
-        var visiting = new HashSet<Type>(); // For cycle detection
+        List<ModuleDescriptor> result = [];
+        HashSet<Type> visited = [];
+        HashSet<Type> visiting = [];
 
-        // Visit each module in the dependency graph.
         foreach (var descriptor in descriptors)
         {
             Visit(descriptor.ModuleType, descriptorsByType, visited, visiting, result);
@@ -129,10 +136,11 @@ internal sealed class ModuleRegistry : IModuleRegistry
         ISet<Type> visiting,
         IList<ModuleDescriptor> result)
     {
-        // Skip if already processed.
-        if (visited.Contains(moduleType)) return;
+        if (visited.Contains(moduleType))
+        {
+            return;
+        }
 
-        // Detect circular dependencies.
         if (!visiting.Add(moduleType))
         {
             throw new LiteBusConfigurationException(
@@ -142,10 +150,8 @@ internal sealed class ModuleRegistry : IModuleRegistry
 
         var descriptor = descriptorsByType[moduleType];
 
-        // Process all dependencies first (depth-first)
         foreach (var dependencyType in descriptor.Dependencies)
         {
-            // Ensure the dependency is registered.
             if (!descriptorsByType.ContainsKey(dependencyType))
             {
                 throw new LiteBusConfigurationException(
@@ -153,42 +159,11 @@ internal sealed class ModuleRegistry : IModuleRegistry
                     "but it is not registered. Ensure all required modules are added to the module registry.");
             }
 
-            // Recursively visit the dependency.
             Visit(dependencyType, descriptorsByType, visited, visiting, result);
         }
 
-        // Mark as fully processed and add to result.
         visiting.Remove(moduleType);
         visited.Add(moduleType);
         result.Add(descriptor);
     }
-
-    #region IOrderedEnumerable<ModuleDescriptor> Implementation
-
-    /// <inheritdoc />
-    public IEnumerator<ModuleDescriptor> GetEnumerator()
-    {
-        return GetOrderedModules().GetEnumerator();
-    }
-
-    /// <inheritdoc />
-    IEnumerator IEnumerable.GetEnumerator()
-    {
-        return GetEnumerator();
-    }
-
-    /// <inheritdoc />
-    public IOrderedEnumerable<ModuleDescriptor> CreateOrderedEnumerable<TKey>(
-        Func<ModuleDescriptor, TKey> keySelector,
-        IComparer<TKey>? comparer,
-        bool descending)
-    {
-        var orderedModules = GetOrderedModules();
-
-        return descending
-            ? orderedModules.OrderByDescending(keySelector, comparer)
-            : orderedModules.OrderBy(keySelector, comparer);
-    }
-
-    #endregion
 }

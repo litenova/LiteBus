@@ -30,8 +30,11 @@ public sealed class StoreBoundTransactionalOutbox : ITransactionalOutbox
         ITransactionalOutboxStore store,
         IOutboxEnvelopeFactory envelopeFactory)
     {
-        _store = store ?? throw new ArgumentNullException(nameof(store));
-        _writerCore = new OutboxWriterCore(envelopeFactory ?? throw new ArgumentNullException(nameof(envelopeFactory)));
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(envelopeFactory);
+
+        _store = store;
+        _writerCore = new OutboxWriterCore(envelopeFactory);
     }
 
     /// <inheritdoc />

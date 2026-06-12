@@ -16,7 +16,7 @@ public sealed class UnsupportedOpenGenericHandlerAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(DiagnosticDescriptors.UnsupportedOpenGenericHandler);
+        [DiagnosticDescriptors.UnsupportedOpenGenericHandler];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)

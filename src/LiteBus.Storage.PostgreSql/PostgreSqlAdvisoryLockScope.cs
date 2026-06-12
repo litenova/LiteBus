@@ -56,7 +56,7 @@ internal sealed class PostgreSqlAdvisoryLockScope : IAsyncDisposable
 
         _acquired = false;
 
-        await using var command = _connection.CreateCommand();
+        using var command = _connection.CreateCommand();
         command.CommandText = "SELECT pg_advisory_unlock(@key1, @key2);";
         command.Parameters.AddWithValue("key1", _key1);
         command.Parameters.AddWithValue("key2", _key2);
@@ -82,7 +82,7 @@ internal sealed class PostgreSqlAdvisoryLockScope : IAsyncDisposable
 
         var (key1, key2) = CreateLockKeys(lockKey);
 
-        await using var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT pg_try_advisory_lock(@key1, @key2);";
         command.Parameters.AddWithValue("key1", key1);
         command.Parameters.AddWithValue("key2", key2);

@@ -18,6 +18,6 @@ public sealed class GetOrdersByCustomerQueryHandler : IQueryHandler<GetOrdersByC
             new OrderLineItemDto(Guid.NewGuid(), 2, 9.99m)
         ]);
 
-        return await Task.FromResult(new List<OrderDto> { order1, order2 });
+        return await Task.FromResult(new List<OrderDto> { order1, order2 }).ConfigureAwait(false);
     }
 }

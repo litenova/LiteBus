@@ -46,7 +46,9 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-        await using var provider = BuildProvider(queueName);
+         var provider = BuildProvider(queueName);
+         await using (provider.ConfigureAwait(false))
+         {
         var store = provider.GetRequiredService<InMemoryOutboxStore>();
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
@@ -61,16 +63,16 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
                 Tenant = new TenantScope.Isolated("tenant-azure-east"),
                 Target = new PublicationTarget.Topic(queueName)
             }
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
 
         var (body, headers) = await AzureServiceBusTransportTestInfrastructure.ReceiveOneAsync(
             _fixture.TransportOptions.ConnectionString,
             queueName,
-            TimeSpan.FromSeconds(45));
+            TimeSpan.FromSeconds(45)).ConfigureAwait(false);
 
         var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
             body,
@@ -83,6 +85,7 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
         headers[TransportHeaders.CorrelationId].Should().Be("corr-azure-outbox");
         headers[TransportHeaders.CausationId].Should().Be("cause-azure-outbox");
         headers[TransportHeaders.TenantId].Should().Be("tenant-azure-east");
+        }
     }
 
     /// <summary>
@@ -96,7 +99,9 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
         var queueName = _fixture.ResolveQueue("outbox-route");
         var messageId = Guid.NewGuid();
 
-        await using var provider = BuildProvider(queueName);
+         var provider = BuildProvider(queueName);
+         await using (provider.ConfigureAwait(false))
+         {
         var store = provider.GetRequiredService<InMemoryOutboxStore>();
         var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
@@ -108,18 +113,19 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
             {
                 Identity = new MessageIdentity.Supplied(messageId)
             }
-        });
+        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
 
         var (_, headers) = await AzureServiceBusTransportTestInfrastructure.ReceiveOneAsync(
             _fixture.TransportOptions.ConnectionString,
             queueName,
-            TimeSpan.FromSeconds(45));
+            TimeSpan.FromSeconds(45)).ConfigureAwait(false);
 
         headers[TransportHeaders.ContractName].Should().Be(contractRoute);
+        }
     }
 
     /// <summary>

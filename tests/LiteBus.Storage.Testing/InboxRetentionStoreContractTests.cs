@@ -29,8 +29,8 @@ public abstract class InboxRetentionStoreContractTests
         var deletedId = Guid.NewGuid();
         var now = BaseTime;
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(retainedId, now));
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(deletedId, now.AddHours(-2)));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(retainedId, now)).ConfigureAwait(false);
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(deletedId, now.AddHours(-2))).ConfigureAwait(false);
 
         var retainedLease = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -38,9 +38,9 @@ public abstract class InboxRetentionStoreContractTests
             LeaseOwner = "worker-1",
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await roles.StateWriter.PersistAsync([retainedLease[0].AsCompleted() with { CompletedAt = now }]);
+        await roles.StateWriter.PersistAsync([retainedLease[0].AsCompleted() with { CompletedAt = now }]).ConfigureAwait(false);
 
         var deletedLease = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -48,15 +48,15 @@ public abstract class InboxRetentionStoreContractTests
             LeaseOwner = "worker-2",
             Now = now.AddSeconds(2),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await roles.StateWriter.PersistAsync([deletedLease[0].AsCompleted() with { CompletedAt = now.AddHours(-2) }]);
+        await roles.StateWriter.PersistAsync([deletedLease[0].AsCompleted() with { CompletedAt = now.AddHours(-2) }]).ConfigureAwait(false);
 
-        var deleted = await roles.RetentionStore.DeleteCompletedOlderThanAsync(now.AddHours(-1));
+        var deleted = await roles.RetentionStore.DeleteCompletedOlderThanAsync(now.AddHours(-1)).ConfigureAwait(false);
 
         deleted.Should().Be(1);
 
-        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync();
+        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync().ConfigureAwait(false);
         counts.Should().ContainKey(InboxStatus.Completed).WhoseValue.Should().Be(1);
     }
 
@@ -72,7 +72,7 @@ public abstract class InboxRetentionStoreContractTests
         var completedAt = BaseTime;
         var now = BaseTime;
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, createdAt));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, createdAt)).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -80,15 +80,15 @@ public abstract class InboxRetentionStoreContractTests
             LeaseOwner = "worker-1",
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await roles.StateWriter.PersistAsync([leased[0].AsCompleted() with { CompletedAt = completedAt }]);
+        await roles.StateWriter.PersistAsync([leased[0].AsCompleted() with { CompletedAt = completedAt }]).ConfigureAwait(false);
 
-        var deleted = await roles.RetentionStore.DeleteCompletedOlderThanAsync(now.AddDays(-1));
+        var deleted = await roles.RetentionStore.DeleteCompletedOlderThanAsync(now.AddDays(-1)).ConfigureAwait(false);
 
         deleted.Should().Be(0);
 
-        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync();
+        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync().ConfigureAwait(false);
         counts.Should().ContainKey(InboxStatus.Completed).WhoseValue.Should().Be(1);
     }
 
@@ -102,7 +102,7 @@ public abstract class InboxRetentionStoreContractTests
         var commandId = Guid.NewGuid();
         var now = BaseTime;
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now)).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -110,15 +110,15 @@ public abstract class InboxRetentionStoreContractTests
             LeaseOwner = "worker-1",
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await roles.StateWriter.PersistAsync([leased[0].AsCompleted()]);
+        await roles.StateWriter.PersistAsync([leased[0].AsCompleted()]).ConfigureAwait(false);
 
-        var deleted = await roles.RetentionStore.DeleteCompletedOlderThanAsync(now.AddHours(-2));
+        var deleted = await roles.RetentionStore.DeleteCompletedOlderThanAsync(now.AddHours(-2)).ConfigureAwait(false);
 
         deleted.Should().Be(0);
 
-        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync();
+        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync().ConfigureAwait(false);
         counts.Should().ContainKey(InboxStatus.Completed).WhoseValue.Should().Be(1);
     }
 

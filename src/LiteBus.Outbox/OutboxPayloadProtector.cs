@@ -22,7 +22,9 @@ internal sealed class OutboxPayloadProtector : IOutboxPayloadProtector
     /// <param name="encryptor">The encryptor used for outbox payload protection.</param>
     public OutboxPayloadProtector(IPayloadEncryptor encryptor)
     {
-        _encryptor = encryptor ?? throw new ArgumentNullException(nameof(encryptor));
+        ArgumentNullException.ThrowIfNull(encryptor);
+
+        _encryptor = encryptor;
     }
 
     /// <inheritdoc />

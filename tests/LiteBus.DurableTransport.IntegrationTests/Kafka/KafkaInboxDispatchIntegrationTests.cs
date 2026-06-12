@@ -42,7 +42,7 @@ public sealed class KafkaInboxDispatchIntegrationTests : LiteBusTestBase
     public async Task ProcessPendingAsync_ShouldPublishLeasedEnvelopeToKafkaTopic()
     {
         var topic = KafkaTransportTestInfrastructure.CreateTopic("inbox-dispatch");
-        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, topic);
+        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, topic).ConfigureAwait(false);
         var provider = BuildProvider(topic);
 
         try
@@ -64,14 +64,14 @@ public sealed class KafkaInboxDispatchIntegrationTests : LiteBusTestBase
                     Trace = new MessageTrace.Workflow("corr-kafka-dispatch", "cause-kafka-dispatch"),
                     Tenant = new TenantScope.Isolated("tenant-kafka")
                 }
-            });
+            }).ConfigureAwait(false);
 
-            await processor.ProcessPendingAsync();
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
             var (body, headers) = await KafkaTransportTestInfrastructure.ConsumeOneAsync(
                 _fixture.TransportOptions.BootstrapServers,
                 topic,
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
             body.Should().Contain(workItemId.ToString());
             headers[TransportHeaders.MessageId].Should().Be(receipt.Id.ToString("D"));
@@ -83,7 +83,7 @@ public sealed class KafkaInboxDispatchIntegrationTests : LiteBusTestBase
         }
         finally
         {
-            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider);
+            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
         }
     }
 

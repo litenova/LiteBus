@@ -14,7 +14,7 @@ public sealed class MissingMessageContractRegistrationAnalyzer : DiagnosticAnaly
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(DiagnosticDescriptors.MissingMessageContractRegistration);
+        [DiagnosticDescriptors.MissingMessageContractRegistration];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)

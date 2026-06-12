@@ -21,7 +21,9 @@ public sealed class PostgreSqlOutboxSchemaInitializer : IStartupTask
     /// <param name="registration">The registered PostgreSQL outbox store configuration.</param>
     public PostgreSqlOutboxSchemaInitializer(PostgreSqlOutboxStoreRegistration registration)
     {
-        _registration = registration ?? throw new ArgumentNullException(nameof(registration));
+        ArgumentNullException.ThrowIfNull(registration);
+
+        _registration = registration;
     }
 
     /// <inheritdoc />

@@ -87,7 +87,7 @@ internal static class InboxProcessorFactory
             return [hook];
         }
 
-        return Array.Empty<IProcessorEnvelopeHook>();
+        return [];
     }
 
     /// <summary>

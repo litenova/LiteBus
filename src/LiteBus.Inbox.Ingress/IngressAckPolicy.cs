@@ -51,8 +51,9 @@ public static class IngressAckPolicy
                 case TargetInvocationException target when target.InnerException is not null:
                     exception = target.InnerException;
                     continue;
-                case AggregateException aggregate when aggregate.InnerExceptions.Count == 1:
-                    exception = aggregate.InnerExceptions[0];
+                case AggregateException { InnerExceptions.Count: 1 } aggregate
+                    when aggregate.InnerExceptions[0] is Exception singleInner:
+                    exception = singleInner;
                     continue;
                 default:
                     return exception;

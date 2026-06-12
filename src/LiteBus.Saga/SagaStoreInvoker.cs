@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using LiteBus.Saga.Abstractions;
 
@@ -24,6 +25,7 @@ internal static class SagaStoreInvoker
     /// <returns>The loaded state, version, and completion flag when a row exists.</returns>
     internal static async Task<(object State, int Version, bool IsCompleted)?> LoadAsync(
         ISagaStore store,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
         Type stateType,
         SagaCorrelation correlation,
         CancellationToken cancellationToken)
@@ -47,6 +49,7 @@ internal static class SagaStoreInvoker
     /// <returns>A task that completes when the save succeeds.</returns>
     internal static Task SaveAsync(
         ISagaStore store,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
         Type stateType,
         SagaCorrelation correlation,
         object state,

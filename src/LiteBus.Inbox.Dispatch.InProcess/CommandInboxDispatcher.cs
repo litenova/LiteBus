@@ -58,9 +58,12 @@ public sealed class CommandInboxDispatcher : IInboxDispatcher
         IMessageSerializer messageSerializer,
         IInboxPayloadProtector? payloadProtector = null)
     {
-        _commandMediator = commandMediator ?? throw new ArgumentNullException(nameof(commandMediator));
-        _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
-        _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
+        ArgumentNullException.ThrowIfNull(commandMediator);
+        _commandMediator = commandMediator;
+        ArgumentNullException.ThrowIfNull(contractRegistry);
+        _contractRegistry = contractRegistry;
+        ArgumentNullException.ThrowIfNull(messageSerializer);
+        _messageSerializer = messageSerializer;
         _payloadProtector = payloadProtector;
     }
 
@@ -84,6 +87,7 @@ public sealed class CommandInboxDispatcher : IInboxDispatcher
 
         var mediationSettings = new CommandMediationSettings();
         mediationSettings.Items[InboxExecutionContextKeys.IsInboxExecution] = true;
+        mediationSettings.Items[InboxExecutionContextKeys.ContractName] = envelope.ContractName;
 
         MessageProcessorDiagnostics.ApplyTraceMetadata(
             mediationSettings.Items,

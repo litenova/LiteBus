@@ -58,7 +58,7 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
                     .WithConfig(configPath)
                     .Build();
 
-                await _container.StartAsync();
+                await _container.StartAsync().ConfigureAwait(false);
 
                 TransportOptions = new AzureServiceBusTransportOptions
                 {
@@ -66,7 +66,7 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
                 };
 
                 IsAvailable = true;
-            });
+            }).ConfigureAwait(false);
         }
         catch (InvalidOperationException exception) when (!DockerTestGate.IsStrictTransportMode)
         {
@@ -80,7 +80,7 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
     {
         if (_container is not null)
         {
-            await _container.DisposeAsync();
+            await _container.DisposeAsync().ConfigureAwait(false);
         }
     }
 

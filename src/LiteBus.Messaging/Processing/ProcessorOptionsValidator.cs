@@ -18,13 +18,7 @@ internal static class ProcessorOptionsValidator
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        if (options.BatchSize <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                optionsParameterName,
-                options.BatchSize,
-                "Batch size must be greater than zero.");
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.BatchSize, 0, optionsParameterName);
 
         if (options.LeaseDuration <= TimeSpan.Zero)
         {
@@ -34,21 +28,9 @@ internal static class ProcessorOptionsValidator
                 "Lease duration must be greater than zero.");
         }
 
-        if (options.DispatcherConcurrency <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                optionsParameterName,
-                options.DispatcherConcurrency,
-                "Dispatcher concurrency must be greater than zero.");
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.DispatcherConcurrency, 0, optionsParameterName);
 
-        if (options.LeaseHeartbeatInterval < TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(
-                optionsParameterName,
-                options.LeaseHeartbeatInterval,
-                "Lease heartbeat interval cannot be negative.");
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(options.LeaseHeartbeatInterval.Ticks, optionsParameterName);
 
         if (options.LeaseHeartbeatInterval > TimeSpan.Zero &&
             options.LeaseHeartbeatInterval > options.LeaseDuration / 2)

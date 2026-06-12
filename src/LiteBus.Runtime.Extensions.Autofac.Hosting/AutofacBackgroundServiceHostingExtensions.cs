@@ -4,9 +4,7 @@ using Autofac;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Extensions.Hosting;
 using Microsoft.Extensions.Hosting;
-using BackgroundServiceHostAdapter = LiteBus.Runtime.Extensions.Hosting.BackgroundServiceHostAdapter;
-using StartupTaskGate = LiteBus.Runtime.Extensions.Hosting.StartupTaskGate;
-using StartupTaskPhaseHostedService = LiteBus.Runtime.Extensions.Hosting.StartupTaskPhaseHostedService;
+using LiteBusHostOrchestrator = LiteBus.Runtime.Extensions.Hosting.LiteBusHostOrchestrator;
 
 namespace LiteBus.Runtime.Extensions.Autofac.Hosting;
 
@@ -17,7 +15,8 @@ namespace LiteBus.Runtime.Extensions.Autofac.Hosting;
 public static class AutofacBackgroundServiceHostingExtensions
 {
     /// <summary>
-    ///     Registers startup task and background service types and their generic-host adapters with the container builder.
+    ///     Registers startup task and background service types and a single generic-host orchestrator with the container
+    ///     builder.
     /// </summary>
     /// <param name="builder">The container builder receiving host execution registrations.</param>
     /// <param name="startupTasks">The startup task implementation types registered by modules.</param>
@@ -39,43 +38,10 @@ public static class AutofacBackgroundServiceHostingExtensions
             return;
         }
 
-        if (startupTaskTypes.Count > 0)
+        foreach (var implementationType in startupTaskTypes)
         {
-            builder.RegisterType<StartupTaskGate>()
-                .SingleInstance();
-
-            foreach (var implementationType in startupTaskTypes)
-            {
-                builder.RegisterType(implementationType)
-                    .AsSelf()
-                    .SingleInstance();
-            }
-
-            builder.Register(context =>
-                {
-                    var resolvedStartupTasks = new List<IStartupTask>(startupTaskTypes.Count);
-
-                    foreach (var implementationType in startupTaskTypes)
-                    {
-                        resolvedStartupTasks.Add((IStartupTask) context.Resolve(implementationType));
-                    }
-
-                    return new StartupTaskPhaseHostedService(
-                        resolvedStartupTasks,
-                        context.Resolve<StartupTaskGate>());
-                })
-                .As<IHostedService>()
-                .SingleInstance();
-        }
-        else
-        {
-            builder.Register(_ =>
-                {
-                    var gate = new StartupTaskGate();
-                    gate.SignalComplete();
-                    return gate;
-                })
-                .As<StartupTaskGate>()
+            builder.RegisterType(implementationType)
+                .AsSelf()
                 .SingleInstance();
         }
 
@@ -86,13 +52,25 @@ public static class AutofacBackgroundServiceHostingExtensions
                 .SingleInstance();
         }
 
-        foreach (var implementationType in backgroundServiceTypes)
-        {
-            builder.Register(context => new BackgroundServiceHostAdapter(
-                    (IBackgroundService) context.Resolve(implementationType),
-                    context.Resolve<StartupTaskGate>()))
-                .As<IHostedService>()
-                .SingleInstance();
-        }
+        builder.Register(context =>
+            {
+                var resolvedStartupTasks = new List<IStartupTask>(startupTaskTypes.Count);
+
+                foreach (var implementationType in startupTaskTypes)
+                {
+                    resolvedStartupTasks.Add((IStartupTask) context.Resolve(implementationType));
+                }
+
+                var resolvedBackgroundServices = new List<IBackgroundService>(backgroundServiceTypes.Count);
+
+                foreach (var implementationType in backgroundServiceTypes)
+                {
+                    resolvedBackgroundServices.Add((IBackgroundService) context.Resolve(implementationType));
+                }
+
+                return new LiteBusHostOrchestrator(resolvedStartupTasks, resolvedBackgroundServices);
+            })
+            .As<IHostedService>()
+            .SingleInstance();
     }
 }

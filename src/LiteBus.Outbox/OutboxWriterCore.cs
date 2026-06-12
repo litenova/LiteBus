@@ -22,7 +22,9 @@ internal sealed class OutboxWriterCore
     /// <param name="envelopeFactory">The factory used to create envelopes before persistence.</param>
     public OutboxWriterCore(IOutboxEnvelopeFactory envelopeFactory)
     {
-        _envelopeFactory = envelopeFactory ?? throw new ArgumentNullException(nameof(envelopeFactory));
+        ArgumentNullException.ThrowIfNull(envelopeFactory);
+
+        _envelopeFactory = envelopeFactory;
     }
 
     /// <summary>

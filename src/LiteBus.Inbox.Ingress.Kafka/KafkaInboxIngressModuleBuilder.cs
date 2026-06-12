@@ -39,7 +39,8 @@ public sealed class KafkaInboxIngressModuleBuilder
     /// <returns>The current builder.</returns>
     public KafkaInboxIngressModuleBuilder UseOptions(KafkaInboxIngressOptions options)
     {
-        Options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        Options = options;
         return this;
     }
 }

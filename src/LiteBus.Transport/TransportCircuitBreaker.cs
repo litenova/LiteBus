@@ -46,7 +46,29 @@ public class TransportCircuitBreaker : ITransportCircuitBreaker
     }
 
     /// <inheritdoc />
-    public int FailureCount => Volatile.Read(ref _consecutiveFailures);
+    public int FailureCount
+    {
+        get
+        {
+            var failures = Volatile.Read(ref _consecutiveFailures);
+
+            if (failures > 0)
+            {
+                return failures;
+            }
+
+            if (!IsEnabled())
+            {
+                return 0;
+            }
+
+            var openUntilTicks = Volatile.Read(ref _openUntilTicks);
+
+            return openUntilTicks != 0 && Environment.TickCount64 < openUntilTicks
+                ? _options.FailureThreshold
+                : 0;
+        }
+    }
 
     /// <inheritdoc />
     public void ThrowIfOpen()
@@ -104,7 +126,6 @@ public class TransportCircuitBreaker : ITransportCircuitBreaker
             ref _openUntilTicks,
             Environment.TickCount64 + (long) _options.BreakDuration.TotalMilliseconds);
 
-        Interlocked.Exchange(ref _consecutiveFailures, 0);
         TransportCircuitBreakerTelemetry.RecordCircuitOpened();
     }
 

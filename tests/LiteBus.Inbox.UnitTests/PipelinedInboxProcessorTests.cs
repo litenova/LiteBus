@@ -22,16 +22,19 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
     {
         var recorder = new InboxTestFixtures.CommandRecorder();
 
-        await using var provider = BuildProcessorProvider(recorder, 1);
+         var provider = BuildProcessorProvider(recorder, 1);
+         await using (provider.ConfigureAwait(false))
+         {
 
         var store = provider.GetRequiredService<InMemoryInboxStore>();
-        await SeedCommandsAsync(provider.GetRequiredService<IInbox>());
+        await SeedCommandsAsync(provider.GetRequiredService<IInbox>()).ConfigureAwait(false);
 
-        var result = await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync();
+        var result = await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync().ConfigureAwait(false);
 
         result.SucceededCount.Should().Be(3);
         recorder.Commands.Should().HaveCount(3);
         store.GetAll(InboxStatus.Completed).Should().HaveCount(3);
+        }
     }
 
     [Fact]
@@ -69,9 +72,9 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
             CreatedAt = BaseTime,
             AttemptCount = 0,
             Status = InboxStatus.Pending
-        });
+        }).ConfigureAwait(false);
 
-        var result = await processor.ProcessPendingAsync();
+        var result = await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         result.SucceededCount.Should().Be(1);
         store.Get(commandId).Status.Should().Be(InboxStatus.Completed);
@@ -111,13 +114,13 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
                 CreatedAt = BaseTime,
                 AttemptCount = 0,
                 Status = InboxStatus.Pending
-            });
+            }).ConfigureAwait(false);
         }
 
         var passTask = processor.ProcessPendingAsync();
-        await dispatcher.WaitForConcurrentDispatchAsync();
+        await dispatcher.WaitForConcurrentDispatchAsync().ConfigureAwait(false);
         gate.SetResult();
-        var result = await passTask;
+        var result = await passTask.ConfigureAwait(false);
 
         result.SucceededCount.Should().Be(6);
         dispatcher.MaxConcurrent.Should().BeGreaterThan(1);
@@ -132,7 +135,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
             await inbox.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
-            });
+            }).ConfigureAwait(false);
         }
     }
 
@@ -197,8 +200,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
         {
             RenewalCount++;
 
-            return await _inner.RenewLeaseAsync(request, cancellationToken)
-                ;
+            return await _inner.RenewLeaseAsync(request, cancellationToken).ConfigureAwait(false);
         }
 
         public Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
@@ -218,7 +220,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
 
         public async Task DispatchAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
         {
-            await Task.Delay(_delay, cancellationToken);
+            await Task.Delay(_delay, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -246,7 +248,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
                 _concurrentReached.TrySetResult();
             }
 
-            await _gate.Task.WaitAsync(cancellationToken);
+            await _gate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
             Interlocked.Decrement(ref _active);
         }
 

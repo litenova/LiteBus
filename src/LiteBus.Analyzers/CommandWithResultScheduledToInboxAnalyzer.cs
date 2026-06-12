@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Threading;
 using LiteBus.Analyzers.Analysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -16,7 +18,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(DiagnosticDescriptors.CommandWithResultScheduledToInbox);
+        [DiagnosticDescriptors.CommandWithResultScheduledToInbox];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
@@ -46,6 +48,24 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
             return;
         }
 
+        if (symbol.Name == "AcceptBatchAsync")
+        {
+            foreach (var batchMessage in GetBatchMessageTypes(
+                         symbol,
+                         invocation,
+                         context.SemanticModel,
+                         context.CancellationToken))
+            {
+                ReportWhenCommandHasResult(
+                    context,
+                    batchMessage.MessageType,
+                    batchMessage.Location,
+                    context.Compilation);
+            }
+
+            return;
+        }
+
         var messageType = GetMessageType(symbol, invocation, context.SemanticModel);
 
         if (messageType is null)
@@ -53,7 +73,23 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
             return;
         }
 
-        var resultType = GetCommandResultType(messageType, context.Compilation);
+        ReportWhenCommandHasResult(context, messageType, invocation.GetLocation(), context.Compilation);
+    }
+
+    /// <summary>
+    ///     Reports LB1004 when the message type implements <c>ICommand&lt;TResult&gt;</c>.
+    /// </summary>
+    /// <param name="context">The syntax node analysis context.</param>
+    /// <param name="messageType">The message type symbol.</param>
+    /// <param name="location">The diagnostic location.</param>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    private static void ReportWhenCommandHasResult(
+        SyntaxNodeAnalysisContext context,
+        ITypeSymbol messageType,
+        Location location,
+        Compilation compilation)
+    {
+        var resultType = GetCommandResultType(messageType, compilation);
 
         if (resultType is null)
         {
@@ -62,7 +98,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
 
         context.ReportDiagnostic(Diagnostic.Create(
             DiagnosticDescriptors.CommandWithResultScheduledToInbox,
-            invocation.GetLocation(),
+            location,
             messageType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
             resultType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)));
     }
@@ -130,17 +166,119 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
             return null;
         }
 
-        var firstArgumentType = semanticModel.GetTypeInfo(invocation.ArgumentList.Arguments[0].Expression).Type;
+        return GetMessageTypeFromAcceptItem(
+            invocation.ArgumentList.Arguments[0].Expression,
+            semanticModel);
+    }
 
-        if (firstArgumentType is INamedTypeSymbol namedType &&
-            namedType.IsGenericType &&
-            namedType.Name == "InboxAcceptItem" &&
-            namedType.TypeArguments.Length > 0)
+    /// <summary>
+    ///     Gets message types and diagnostic locations from inbox batch acceptance calls.
+    /// </summary>
+    /// <param name="method">The invoked method symbol.</param>
+    /// <param name="invocation">The invocation syntax.</param>
+    /// <param name="semanticModel">The semantic model.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The batch message types paired with diagnostic locations.</returns>
+    private static ImmutableArray<(ITypeSymbol MessageType, Location Location)> GetBatchMessageTypes(
+        IMethodSymbol method,
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel,
+        CancellationToken cancellationToken)
+    {
+        if (invocation.ArgumentList.Arguments.Count == 0)
+        {
+            return ImmutableArray<(ITypeSymbol MessageType, Location Location)>.Empty;
+        }
+
+        var batchArgument = invocation.ArgumentList.Arguments[0].Expression;
+        var builder = ImmutableArray.CreateBuilder<(ITypeSymbol MessageType, Location Location)>();
+
+        foreach (var element in GetCollectionElementExpressions(batchArgument))
+        {
+            var messageType = GetMessageTypeFromAcceptItem(element, semanticModel);
+
+            if (messageType is null)
+            {
+                continue;
+            }
+
+            builder.Add((messageType, element.GetLocation()));
+        }
+
+        if (builder.Count == 0 && method.TypeArguments.Length > 0)
+        {
+            builder.Add((method.TypeArguments[0], invocation.GetLocation()));
+        }
+
+        return builder.ToImmutable();
+    }
+
+    /// <summary>
+    ///     Gets element expressions from array, collection, or list initialization syntax.
+    /// </summary>
+    /// <param name="expression">The batch argument expression.</param>
+    /// <returns>The element expressions contained in the batch argument.</returns>
+    private static IEnumerable<ExpressionSyntax> GetCollectionElementExpressions(ExpressionSyntax expression)
+    {
+        switch (expression)
+        {
+            case ImplicitArrayCreationExpressionSyntax { Initializer: not null } implicitArray:
+                return implicitArray.Initializer.Expressions;
+            case ArrayCreationExpressionSyntax { Initializer: not null } arrayCreation:
+                return arrayCreation.Initializer.Expressions;
+            case CollectionExpressionSyntax collectionExpression:
+                return collectionExpression.Elements
+                    .Select(GetCollectionElementExpression)
+                    .Where(element => element is not null)!;
+            default:
+                return [];
+        }
+    }
+
+    /// <summary>
+    ///     Gets the expression from a collection expression element when it represents one value.
+    /// </summary>
+    /// <param name="element">The collection expression element.</param>
+    /// <returns>The element expression, if present.</returns>
+    private static ExpressionSyntax? GetCollectionElementExpression(CollectionElementSyntax element)
+    {
+        return element is ExpressionElementSyntax expressionElement
+            ? expressionElement.Expression
+            : null;
+    }
+
+    /// <summary>
+    ///     Gets the message type from an inbox acceptance item expression.
+    /// </summary>
+    /// <param name="expression">The acceptance item expression.</param>
+    /// <param name="semanticModel">The semantic model.</param>
+    /// <returns>The message type symbol, if resolved.</returns>
+    private static ITypeSymbol? GetMessageTypeFromAcceptItem(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel)
+    {
+        if (expression is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "From" } } fromInvocation &&
+            semanticModel.GetSymbolInfo(fromInvocation).Symbol is IMethodSymbol fromMethod)
+        {
+            if (fromMethod.TypeArguments.Length > 0)
+            {
+                return fromMethod.TypeArguments[0];
+            }
+
+            if (fromInvocation.ArgumentList.Arguments.Count > 0)
+            {
+                return semanticModel.GetTypeInfo(fromInvocation.ArgumentList.Arguments[0].Expression).Type;
+            }
+        }
+
+        var expressionType = semanticModel.GetTypeInfo(expression).Type;
+
+        if (expressionType is INamedTypeSymbol { IsGenericType: true, Name: "InboxAcceptItem", TypeArguments.Length: > 0 } namedType)
         {
             return namedType.TypeArguments[0];
         }
 
-        return firstArgumentType;
+        return expressionType;
     }
 
     /// <summary>

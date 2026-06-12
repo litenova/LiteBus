@@ -53,10 +53,10 @@ public sealed class PipelinedOutboxProcessorTests : LiteBusTestBase
                 CreatedAt = BaseTime.AddSeconds(index),
                 Status = OutboxStatus.Pending,
                 AttemptCount = 0
-            });
+            }).ConfigureAwait(false);
         }
 
-        var result = await processor.ProcessPendingAsync();
+        var result = await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         result.SucceededCount.Should().Be(3);
         transport.Published.Should().HaveCount(3);

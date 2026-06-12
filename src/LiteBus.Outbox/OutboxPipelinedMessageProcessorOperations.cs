@@ -71,13 +71,23 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
         ILogger logger,
         IMessageDispatchScopeFactory? dispatchScopeFactory = null)
     {
-        _leaseStore = leaseStore ?? throw new ArgumentNullException(nameof(leaseStore));
-        _stateWriter = stateWriter ?? throw new ArgumentNullException(nameof(stateWriter));
-        _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
-        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        ArgumentNullException.ThrowIfNull(leaseStore);
+
+        _leaseStore = leaseStore;
+        ArgumentNullException.ThrowIfNull(stateWriter);
+
+        _stateWriter = stateWriter;
+        ArgumentNullException.ThrowIfNull(dispatcher);
+
+        _dispatcher = dispatcher;
+        ArgumentNullException.ThrowIfNull(clock);
+
+        _clock = clock;
         ArgumentNullException.ThrowIfNull(hooks);
         _hooks = hooks;
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _logger = logger;
         _dispatchScopeFactory = dispatchScopeFactory;
     }
 
@@ -170,7 +180,7 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
         var updated = sourceEnvelope.AsFailed(MessageProcessorDiagnostics.LeaseLostDuringProcessingError, visibleAfter);
         var persistToken = options.HonorShutdownTokenOnPersist ? cancellationToken : CancellationToken.None;
 
-        var persistResult = await _stateWriter.PersistAsync(new[] { updated }, persistToken).ConfigureAwait(false);
+        var persistResult = await _stateWriter.PersistAsync([updated], persistToken).ConfigureAwait(false);
 
         if (persistResult.SkippedCount > 0)
         {
@@ -232,7 +242,7 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
                 }
             }
 
-            var persistResult = await _stateWriter.PersistAsync(new[] { terminal }, persistToken).ConfigureAwait(false);
+            var persistResult = await _stateWriter.PersistAsync([terminal], persistToken).ConfigureAwait(false);
 
             if (persistResult.SkippedCount > 0)
             {
@@ -257,7 +267,7 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
             return;
         }
 
-        var outcomePersist = await _stateWriter.PersistAsync(new[] { updated }, persistToken).ConfigureAwait(false);
+        var outcomePersist = await _stateWriter.PersistAsync([updated], persistToken).ConfigureAwait(false);
 
         if (outcomePersist.SkippedCount > 0)
         {
