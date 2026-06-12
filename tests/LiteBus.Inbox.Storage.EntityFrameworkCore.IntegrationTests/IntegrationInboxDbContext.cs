@@ -16,7 +16,7 @@ internal sealed class IntegrationInboxDbContext : DbContext, IInboxDbContext
     /// <summary>
     ///     The store options that control schema mapping.
     /// </summary>
-    private readonly EfCoreInboxStoreOptions _storeOptions;
+    private readonly EntityFrameworkCoreInboxStoreOptions _storeOptions;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="IntegrationInboxDbContext" /> class.
@@ -26,7 +26,7 @@ internal sealed class IntegrationInboxDbContext : DbContext, IInboxDbContext
     /// <param name="storageProvider">The storage provider used for model configuration.</param>
     public IntegrationInboxDbContext(
         DbContextOptions<IntegrationInboxDbContext> options,
-        EfCoreInboxStoreOptions storeOptions,
+        EntityFrameworkCoreInboxStoreOptions storeOptions,
         EfCoreStorageProvider storageProvider = EfCoreStorageProvider.PostgreSql)
         : base(options)
     {

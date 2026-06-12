@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.ExceptionServices;
@@ -101,7 +101,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
     /// <summary>
     ///     Executes handlers by grouping them by priority and then processing each group
-    ///     according to the <see cref="EventMediationExecutionSettings.PriorityGroupsConcurrencyMode" /> setting.
+    ///     according to the <see cref="EventExecutionSettings.PriorityGroupsConcurrencyMode" /> setting.
     /// </summary>
     /// <param name="message">The message being broadcast to handlers.</param>
     /// <param name="handlers">The main handlers to execute, grouped by priority before invocation.</param>
@@ -132,7 +132,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
     /// <summary>
     ///     Executes a group of handlers that share the same priority level, respecting the
-    ///     <see cref="EventMediationExecutionSettings.HandlersWithinSamePriorityConcurrencyMode" /> setting.
+    ///     <see cref="EventExecutionSettings.HandlersWithinSamePriorityConcurrencyMode" /> setting.
     /// </summary>
     /// <param name="message">The message being broadcast to handlers.</param>
     /// <param name="handlersInGroup">The handlers that share the same priority value.</param>

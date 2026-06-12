@@ -5,8 +5,8 @@ namespace LiteBus.Outbox.Abstractions;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Use <see cref="ContractDefault" /> when dispatchers should derive the transport target from the stored
-///         contract name and module configuration. Use <see cref="Topic" /> when callers need an explicit topic or
+///         Use <see cref="PublicationTarget.ContractDefault" /> when dispatchers should derive the transport target from the stored
+///         contract name and module configuration. Use <see cref="PublicationTarget.Topic" /> when callers need an explicit topic or
 ///         channel stored with the envelope.
 ///     </para>
 /// </remarks>
@@ -18,7 +18,7 @@ public abstract record PublicationTarget
     public sealed record ContractDefault : PublicationTarget
     {
         /// <summary>
-        ///     Initializes a new instance of the <see cref="ContractDefault" /> class.
+        ///     Initializes a new instance of the <see cref="PublicationTarget.ContractDefault" /> class.
         /// </summary>
         private ContractDefault()
         {

@@ -8,7 +8,7 @@ internal static class EfCoreOutboxTableReaders
 {
     internal static async Task<OutboxEnvelope?> ReadOutboxAsync(
         string connectionString,
-        EfCoreOutboxStoreOptions options,
+        EntityFrameworkCoreOutboxStoreOptions options,
         Guid messageId,
         CancellationToken cancellationToken = default)
     {

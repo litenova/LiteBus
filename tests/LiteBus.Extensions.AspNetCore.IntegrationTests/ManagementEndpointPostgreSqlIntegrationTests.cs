@@ -54,11 +54,11 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
 
         var orderId = Guid.NewGuid();
 
-        var receipt = await inbox.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
+        var receipt = await inbox.AcceptAsync(new ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        }));
+        });
 
         using var client = host.GetTestClient();
         var response = await client.GetAsync("/litebus/inbox/messages?pageSize=50");
@@ -89,17 +89,17 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
         using var host = await CreateHostAsync(inboxOptions, outboxOptions);
         var inbox = host.Services.GetRequiredService<IInbox>();
 
-        await inbox.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
+        await inbox.AcceptAsync(new ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = $"ship:{Guid.NewGuid():N}"
-        }));
+        });
 
-        await inbox.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
+        await inbox.AcceptAsync(new ShipOrderCommand
         {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = $"ship:{Guid.NewGuid():N}"
-        }));
+        });
 
         using var client = host.GetTestClient();
 

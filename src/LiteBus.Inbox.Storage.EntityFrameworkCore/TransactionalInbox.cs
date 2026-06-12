@@ -52,7 +52,7 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
     }
 
     /// <inheritdoc />
-    public async Task<InboxReceipt> AcceptAsync<TMessage>(
+    public async Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
         InboxAcceptItem<TMessage> item,
         CancellationToken cancellationToken = default)
         where TMessage : notnull
@@ -60,12 +60,12 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
         ArgumentNullException.ThrowIfNull(item);
 
         var envelope = await _envelopeFactory
-            .CreateAsync(InboxAcceptItems.From(item), cancellationToken)
+            .CreateAsync(InboxAcceptItem.From(item), cancellationToken)
             .ConfigureAwait(false);
 
         _interceptor.Enqueue(_dbContext, envelope);
 
-        return CreateReceipt(envelope, item.Message.GetType());
+        return CreateReceipt<TMessage>(envelope, item.Message.GetType());
     }
 
     /// <inheritdoc />
@@ -86,19 +86,44 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
         for (var index = 0; index < envelopes.Count; index++)
         {
             _interceptor.Enqueue(_dbContext, envelopes[index]);
-            receipts[index] = CreateReceipt(envelopes[index], items[index].Message.GetType());
+            receipts[index] = CreateUntypedReceipt(envelopes[index], items[index].Message.GetType());
         }
 
         return receipts;
     }
 
     /// <summary>
-    ///     Maps a staged envelope to an acceptance receipt.
+    ///     Maps a staged envelope to a typed acceptance receipt.
+    /// </summary>
+    /// <typeparam name="TMessage">The compile-time message type associated with the acceptance command.</typeparam>
+    /// <param name="envelope">The envelope staged for the next <c>SaveChanges</c> call.</param>
+    /// <param name="messageType">The runtime message type used for contract lookup.</param>
+    /// <returns>The typed acceptance receipt returned to callers.</returns>
+    private static InboxReceipt<TMessage> CreateReceipt<TMessage>(InboxEnvelope envelope, Type messageType)
+        where TMessage : notnull
+    {
+        return new InboxReceipt<TMessage>
+        {
+            Id = envelope.Id,
+            MessageType = messageType,
+            Contract = new MessageContractReference
+            {
+                Name = envelope.ContractName,
+                Version = envelope.ContractVersion
+            },
+            AcceptedAt = envelope.CreatedAt,
+            Trace = ResolveTrace(envelope.CorrelationId, envelope.CausationId, envelope.TraceContext),
+            Tenant = ResolveTenant(envelope.TenantId)
+        };
+    }
+
+    /// <summary>
+    ///     Maps a staged envelope to an untyped acceptance receipt for batch APIs.
     /// </summary>
     /// <param name="envelope">The envelope staged for the next <c>SaveChanges</c> call.</param>
     /// <param name="messageType">The runtime message type used for contract lookup.</param>
-    /// <returns>The acceptance receipt returned to callers.</returns>
-    private static InboxReceipt CreateReceipt(InboxEnvelope envelope, Type messageType)
+    /// <returns>The acceptance receipt returned to batch callers.</returns>
+    private static InboxReceipt CreateUntypedReceipt(InboxEnvelope envelope, Type messageType)
     {
         return new InboxReceipt
         {

@@ -35,11 +35,11 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
 
         var orderId = Guid.NewGuid();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
+        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        }));
+        });
 
         await processor.ProcessPendingAsync();
 
@@ -69,7 +69,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new FaultyCommand()));
+        var receipt = await scheduler.AcceptAsync(new FaultyCommand());
         await processor.ProcessPendingAsync();
 
         var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, receipt.Id);
@@ -94,7 +94,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new FaultyCommand()));
+        var receipt = await scheduler.AcceptAsync(new FaultyCommand());
         await processor.ProcessPendingAsync();
 
         var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, receipt.Id);
@@ -117,11 +117,11 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
 
         var orderId = Guid.NewGuid();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
+        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = "lease-expiry"
-        }));
+        });
 
         await leaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -155,16 +155,13 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
 
         var orderId = Guid.NewGuid();
 
-        await scheduler.AcceptAsync(InboxAcceptItems.From(
+        await scheduler.AcceptAsync(InboxAcceptItem<ShipOrderCommand>.ScheduledAt(
             new ShipOrderCommand
             {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
             },
-            new InboxAcceptMetadata
-            {
-                Visibility = new MessageVisibility.At(visibleAfter)
-            }));
+            visibleAfter));
 
         await processor.ProcessPendingAsync();
         recorder.Commands.Should().BeEmpty();
@@ -272,7 +269,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
                     }
                 });
 
-                builder.UseCommandInboxDispatcher();
+                builder.UseInProcessDispatch();
             });
         });
 

@@ -14,14 +14,14 @@ internal abstract class EfCoreInboxE2eDbContext : DbContext, IInboxDbContext
     /// <summary>
     ///     The store options that control schema mapping.
     /// </summary>
-    private readonly EfCoreInboxStoreOptions _storeOptions;
+    private readonly EntityFrameworkCoreInboxStoreOptions _storeOptions;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="EfCoreInboxE2eDbContext" /> class.
     /// </summary>
     /// <param name="options">The context options.</param>
     /// <param name="storeOptions">The inbox store options.</param>
-    protected EfCoreInboxE2eDbContext(DbContextOptions options, EfCoreInboxStoreOptions storeOptions)
+    protected EfCoreInboxE2eDbContext(DbContextOptions options, EntityFrameworkCoreInboxStoreOptions storeOptions)
         : base(options)
     {
         _storeOptions = storeOptions;

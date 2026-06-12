@@ -22,15 +22,15 @@ public sealed class AmqpTransportObservableMetrics
     {
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
-        var meter = new Meter(LiteBusAmqpTelemetry.MeterName);
+        var meter = new Meter(LiteBusTransportAmqpTelemetry.MeterName);
 
         meter.CreateObservableGauge(
-            LiteBusAmqpTelemetry.CircuitBreakerOpenInstrumentName,
+            LiteBusTransportAmqpTelemetry.CircuitBreakerOpenInstrumentName,
             ObserveCircuitBreakerOpen,
             description: "Whether the AMQP circuit breaker is open where 1 is open and 0 is closed.");
 
         meter.CreateObservableGauge(
-            LiteBusAmqpTelemetry.CircuitBreakerFailureCountInstrumentName,
+            LiteBusTransportAmqpTelemetry.CircuitBreakerFailureCountInstrumentName,
             ObserveCircuitBreakerFailureCount,
             description: "The current consecutive AMQP failure count observed by the circuit breaker.");
     }

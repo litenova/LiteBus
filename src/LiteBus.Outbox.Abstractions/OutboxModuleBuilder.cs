@@ -140,7 +140,7 @@ public sealed class OutboxModuleBuilder
         {
             throw new LiteBusConfigurationException(
                 "Outbox storage is already configured. " +
-                "Call only one of UsePostgreSqlStorage, UseEfCoreStorage, " +
+                "Call only one of UsePostgreSqlStorage, UseEntityFrameworkCoreStorage, " +
                 "or UseInMemoryStorage.");
         }
 
@@ -150,7 +150,7 @@ public sealed class OutboxModuleBuilder
 
     /// <summary>
     ///     Registers the dispatcher sub-module. Exactly one dispatcher must be
-    ///     registered. Called by extension methods such as UseEventOutboxDispatcher().
+    ///     registered. Called by extension methods such as UseInProcessDispatch().
     /// </summary>
     /// <param name="dispatcherModule">The dispatcher module to register as a child of the outbox module.</param>
     /// <returns>The current builder.</returns>
@@ -162,7 +162,7 @@ public sealed class OutboxModuleBuilder
         {
             throw new LiteBusConfigurationException(
                 "Outbox dispatcher is already configured. " +
-                "Call only one outbox dispatcher registration method such as UseEventOutboxDispatcher or a broker-specific Use*Dispatch extension.");
+                "Call only one outbox dispatcher registration method such as UseInProcessDispatch or a broker-specific Use*Dispatch extension.");
         }
 
         _dispatcherModule = dispatcherModule;

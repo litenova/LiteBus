@@ -34,7 +34,7 @@ public sealed class ParallelExecutionContextTests : LiteBusTestBase
         var settings = new EventMediationSettings
         {
             Items = { ["Marker"] = "ContextValue" },
-            Execution = new EventMediationExecutionSettings
+            Execution = new EventExecutionSettings
             {
                 PriorityGroupsConcurrencyMode = ConcurrencyMode.Parallel,
                 HandlersWithinSamePriorityConcurrencyMode = ConcurrencyMode.Parallel

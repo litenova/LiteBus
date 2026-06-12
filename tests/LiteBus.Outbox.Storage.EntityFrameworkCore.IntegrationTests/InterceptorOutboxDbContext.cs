@@ -11,7 +11,7 @@ internal sealed class InterceptorOutboxDbContext : DbContext, IOutboxDbContext
     /// <summary>
     ///     The store options that control schema mapping.
     /// </summary>
-    private readonly EfCoreOutboxStoreOptions _storeOptions;
+    private readonly EntityFrameworkCoreOutboxStoreOptions _storeOptions;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="InterceptorOutboxDbContext" /> class.
@@ -20,7 +20,7 @@ internal sealed class InterceptorOutboxDbContext : DbContext, IOutboxDbContext
     /// <param name="storeOptions">The outbox store options.</param>
     public InterceptorOutboxDbContext(
         DbContextOptions<InterceptorOutboxDbContext> options,
-        EfCoreOutboxStoreOptions storeOptions)
+        EntityFrameworkCoreOutboxStoreOptions storeOptions)
         : base(options)
     {
         _storeOptions = storeOptions;

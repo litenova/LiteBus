@@ -43,14 +43,14 @@ public sealed class QueryMediator : IQueryMediator
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
         return _messageMediator.Mediate(query,
-            new MediateOptions<IQuery<TQueryResult>, Task<TQueryResult>>
+            new MessageMediationRequest<IQuery<TQueryResult>, Task<TQueryResult>>
             {
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,
-                CancellationToken = cancellationToken,
                 Tags = queryMediationSettings.Filters.Tags,
                 Items = queryMediationSettings.Items
-            });
+            },
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -65,13 +65,13 @@ public sealed class QueryMediator : IQueryMediator
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
         return _messageMediator.Mediate(query,
-            new MediateOptions<IStreamQuery<TQueryResult>, IAsyncEnumerable<TQueryResult>>
+            new MessageMediationRequest<IStreamQuery<TQueryResult>, IAsyncEnumerable<TQueryResult>>
             {
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,
-                CancellationToken = cancellationToken,
                 Tags = queryMediationSettings.Filters.Tags,
                 Items = queryMediationSettings.Items
-            });
+            },
+            cancellationToken);
     }
 }

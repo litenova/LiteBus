@@ -49,11 +49,11 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
         var scheduler = provider.GetRequiredService<IInbox>();
         var orderId = Guid.NewGuid();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
+        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        }));
+        });
 
         using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token);
@@ -271,7 +271,7 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
                     Retry = new RetryOptions { UseJitter = false }
                 });
 
-                inbox.UseCommandInboxDispatcher();
+                inbox.UseInProcessDispatch();
 
                 inbox.EnableInboxProcessor(host =>
                 {

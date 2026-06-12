@@ -51,7 +51,7 @@ public sealed class EfCoreOutboxProcessorEndToEndTests : LiteBusTestBase, IClass
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItems.WithIdentity(
+        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
             new OrderSubmittedIntegrationEvent { OrderId = orderId },
             messageId));
 
@@ -62,7 +62,7 @@ public sealed class EfCoreOutboxProcessorEndToEndTests : LiteBusTestBase, IClass
 
     private sealed class HappyPathOutboxDbContext : EfCoreOutboxE2eDbContext
     {
-        public HappyPathOutboxDbContext(DbContextOptions<HappyPathOutboxDbContext> options, EfCoreOutboxStoreOptions storeOptions)
+        public HappyPathOutboxDbContext(DbContextOptions<HappyPathOutboxDbContext> options, EntityFrameworkCoreOutboxStoreOptions storeOptions)
             : base(options, storeOptions)
         {
         }

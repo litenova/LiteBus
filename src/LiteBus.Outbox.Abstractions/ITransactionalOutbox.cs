@@ -33,6 +33,19 @@ public interface ITransactionalOutbox
         where TEvent : notnull;
 
     /// <summary>
+    ///     Enqueues an event for persistence in the caller's active transaction using default durable metadata.
+    /// </summary>
+    /// <typeparam name="TEvent">The compile-time event type. The runtime type of the event is used for contract lookup.</typeparam>
+    /// <param name="message">The event instance to serialize and store.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>A receipt describing the enqueued outbox message.</returns>
+    Task<OutboxReceipt<TEvent>> EnqueueAsync<TEvent>(
+        TEvent message,
+        CancellationToken cancellationToken = default)
+        where TEvent : notnull
+        => EnqueueAsync(OutboxEnqueueItem<TEvent>.From(message), cancellationToken);
+
+    /// <summary>
     ///     Enqueues an event for persistence in the caller's active transaction using an explicit runtime type.
     /// </summary>
     /// <param name="item">The enqueue command carrying the event instance, runtime type, and durable metadata.</param>
@@ -105,6 +118,20 @@ public interface ITransactionalOutbox<TContext>
         OutboxEnqueueItem<TEvent> item,
         CancellationToken cancellationToken = default)
         where TEvent : notnull;
+
+    /// <summary>
+    ///     Enqueues an event for persistence when the scoped <typeparamref name="TContext" /> saves changes using default
+    ///     durable metadata.
+    /// </summary>
+    /// <typeparam name="TEvent">The compile-time event type. The runtime type of the event is used for contract lookup.</typeparam>
+    /// <param name="message">The event instance to serialize and store.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>A receipt describing the staged outbox message.</returns>
+    Task<OutboxReceipt<TEvent>> EnqueueAsync<TEvent>(
+        TEvent message,
+        CancellationToken cancellationToken = default)
+        where TEvent : notnull
+        => EnqueueAsync(OutboxEnqueueItem<TEvent>.From(message), cancellationToken);
 
     /// <summary>
     ///     Enqueues an event for persistence when the scoped <typeparamref name="TContext" /> saves changes using an explicit

@@ -142,7 +142,7 @@ public sealed class EventModuleTests : LiteBusTestBase
 
         var settings = new EventMediationSettings
         {
-            Execution = new EventMediationExecutionSettings
+            Execution = new EventExecutionSettings
             {
                 PriorityGroupsConcurrencyMode = ConcurrencyMode.Sequential,
                 HandlersWithinSamePriorityConcurrencyMode = ConcurrencyMode.Sequential
@@ -183,7 +183,7 @@ public sealed class EventModuleTests : LiteBusTestBase
 
         var settings = new EventMediationSettings
         {
-            Execution = new EventMediationExecutionSettings
+            Execution = new EventExecutionSettings
             {
                 PriorityGroupsConcurrencyMode = ConcurrencyMode.Sequential,
                 HandlersWithinSamePriorityConcurrencyMode = ConcurrencyMode.Parallel
@@ -224,7 +224,7 @@ public sealed class EventModuleTests : LiteBusTestBase
 
         var settings = new EventMediationSettings
         {
-            Execution = new EventMediationExecutionSettings
+            Execution = new EventExecutionSettings
             {
                 PriorityGroupsConcurrencyMode = ConcurrencyMode.Parallel,
                 HandlersWithinSamePriorityConcurrencyMode = ConcurrencyMode.Sequential
@@ -265,7 +265,7 @@ public sealed class EventModuleTests : LiteBusTestBase
 
         var settings = new EventMediationSettings
         {
-            Execution = new EventMediationExecutionSettings
+            Execution = new EventExecutionSettings
             {
                 PriorityGroupsConcurrencyMode = ConcurrencyMode.Parallel,
                 HandlersWithinSamePriorityConcurrencyMode = ConcurrencyMode.Parallel
@@ -310,7 +310,7 @@ public sealed class EventModuleTests : LiteBusTestBase
 
         var settings = new EventMediationSettings
         {
-            Routing = new EventMediationRoutingSettings
+            Routing = new EventRoutingSettings
             {
                 Tags = [Tags.Tag1]
             }
@@ -348,7 +348,7 @@ public sealed class EventModuleTests : LiteBusTestBase
 
         var settings = new EventMediationSettings
         {
-            Routing = new EventMediationRoutingSettings
+            Routing = new EventRoutingSettings
             {
                 Tags = [Tags.Tag1, Tags.Tag2]
             }
@@ -389,7 +389,7 @@ public sealed class EventModuleTests : LiteBusTestBase
 
         var settings = new EventMediationSettings
         {
-            Routing = new EventMediationRoutingSettings
+            Routing = new EventRoutingSettings
             {
                 HandlerPredicate = handlerDescriptor => handlerDescriptor.HandlerType.IsAssignableTo(typeof(IFilteredEventHandler)) ||
                                                         handlerDescriptor is not IMainHandlerDescriptor
@@ -480,7 +480,7 @@ public sealed class EventModuleTests : LiteBusTestBase
         var settings = new EventMediationSettings
         {
             ThrowIfNoHandlerFound = true,
-            Routing = new EventMediationRoutingSettings
+            Routing = new EventRoutingSettings
             {
                 HandlerPredicate = _ => false // Filter out all handlers,
             }

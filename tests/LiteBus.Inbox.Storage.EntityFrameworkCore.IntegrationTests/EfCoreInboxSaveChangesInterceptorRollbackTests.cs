@@ -47,9 +47,9 @@ public sealed class EfCoreInboxSaveChangesInterceptorRollbackTests : IClassFixtu
         storedCount.Should().Be(0);
     }
 
-    private async Task<EfCoreInboxStoreOptions> CreateInboxTableAsync()
+    private async Task<EntityFrameworkCoreInboxStoreOptions> CreateInboxTableAsync()
     {
-        var options = new EfCoreInboxStoreOptions
+        var options = new EntityFrameworkCoreInboxStoreOptions
         {
             SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
             TableName = $"inbox_ef_rollback_{Guid.NewGuid():N}"
@@ -70,7 +70,7 @@ public sealed class EfCoreInboxSaveChangesInterceptorRollbackTests : IClassFixtu
     }
 
     private IntegrationInboxRollbackDbContext CreateContext(
-        EfCoreInboxStoreOptions storeOptions,
+        EntityFrameworkCoreInboxStoreOptions storeOptions,
         LiteBusInboxSaveChangesInterceptor? interceptor = null)
     {
         var builder = new DbContextOptionsBuilder<IntegrationInboxRollbackDbContext>()
@@ -100,11 +100,11 @@ public sealed class EfCoreInboxSaveChangesInterceptorRollbackTests : IClassFixtu
 
     private sealed class IntegrationInboxRollbackDbContext : DbContext, IInboxDbContext
     {
-        private readonly EfCoreInboxStoreOptions _storeOptions;
+        private readonly EntityFrameworkCoreInboxStoreOptions _storeOptions;
 
         public IntegrationInboxRollbackDbContext(
             DbContextOptions<IntegrationInboxRollbackDbContext> options,
-            EfCoreInboxStoreOptions storeOptions)
+            EntityFrameworkCoreInboxStoreOptions storeOptions)
             : base(options)
         {
             _storeOptions = storeOptions;

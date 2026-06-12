@@ -5,8 +5,8 @@ namespace LiteBus.Messaging.Abstractions.DurableMessaging;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Use <see cref="None" /> when duplicate detection is not required for a message.
-///         Use <see cref="Keyed" /> when callers can retry the same logical operation and the store should
+///         Use <see cref="Idempotency.None" /> when duplicate detection is not required for a message.
+///         Use <see cref="Idempotency.Keyed" /> when callers can retry the same logical operation and the store should
 ///         return the existing row for the same key.
 ///     </para>
 /// </remarks>
@@ -18,7 +18,7 @@ public abstract record Idempotency
     public sealed record None : Idempotency
     {
         /// <summary>
-        ///     Initializes a new instance of the <see cref="None" /> class.
+        ///     Initializes a new instance of the <see cref="Idempotency.None" /> class.
         /// </summary>
         private None()
         {

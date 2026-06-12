@@ -61,6 +61,7 @@ public sealed class PipelinedInboxProcessor : IInboxProcessor
         ArgumentNullException.ThrowIfNull(dispatcher);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(hooks);
 
         InboxProcessorFactory.ValidateOptions(options);
 
@@ -71,7 +72,7 @@ public sealed class PipelinedInboxProcessor : IInboxProcessor
             stateWriter,
             dispatcher,
             clock,
-            hooks ?? Array.Empty<IProcessorEnvelopeHook>(),
+            hooks,
             resolvedLogger,
             dispatchScopeFactory);
 

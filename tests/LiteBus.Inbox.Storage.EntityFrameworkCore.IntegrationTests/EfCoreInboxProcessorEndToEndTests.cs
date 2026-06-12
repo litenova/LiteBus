@@ -51,11 +51,10 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
 
         var orderId = Guid.NewGuid();
 
-        await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
-        {
+        await scheduler.AcceptAsync(new ShipOrderCommand {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        }));
+        });
 
         await processor.ProcessPendingAsync();
 
@@ -64,7 +63,7 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
 
     private sealed class HappyPathInboxDbContext : EfCoreInboxE2eDbContext
     {
-        public HappyPathInboxDbContext(DbContextOptions<HappyPathInboxDbContext> options, EfCoreInboxStoreOptions storeOptions)
+        public HappyPathInboxDbContext(DbContextOptions<HappyPathInboxDbContext> options, EntityFrameworkCoreInboxStoreOptions storeOptions)
             : base(options, storeOptions)
         {
         }

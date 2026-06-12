@@ -68,6 +68,8 @@ internal static class SagaStoreInvoker
             .GetMethod(nameof(ISagaStore.SaveAsync), BindingFlags.Public | BindingFlags.Instance)!
             .MakeGenericMethod(stateType);
 
-        return (Task) method.Invoke(store, [correlation, state, expectedVersion, cancellationToken])!;
+        var itemType = typeof(SagaSaveItem<>).MakeGenericType(stateType);
+        var item = Activator.CreateInstance(itemType, correlation, state, expectedVersion)!;
+        return (Task) method.Invoke(store, [item, cancellationToken])!;
     }
 }

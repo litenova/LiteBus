@@ -79,8 +79,10 @@ public sealed class OrphanHandlerTagAnalyzerTests
                               {
                                   public void Publish(IEventMediator mediator)
                                   {
-                                      var settings = new EventMediationSettings();
-                                      settings.Routing.Tags = new List<string> { "critical" };
+                                      _ = new EventMediationSettings
+                                      {
+                                          Routing = new EventRoutingSettings { Tags = new List<string> { "critical" } }
+                                      };
                                   }
                               }
 

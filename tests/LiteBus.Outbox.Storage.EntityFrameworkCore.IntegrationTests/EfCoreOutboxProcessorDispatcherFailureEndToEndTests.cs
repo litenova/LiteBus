@@ -40,7 +40,7 @@ public sealed class EfCoreOutboxProcessorDispatcherFailureEndToEndTests : LiteBu
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItems.WithIdentity(
+        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
             new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
             messageId));
 
@@ -55,7 +55,7 @@ public sealed class EfCoreOutboxProcessorDispatcherFailureEndToEndTests : LiteBu
     {
         public DispatcherFailureOutboxDbContext(
             DbContextOptions<DispatcherFailureOutboxDbContext> options,
-            EfCoreOutboxStoreOptions storeOptions)
+            EntityFrameworkCoreOutboxStoreOptions storeOptions)
             : base(options, storeOptions)
         {
         }

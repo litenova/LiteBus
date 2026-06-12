@@ -129,11 +129,10 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
         {
             var orderId = Guid.NewGuid();
 
-            await inbox.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-            {
+            await inbox.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
-            }));
+            });
         }
     }
 
@@ -168,7 +167,7 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
                     });
 
                     inbox.UseInMemoryStorage();
-                    inbox.UseCommandInboxDispatcher();
+                    inbox.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -193,14 +192,12 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
         }
 
         public async Task<bool> RenewLeaseAsync(
-            Guid messageId,
-            string leaseOwner,
-            DateTimeOffset expiresAt,
+            LeaseRenewalRequest request,
             CancellationToken cancellationToken = default)
         {
             RenewalCount++;
 
-            return await _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken)
+            return await _inner.RenewLeaseAsync(request, cancellationToken)
                 ;
         }
 

@@ -30,6 +30,6 @@ public static class LiteBusTransportOpenTelemetryExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder.AddMeter(LiteBusAmqpTelemetry.MeterName);
+        return builder.AddMeter(LiteBusTransportAmqpTelemetry.MeterName);
     }
 }

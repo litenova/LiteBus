@@ -32,8 +32,8 @@ public static class LiteBusManagementEndpointExtensions
         options ??= endpoints.ServiceProvider.GetService<LiteBusManagementOptions>() ?? new LiteBusManagementOptions();
         var prefix = options.RoutePrefix.Trim('/');
 
-        var inboxGroup = ApplyManagementAuthorization(endpoints.MapGroup($"/{prefix}/inbox"), options);
-        var outboxGroup = ApplyManagementAuthorization(endpoints.MapGroup($"/{prefix}/outbox"), options);
+        var inboxGroup = ApplyManagementAuthorization(endpoints.MapGroup(BuildManagementRoute(prefix, "inbox")), options);
+        var outboxGroup = ApplyManagementAuthorization(endpoints.MapGroup(BuildManagementRoute(prefix, "outbox")), options);
 
         inboxGroup.MapGet("/messages", QueryInboxMessagesAsync);
         inboxGroup.MapGet("/messages/{messageId:guid}", GetInboxMessageAsync);
@@ -65,12 +65,23 @@ public static class LiteBusManagementEndpointExtensions
 
         ApplyManagementAuthorization(
             endpoints.MapGet(
-                $"/{prefix}/health",
+                BuildManagementRoute(prefix, "health"),
                 (LiteBusHostManifest manifest, IServiceProvider services, CancellationToken cancellationToken) =>
                     RunDiagnosticChecksAsync(manifest, services, options, cancellationToken)),
             options);
 
         return endpoints;
+    }
+
+    /// <summary>
+    ///     Builds a management route template from an optional prefix and segment without consecutive slashes.
+    /// </summary>
+    /// <param name="prefix">The trimmed route prefix, or an empty string when routes are rooted at the application base.</param>
+    /// <param name="segment">The route segment following the prefix.</param>
+    /// <returns>A route template beginning with a single leading slash.</returns>
+    private static string BuildManagementRoute(string prefix, string segment)
+    {
+        return string.IsNullOrEmpty(prefix) ? $"/{segment}" : $"/{prefix}/{segment}";
     }
 
     /// <summary>
@@ -107,7 +118,7 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>The matching inbox message page.</returns>
     private static Task<IResult> QueryInboxMessagesAsync(
         IInboxManager manager,
-        [AsParameters] InboxMessageQueryParameters parameters,
+        [AsParameters] InboxMessageQueryBinding parameters,
         CancellationToken cancellationToken)
     {
         return ExecuteAsync(async () => Results.Ok(
@@ -171,7 +182,7 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>The number of deleted rows.</returns>
     private static Task<IResult> PurgeInboxMessagesAsync(
         IInboxManager manager,
-        [AsParameters] InboxMessagePurgeParameters parameters,
+        [AsParameters] InboxMessagePurgeBinding parameters,
         [FromBody] PurgeConfirmRequest? confirmRequest,
         CancellationToken cancellationToken)
     {
@@ -248,7 +259,7 @@ public static class LiteBusManagementEndpointExtensions
 
             return Task.FromResult(control is null
                 ? Results.NotFound("Inbox processor is not enabled.")
-                : Results.Ok(new ProcessorStateResponse(control.State)));
+                : Results.Ok(new ProcessorStateResponse { State = control.State }));
         });
     }
 
@@ -270,7 +281,7 @@ public static class LiteBusManagementEndpointExtensions
             }
 
             await control.PauseAsync(cancellationToken).ConfigureAwait(false);
-            return Results.Ok(new ProcessorStateResponse(control.State));
+            return Results.Ok(new ProcessorStateResponse { State = control.State });
         });
     }
 
@@ -292,7 +303,7 @@ public static class LiteBusManagementEndpointExtensions
             }
 
             await control.ResumeAsync(cancellationToken).ConfigureAwait(false);
-            return Results.Ok(new ProcessorStateResponse(control.State));
+            return Results.Ok(new ProcessorStateResponse { State = control.State });
         });
     }
 
@@ -322,7 +333,7 @@ public static class LiteBusManagementEndpointExtensions
                 : options.DefaultDrainTimeout;
 
             await control.DrainAsync(timeout, cancellationToken).ConfigureAwait(false);
-            return Results.Ok(new ProcessorStateResponse(control.State));
+            return Results.Ok(new ProcessorStateResponse { State = control.State });
         });
     }
 
@@ -335,7 +346,7 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>The matching outbox message page.</returns>
     private static Task<IResult> QueryOutboxMessagesAsync(
         IOutboxManager manager,
-        [AsParameters] OutboxMessageQueryParameters parameters,
+        [AsParameters] OutboxMessageQueryBinding parameters,
         CancellationToken cancellationToken)
     {
         return ExecuteAsync(async () => Results.Ok(
@@ -399,7 +410,7 @@ public static class LiteBusManagementEndpointExtensions
     /// <returns>The number of deleted rows.</returns>
     private static Task<IResult> PurgeOutboxMessagesAsync(
         IOutboxManager manager,
-        [AsParameters] OutboxMessagePurgeParameters parameters,
+        [AsParameters] OutboxMessagePurgeBinding parameters,
         [FromBody] PurgeConfirmRequest? confirmRequest,
         CancellationToken cancellationToken)
     {
@@ -476,7 +487,7 @@ public static class LiteBusManagementEndpointExtensions
 
             return Task.FromResult(control is null
                 ? Results.NotFound("Outbox processor is not enabled.")
-                : Results.Ok(new OutboxProcessorStateResponse(control.State)));
+                : Results.Ok(new OutboxProcessorStateResponse { State = control.State }));
         });
     }
 
@@ -498,7 +509,7 @@ public static class LiteBusManagementEndpointExtensions
             }
 
             await control.PauseAsync(cancellationToken).ConfigureAwait(false);
-            return Results.Ok(new OutboxProcessorStateResponse(control.State));
+            return Results.Ok(new OutboxProcessorStateResponse { State = control.State });
         });
     }
 
@@ -520,7 +531,7 @@ public static class LiteBusManagementEndpointExtensions
             }
 
             await control.ResumeAsync(cancellationToken).ConfigureAwait(false);
-            return Results.Ok(new OutboxProcessorStateResponse(control.State));
+            return Results.Ok(new OutboxProcessorStateResponse { State = control.State });
         });
     }
 
@@ -550,7 +561,7 @@ public static class LiteBusManagementEndpointExtensions
                 : options.DefaultDrainTimeout;
 
             await control.DrainAsync(timeout, cancellationToken).ConfigureAwait(false);
-            return Results.Ok(new OutboxProcessorStateResponse(control.State));
+            return Results.Ok(new OutboxProcessorStateResponse { State = control.State });
         });
     }
 
@@ -574,11 +585,13 @@ public static class LiteBusManagementEndpointExtensions
             {
                 var degraded = new[]
                 {
-                    new DiagnosticProbeResponse(
-                        "litebus.probes",
-                        DiagnosticStatus.Degraded,
-                        "No diagnostic probes are registered.",
-                        null)
+                    new DiagnosticProbeResponse
+                    {
+                        Name = "litebus.probes",
+                        Status = DiagnosticStatus.Degraded,
+                        Description = "No diagnostic probes are registered.",
+                        Data = null
+                    }
                 };
 
                 return Results.Json(degraded, statusCode: StatusCodes.Status503ServiceUnavailable);
@@ -593,7 +606,13 @@ public static class LiteBusManagementEndpointExtensions
         {
             var check = (IDiagnosticCheck) services.GetRequiredService(descriptor.ImplementationType);
             var result = await check.CheckAsync(cancellationToken).ConfigureAwait(false);
-            results.Add(new DiagnosticProbeResponse(descriptor.Name, result.Status, result.Description, result.Data));
+            results.Add(new DiagnosticProbeResponse
+            {
+                Name = descriptor.Name,
+                Status = result.Status,
+                Description = result.Description,
+                Data = result.Data
+            });
         }
 
         var healthy = results.All(item => item.Status == DiagnosticStatus.Healthy);
@@ -651,12 +670,12 @@ public static class LiteBusManagementEndpointExtensions
     private sealed record PurgeConfirmRequest
     {
         /// <summary>
-        ///     Gets a value indicating whether the caller confirms deleting all rows matched by the filter.
+        ///     Gets or sets a value indicating whether the caller confirms deleting all rows matched by the filter.
         /// </summary>
         /// <value>
         ///     Must be <see langword="true" /> when the query string does not narrow the purge filter.
         /// </value>
-        public bool Confirm { get; init; }
+        public bool Confirm { get; set; }
     }
 
     /// <summary>
@@ -673,25 +692,48 @@ public static class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     JSON payload for inbox processor state responses.
     /// </summary>
-    /// <param name="State">The reported inbox processor state.</param>
-    private sealed record ProcessorStateResponse(ProcessorState State);
+    private sealed record ProcessorStateResponse
+    {
+        /// <summary>
+        ///     Gets the reported inbox processor state.
+        /// </summary>
+        public ProcessorState State { get; init; }
+    }
 
     /// <summary>
     ///     JSON payload for outbox processor state responses.
     /// </summary>
-    /// <param name="State">The reported outbox processor state.</param>
-    private sealed record OutboxProcessorStateResponse(Outbox.Abstractions.ProcessorState State);
+    private sealed record OutboxProcessorStateResponse
+    {
+        /// <summary>
+        ///     Gets the reported outbox processor state.
+        /// </summary>
+        public Outbox.Abstractions.ProcessorState State { get; init; }
+    }
 
     /// <summary>
     ///     JSON payload for a single diagnostic probe outcome.
     /// </summary>
-    /// <param name="Name">The probe name.</param>
-    /// <param name="Status">The reported status.</param>
-    /// <param name="Description">The probe summary text.</param>
-    /// <param name="Data">Optional structured values from the probe.</param>
-    private sealed record DiagnosticProbeResponse(
-        string Name,
-        DiagnosticStatus Status,
-        string Description,
-        IReadOnlyDictionary<string, object>? Data);
+    private sealed record DiagnosticProbeResponse
+    {
+        /// <summary>
+        ///     Gets the probe name.
+        /// </summary>
+        public string Name { get; init; } = string.Empty;
+
+        /// <summary>
+        ///     Gets the reported status.
+        /// </summary>
+        public DiagnosticStatus Status { get; init; }
+
+        /// <summary>
+        ///     Gets the probe summary text.
+        /// </summary>
+        public string Description { get; init; } = string.Empty;
+
+        /// <summary>
+        ///     Gets optional structured values from the probe.
+        /// </summary>
+        public IReadOnlyDictionary<string, object>? Data { get; init; }
+    }
 }

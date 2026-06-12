@@ -3,7 +3,7 @@ namespace LiteBus.Saga.Storage.PostgreSql;
 /// <summary>
 ///     Options for the PostgreSQL saga store table and schema bootstrap.
 /// </summary>
-public sealed class PostgreSqlSagaStoreOptions
+public sealed record PostgreSqlSagaStoreOptions
 {
     /// <summary>
     ///     Gets the PostgreSQL schema that contains saga tables.

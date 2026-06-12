@@ -14,7 +14,7 @@ public static class InboxModuleBuilderEfCoreExtensions
     /// <param name="builder">The inbox module builder.</param>
     /// <param name="configure">The EF Core store configuration action.</param>
     /// <returns>The inbox module builder for chaining.</returns>
-    public static InboxModuleBuilder UseEfCoreStorage(
+    public static InboxModuleBuilder UseEntityFrameworkCoreStorage(
         this InboxModuleBuilder builder,
         Action<EfCoreInboxStorageModuleBuilder> configure)
     {

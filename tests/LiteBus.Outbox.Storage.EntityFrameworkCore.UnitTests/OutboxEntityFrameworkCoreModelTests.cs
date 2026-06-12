@@ -51,7 +51,7 @@ public sealed class OutboxEntityFrameworkCoreModelTests
     [Fact]
     public void GetModelBuilderConfiguration_ShouldMapEntityColumns()
     {
-        var options = new EfCoreOutboxStoreOptions
+        var options = new EntityFrameworkCoreOutboxStoreOptions
         {
             SchemaName = "app",
             TableName = "outbox"

@@ -16,7 +16,7 @@ public sealed class EfCoreInboxStorageModuleBuilder
     /// <summary>
     ///     Gets the Entity Framework Core store options.
     /// </summary>
-    public EfCoreInboxStoreOptions Options { get; private set; } = new();
+    public EntityFrameworkCoreInboxStoreOptions Options { get; private set; } = new();
 
     /// <summary>
     ///     Gets a value indicating whether <see cref="LiteBusInboxSaveChangesInterceptor" /> is registered in dependency
@@ -76,7 +76,7 @@ public sealed class EfCoreInboxStorageModuleBuilder
     /// </summary>
     /// <param name="options">The store options.</param>
     /// <returns>The current builder.</returns>
-    public EfCoreInboxStorageModuleBuilder UseOptions(EfCoreInboxStoreOptions options)
+    public EfCoreInboxStorageModuleBuilder UseOptions(EntityFrameworkCoreInboxStoreOptions options)
     {
         Options = options ?? throw new ArgumentNullException(nameof(options));
         return this;

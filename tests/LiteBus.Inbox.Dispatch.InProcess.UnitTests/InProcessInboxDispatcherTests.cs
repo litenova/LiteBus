@@ -2,6 +2,7 @@ using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
@@ -39,7 +40,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
                 {
                     builder.Contracts.Register<ProcessOrderCommand>("orders.commands.process");
                     builder.UseInMemoryStorage();
-                    builder.UseCommandInboxDispatcher();
+                    builder.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -124,7 +125,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
                 {
                     builder.Contracts.Register<InboxProbeCommand>("inbox.commands.probe");
                     builder.UseInMemoryStorage();
-                    builder.UseCommandInboxDispatcher();
+                    builder.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -184,7 +185,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
                 registry.AddInboxModule(inbox =>
                 {
                     inbox.UseInMemoryStorage();
-                    inbox.UseCommandInboxDispatcher();
+                    inbox.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -233,8 +234,8 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
                 registry.AddInboxModule(inbox =>
                 {
                     inbox.UseInMemoryStorage();
-                    inbox.UseCommandInboxDispatcher();
-                    inbox.UseCommandInboxDispatcher();
+                    inbox.UseInProcessDispatch();
+                    inbox.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();

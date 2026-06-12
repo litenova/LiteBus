@@ -338,7 +338,7 @@ public sealed class TransportInboxIngressConsumerTests
         public int BatchAcceptCount { get; private set; }
 
         /// <inheritdoc />
-        public Task<InboxReceipt> AcceptAsync<TMessage>(
+        public Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
             InboxAcceptItem<TMessage> item,
             CancellationToken cancellationToken = default)
             where TMessage : notnull
@@ -376,7 +376,7 @@ public sealed class TransportInboxIngressConsumerTests
         public int BatchAcceptCount { get; private set; }
 
         /// <inheritdoc />
-        public Task<InboxReceipt> AcceptAsync<TMessage>(
+        public Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
             InboxAcceptItem<TMessage> item,
             CancellationToken cancellationToken = default)
             where TMessage : notnull
@@ -414,12 +414,12 @@ public sealed class TransportInboxIngressConsumerTests
         }
 
         /// <inheritdoc />
-        public Task<InboxReceipt> AcceptAsync<TMessage>(
+        public async Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
             InboxAcceptItem<TMessage> item,
             CancellationToken cancellationToken = default)
             where TMessage : notnull
         {
-            return Task.FromException<InboxReceipt>(_exception);
+            throw _exception;
         }
 
         /// <inheritdoc />

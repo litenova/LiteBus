@@ -3,7 +3,7 @@ namespace LiteBus.Transport.Kafka;
 /// <summary>
 ///     Connection settings for Kafka transport adapters.
 /// </summary>
-public sealed class KafkaTransportOptions
+public sealed record KafkaTransportOptions
 {
     /// <summary>
     ///     Gets the bootstrap servers list passed to the Kafka client.

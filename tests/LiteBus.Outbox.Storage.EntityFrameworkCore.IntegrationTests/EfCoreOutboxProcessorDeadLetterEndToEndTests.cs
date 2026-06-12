@@ -37,7 +37,7 @@ public sealed class EfCoreOutboxProcessorDeadLetterEndToEndTests : LiteBusTestBa
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItems.WithIdentity(
+        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
             new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
             messageId));
 
@@ -49,7 +49,7 @@ public sealed class EfCoreOutboxProcessorDeadLetterEndToEndTests : LiteBusTestBa
 
     private sealed class DeadLetterOutboxDbContext : EfCoreOutboxE2eDbContext
     {
-        public DeadLetterOutboxDbContext(DbContextOptions<DeadLetterOutboxDbContext> options, EfCoreOutboxStoreOptions storeOptions)
+        public DeadLetterOutboxDbContext(DbContextOptions<DeadLetterOutboxDbContext> options, EntityFrameworkCoreOutboxStoreOptions storeOptions)
             : base(options, storeOptions)
         {
         }

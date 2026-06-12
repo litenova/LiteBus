@@ -98,21 +98,19 @@ public sealed class PostgreSqlSagaStore : ISagaStore
 
     /// <inheritdoc />
     public async Task SaveAsync<TState>(
-        SagaCorrelation correlation,
-        TState state,
-        int expectedVersion,
+        SagaSaveItem<TState> item,
         CancellationToken cancellationToken = default)
         where TState : class, new()
     {
-        ArgumentNullException.ThrowIfNull(correlation);
-        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(item.State);
 
         var now = _clock.GetUtcNow();
-        var stateJson = await _serializer.SerializeAsync(state, cancellationToken).ConfigureAwait(false);
+        var stateJson = await _serializer.SerializeAsync(item.State, cancellationToken).ConfigureAwait(false);
 
         await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        if (expectedVersion == 0)
+        if (item.ExpectedVersion == 0)
         {
             var insertSql = $"""
                              INSERT INTO {_tableName} (
@@ -135,12 +133,12 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                              """;
 
             await using var insertCommand = CreateCommand(connection, insertSql);
-            AddCorrelationParameters(insertCommand, correlation, stateJson, now);
+            AddCorrelationParameters(insertCommand, item.Correlation, stateJson, now);
             var inserted = await insertCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
             if (inserted == 0)
             {
-                throw new SagaConcurrencyException(correlation);
+                throw new SagaConcurrencyException(item.Correlation);
             }
 
             return;
@@ -159,14 +157,14 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                          """;
 
         await using var updateCommand = CreateCommand(connection, updateSql);
-        AddCorrelationParameters(updateCommand, correlation, stateJson, now);
-        updateCommand.Parameters.AddWithValue("expected_version", expectedVersion);
+        AddCorrelationParameters(updateCommand, item.Correlation, stateJson, now);
+        updateCommand.Parameters.AddWithValue("expected_version", item.ExpectedVersion);
 
         var updated = await updateCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
         if (updated == 0)
         {
-            throw new SagaConcurrencyException(correlation);
+            throw new SagaConcurrencyException(item.Correlation);
         }
     }
 

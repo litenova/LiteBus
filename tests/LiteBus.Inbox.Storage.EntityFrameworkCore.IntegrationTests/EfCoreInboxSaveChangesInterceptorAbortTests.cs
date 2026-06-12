@@ -59,9 +59,9 @@ public sealed class EfCoreInboxSaveChangesInterceptorAbortTests : IClassFixture<
     ///     Creates an isolated inbox table for one test run.
     /// </summary>
     /// <returns>The store options for the created table.</returns>
-    private async Task<EfCoreInboxStoreOptions> CreateInboxTableAsync()
+    private async Task<EntityFrameworkCoreInboxStoreOptions> CreateInboxTableAsync()
     {
-        var options = new EfCoreInboxStoreOptions
+        var options = new EntityFrameworkCoreInboxStoreOptions
         {
             SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
             TableName = $"inbox_ef_abort_{Guid.NewGuid():N}"
@@ -88,7 +88,7 @@ public sealed class EfCoreInboxSaveChangesInterceptorAbortTests : IClassFixture<
     /// <param name="interceptor">The optional save-changes interceptor.</param>
     /// <returns>The configured context.</returns>
     private IntegrationInboxAbortDbContext CreateContext(
-        EfCoreInboxStoreOptions storeOptions,
+        EntityFrameworkCoreInboxStoreOptions storeOptions,
         LiteBusInboxSaveChangesInterceptor? interceptor = null)
     {
         var builder = new DbContextOptionsBuilder<IntegrationInboxAbortDbContext>()
@@ -130,7 +130,7 @@ public sealed class EfCoreInboxSaveChangesInterceptorAbortTests : IClassFixture<
         /// <summary>
         ///     The inbox store options used to configure the inbox table mapping.
         /// </summary>
-        private readonly EfCoreInboxStoreOptions _storeOptions;
+        private readonly EntityFrameworkCoreInboxStoreOptions _storeOptions;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="IntegrationInboxAbortDbContext" /> class.
@@ -139,7 +139,7 @@ public sealed class EfCoreInboxSaveChangesInterceptorAbortTests : IClassFixture<
         /// <param name="storeOptions">The inbox store options.</param>
         public IntegrationInboxAbortDbContext(
             DbContextOptions<IntegrationInboxAbortDbContext> options,
-            EfCoreInboxStoreOptions storeOptions)
+            EntityFrameworkCoreInboxStoreOptions storeOptions)
             : base(options)
         {
             _storeOptions = storeOptions;

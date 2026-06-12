@@ -3,7 +3,7 @@ namespace LiteBus.Transport.AzureServiceBus;
 /// <summary>
 ///     Connection settings for Azure Service Bus transport adapters.
 /// </summary>
-public sealed class AzureServiceBusTransportOptions
+public sealed record AzureServiceBusTransportOptions
 {
     /// <summary>
     ///     Gets the Service Bus connection string used to create the shared client.

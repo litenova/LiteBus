@@ -46,9 +46,7 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
 
         var workItemId = Guid.NewGuid();
 
-        var receipt = await inbox.AcceptAsync(InboxAcceptItems.From(
-            new RemoteWorkCommand
-            {
+        var receipt = await inbox.AcceptAsync(InboxAcceptItem<RemoteWorkCommand>.From(new RemoteWorkCommand {
                 WorkItemId = workItemId,
                 IdempotencyKey = $"work:{workItemId}"
             },

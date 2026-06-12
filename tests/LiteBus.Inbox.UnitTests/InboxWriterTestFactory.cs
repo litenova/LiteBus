@@ -36,7 +36,7 @@ internal static class InboxWriterTestFactory
     /// <typeparam name="TMessage">The compile-time message type.</typeparam>
     /// <param name="message">The message instance to accept.</param>
     /// <param name="metadata">
-    ///     Optional acceptance metadata. When omitted, <see cref="InboxAcceptMetadata.Default" /> is used.
+    ///     Optional acceptance metadata. When omitted, <see cref="InboxAcceptMetadata.Immediate" /> is used.
     /// </param>
     /// <returns>A typed acceptance item ready for <see cref="IInbox.AcceptAsync{TMessage}" />.</returns>
     internal static InboxAcceptItem<TMessage> Item<TMessage>(
@@ -44,6 +44,6 @@ internal static class InboxWriterTestFactory
         InboxAcceptMetadata? metadata = null)
         where TMessage : notnull
     {
-        return InboxAcceptItems.From(message, metadata);
+        return InboxAcceptItem<TMessage>.From(message, metadata);
     }
 }

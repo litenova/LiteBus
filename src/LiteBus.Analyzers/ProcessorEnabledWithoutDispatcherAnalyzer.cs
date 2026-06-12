@@ -59,6 +59,6 @@ public sealed class ProcessorEnabledWithoutDispatcherAnalyzer : DiagnosticAnalyz
             invocation.GetLocation(),
             isInbox ? "Inbox module configuration" : "Outbox module configuration",
             isInbox ? "Inbox" : "Outbox",
-            isInbox ? "UseCommandInboxDispatcher" : "UseEventOutboxDispatcher"));
+            "UseInProcessDispatch"));
     }
 }

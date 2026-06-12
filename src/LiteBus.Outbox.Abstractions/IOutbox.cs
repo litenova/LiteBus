@@ -43,6 +43,19 @@ public interface IOutbox
         where TEvent : notnull;
 
     /// <summary>
+    ///     Enqueues an event for later publication using default durable metadata.
+    /// </summary>
+    /// <typeparam name="TEvent">The compile-time event type. <c>event.GetType()</c> is always used for contract lookup.</typeparam>
+    /// <param name="message">The event instance to serialize and store.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
+    /// <returns>A receipt containing the outbox message id, contract reference, storage time, and trace metadata.</returns>
+    Task<OutboxReceipt<TEvent>> EnqueueAsync<TEvent>(
+        TEvent message,
+        CancellationToken cancellationToken = default)
+        where TEvent : notnull
+        => EnqueueAsync(OutboxEnqueueItem<TEvent>.From(message), cancellationToken);
+
+    /// <summary>
     ///     Enqueues an event for later publication using an explicit runtime type for contract lookup.
     /// </summary>
     /// <param name="item">The enqueue command carrying the event instance, runtime type, and durable metadata.</param>

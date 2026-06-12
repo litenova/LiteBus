@@ -4,7 +4,7 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Dispatch.Aws;
+using LiteBus.Outbox.Dispatch.AwsSqs;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
@@ -51,7 +51,7 @@ public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
 
         await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
         {
-            Event = new OrderSubmittedIntegrationEvent { OrderId = orderId },
+            Message = new OrderSubmittedIntegrationEvent { OrderId = orderId },
             Metadata = OutboxEnqueueMetadata.Immediate with
             {
                 Identity = new MessageIdentity.Supplied(messageId),
@@ -101,7 +101,7 @@ public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
 
         await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
         {
-            Event = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            Message = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
             Metadata = OutboxEnqueueMetadata.Immediate with
             {
                 Identity = new MessageIdentity.Supplied(messageId)

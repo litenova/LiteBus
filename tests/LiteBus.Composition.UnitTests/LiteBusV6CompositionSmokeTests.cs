@@ -67,8 +67,8 @@ public sealed class LiteBusV6CompositionSmokeTests : LiteBusTestBase
             Trace = new MessageTrace.Correlated(correlationId)
         };
 
-        await inbox.AcceptAsync(InboxAcceptItems.From(new AdvanceOrderSagaCommand(Guid.NewGuid()), metadata));
-        await inbox.AcceptAsync(InboxAcceptItems.From(new AdvanceOrderSagaCommand(Guid.NewGuid()), metadata));
+        await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(new AdvanceOrderSagaCommand(Guid.NewGuid()), metadata));
+        await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(new AdvanceOrderSagaCommand(Guid.NewGuid()), metadata));
 
         await processor.ProcessPendingAsync();
         await processor.ProcessPendingAsync();
@@ -76,7 +76,7 @@ public sealed class LiteBusV6CompositionSmokeTests : LiteBusTestBase
         var instance = await sagaStore.LoadAsync<OrderSagaState>(
             new SagaCorrelation { CorrelationId = correlationId, SagaType = OrderSagaContractName });
 
-        instance.Should().NotBeNull();
-        instance!.State.Step.Should().Be(2);
+        Assert.NotNull(instance);
+        instance.State.Step.Should().Be(2);
     }
 }

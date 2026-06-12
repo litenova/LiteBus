@@ -96,12 +96,10 @@ internal static class InboxTestInfrastructure
         }
 
         public Task<bool> RenewLeaseAsync(
-            Guid messageId,
-            string leaseOwner,
-            DateTimeOffset expiresAt,
+            LeaseRenewalRequest request,
             CancellationToken cancellationToken = default)
         {
-            return Inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            return Inner.RenewLeaseAsync(request, cancellationToken);
         }
     }
 
@@ -127,12 +125,10 @@ internal static class InboxTestInfrastructure
         }
 
         public Task<bool> RenewLeaseAsync(
-            Guid messageId,
-            string leaseOwner,
-            DateTimeOffset expiresAt,
+            LeaseRenewalRequest request,
             CancellationToken cancellationToken = default)
         {
-            return _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            return _inner.RenewLeaseAsync(request, cancellationToken);
         }
     }
 
@@ -235,12 +231,10 @@ internal static class InboxTestInfrastructure
 
         /// <inheritdoc />
         public Task<bool> RenewLeaseAsync(
-            Guid messageId,
-            string leaseOwner,
-            DateTimeOffset expiresAt,
+            LeaseRenewalRequest request,
             CancellationToken cancellationToken = default)
         {
-            return _leaseStore.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            return _leaseStore.RenewLeaseAsync(request, cancellationToken);
         }
 
         /// <inheritdoc />

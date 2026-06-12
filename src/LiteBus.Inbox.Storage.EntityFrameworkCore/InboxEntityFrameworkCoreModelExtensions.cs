@@ -22,12 +22,12 @@ public static class InboxEntityFrameworkCoreModelExtensions
     /// <returns>The same <paramref name="modelBuilder" /> for chaining.</returns>
     public static ModelBuilder GetModelBuilderConfiguration(
         this ModelBuilder modelBuilder,
-        EfCoreInboxStoreOptions? options = null,
+        EntityFrameworkCoreInboxStoreOptions? options = null,
         EfCoreStorageProvider? provider = null)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
-        options ??= new EfCoreInboxStoreOptions();
+        options ??= new EntityFrameworkCoreInboxStoreOptions();
         ConfigureInboxMessageEntity(modelBuilder.Entity<InboxMessageEntity>(), options, provider);
         return modelBuilder;
     }
@@ -42,7 +42,7 @@ public static class InboxEntityFrameworkCoreModelExtensions
     /// </param>
     internal static void ConfigureInboxMessageEntity(
         EntityTypeBuilder<InboxMessageEntity> entity,
-        EfCoreInboxStoreOptions options,
+        EntityFrameworkCoreInboxStoreOptions options,
         EfCoreStorageProvider? provider = null)
     {
         ArgumentNullException.ThrowIfNull(entity);

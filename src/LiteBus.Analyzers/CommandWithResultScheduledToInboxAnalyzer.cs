@@ -68,8 +68,8 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
     }
 
     /// <summary>
-    ///     Determines whether the method symbol is an inbox acceptance API on <see cref="LiteBus.Inbox.Abstractions.IInbox" />
-    ///     .
+    ///     Determines whether the method symbol is an inbox acceptance API on
+    ///     <c>LiteBus.Inbox.Abstractions.IInbox</c>.
     /// </summary>
     /// <param name="method">The invoked method symbol.</param>
     /// <param name="compilation">The compilation being analyzed.</param>

@@ -47,7 +47,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
         await outbox.EnqueueAsync(
-            OutboxEnqueueItems.WithMetadata(
+            OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.From(
                 new OrderSubmittedIntegrationEvent { OrderId = orderId },
                 new OutboxEnqueueMetadata
                 {
@@ -104,7 +104,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
         await outbox.EnqueueAsync(
-            OutboxEnqueueItems.WithIdentity(
+            OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
                 new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
                 messageId));
 

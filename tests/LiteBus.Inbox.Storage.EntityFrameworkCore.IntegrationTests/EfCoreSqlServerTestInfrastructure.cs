@@ -31,7 +31,7 @@ internal static class EfCoreSqlServerTestInfrastructure
     /// <summary>
     ///     Gets the store options used by inbox contract tests.
     /// </summary>
-    internal static EfCoreInboxStoreOptions InboxStoreOptions { get; } = new()
+    internal static EntityFrameworkCoreInboxStoreOptions InboxStoreOptions { get; } = new()
     {
         SchemaName = SchemaName,
         TableName = InboxTableName,

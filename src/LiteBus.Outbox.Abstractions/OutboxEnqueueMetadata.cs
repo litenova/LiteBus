@@ -8,7 +8,7 @@ namespace LiteBus.Outbox.Abstractions;
 /// <remarks>
 ///     <para>
 ///         Metadata stays outside the event payload so publication routing, visibility, and trace context can evolve
-///         independently from the event contract. Use <see cref="Immediate" /> when no deferred visibility, idempotency,
+///         independently from the event contract. Use <see cref="OutboxEnqueueMetadata.Immediate" /> when no deferred visibility, idempotency,
 ///         trace, tenant, or publication override is required.
 ///     </para>
 ///     <para>

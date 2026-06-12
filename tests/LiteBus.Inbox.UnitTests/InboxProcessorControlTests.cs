@@ -33,11 +33,10 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
 
         var firstOrderId = Guid.NewGuid();
 
-        await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-        {
+        await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = firstOrderId,
             IdempotencyKey = $"ship:{firstOrderId}"
-        }));
+        });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
@@ -50,11 +49,10 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
 
         var pausedOrderId = Guid.NewGuid();
 
-        await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-        {
+        await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = pausedOrderId,
             IdempotencyKey = $"ship:{pausedOrderId}"
-        }));
+        });
 
         await Task.Delay(TimeSpan.FromMilliseconds(250));
         recorder.Commands.Should().NotContain(command => command.OrderId == pausedOrderId);
@@ -85,11 +83,10 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
 
         var orderId = Guid.NewGuid();
 
-        await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-        {
+        await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        }));
+        });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
@@ -151,7 +148,7 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
                     });
 
                     inbox.UseInMemoryStorage();
-                    inbox.UseCommandInboxDispatcher();
+                    inbox.UseInProcessDispatch();
                     inbox.EnableInboxProcessor(configureHost);
                 });
             })

@@ -24,7 +24,7 @@ public sealed class PipelinedOutboxProcessorTests : LiteBusTestBase
     public async Task PipelinedProcessor_WithConcurrencyOne_ShouldPublishAllMessages()
     {
         var store = new InMemoryOutboxStore();
-        var transport = new FakeMessageTransport();
+        var transport = new TestMessageTransport();
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
 
@@ -64,20 +64,20 @@ public sealed class PipelinedOutboxProcessorTests : LiteBusTestBase
     }
 
     /// <summary>
-    ///     Stub dispatcher that publishes through <see cref="FakeMessageTransport" />.
+    ///     Stub dispatcher that publishes through <see cref="TestMessageTransport" />.
     /// </summary>
     private sealed class StubOutboxDispatcher : IOutboxDispatcher
     {
         /// <summary>
         ///     The transport used to record publications.
         /// </summary>
-        private readonly FakeMessageTransport _transport;
+        private readonly TestMessageTransport _transport;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="StubOutboxDispatcher" /> class.
         /// </summary>
         /// <param name="transport">The transport used to record publications.</param>
-        public StubOutboxDispatcher(FakeMessageTransport transport)
+        public StubOutboxDispatcher(TestMessageTransport transport)
         {
             _transport = transport;
         }

@@ -32,7 +32,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
     /// <summary>
     ///     Gets the store options used by outbox contract tests.
     /// </summary>
-    internal static EfCoreOutboxStoreOptions OutboxStoreOptions { get; } = new()
+    internal static EntityFrameworkCoreOutboxStoreOptions OutboxStoreOptions { get; } = new()
     {
         SchemaName = SchemaName,
         TableName = OutboxTableName
@@ -70,7 +70,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
     /// <returns>The database context.</returns>
     internal static IntegrationOutboxDbContext CreateOutboxContext(
         string connectionString,
-        EfCoreOutboxStoreOptions storeOptions)
+        EntityFrameworkCoreOutboxStoreOptions storeOptions)
     {
         var builder = new DbContextOptionsBuilder<IntegrationOutboxDbContext>()
             .UseNpgsql(CreateScopedConnectionString(connectionString, storeOptions));
@@ -86,7 +86,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
     /// <returns>The scoped connection string.</returns>
     internal static string CreateScopedConnectionString(
         string connectionString,
-        EfCoreOutboxStoreOptions storeOptions)
+        EntityFrameworkCoreOutboxStoreOptions storeOptions)
     {
         var builder = new NpgsqlConnectionStringBuilder(connectionString)
         {

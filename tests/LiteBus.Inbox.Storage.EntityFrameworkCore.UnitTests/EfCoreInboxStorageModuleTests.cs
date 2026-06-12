@@ -22,7 +22,7 @@ public sealed class EfCoreInboxStorageModuleTests
                 {
                 });
 
-                registry.AddInboxModule(inbox => inbox.UseEfCoreStorage(builder =>
+                registry.AddInboxModule(inbox => inbox.UseEntityFrameworkCoreStorage(builder =>
                     builder.UseDbContext<ModuleTestInboxDbContext>()));
             })
             .BuildServiceProvider();
@@ -53,7 +53,7 @@ public sealed class EfCoreInboxStorageModuleTests
                 {
                 });
 
-                registry.AddInboxModule(inbox => inbox.UseEfCoreStorage(builder =>
+                registry.AddInboxModule(inbox => inbox.UseEntityFrameworkCoreStorage(builder =>
                     builder
                         .UseDbContext<ModuleTestInboxDbContext>()
                         .EnableSaveChangesInterceptor()));
@@ -78,7 +78,7 @@ public sealed class EfCoreInboxStorageModuleTests
                     {
                     });
 
-                    registry.AddInboxModule(inbox => inbox.UseEfCoreStorage(builder =>
+                    registry.AddInboxModule(inbox => inbox.UseEntityFrameworkCoreStorage(builder =>
                         builder
                             .UseDbContext<ModuleTestInboxDbContext>()
                             .EnforceTransactionalSetup()));

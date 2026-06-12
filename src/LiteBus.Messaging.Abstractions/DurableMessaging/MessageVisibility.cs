@@ -7,9 +7,9 @@ namespace LiteBus.Messaging.Abstractions.DurableMessaging;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Use <see cref="Immediate" /> when the message should be due as soon as a processor can lease it.
-///         Use <see cref="At" /> for an absolute UTC visibility timestamp.
-///         Use <see cref="After" /> for a relative delay resolved against <see cref="TimeProvider" /> at accept or enqueue
+///         Use <see cref="MessageVisibility.Immediate" /> when the message should be due as soon as a processor can lease it.
+///         Use <see cref="MessageVisibility.At" /> for an absolute UTC visibility timestamp.
+///         Use <see cref="MessageVisibility.After" /> for a relative delay resolved against <see cref="TimeProvider" /> at accept or enqueue
 ///         time.
 ///     </para>
 /// </remarks>
@@ -21,7 +21,7 @@ public abstract record MessageVisibility
     public sealed record Immediate : MessageVisibility
     {
         /// <summary>
-        ///     Initializes a new instance of the <see cref="Immediate" /> class.
+        ///     Initializes a new instance of the <see cref="MessageVisibility.Immediate" /> class.
         /// </summary>
         private Immediate()
         {

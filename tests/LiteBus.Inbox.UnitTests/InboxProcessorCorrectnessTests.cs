@@ -441,9 +441,7 @@ public sealed class InboxProcessorCorrectnessTests
         }
 
         public Task<bool> RenewLeaseAsync(
-            Guid messageId,
-            string leaseOwner,
-            DateTimeOffset expiresAt,
+            LeaseRenewalRequest request,
             CancellationToken cancellationToken = default)
         {
             _renewalAttempts++;
@@ -475,12 +473,10 @@ public sealed class InboxProcessorCorrectnessTests
         }
 
         public Task<bool> RenewLeaseAsync(
-            Guid messageId,
-            string leaseOwner,
-            DateTimeOffset expiresAt,
+            LeaseRenewalRequest request,
             CancellationToken cancellationToken = default)
         {
-            return Inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            return Inner.RenewLeaseAsync(request, cancellationToken);
         }
 
         public Task<PersistResult> PersistAsync(
@@ -510,12 +506,10 @@ public sealed class InboxProcessorCorrectnessTests
         }
 
         public Task<bool> RenewLeaseAsync(
-            Guid messageId,
-            string leaseOwner,
-            DateTimeOffset expiresAt,
+            LeaseRenewalRequest request,
             CancellationToken cancellationToken = default)
         {
-            return Inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            return Inner.RenewLeaseAsync(request, cancellationToken);
         }
 
         public async Task<PersistResult> PersistAsync(
@@ -550,12 +544,10 @@ public sealed class InboxProcessorCorrectnessTests
         }
 
         public Task<bool> RenewLeaseAsync(
-            Guid messageId,
-            string leaseOwner,
-            DateTimeOffset expiresAt,
+            LeaseRenewalRequest request,
             CancellationToken cancellationToken = default)
         {
-            return Inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            return Inner.RenewLeaseAsync(request, cancellationToken);
         }
 
         public async Task<PersistResult> PersistAsync(

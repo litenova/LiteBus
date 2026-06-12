@@ -3,7 +3,7 @@ using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using LiteBus.DurableTransport.IntegrationTesting;
-using LiteBus.Transport.Aws;
+using LiteBus.Transport.AwsSqs;
 using Testcontainers.LocalStack;
 
 namespace LiteBus.DurableTransport.IntegrationTests.Aws;

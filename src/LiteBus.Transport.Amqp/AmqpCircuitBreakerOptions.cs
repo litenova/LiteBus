@@ -8,7 +8,7 @@ namespace LiteBus.Transport.Amqp;
 /// <remarks>
 ///     Maps to <see cref="TransportCircuitBreakerOptions" /> used by the shared transport circuit breaker.
 /// </remarks>
-public sealed class AmqpCircuitBreakerOptions
+public sealed record AmqpCircuitBreakerOptions
 {
     /// <summary>
     ///     Gets the number of consecutive failures required to open the circuit.

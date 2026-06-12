@@ -30,7 +30,7 @@ public sealed class EfCoreOutboxStoreContractTests : OutboxStoreContractTests, I
     protected override OutboxStoreContracts CreateStore()
     {
         var context = CreateContext();
-        _store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), new EfCoreOutboxStoreOptions());
+        _store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), new EntityFrameworkCoreOutboxStoreOptions());
         return new OutboxStoreContracts(_store, _store, _store, _store, _store, _store, _store, _store);
     }
 

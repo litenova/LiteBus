@@ -32,7 +32,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
     /// <summary>
     ///     Gets the store options used by inbox contract tests.
     /// </summary>
-    internal static EfCoreInboxStoreOptions InboxStoreOptions { get; } = new()
+    internal static EntityFrameworkCoreInboxStoreOptions InboxStoreOptions { get; } = new()
     {
         SchemaName = SchemaName,
         TableName = InboxTableName
@@ -70,7 +70,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
     /// <returns>The database context.</returns>
     internal static IntegrationInboxDbContext CreateInboxContext(
         string connectionString,
-        EfCoreInboxStoreOptions storeOptions)
+        EntityFrameworkCoreInboxStoreOptions storeOptions)
     {
         var builder = new DbContextOptionsBuilder<IntegrationInboxDbContext>()
             .UseNpgsql(CreateScopedConnectionString(connectionString, storeOptions));
@@ -86,7 +86,7 @@ internal static class EfCorePostgreSqlTestInfrastructure
     /// <returns>The scoped connection string.</returns>
     internal static string CreateScopedConnectionString(
         string connectionString,
-        EfCoreInboxStoreOptions storeOptions)
+        EntityFrameworkCoreInboxStoreOptions storeOptions)
     {
         var builder = new NpgsqlConnectionStringBuilder(connectionString)
         {

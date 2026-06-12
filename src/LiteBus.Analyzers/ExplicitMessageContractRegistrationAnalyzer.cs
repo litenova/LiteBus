@@ -36,12 +36,9 @@ public sealed class ExplicitMessageContractRegistrationAnalyzer : DiagnosticAnal
             startContext.RegisterSyntaxNodeAction(
                 nodeContext =>
                 {
-                    if (nodeContext.Node is not TypeDeclarationSyntax typeDeclaration)
-                    {
-                        return;
-                    }
-
-                    if (nodeContext.SemanticModel.GetDeclaredSymbol(typeDeclaration, nodeContext.CancellationToken) is not INamedTypeSymbol typeSymbol)
+                    if (nodeContext.SemanticModel.GetDeclaredSymbol(
+                            (TypeDeclarationSyntax)nodeContext.Node,
+                            nodeContext.CancellationToken) is not INamedTypeSymbol typeSymbol)
                     {
                         return;
                     }

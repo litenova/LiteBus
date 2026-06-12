@@ -66,7 +66,7 @@ public sealed class SagaProcessorHookTests
                 TimeProvider.System),
             TimeProvider.System);
 
-        await inbox.AcceptAsync(InboxAcceptItems.From(
+        await inbox.AcceptAsync(InboxAcceptItem<ProcessOrderCommand>.From(
             new ProcessOrderCommand(),
             new InboxAcceptMetadata { Trace = new MessageTrace.Correlated("order-42") }));
 

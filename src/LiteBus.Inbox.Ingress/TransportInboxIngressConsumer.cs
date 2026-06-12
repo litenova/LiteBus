@@ -36,7 +36,7 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
     private readonly IMessageConsumer _consumer;
 
     /// <summary>
-    ///     Gets the handler that maps deliveries to <see cref="Abstractions.IInbox.AcceptAsync" />.
+    ///     Gets the handler that maps deliveries to <see cref="IInbox.AcceptAsync{TMessage}(InboxAcceptItem{TMessage}, System.Threading.CancellationToken)" />.
     /// </summary>
     private readonly TransportInboxIngressHandler _handler;
 

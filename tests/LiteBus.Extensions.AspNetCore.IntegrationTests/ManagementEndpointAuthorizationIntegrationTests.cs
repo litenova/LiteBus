@@ -224,9 +224,8 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
 
             Claim[] claims = AuthenticationType switch
             {
-                "operator"      => [new Claim(ClaimTypes.Role, "operator")],
-                "authenticated" => [],
-                _               => []
+                "operator" => [new Claim(ClaimTypes.Role, "operator")],
+                _          => []
             };
 
             var identity = new ClaimsIdentity(claims, SchemeName);

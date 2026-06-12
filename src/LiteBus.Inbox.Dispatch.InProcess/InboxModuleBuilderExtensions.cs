@@ -13,7 +13,7 @@ public static class InboxModuleBuilderCommandDispatchExtensions
     /// </summary>
     /// <param name="builder">The inbox module builder.</param>
     /// <returns>The inbox module builder for chaining.</returns>
-    public static InboxModuleBuilder UseCommandInboxDispatcher(this InboxModuleBuilder builder)
+    public static InboxModuleBuilder UseInProcessDispatch(this InboxModuleBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         return builder.RegisterDispatcher(new CommandInboxDispatchModule());

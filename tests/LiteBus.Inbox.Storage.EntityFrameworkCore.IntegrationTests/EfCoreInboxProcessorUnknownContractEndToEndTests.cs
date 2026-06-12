@@ -59,7 +59,7 @@ public sealed class EfCoreInboxProcessorUnknownContractEndToEndTests : LiteBusTe
     {
         public UnknownContractInboxDbContext(
             DbContextOptions<UnknownContractInboxDbContext> options,
-            EfCoreInboxStoreOptions storeOptions)
+            EntityFrameworkCoreInboxStoreOptions storeOptions)
             : base(options, storeOptions)
         {
         }

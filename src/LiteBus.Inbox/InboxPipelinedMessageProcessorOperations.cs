@@ -75,7 +75,8 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
         _stateWriter = stateWriter ?? throw new ArgumentNullException(nameof(stateWriter));
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-        _hooks = hooks ?? Array.Empty<IProcessorEnvelopeHook>();
+        ArgumentNullException.ThrowIfNull(hooks);
+        _hooks = hooks;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dispatchScopeFactory = dispatchScopeFactory;
     }
@@ -91,7 +92,10 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
     /// <inheritdoc />
     public Activity? StartPassActivity()
     {
-        return InboxProcessorTelemetry.ActivitySource.StartActivity("inbox.processor.pass");
+        return InboxProcessorTelemetry.ActivitySource.StartActivity(
+            "inbox.processor.pass",
+            ActivityKind.Internal,
+            default(ActivityContext));
     }
 
     /// <inheritdoc />

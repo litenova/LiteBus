@@ -45,6 +45,33 @@ internal static class TagReferenceAnalysis
 
                 CollectStringLiterals(initializer, tags);
             }
+
+            foreach (var objectCreation in root.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
+            {
+                if (objectCreation.Initializer is null)
+                {
+                    continue;
+                }
+
+                foreach (var expression in objectCreation.Initializer.Expressions)
+                {
+                    if (expression is not AssignmentExpressionSyntax memberAssignment ||
+                        memberAssignment.Left is not IdentifierNameSyntax identifier ||
+                        identifier.Identifier.Text != "Tags")
+                    {
+                        continue;
+                    }
+
+                    var typeInfo = model.GetTypeInfo(objectCreation);
+                    if (typeInfo.Type is not INamedTypeSymbol namedType ||
+                        !IsMediationTagsContainerType(namedType))
+                    {
+                        continue;
+                    }
+
+                    CollectStringLiterals(memberAssignment.Right, tags);
+                }
+            }
         }
 
         return tags;
@@ -108,13 +135,23 @@ internal static class TagReferenceAnalysis
             return false;
         }
 
-        var containingType = property.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        return IsMediationTagsContainerType(property.ContainingType);
+    }
+
+    /// <summary>
+    ///     Determines whether the type owns a mediation tag collection property.
+    /// </summary>
+    /// <param name="type">The type symbol to inspect.</param>
+    /// <returns><see langword="true" /> when the type stores mediation tags.</returns>
+    private static bool IsMediationTagsContainerType(INamedTypeSymbol type)
+    {
+        var containingType = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
         return containingType is
             "global::LiteBus.Commands.Abstractions.CommandMediationSettings.CommandMediationFilters" or
             "LiteBus.Commands.Abstractions.CommandMediationSettings.CommandMediationFilters" or
-            "global::LiteBus.Events.Abstractions.EventMediationRoutingSettings" or
-            "LiteBus.Events.Abstractions.EventMediationRoutingSettings";
+            "global::LiteBus.Events.Abstractions.EventRoutingSettings" or
+            "LiteBus.Events.Abstractions.EventRoutingSettings";
     }
 
     /// <summary>

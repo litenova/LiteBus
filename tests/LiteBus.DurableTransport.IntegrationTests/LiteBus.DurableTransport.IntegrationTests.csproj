@@ -28,13 +28,13 @@
         <ProjectReference Include="..\LiteBus.DurableTransport.IntegrationTesting\LiteBus.DurableTransport.IntegrationTesting.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.Amqp\LiteBus.Inbox.Dispatch.Amqp.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.Aws\LiteBus.Inbox.Dispatch.Aws.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.AwsSqs\LiteBus.Inbox.Dispatch.AwsSqs.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.AzureServiceBus\LiteBus.Inbox.Dispatch.AzureServiceBus.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Transport.AzureServiceBus\LiteBus.Transport.AzureServiceBus.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.InMemory\LiteBus.Inbox.Dispatch.InMemory.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.Kafka\LiteBus.Inbox.Dispatch.Kafka.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.Amqp\LiteBus.Inbox.Ingress.Amqp.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.Aws\LiteBus.Inbox.Ingress.Aws.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.AwsSqs\LiteBus.Inbox.Ingress.AwsSqs.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.AzureServiceBus\LiteBus.Inbox.Ingress.AzureServiceBus.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.InMemory\LiteBus.Inbox.Ingress.InMemory.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.Kafka\LiteBus.Inbox.Ingress.Kafka.csproj"/>
@@ -42,7 +42,7 @@
         <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.Amqp\LiteBus.Outbox.Dispatch.Amqp.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.Aws\LiteBus.Outbox.Dispatch.Aws.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.AwsSqs\LiteBus.Outbox.Dispatch.AwsSqs.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.AzureServiceBus\LiteBus.Outbox.Dispatch.AzureServiceBus.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.InMemory\LiteBus.Outbox.Dispatch.InMemory.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.Kafka\LiteBus.Outbox.Dispatch.Kafka.csproj"/>

@@ -85,11 +85,10 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
             new SystemTextJsonMessageSerializer(),
             TimeProvider.System);
 
-        var act = async () => await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-        {
+        var act = async () => await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = "missing-contract"
-        }));
+        });
 
         await act.Should().ThrowAsync<MessageContractNotRegisteredException>();
     }
@@ -108,11 +107,10 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         {
             var orderId = Guid.NewGuid();
 
-            await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-            {
+            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
-            }));
+            });
         }
 
         var pass = await processor.ProcessPendingAsync();
@@ -135,11 +133,10 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         {
             var orderId = Guid.NewGuid();
 
-            await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-            {
+            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
-            }));
+            });
         }
 
         var firstPass = await processor.ProcessPendingAsync();
@@ -241,7 +238,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.FaultyCommand()));
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.FaultyCommand());
         await processor.ProcessPendingAsync();
 
         store.Get(receipt.Id).VisibleAfter.Should().Be(BaseTime.AddSeconds(30));
@@ -281,7 +278,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.FaultyCommand()));
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.FaultyCommand());
         await processor.ProcessPendingAsync();
 
         store.Get(receipt.Id).VisibleAfter.Should().Be(BaseTime.AddSeconds(10));
@@ -298,11 +295,10 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-        {
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = "lease-expiry"
-        }));
+        });
 
         await store.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -395,11 +391,10 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
         {
             var orderId = Guid.NewGuid();
 
-            await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-            {
+            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
-            }));
+            });
         }
 
         using var cts = new CancellationTokenSource();
@@ -467,7 +462,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
                 }
 
                 inbox.UseInMemoryStorage();
-                inbox.UseCommandInboxDispatcher();
+                inbox.UseInProcessDispatch();
             });
         });
 

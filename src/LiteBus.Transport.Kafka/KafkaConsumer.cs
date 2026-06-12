@@ -24,11 +24,6 @@ public sealed class KafkaConsumer : IMessageConsumer
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
 
     /// <summary>
-    ///     Gets the connection settings controlling seek backoff behavior.
-    /// </summary>
-    private readonly KafkaTransportOptions _options;
-
-    /// <summary>
     ///     Tracks repeated seek failures and computes consume delays between retries.
     /// </summary>
     private readonly KafkaSeekBackoff _seekBackoff;
@@ -61,8 +56,8 @@ public sealed class KafkaConsumer : IMessageConsumer
     public KafkaConsumer(IConsumer<string, byte[]> consumer, KafkaTransportOptions options)
     {
         _consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-        _seekBackoff = new KafkaSeekBackoff(_options);
+        ArgumentNullException.ThrowIfNull(options);
+        _seekBackoff = new KafkaSeekBackoff(options);
     }
 
     /// <inheritdoc />

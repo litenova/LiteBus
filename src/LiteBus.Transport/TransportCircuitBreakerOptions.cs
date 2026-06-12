@@ -3,7 +3,7 @@ namespace LiteBus.Transport;
 /// <summary>
 ///     Configures transport circuit breaker behavior shared by connection and publish operations.
 /// </summary>
-public sealed class TransportCircuitBreakerOptions
+public sealed record TransportCircuitBreakerOptions
 {
     /// <summary>
     ///     Gets the number of consecutive failures required to open the circuit.

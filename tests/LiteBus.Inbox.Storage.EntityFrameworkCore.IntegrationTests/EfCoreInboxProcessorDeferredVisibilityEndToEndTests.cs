@@ -43,8 +43,7 @@ public sealed class EfCoreInboxProcessorDeferredVisibilityEndToEndTests : LiteBu
 
         var orderId = Guid.NewGuid();
 
-        await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
-        {
+        await scheduler.AcceptAsync(InboxAcceptItem<ShipOrderCommand>.From(new ShipOrderCommand {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
         }, new InboxAcceptMetadata
@@ -65,7 +64,7 @@ public sealed class EfCoreInboxProcessorDeferredVisibilityEndToEndTests : LiteBu
     {
         public DeferredVisibilityInboxDbContext(
             DbContextOptions<DeferredVisibilityInboxDbContext> options,
-            EfCoreInboxStoreOptions storeOptions)
+            EntityFrameworkCoreInboxStoreOptions storeOptions)
             : base(options, storeOptions)
         {
         }

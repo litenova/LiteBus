@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging.Abstractions.Processing;
 using Microsoft.Extensions.Logging;
 
 namespace LiteBus.Messaging.Processing;
@@ -74,9 +75,7 @@ internal static class ProcessorLeaseHeartbeat
         var expiresAt = context.Clock.GetUtcNow().Add(context.LeaseDuration);
 
         var renewed = await context.LeaseStore.RenewLeaseAsync(
-                context.MessageId,
-                context.LeaseOwner,
-                expiresAt,
+                new LeaseRenewalRequest(context.MessageId, context.LeaseOwner, expiresAt),
                 CancellationToken.None)
             .ConfigureAwait(false);
 

@@ -60,7 +60,7 @@ public sealed class InboxProcessorComponentHost : IAsyncDisposable
             registry.AddInboxModule(inbox =>
             {
                 inbox.UseInMemoryStorage();
-                inbox.UseCommandInboxDispatcher();
+                inbox.UseInProcessDispatch();
                 inbox.EnableInboxProcessor(configureHost);
                 configureInbox?.Invoke(inbox);
             });

@@ -41,14 +41,14 @@ public sealed class FlakyInbox : IInbox
     }
 
     /// <inheritdoc />
-    public Task<InboxReceipt> AcceptAsync<TMessage>(
+    public Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
         InboxAcceptItem<TMessage> item,
         CancellationToken cancellationToken = default)
         where TMessage : notnull
     {
         if (ShouldFail())
         {
-            return Task.FromException<InboxReceipt>(_failure);
+            return Task.FromException<InboxReceipt<TMessage>>(_failure);
         }
 
         return _inner.AcceptAsync(item, cancellationToken);

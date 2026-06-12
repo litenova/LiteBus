@@ -25,7 +25,7 @@ public sealed class EfCoreInboxTransactionalUnitTests
         await using var context = new TestInboxDbContext(options);
         await context.Database.EnsureCreatedAsync();
 
-        var store = new EfCoreInboxStore(_ => Task.FromResult<IInboxDbContext>(context), new EfCoreInboxStoreOptions());
+        var store = new EfCoreInboxStore(_ => Task.FromResult<IInboxDbContext>(context), new EntityFrameworkCoreInboxStoreOptions());
         var transactionalStore = store.UseExistingDbContext(context);
 
         var envelope = new InboxEnvelope

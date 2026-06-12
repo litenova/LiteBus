@@ -3,7 +3,7 @@ namespace LiteBus.Transport.Abstractions;
 /// <summary>
 ///     Configures one transport consumer subscription.
 /// </summary>
-public sealed class TransportConsumerOptions
+public sealed record TransportConsumerOptions
 {
     /// <summary>
     ///     Gets the destination address to consume from such as an AMQP queue name.

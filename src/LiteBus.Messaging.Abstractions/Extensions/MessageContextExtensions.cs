@@ -47,14 +47,21 @@ public static class MessageContextExtensions
             exceptionDispatchInfo.Throw();
         }
 
+        var context = new MessageErrorContext
+        {
+            Message = message,
+            Exception = exceptionDispatchInfo.SourceException,
+            MessageResult = messageResult
+        };
+
         foreach (var errorHandler in messageDependencies.IndirectErrorHandlers)
         {
-            await (Task) errorHandler.Handler.Value.HandleError(message, exceptionDispatchInfo.SourceException, messageResult);
+            await (Task) errorHandler.Handler.Value.HandleError(context);
         }
 
         foreach (var errorHandler in messageDependencies.ErrorHandlers)
         {
-            await (Task) errorHandler.Handler.Value.HandleError(message, exceptionDispatchInfo.SourceException, messageResult);
+            await (Task) errorHandler.Handler.Value.HandleError(context);
         }
     }
 

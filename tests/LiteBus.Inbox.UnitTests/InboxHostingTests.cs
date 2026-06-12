@@ -38,11 +38,10 @@ public sealed class InboxHostingTests : LiteBusTestBase
         var scheduler = provider.GetRequiredService<IInbox>();
         var orderId = Guid.NewGuid();
 
-        await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-        {
+        await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        }));
+        });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
@@ -116,11 +115,10 @@ public sealed class InboxHostingTests : LiteBusTestBase
 
         var orderId = Guid.NewGuid();
 
-        await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-        {
+        await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        }));
+        });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token);
@@ -164,11 +162,10 @@ public sealed class InboxHostingTests : LiteBusTestBase
         {
             var orderId = Guid.NewGuid();
 
-            await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-            {
+            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
-            }));
+            });
         }
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
@@ -193,11 +190,10 @@ public sealed class InboxHostingTests : LiteBusTestBase
 
         var orderId = Guid.NewGuid();
 
-        await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-        {
+        await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        }));
+        });
 
         var pass = await processor.ProcessPendingAsync();
         pass.LeasedCount.Should().Be(1);
@@ -251,7 +247,7 @@ public sealed class InboxHostingTests : LiteBusTestBase
                     }
 
                     inbox.UseInMemoryStorage();
-                    inbox.UseCommandInboxDispatcher();
+                    inbox.UseInProcessDispatch();
                     inbox.EnableInboxProcessor(configureHost);
                 });
             })

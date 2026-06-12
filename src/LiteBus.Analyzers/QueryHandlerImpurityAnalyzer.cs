@@ -86,6 +86,7 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
     ///     Gets the impure dependency metadata name implemented by the dependency type, if any.
     /// </summary>
     /// <param name="dependencyType">The dependency type symbol.</param>
+    /// <param name="compilation">The compilation being analyzed.</param>
     /// <returns>The impure dependency metadata name, if matched.</returns>
     private static string? GetImpureDependencyMetadataName(ITypeSymbol dependencyType, Compilation compilation)
     {

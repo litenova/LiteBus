@@ -42,7 +42,7 @@ public sealed class EfCoreOutboxProcessorDeferredVisibilityEndToEndTests : LiteB
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItems.WithMetadata(
+        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.From(
             new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
             OutboxEnqueueMetadata.Immediate with
             {
@@ -63,7 +63,7 @@ public sealed class EfCoreOutboxProcessorDeferredVisibilityEndToEndTests : LiteB
     {
         public DeferredVisibilityOutboxDbContext(
             DbContextOptions<DeferredVisibilityOutboxDbContext> options,
-            EfCoreOutboxStoreOptions storeOptions)
+            EntityFrameworkCoreOutboxStoreOptions storeOptions)
             : base(options, storeOptions)
         {
         }

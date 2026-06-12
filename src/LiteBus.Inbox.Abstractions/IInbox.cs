@@ -10,7 +10,7 @@ namespace LiteBus.Inbox.Abstractions;
 /// <remarks>
 ///     <para>
 ///         Use this API when the current caller should receive an acceptance receipt instead of waiting for a handler
-///         to run. Calling <see cref="AcceptAsync{TMessage}" /> records an inbox envelope and returns after the backing
+///         to run. Calling <see cref="AcceptAsync{TMessage}(InboxAcceptItem{TMessage}, CancellationToken)" /> records an inbox envelope and returns after the backing
 ///         store accepts it.
 ///     </para>
 ///     <para>
@@ -40,10 +40,27 @@ public interface IInbox
     /// <returns>
     ///     A receipt containing the message id, contract reference, acceptance time, trace metadata, and tenant scope.
     /// </returns>
-    Task<InboxReceipt> AcceptAsync<TMessage>(
+    Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
         InboxAcceptItem<TMessage> item,
         CancellationToken cancellationToken = default)
         where TMessage : notnull;
+
+    /// <summary>
+    ///     Accepts a message for later execution using default acceptance metadata.
+    /// </summary>
+    /// <typeparam name="TMessage">
+    ///     The compile-time message type. <c>message.GetType()</c> is always used for contract lookup.
+    /// </typeparam>
+    /// <param name="message">The message instance to accept.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
+    /// <returns>
+    ///     A receipt containing the message id, contract reference, acceptance time, trace metadata, and tenant scope.
+    /// </returns>
+    Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
+        TMessage message,
+        CancellationToken cancellationToken = default)
+        where TMessage : notnull
+        => AcceptAsync(InboxAcceptItem<TMessage>.From(message), cancellationToken);
 
     /// <summary>
     ///     Accepts multiple messages for later execution in one store round trip.

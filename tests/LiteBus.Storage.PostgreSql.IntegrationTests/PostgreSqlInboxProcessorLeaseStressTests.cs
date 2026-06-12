@@ -56,13 +56,13 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
         {
             var messageId = Guid.NewGuid();
 
-            await scheduler.AcceptAsync(InboxAcceptItems.From(
+            await scheduler.AcceptAsync(InboxAcceptItem<ShipOrderCommand>.WithIdentity(
                 new ShipOrderCommand
                 {
                     OrderId = messageId,
                     IdempotencyKey = $"stress:{messageId:N}"
                 },
-                new InboxAcceptMetadata { Identity = new MessageIdentity.Supplied(messageId) }));
+                messageId));
 
             messageIds.Add(messageId);
         }
@@ -161,7 +161,7 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
                     }
                 });
 
-                builder.UseCommandInboxDispatcher();
+                builder.UseInProcessDispatch();
             });
         });
 

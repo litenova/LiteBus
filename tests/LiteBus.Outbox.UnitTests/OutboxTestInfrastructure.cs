@@ -1,4 +1,5 @@
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Runtime.Abstractions;
@@ -127,12 +128,10 @@ internal static class OutboxTestInfrastructure
         }
 
         public Task<bool> RenewLeaseAsync(
-            Guid messageId,
-            string leaseOwner,
-            DateTimeOffset expiresAt,
+            LeaseRenewalRequest request,
             CancellationToken cancellationToken = default)
         {
-            return Inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            return Inner.RenewLeaseAsync(request, cancellationToken);
         }
     }
 

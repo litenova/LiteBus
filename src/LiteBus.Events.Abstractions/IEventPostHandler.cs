@@ -11,4 +11,4 @@ namespace LiteBus.Events.Abstractions;
 ///     that should occur after every event is handled. Multiple post-handlers can be registered
 ///     in the application and they will all execute after each event is processed.
 /// </remarks>
-public interface IEventPostHandler : IAsyncMessagePostHandler<IEvent>, IRegistrableEventConstruct;
+public interface IEventPostHandler : IRegistrableEventConstruct, IAsyncMessagePostHandler<IEvent>;

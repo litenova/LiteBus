@@ -24,6 +24,25 @@ All notable changes to this project will be documented in this file.
   per-message metadata. Removed `InboxOptions`, `OutboxOptions`, `IInboxScheduler`, and `IOutboxScheduler`. Deferred
   visibility uses `MessageVisibility` on metadata.
 - Analyzer LB1004 message targets `IInbox.AcceptAsync` and `InboxAcceptItem` rather than scheduler APIs.
+- **Pre-GA naming pass (documentation and incremental renames before v6.0.0 GA):** see
+  [Migration Guide v6](docs/Migration-Guide-v6.md) for the full inventory. Highlights:
+  - `MediateOptions` → `MessageMediationRequest`; handler conflict exceptions consolidated to
+    `MultipleHandlerFoundException`.
+  - In-process dispatch: `UseCommandInboxDispatcher` / `UseEventOutboxDispatcher` → `UseInProcessDispatch`.
+  - EF Core: `UseEfCoreStorage` / `EfCore*StoreOptions` → `UseEntityFrameworkCoreStorage` /
+    `EntityFrameworkCore*StoreOptions`.
+  - AWS SQS packages: `*.Aws` → `*.AwsSqs` (NuGet IDs aligned with `AwsSqs*` types).
+  - ASP.NET management: `*QueryParameters` / `*PurgeParameters` → `*QueryBinding` / `*PurgeBinding`.
+  - Outbox writer items: `Event` → `Message`, `EventType` → `MessageType`; `InboxAcceptMetadata.Default` →
+    `Immediate`; typed `InboxReceipt<TMessage>` on single-message accept.
+  - Event settings flatten: `EventRoutingSettings`, `EventExecutionSettings`, `EventHandlerFilter`.
+  - Transport telemetry type renames (`LiteBusTransport*Telemetry`); `Fake*` → `Test*` in `LiteBus.Testing`.
+  - Immutable `*Options` → `sealed record` where applicable; `*HostOptions` remain `sealed class`.
+  - Backlog: `LeaseRenewalRequest`, `SagaSaveItem<TState>`, `MessageErrorContext` (see migration guide).
+- **Writer construction:** removed `InboxAcceptItems` and `OutboxEnqueueItems` companion types. Build items with
+  static factories on `InboxAcceptItem` / `OutboxEnqueueItem` (`From`, `WithTopic`, `WithIdempotency`, and related
+  helpers). Use body-only `AcceptAsync(message)` / `EnqueueAsync(message)` overloads when metadata is
+  `*Metadata.Immediate`.
 
 ## v6.0.0
 
@@ -35,7 +54,7 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
 ### Added
 
 - `ICompositeModule` and nested `InboxModuleBuilder` / `OutboxModuleBuilder` with `UsePostgreSqlStorage`,
-  `UseEfCoreStorage`, `UseInMemoryStorage`, `UseCommandInboxDispatcher`, `UseEventOutboxDispatcher`, `UseAmqpDispatch`,
+  `UseEntityFrameworkCoreStorage`, `UseInMemoryStorage`, `UseInProcessDispatch`, `UseAmqpDispatch`,
   and `UseAmqpIngress`.
 - Contract registry split: `IContractWriter` / `IContractReader` on `IMessageContractRegistry`; durable runtime depends
   on read surface only.
@@ -47,7 +66,7 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
   set, indexes, optional LISTEN/NOTIFY trigger; `GetCreateScript`, `EnsureAsync`, `ValidateAsync` (no upgrade scripts
   from v5).
 - EF Core and InMemory inbox/outbox storage; `LiteBus.Storage.Testing` contract harnesses.
-- Transport platform: `LiteBus.Transport.Amqp`, Kafka, AWS SQS, Azure Service Bus, InMemory; inbox/outbox dispatch and
+- Transport platform: `LiteBus.Transport.Amqp`, Kafka, `LiteBus.Transport.AwsSqs`, Azure Service Bus, InMemory; inbox/outbox dispatch and
   AMQP ingress packages.
 - `PipelinedInboxProcessor` / `PipelinedOutboxProcessor` with batch terminal updates, OpenTelemetry meters, retention
   cleanup, dead-letter replay APIs.
@@ -64,7 +83,7 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
 - **Target framework:** `net10.0` only (.NET 8 and 9 dropped).
 - **Writer APIs:** `IInbox.AcceptAsync` and `IOutbox.EnqueueAsync` replace `AddAsync` / scheduler aliases. No obsolete
   shims.
-- **In-process dispatch:** `UseCommandInboxDispatcher()` and `UseEventOutboxDispatcher()` replace flat
+- **In-process dispatch:** `UseInProcessDispatch()` and `UseInProcessDispatch()` replace flat
   `AddInboxInProcessDispatcher` / event publisher dispatch paths.
 - **Processors:** pipelined processors only; sequential legacy loops removed.
 - **PostgreSQL schema:** version **1** greenfield DDL. Drop legacy LiteBus tables and apply v1 create scripts; no

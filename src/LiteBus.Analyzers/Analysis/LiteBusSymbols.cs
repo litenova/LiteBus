@@ -62,6 +62,7 @@ internal static class LiteBusSymbols
     ///     Determines whether <paramref name="type" /> implements a generic interface with the given metadata name.
     /// </summary>
     /// <param name="type">The candidate type symbol.</param>
+    /// <param name="compilation">The compilation being analyzed.</param>
     /// <param name="interfaceMetadataName">The open generic interface metadata name.</param>
     /// <returns><see langword="true" /> when the type implements the interface; otherwise, <see langword="false" />.</returns>
     internal static bool ImplementsGenericInterface(

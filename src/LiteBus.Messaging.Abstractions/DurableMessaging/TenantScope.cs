@@ -5,8 +5,8 @@ namespace LiteBus.Messaging.Abstractions.DurableMessaging;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Use <see cref="Unscoped" /> for single-tenant applications or when tenant context is not required.
-///         Use <see cref="Isolated" /> when multi-tenant routing, filtering, or operational tooling needs a tenant id.
+///         Use <see cref="TenantScope.Unscoped" /> for single-tenant applications or when tenant context is not required.
+///         Use <see cref="TenantScope.Isolated" /> when multi-tenant routing, filtering, or operational tooling needs a tenant id.
 ///     </para>
 /// </remarks>
 public abstract record TenantScope
@@ -17,7 +17,7 @@ public abstract record TenantScope
     public sealed record Unscoped : TenantScope
     {
         /// <summary>
-        ///     Initializes a new instance of the <see cref="Unscoped" /> class.
+        ///     Initializes a new instance of the <see cref="TenantScope.Unscoped" /> class.
         /// </summary>
         private Unscoped()
         {

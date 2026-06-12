@@ -47,11 +47,11 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
         var processor = provider.GetRequiredService<IInboxProcessor>();
         var sagaStore = provider.GetRequiredService<ISagaStore>();
 
-        await inbox.AcceptAsync(InboxAcceptItems.From(
+        await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
             new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.ReserveInventory },
             new InboxAcceptMetadata { Trace = new MessageTrace.Correlated(correlationId) }));
 
-        await inbox.AcceptAsync(InboxAcceptItems.From(
+        await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
             new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.CapturePayment },
             new InboxAcceptMetadata { Trace = new MessageTrace.Correlated(correlationId) }));
 
@@ -103,7 +103,7 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
         var sagaStore = provider.GetRequiredService<ISagaStore>();
         var failureGate = provider.GetRequiredService<SagaStepFailureGate>();
 
-        var reserveReceipt = await inbox.AcceptAsync(InboxAcceptItems.From(
+        var reserveReceipt = await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
             new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.ReserveInventory },
             new InboxAcceptMetadata { Trace = new MessageTrace.Correlated(correlationId) }));
 
@@ -111,7 +111,7 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
 
         failureGate.FailOn(OrderWorkflowStep.CapturePayment);
 
-        var captureReceipt = await inbox.AcceptAsync(InboxAcceptItems.From(
+        var captureReceipt = await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
             new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.CapturePayment },
             new InboxAcceptMetadata { Trace = new MessageTrace.Correlated(correlationId) }));
 
@@ -139,7 +139,7 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
 
         failureGate.Clear();
 
-        await inbox.AcceptAsync(InboxAcceptItems.From(
+        await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
             new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.Compensate },
             new InboxAcceptMetadata { Trace = new MessageTrace.Correlated(correlationId) }));
 
@@ -201,7 +201,7 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
         var firstMessageId = Guid.NewGuid();
         var secondMessageId = Guid.NewGuid();
 
-        await inbox.AcceptAsync(InboxAcceptItems.From(
+        await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
             new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.Increment },
             new InboxAcceptMetadata
             {
@@ -209,7 +209,7 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
                 Trace = new MessageTrace.Correlated(correlationId)
             }));
 
-        await inbox.AcceptAsync(InboxAcceptItems.From(
+        await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
             new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.Increment },
             new InboxAcceptMetadata
             {

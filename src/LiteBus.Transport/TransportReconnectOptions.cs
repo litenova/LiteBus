@@ -3,7 +3,7 @@ namespace LiteBus.Transport;
 /// <summary>
 ///     Configures automatic reconnect behavior shared by transport adapters.
 /// </summary>
-public sealed class TransportReconnectOptions
+public sealed record TransportReconnectOptions
 {
     /// <summary>
     ///     Gets a value indicating whether the client should automatically recover dropped connections.

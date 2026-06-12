@@ -32,7 +32,7 @@ public sealed class ProcessPaymentCommandHandler : ICommandHandler<ProcessPaymen
         }
 
         await _outbox.EnqueueAsync(
-            OutboxEnqueueItems.WithMetadata(
+            OutboxEnqueueItem<PaymentProcessed>.From(
                 new PaymentProcessed(command.PaymentId, command.Amount),
                 OutboxEnqueueMetadata.Immediate with
                 {

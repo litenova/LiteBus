@@ -31,7 +31,7 @@ internal static class EfCoreSqlServerTestInfrastructure
     /// <summary>
     ///     Gets the store options used by outbox contract tests.
     /// </summary>
-    internal static EfCoreOutboxStoreOptions OutboxStoreOptions { get; } = new()
+    internal static EntityFrameworkCoreOutboxStoreOptions OutboxStoreOptions { get; } = new()
     {
         SchemaName = SchemaName,
         TableName = OutboxTableName,

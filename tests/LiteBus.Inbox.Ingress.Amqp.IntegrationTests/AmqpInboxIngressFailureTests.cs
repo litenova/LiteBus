@@ -104,7 +104,7 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
             await StartIngressAsync(provider);
 
             var inbox = provider.GetRequiredService<IInbox>();
-            await inbox.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand { OrderId = Guid.NewGuid() }));
+            await inbox.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() });
 
             await PublishAsync(
                 fixture.ConnectionOptions,

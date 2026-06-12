@@ -14,14 +14,14 @@ internal abstract class EfCoreOutboxE2eDbContext : DbContext, IOutboxDbContext
     /// <summary>
     ///     The store options that control schema mapping.
     /// </summary>
-    private readonly EfCoreOutboxStoreOptions _storeOptions;
+    private readonly EntityFrameworkCoreOutboxStoreOptions _storeOptions;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="EfCoreOutboxE2eDbContext" /> class.
     /// </summary>
     /// <param name="options">The context options.</param>
     /// <param name="storeOptions">The outbox store options.</param>
-    protected EfCoreOutboxE2eDbContext(DbContextOptions options, EfCoreOutboxStoreOptions storeOptions)
+    protected EfCoreOutboxE2eDbContext(DbContextOptions options, EntityFrameworkCoreOutboxStoreOptions storeOptions)
         : base(options)
     {
         _storeOptions = storeOptions;

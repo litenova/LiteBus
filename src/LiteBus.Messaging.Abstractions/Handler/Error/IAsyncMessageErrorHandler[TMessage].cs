@@ -14,13 +14,16 @@ public interface IAsyncMessageErrorHandler<in TMessage> : IMessageErrorHandler<T
     /// <summary>
     ///     Synchronously handles an error encountered in message processing by delegating to an asynchronous method.
     /// </summary>
-    /// <param name="message">The message that encountered the error.</param>
-    /// <param name="exception">The exception that was thrown during message processing.</param>
-    /// <param name="messageResult">The result of the message processing prior to the error.</param>
+    /// <param name="context">The message, exception, and optional result observed when the error occurred.</param>
     /// <returns>A placeholder object returned after handling the error.</returns>
-    object IMessageErrorHandler<TMessage, object>.HandleError(TMessage message, Exception exception, object? messageResult)
+    object IMessageErrorHandler.HandleError(MessageErrorContext context)
     {
-        return HandleErrorAsync(message, messageResult, exception, AmbientExecutionContext.Current.CancellationToken);
+        var typed = context.AsTyped<TMessage, object?>();
+        return HandleErrorAsync(
+            typed.Message,
+            typed.MessageResult,
+            typed.Exception,
+            AmbientExecutionContext.Current.CancellationToken);
     }
 
     /// <summary>

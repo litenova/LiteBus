@@ -62,7 +62,7 @@ public sealed class InboxEntityFrameworkCoreModelTests
     [Fact]
     public void GetModelBuilderConfiguration_ShouldMapCustomSchemaAndTable()
     {
-        var options = new EfCoreInboxStoreOptions
+        var options = new EntityFrameworkCoreInboxStoreOptions
         {
             SchemaName = "app",
             TableName = "inbox_messages"

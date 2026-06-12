@@ -19,9 +19,9 @@ namespace LiteBus.Inbox.Abstractions;
 public sealed record InboxAcceptMetadata
 {
     /// <summary>
-    ///     Gets the default metadata used when callers omit explicit acceptance annotations.
+    ///     Gets metadata for immediate visibility with generated identity and no idempotency key.
     /// </summary>
-    public static InboxAcceptMetadata Default { get; } = new();
+    public static InboxAcceptMetadata Immediate { get; } = new();
 
     /// <summary>
     ///     Gets how the message identifier is assigned when the envelope is stored.

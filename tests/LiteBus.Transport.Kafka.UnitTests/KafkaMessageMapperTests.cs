@@ -153,9 +153,13 @@ public sealed class KafkaMessageMapperTests
             new TransportConsumerAckHandlers
             {
                 AckAsync = _ => Task.CompletedTask,
-                NackAsync = (_, _) =>
+                NackAsync = (requeue, _) =>
                 {
-                    seekCount++;
+                    if (requeue)
+                    {
+                        seekCount++;
+                    }
+
                     return Task.CompletedTask;
                 }
             });

@@ -54,26 +54,24 @@ public sealed class InMemorySagaStore : ISagaStore
 
     /// <inheritdoc />
     public async Task SaveAsync<TState>(
-        SagaCorrelation correlation,
-        TState state,
-        int expectedVersion,
+        SagaSaveItem<TState> item,
         CancellationToken cancellationToken = default)
         where TState : class, new()
     {
-        ArgumentNullException.ThrowIfNull(correlation);
-        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(item.State);
 
-        var key = BuildKey(correlation);
-        var stateJson = await _serializer.SerializeAsync(state, cancellationToken).ConfigureAwait(false);
+        var key = BuildKey(item.Correlation);
+        var stateJson = await _serializer.SerializeAsync(item.State, cancellationToken).ConfigureAwait(false);
 
         _rows.AddOrUpdate(
             key,
             _ => new SagaRow(stateJson, 1, false),
             (_, existing) =>
             {
-                if (existing.Version != expectedVersion)
+                if (existing.Version != item.ExpectedVersion)
                 {
-                    throw new SagaConcurrencyException(correlation);
+                    throw new SagaConcurrencyException(item.Correlation);
                 }
 
                 return new SagaRow(stateJson, existing.Version + 1, existing.IsCompleted);

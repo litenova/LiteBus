@@ -123,7 +123,7 @@ public sealed class EfCoreOutboxStoreParityTests
     /// <returns>The outbox store.</returns>
     private static EfCoreOutboxStore CreateStore(string databaseName)
     {
-        return new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(CreateContext(databaseName)), new EfCoreOutboxStoreOptions());
+        return new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(CreateContext(databaseName)), new EntityFrameworkCoreOutboxStoreOptions());
     }
 
     /// <summary>

@@ -37,7 +37,7 @@ public sealed class EfCoreInboxProcessorDeadLetterEndToEndTests : LiteBusTestBas
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new FaultyCommand()));
+        var receipt = await scheduler.AcceptAsync(new FaultyCommand());
         await processor.ProcessPendingAsync();
 
         var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, receipt.Id);
@@ -47,7 +47,7 @@ public sealed class EfCoreInboxProcessorDeadLetterEndToEndTests : LiteBusTestBas
 
     private sealed class DeadLetterInboxDbContext : EfCoreInboxE2eDbContext
     {
-        public DeadLetterInboxDbContext(DbContextOptions<DeadLetterInboxDbContext> options, EfCoreInboxStoreOptions storeOptions)
+        public DeadLetterInboxDbContext(DbContextOptions<DeadLetterInboxDbContext> options, EntityFrameworkCoreInboxStoreOptions storeOptions)
             : base(options, storeOptions)
         {
         }

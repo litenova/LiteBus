@@ -1,7 +1,7 @@
 using LiteBus.DurableTransport.IntegrationTesting;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.Aws;
+using LiteBus.Inbox.Dispatch.AwsSqs;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions.DurableMessaging;

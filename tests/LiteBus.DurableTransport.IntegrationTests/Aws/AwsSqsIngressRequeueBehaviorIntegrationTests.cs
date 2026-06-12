@@ -2,13 +2,13 @@ using System.Text.Json;
 using LiteBus.DurableTransport.IntegrationTesting;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Inbox.Dispatch.Aws;
-using LiteBus.Inbox.Ingress.Aws;
+using LiteBus.Inbox.Dispatch.AwsSqs;
+using LiteBus.Inbox.Ingress.AwsSqs;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
-using LiteBus.Transport.Aws;
+using LiteBus.Transport.AwsSqs;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.DurableTransport.IntegrationTests.Aws;

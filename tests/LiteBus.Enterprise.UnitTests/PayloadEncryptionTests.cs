@@ -30,7 +30,7 @@ public sealed class PayloadEncryptionTests
             new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, encryptor),
             TimeProvider.System);
 
-        await inbox.AcceptAsync(InboxAcceptItems.From(new TestCommand { Value = "secret" }));
+        await inbox.AcceptAsync(InboxAcceptItem<TestCommand>.From(new TestCommand { Value = "secret" }));
 
         var stored = store.GetAll().Single();
         stored.Payload.Should().StartWith("enc:");

@@ -45,7 +45,7 @@ public static class EventMediatorExtensions
         return eventMediator.PublishAsync(@event,
             new EventMediationSettings
             {
-                Routing =
+                Routing = new EventRoutingSettings
                 {
                     Tags = [tag]
                 }

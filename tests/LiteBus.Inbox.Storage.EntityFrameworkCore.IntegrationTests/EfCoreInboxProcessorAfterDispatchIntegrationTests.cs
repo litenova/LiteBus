@@ -49,7 +49,7 @@ public sealed class EfCoreInboxProcessorAfterDispatchIntegrationTests : LiteBusT
             clock,
             [new ThrowingAfterDispatchHook()]);
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand { OrderId = Guid.NewGuid() }));
+        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() });
         var result = await processor.ProcessPendingAsync();
 
         result.DeadLetteredCount.Should().Be(1);
@@ -72,7 +72,7 @@ public sealed class EfCoreInboxProcessorAfterDispatchIntegrationTests : LiteBusT
 
         var processingStore = provider.GetRequiredService<IInboxProcessingStore>();
         var scheduler = provider.GetRequiredService<IInbox>();
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand { OrderId = Guid.NewGuid() }));
+        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() });
 
         var leased = await processingStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -103,7 +103,7 @@ public sealed class EfCoreInboxProcessorAfterDispatchIntegrationTests : LiteBusT
 
     private sealed class AfterDispatchInboxDbContext : EfCoreInboxE2eDbContext
     {
-        public AfterDispatchInboxDbContext(DbContextOptions<AfterDispatchInboxDbContext> options, EfCoreInboxStoreOptions storeOptions)
+        public AfterDispatchInboxDbContext(DbContextOptions<AfterDispatchInboxDbContext> options, EntityFrameworkCoreInboxStoreOptions storeOptions)
             : base(options, storeOptions)
         {
         }
@@ -111,7 +111,7 @@ public sealed class EfCoreInboxProcessorAfterDispatchIntegrationTests : LiteBusT
 
     private sealed class FsmInboxDbContext : EfCoreInboxE2eDbContext
     {
-        public FsmInboxDbContext(DbContextOptions<FsmInboxDbContext> options, EfCoreInboxStoreOptions storeOptions)
+        public FsmInboxDbContext(DbContextOptions<FsmInboxDbContext> options, EntityFrameworkCoreInboxStoreOptions storeOptions)
             : base(options, storeOptions)
         {
         }

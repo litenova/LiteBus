@@ -21,7 +21,7 @@ public sealed class StoreBoundTransactionalInboxTests
         var factory = new InboxEnvelopeFactory(registry, serializer, TimeProvider.System);
         var writer = new StoreBoundTransactionalInbox(store, factory, TimeProvider.System);
 
-        var receipt = await writer.AcceptAsync(InboxAcceptItems.From(
+        var receipt = await writer.AcceptAsync(InboxAcceptItem<InboxTestFixtures.ShipOrderCommand>.From(
             new InboxTestFixtures.ShipOrderCommand { OrderId = Guid.NewGuid(), IdempotencyKey = "k" }));
 
         store.AddCalls.Should().Be(1);

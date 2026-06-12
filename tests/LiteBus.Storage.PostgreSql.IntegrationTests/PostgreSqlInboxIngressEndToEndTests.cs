@@ -28,7 +28,7 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
     /// <summary>
     ///     Initializes a new instance of the <see cref="PostgreSqlInboxIngressEndToEndTests" /> class.
     /// </summary>
-    /// <param name="postgresFixture">The shared PostgreSQL container fixture.</param>
+    /// <param name="fixture">The shared PostgreSQL container fixture.</param>
     public PostgreSqlInboxIngressEndToEndTests(PostgreSqlFixture fixture)
     {
         _postgresFixture = fixture;

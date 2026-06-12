@@ -1,5 +1,6 @@
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.PostgreSql;
+using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 

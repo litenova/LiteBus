@@ -1,4 +1,6 @@
 using System.Text.Json;
+using LiteBus.Outbox;
+using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
@@ -43,7 +45,7 @@ public sealed class TransactionalOutboxEnqueueTests
         var messageId = Guid.NewGuid();
 
         var receipt = await transactionalOutbox.EnqueueAsync(
-            OutboxEnqueueItems.WithMetadata(
+            OutboxEnqueueItem<OrderSubmittedEvent>.From(
                 new OrderSubmittedEvent { OrderId = orderId },
                 new OutboxEnqueueMetadata
                 {
@@ -111,7 +113,7 @@ public sealed class TransactionalOutboxEnqueueTests
             TimeProvider.System);
 
         await transactionalOutbox.EnqueueAsync(
-            OutboxEnqueueItems.From(new OrderSubmittedEvent { OrderId = Guid.NewGuid() }));
+            OutboxEnqueueItem<OrderSubmittedEvent>.From(new OrderSubmittedEvent { OrderId = Guid.NewGuid() }));
 
         await context.SaveChangesAsync();
 

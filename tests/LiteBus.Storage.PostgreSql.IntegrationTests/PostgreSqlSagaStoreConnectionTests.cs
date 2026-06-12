@@ -56,7 +56,7 @@ public sealed class PostgreSqlSagaStoreConnectionTests : IClassFixture<PostgreSq
             var state = instance?.State ?? new TestSagaState();
 
             state.Counter = iteration + 1;
-            await store.SaveAsync(correlation, state, version);
+            await store.SaveAsync(new SagaSaveItem<TestSagaState>(correlation, state, version));
         }
 
         var loaded = await store.LoadAsync<TestSagaState>(correlation);

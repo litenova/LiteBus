@@ -13,7 +13,7 @@ public static class OutboxModuleBuilderEventDispatchExtensions
     /// </summary>
     /// <param name="builder">The outbox module builder.</param>
     /// <returns>The outbox module builder for chaining.</returns>
-    public static OutboxModuleBuilder UseEventOutboxDispatcher(this OutboxModuleBuilder builder)
+    public static OutboxModuleBuilder UseInProcessDispatch(this OutboxModuleBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         return builder.RegisterDispatcher(new EventOutboxDispatchModule());

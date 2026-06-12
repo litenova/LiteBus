@@ -63,7 +63,7 @@ public sealed class Outbox : IOutbox
         var envelope = await _envelopeFactory.CreateAsync(item, cancellationToken).ConfigureAwait(false);
         var storedEnvelope = await _store.AddAsync(envelope, cancellationToken).ConfigureAwait(false);
 
-        return CreateTypedReceipt<TEvent>(storedEnvelope, item.Event.GetType());
+        return CreateTypedReceipt<TEvent>(storedEnvelope, item.Message.GetType());
     }
 
     /// <inheritdoc />
@@ -76,7 +76,7 @@ public sealed class Outbox : IOutbox
         var envelope = await _envelopeFactory.CreateAsync(item, cancellationToken).ConfigureAwait(false);
         var storedEnvelope = await _store.AddAsync(envelope, cancellationToken).ConfigureAwait(false);
 
-        return CreateReceipt(storedEnvelope, item.EventType);
+        return CreateReceipt(storedEnvelope, item.MessageType);
     }
 
     /// <inheritdoc />
@@ -93,7 +93,7 @@ public sealed class Outbox : IOutbox
 
         for (var index = 0; index < stored.Count; index++)
         {
-            receipts[index] = CreateTypedReceipt<TEvent>(stored[index], items[index].Event.GetType());
+            receipts[index] = CreateTypedReceipt<TEvent>(stored[index], items[index].Message.GetType());
         }
 
         return receipts;
@@ -112,7 +112,7 @@ public sealed class Outbox : IOutbox
 
         for (var index = 0; index < stored.Count; index++)
         {
-            receipts[index] = CreateReceipt(stored[index], items[index].EventType);
+            receipts[index] = CreateReceipt(stored[index], items[index].MessageType);
         }
 
         return receipts;

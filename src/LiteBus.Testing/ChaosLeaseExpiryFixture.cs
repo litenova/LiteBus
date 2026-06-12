@@ -1,5 +1,6 @@
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
+using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Testing;
 
@@ -74,17 +75,17 @@ public sealed class ChaosLeaseExpiryFixture
 
         /// <inheritdoc />
         public Task<bool> RenewLeaseAsync(
-            Guid messageId,
-            string leaseOwner,
-            DateTimeOffset expiresAt,
+            LeaseRenewalRequest request,
             CancellationToken cancellationToken = default)
         {
-            if (messageId == _targetMessageId)
+            ArgumentNullException.ThrowIfNull(request);
+
+            if (request.MessageId == _targetMessageId)
             {
                 return Task.FromResult(false);
             }
 
-            return _inner.RenewLeaseAsync(messageId, leaseOwner, expiresAt, cancellationToken);
+            return _inner.RenewLeaseAsync(request, cancellationToken);
         }
     }
 }

@@ -15,16 +15,16 @@ internal static class EfCoreInboxE2eSupport
 {
     internal static readonly DateTimeOffset BaseTime = new(2026, 5, 29, 12, 0, 0, TimeSpan.Zero);
 
-    internal static EfCoreInboxStoreOptions CreateStoreOptions(string tableName)
+    internal static EntityFrameworkCoreInboxStoreOptions CreateStoreOptions(string tableName)
     {
-        return new EfCoreInboxStoreOptions
+        return new EntityFrameworkCoreInboxStoreOptions
         {
             SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
             TableName = tableName
         };
     }
 
-    internal static async Task EnsureInboxTableAsync(string connectionString, EfCoreInboxStoreOptions storeOptions)
+    internal static async Task EnsureInboxTableAsync(string connectionString, EntityFrameworkCoreInboxStoreOptions storeOptions)
     {
         await using var dataSource = NpgsqlDataSource.Create(connectionString);
 
@@ -40,7 +40,7 @@ internal static class EfCoreInboxE2eSupport
 
     internal static ServiceProvider BuildProvider<TDbContext>(
         string connectionString,
-        EfCoreInboxStoreOptions storeOptions,
+        EntityFrameworkCoreInboxStoreOptions storeOptions,
         InboxE2eComposition composition)
         where TDbContext : EfCoreInboxE2eDbContext
     {
@@ -82,7 +82,7 @@ internal static class EfCoreInboxE2eSupport
 
             registry.AddInboxModule(inbox =>
             {
-                inbox.UseEfCoreStorage(builder =>
+                inbox.UseEntityFrameworkCoreStorage(builder =>
                 {
                     builder.UseDbContext<TDbContext>();
                     builder.UseOptions(storeOptions);
@@ -110,7 +110,7 @@ internal static class EfCoreInboxE2eSupport
                     }
                 });
 
-                inbox.UseCommandInboxDispatcher();
+                inbox.UseInProcessDispatch();
             });
         });
 

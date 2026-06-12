@@ -24,10 +24,25 @@ public interface ITransactionalInbox
     /// <param name="item">The message payload and per-message acceptance metadata.</param>
     /// <param name="cancellationToken">A token used to cancel serialization.</param>
     /// <returns>A receipt describing the accepted inbox message.</returns>
-    Task<InboxReceipt> AcceptAsync<TMessage>(
+    Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
         InboxAcceptItem<TMessage> item,
         CancellationToken cancellationToken = default)
         where TMessage : notnull;
+
+    /// <summary>
+    ///     Accepts a message for persistence in the caller's active transaction using default acceptance metadata.
+    /// </summary>
+    /// <typeparam name="TMessage">
+    ///     The compile-time message type. <c>message.GetType()</c> is always used for contract lookup.
+    /// </typeparam>
+    /// <param name="message">The message instance to accept.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>A receipt describing the accepted inbox message.</returns>
+    Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
+        TMessage message,
+        CancellationToken cancellationToken = default)
+        where TMessage : notnull
+        => AcceptAsync(InboxAcceptItem<TMessage>.From(message), cancellationToken);
 
     /// <summary>
     ///     Accepts multiple messages for persistence in one store round trip within the caller's transaction.
@@ -71,10 +86,26 @@ public interface ITransactionalInbox<TContext>
     /// <param name="item">The message payload and per-message acceptance metadata.</param>
     /// <param name="cancellationToken">A token used to cancel serialization.</param>
     /// <returns>A receipt describing the staged inbox message.</returns>
-    Task<InboxReceipt> AcceptAsync<TMessage>(
+    Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
         InboxAcceptItem<TMessage> item,
         CancellationToken cancellationToken = default)
         where TMessage : notnull;
+
+    /// <summary>
+    ///     Accepts a message for persistence when the scoped <typeparamref name="TContext" /> saves changes using default
+    ///     acceptance metadata.
+    /// </summary>
+    /// <typeparam name="TMessage">
+    ///     The compile-time message type. <c>message.GetType()</c> is always used for contract lookup.
+    /// </typeparam>
+    /// <param name="message">The message instance to accept.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization.</param>
+    /// <returns>A receipt describing the staged inbox message.</returns>
+    Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
+        TMessage message,
+        CancellationToken cancellationToken = default)
+        where TMessage : notnull
+        => AcceptAsync(InboxAcceptItem<TMessage>.From(message), cancellationToken);
 
     /// <summary>
     ///     Accepts multiple messages for persistence in one staging pass before <c>SaveChanges</c>.

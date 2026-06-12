@@ -37,9 +37,9 @@ public sealed class InboxEnvelopeFactoryTests
             Tenant = new TenantScope.Isolated("tenant-1")
         };
 
-        var item = InboxAcceptItems.From(message, metadata);
+        var item = InboxAcceptItem<InboxTestFixtures.ShipOrderCommand>.From(message, metadata);
 
-        var envelope = await factory.CreateAsync(InboxAcceptItems.From(item));
+        var envelope = await factory.CreateAsync(InboxAcceptItem.From(item));
         var receipt = await inbox.AcceptAsync(item);
 
         envelope.Id.Should().Be(commandId);
@@ -67,7 +67,7 @@ public sealed class InboxEnvelopeFactoryTests
         IInboxPayloadProtector protector = new PrefixProtector("enc:");
         var factory = new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector);
 
-        var envelope = await factory.CreateAsync(InboxAcceptItems.Untyped(
+        var envelope = await factory.CreateAsync(InboxAcceptItem.From(
             new InboxTestFixtures.ShipOrderCommand { OrderId = Guid.NewGuid(), IdempotencyKey = "k" }));
 
         envelope.Payload.Should().StartWith("enc:");

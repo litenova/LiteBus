@@ -15,16 +15,16 @@ internal static class EfCoreOutboxE2eSupport
 {
     internal static readonly DateTimeOffset BaseTime = new(2026, 5, 29, 12, 0, 0, TimeSpan.Zero);
 
-    internal static EfCoreOutboxStoreOptions CreateStoreOptions(string tableName)
+    internal static EntityFrameworkCoreOutboxStoreOptions CreateStoreOptions(string tableName)
     {
-        return new EfCoreOutboxStoreOptions
+        return new EntityFrameworkCoreOutboxStoreOptions
         {
             SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
             TableName = tableName
         };
     }
 
-    internal static async Task EnsureOutboxTableAsync(string connectionString, EfCoreOutboxStoreOptions storeOptions)
+    internal static async Task EnsureOutboxTableAsync(string connectionString, EntityFrameworkCoreOutboxStoreOptions storeOptions)
     {
         await using var dataSource = NpgsqlDataSource.Create(connectionString);
 
@@ -40,7 +40,7 @@ internal static class EfCoreOutboxE2eSupport
 
     internal static ServiceProvider BuildProvider<TDbContext>(
         string connectionString,
-        EfCoreOutboxStoreOptions storeOptions,
+        EntityFrameworkCoreOutboxStoreOptions storeOptions,
         OutboxE2eComposition composition)
         where TDbContext : EfCoreOutboxE2eDbContext
     {
@@ -77,7 +77,7 @@ internal static class EfCoreOutboxE2eSupport
 
             registry.AddOutboxModule(outbox =>
             {
-                outbox.UseEfCoreStorage(builder =>
+                outbox.UseEntityFrameworkCoreStorage(builder =>
                 {
                     builder.UseDbContext<TDbContext>();
                     builder.UseOptions(storeOptions);
@@ -99,7 +99,7 @@ internal static class EfCoreOutboxE2eSupport
 
                 if (!composition.UseFailingDispatcher)
                 {
-                    outbox.UseEventOutboxDispatcher();
+                    outbox.UseInProcessDispatch();
                 }
             });
         });

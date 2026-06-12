@@ -17,7 +17,7 @@ using IInboxProcessor = LiteBus.Inbox.Abstractions.IInboxProcessor;
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 
 /// <summary>
-///     End-to-end tests for saga orchestration wired through <see cref="Saga.InboxModuleBuilderExtensions.EnableSaga" />.
+///     End-to-end tests for saga orchestration wired through <see cref="InboxModuleBuilderSagaExtensions.EnableSaga" />.
 /// </summary>
 public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFixture<PostgreSqlFixture>
 {
@@ -54,7 +54,7 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
         var processor = provider.GetRequiredService<IInboxProcessor>();
         var sagaStore = provider.GetRequiredService<ISagaStore>();
 
-        await inbox.AcceptAsync(InboxAcceptItems.From(
+        await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(
             new AdvanceOrderSagaCommand(),
             new InboxAcceptMetadata { Trace = new MessageTrace.Correlated("order-9001") }));
 
@@ -107,7 +107,7 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
                     LeaseOwner = "pg-saga-e2e-worker"
                 });
 
-                builder.UseCommandInboxDispatcher();
+                builder.UseInProcessDispatch();
                 builder.EnableSaga(registry => registry.MapState<OrderSagaState>("orders.saga.advance"));
 
                 builder.UsePostgreSqlSagaStorage(postgres =>

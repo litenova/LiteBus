@@ -48,9 +48,9 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
 
         var messageId = Guid.NewGuid();
 
-        await scheduler.AcceptAsync(InboxAcceptItems.From(
+        await scheduler.AcceptAsync(InboxAcceptItem<ShipOrderCommand>.WithIdentity(
             new ShipOrderCommand { OrderId = messageId },
-            new InboxAcceptMetadata { Identity = new MessageIdentity.Supplied(messageId) }));
+            messageId));
 
         var result = await processor.ProcessPendingAsync();
 
@@ -143,7 +143,7 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
                     Retry = new RetryOptions { UseJitter = false }
                 });
 
-                builder.UseCommandInboxDispatcher();
+                builder.UseInProcessDispatch();
             });
         });
 

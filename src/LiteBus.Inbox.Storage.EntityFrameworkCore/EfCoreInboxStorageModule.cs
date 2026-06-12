@@ -49,7 +49,7 @@ public sealed class EfCoreInboxStorageModule : IInboxStorageModule
         }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(EfCoreInboxStoreOptions),
+            typeof(EntityFrameworkCoreInboxStoreOptions),
             moduleBuilder.Options));
 
         if (moduleBuilder.RegisterSaveChangesInterceptor)

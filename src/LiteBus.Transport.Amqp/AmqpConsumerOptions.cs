@@ -5,7 +5,7 @@ namespace LiteBus.Transport.Amqp;
 /// <summary>
 ///     Consumer settings for an AMQP queue subscription.
 /// </summary>
-public sealed class AmqpConsumerOptions
+public sealed record AmqpConsumerOptions
 {
     /// <summary>
     ///     Gets the queue name to consume from.

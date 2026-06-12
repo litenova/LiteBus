@@ -6,12 +6,12 @@ namespace LiteBus.Analyzers.Analysis;
 internal enum MessageKind
 {
     /// <summary>
-    ///     Command messages implementing <see cref="LiteBus.Commands.Abstractions.ICommand" />.
+    ///     Command messages implementing <c>LiteBus.Commands.Abstractions.ICommand</c>.
     /// </summary>
     Command,
 
     /// <summary>
-    ///     Query messages implementing <see cref="LiteBus.Queries.Abstractions.IQuery" />.
+    ///     Query messages implementing <c>LiteBus.Queries.Abstractions.IQuery</c>.
     /// </summary>
     Query
 }

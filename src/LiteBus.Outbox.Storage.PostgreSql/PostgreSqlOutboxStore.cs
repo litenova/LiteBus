@@ -386,12 +386,11 @@ public sealed class PostgreSqlOutboxStore :
 
     /// <inheritdoc />
     public async Task<bool> RenewLeaseAsync(
-        Guid messageId,
-        string leaseOwner,
-        DateTimeOffset expiresAt,
+        LeaseRenewalRequest request,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(leaseOwner);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
 
         var sql = $"""
                    UPDATE {_tableName}
@@ -402,10 +401,10 @@ public sealed class PostgreSqlOutboxStore :
                    """;
 
         await using var command = CreateCommand(sql);
-        command.Parameters.AddWithValue("lease_expires_at", expiresAt);
-        command.Parameters.AddWithValue("message_id", messageId);
+        command.Parameters.AddWithValue("lease_expires_at", request.ExpiresAt);
+        command.Parameters.AddWithValue("message_id", request.MessageId);
         command.Parameters.AddWithValue("publishing_status", (int) OutboxStatus.Publishing);
-        command.Parameters.AddWithValue("lease_owner", leaseOwner);
+        command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
 
         var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return affected > 0;

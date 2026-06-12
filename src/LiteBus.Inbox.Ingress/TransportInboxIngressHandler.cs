@@ -12,7 +12,7 @@ using LiteBus.Transport.Abstractions;
 namespace LiteBus.Inbox.Ingress;
 
 /// <summary>
-///     Maps transport deliveries into <see cref="IInbox.AcceptAsync{TMessage}" /> acceptance calls.
+///     Maps transport deliveries into <see cref="IInbox.AcceptAsync{TMessage}(InboxAcceptItem{TMessage}, System.Threading.CancellationToken)" /> acceptance calls.
 /// </summary>
 public sealed class TransportInboxIngressHandler
 {
@@ -125,6 +125,6 @@ public sealed class TransportInboxIngressHandler
 
         var metadata = TransportInboxIngressMapper.ToInboxAcceptMetadata(message);
 
-        return InboxAcceptItems.Untyped(deserialized, metadata);
+        return InboxAcceptItem.From(deserialized, metadata);
     }
 }

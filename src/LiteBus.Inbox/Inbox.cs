@@ -51,7 +51,7 @@ public sealed class Inbox : IInbox
     }
 
     /// <inheritdoc />
-    public async Task<InboxReceipt> AcceptAsync<TMessage>(
+    public async Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
         InboxAcceptItem<TMessage> item,
         CancellationToken cancellationToken = default)
         where TMessage : notnull
@@ -59,12 +59,12 @@ public sealed class Inbox : IInbox
         ArgumentNullException.ThrowIfNull(item);
 
         var envelope = await _envelopeFactory
-            .CreateAsync(InboxAcceptItems.From(item), cancellationToken)
+            .CreateAsync(InboxAcceptItem.From(item), cancellationToken)
             .ConfigureAwait(false);
 
         var storedEnvelope = await _store.AddAsync(envelope, cancellationToken).ConfigureAwait(false);
 
-        return CreateReceipt(storedEnvelope, item.Message.GetType());
+        return CreateReceipt<TMessage>(storedEnvelope, item.Message.GetType());
     }
 
     /// <inheritdoc />
@@ -80,19 +80,47 @@ public sealed class Inbox : IInbox
 
         for (var index = 0; index < stored.Count; index++)
         {
-            receipts[index] = CreateReceipt(stored[index], items[index].Message.GetType());
+            receipts[index] = CreateUntypedReceipt(stored[index], items[index].Message.GetType());
         }
 
         return receipts;
     }
 
     /// <summary>
-    ///     Maps a stored envelope to an acceptance receipt.
+    ///     Maps a stored envelope to a typed acceptance receipt.
+    /// </summary>
+    /// <typeparam name="TMessage">The compile-time message type associated with the acceptance command.</typeparam>
+    /// <param name="storedEnvelope">The envelope returned by the store.</param>
+    /// <param name="messageType">The runtime message type used for contract lookup.</param>
+    /// <returns>The typed acceptance receipt returned to callers.</returns>
+    private static InboxReceipt<TMessage> CreateReceipt<TMessage>(InboxEnvelope storedEnvelope, Type messageType)
+        where TMessage : notnull
+    {
+        return new InboxReceipt<TMessage>
+        {
+            Id = storedEnvelope.Id,
+            MessageType = messageType,
+            Contract = new MessageContractReference
+            {
+                Name = storedEnvelope.ContractName,
+                Version = storedEnvelope.ContractVersion
+            },
+            AcceptedAt = storedEnvelope.CreatedAt,
+            Trace = DurableEnvelopeMetadataMapper.ResolveTrace(
+                storedEnvelope.CorrelationId,
+                storedEnvelope.CausationId,
+                storedEnvelope.TraceContext),
+            Tenant = DurableEnvelopeMetadataMapper.ResolveTenant(storedEnvelope.TenantId)
+        };
+    }
+
+    /// <summary>
+    ///     Maps a stored envelope to an untyped acceptance receipt for batch APIs.
     /// </summary>
     /// <param name="storedEnvelope">The envelope returned by the store.</param>
     /// <param name="messageType">The runtime message type used for contract lookup.</param>
-    /// <returns>The acceptance receipt returned to callers.</returns>
-    private static InboxReceipt CreateReceipt(InboxEnvelope storedEnvelope, Type messageType)
+    /// <returns>The acceptance receipt returned to batch callers.</returns>
+    private static InboxReceipt CreateUntypedReceipt(InboxEnvelope storedEnvelope, Type messageType)
     {
         return new InboxReceipt
         {

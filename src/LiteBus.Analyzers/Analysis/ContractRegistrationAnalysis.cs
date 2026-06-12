@@ -146,7 +146,7 @@ internal static class ContractRegistrationAnalysis
     }
 
     /// <summary>
-    ///     Determines whether the type declares <see cref="MessageContractAttribute" />.
+    ///     Determines whether the type declares <c>[MessageContract]</c>.
     /// </summary>
     /// <param name="messageType">The message type symbol.</param>
     /// <returns><see langword="true" /> when the attribute is present; otherwise, <see langword="false" />.</returns>

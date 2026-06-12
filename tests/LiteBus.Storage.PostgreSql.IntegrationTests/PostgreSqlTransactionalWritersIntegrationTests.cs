@@ -48,7 +48,7 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
         await InsertOrderAsync(connection, transaction, outboxOptions.SchemaName, ordersTableName, orderId, 15m)
             ;
 
-        var receipt = await writer.EnqueueAsync(OutboxEnqueueItems.From(new TestIntegrationEvent { OrderId = orderId }));
+        var receipt = await writer.EnqueueAsync(OutboxEnqueueItem<TestIntegrationEvent>.From(new TestIntegrationEvent { OrderId = orderId }));
         await transaction.CommitAsync();
 
         (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId))
@@ -85,8 +85,8 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
                 5m)
             ;
 
-        var inboxReceipt = await inbox.AcceptAsync(InboxAcceptItems.From(new TestCommand { OrderId = orderId }));
-        var outboxReceipt = await outbox.EnqueueAsync(OutboxEnqueueItems.From(new TestIntegrationEvent { OrderId = orderId }));
+        var inboxReceipt = await inbox.AcceptAsync(InboxAcceptItem<TestCommand>.From(new TestCommand { OrderId = orderId }));
+        var outboxReceipt = await outbox.EnqueueAsync(OutboxEnqueueItem<TestIntegrationEvent>.From(new TestIntegrationEvent { OrderId = orderId }));
         await transaction.RollbackAsync();
 
         (await CountOrdersAsync(tables.InboxStoreOptions.SchemaName, tables.OrdersTableName, orderId))
@@ -147,7 +147,7 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
             ;
 
         var writer = scope.ServiceProvider.GetRequiredService<ITransactionalOutbox>();
-        var receipt = await writer.EnqueueAsync(OutboxEnqueueItems.From(new TestIntegrationEvent { OrderId = orderId }));
+        var receipt = await writer.EnqueueAsync(OutboxEnqueueItem<TestIntegrationEvent>.From(new TestIntegrationEvent { OrderId = orderId }));
         await ambient.Transaction!.CommitAsync();
 
         (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId))

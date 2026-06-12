@@ -34,7 +34,7 @@
         <Project Path="src/LiteBus.Transport/LiteBus.Transport.csproj"/>
         <Project Path="src/LiteBus.Transport.Amqp/LiteBus.Transport.Amqp.csproj"/>
         <Project Path="src/LiteBus.Transport.AzureServiceBus/LiteBus.Transport.AzureServiceBus.csproj"/>
-        <Project Path="src/LiteBus.Transport.Aws/LiteBus.Transport.Aws.csproj"/>
+        <Project Path="src/LiteBus.Transport.AwsSqs/LiteBus.Transport.AwsSqs.csproj"/>
         <Project Path="src/LiteBus.Transport.InMemory/LiteBus.Transport.InMemory.csproj"/>
         <Project Path="src/LiteBus.Transport.Kafka/LiteBus.Transport.Kafka.csproj"/>
         <Project Path="src/LiteBus.Orchestration.Abstractions/LiteBus.Orchestration.Abstractions.csproj"/>
@@ -66,14 +66,14 @@
         <Project Path="src/LiteBus.Inbox.Abstractions/LiteBus.Inbox.Abstractions.csproj"/>
         <Project Path="src/LiteBus.Inbox.Dispatch/LiteBus.Inbox.Dispatch.csproj"/>
         <Project Path="src/LiteBus.Inbox.Dispatch.Amqp/LiteBus.Inbox.Dispatch.Amqp.csproj"/>
-        <Project Path="src/LiteBus.Inbox.Dispatch.Aws/LiteBus.Inbox.Dispatch.Aws.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Dispatch.AwsSqs/LiteBus.Inbox.Dispatch.AwsSqs.csproj"/>
         <Project Path="src/LiteBus.Inbox.Dispatch.AzureServiceBus/LiteBus.Inbox.Dispatch.AzureServiceBus.csproj"/>
         <Project Path="src/LiteBus.Inbox.Dispatch.InMemory/LiteBus.Inbox.Dispatch.InMemory.csproj"/>
         <Project Path="src/LiteBus.Inbox.Dispatch.Kafka/LiteBus.Inbox.Dispatch.Kafka.csproj"/>
         <Project Path="src/LiteBus.Inbox.Dispatch.InProcess/LiteBus.Inbox.Dispatch.InProcess.csproj"/>
         <Project Path="src/LiteBus.Inbox.Ingress/LiteBus.Inbox.Ingress.csproj"/>
         <Project Path="src/LiteBus.Inbox.Ingress.Amqp/LiteBus.Inbox.Ingress.Amqp.csproj"/>
-        <Project Path="src/LiteBus.Inbox.Ingress.Aws/LiteBus.Inbox.Ingress.Aws.csproj"/>
+        <Project Path="src/LiteBus.Inbox.Ingress.AwsSqs/LiteBus.Inbox.Ingress.AwsSqs.csproj"/>
         <Project Path="src/LiteBus.Inbox.Ingress.AzureServiceBus/LiteBus.Inbox.Ingress.AzureServiceBus.csproj"/>
         <Project Path="src/LiteBus.Inbox.Ingress.InMemory/LiteBus.Inbox.Ingress.InMemory.csproj"/>
         <Project Path="src/LiteBus.Inbox.Ingress.Kafka/LiteBus.Inbox.Ingress.Kafka.csproj"/>
@@ -89,7 +89,7 @@
         <Project Path="src/LiteBus.Outbox.Abstractions/LiteBus.Outbox.Abstractions.csproj"/>
         <Project Path="src/LiteBus.Outbox.Dispatch/LiteBus.Outbox.Dispatch.csproj"/>
         <Project Path="src/LiteBus.Outbox.Dispatch.Amqp/LiteBus.Outbox.Dispatch.Amqp.csproj"/>
-        <Project Path="src/LiteBus.Outbox.Dispatch.Aws/LiteBus.Outbox.Dispatch.Aws.csproj"/>
+        <Project Path="src/LiteBus.Outbox.Dispatch.AwsSqs/LiteBus.Outbox.Dispatch.AwsSqs.csproj"/>
         <Project Path="src/LiteBus.Outbox.Dispatch.AzureServiceBus/LiteBus.Outbox.Dispatch.AzureServiceBus.csproj"/>
         <Project Path="src/LiteBus.Outbox.Dispatch.InMemory/LiteBus.Outbox.Dispatch.InMemory.csproj"/>
         <Project Path="src/LiteBus.Outbox.Dispatch.Kafka/LiteBus.Outbox.Dispatch.Kafka.csproj"/>
@@ -129,7 +129,7 @@
         <Project Path="tests/LiteBus.Transport.Amqp.IntegrationTests/LiteBus.Transport.Amqp.IntegrationTests.csproj"/>
         <Project
                 Path="tests/LiteBus.Transport.AzureServiceBus.UnitTests/LiteBus.Transport.AzureServiceBus.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Transport.Aws.UnitTests/LiteBus.Transport.Aws.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Transport.AwsSqs.UnitTests/LiteBus.Transport.AwsSqs.UnitTests.csproj"/>
         <Project Path="tests/LiteBus.Transport.InMemory.UnitTests/LiteBus.Transport.InMemory.UnitTests.csproj"/>
         <Project
                 Path="tests/LiteBus.DurableTransport.IntegrationTesting/LiteBus.DurableTransport.IntegrationTesting.csproj"/>

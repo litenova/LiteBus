@@ -6,7 +6,7 @@ namespace LiteBus.Messaging.Abstractions.DurableMessaging;
 /// <remarks>
 ///     <para>
 ///         Each variant carries the fields required for its tracing shape. Absence of tracing is represented by
-///         <see cref="None" />, not nullable properties on a shared record.
+///         <see cref="MessageTrace.None" />, not nullable properties on a shared record.
 ///     </para>
 /// </remarks>
 public abstract record MessageTrace
@@ -17,7 +17,7 @@ public abstract record MessageTrace
     public sealed record None : MessageTrace
     {
         /// <summary>
-        ///     Initializes a new instance of the <see cref="None" /> class.
+        ///     Initializes a new instance of the <see cref="MessageTrace.None" /> class.
         /// </summary>
         private None()
         {

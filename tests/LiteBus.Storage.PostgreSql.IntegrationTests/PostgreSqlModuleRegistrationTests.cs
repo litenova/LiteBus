@@ -18,6 +18,7 @@ using LiteBus.Testing;
 using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 
 namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 
@@ -179,7 +180,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
                     registry.AddInboxModule(inbox =>
                     {
                         inbox.UseInMemoryStorage();
-                        inbox.UseCommandInboxDispatcher();
+                        inbox.UseInProcessDispatch();
 
                         inbox.UseAmqpDispatch(
                             _ =>
@@ -280,7 +281,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
             registry.AddInboxModule(inbox =>
             {
                 inbox.UseInMemoryStorage();
-                inbox.UseCommandInboxDispatcher();
+                inbox.UseInProcessDispatch();
                 inbox.EnableInboxProcessor();
             });
         });

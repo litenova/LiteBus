@@ -70,7 +70,7 @@ public sealed class InboxCompositeModuleTests
                 {
                     inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
                     inbox.UseInMemoryStorage();
-                    inbox.UseCommandInboxDispatcher();
+                    inbox.UseInProcessDispatch();
                 });
             });
 
@@ -104,7 +104,7 @@ public sealed class InboxCompositeModuleTests
                 {
                     inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
                     inbox.UseInMemoryStorage();
-                    inbox.UseCommandInboxDispatcher();
+                    inbox.UseInProcessDispatch();
                     inbox.EnableInboxProcessor(options => options.PollInterval = TimeSpan.FromMilliseconds(25));
                 });
             })
@@ -113,11 +113,10 @@ public sealed class InboxCompositeModuleTests
         var inbox = provider.GetRequiredService<IInbox>();
         var orderId = Guid.NewGuid();
 
-        await inbox.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-        {
+        await inbox.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        }));
+        });
 
         var processor = provider.GetRequiredService<IInboxProcessor>();
         var pass = await processor.ProcessPendingAsync();

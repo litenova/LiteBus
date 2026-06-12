@@ -35,7 +35,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItems.WithIdentity(
+        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
             new OrderSubmittedIntegrationEvent { OrderId = orderId },
             messageId));
 
@@ -68,7 +68,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItems.WithIdentity(
+        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
             new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
             messageId));
 
@@ -96,7 +96,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItems.WithIdentity(
+        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
             new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
             messageId));
 
@@ -121,7 +121,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItems.WithIdentity(
+        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
             new OrderSubmittedIntegrationEvent { OrderId = orderId },
             messageId));
 
@@ -157,7 +157,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItems.WithMetadata(
+        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.From(
             new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
             OutboxEnqueueMetadata.Immediate with
             {
@@ -230,7 +230,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
 
                 if (!useFailingDispatcher)
                 {
-                    builder.UseEventOutboxDispatcher();
+                    builder.UseInProcessDispatch();
                 }
             });
         });

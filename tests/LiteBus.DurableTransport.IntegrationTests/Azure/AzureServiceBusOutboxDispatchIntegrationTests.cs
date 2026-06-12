@@ -53,7 +53,7 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
 
         await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
         {
-            Event = new OrderSubmittedIntegrationEvent { OrderId = orderId },
+            Message = new OrderSubmittedIntegrationEvent { OrderId = orderId },
             Metadata = OutboxEnqueueMetadata.Immediate with
             {
                 Identity = new MessageIdentity.Supplied(messageId),
@@ -103,7 +103,7 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
 
         await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
         {
-            Event = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            Message = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
             Metadata = OutboxEnqueueMetadata.Immediate with
             {
                 Identity = new MessageIdentity.Supplied(messageId)

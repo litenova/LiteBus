@@ -385,10 +385,10 @@ public sealed class OutboxTests : LiteBusTestBase
 
         var receipts = await outbox.EnqueueBatchAsync(
         [
-            OutboxEnqueueItems.From(
+            OutboxEnqueueItem.From(
                 new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
                 typeof(OrderSubmittedIntegrationEvent)),
-            OutboxEnqueueItems.From(
+            OutboxEnqueueItem.From(
                 new GenericIntegrationEvent<string> { Value = "batch" },
                 typeof(GenericIntegrationEvent<string>))
         ]);

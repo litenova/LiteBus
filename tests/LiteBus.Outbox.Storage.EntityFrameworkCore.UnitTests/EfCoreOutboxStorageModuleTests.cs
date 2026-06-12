@@ -22,7 +22,7 @@ public sealed class EfCoreOutboxStorageModuleTests
                 {
                 });
 
-                registry.AddOutboxModule(outbox => outbox.UseEfCoreStorage(builder =>
+                registry.AddOutboxModule(outbox => outbox.UseEntityFrameworkCoreStorage(builder =>
                     builder.UseDbContext<ModuleTestOutboxDbContext>()));
             })
             .BuildServiceProvider();
@@ -48,7 +48,7 @@ public sealed class EfCoreOutboxStorageModuleTests
                     {
                     });
 
-                    registry.AddOutboxModule(outbox => outbox.UseEfCoreStorage(builder =>
+                    registry.AddOutboxModule(outbox => outbox.UseEntityFrameworkCoreStorage(builder =>
                         builder
                             .UseDbContext<ModuleTestOutboxDbContext>()
                             .EnforceTransactionalSetup()));

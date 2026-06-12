@@ -85,22 +85,22 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
 
         try
         {
-            var eventType = _contractRegistry.GetMessageType(message.ContractName, message.ContractVersion);
+            var messageType = _contractRegistry.GetMessageType(message.ContractName, message.ContractVersion);
 
             var payload = await PayloadProtection.UnprotectAsync(message.Payload, _payloadEncryptor, cancellationToken)
                 .ConfigureAwait(false);
 
-            var @event = await _messageSerializer.DeserializeAsync(eventType, payload, cancellationToken).ConfigureAwait(false);
+            var messageInstance = await _messageSerializer.DeserializeAsync(messageType, payload, cancellationToken).ConfigureAwait(false);
             var mediationSettings = CreateMediationSettings(message);
 
-            if (@event is IEvent liteBusEvent)
+            if (messageInstance is IEvent liteBusEvent)
             {
                 await _eventPublisher.PublishAsync(liteBusEvent, mediationSettings, cancellationToken).ConfigureAwait(false);
                 return;
             }
 
-            var publish = PublishDelegateCache.GetOrAdd(eventType, CreatePublishDelegate);
-            await publish(_eventPublisher, @event, mediationSettings, cancellationToken).ConfigureAwait(false);
+            var publish = PublishDelegateCache.GetOrAdd(messageType, CreatePublishDelegate);
+            await publish(_eventPublisher, messageInstance, mediationSettings, cancellationToken).ConfigureAwait(false);
         }
         catch (LiteBusDispatchException)
         {
@@ -121,38 +121,38 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     /// </summary>
     /// <typeparam name="TEvent">The compile-time event type closed from the persisted contract.</typeparam>
     /// <param name="eventPublisher">The event mediator used as the dispatch target.</param>
-    /// <param name="eventInstance">The deserialized event instance.</param>
+    /// <param name="messageInstance">The deserialized message instance.</param>
     /// <param name="mediationSettings">The mediation settings copied from the outbox envelope.</param>
     /// <param name="cancellationToken">The token used to cancel publication.</param>
     /// <returns>A task that completes when publication finishes.</returns>
     private static Task PublishTypedAsync<TEvent>(
         IEventMediator eventPublisher,
-        object eventInstance,
+        object messageInstance,
         EventMediationSettings? mediationSettings,
         CancellationToken cancellationToken)
         where TEvent : notnull
     {
-        return eventPublisher.PublishAsync((TEvent) eventInstance, mediationSettings, cancellationToken);
+        return eventPublisher.PublishAsync((TEvent) messageInstance, mediationSettings, cancellationToken);
     }
 
     /// <summary>
     ///     Creates a closed generic publish delegate for the supplied event type.
     /// </summary>
-    /// <param name="eventType">The runtime event type resolved from the outbox contract.</param>
+    /// <param name="messageType">The runtime message type resolved from the outbox contract.</param>
     /// <returns>A delegate that publishes through <see cref="IEventMediator.PublishAsync{TEvent}" />.</returns>
-    private static Func<IEventMediator, object, EventMediationSettings?, CancellationToken, Task> CreatePublishDelegate(Type eventType)
+    private static Func<IEventMediator, object, EventMediationSettings?, CancellationToken, Task> CreatePublishDelegate(Type messageType)
     {
         try
         {
-            var closedMethod = PublishTypedAsyncMethod.MakeGenericMethod(eventType);
+            var closedMethod = PublishTypedAsyncMethod.MakeGenericMethod(messageType);
 
-            return (mediator, eventInstance, settings, cancellationToken) =>
-                (Task) closedMethod.Invoke(null, [mediator, eventInstance, settings, cancellationToken])!;
+            return (mediator, messageInstance, settings, cancellationToken) =>
+                (Task) closedMethod.Invoke(null, [mediator, messageInstance, settings, cancellationToken])!;
         }
         catch (Exception exception)
         {
             throw new LiteBusDispatchException(
-                $"Outbox dispatch could not create a publish delegate for event type '{eventType.FullName}'. " +
+                $"Outbox dispatch could not create a publish delegate for message type '{messageType.FullName}'. " +
                 "Register the closed event type with Contracts.Register and ensure it is a valid POCO or IEvent implementation.",
                 exception);
         }

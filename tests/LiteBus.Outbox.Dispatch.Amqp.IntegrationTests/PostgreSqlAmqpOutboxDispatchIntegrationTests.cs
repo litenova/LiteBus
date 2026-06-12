@@ -55,7 +55,7 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
         await outbox.EnqueueAsync(
-            OutboxEnqueueItems.WithMetadata(
+            OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.From(
                 new OrderSubmittedIntegrationEvent { OrderId = orderId },
                 new OutboxEnqueueMetadata
                 {

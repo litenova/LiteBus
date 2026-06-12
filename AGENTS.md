@@ -171,7 +171,7 @@ Packages ending in `.Abstractions` contain only interfaces, value objects, enums
 
 ### API and value object design
 
-Public APIs group related parameters into **semantic types named by role**, not by parameter count. Match an existing suffix before inventing a new one. Concrete inventories, package maps, and feature exemplars live in [API Design](docs/API-Design.md); this section states the rules that apply to every axis.
+Public APIs group related parameters into **semantic types named by role**, not by parameter count. Match an existing suffix before inventing a new one. Concrete inventories, package maps, feature exemplars, **CLR kind selection**, and the inbox/outbox `Message` property rule live in [API Design](docs/API-Design.md); this section states the rules that apply to every axis.
 
 #### Separate concerns by model role
 
@@ -198,6 +198,7 @@ Do not merge command input, invocation tuning, and module configuration into one
 | `*Options` | Module, processor, adapter, or store configuration | Per-message writer input |
 | `*HostOptions` | Background-service lifecycle only | Business commands |
 | `*Filter` | Query or purge predicates where optional fields are intentional | Writer commands |
+| `*Binding` | Framework adapter HTTP or host binding input at the edge | Writer commands, mediation settings |
 | (no suffix) | Small identifiers and cross-cutting value objects | Bags of nullable primitives |
 
 **Banned suffixes and shapes**
@@ -206,7 +207,7 @@ Do not merge command input, invocation tuning, and module configuration into one
 - Do not use `*Options` for per-message or per-command writer input.
 - Do not expose parallel aligned parameter lists that must stay length-matched. Use `IReadOnlyList<*Item>`.
 - Do not embed `CancellationToken` inside `*Item`, `*Metadata`, or `*Request`. Pass cancellation as the final method parameter only.
-- Do not add convenience overloads that bypass the semantic input type once an `*Item` or `*Request` exists.
+- Do not add writer or store overloads with **two or more business parameters** beyond the message body once an `*Item` or `*Request` exists. Optional metadata, scheduling, routing, and identity belong on `*Item` / `*Metadata`, not on parallel scalar parameters.
 
 #### Metadata concern categories
 
@@ -251,8 +252,10 @@ One mapper per feature owns translation from command value objects to persistenc
 
 #### Ergonomics
 
-- Static factories or companion helper types (`*Items`, `*Requests`) may simplify call sites.
-- Factories must not widen the public method surface with multi-parameter overloads.
+- Prefer **static factories on `*Item` records** (`OutboxEnqueueItem<T>.From(message)`) so construction stays discoverable on the type callers pass to writer APIs.
+- Writer facades may expose **one body-only sugar overload** per operation family (for example `EnqueueAsync<TEvent>(TEvent message, …)` implemented as `EnqueueAsync(OutboxEnqueueItem<TEvent>.From(message), …)`). Do not add further overloads that take metadata scalars.
+- Use **`with`** on `*Item` and `*Metadata` for ad-hoc composition. Add named static helpers on the `*Item` record only when nested `with` is repetitive and domain-named (`ScheduledAt`, `WithTopic`).
+- Optional thin static helper types (`OutboxEnqueue`, `InboxAccept`) are acceptable for cross-shape glue (untyped batch entries). Do not use plural `*Items` names that imply a collection type. Avoid no-op batch wrappers that only return a passed array.
 - Keep compose-time `*Options` on module builders. Do not thread them through runtime command methods.
 - When a workflow needs both mediation and durable persistence, use separate calls with separate semantic types; do not merge the concerns.
 
@@ -269,7 +272,7 @@ One mapper per feature owns translation from command value objects to persistenc
 
 #### Legacy alignment
 
-Surfaces that predate this taxonomy should be aligned when their area is next touched: options objects that mix invocation tuning with cancellation or strategy references; methods with three or more scalar parameters where a request record would clarify intent; error and lease APIs that pass parallel context fields instead of a context record. Specific type names and target shapes are tracked in [API Design](docs/API-Design.md) and [Roadmap](docs/Roadmap.md).
+Surfaces that predate this taxonomy should be aligned when their area is next touched: options objects that mix invocation tuning with cancellation or strategy references; methods with three or more scalar parameters where a request record would clarify intent; error and lease APIs that pass parallel context fields instead of a context record. Specific type names, CLR kind rules (`sealed record` vs `sealed class` for `*HostOptions`), `*Binding` adapter types, and target shapes are tracked in [API Design](docs/API-Design.md) and [Migration guide v6](docs/Migration-Guide-v6.md).
 
 ### Composite module pattern
 

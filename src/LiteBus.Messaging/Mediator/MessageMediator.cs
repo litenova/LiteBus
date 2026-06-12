@@ -1,6 +1,7 @@
 using System;
+using System.Threading;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Contexts.Execution;
+using ExecutionContext = LiteBus.Messaging.Contexts.Execution.ExecutionContext;
 
 namespace LiteBus.Messaging.Mediator;
 
@@ -63,7 +64,8 @@ internal sealed class MessageMediator : IMessageMediator
     /// <typeparam name="TMessage">The type of the message.</typeparam>
     /// <typeparam name="TMessageResult">The type of the result.</typeparam>
     /// <param name="message">The message to mediate.</param>
-    /// <param name="options">The options that control the mediation process.</param>
+    /// <param name="request">The request that controls the mediation process.</param>
+    /// <param name="cancellationToken">The token used to cancel the mediation process.</param>
     /// <returns>The result of the message handling.</returns>
     /// <exception cref="NoHandlerFoundException">
     ///     Thrown when no handler is found for the message type and registration on spot
@@ -73,11 +75,14 @@ internal sealed class MessageMediator : IMessageMediator
     ///     Thrown when no descriptor can be found for the message type with the
     ///     specified resolve strategy.
     /// </exception>
-    public TMessageResult Mediate<TMessage, TMessageResult>(TMessage message,
-                                                            MediateOptions<TMessage, TMessageResult> options) where TMessage : notnull
+    public TMessageResult Mediate<TMessage, TMessageResult>(
+        TMessage message,
+        MessageMediationRequest<TMessage, TMessageResult> request,
+        CancellationToken cancellationToken = default)
+        where TMessage : notnull
     {
         // Create a new execution context for the current scope.
-        var executionContext = new ExecutionContext(options.CancellationToken, options.Tags, options.Items);
+        var executionContext = new ExecutionContext(cancellationToken, request.Tags, request.Items);
 
         // Use a scope to manage the execution context.
         using var _ = AmbientExecutionContext.CreateScope(executionContext);
@@ -86,26 +91,26 @@ internal sealed class MessageMediator : IMessageMediator
         var messageType = message.GetType();
 
         // Find the message descriptor.
-        var descriptor = options.MessageResolveStrategy.Find(messageType, _messageReader);
+        var descriptor = request.MessageResolveStrategy.Find(messageType, _messageReader);
 
         if (descriptor is null)
         {
-            if (!options.RegisterPlainMessagesOnSpot)
+            if (!request.RegisterPlainMessagesOnSpot)
             {
                 throw new NoHandlerFoundException(messageType);
             }
 
             _messageWriter.Register(messageType);
 
-            descriptor = options.MessageResolveStrategy.Find(messageType, _messageReader);
+            descriptor = request.MessageResolveStrategy.Find(messageType, _messageReader);
         }
 
         if (descriptor is null)
         {
             throw new MessageDescriptorNotFoundException(
                 messageType,
-                options.MessageResolveStrategy.GetType(),
-                options.RegisterPlainMessagesOnSpot,
+                request.MessageResolveStrategy.GetType(),
+                request.RegisterPlainMessagesOnSpot,
                 _messageReader.Count);
         }
 
@@ -113,10 +118,10 @@ internal sealed class MessageMediator : IMessageMediator
         var messageDependencies = new MessageDependencies(messageType,
             descriptor,
             _serviceProvider,
-            options.Tags,
-            options.HandlerPredicate);
+            request.Tags,
+            request.HandlerPredicate);
 
         // Mediate the message using the specified strategy.
-        return options.MessageMediationStrategy.Mediate(message, messageDependencies, AmbientExecutionContext.Current);
+        return request.MessageMediationStrategy.Mediate(message, messageDependencies, AmbientExecutionContext.Current);
     }
 }

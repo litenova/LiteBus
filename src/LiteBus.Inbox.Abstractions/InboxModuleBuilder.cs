@@ -157,7 +157,7 @@ public sealed class InboxModuleBuilder
         {
             throw new LiteBusConfigurationException(
                 "Inbox storage is already configured. " +
-                "Call only one of UsePostgreSqlStorage, UseEfCoreStorage, " +
+                "Call only one of UsePostgreSqlStorage, UseEntityFrameworkCoreStorage, " +
                 "or UseInMemoryStorage.");
         }
 
@@ -167,7 +167,7 @@ public sealed class InboxModuleBuilder
 
     /// <summary>
     ///     Registers the dispatcher sub-module. Exactly one dispatcher must be
-    ///     registered. Called by extension methods such as UseCommandInboxDispatcher().
+    ///     registered. Called by extension methods such as UseInProcessDispatch().
     /// </summary>
     /// <param name="dispatcherModule">The dispatcher module to register as a child of the inbox module.</param>
     /// <returns>The current builder.</returns>
@@ -179,7 +179,7 @@ public sealed class InboxModuleBuilder
         {
             throw new LiteBusConfigurationException(
                 "Inbox dispatcher is already configured. " +
-                "Call only one inbox dispatcher registration method such as UseCommandInboxDispatcher or a broker-specific Use*Dispatch extension.");
+                "Call only one inbox dispatcher registration method such as UseInProcessDispatch or a broker-specific Use*Dispatch extension.");
         }
 
         _dispatcherModule = dispatcherModule;

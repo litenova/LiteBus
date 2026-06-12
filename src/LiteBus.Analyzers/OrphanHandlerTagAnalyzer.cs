@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using LiteBus.Analyzers.Analysis;
@@ -31,12 +30,9 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
             startContext.RegisterSyntaxNodeAction(
                 nodeContext =>
                 {
-                    if (nodeContext.Node is not TypeDeclarationSyntax typeDeclaration)
-                    {
-                        return;
-                    }
-
-                    if (nodeContext.SemanticModel.GetDeclaredSymbol(typeDeclaration, nodeContext.CancellationToken) is not INamedTypeSymbol symbol)
+                    if (nodeContext.SemanticModel.GetDeclaredSymbol(
+                            (TypeDeclarationSyntax)nodeContext.Node,
+                            nodeContext.CancellationToken) is not INamedTypeSymbol symbol)
                     {
                         return;
                     }

@@ -6,7 +6,7 @@ using LiteBus.Transport.Amqp;
 namespace LiteBus.Inbox.Ingress.Amqp;
 
 /// <summary>
-///     Maps AMQP deliveries into <see cref="Abstractions.IInbox.AcceptAsync" /> acceptance calls.
+///     Maps AMQP deliveries into <see cref="IInbox.AcceptAsync{TMessage}(InboxAcceptItem{TMessage}, System.Threading.CancellationToken)" /> acceptance calls.
 /// </summary>
 /// <remarks>
 ///     Delegates to <see cref="TransportInboxIngressHandler" /> after converting

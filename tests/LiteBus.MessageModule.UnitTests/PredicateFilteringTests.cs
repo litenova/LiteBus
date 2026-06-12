@@ -37,7 +37,7 @@ public sealed class PredicateFilteringTests : LiteBusTestBase
 
         var settings = new EventMediationSettings
         {
-            Routing = new EventMediationRoutingSettings
+            Routing = new EventRoutingSettings
             {
                 // The predicate filters for handlers that implement our marker interface.
                 HandlerPredicate = descriptor => descriptor.HandlerType.IsAssignableTo(typeof(IFilterableHandler))
@@ -77,7 +77,7 @@ public sealed class PredicateFilteringTests : LiteBusTestBase
 
         var settings = new EventMediationSettings
         {
-            Routing = new EventMediationRoutingSettings
+            Routing = new EventRoutingSettings
             {
                 HandlerPredicate = descriptor => descriptor.HandlerType.IsAssignableTo(typeof(IFilterableHandler))
             }

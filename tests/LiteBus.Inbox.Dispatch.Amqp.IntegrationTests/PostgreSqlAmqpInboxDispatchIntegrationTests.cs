@@ -61,9 +61,7 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
         var workItemId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
 
-        await inbox.AcceptAsync(InboxAcceptItems.From(
-            new RemoteWorkCommand
-            {
+        await inbox.AcceptAsync(InboxAcceptItem<RemoteWorkCommand>.From(new RemoteWorkCommand {
                 WorkItemId = workItemId,
                 IdempotencyKey = $"work:{workItemId}"
             },

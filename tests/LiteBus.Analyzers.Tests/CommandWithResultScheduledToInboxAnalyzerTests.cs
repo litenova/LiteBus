@@ -32,7 +32,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzerTests
                                   }
 
                                   public Task ScheduleAsync(ProcessPaymentCommand command, CancellationToken cancellationToken)
-                                      => _inbox.AcceptAsync(InboxAcceptItems.From(command), cancellationToken: cancellationToken);
+                                      => _inbox.AcceptAsync(command, cancellationToken: cancellationToken);
                               }
                               """;
 
@@ -64,7 +64,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzerTests
                                   }
 
                                   public Task ScheduleAsync(CreateUserCommand command, CancellationToken cancellationToken)
-                                      => {|#0:_inbox.AcceptAsync(InboxAcceptItems.From(command), cancellationToken: cancellationToken)|};
+                                      => {|#0:_inbox.AcceptAsync(command, cancellationToken: cancellationToken)|};
                               }
                               """;
 
@@ -101,7 +101,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzerTests
                                   }
 
                                   public Task ScheduleAsync(CreateUserCommand command, CancellationToken cancellationToken)
-                                      => {|#0:_inbox.AcceptAsync<CreateUserCommand>(InboxAcceptItems.From(command), cancellationToken: cancellationToken)|};
+                                      => {|#0:_inbox.AcceptAsync<CreateUserCommand>(command, cancellationToken: cancellationToken)|};
                               }
                               """;
 
@@ -135,7 +135,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzerTests
                               public sealed class UserService
                               {
                                   public Task ScheduleAsync(IOrderInbox inbox, CreateUserCommand command, CancellationToken cancellationToken)
-                                      => {|#0:inbox.AcceptAsync(InboxAcceptItems.From(command), cancellationToken: cancellationToken)|};
+                                      => {|#0:inbox.AcceptAsync(command, cancellationToken: cancellationToken)|};
                               }
                               """;
 

@@ -46,7 +46,7 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
                     });
 
                     builder.UseInMemoryStorage();
-                    builder.UseEventOutboxDispatcher();
+                    builder.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -57,7 +57,7 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
         var orderId = Guid.NewGuid();
 
         await outbox.EnqueueAsync(
-            OutboxEnqueueItems.WithIdentity(new OrderSubmittedIntegrationEvent { OrderId = orderId }, eventId));
+            OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(new OrderSubmittedIntegrationEvent { OrderId = orderId }, eventId));
 
         await processor.ProcessPendingAsync();
 
@@ -97,7 +97,7 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
                     });
 
                     builder.UseInMemoryStorage();
-                    builder.UseEventOutboxDispatcher();
+                    builder.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -107,7 +107,7 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
         var messageId = Guid.NewGuid();
 
         await writer.EnqueueAsync(
-            OutboxEnqueueItems.WithIdentity(new PocoIntegrationEvent { Value = "poco-test" }, messageId));
+            OutboxEnqueueItem<PocoIntegrationEvent>.WithIdentity(new PocoIntegrationEvent { Value = "poco-test" }, messageId));
 
         await processor.ProcessPendingAsync();
 
@@ -141,7 +141,7 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
                     });
 
                     builder.UseInMemoryStorage();
-                    builder.UseEventOutboxDispatcher();
+                    builder.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -150,7 +150,7 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
 
         await writer.EnqueueAsync(
-            OutboxEnqueueItems.WithMetadata(
+            OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.From(
                 new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
                 new OutboxEnqueueMetadata
                 {
@@ -184,7 +184,7 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
                 registry.AddOutboxModule(outbox =>
                 {
                     outbox.UseInMemoryStorage();
-                    outbox.UseEventOutboxDispatcher();
+                    outbox.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -230,8 +230,8 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
                     registry.AddOutboxModule(outbox =>
                     {
                         outbox.UseInMemoryStorage();
-                        outbox.UseEventOutboxDispatcher();
-                        outbox.UseEventOutboxDispatcher();
+                        outbox.UseInProcessDispatch();
+                        outbox.UseInProcessDispatch();
                     });
                 });
         };

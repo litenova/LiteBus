@@ -14,7 +14,7 @@ public static class OutboxModuleBuilderEfCoreExtensions
     /// <param name="builder">The outbox module builder.</param>
     /// <param name="configure">The EF Core store configuration action.</param>
     /// <returns>The outbox module builder for chaining.</returns>
-    public static OutboxModuleBuilder UseEfCoreStorage(
+    public static OutboxModuleBuilder UseEntityFrameworkCoreStorage(
         this OutboxModuleBuilder builder,
         Action<EfCoreOutboxStorageModuleBuilder> configure)
     {

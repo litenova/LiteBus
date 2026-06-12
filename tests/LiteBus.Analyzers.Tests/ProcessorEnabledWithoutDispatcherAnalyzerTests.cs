@@ -34,7 +34,7 @@ public sealed class ProcessorEnabledWithoutDispatcherAnalyzerTests
             0,
             "Inbox module configuration",
             "Inbox",
-            "UseCommandInboxDispatcher");
+            "UseInProcessDispatch");
     }
 
     /// <summary>
@@ -67,11 +67,11 @@ public sealed class ProcessorEnabledWithoutDispatcherAnalyzerTests
     }
 
     /// <summary>
-    ///     Verifies inbox processor enablement with UseCommandInboxDispatcher in the same scope produces no diagnostic.
+    ///     Verifies inbox processor enablement with UseInProcessDispatch in the same scope produces no diagnostic.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
     [Fact]
-    public Task InboxProcessorWithUseCommandInboxDispatcher_ProducesNoDiagnostic()
+    public Task InboxProcessorWithUseInProcessDispatch_ProducesNoDiagnostic()
     {
         const string source = """
                               namespace LiteBus.Inbox.Abstractions;
@@ -79,14 +79,14 @@ public sealed class ProcessorEnabledWithoutDispatcherAnalyzerTests
                               public sealed class InboxModuleBuilder
                               {
                                   public InboxModuleBuilder EnableInboxProcessor() => this;
-                                  public InboxModuleBuilder UseCommandInboxDispatcher() => this;
+                                  public InboxModuleBuilder UseInProcessDispatch() => this;
                               }
 
                               public static class InboxConfiguration
                               {
                                   public static void Configure(InboxModuleBuilder inbox)
                                   {
-                                      inbox.UseCommandInboxDispatcher();
+                                      inbox.UseInProcessDispatch();
                                       inbox.EnableInboxProcessor();
                                   }
                               }
@@ -124,15 +124,15 @@ public sealed class ProcessorEnabledWithoutDispatcherAnalyzerTests
             0,
             "Outbox module configuration",
             "Outbox",
-            "UseEventOutboxDispatcher");
+            "UseInProcessDispatch");
     }
 
     /// <summary>
-    ///     Verifies outbox processor enablement with UseEventOutboxDispatcher in the same scope produces no diagnostic.
+    ///     Verifies outbox processor enablement with UseInProcessDispatch in the same scope produces no diagnostic.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
     [Fact]
-    public Task OutboxProcessorWithUseEventOutboxDispatcher_ProducesNoDiagnostic()
+    public Task OutboxProcessorWithUseInProcessDispatch_ProducesNoDiagnostic()
     {
         const string source = """
                               namespace LiteBus.Outbox.Abstractions;
@@ -140,14 +140,14 @@ public sealed class ProcessorEnabledWithoutDispatcherAnalyzerTests
                               public sealed class OutboxModuleBuilder
                               {
                                   public OutboxModuleBuilder EnableOutboxProcessor() => this;
-                                  public OutboxModuleBuilder UseEventOutboxDispatcher() => this;
+                                  public OutboxModuleBuilder UseInProcessDispatch() => this;
                               }
 
                               public static class OutboxConfiguration
                               {
                                   public static void Configure(OutboxModuleBuilder outbox)
                                   {
-                                      outbox.UseEventOutboxDispatcher();
+                                      outbox.UseInProcessDispatch();
                                       outbox.EnableOutboxProcessor();
                                   }
                               }

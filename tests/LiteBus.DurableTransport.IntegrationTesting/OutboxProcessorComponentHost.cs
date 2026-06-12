@@ -60,7 +60,7 @@ public sealed class OutboxProcessorComponentHost : IAsyncDisposable
             registry.AddOutboxModule(outbox =>
             {
                 outbox.UseInMemoryStorage();
-                outbox.UseEventOutboxDispatcher();
+                outbox.UseInProcessDispatch();
                 outbox.EnableOutboxProcessor(configureHost);
                 configureOutbox?.Invoke(outbox);
             });

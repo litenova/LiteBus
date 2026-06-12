@@ -216,23 +216,22 @@ public sealed class InMemoryInboxStore :
 
     /// <inheritdoc />
     public Task<bool> RenewLeaseAsync(
-        Guid messageId,
-        string leaseOwner,
-        DateTimeOffset expiresAt,
+        LeaseRenewalRequest request,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(leaseOwner);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
 
         lock (_sync)
         {
-            if (!_envelopes.TryGetValue(messageId, out var envelope) ||
+            if (!_envelopes.TryGetValue(request.MessageId, out var envelope) ||
                 envelope.Status != InboxStatus.Processing ||
-                !string.Equals(envelope.LeaseOwner, leaseOwner, StringComparison.Ordinal))
+                !string.Equals(envelope.LeaseOwner, request.LeaseOwner, StringComparison.Ordinal))
             {
                 return Task.FromResult(false);
             }
 
-            _envelopes[messageId] = envelope with { LeaseExpiresAt = expiresAt };
+            _envelopes[request.MessageId] = envelope with { LeaseExpiresAt = request.ExpiresAt };
             return Task.FromResult(true);
         }
     }

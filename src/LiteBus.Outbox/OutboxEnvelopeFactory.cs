@@ -71,7 +71,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        return CreateCoreAsync(item.Event, item.Event.GetType(), item.Metadata, cancellationToken);
+        return CreateCoreAsync(item.Message, item.Message.GetType(), item.Metadata, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -81,7 +81,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        return CreateCoreAsync(item.Event, item.EventType, item.Metadata, cancellationToken);
+        return CreateCoreAsync(item.Message, item.MessageType, item.Metadata, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -104,8 +104,8 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
             var item = items[index];
 
             envelopes[index] = await CreateCoreAsync(
-                item.Event,
-                item.Event.GetType(),
+                item.Message,
+                item.Message.GetType(),
                 item.Metadata,
                 cancellationToken).ConfigureAwait(false);
         }
@@ -132,8 +132,8 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
             var item = items[index];
 
             envelopes[index] = await CreateCoreAsync(
-                item.Event,
-                item.EventType,
+                item.Message,
+                item.MessageType,
                 item.Metadata,
                 cancellationToken).ConfigureAwait(false);
         }

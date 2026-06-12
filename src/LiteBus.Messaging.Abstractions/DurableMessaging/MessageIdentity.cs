@@ -7,8 +7,8 @@ namespace LiteBus.Messaging.Abstractions.DurableMessaging;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Use <see cref="Generated" /> when the store should allocate a new identifier.
-///         Use <see cref="Supplied" /> when an upstream request already owns a stable operation id.
+///         Use <see cref="MessageIdentity.Generated" /> when the store should allocate a new identifier.
+///         Use <see cref="MessageIdentity.Supplied" /> when an upstream request already owns a stable operation id.
 ///     </para>
 /// </remarks>
 public abstract record MessageIdentity
@@ -19,7 +19,7 @@ public abstract record MessageIdentity
     public sealed record Generated : MessageIdentity
     {
         /// <summary>
-        ///     Initializes a new instance of the <see cref="Generated" /> class.
+        ///     Initializes a new instance of the <see cref="MessageIdentity.Generated" /> class.
         /// </summary>
         private Generated()
         {

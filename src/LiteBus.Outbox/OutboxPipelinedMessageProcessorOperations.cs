@@ -75,7 +75,8 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
         _stateWriter = stateWriter ?? throw new ArgumentNullException(nameof(stateWriter));
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-        _hooks = hooks ?? Array.Empty<IProcessorEnvelopeHook>();
+        ArgumentNullException.ThrowIfNull(hooks);
+        _hooks = hooks;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dispatchScopeFactory = dispatchScopeFactory;
     }
@@ -91,7 +92,10 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
     /// <inheritdoc />
     public Activity? StartPassActivity()
     {
-        return OutboxProcessorTelemetry.ActivitySource.StartActivity("outbox.processor.pass");
+        return OutboxProcessorTelemetry.ActivitySource.StartActivity(
+            "outbox.processor.pass",
+            ActivityKind.Internal,
+            default(ActivityContext));
     }
 
     /// <inheritdoc />

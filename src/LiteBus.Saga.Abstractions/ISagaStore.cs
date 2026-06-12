@@ -21,23 +21,17 @@ public interface ISagaStore
         where TState : class, new();
 
     /// <summary>
-    ///     Saves saga state using optimistic concurrency on <paramref name="expectedVersion" />.
+    ///     Saves saga state using optimistic concurrency on the supplied expected version.
     /// </summary>
     /// <typeparam name="TState">The saga state type.</typeparam>
-    /// <param name="correlation">The correlation that identifies the saga instance.</param>
-    /// <param name="state">The state snapshot to persist.</param>
-    /// <param name="expectedVersion">
-    ///     The version observed on the last load. Use <c>0</c> when inserting a new saga row.
-    /// </param>
+    /// <param name="item">The correlation, state snapshot, and expected version for the save.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>A task that completes when the save succeeds.</returns>
     /// <exception cref="SagaConcurrencyException">
     ///     Thrown when another worker updated the saga row before this save completed.
     /// </exception>
     Task SaveAsync<TState>(
-        SagaCorrelation correlation,
-        TState state,
-        int expectedVersion,
+        SagaSaveItem<TState> item,
         CancellationToken cancellationToken = default)
         where TState : class, new();
 

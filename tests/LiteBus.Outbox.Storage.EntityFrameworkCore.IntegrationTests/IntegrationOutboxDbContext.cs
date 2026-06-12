@@ -16,7 +16,7 @@ internal sealed class IntegrationOutboxDbContext : DbContext, IOutboxDbContext
     /// <summary>
     ///     The store options that control schema mapping.
     /// </summary>
-    private readonly EfCoreOutboxStoreOptions _storeOptions;
+    private readonly EntityFrameworkCoreOutboxStoreOptions _storeOptions;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="IntegrationOutboxDbContext" /> class.
@@ -26,7 +26,7 @@ internal sealed class IntegrationOutboxDbContext : DbContext, IOutboxDbContext
     /// <param name="storageProvider">The storage provider used for model configuration.</param>
     public IntegrationOutboxDbContext(
         DbContextOptions<IntegrationOutboxDbContext> options,
-        EfCoreOutboxStoreOptions storeOptions,
+        EntityFrameworkCoreOutboxStoreOptions storeOptions,
         EfCoreStorageProvider storageProvider = EfCoreStorageProvider.PostgreSql)
         : base(options)
     {

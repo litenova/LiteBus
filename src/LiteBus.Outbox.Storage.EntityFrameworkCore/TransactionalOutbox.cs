@@ -62,7 +62,7 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
         var envelope = await _envelopeFactory.CreateAsync(item, cancellationToken).ConfigureAwait(false);
         _interceptor.Enqueue(_dbContext, envelope);
 
-        return CreateTypedReceipt<TEvent>(envelope, item.Event.GetType());
+        return CreateTypedReceipt<TEvent>(envelope, item.Message.GetType());
     }
 
     /// <inheritdoc />
@@ -75,7 +75,7 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
         var envelope = await _envelopeFactory.CreateAsync(item, cancellationToken).ConfigureAwait(false);
         _interceptor.Enqueue(_dbContext, envelope);
 
-        return CreateReceipt(envelope, item.EventType);
+        return CreateReceipt(envelope, item.MessageType);
     }
 
     /// <inheritdoc />
@@ -97,7 +97,7 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
         for (var index = 0; index < envelopes.Count; index++)
         {
             _interceptor.Enqueue(_dbContext, envelopes[index]);
-            receipts[index] = CreateTypedReceipt<TEvent>(envelopes[index], items[index].Event.GetType());
+            receipts[index] = CreateTypedReceipt<TEvent>(envelopes[index], items[index].Message.GetType());
         }
 
         return receipts;
@@ -121,7 +121,7 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
         for (var index = 0; index < envelopes.Count; index++)
         {
             _interceptor.Enqueue(_dbContext, envelopes[index]);
-            receipts[index] = CreateReceipt(envelopes[index], items[index].EventType);
+            receipts[index] = CreateReceipt(envelopes[index], items[index].MessageType);
         }
 
         return receipts;

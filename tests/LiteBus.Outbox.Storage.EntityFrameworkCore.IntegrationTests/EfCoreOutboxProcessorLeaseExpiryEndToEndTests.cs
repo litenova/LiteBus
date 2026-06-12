@@ -42,7 +42,7 @@ public sealed class EfCoreOutboxProcessorLeaseExpiryEndToEndTests : LiteBusTestB
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItems.WithIdentity(
+        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
             new OrderSubmittedIntegrationEvent { OrderId = orderId },
             messageId));
 
@@ -66,7 +66,7 @@ public sealed class EfCoreOutboxProcessorLeaseExpiryEndToEndTests : LiteBusTestB
 
     private sealed class LeaseExpiryOutboxDbContext : EfCoreOutboxE2eDbContext
     {
-        public LeaseExpiryOutboxDbContext(DbContextOptions<LeaseExpiryOutboxDbContext> options, EfCoreOutboxStoreOptions storeOptions)
+        public LeaseExpiryOutboxDbContext(DbContextOptions<LeaseExpiryOutboxDbContext> options, EntityFrameworkCoreOutboxStoreOptions storeOptions)
             : base(options, storeOptions)
         {
         }

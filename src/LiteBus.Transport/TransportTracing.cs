@@ -24,7 +24,8 @@ public static class TransportTracing
     {
         var activity = ActivitySource.StartActivity(
             LiteBusTransportTelemetry.PublishActivityName,
-            ActivityKind.Producer);
+            ActivityKind.Producer,
+            default(ActivityContext));
 
         if (activity is null)
         {
@@ -60,7 +61,8 @@ public static class TransportTracing
 
         var activity = ActivitySource.StartActivity(
             LiteBusTransportTelemetry.ConsumeActivityName,
-            ActivityKind.Consumer);
+            ActivityKind.Consumer,
+            default(ActivityContext));
 
         if (activity is null)
         {

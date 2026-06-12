@@ -40,16 +40,15 @@ public sealed class EventMediator : IEventMediator
         var mediationStrategy = new AsyncBroadcastMediationStrategy<IEvent>(eventMediationSettings);
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
-        return _messageMediator.Mediate(@event, new MediateOptions<IEvent, Task>
+        return _messageMediator.Mediate(@event, new MessageMediationRequest<IEvent, Task>
         {
             MessageMediationStrategy = mediationStrategy,
             MessageResolveStrategy = resolveStrategy,
-            CancellationToken = cancellationToken,
             Tags = eventMediationSettings.Routing.Tags,
             Items = eventMediationSettings.Items,
             RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound,
             HandlerPredicate = handlerDescriptor => eventMediationSettings.Routing.HandlerPredicate(handlerDescriptor)
-        });
+        }, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -62,15 +61,14 @@ public sealed class EventMediator : IEventMediator
         var mediationStrategy = new AsyncBroadcastMediationStrategy<TEvent>(eventMediationSettings);
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
-        return _messageMediator.Mediate(@event, new MediateOptions<TEvent, Task>
+        return _messageMediator.Mediate(@event, new MessageMediationRequest<TEvent, Task>
         {
             MessageMediationStrategy = mediationStrategy,
             MessageResolveStrategy = resolveStrategy,
-            CancellationToken = cancellationToken,
             Tags = eventMediationSettings.Routing.Tags,
             Items = eventMediationSettings.Items,
             RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound,
             HandlerPredicate = handlerDescriptor => eventMediationSettings.Routing.HandlerPredicate(handlerDescriptor)
-        });
+        }, cancellationToken);
     }
 }

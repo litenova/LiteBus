@@ -143,9 +143,9 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
     ///     Creates an isolated outbox table for one test run.
     /// </summary>
     /// <returns>The store options for the created table.</returns>
-    private async Task<EfCoreOutboxStoreOptions> CreateOutboxTableAsync()
+    private async Task<EntityFrameworkCoreOutboxStoreOptions> CreateOutboxTableAsync()
     {
-        var options = new EfCoreOutboxStoreOptions
+        var options = new EntityFrameworkCoreOutboxStoreOptions
         {
             SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
             TableName = $"outbox_ef_atomic_{Guid.NewGuid():N}"
@@ -172,7 +172,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
     /// <param name="interceptor">The optional save-changes interceptor.</param>
     /// <returns>The configured context.</returns>
     private InterceptorOutboxDbContext CreateContext(
-        EfCoreOutboxStoreOptions storeOptions,
+        EntityFrameworkCoreOutboxStoreOptions storeOptions,
         LiteBusOutboxSaveChangesInterceptor? interceptor = null)
     {
         var builder = new DbContextOptionsBuilder<InterceptorOutboxDbContext>()

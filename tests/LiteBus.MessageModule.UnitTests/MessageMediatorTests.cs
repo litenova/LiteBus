@@ -17,16 +17,15 @@ public sealed class MessageMediatorTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
         var mediator = new MessageMediator(registry, registry, serviceProvider);
 
-        var options = new MediateOptions<string, string>
+        var request = new MessageMediationRequest<string, string>
         {
             MessageResolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy(),
             MessageMediationStrategy = new NeverRunMediationStrategy<string, string>(),
-            CancellationToken = CancellationToken.None,
             Tags = [],
             RegisterPlainMessagesOnSpot = true
         };
 
-        var act = () => mediator.Mediate("system message", options);
+        var act = () => mediator.Mediate("system message", request);
 
         var exception = act.Should().Throw<MessageDescriptorNotFoundException>();
         exception.Which.MessageType.Should().Be(typeof(string));

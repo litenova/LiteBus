@@ -66,7 +66,7 @@ public sealed class EfCoreOutboxStore :
     /// <summary>
     ///     Store options that define schema and table names for raw SQL leasing.
     /// </summary>
-    private readonly EfCoreOutboxStoreOptions _options;
+    private readonly EntityFrameworkCoreOutboxStoreOptions _options;
 
     /// <summary>
     ///     Gets a value indicating whether add operations call
@@ -88,7 +88,7 @@ public sealed class EfCoreOutboxStore :
     public EfCoreOutboxStore(
         IServiceScopeFactory scopeFactory,
         Type dbContextType,
-        EfCoreOutboxStoreOptions options)
+        EntityFrameworkCoreOutboxStoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(dbContextType);
@@ -113,7 +113,7 @@ public sealed class EfCoreOutboxStore :
     /// <param name="options">The store options.</param>
     public EfCoreOutboxStore(
         Func<CancellationToken, Task<IOutboxDbContext>> contextFactory,
-        EfCoreOutboxStoreOptions options)
+        EntityFrameworkCoreOutboxStoreOptions options)
     {
         _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
         _options = options ?? throw new ArgumentNullException(nameof(options));
@@ -131,7 +131,7 @@ public sealed class EfCoreOutboxStore :
     /// </param>
     private EfCoreOutboxStore(
         IOutboxDbContext context,
-        EfCoreOutboxStoreOptions options,
+        EntityFrameworkCoreOutboxStoreOptions options,
         bool saveChangesOnAdd)
     {
         _existingContext = context ?? throw new ArgumentNullException(nameof(context));
@@ -260,12 +260,11 @@ public sealed class EfCoreOutboxStore :
 
     /// <inheritdoc />
     public Task<bool> RenewLeaseAsync(
-        Guid messageId,
-        string leaseOwner,
-        DateTimeOffset expiresAt,
+        LeaseRenewalRequest request,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(leaseOwner);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
 
         return ExecuteAsync(async (context, token) =>
         {
@@ -276,11 +275,11 @@ public sealed class EfCoreOutboxStore :
 
             var affected = await dbContext.Set<OutboxMessageEntity>()
                 .Where(message =>
-                    message.Id == messageId &&
+                    message.Id == request.MessageId &&
                     message.Status == OutboxStatus.Publishing &&
-                    message.LeaseOwner == leaseOwner)
+                    message.LeaseOwner == request.LeaseOwner)
                 .ExecuteUpdateAsync(
-                    setters => setters.SetProperty(message => message.LeaseExpiresAt, expiresAt),
+                    setters => setters.SetProperty(message => message.LeaseExpiresAt, request.ExpiresAt),
                     token)
                 .ConfigureAwait(false);
 

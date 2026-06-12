@@ -44,7 +44,7 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
 
             await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
             {
-                Event = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Message = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
                 Metadata = OutboxEnqueueMetadata.Immediate with
                 {
                     Identity = new MessageIdentity.Supplied(messageId)
@@ -95,7 +95,7 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
 
             await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
             {
-                Event = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Message = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
                 Metadata = OutboxEnqueueMetadata.Immediate with
                 {
                     Identity = new MessageIdentity.Supplied(messageId)
@@ -118,6 +118,7 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
     ///     Builds a LiteBus service provider configured for Kafka dispatch failure tests.
     /// </summary>
     /// <param name="transportOptions">The Kafka connection settings under test.</param>
+    /// <param name="clock">The optional clock used by the outbox store.</param>
     /// <returns>The configured service provider.</returns>
     private static ServiceProvider BuildProvider(
         KafkaTransportOptions transportOptions,

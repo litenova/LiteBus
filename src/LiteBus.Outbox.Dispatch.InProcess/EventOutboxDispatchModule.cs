@@ -10,7 +10,7 @@ namespace LiteBus.Outbox.Dispatch.InProcess;
 ///     Module that registers <see cref="EventOutboxDispatcher" /> as <see cref="IOutboxDispatcher" />.
 /// </summary>
 /// <remarks>
-///     Register this module through <see cref="OutboxModuleBuilderEventDispatchExtensions.UseEventOutboxDispatcher" />
+///     Register this module through <see cref="OutboxModuleBuilderEventDispatchExtensions.UseInProcessDispatch" />
 ///     inside
 ///     <c>AddOutboxModule</c> after <c>AddEventModule</c>. The outbox module supplies contract registration and the
 ///     event module supplies <c>IEventMediator</c> from <c>LiteBus.Events.Abstractions</c>.

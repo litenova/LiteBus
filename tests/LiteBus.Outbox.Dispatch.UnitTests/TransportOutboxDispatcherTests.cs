@@ -15,7 +15,7 @@ public sealed class TransportOutboxDispatcherTests
     [Fact]
     public async Task DispatchAsync_ShouldPublishEnvelopeThroughTransport()
     {
-        var transport = new FakeMessageTransport();
+        var transport = new TestMessageTransport();
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<TestOrderSubmittedEvent>("orders.events.order-submitted");
 

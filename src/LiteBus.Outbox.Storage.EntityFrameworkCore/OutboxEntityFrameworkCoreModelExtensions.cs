@@ -22,12 +22,12 @@ public static class OutboxEntityFrameworkCoreModelExtensions
     /// <returns>The same <paramref name="modelBuilder" /> for chaining.</returns>
     public static ModelBuilder GetModelBuilderConfiguration(
         this ModelBuilder modelBuilder,
-        EfCoreOutboxStoreOptions? options = null,
+        EntityFrameworkCoreOutboxStoreOptions? options = null,
         EfCoreStorageProvider? provider = null)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
-        options ??= new EfCoreOutboxStoreOptions();
+        options ??= new EntityFrameworkCoreOutboxStoreOptions();
         ConfigureOutboxMessageEntity(modelBuilder.Entity<OutboxMessageEntity>(), options, provider);
         return modelBuilder;
     }
@@ -42,7 +42,7 @@ public static class OutboxEntityFrameworkCoreModelExtensions
     /// </param>
     internal static void ConfigureOutboxMessageEntity(
         EntityTypeBuilder<OutboxMessageEntity> entity,
-        EfCoreOutboxStoreOptions options,
+        EntityFrameworkCoreOutboxStoreOptions options,
         EfCoreStorageProvider? provider = null)
     {
         ArgumentNullException.ThrowIfNull(entity);

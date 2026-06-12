@@ -40,7 +40,7 @@ public sealed class EfCoreInboxProcessorHandlerFailureEndToEndTests : LiteBusTes
         var scheduler = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new FaultyCommand()));
+        var receipt = await scheduler.AcceptAsync(new FaultyCommand());
         await processor.ProcessPendingAsync();
 
         var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, receipt.Id);
@@ -51,7 +51,7 @@ public sealed class EfCoreInboxProcessorHandlerFailureEndToEndTests : LiteBusTes
 
     private sealed class HandlerFailureInboxDbContext : EfCoreInboxE2eDbContext
     {
-        public HandlerFailureInboxDbContext(DbContextOptions<HandlerFailureInboxDbContext> options, EfCoreInboxStoreOptions storeOptions)
+        public HandlerFailureInboxDbContext(DbContextOptions<HandlerFailureInboxDbContext> options, EntityFrameworkCoreInboxStoreOptions storeOptions)
             : base(options, storeOptions)
         {
         }

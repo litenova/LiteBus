@@ -3,11 +3,11 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Dispatch.Aws;
+using LiteBus.Outbox.Dispatch.AwsSqs;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Testing;
 using LiteBus.Transport;
-using LiteBus.Transport.Aws;
+using LiteBus.Transport.AwsSqs;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.DurableTransport.IntegrationTests.Aws;
@@ -46,7 +46,7 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
 
             await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
             {
-                Event = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Message = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
                 Metadata = OutboxEnqueueMetadata.Immediate with
                 {
                     Identity = new MessageIdentity.Supplied(messageId)
@@ -98,7 +98,7 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
 
             await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
             {
-                Event = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Message = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
                 Metadata = OutboxEnqueueMetadata.Immediate with
                 {
                     Identity = new MessageIdentity.Supplied(messageId)
@@ -122,7 +122,6 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
     /// </summary>
     /// <param name="transportOptions">The SQS connection settings under test.</param>
     /// <param name="clock">The optional clock used by the outbox store.</param>
-    /// <param name="circuitBreaker">The optional circuit breaker registered for transport publishing.</param>
     /// <returns>The configured service provider.</returns>
     private static ServiceProvider BuildProvider(
         AwsSqsTransportOptions transportOptions,

@@ -94,7 +94,7 @@ public sealed class InboxTests : LiteBusTestBase
                     });
 
                     builder.UseInMemoryStorage();
-                    builder.UseCommandInboxDispatcher();
+                    builder.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -105,11 +105,10 @@ public sealed class InboxTests : LiteBusTestBase
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
         var orderId = Guid.NewGuid();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-        {
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        }));
+        });
 
         await processor.ProcessPendingAsync();
 
@@ -155,7 +154,7 @@ public sealed class InboxTests : LiteBusTestBase
                     });
 
                     builder.UseInMemoryStorage();
-                    builder.UseCommandInboxDispatcher();
+                    builder.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -165,10 +164,9 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ArchiveCommand<string>
-        {
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ArchiveCommand<string> {
             Value = "closed-generic"
-        }));
+        });
 
         await processor.ProcessPendingAsync();
 
@@ -245,7 +243,7 @@ public sealed class InboxTests : LiteBusTestBase
                     });
 
                     builder.UseInMemoryStorage();
-                    builder.UseCommandInboxDispatcher();
+                    builder.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -255,7 +253,7 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.FaultyCommand()));
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.FaultyCommand());
 
         await processor.ProcessPendingAsync();
 
@@ -298,7 +296,7 @@ public sealed class InboxTests : LiteBusTestBase
                     });
 
                     builder.UseInMemoryStorage();
-                    builder.UseCommandInboxDispatcher();
+                    builder.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -308,7 +306,7 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.FaultyCommand()));
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.FaultyCommand());
 
         // Attempt 1 of 2: AttemptCount reaches 1 which is < MaxAttempts (2), so envelope is retried.
         await processor.ProcessPendingAsync();
@@ -350,7 +348,7 @@ public sealed class InboxTests : LiteBusTestBase
                     });
 
                     builder.UseInMemoryStorage();
-                    builder.UseCommandInboxDispatcher();
+                    builder.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -358,7 +356,7 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
-        await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.InboxCheckCommand()));
+        await scheduler.AcceptAsync(new InboxTestFixtures.InboxCheckCommand());
         await processor.ProcessPendingAsync();
 
         capture.IsInboxExecution.Should().BeTrue();
@@ -395,7 +393,7 @@ public sealed class InboxTests : LiteBusTestBase
                     });
 
                     builder.UseInMemoryStorage();
-                    builder.UseCommandInboxDispatcher();
+                    builder.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -403,7 +401,7 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
-        await scheduler.AcceptAsync(InboxAcceptItems.From(
+        await scheduler.AcceptAsync(InboxAcceptItem<InboxTestFixtures.InboxCheckCommand>.From(
             new InboxTestFixtures.InboxCheckCommand(),
             new InboxAcceptMetadata
             {
@@ -451,7 +449,7 @@ public sealed class InboxTests : LiteBusTestBase
                     });
 
                     builder.UseInMemoryStorage();
-                    builder.UseCommandInboxDispatcher();
+                    builder.UseInProcessDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -461,7 +459,7 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.FaultyCommand()));
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.FaultyCommand());
         await processor.ProcessPendingAsync();
 
         var lastError = store.Get(receipt.Id).LastError;
@@ -500,7 +498,7 @@ public sealed class InboxTests : LiteBusTestBase
                     });
 
                     builder.UseInMemoryStorage();
-                    builder.UseCommandInboxDispatcher();
+                    builder.UseInProcessDispatch();
                 });
             })
             .AddSingleton<IInboxStateWriter>(sp =>
@@ -514,11 +512,10 @@ public sealed class InboxTests : LiteBusTestBase
 
         var orderId = Guid.NewGuid();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new InboxTestFixtures.ShipOrderCommand
-        {
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        }));
+        });
 
         var act = async () => await processor.ProcessPendingAsync();
 
@@ -556,7 +553,7 @@ public sealed class InboxTests : LiteBusTestBase
 
         var receipts = await inbox.AcceptBatchAsync(
         [
-            InboxAcceptItems.Untyped(new DerivedInboxCommand { Marker = "derived" })
+            InboxAcceptItem.From(new DerivedInboxCommand { Marker = "derived" })
         ]);
 
         receipts.Should().ContainSingle();

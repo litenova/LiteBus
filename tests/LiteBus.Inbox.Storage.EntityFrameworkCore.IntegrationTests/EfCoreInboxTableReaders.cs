@@ -8,7 +8,7 @@ internal static class EfCoreInboxTableReaders
 {
     internal static async Task<InboxEnvelope?> ReadInboxAsync(
         string connectionString,
-        EfCoreInboxStoreOptions options,
+        EntityFrameworkCoreInboxStoreOptions options,
         Guid messageId,
         CancellationToken cancellationToken = default)
     {

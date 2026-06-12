@@ -28,7 +28,7 @@ namespace LiteBus.Storage.PostgreSql.IntegrationTests;
 ///     dispatch.
 /// </summary>
 /// <remarks>
-///     Dispatch mode is explicit: <see cref="InboxModuleBuilderExtensions.UseCommandInboxDispatcher" /> runs handlers
+///     Dispatch mode is explicit: <see cref="InboxModuleBuilderCommandDispatchExtensions.UseInProcessDispatch" /> runs handlers
 ///     locally.
 ///     v6 does not allow combining that with <c>UseAmqpDispatch</c> on the inbox axis; transport dispatch is covered
 ///     separately
@@ -109,7 +109,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
             {
                 var outbox = provider.GetRequiredService<IOutbox>();
 
-                await outbox.EnqueueAsync(OutboxEnqueueItems.WithMetadata(
+                await outbox.EnqueueAsync(OutboxEnqueueItem<ShipOrderCommand>.From(
                     new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" },
                     OutboxEnqueueMetadata.Immediate with
                     {
@@ -322,7 +322,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
         {
             var outbox = provider.GetRequiredService<IOutbox>();
 
-            await outbox.EnqueueAsync(OutboxEnqueueItems.WithMetadata(
+            await outbox.EnqueueAsync(OutboxEnqueueItem<ShipOrderCommand>.From(
                 new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" },
                 OutboxEnqueueMetadata.Immediate with
                 {
@@ -440,7 +440,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                 });
 
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
-                inbox.UseCommandInboxDispatcher();
+                inbox.UseInProcessDispatch();
 
                 inbox.UseAmqpIngress(ingress =>
                 {
@@ -501,7 +501,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                     inbox.Contracts.Register<ShipOrderCommand>(ContractName);
                 }
 
-                inbox.UseCommandInboxDispatcher();
+                inbox.UseInProcessDispatch();
 
                 inbox.UseAmqpIngress(ingress =>
                 {

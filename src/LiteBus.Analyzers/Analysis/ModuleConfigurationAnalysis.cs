@@ -22,12 +22,6 @@ internal static class ModuleConfigurationAnalysis
         Compilation compilation)
     {
         var scope = GetConfigurationScope(enableProcessorInvocation);
-
-        if (scope is null)
-        {
-            return false;
-        }
-
         var isInbox = IsProcessorEnablement(enableProcessorInvocation, semanticModel, true);
 
         foreach (var invocation in scope.DescendantNodes().OfType<InvocationExpressionSyntax>())
@@ -69,11 +63,6 @@ internal static class ModuleConfigurationAnalysis
         SemanticModel semanticModel)
     {
         var scope = GetConfigurationScope(enforceTransactionalInvocation);
-
-        if (scope is null)
-        {
-            return false;
-        }
 
         foreach (var invocation in scope.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
@@ -182,7 +171,7 @@ internal static class ModuleConfigurationAnalysis
     private static bool IsInboxDispatcherRegistration(IMethodSymbol method, Compilation compilation)
     {
         if (method.Name is not (
-            "UseCommandInboxDispatcher"
+            "UseInProcessDispatch"
             or "UseAmqpDispatch"
             or "UseInMemoryDispatch"
             or "UseAzureServiceBusDispatch"
@@ -211,7 +200,7 @@ internal static class ModuleConfigurationAnalysis
     private static bool IsOutboxDispatcherRegistration(IMethodSymbol method, Compilation compilation)
     {
         if (method.Name is not (
-            "UseEventOutboxDispatcher"
+            "UseInProcessDispatch"
             or "UseAmqpDispatch"
             or "UseInMemoryDispatch"
             or "UseAzureServiceBusDispatch"

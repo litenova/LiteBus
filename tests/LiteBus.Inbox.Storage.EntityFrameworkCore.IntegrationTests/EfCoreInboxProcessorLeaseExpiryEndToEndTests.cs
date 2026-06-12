@@ -42,11 +42,10 @@ public sealed class EfCoreInboxProcessorLeaseExpiryEndToEndTests : LiteBusTestBa
 
         var orderId = Guid.NewGuid();
 
-        var receipt = await scheduler.AcceptAsync(InboxAcceptItems.From(new ShipOrderCommand
-        {
+        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand {
             OrderId = orderId,
             IdempotencyKey = "lease-expiry"
-        }));
+        });
 
         await leaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -67,7 +66,7 @@ public sealed class EfCoreInboxProcessorLeaseExpiryEndToEndTests : LiteBusTestBa
 
     private sealed class LeaseExpiryInboxDbContext : EfCoreInboxE2eDbContext
     {
-        public LeaseExpiryInboxDbContext(DbContextOptions<LeaseExpiryInboxDbContext> options, EfCoreInboxStoreOptions storeOptions)
+        public LeaseExpiryInboxDbContext(DbContextOptions<LeaseExpiryInboxDbContext> options, EntityFrameworkCoreInboxStoreOptions storeOptions)
             : base(options, storeOptions)
         {
         }

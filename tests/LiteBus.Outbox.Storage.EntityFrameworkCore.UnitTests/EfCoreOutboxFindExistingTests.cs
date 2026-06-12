@@ -54,7 +54,7 @@ public sealed class EfCoreOutboxFindExistingTests
 
         await context.SaveChangesAsync();
 
-        var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), new EfCoreOutboxStoreOptions());
+        var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), new EntityFrameworkCoreOutboxStoreOptions());
 
         var resolved = await store.EnqueueAsync(new OutboxEnvelope
         {

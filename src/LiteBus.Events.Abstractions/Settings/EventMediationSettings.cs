@@ -24,20 +24,20 @@ public sealed class EventMediationSettings
     public bool ThrowIfNoHandlerFound { get; init; } = false;
 
     /// <summary>
-    ///     Gets or initializes the event mediation routing configuration that determines which handlers should execute.
+    ///     Gets or initializes the event routing configuration that determines which handlers should execute.
     /// </summary>
     /// <value>
-    ///     An <see cref="EventMediationRoutingSettings" /> instance containing routing configuration.
+    ///     An <see cref="EventRoutingSettings" /> instance containing routing configuration.
     /// </value>
-    public EventMediationRoutingSettings Routing { get; init; } = new();
+    public EventRoutingSettings Routing { get; init; } = new();
 
     /// <summary>
-    ///     Gets or initializes the event mediation execution configuration that controls how handlers are executed.
+    ///     Gets or initializes the event execution configuration that controls how handlers are executed.
     /// </summary>
     /// <value>
-    ///     An <see cref="EventMediationExecutionSettings" /> instance containing execution configuration.
+    ///     An <see cref="EventExecutionSettings" /> instance containing execution configuration.
     /// </value>
-    public EventMediationExecutionSettings Execution { get; init; } = new();
+    public EventExecutionSettings Execution { get; init; } = new();
 
     /// <summary>
     ///     Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.

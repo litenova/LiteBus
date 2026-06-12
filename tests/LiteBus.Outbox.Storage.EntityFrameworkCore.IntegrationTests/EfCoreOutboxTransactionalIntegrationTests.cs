@@ -97,11 +97,11 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
     ///     Creates outbox and domain tables for one test run.
     /// </summary>
     /// <returns>The outbox store options and domain table name.</returns>
-    private async Task<(EfCoreOutboxStoreOptions StoreOptions, string OrdersTableName)> CreateTablesAsync()
+    private async Task<(EntityFrameworkCoreOutboxStoreOptions StoreOptions, string OrdersTableName)> CreateTablesAsync()
     {
         var suffix = Guid.NewGuid().ToString("N");
 
-        var storeOptions = new EfCoreOutboxStoreOptions
+        var storeOptions = new EntityFrameworkCoreOutboxStoreOptions
         {
             SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
             TableName = $"outbox_ef_tx_{suffix}"
@@ -139,7 +139,7 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
     /// <param name="ordersTableName">The domain orders table name.</param>
     /// <returns>The configured context.</returns>
     private TransactionalOutboxDbContext CreateTransactionalContext(
-        EfCoreOutboxStoreOptions storeOptions,
+        EntityFrameworkCoreOutboxStoreOptions storeOptions,
         string ordersTableName)
     {
         var builder = new DbContextOptionsBuilder<TransactionalOutboxDbContext>()
@@ -196,7 +196,7 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
         /// <summary>
         ///     The outbox store options used for schema mapping.
         /// </summary>
-        private readonly EfCoreOutboxStoreOptions _storeOptions;
+        private readonly EntityFrameworkCoreOutboxStoreOptions _storeOptions;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="TransactionalOutboxDbContext" /> class.
@@ -206,7 +206,7 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
         /// <param name="ordersTableName">The domain orders table name.</param>
         public TransactionalOutboxDbContext(
             DbContextOptions<TransactionalOutboxDbContext> options,
-            EfCoreOutboxStoreOptions storeOptions,
+            EntityFrameworkCoreOutboxStoreOptions storeOptions,
             string ordersTableName)
             : base(options)
         {

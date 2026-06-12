@@ -53,10 +53,10 @@ public sealed class KafkaTransportModule : IModule
                     Acks = Acks.All
                 };
 
-                if (options.MessageTimeoutMs is int messageTimeoutMs)
+                if (options.MessageTimeoutMs is not null)
                 {
-                    config.MessageTimeoutMs = messageTimeoutMs;
-                    config.SocketTimeoutMs = messageTimeoutMs;
+                    config.MessageTimeoutMs = options.MessageTimeoutMs.Value;
+                    config.SocketTimeoutMs = options.MessageTimeoutMs.Value;
                     config.MessageSendMaxRetries = 0;
                 }
 

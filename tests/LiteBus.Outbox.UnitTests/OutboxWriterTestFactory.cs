@@ -34,37 +34,37 @@ internal static class OutboxWriterTestFactory
     ///     Creates an enqueue item with default immediate metadata.
     /// </summary>
     /// <typeparam name="TEvent">The compile-time event type.</typeparam>
-    /// <param name="event">The event instance to enqueue.</param>
+    /// <param name="message">The event instance to enqueue.</param>
     /// <returns>An enqueue item for <see cref="IOutbox.EnqueueAsync{TEvent}" />.</returns>
-    internal static OutboxEnqueueItem<TEvent> Item<TEvent>(TEvent @event)
+    internal static OutboxEnqueueItem<TEvent> Item<TEvent>(TEvent message)
         where TEvent : notnull
     {
-        return OutboxEnqueueItems.From(@event);
+        return OutboxEnqueueItem<TEvent>.From(message);
     }
 
     /// <summary>
     ///     Creates an enqueue item with a caller-supplied message identifier.
     /// </summary>
     /// <typeparam name="TEvent">The compile-time event type.</typeparam>
-    /// <param name="event">The event instance to enqueue.</param>
+    /// <param name="message">The event instance to enqueue.</param>
     /// <param name="messageId">The outbox message identifier to persist.</param>
     /// <returns>An enqueue item for <see cref="IOutbox.EnqueueAsync{TEvent}" />.</returns>
-    internal static OutboxEnqueueItem<TEvent> ItemWithId<TEvent>(TEvent @event, Guid messageId)
+    internal static OutboxEnqueueItem<TEvent> ItemWithId<TEvent>(TEvent message, Guid messageId)
         where TEvent : notnull
     {
-        return OutboxEnqueueItems.WithIdentity(@event, messageId);
+        return OutboxEnqueueItem<TEvent>.WithIdentity(message, messageId);
     }
 
     /// <summary>
     ///     Creates an enqueue item with caller-supplied durable metadata.
     /// </summary>
     /// <typeparam name="TEvent">The compile-time event type.</typeparam>
-    /// <param name="event">The event instance to enqueue.</param>
+    /// <param name="message">The event instance to enqueue.</param>
     /// <param name="metadata">The durable metadata applied when the event is enqueued.</param>
     /// <returns>An enqueue item for <see cref="IOutbox.EnqueueAsync{TEvent}" />.</returns>
-    internal static OutboxEnqueueItem<TEvent> ItemWithMetadata<TEvent>(TEvent @event, OutboxEnqueueMetadata metadata)
+    internal static OutboxEnqueueItem<TEvent> ItemWithMetadata<TEvent>(TEvent message, OutboxEnqueueMetadata metadata)
         where TEvent : notnull
     {
-        return OutboxEnqueueItems.WithMetadata(@event, metadata);
+        return OutboxEnqueueItem<TEvent>.From(message, metadata);
     }
 }
