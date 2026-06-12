@@ -46,9 +46,9 @@ public sealed class QueryHandlerImpurityAnalyzerTests
 
                               public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
                               {
-                                  private readonly ICommandMediator _commandMediator;
+                                  private readonly ICommandMediator {|#0:_commandMediator|};
 
-                                  public GetUserQueryHandler(ICommandMediator {|#0:commandMediator|})
+                                  public GetUserQueryHandler(ICommandMediator commandMediator)
                                   {
                                       _commandMediator = commandMediator;
                                   }
@@ -132,6 +132,81 @@ public sealed class QueryHandlerImpurityAnalyzerTests
             0,
             "GetUserQueryHandler",
             "LiteBus.Inbox.Abstractions.IInboxStore");
+    }
+
+    /// <summary>
+    ///     Verifies that a query handler depending on <c>IMessageTransport</c> produces LB1003.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task StreamQueryHandlerWithCommandMediator_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Collections.Generic;
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed record StreamUsersQuery : IStreamQuery<string>;
+
+                              public sealed class StreamUsersQueryHandler : IStreamQueryHandler<StreamUsersQuery, string>
+                              {
+                                  private readonly ICommandMediator {|#0:_commandMediator|};
+
+                                  public StreamUsersQueryHandler(ICommandMediator commandMediator)
+                                  {
+                                      _commandMediator = commandMediator;
+                                  }
+
+                                  public IAsyncEnumerable<string> StreamAsync(StreamUsersQuery query, CancellationToken cancellationToken = default)
+                                      => Empty();
+
+                                  private static async IAsyncEnumerable<string> Empty()
+                                  {
+                                      yield break;
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<QueryHandlerImpurityAnalyzer>(
+            source,
+            DiagnosticDescriptors.QueryHandlerImpurity,
+            0,
+            "StreamUsersQueryHandler",
+            "LiteBus.Commands.Abstractions.ICommandMediator");
+    }
+
+    /// <summary>
+    ///     Verifies that impure dependencies on handler fields produce LB1003.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task QueryHandlerWithImpureField_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Events.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+
+                              public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
+                              {
+                                  private readonly IEventMediator {|#0:eventMediator|};
+
+                                  public Task<string> HandleAsync(GetUserQuery query, CancellationToken cancellationToken = default)
+                                      => Task.FromResult("user");
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<QueryHandlerImpurityAnalyzer>(
+            source,
+            DiagnosticDescriptors.QueryHandlerImpurity,
+            0,
+            "GetUserQueryHandler",
+            "LiteBus.Events.Abstractions.IEventMediator");
     }
 
     /// <summary>

@@ -29,7 +29,7 @@ public sealed class InboxEnvelopeFactoryTests
         var orderId = Guid.NewGuid();
         var message = new InboxTestFixtures.ShipOrderCommand { OrderId = orderId, IdempotencyKey = "idem-1" };
 
-        var metadata = new InboxAcceptMetadata
+        var metadata = InboxAcceptMetadata.Immediate with
         {
             Identity = new MessageIdentity.Supplied(commandId),
             Idempotency = new Idempotency.Keyed("idem-1"),

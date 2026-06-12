@@ -184,11 +184,40 @@ internal static class ModuleConfigurationAnalysis
 
         var inboxBuilder = compilation.GetTypeByMetadataName("LiteBus.Inbox.Abstractions.InboxModuleBuilder");
 
-        return inboxBuilder is not null &&
-               (SymbolEqualityComparer.Default.Equals(method.ContainingType, inboxBuilder) ||
-                method.IsExtensionMethod &&
-                method.Parameters.Length > 0 &&
-                SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, inboxBuilder));
+        if (inboxBuilder is not null && SymbolEqualityComparer.Default.Equals(method.ContainingType, inboxBuilder))
+        {
+            return true;
+        }
+
+        if (method.IsExtensionMethod && method.Parameters.Length > 0)
+        {
+            var firstParameterType = method.Parameters[0].Type;
+
+            if (inboxBuilder is not null &&
+                SymbolEqualityComparer.Default.Equals(firstParameterType, inboxBuilder))
+            {
+                return true;
+            }
+
+            return IsNamedModuleBuilder(firstParameterType, "InboxModuleBuilder", "LiteBus.Inbox.Abstractions");
+        }
+
+        var reducedFrom = method.ReducedFrom;
+
+        if (reducedFrom?.IsExtensionMethod == true && reducedFrom.Parameters.Length > 0)
+        {
+            var firstParameterType = reducedFrom.Parameters[0].Type;
+
+            if (inboxBuilder is not null &&
+                SymbolEqualityComparer.Default.Equals(firstParameterType, inboxBuilder))
+            {
+                return true;
+            }
+
+            return IsNamedModuleBuilder(firstParameterType, "InboxModuleBuilder", "LiteBus.Inbox.Abstractions");
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -213,10 +242,52 @@ internal static class ModuleConfigurationAnalysis
 
         var outboxBuilder = compilation.GetTypeByMetadataName("LiteBus.Outbox.Abstractions.OutboxModuleBuilder");
 
-        return outboxBuilder is not null &&
-               (SymbolEqualityComparer.Default.Equals(method.ContainingType, outboxBuilder) ||
-                method.IsExtensionMethod &&
-                method.Parameters.Length > 0 &&
-                SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, outboxBuilder));
+        if (outboxBuilder is not null && SymbolEqualityComparer.Default.Equals(method.ContainingType, outboxBuilder))
+        {
+            return true;
+        }
+
+        if (method.IsExtensionMethod && method.Parameters.Length > 0)
+        {
+            var firstParameterType = method.Parameters[0].Type;
+
+            if (outboxBuilder is not null &&
+                SymbolEqualityComparer.Default.Equals(firstParameterType, outboxBuilder))
+            {
+                return true;
+            }
+
+            return IsNamedModuleBuilder(firstParameterType, "OutboxModuleBuilder", "LiteBus.Outbox.Abstractions");
+        }
+
+        var reducedFrom = method.ReducedFrom;
+
+        if (reducedFrom?.IsExtensionMethod == true && reducedFrom.Parameters.Length > 0)
+        {
+            var firstParameterType = reducedFrom.Parameters[0].Type;
+
+            if (outboxBuilder is not null &&
+                SymbolEqualityComparer.Default.Equals(firstParameterType, outboxBuilder))
+            {
+                return true;
+            }
+
+            return IsNamedModuleBuilder(firstParameterType, "OutboxModuleBuilder", "LiteBus.Outbox.Abstractions");
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Matches module builder extension targets when metadata lookup is unavailable in the analyzed compilation.
+    /// </summary>
+    /// <param name="type">The extension method first parameter type.</param>
+    /// <param name="typeName">The expected builder type name.</param>
+    /// <param name="namespaceName">The expected builder namespace.</param>
+    /// <returns><see langword="true" /> when the type matches the expected builder.</returns>
+    private static bool IsNamedModuleBuilder(ITypeSymbol type, string typeName, string namespaceName)
+    {
+        return type.Name == typeName &&
+               type.ContainingNamespace?.ToDisplayString() == namespaceName;
     }
 }

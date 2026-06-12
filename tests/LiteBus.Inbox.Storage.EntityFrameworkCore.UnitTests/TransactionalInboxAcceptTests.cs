@@ -38,8 +38,7 @@ public sealed class TransactionalInboxAcceptTests
         var transactionalInbox = new TransactionalInbox<TransactionalInboxDbContext>(
             interceptor,
             context,
-            new InboxEnvelopeFactory(registry, serializer, TimeProvider.System),
-            TimeProvider.System);
+            new InboxEnvelopeFactory(registry, serializer, TimeProvider.System));
 
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
@@ -48,7 +47,7 @@ public sealed class TransactionalInboxAcceptTests
             new InboxAcceptItem<SubmitOrderCommand>
             {
                 Message = new SubmitOrderCommand { OrderId = orderId },
-                Metadata = new InboxAcceptMetadata
+                Metadata = InboxAcceptMetadata.Immediate with
                 {
                     Identity = new MessageIdentity.Supplied(messageId),
                     Idempotency = new Idempotency.Keyed("idem-1"),
@@ -108,8 +107,7 @@ public sealed class TransactionalInboxAcceptTests
         var transactionalInbox = new TransactionalInbox<TransactionalInboxDbContext>(
             interceptor,
             context,
-            new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector),
-            TimeProvider.System);
+            new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector));
 
         await transactionalInbox.AcceptAsync(new InboxAcceptItem<SubmitOrderCommand>
         {

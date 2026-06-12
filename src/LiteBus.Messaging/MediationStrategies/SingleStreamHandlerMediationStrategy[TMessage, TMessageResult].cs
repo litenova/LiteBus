@@ -73,10 +73,13 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         {
             using (AmbientExecutionContext.CreateScope(executionContext))
             {
-                await messageDependencies.RunAsyncPreHandlers(message);
+                await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken);
 
                 var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
-                messageResultAsyncEnumerable = (IAsyncEnumerable<TMessageResult>) handler.Handle(message);
+                messageResultAsyncEnumerable = HandlerInvocation.InvokeStreamHandler<TMessage, TMessageResult>(
+                    handler,
+                    message,
+                    executionContext.CancellationToken);
             }
         }
         catch (LiteBusExecutionAbortedException)
@@ -90,7 +93,8 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                 await messageDependencies.RunAsyncErrorHandlers(
                     message,
                     messageResultAsyncEnumerable,
-                    ExceptionDispatchInfo.Capture(exception));
+                    ExceptionDispatchInfo.Capture(exception),
+                    executionContext.CancellationToken);
             }
         }
 
@@ -126,7 +130,8 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                     await messageDependencies.RunAsyncErrorHandlers(
                         message,
                         messageResultAsyncEnumerable,
-                        ExceptionDispatchInfo.Capture(exception));
+                        ExceptionDispatchInfo.Capture(exception),
+                        executionContext.CancellationToken);
                 }
             }
 
@@ -147,7 +152,10 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         {
             using (AmbientExecutionContext.CreateScope(executionContext))
             {
-                await messageDependencies.RunAsyncPostHandlers(message, messageResultAsyncEnumerable);
+                await messageDependencies.RunAsyncPostHandlers(
+                    message,
+                    messageResultAsyncEnumerable,
+                    executionContext.CancellationToken);
 
                 if (executionContext.MessageResult is IAsyncEnumerable<TMessageResult> stream)
                 {
@@ -166,7 +174,8 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                 await messageDependencies.RunAsyncErrorHandlers(
                     message,
                     messageResultAsyncEnumerable,
-                    ExceptionDispatchInfo.Capture(exception));
+                    ExceptionDispatchInfo.Capture(exception),
+                    executionContext.CancellationToken);
             }
         }
 

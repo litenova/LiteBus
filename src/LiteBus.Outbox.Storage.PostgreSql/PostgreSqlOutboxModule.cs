@@ -152,8 +152,7 @@ public sealed class PostgreSqlOutboxModule : IOutboxStorageModule, IRequires<Out
 
                 return new StoreBoundTransactionalOutbox(
                     participant.ResolveStore(),
-                    serviceProvider.GetRequiredService<IOutboxEnvelopeFactory>(),
-                    serviceProvider.GetRequiredService<TimeProvider>());
+                    serviceProvider.GetRequiredService<IOutboxEnvelopeFactory>());
             },
             InstanceLifetime.Scoped));
     }

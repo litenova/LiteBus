@@ -93,7 +93,7 @@ internal static class OutboxProcessorEnvelopeHandler
             await dispatcher.DispatchAsync(envelope, cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
             OutboxProcessorTelemetry.RecordDispatchDuration(stopwatch.Elapsed);
-            return envelope.AsPublished();
+            return envelope.AsPublished() with { PublishedAt = clock.GetUtcNow() };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

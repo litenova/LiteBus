@@ -10,7 +10,9 @@
         <PackageReference Include="Testcontainers"/>
         <PackageReference Include="Testcontainers.Kafka"/>
         <PackageReference Include="Testcontainers.LocalStack"/>
+        <PackageReference Include="Testcontainers.RabbitMq"/>
         <PackageReference Include="Testcontainers.ServiceBus"/>
+        <PackageReference Include="RabbitMQ.Client"/>
         <PackageReference Include="Azure.Messaging.ServiceBus"/>
         <PackageReference Include="Xunit.SkippableFact"/>
         <PackageReference Include="xunit"/>
@@ -50,6 +52,7 @@
         <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Transport\LiteBus.Transport.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Transport.InMemory\LiteBus.Transport.InMemory.csproj"/>
     </ItemGroup>
 

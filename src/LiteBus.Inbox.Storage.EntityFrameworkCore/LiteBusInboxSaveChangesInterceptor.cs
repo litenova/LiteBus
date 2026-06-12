@@ -24,8 +24,10 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 ///         transaction.
 ///     </para>
 ///     <para>
-///         Duplicate <c>message_id</c> or <c>idempotency_key</c> conflicts are not resolved idempotently on this path.
-///         The provider raises on <c>SaveChanges</c>, which aborts the caller's unit of work.
+///         Under <see cref="Messaging.Abstractions.DurableMessaging.IdempotencyConflictMode.Strict" />, duplicate
+///         <c>message_id</c> or <c>idempotency_key</c> conflicts raise on <c>SaveChanges</c> and abort the caller unit
+///         of work. <see cref="TransactionalInbox{TContext}" /> resolves
+///         <see cref="Messaging.Abstractions.DurableMessaging.IdempotencyConflictMode.ReturnExisting" /> before staging.
 ///     </para>
 ///     <para>
 ///         Register the interceptor on the application <see cref="DbContext" /> through

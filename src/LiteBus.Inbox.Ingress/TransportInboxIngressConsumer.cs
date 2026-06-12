@@ -36,7 +36,7 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
     private readonly IMessageConsumer _consumer;
 
     /// <summary>
-    ///     Gets the handler that maps deliveries to <see cref="IInbox.AcceptAsync{TMessage}(InboxAcceptItem{TMessage}, System.Threading.CancellationToken)" />.
+    ///     Gets the handler that maps deliveries to inbox acceptance through <see cref="TransportInboxIngressHandler" />.
     /// </summary>
     private readonly TransportInboxIngressHandler _handler;
 
@@ -334,43 +334,11 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
     {
         _circuitBreaker?.ThrowIfOpen();
 
-        try
-        {
-            await _handler.AcceptBatchAsync(messages, cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception exception) when (IngressAckPolicy.ShouldRequeue(exception, _options.RequeueOnFailure))
-        {
-            foreach (var message in messages)
-            {
-                await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
-                ReleaseBatchAdmission();
-            }
-
-            return;
-        }
-        catch (Exception)
-        {
-            foreach (var message in messages)
-            {
-                await message.DiscardAsync(cancellationToken).ConfigureAwait(false);
-                ReleaseBatchAdmission();
-            }
-
-            return;
-        }
-
         foreach (var message in messages)
         {
             try
             {
-                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
-                _circuitBreaker?.RecordSuccess();
-            }
-            catch (Exception exception)
-            {
-                _circuitBreaker?.RecordFailure();
-                TransportInboxIngressTelemetry.RecordAckFailedAfterAccept();
-                TransportInboxIngressLogMessages.AckFailedAfterAccept(_logger, exception);
+                await AcceptAndAcknowledgeAsync(message, cancellationToken).ConfigureAwait(false);
             }
             finally
             {

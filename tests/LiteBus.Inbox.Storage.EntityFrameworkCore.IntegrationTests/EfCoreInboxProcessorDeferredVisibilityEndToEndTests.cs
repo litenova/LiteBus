@@ -46,7 +46,7 @@ public sealed class EfCoreInboxProcessorDeferredVisibilityEndToEndTests : LiteBu
         await scheduler.AcceptAsync(InboxAcceptItem<ShipOrderCommand>.From(new ShipOrderCommand {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        }, new InboxAcceptMetadata
+        }, InboxAcceptMetadata.Immediate with
         {
             Visibility = new MessageVisibility.At(visibleAfter)
         }));

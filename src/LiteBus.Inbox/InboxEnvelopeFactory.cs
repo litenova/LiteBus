@@ -68,7 +68,10 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
         InboxAcceptItem item,
         CancellationToken cancellationToken = default)
     {
-        return CreateCoreAsync(item.Message, item.Message.GetType(), item.Metadata, cancellationToken);
+        ArgumentNullException.ThrowIfNull(item);
+
+        var messageType = item.MessageType ?? item.Message.GetType();
+        return CreateCoreAsync(item.Message, messageType, item.Metadata, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -83,20 +86,20 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
             return Array.Empty<InboxEnvelope>();
         }
 
-        var envelopes = new InboxEnvelope[items.Count];
+        var tasks = new Task<InboxEnvelope>[items.Count];
 
         for (var index = 0; index < items.Count; index++)
         {
             var item = items[index];
 
-            envelopes[index] = await CreateCoreAsync(
+            tasks[index] = CreateCoreAsync(
                 item.Message,
-                item.Message.GetType(),
+                item.MessageType ?? item.Message.GetType(),
                 item.Metadata,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
         }
 
-        return envelopes;
+        return await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -142,6 +145,7 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
             AttemptCount = 0,
             Status = InboxStatus.Pending,
             IdempotencyKey = DurableEnvelopeMetadataMapper.ResolveIdempotencyKey(metadata.Idempotency),
+            IdempotencyConflictMode = DurableEnvelopeMetadataMapper.ResolveIdempotencyConflictMode(metadata.Idempotency),
             CorrelationId = correlationId,
             CausationId = causationId,
             TenantId = DurableEnvelopeMetadataMapper.ResolveTenantId(metadata.Tenant),

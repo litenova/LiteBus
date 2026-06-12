@@ -16,6 +16,11 @@ public sealed class LiteBusHealthCheck : IHealthCheck
     private readonly LiteBusHostManifest _manifest;
 
     /// <summary>
+    ///     The options controlling zero-probe policy.
+    /// </summary>
+    private readonly LiteBusHealthCheckOptions _options;
+
+    /// <summary>
     ///     The service provider used to resolve probe implementations.
     /// </summary>
     private readonly IServiceProvider _services;
@@ -25,10 +30,15 @@ public sealed class LiteBusHealthCheck : IHealthCheck
     /// </summary>
     /// <param name="manifest">The host manifest that lists diagnostic probe descriptors.</param>
     /// <param name="services">The service provider used to resolve probe implementations.</param>
-    public LiteBusHealthCheck(LiteBusHostManifest manifest, IServiceProvider services)
+    /// <param name="options">The options controlling zero-probe policy.</param>
+    public LiteBusHealthCheck(
+        LiteBusHostManifest manifest,
+        IServiceProvider services,
+        LiteBusHealthCheckOptions options)
     {
         _manifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
         _services = services ?? throw new ArgumentNullException(nameof(services));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
     }
 
     /// <inheritdoc />
@@ -38,7 +48,12 @@ public sealed class LiteBusHealthCheck : IHealthCheck
     {
         if (_manifest.DiagnosticChecks.Count == 0)
         {
-            return HealthCheckResult.Degraded("No LiteBus diagnostic probes are registered.");
+            if (_options.FailHealthWhenNoProbes)
+            {
+                return HealthCheckResult.Degraded("No LiteBus diagnostic probes are registered.");
+            }
+
+            return HealthCheckResult.Healthy("No LiteBus diagnostic probes are registered.");
         }
 
         var results = new List<DiagnosticResult>();
@@ -46,7 +61,7 @@ public sealed class LiteBusHealthCheck : IHealthCheck
         foreach (var descriptor in _manifest.DiagnosticChecks)
         {
             var check = (IDiagnosticCheck) _services.GetRequiredService(descriptor.ImplementationType);
-            results.Add(await check.CheckAsync(cancellationToken).ConfigureAwait(false));
+            results.Add(await DiagnosticCheckExecution.CheckAsync(descriptor, check, cancellationToken).ConfigureAwait(false));
         }
 
         if (results.All(result => result.Status == DiagnosticStatus.Healthy))

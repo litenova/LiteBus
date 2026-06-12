@@ -8,12 +8,23 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace LiteBus.Analyzers.Analysis;
 
 /// <summary>
-///     Semantic helpers for command and event mediation tag references.
+///     Semantic helpers for command, query, and event mediation tag references.
 /// </summary>
 internal static class TagReferenceAnalysis
 {
     /// <summary>
-    ///     Collects tag strings referenced by command and event mediation settings in the compilation.
+    ///     Mediator extension method names that accept a tag argument.
+    /// </summary>
+    private static readonly HashSet<string> TagExtensionMethodNames = new(StringComparer.Ordinal)
+    {
+        "SendAsync",
+        "QueryAsync",
+        "PublishAsync",
+        "StreamAsync"
+    };
+
+    /// <summary>
+    ///     Collects tag strings referenced by command, query, and event mediation settings in the compilation.
     /// </summary>
     /// <param name="compilation">The compilation being analyzed.</param>
     /// <returns>The referenced tag strings.</returns>
@@ -72,9 +83,94 @@ internal static class TagReferenceAnalysis
                     CollectStringLiterals(memberAssignment.Right, tags);
                 }
             }
+
+            foreach (var invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                CollectTagFromMediatorExtensionInvocation(invocation, model, tags);
+            }
         }
 
         return tags;
+    }
+
+    /// <summary>
+    ///     Collects a tag literal from mediator extension method invocations such as <c>SendAsync(command, "tag")</c>.
+    /// </summary>
+    /// <param name="invocation">The invocation expression syntax.</param>
+    /// <param name="semanticModel">The semantic model.</param>
+    /// <param name="tags">The tag collection to populate.</param>
+    private static void CollectTagFromMediatorExtensionInvocation(
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel,
+        HashSet<string> tags)
+    {
+        if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess ||
+            !TagExtensionMethodNames.Contains(memberAccess.Name.Identifier.Text))
+        {
+            return;
+        }
+
+        if (semanticModel.GetSymbolInfo(memberAccess.Name).Symbol is IMethodSymbol methodSymbol &&
+            methodSymbol.IsExtensionMethod &&
+            IsTagExtensionContainingType(methodSymbol.ContainingType))
+        {
+            var tagParameterIndex = GetTagParameterIndex(methodSymbol);
+
+            if (tagParameterIndex >= 0 && tagParameterIndex < invocation.ArgumentList.Arguments.Count)
+            {
+                var countBefore = tags.Count;
+                CollectStringLiterals(invocation.ArgumentList.Arguments[tagParameterIndex].Expression, tags);
+
+                if (tags.Count > countBefore)
+                {
+                    return;
+                }
+            }
+        }
+
+        foreach (var argument in invocation.ArgumentList.Arguments)
+        {
+            CollectStringLiterals(argument.Expression, tags);
+        }
+    }
+
+    /// <summary>
+    ///     Gets the parameter index that carries the tag value for a mediator extension overload.
+    /// </summary>
+    /// <param name="methodSymbol">The extension method symbol.</param>
+    /// <returns>The zero-based tag parameter index, or <c>-1</c> when the overload has no tag parameter.</returns>
+    private static int GetTagParameterIndex(IMethodSymbol methodSymbol)
+    {
+        for (var index = 0; index < methodSymbol.Parameters.Length; index++)
+        {
+            var parameter = methodSymbol.Parameters[index];
+
+            if (parameter.Type.SpecialType == SpecialType.System_String &&
+                parameter.Name.Equals("tag", StringComparison.Ordinal))
+            {
+                return index - 1;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    ///     Determines whether the extension method belongs to a mediator extension type.
+    /// </summary>
+    /// <param name="containingType">The extension class symbol.</param>
+    /// <returns><see langword="true" /> when the type declares mediator tag extension methods.</returns>
+    private static bool IsTagExtensionContainingType(INamedTypeSymbol containingType)
+    {
+        var displayName = containingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+        return displayName is
+            "global::LiteBus.Commands.Abstractions.CommandMediatorExtensions" or
+            "LiteBus.Commands.Abstractions.CommandMediatorExtensions" or
+            "global::LiteBus.Queries.Abstractions.QueryMediatorExtensions" or
+            "LiteBus.Queries.Abstractions.QueryMediatorExtensions" or
+            "global::LiteBus.Events.Abstractions.EventMediatorExtensions" or
+            "LiteBus.Events.Abstractions.EventMediatorExtensions";
     }
 
     /// <summary>
@@ -150,6 +246,12 @@ internal static class TagReferenceAnalysis
         return containingType is
             "global::LiteBus.Commands.Abstractions.CommandMediationSettings.CommandMediationFilters" or
             "LiteBus.Commands.Abstractions.CommandMediationSettings.CommandMediationFilters" or
+            "global::LiteBus.Commands.Abstractions.CommandRoutingSettings" or
+            "LiteBus.Commands.Abstractions.CommandRoutingSettings" or
+            "global::LiteBus.Queries.Abstractions.QueryMediationSettings.QueryMediationFilters" or
+            "LiteBus.Queries.Abstractions.QueryMediationSettings.QueryMediationFilters" or
+            "global::LiteBus.Queries.Abstractions.QueryRoutingSettings" or
+            "LiteBus.Queries.Abstractions.QueryRoutingSettings" or
             "global::LiteBus.Events.Abstractions.EventRoutingSettings" or
             "LiteBus.Events.Abstractions.EventRoutingSettings";
     }

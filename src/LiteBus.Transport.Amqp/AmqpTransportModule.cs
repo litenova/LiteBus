@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.Amqp;
@@ -29,10 +30,7 @@ public sealed class AmqpTransportModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageTransport)))
-        {
-            return;
-        }
+        TransportModuleRegistration.EnsureTransportNotRegistered(configuration, nameof(AmqpTransportModule));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(AmqpConnectionOptions),
@@ -68,7 +66,6 @@ public sealed class AmqpTransportModule : IModule
             typeof(IAmqpConsumer),
             typeof(AmqpConsumer)));
 
-        TransportMetricsRegistration.RegisterIfNeeded(configuration);
         AmqpTransportMetricsRegistration.RegisterIfNeeded(configuration);
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

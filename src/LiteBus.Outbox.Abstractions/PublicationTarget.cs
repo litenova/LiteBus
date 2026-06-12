@@ -35,4 +35,16 @@ public abstract record PublicationTarget
     /// </summary>
     /// <param name="Name">The topic or channel name dispatchers map to a transport target.</param>
     public sealed record Topic(string Name) : PublicationTarget;
+
+    /// <summary>
+    ///     Carries an explicit AMQP exchange name stored with the outbox envelope.
+    /// </summary>
+    /// <param name="Name">The exchange name dispatchers map to a transport target.</param>
+    public sealed record Exchange(string Name) : PublicationTarget;
+
+    /// <summary>
+    ///     Carries an explicit AMQP queue name stored with the outbox envelope.
+    /// </summary>
+    /// <param name="Name">The queue name dispatchers map to a transport target.</param>
+    public sealed record Queue(string Name) : PublicationTarget;
 }

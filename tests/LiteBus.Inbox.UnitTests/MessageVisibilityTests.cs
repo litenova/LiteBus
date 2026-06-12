@@ -36,7 +36,7 @@ public sealed class MessageVisibilityTests
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
             },
-            new InboxAcceptMetadata
+            InboxAcceptMetadata.Immediate with
             {
                 Visibility = new MessageVisibility.At(visibleAfter)
             }));
@@ -71,7 +71,7 @@ public sealed class MessageVisibilityTests
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
             },
-            new InboxAcceptMetadata
+            InboxAcceptMetadata.Immediate with
             {
                 Visibility = new MessageVisibility.After(delay)
             }));

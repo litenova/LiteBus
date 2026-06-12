@@ -39,4 +39,13 @@ public sealed class TransportInboxDispatcherOptions
     ///     When unset, the dispatcher uses <see cref="InboxEnvelope.ContractName" /> as the route.
     /// </value>
     public Func<InboxEnvelope, string>? ResolveRoute { get; set; }
+
+    /// <summary>
+    ///     Gets or sets a value indicating whether leased payloads are deserialized to validate contract wiring before publish.
+    /// </summary>
+    /// <value>
+    ///     <see langword="false" /> by default. When <see langword="true" />, dispatch validates payloads by deserializing
+    ///     them before publishing the stored bytes to the transport.
+    /// </value>
+    public bool ValidatePayloadBeforeDispatch { get; set; }
 }

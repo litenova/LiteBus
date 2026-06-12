@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
+using LiteBus.Testing;
 
 namespace LiteBus.QueryModule.UnitTests.UseCases.StreamErrorHandling;
 
@@ -63,5 +65,18 @@ public sealed class StreamErrorHandlingQueryErrorHandler : IQueryErrorHandler<St
         message.ExecutedTypes.Add(GetType());
         message.ObservedErrorHandlerMessageResult = messageResult;
         return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    object IMessageErrorHandler.HandleError(MessageErrorContext context)
+    {
+        var typed = context.AsTyped<StreamErrorHandlingQuery, object?>();
+        var task = HandleErrorAsync(
+            typed.Message,
+            typed.MessageResult,
+            typed.Exception,
+            AmbientExecutionContext.Current.CancellationToken);
+
+        return LegacyErrorHandlerSupport.MarkHandled(context, task);
     }
 }

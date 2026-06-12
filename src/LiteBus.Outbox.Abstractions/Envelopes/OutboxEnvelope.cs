@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 
 namespace LiteBus.Outbox.Abstractions;
 
@@ -93,6 +94,11 @@ public sealed record OutboxEnvelope
     public string? IdempotencyKey { get; init; }
 
     /// <summary>
+    ///     Gets how duplicate idempotency keys are handled for this enqueue attempt. The value is not persisted.
+    /// </summary>
+    public IdempotencyConflictMode IdempotencyConflictMode { get; init; } = IdempotencyConflictMode.ReturnExisting;
+
+    /// <summary>
     ///     Gets the optional distributed trace context stored as JSON text (for example W3C trace context or OpenTelemetry
     ///     baggage).
     /// </summary>
@@ -134,7 +140,8 @@ public sealed record OutboxEnvelope
         return this with
         {
             Status = OutboxStatus.Published,
-            LastError = null
+            LastError = null,
+            PublishedAt = DateTimeOffset.UtcNow
         };
     }
 

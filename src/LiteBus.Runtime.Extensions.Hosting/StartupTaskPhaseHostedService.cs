@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using LiteBus.Runtime.Abstractions;
 using Microsoft.Extensions.Hosting;
 
-namespace LiteBus.Runtime.Extensions.Autofac.Hosting;
+namespace LiteBus.Runtime.Extensions.Hosting;
 
 /// <summary>
 ///     Runs startup tasks sequentially before signaling long-running background services to start.
@@ -13,7 +13,7 @@ namespace LiteBus.Runtime.Extensions.Autofac.Hosting;
 internal sealed class StartupTaskPhaseHostedService : IHostedService
 {
     /// <summary>
-    ///     The gate released after startup tasks complete.
+    ///     The gate released after startup tasks complete or fail.
     /// </summary>
     private readonly StartupTaskGate _gate;
 
@@ -38,12 +38,17 @@ internal sealed class StartupTaskPhaseHostedService : IHostedService
     /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        foreach (var startupTask in _startupTasks)
+        try
         {
-            await startupTask.RunAsync(cancellationToken).ConfigureAwait(false);
+            foreach (var startupTask in _startupTasks)
+            {
+                await startupTask.RunAsync(cancellationToken).ConfigureAwait(false);
+            }
         }
-
-        _gate.SignalComplete();
+        finally
+        {
+            _gate.SignalComplete();
+        }
     }
 
     /// <inheritdoc />

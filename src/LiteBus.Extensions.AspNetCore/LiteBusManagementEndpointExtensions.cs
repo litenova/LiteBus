@@ -14,7 +14,7 @@ namespace LiteBus.Extensions.AspNetCore;
 /// <summary>
 ///     Maps LiteBus operator management and diagnostic endpoints on ASP.NET Core hosts.
 /// </summary>
-public static class LiteBusManagementEndpointExtensions
+public static partial class LiteBusManagementEndpointExtensions
 {
     /// <summary>
     ///     Maps inbox and outbox management endpoints backed by <see cref="IInboxManager" /> and
@@ -605,7 +605,7 @@ public static class LiteBusManagementEndpointExtensions
         foreach (var descriptor in manifest.DiagnosticChecks)
         {
             var check = (IDiagnosticCheck) services.GetRequiredService(descriptor.ImplementationType);
-            var result = await check.CheckAsync(cancellationToken).ConfigureAwait(false);
+            var result = await DiagnosticCheckExecution.CheckAsync(descriptor, check, cancellationToken).ConfigureAwait(false);
             results.Add(new DiagnosticProbeResponse
             {
                 Name = descriptor.Name,
@@ -664,76 +664,4 @@ public static class LiteBusManagementEndpointExtensions
         }
     }
 
-    /// <summary>
-    ///     JSON payload that confirms an unrestricted message purge.
-    /// </summary>
-    private sealed record PurgeConfirmRequest
-    {
-        /// <summary>
-        ///     Gets or sets a value indicating whether the caller confirms deleting all rows matched by the filter.
-        /// </summary>
-        /// <value>
-        ///     Must be <see langword="true" /> when the query string does not narrow the purge filter.
-        /// </value>
-        public bool Confirm { get; set; }
-    }
-
-    /// <summary>
-    ///     JSON payload for a selective requeue request.
-    /// </summary>
-    private sealed record RequeueMessagesRequest
-    {
-        /// <summary>
-        ///     Gets the message identifiers to requeue when the request body omits the array.
-        /// </summary>
-        public IReadOnlyList<Guid> MessageIds { get; } = Array.Empty<Guid>();
-    }
-
-    /// <summary>
-    ///     JSON payload for inbox processor state responses.
-    /// </summary>
-    private sealed record ProcessorStateResponse
-    {
-        /// <summary>
-        ///     Gets the reported inbox processor state.
-        /// </summary>
-        public ProcessorState State { get; init; }
-    }
-
-    /// <summary>
-    ///     JSON payload for outbox processor state responses.
-    /// </summary>
-    private sealed record OutboxProcessorStateResponse
-    {
-        /// <summary>
-        ///     Gets the reported outbox processor state.
-        /// </summary>
-        public Outbox.Abstractions.ProcessorState State { get; init; }
-    }
-
-    /// <summary>
-    ///     JSON payload for a single diagnostic probe outcome.
-    /// </summary>
-    private sealed record DiagnosticProbeResponse
-    {
-        /// <summary>
-        ///     Gets the probe name.
-        /// </summary>
-        public string Name { get; init; } = string.Empty;
-
-        /// <summary>
-        ///     Gets the reported status.
-        /// </summary>
-        public DiagnosticStatus Status { get; init; }
-
-        /// <summary>
-        ///     Gets the probe summary text.
-        /// </summary>
-        public string Description { get; init; } = string.Empty;
-
-        /// <summary>
-        ///     Gets optional structured values from the probe.
-        /// </summary>
-        public IReadOnlyDictionary<string, object>? Data { get; init; }
-    }
 }

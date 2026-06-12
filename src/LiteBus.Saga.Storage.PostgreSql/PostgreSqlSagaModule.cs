@@ -1,4 +1,3 @@
-using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
@@ -11,7 +10,7 @@ namespace LiteBus.Saga.Storage.PostgreSql;
 /// <summary>
 ///     Module for registering the PostgreSQL saga store.
 /// </summary>
-public sealed class PostgreSqlSagaModule : ISagaStoreModule, IRequires<InboxModule>
+public sealed class PostgreSqlSagaModule : ISagaStoreModule
 {
     /// <summary>
     ///     The module builder action supplied at registration time.

@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
@@ -147,7 +148,7 @@ public sealed class EfCoreOutboxStore :
     }
 
     /// <inheritdoc />
-    public Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    public Task<RequeueResult> RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
 
@@ -155,7 +156,7 @@ public sealed class EfCoreOutboxStore :
         {
             if (messageIds.Count == 0)
             {
-                return;
+                return new RequeueResult(0, 0);
             }
 
             var entities = await context.OutboxMessages
@@ -172,6 +173,8 @@ public sealed class EfCoreOutboxStore :
             {
                 await SaveChangesAsync(context, token).ConfigureAwait(false);
             }
+
+            return new RequeueResult(messageIds.Count, entities.Count);
         }, cancellationToken);
     }
 
@@ -400,6 +403,7 @@ public sealed class EfCoreOutboxStore :
 
             if (existing is not null)
             {
+                ThrowIfStrictConflict(envelope, existing);
                 return ToEnvelope(existing);
             }
 
@@ -426,6 +430,7 @@ public sealed class EfCoreOutboxStore :
                     throw;
                 }
 
+                ThrowIfStrictConflict(envelope, stored);
                 DetachFailedInsert(context, entity);
                 return ToEnvelope(stored);
             }
@@ -1563,5 +1568,21 @@ public sealed class EfCoreOutboxStore :
         /// </summary>
         [Column("trace_context")]
         public string? TraceContext { get; set; }
+    }
+
+    /// <summary>
+    ///     Throws when a duplicate idempotency key or message identifier is rejected under strict conflict mode.
+    /// </summary>
+    /// <param name="envelope">The envelope attempted for insert.</param>
+    /// <param name="existing">The conflicting entity already stored or tracked by the context.</param>
+    private static void ThrowIfStrictConflict(OutboxEnvelope envelope, OutboxMessageEntity existing)
+    {
+        if (envelope.IdempotencyConflictMode != IdempotencyConflictMode.Strict || envelope.Id == existing.Id)
+        {
+            return;
+        }
+
+        throw new IdempotencyConflictException(
+            $"An outbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
     }
 }

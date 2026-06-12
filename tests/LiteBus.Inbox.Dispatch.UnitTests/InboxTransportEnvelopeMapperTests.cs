@@ -28,7 +28,9 @@ public sealed class InboxTransportEnvelopeMapperTests
             CorrelationId = "corr-1",
             CausationId = "cause-1",
             TenantId = "tenant-west",
-            TraceContext = """{"traceparent":"00-abc-def-01"}"""
+            TraceContext = """{"traceparent":"00-abc-def-01"}""",
+            IdempotencyKey = "idem-1",
+            VisibleAfter = DateTimeOffset.Parse("2026-06-12T10:00:00Z")
         };
 
         var headers = InboxTransportEnvelopeMapper.BuildHeaders(envelope);
@@ -40,5 +42,7 @@ public sealed class InboxTransportEnvelopeMapperTests
         headers[TransportHeaders.CausationId].Should().Be("cause-1");
         headers[TransportHeaders.TenantId].Should().Be("tenant-west");
         headers[TransportHeaders.TraceContext].Should().Be("""{"traceparent":"00-abc-def-01"}""");
+        headers[TransportHeaders.IdempotencyKey].Should().Be("idem-1");
+        headers[TransportHeaders.VisibleAfter].Should().Be("2026-06-12T10:00:00.0000000+00:00");
     }
 }

@@ -2,6 +2,7 @@ using System.Reflection;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Transport.Abstractions;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -181,7 +182,54 @@ public sealed class TransportInboxIngressConsumerTests
         await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(5));
         await third.WaitAsync(TimeSpan.FromSeconds(5));
         thirdCompleted.Should().BeTrue();
-        inbox.BatchAcceptCount.Should().Be(1);
+        inbox.BatchAcceptCount.Should().Be(2);
+    }
+
+    /// <summary>
+    ///     Verifies batch flush accepts and acknowledges successful deliveries when one delivery fails.
+    /// </summary>
+    /// <returns>A task that completes when the partial batch assertion succeeds.</returns>
+    [Fact]
+    public async Task BatchAccept_WhenOneDeliveryFails_ShouldAcknowledgeSuccessfulDeliveriesOnly()
+    {
+        var ackCount = 0;
+        var nackRequeue = new List<bool>();
+
+        var consumer = CreateConsumer(
+            true,
+            options: new TransportInboxIngressOptions
+            {
+                PrefetchCount = 2,
+                EnableBatchAccept = true,
+                RequireStableIdentity = false
+            });
+
+        var failing = CreateValidMessage(
+            () =>
+            {
+                ackCount++;
+                return Task.CompletedTask;
+            },
+            (requeue, _) =>
+            {
+                nackRequeue.Add(requeue);
+                return Task.CompletedTask;
+            },
+            contractName: "missing.contract");
+
+        var succeeding = CreateValidMessage(
+            () =>
+            {
+                ackCount++;
+                return Task.CompletedTask;
+            },
+            (_, _) => Task.CompletedTask);
+
+        await InvokeHandleDeliveryAsync(consumer, failing);
+        await InvokeHandleDeliveryAsync(consumer, succeeding);
+
+        ackCount.Should().Be(1);
+        nackRequeue.Should().ContainSingle().Which.Should().BeFalse();
     }
 
     /// <summary>
@@ -277,12 +325,17 @@ public sealed class TransportInboxIngressConsumerTests
             new SystemTextJsonMessageSerializer(),
             TimeProvider.System);
 
+        options ??= new TransportInboxIngressOptions
+        {
+            RequeueOnFailure = requeueOnFailure,
+            RequireStableIdentity = false
+        };
+
         var handler = new TransportInboxIngressHandler(
             inbox,
             contractRegistry,
-            new SystemTextJsonMessageSerializer());
-
-        options ??= new TransportInboxIngressOptions { RequeueOnFailure = requeueOnFailure };
+            new SystemTextJsonMessageSerializer(),
+            options);
 
         return new TransportInboxIngressConsumer(
             new FakeMessageConsumer(),
@@ -301,16 +354,20 @@ public sealed class TransportInboxIngressConsumerTests
     /// <returns>A transport message for ingress consumer tests.</returns>
     private static TransportMessage CreateValidMessage(
         Func<Task> ack,
-        Func<bool, CancellationToken, Task> nack)
+        Func<bool, CancellationToken, Task> nack,
+        string contractName = "probe.command")
     {
+        var messageId = Guid.NewGuid().ToString("D");
+
         return new TransportMessage
         {
             Body = """{"value":1}"""u8.ToArray(),
+            MessageId = messageId,
             Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
-                [TransportHeaders.ContractName] = "probe.command",
+                [TransportHeaders.ContractName] = contractName,
                 [TransportHeaders.ContractVersion] = "1",
-                [TransportHeaders.MessageId] = Guid.NewGuid().ToString("D")
+                [TransportHeaders.MessageId] = messageId
             },
             AckAsync = _ => ack(),
             NackAsync = nack
@@ -333,7 +390,7 @@ public sealed class TransportInboxIngressConsumerTests
         private readonly TaskCompletionSource _acceptGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         /// <summary>
-        ///     Gets the number of batch accept calls observed.
+        ///     Gets the number of single accept calls observed.
         /// </summary>
         public int BatchAcceptCount { get; private set; }
 
@@ -344,6 +401,24 @@ public sealed class TransportInboxIngressConsumerTests
             where TMessage : notnull
         {
             throw new NotSupportedException();
+        }
+
+        /// <inheritdoc />
+        public async Task<InboxReceipt> AcceptAsync(
+            InboxAcceptItem item,
+            CancellationToken cancellationToken = default)
+        {
+            await _acceptGate.Task.WaitAsync(cancellationToken);
+            BatchAcceptCount++;
+            return new InboxReceipt
+            {
+                Id = Guid.NewGuid(),
+                MessageType = item.Message.GetType(),
+                Contract = new MessageContractReference { Name = "probe.command", Version = 1 },
+                AcceptedAt = DateTimeOffset.UtcNow,
+                Trace = MessageTrace.None.Instance,
+                Tenant = TenantScope.Unscoped.Instance
+            };
         }
 
         /// <inheritdoc />
@@ -371,7 +446,7 @@ public sealed class TransportInboxIngressConsumerTests
     private sealed class RecordingInbox : IInbox
     {
         /// <summary>
-        ///     Gets the number of batch accept calls observed.
+        ///     Gets the number of single accept calls observed.
         /// </summary>
         public int BatchAcceptCount { get; private set; }
 
@@ -382,6 +457,23 @@ public sealed class TransportInboxIngressConsumerTests
             where TMessage : notnull
         {
             throw new NotSupportedException();
+        }
+
+        /// <inheritdoc />
+        public Task<InboxReceipt> AcceptAsync(
+            InboxAcceptItem item,
+            CancellationToken cancellationToken = default)
+        {
+            BatchAcceptCount++;
+            return Task.FromResult(new InboxReceipt
+            {
+                Id = Guid.NewGuid(),
+                MessageType = item.Message.GetType(),
+                Contract = new MessageContractReference { Name = "probe.command", Version = 1 },
+                AcceptedAt = DateTimeOffset.UtcNow,
+                Trace = MessageTrace.None.Instance,
+                Tenant = TenantScope.Unscoped.Instance
+            });
         }
 
         /// <inheritdoc />
@@ -414,10 +506,18 @@ public sealed class TransportInboxIngressConsumerTests
         }
 
         /// <inheritdoc />
-        public async Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
+        public Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
             InboxAcceptItem<TMessage> item,
             CancellationToken cancellationToken = default)
             where TMessage : notnull
+        {
+            throw _exception;
+        }
+
+        /// <inheritdoc />
+        public Task<InboxReceipt> AcceptAsync(
+            InboxAcceptItem item,
+            CancellationToken cancellationToken = default)
         {
             throw _exception;
         }

@@ -50,7 +50,7 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
                 WorkItemId = workItemId,
                 IdempotencyKey = $"work:{workItemId}"
             },
-            new InboxAcceptMetadata
+            InboxAcceptMetadata.Immediate with
             {
                 Trace = new MessageTrace.Workflow("corr-dispatch", "cause-dispatch"),
                 Tenant = new TenantScope.Isolated("tenant-dispatch")

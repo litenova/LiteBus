@@ -80,7 +80,10 @@ public sealed class TransportInboxDispatcher : IInboxDispatcher
         var payload = await PayloadProtection.UnprotectAsync(envelope.Payload, _payloadProtector, cancellationToken)
             .ConfigureAwait(false);
 
-        _ = await _messageSerializer.DeserializeAsync(messageType, payload, cancellationToken).ConfigureAwait(false);
+        if (_options.ValidatePayloadBeforeDispatch)
+        {
+            _ = await _messageSerializer.DeserializeAsync(messageType, payload, cancellationToken).ConfigureAwait(false);
+        }
 
         var route = ResolveRoute(envelope);
         var body = Encoding.UTF8.GetBytes(payload);

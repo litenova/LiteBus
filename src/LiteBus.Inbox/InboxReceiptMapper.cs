@@ -1,0 +1,100 @@
+using System;
+using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
+
+namespace LiteBus.Inbox;
+
+/// <summary>
+///     Maps stored inbox envelopes to acceptance receipts shared by writer implementations.
+/// </summary>
+internal static class InboxReceiptMapper
+{
+    /// <summary>
+    ///     Maps a stored envelope to a typed acceptance receipt.
+    /// </summary>
+    /// <typeparam name="TMessage">The compile-time message type associated with the acceptance command.</typeparam>
+    /// <param name="storedEnvelope">The envelope returned by the store or staging path.</param>
+    /// <param name="messageType">The runtime message type used for contract lookup.</param>
+    /// <param name="outcome">Whether the store accepted a new row or returned an existing one.</param>
+    /// <returns>The typed acceptance receipt returned to callers.</returns>
+    internal static InboxReceipt<TMessage> CreateTypedReceipt<TMessage>(
+        InboxEnvelope storedEnvelope,
+        Type messageType,
+        InboxAcceptOutcome outcome)
+        where TMessage : notnull
+    {
+        return new InboxReceipt<TMessage>
+        {
+            Id = storedEnvelope.Id,
+            MessageType = messageType,
+            Contract = new MessageContractReference
+            {
+                Name = storedEnvelope.ContractName,
+                Version = storedEnvelope.ContractVersion
+            },
+            AcceptedAt = storedEnvelope.CreatedAt,
+            Trace = DurableEnvelopeMetadataMapper.ResolveTrace(
+                storedEnvelope.CorrelationId,
+                storedEnvelope.CausationId,
+                storedEnvelope.TraceContext),
+            Tenant = DurableEnvelopeMetadataMapper.ResolveTenant(storedEnvelope.TenantId),
+            Outcome = outcome
+        };
+    }
+
+    /// <summary>
+    ///     Maps a stored envelope to an untyped acceptance receipt for batch APIs.
+    /// </summary>
+    /// <param name="storedEnvelope">The envelope returned by the store or staging path.</param>
+    /// <param name="messageType">The runtime message type used for contract lookup.</param>
+    /// <param name="outcome">Whether the store accepted a new row or returned an existing one.</param>
+    /// <returns>The acceptance receipt returned to batch callers.</returns>
+    internal static InboxReceipt CreateUntypedReceipt(
+        InboxEnvelope storedEnvelope,
+        Type messageType,
+        InboxAcceptOutcome outcome)
+    {
+        return new InboxReceipt
+        {
+            Id = storedEnvelope.Id,
+            MessageType = messageType,
+            Contract = new MessageContractReference
+            {
+                Name = storedEnvelope.ContractName,
+                Version = storedEnvelope.ContractVersion
+            },
+            AcceptedAt = storedEnvelope.CreatedAt,
+            Trace = DurableEnvelopeMetadataMapper.ResolveTrace(
+                storedEnvelope.CorrelationId,
+                storedEnvelope.CausationId,
+                storedEnvelope.TraceContext),
+            Tenant = DurableEnvelopeMetadataMapper.ResolveTenant(storedEnvelope.TenantId),
+            Outcome = outcome
+        };
+    }
+
+    /// <summary>
+    ///     Resolves the acceptance outcome for one stored envelope relative to the attempted envelope.
+    /// </summary>
+    /// <param name="attempted">The envelope produced for the current accept attempt.</param>
+    /// <param name="stored">The envelope returned by the store or staging path.</param>
+    /// <returns>The acceptance outcome represented by the stored envelope.</returns>
+    internal static InboxAcceptOutcome ResolveOutcome(InboxEnvelope attempted, InboxEnvelope stored)
+    {
+        if (stored.Id == attempted.Id)
+        {
+            return InboxAcceptOutcome.Accepted;
+        }
+
+        if (!string.IsNullOrWhiteSpace(attempted.IdempotencyKey) &&
+            string.Equals(attempted.IdempotencyKey, stored.IdempotencyKey, StringComparison.Ordinal))
+        {
+            return InboxAcceptOutcome.AlreadyAccepted;
+        }
+
+        return stored.Id != attempted.Id
+            ? InboxAcceptOutcome.AlreadyAccepted
+            : InboxAcceptOutcome.Accepted;
+    }
+}

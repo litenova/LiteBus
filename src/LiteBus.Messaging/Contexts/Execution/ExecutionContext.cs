@@ -18,7 +18,7 @@ internal sealed class ExecutionContext : IExecutionContext
     {
         CancellationToken = cancellationToken;
         Tags = tags.ToList();
-        Items = items;
+        Items = new Dictionary<string, object>(items);
     }
 
     /// <inheritdoc />

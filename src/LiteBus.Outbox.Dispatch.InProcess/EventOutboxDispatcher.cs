@@ -55,9 +55,9 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     private readonly IMessageSerializer _messageSerializer;
 
     /// <summary>
-    ///     Gets the optional encryptor used to decrypt stored payloads before deserialization.
+    ///     Gets the optional outbox protector used to decrypt stored payloads before deserialization.
     /// </summary>
-    private readonly IPayloadEncryptor? _payloadEncryptor;
+    private readonly IOutboxPayloadProtector? _payloadProtector;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="EventOutboxDispatcher" /> class.
@@ -65,17 +65,17 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     /// <param name="eventPublisher">The LiteBus event publisher used as the dispatch target.</param>
     /// <param name="contractRegistry">The registry used to resolve persisted contracts back to event types.</param>
     /// <param name="messageSerializer">The serializer used to hydrate the persisted payload.</param>
-    /// <param name="payloadEncryptor">The optional encryptor used to decrypt stored payloads before deserialization.</param>
+    /// <param name="payloadProtector">The optional outbox protector used to decrypt stored payloads before deserialization.</param>
     public EventOutboxDispatcher(
         IEventMediator eventPublisher,
         IContractReader contractRegistry,
         IMessageSerializer messageSerializer,
-        IPayloadEncryptor? payloadEncryptor = null)
+        IOutboxPayloadProtector? payloadProtector = null)
     {
         _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
         _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
         _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
-        _payloadEncryptor = payloadEncryptor;
+        _payloadProtector = payloadProtector;
     }
 
     /// <inheritdoc />
@@ -87,7 +87,7 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         {
             var messageType = _contractRegistry.GetMessageType(message.ContractName, message.ContractVersion);
 
-            var payload = await PayloadProtection.UnprotectAsync(message.Payload, _payloadEncryptor, cancellationToken)
+            var payload = await PayloadProtection.UnprotectAsync(message.Payload, _payloadProtector, cancellationToken)
                 .ConfigureAwait(false);
 
             var messageInstance = await _messageSerializer.DeserializeAsync(messageType, payload, cancellationToken).ConfigureAwait(false);

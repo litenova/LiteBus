@@ -22,7 +22,7 @@ public sealed class TestOutboxStore :
     private readonly InMemoryOutboxStore _inner = new();
 
     /// <inheritdoc />
-    public Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    public Task<RequeueResult> RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
     {
         return _inner.RequeueAsync(messageIds, cancellationToken);
     }

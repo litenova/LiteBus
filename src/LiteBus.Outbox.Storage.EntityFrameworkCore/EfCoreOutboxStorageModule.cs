@@ -152,8 +152,7 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule
             transactionalOutboxType,
             serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>(),
             dbContext,
-            serviceProvider.GetRequiredService<IOutboxEnvelopeFactory>(),
-            serviceProvider.GetRequiredService<TimeProvider>())!;
+            serviceProvider.GetRequiredService<IOutboxEnvelopeFactory>())!;
     }
 
     /// <summary>

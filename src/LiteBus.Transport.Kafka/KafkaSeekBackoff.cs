@@ -54,6 +54,18 @@ internal sealed class KafkaSeekBackoff
     }
 
     /// <summary>
+    ///     Returns whether the supplied offset is being consumed again after a seek retry in the current session.
+    /// </summary>
+    /// <param name="offset">The offset being consumed.</param>
+    /// <returns><see langword="true" /> when the offset was previously seeked and not yet committed.</returns>
+    public bool IsRedelivery(TopicPartitionOffset offset)
+    {
+        ArgumentNullException.ThrowIfNull(offset);
+
+        return _lastFailedOffset == offset && _consecutiveFailures > 0;
+    }
+
+    /// <summary>
     ///     Clears failure tracking after the offset is committed successfully.
     /// </summary>
     /// <param name="offset">The offset that was committed.</param>

@@ -24,7 +24,6 @@ internal static class InboxWriterTestFactory
     {
         return new Inbox(
             store,
-            new InboxEnvelopeFactory(contractRegistry, serializer, clock),
-            clock);
+            new InboxEnvelopeFactory(contractRegistry, serializer, clock));
     }
 }

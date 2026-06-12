@@ -55,6 +55,19 @@ public sealed class FlakyInbox : IInbox
     }
 
     /// <inheritdoc />
+    public Task<InboxReceipt> AcceptAsync(
+        InboxAcceptItem item,
+        CancellationToken cancellationToken = default)
+    {
+        if (ShouldFail())
+        {
+            return Task.FromException<InboxReceipt>(_failure);
+        }
+
+        return _inner.AcceptAsync(item, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
         IReadOnlyList<InboxAcceptItem> items,
         CancellationToken cancellationToken = default)

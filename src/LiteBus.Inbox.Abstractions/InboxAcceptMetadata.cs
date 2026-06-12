@@ -21,30 +21,37 @@ public sealed record InboxAcceptMetadata
     /// <summary>
     ///     Gets metadata for immediate visibility with generated identity and no idempotency key.
     /// </summary>
-    public static InboxAcceptMetadata Immediate { get; } = new();
+    public static InboxAcceptMetadata Immediate { get; } = new()
+    {
+        Identity = MessageIdentity.Generated.Instance,
+        Idempotency = Idempotency.None.Instance,
+        Visibility = MessageVisibility.Immediate.Instance,
+        Trace = MessageTrace.None.Instance,
+        Tenant = TenantScope.Unscoped.Instance
+    };
 
     /// <summary>
     ///     Gets how the message identifier is assigned when the envelope is stored.
     /// </summary>
-    public MessageIdentity Identity { get; init; } = MessageIdentity.Generated.Instance;
+    public required MessageIdentity Identity { get; init; }
 
     /// <summary>
     ///     Gets idempotency metadata used to detect duplicate submissions.
     /// </summary>
-    public Idempotency Idempotency { get; init; } = Idempotency.None.Instance;
+    public required Idempotency Idempotency { get; init; }
 
     /// <summary>
     ///     Gets when the message becomes eligible for processor leasing.
     /// </summary>
-    public MessageVisibility Visibility { get; init; } = MessageVisibility.Immediate.Instance;
+    public required MessageVisibility Visibility { get; init; }
 
     /// <summary>
     ///     Gets distributed tracing metadata persisted with the envelope.
     /// </summary>
-    public MessageTrace Trace { get; init; } = MessageTrace.None.Instance;
+    public required MessageTrace Trace { get; init; }
 
     /// <summary>
     ///     Gets tenant isolation metadata persisted with the envelope.
     /// </summary>
-    public TenantScope Tenant { get; init; } = TenantScope.Unscoped.Instance;
+    public required TenantScope Tenant { get; init; }
 }

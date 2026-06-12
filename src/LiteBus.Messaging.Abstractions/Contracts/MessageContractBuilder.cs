@@ -35,6 +35,13 @@ public sealed class MessageContractBuilder : IContractWriter
         ArgumentNullException.ThrowIfNull(messageType);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
+        if (messageType.ContainsGenericParameters)
+        {
+            throw new ArgumentException(
+                "message contracts must use a closed message type. Register each closed generic message shape with its own stable contract name and version.",
+                nameof(messageType));
+        }
+
         if (version <= 0)
         {
             throw new ArgumentOutOfRangeException(

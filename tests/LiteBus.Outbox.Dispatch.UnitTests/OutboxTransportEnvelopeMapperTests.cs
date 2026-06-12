@@ -28,7 +28,9 @@ public sealed class OutboxTransportEnvelopeMapperTests
             CorrelationId = "corr-outbox",
             CausationId = "cause-outbox",
             TenantId = "tenant-east",
-            TraceContext = """{"traceparent":"00-outbox-trace-01"}"""
+            TraceContext = """{"traceparent":"00-outbox-trace-01"}""",
+            IdempotencyKey = "outbox-idem",
+            VisibleAfter = DateTimeOffset.Parse("2026-06-12T11:00:00Z")
         };
 
         var headers = OutboxTransportEnvelopeMapper.BuildHeaders(envelope);
@@ -40,5 +42,7 @@ public sealed class OutboxTransportEnvelopeMapperTests
         headers[TransportHeaders.CausationId].Should().Be("cause-outbox");
         headers[TransportHeaders.TenantId].Should().Be("tenant-east");
         headers[TransportHeaders.TraceContext].Should().Be("""{"traceparent":"00-outbox-trace-01"}""");
+        headers[TransportHeaders.IdempotencyKey].Should().Be("outbox-idem");
+        headers[TransportHeaders.VisibleAfter].Should().Be("2026-06-12T11:00:00.0000000+00:00");
     }
 }

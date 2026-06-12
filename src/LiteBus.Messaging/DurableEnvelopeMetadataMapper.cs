@@ -56,6 +56,21 @@ internal static class DurableEnvelopeMetadataMapper
     }
 
     /// <summary>
+    ///     Resolves how duplicate idempotency keys should be handled for one accept or enqueue attempt.
+    /// </summary>
+    /// <param name="idempotency">The idempotency metadata supplied by the caller.</param>
+    /// <returns>The conflict mode applied by writers and stores for the attempt.</returns>
+    internal static IdempotencyConflictMode ResolveIdempotencyConflictMode(Idempotency idempotency)
+    {
+        return idempotency switch
+        {
+            Idempotency.Keyed keyed => keyed.ConflictMode,
+            _                       => IdempotencyConflictMode.ReturnExisting
+        };
+    }
+
+
+    /// <summary>
     ///     Resolves correlation, causation, and trace context column values from trace metadata.
     /// </summary>
     /// <param name="trace">The trace metadata supplied by the caller.</param>

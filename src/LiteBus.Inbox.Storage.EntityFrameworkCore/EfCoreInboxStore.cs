@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Storage.EntityFrameworkCore;
@@ -147,7 +148,7 @@ public sealed class EfCoreInboxStore :
     }
 
     /// <inheritdoc />
-    public Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    public Task<RequeueResult> RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
 
@@ -155,7 +156,7 @@ public sealed class EfCoreInboxStore :
         {
             if (messageIds.Count == 0)
             {
-                return;
+                return new RequeueResult(0, 0);
             }
 
             var entities = await context.InboxMessages
@@ -172,6 +173,8 @@ public sealed class EfCoreInboxStore :
             {
                 await SaveChangesAsync(context, token).ConfigureAwait(false);
             }
+
+            return new RequeueResult(messageIds.Count, entities.Count);
         }, cancellationToken);
     }
 
@@ -403,6 +406,7 @@ public sealed class EfCoreInboxStore :
 
             if (existing is not null)
             {
+                ThrowIfStrictConflict(envelope, existing);
                 return ToEnvelope(existing);
             }
 
@@ -430,6 +434,7 @@ public sealed class EfCoreInboxStore :
                     throw;
                 }
 
+                ThrowIfStrictConflict(envelope, stored);
                 DetachFailedInsert(context, entity);
                 return ToEnvelope(stored);
             }
@@ -1560,5 +1565,21 @@ public sealed class EfCoreInboxStore :
         /// </summary>
         [Column("trace_context")]
         public string? TraceContext { get; set; }
+    }
+
+    /// <summary>
+    ///     Throws when a duplicate idempotency key or message identifier is rejected under strict conflict mode.
+    /// </summary>
+    /// <param name="envelope">The envelope attempted for insert.</param>
+    /// <param name="existing">The conflicting entity already stored or tracked by the context.</param>
+    private static void ThrowIfStrictConflict(InboxEnvelope envelope, InboxMessageEntity existing)
+    {
+        if (envelope.IdempotencyConflictMode != IdempotencyConflictMode.Strict || envelope.Id == existing.Id)
+        {
+            return;
+        }
+
+        throw new IdempotencyConflictException(
+            $"An inbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
     }
 }

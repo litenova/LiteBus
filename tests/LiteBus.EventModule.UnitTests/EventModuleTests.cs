@@ -428,7 +428,11 @@ public sealed class EventModuleTests : LiteBusTestBase
 
         var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
         var @event = new EventWithNoHandlers();
-        var settings = new EventMediationSettings { ThrowIfNoHandlerFound = false };
+        var settings = new EventMediationSettings
+        {
+            ThrowIfNoHandlerFound = false,
+            AutoRegisterUnregisteredMessageTypes = true
+        };
 
         await eventMediator.PublishAsync(@event, settings);
 

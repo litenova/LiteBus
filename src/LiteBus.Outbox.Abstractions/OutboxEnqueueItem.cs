@@ -156,6 +156,22 @@ public sealed record OutboxEnqueueItem
     public OutboxEnqueueMetadata Metadata { get; init; } = OutboxEnqueueMetadata.Immediate;
 
     /// <summary>
+    ///     Creates an enqueue item for one event using the runtime message type and default metadata.
+    /// </summary>
+    /// <param name="message">The message instance to serialize and store.</param>
+    /// <returns>An enqueue item that uses <see cref="OutboxEnqueueMetadata.Immediate" />.</returns>
+    public static OutboxEnqueueItem From(object message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        return new OutboxEnqueueItem
+        {
+            Message = message,
+            MessageType = message.GetType()
+        };
+    }
+
+    /// <summary>
     ///     Creates an enqueue item for one event with an explicit runtime type and default metadata.
     /// </summary>
     /// <param name="message">The message instance to serialize and store.</param>

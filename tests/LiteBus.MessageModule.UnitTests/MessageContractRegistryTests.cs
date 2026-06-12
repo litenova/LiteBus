@@ -47,13 +47,24 @@ public sealed class MessageContractRegistryTests
     }
 
     [Fact]
-    public void GetContract_WhenAttributePresent_ShouldRegisterOnDemand()
+    public void GetContract_WhenAttributePresent_ShouldRequireExplicitRegistration()
     {
         var registry = new MessageContractRegistry();
 
-        var contract = registry.GetContract(typeof(AttributedCommand));
+        var act = () => registry.GetContract(typeof(AttributedCommand));
 
-        contract.Name.Should().Be("orders.commands.ship");
+        act.Should().Throw<MessageContractNotRegisteredException>();
+    }
+
+    [Fact]
+    public void TryGetContract_WhenAttributePresent_ShouldRegisterOnDemand()
+    {
+        var registry = new MessageContractRegistry();
+
+        var contract = registry.TryGetContract(typeof(AttributedCommand));
+
+        contract.Should().NotBeNull();
+        contract!.Name.Should().Be("orders.commands.ship");
         registry.GetMessageType("orders.commands.ship", 2).Should().Be(typeof(AttributedCommand));
     }
 

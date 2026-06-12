@@ -23,7 +23,9 @@ All notable changes to this project will be documented in this file.
 - **Writer APIs:** `IInbox.AcceptAsync` and `IOutbox.EnqueueAsync` take `InboxAcceptItem` / `OutboxEnqueueItem` with
   per-message metadata. Removed `InboxOptions`, `OutboxOptions`, `IInboxScheduler`, and `IOutboxScheduler`. Deferred
   visibility uses `MessageVisibility` on metadata.
-- Analyzer LB1004 message targets `IInbox.AcceptAsync` and `InboxAcceptItem` rather than scheduler APIs.
+- Analyzer LB1004 message targets `IInbox.AcceptAsync`, `AcceptBatchAsync`, `ITransactionalInbox`, and `InboxAcceptItem` rather than scheduler APIs.
+- Analyzer inventory documented through LB1017 in [Analyzers](docs/Analyzers.md), including LB1014 (processor without dispatcher, error severity), LB1015–LB1016 (transactional EF/interceptor and DbContext), and LB1017 (explicit contract registration for attributed types).
+- Saga: per-dispatch `AsyncLocal` scope, `SagaDefinitionId` and tenant-scoped primary keys, versioned `SagaCompleteItem`, hook save/complete semantics, concurrency retry in `SagaProcessorHook`, `ISagaStore.QueryAsync` / `PurgeAsync`, removed `ISaga<TState>`.
 - **Pre-GA naming pass (documentation and incremental renames before v6.0.0 GA):** see
   [Migration Guide v6](docs/Migration-Guide-v6.md) for the full inventory. Highlights:
   - `MediateOptions` → `MessageMediationRequest`; handler conflict exceptions consolidated to

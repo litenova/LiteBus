@@ -97,20 +97,20 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
             return Array.Empty<OutboxEnvelope>();
         }
 
-        var envelopes = new OutboxEnvelope[items.Count];
+        var tasks = new Task<OutboxEnvelope>[items.Count];
 
         for (var index = 0; index < items.Count; index++)
         {
             var item = items[index];
 
-            envelopes[index] = await CreateCoreAsync(
+            tasks[index] = CreateCoreAsync(
                 item.Message,
                 item.Message.GetType(),
                 item.Metadata,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
         }
 
-        return envelopes;
+        return await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -125,20 +125,20 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
             return Array.Empty<OutboxEnvelope>();
         }
 
-        var envelopes = new OutboxEnvelope[items.Count];
+        var tasks = new Task<OutboxEnvelope>[items.Count];
 
         for (var index = 0; index < items.Count; index++)
         {
             var item = items[index];
 
-            envelopes[index] = await CreateCoreAsync(
+            tasks[index] = CreateCoreAsync(
                 item.Message,
                 item.MessageType,
                 item.Metadata,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
         }
 
-        return envelopes;
+        return await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -188,6 +188,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
             CausationId = causationId,
             TenantId = DurableEnvelopeMetadataMapper.ResolveTenantId(metadata.Tenant),
             IdempotencyKey = DurableEnvelopeMetadataMapper.ResolveIdempotencyKey(metadata.Idempotency),
+            IdempotencyConflictMode = DurableEnvelopeMetadataMapper.ResolveIdempotencyConflictMode(metadata.Idempotency),
             TraceContext = traceContext
         };
     }
@@ -202,6 +203,8 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
         return target switch
         {
             PublicationTarget.Topic topic when !string.IsNullOrWhiteSpace(topic.Name) => topic.Name,
+            PublicationTarget.Exchange exchange when !string.IsNullOrWhiteSpace(exchange.Name) => exchange.Name,
+            PublicationTarget.Queue queue when !string.IsNullOrWhiteSpace(queue.Name) => queue.Name,
             _                                                                         => null
         };
     }

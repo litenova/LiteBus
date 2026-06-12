@@ -63,6 +63,18 @@ public interface IInbox
         => AcceptAsync(InboxAcceptItem<TMessage>.From(message), cancellationToken);
 
     /// <summary>
+    ///     Accepts one message for later execution when the runtime type is resolved from the item payload.
+    /// </summary>
+    /// <param name="item">The message payload and per-message acceptance metadata.</param>
+    /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
+    /// <returns>
+    ///     A receipt containing the message id, contract reference, acceptance time, trace metadata, and tenant scope.
+    /// </returns>
+    Task<InboxReceipt> AcceptAsync(
+        InboxAcceptItem item,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     Accepts multiple messages for later execution in one store round trip.
     /// </summary>
     /// <param name="items">The message payloads and per-message acceptance metadata to store.</param>

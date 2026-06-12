@@ -52,10 +52,10 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
 
         leased.Should().ContainSingle();
         leased[0].Id.Should().Be(messageId);
-        leased[0].IdempotencyKey.Should().Be("idem-42");
+        leased[0].IdempotencyKey.Should().Be("ingress:unknown:" + messageId.ToString("D"));
         leased[0].CorrelationId.Should().Be("correlation-1");
         leased[0].CausationId.Should().Be("causation-2");
-        leased[0].TenantId.Should().Be("tenant-west");
+        leased[0].TenantId.Should().BeNull();
         leased[0].VisibleAfter.Should().Be(visibleAfter);
     }
 
@@ -71,7 +71,7 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
 
         var act = () => handler.AcceptAsync(message);
 
-        await act.Should().ThrowAsync<InboxDispatchException>()
+        await act.Should().ThrowAsync<InboxIngressException>()
             .WithMessage("*litebus-contract-name*required*");
     }
 
@@ -85,7 +85,7 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
             new ShipOrderCommand { OrderId = Guid.NewGuid() },
             headers => headers[AmqpHeaders.ContractVersion] = "not-a-number"));
 
-        await act.Should().ThrowAsync<InboxDispatchException>()
+        await act.Should().ThrowAsync<InboxIngressException>()
             .WithMessage("*positive integer*");
     }
 
@@ -99,7 +99,7 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
             new ShipOrderCommand { OrderId = Guid.NewGuid() },
             headers => headers[AmqpHeaders.ContractVersion] = "0"));
 
-        await act.Should().ThrowAsync<InboxDispatchException>()
+        await act.Should().ThrowAsync<InboxIngressException>()
             .WithMessage("*positive integer*");
     }
 
@@ -142,7 +142,7 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
 
         leased.Should().ContainSingle();
         leased[0].CorrelationId.Should().Be("bytes-correlation");
-        leased[0].TenantId.Should().Be("memory-tenant");
+        leased[0].TenantId.Should().BeNull();
         leased[0].CausationId.Should().Be("memory-causation");
     }
 
@@ -234,7 +234,8 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
         var headers = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             [AmqpHeaders.ContractName] = "orders.commands.ship",
-            [AmqpHeaders.ContractVersion] = "1"
+            [AmqpHeaders.ContractVersion] = "1",
+            [AmqpHeaders.MessageId] = Guid.NewGuid().ToString("D")
         };
 
         configureHeaders?.Invoke(headers);

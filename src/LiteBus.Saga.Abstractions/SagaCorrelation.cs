@@ -6,8 +6,12 @@ namespace LiteBus.Saga.Abstractions;
 /// <remarks>
 ///     <para>
 ///         <see cref="CorrelationId" /> typically matches the inbox envelope correlation identifier so related messages
-///         converge on one saga row. <see cref="SagaType" /> distinguishes state shape when multiple sagas share a
-///         correlation namespace.
+///         converge on one saga row. <see cref="SagaDefinitionId" /> is the stable workflow partition and may differ
+///         from individual message contract names when several contracts advance the same saga.
+///     </para>
+///     <para>
+///         <see cref="TenantId" /> scopes the row when multi-tenant hosts share one saga table. Use <see langword="null" />
+///         or omit for single-tenant deployments.
 ///     </para>
 /// </remarks>
 public sealed record SagaCorrelation
@@ -18,7 +22,12 @@ public sealed record SagaCorrelation
     public required string CorrelationId { get; init; }
 
     /// <summary>
-    ///     Gets the saga type name used to resolve state shape and storage partition.
+    ///     Gets the saga definition identifier used to resolve state shape and storage partition.
     /// </summary>
-    public required string SagaType { get; init; }
+    public required string SagaDefinitionId { get; init; }
+
+    /// <summary>
+    ///     Gets the optional tenant identifier included in the storage primary key.
+    /// </summary>
+    public string? TenantId { get; init; }
 }

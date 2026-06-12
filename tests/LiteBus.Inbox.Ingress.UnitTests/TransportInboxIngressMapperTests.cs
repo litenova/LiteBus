@@ -1,3 +1,4 @@
+using LiteBus.Inbox.Abstractions.Exceptions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Transport.Abstractions;
 
@@ -8,6 +9,12 @@ namespace LiteBus.Inbox.Ingress.UnitTests;
 /// </summary>
 public sealed class TransportInboxIngressMapperTests
 {
+    private static readonly TransportInboxIngressMappingOptions DefaultMapping = new();
+
+    private static readonly TransportInboxIngressMappingOptions TrustedHeadersMapping = new(
+        RequireStableIdentity: true,
+        TrustApplicationHeaders: true);
+
     /// <summary>
     ///     Verifies inbox envelope headers round-trip through <see cref="TransportMessage" /> to acceptance metadata.
     /// </summary>
@@ -28,7 +35,7 @@ public sealed class TransportInboxIngressMapperTests
         };
 
         var transportMessage = CreateTransportMessage(headers, messageId.ToString("D"), "corr-1");
-        var metadata = TransportInboxIngressMapper.ToInboxAcceptMetadata(transportMessage);
+        var metadata = TransportInboxIngressMapper.ToInboxAcceptMetadata(transportMessage, TrustedHeadersMapping);
 
         metadata.Identity.Should().Be(new MessageIdentity.Supplied(messageId));
 
@@ -46,10 +53,10 @@ public sealed class TransportInboxIngressMapperTests
     }
 
     /// <summary>
-    ///     Verifies optional ingress headers map to inbox acceptance metadata.
+    ///     Verifies optional ingress headers map to inbox acceptance metadata when application headers are trusted.
     /// </summary>
     [Fact]
-    public void ToInboxAcceptMetadata_ShouldMapOptionalHeaders()
+    public void ToInboxAcceptMetadata_ShouldMapOptionalHeadersWhenTrusted()
     {
         var messageId = Guid.NewGuid();
         var visibleAfter = new DateTimeOffset(2026, 6, 5, 12, 0, 0, TimeSpan.Zero);
@@ -64,11 +71,78 @@ public sealed class TransportInboxIngressMapperTests
         };
 
         var transportMessage = CreateTransportMessage(headers);
-        var metadata = TransportInboxIngressMapper.ToInboxAcceptMetadata(transportMessage);
+        var metadata = TransportInboxIngressMapper.ToInboxAcceptMetadata(transportMessage, TrustedHeadersMapping);
 
         metadata.Identity.Should().Be(new MessageIdentity.Supplied(messageId));
         metadata.Idempotency.Should().Be(new Idempotency.Keyed("idem-key-1"));
         metadata.Visibility.Should().Be(new MessageVisibility.At(visibleAfter));
+    }
+
+    /// <summary>
+    ///     Verifies relative visibility delay headers map to deferred inbox acceptance.
+    /// </summary>
+    [Fact]
+    public void ToInboxAcceptMetadata_ShouldMapVisibleAfterDelayHeader()
+    {
+        var messageId = Guid.NewGuid();
+        var delay = TimeSpan.FromMinutes(15);
+
+        var headers = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            [TransportHeaders.MessageId] = messageId.ToString("D"),
+            [TransportHeaders.ContractName] = "orders.commands.ship",
+            [TransportHeaders.ContractVersion] = "1",
+            [TransportHeaders.VisibleAfterDelay] = delay.ToString("c")
+        };
+
+        var transportMessage = CreateTransportMessage(headers);
+        var metadata = TransportInboxIngressMapper.ToInboxAcceptMetadata(transportMessage, TrustedHeadersMapping);
+
+        metadata.Visibility.Should().Be(new MessageVisibility.After(delay));
+    }
+
+    /// <summary>
+    ///     Verifies broker delivery ids map to broker-scoped idempotency by default.
+    /// </summary>
+    [Fact]
+    public void ToInboxAcceptMetadata_ShouldDefaultToBrokerScopedIdempotency()
+    {
+        var brokerMessageId = "broker-delivery-42";
+
+        var transportMessage = CreateTransportMessage(
+            new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                [TransportHeaders.MessageId] = brokerMessageId,
+                [TransportHeaders.ContractName] = "orders.commands.ship",
+                [TransportHeaders.ContractVersion] = "1",
+                [TransportHeaders.IdempotencyKey] = "untrusted-key",
+                [TransportHeaders.TenantId] = "tenant-east"
+            },
+            destination: "commands.inbox");
+
+        var metadata = TransportInboxIngressMapper.ToInboxAcceptMetadata(transportMessage, DefaultMapping);
+
+        metadata.Idempotency.Should().Be(new Idempotency.Keyed("ingress:commands.inbox:broker-delivery-42"));
+        metadata.Tenant.Should().Be(TenantScope.Unscoped.Instance);
+    }
+
+    /// <summary>
+    ///     Verifies missing broker delivery ids fail closed when stable identity is required.
+    /// </summary>
+    [Fact]
+    public void ToInboxAcceptMetadata_WhenBrokerIdMissingAndRequired_ShouldThrow()
+    {
+        var transportMessage = CreateTransportMessage(
+            new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                [TransportHeaders.ContractName] = "orders.commands.ship",
+                [TransportHeaders.ContractVersion] = "1"
+            });
+
+        var act = () => TransportInboxIngressMapper.ToInboxAcceptMetadata(transportMessage, DefaultMapping);
+
+        act.Should().Throw<InboxIngressException>()
+            .WithMessage("*stable broker delivery id*");
     }
 
     /// <summary>
@@ -77,11 +151,13 @@ public sealed class TransportInboxIngressMapperTests
     /// <param name="headers">The application headers.</param>
     /// <param name="messageId">The optional message identifier property.</param>
     /// <param name="correlationId">The optional correlation identifier property.</param>
+    /// <param name="destination">The optional destination address.</param>
     /// <returns>A transport message suitable for mapper assertions.</returns>
     private static TransportMessage CreateTransportMessage(
         IReadOnlyDictionary<string, object?> headers,
         string? messageId = null,
-        string? correlationId = null)
+        string? correlationId = null,
+        string? destination = null)
     {
         return new TransportMessage
         {
@@ -89,6 +165,7 @@ public sealed class TransportInboxIngressMapperTests
             Headers = headers,
             MessageId = messageId,
             CorrelationId = correlationId,
+            Destination = destination,
             AckAsync = _ => Task.CompletedTask,
             NackAsync = (_, _) => Task.CompletedTask
         };

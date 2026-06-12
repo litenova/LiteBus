@@ -276,7 +276,7 @@ Surfaces that predate this taxonomy should be aligned when their area is next to
 
 ### Composite module pattern
 
-Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs during `Register()` before any `Build()`. The builder action runs inside `DeclareChildren`. `Build()` registers core services only. Sub-modules check for a parent context marker as their first `Build()` operation. The registry inserts children depth-first after the parent, then topological sort runs. Duplicate registration of the same module type is a silent no-op.
+Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs during `Register()` before any `Build()`. The builder action runs inside `DeclareChildren`. `Build()` registers core services only. Sub-modules check for a parent context marker as their first `Build()` operation. The registry inserts children depth-first after the parent, then topological sort runs. Duplicate registration of the same module type throws `LiteBusConfigurationException` at compose time.
 
 **Compose through parent module builders.** Register storage, dispatch, and ingress inside the parent module builder via `Use*` extensions. Do not add new top-level `IModuleRegistry` shortcuts that bypass the parent builder or skip context markers. Mark obsolete patterns rather than extending them.
 
@@ -347,6 +347,15 @@ Before adding a project:
 4. Does it need manifest registration (startup task, background service, diagnostic check)?
 5. Does `docs/Dependency-Graph.md` need a new row?
 6. Does `docs/Architecture.md` need a feature section or invariant note?
+
+## Analyzers
+
+- Ship compile-time rules in `LiteBus.Analyzers` only; no runtime dependency on mediator or durable packages.
+- Keep the rule inventory in `docs/Analyzers.md` aligned with `DiagnosticIds` (LB1001–LB1017).
+- **LB1007** covers handled durable types missing contract registration; honor `RegisterFromAssembly` the same as explicit `Contracts.Register`.
+- **LB1017** covers attributed durable types; match only `IContractWriter` / `IMessageContractRegistry` `Register` invocations, not unrelated `Register<T>()` methods.
+- **LB1004** must cover `AcceptAsync`, `AcceptBatchAsync`, and `ITransactionalInbox` acceptance APIs.
+- Add or update analyzer tests in `tests/LiteBus.Analyzers.Tests` when changing diagnostic behavior.
 
 ## Build and repo hygiene
 

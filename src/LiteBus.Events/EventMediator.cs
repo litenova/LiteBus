@@ -46,7 +46,7 @@ public sealed class EventMediator : IEventMediator
             MessageResolveStrategy = resolveStrategy,
             Tags = eventMediationSettings.Routing.Tags,
             Items = eventMediationSettings.Items,
-            RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound,
+            RegisterPlainMessagesOnSpot = eventMediationSettings.AutoRegisterUnregisteredMessageTypes,
             HandlerPredicate = handlerDescriptor => eventMediationSettings.Routing.HandlerPredicate(handlerDescriptor)
         }, cancellationToken);
     }
@@ -67,7 +67,7 @@ public sealed class EventMediator : IEventMediator
             MessageResolveStrategy = resolveStrategy,
             Tags = eventMediationSettings.Routing.Tags,
             Items = eventMediationSettings.Items,
-            RegisterPlainMessagesOnSpot = !eventMediationSettings.ThrowIfNoHandlerFound,
+            RegisterPlainMessagesOnSpot = eventMediationSettings.AutoRegisterUnregisteredMessageTypes,
             HandlerPredicate = handlerDescriptor => eventMediationSettings.Routing.HandlerPredicate(handlerDescriptor)
         }, cancellationToken);
     }

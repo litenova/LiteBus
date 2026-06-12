@@ -2,7 +2,11 @@ using System;
 using System.Collections.Generic;
 using Autofac;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Extensions.Hosting;
 using Microsoft.Extensions.Hosting;
+using BackgroundServiceHostAdapter = LiteBus.Runtime.Extensions.Hosting.BackgroundServiceHostAdapter;
+using StartupTaskGate = LiteBus.Runtime.Extensions.Hosting.StartupTaskGate;
+using StartupTaskPhaseHostedService = LiteBus.Runtime.Extensions.Hosting.StartupTaskPhaseHostedService;
 
 namespace LiteBus.Runtime.Extensions.Autofac.Hosting;
 
@@ -27,8 +31,8 @@ public static class AutofacBackgroundServiceHostingExtensions
         ArgumentNullException.ThrowIfNull(startupTasks);
         ArgumentNullException.ThrowIfNull(backgroundServices);
 
-        var startupTaskTypes = DeduplicatePreserveOrder(startupTasks);
-        var backgroundServiceTypes = DeduplicatePreserveOrder(backgroundServices);
+        var startupTaskTypes = HostingRegistrationHelpers.DeduplicatePreserveOrder(startupTasks);
+        var backgroundServiceTypes = HostingRegistrationHelpers.DeduplicatePreserveOrder(backgroundServices);
 
         if (startupTaskTypes.Count == 0 && backgroundServiceTypes.Count == 0)
         {
@@ -90,26 +94,5 @@ public static class AutofacBackgroundServiceHostingExtensions
                 .As<IHostedService>()
                 .SingleInstance();
         }
-    }
-
-    /// <summary>
-    ///     Returns types in first-seen order while skipping duplicates.
-    /// </summary>
-    /// <param name="types">The types to deduplicate.</param>
-    /// <returns>The deduplicated type list.</returns>
-    private static List<Type> DeduplicatePreserveOrder(IReadOnlyList<Type> types)
-    {
-        var result = new List<Type>(types.Count);
-        var registeredTypes = new HashSet<Type>();
-
-        foreach (var implementationType in types)
-        {
-            if (registeredTypes.Add(implementationType))
-            {
-                result.Add(implementationType);
-            }
-        }
-
-        return result;
     }
 }

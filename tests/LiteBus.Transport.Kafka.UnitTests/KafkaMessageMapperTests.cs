@@ -74,7 +74,8 @@ public sealed class KafkaMessageMapperTests
                     return Task.CompletedTask;
                 },
                 NackAsync = (_, _) => Task.CompletedTask
-            });
+            },
+            redelivered: false);
 
         transportMessage.Route.Should().Be("tenant-a");
         transportMessage.Headers[TransportHeaders.ContractName].Should().Be("orders.commands.ship");
@@ -119,7 +120,8 @@ public sealed class KafkaMessageMapperTests
 
                     return Task.CompletedTask;
                 }
-            });
+            },
+            redelivered: false);
 
         await transportMessage.ReturnToQueueAsync();
 
@@ -162,7 +164,8 @@ public sealed class KafkaMessageMapperTests
 
                     return Task.CompletedTask;
                 }
-            });
+            },
+            redelivered: false);
 
         await transportMessage.DiscardAsync();
 

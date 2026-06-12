@@ -10,7 +10,7 @@ public sealed class SagaConcurrencyException : Exception
     /// </summary>
     /// <param name="correlation">The correlation whose save failed due to a version conflict.</param>
     public SagaConcurrencyException(SagaCorrelation correlation)
-        : base($"Saga '{correlation.SagaType}' with correlation '{correlation.CorrelationId}' was updated concurrently.")
+        : base($"Saga '{correlation.SagaDefinitionId}' with correlation '{correlation.CorrelationId}' was updated concurrently.")
     {
         Correlation = correlation;
     }

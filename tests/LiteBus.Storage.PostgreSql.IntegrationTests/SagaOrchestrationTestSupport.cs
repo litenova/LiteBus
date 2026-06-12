@@ -6,7 +6,7 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
-using LiteBus.Saga;
+using LiteBus.Saga.InboxIntegration;
 using LiteBus.Saga.Abstractions;
 using LiteBus.Saga.Storage.PostgreSql;
 using Microsoft.Extensions.DependencyInjection;
@@ -108,7 +108,7 @@ internal static class SagaOrchestrationTestSupport
         return new SagaCorrelation
         {
             CorrelationId = correlationId,
-            SagaType = WorkflowContractName
+            SagaDefinitionId = WorkflowContractName
         };
     }
 

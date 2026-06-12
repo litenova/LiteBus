@@ -38,8 +38,7 @@ public sealed class TransactionalOutboxEnqueueTests
         var transactionalOutbox = new TransactionalOutbox<TransactionalOutboxDbContext>(
             interceptor,
             context,
-            new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System),
-            TimeProvider.System);
+            new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System));
 
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
@@ -109,8 +108,7 @@ public sealed class TransactionalOutboxEnqueueTests
         var transactionalOutbox = new TransactionalOutbox<TransactionalOutboxDbContext>(
             interceptor,
             context,
-            new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector),
-            TimeProvider.System);
+            new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector));
 
         await transactionalOutbox.EnqueueAsync(
             OutboxEnqueueItem<OrderSubmittedEvent>.From(new OrderSubmittedEvent { OrderId = Guid.NewGuid() }));

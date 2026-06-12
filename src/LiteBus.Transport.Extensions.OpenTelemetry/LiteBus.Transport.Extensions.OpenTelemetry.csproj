@@ -6,7 +6,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Transport\LiteBus.Transport.csproj"/>
-        <ProjectReference Include="..\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>
     </ItemGroup>
 
 </Project>

@@ -9,8 +9,9 @@ namespace LiteBus.Extensions.Microsoft.DependencyInjection;
 public interface ILiteBusBuilder
 {
     /// <summary>
-    ///     Gets the shared contract writer. Registrations are applied to every module that uses
-    ///     <see cref="IMessageContractRegistry" /> after all modules finish building.
+    ///     Gets the shared contract writer. Registrations are replayed when
+    ///     <see cref="MessageModule" /> builds and shares the module configuration
+    ///     <see cref="IMessageContractRegistry" />.
     /// </summary>
     /// <value>The deferred contract writer for cross-module contract registration.</value>
     IContractWriter Contracts { get; }

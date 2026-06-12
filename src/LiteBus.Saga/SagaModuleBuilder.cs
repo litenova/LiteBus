@@ -13,20 +13,44 @@ public sealed class SagaModuleBuilder
     private readonly SagaStateTypeRegistry _registry = new();
 
     /// <summary>
-    ///     Maps a saga state type to one contract or saga type name used during inbox dispatch.
+    ///     Registers a saga state type for one stable saga definition identifier.
     /// </summary>
     /// <typeparam name="TState">The saga state type.</typeparam>
-    /// <param name="sagaTypeName">The saga type name, typically a message contract name.</param>
+    /// <param name="sagaDefinitionId">The saga definition identifier stored in durable saga rows.</param>
     /// <returns>The current builder.</returns>
-    /// <remarks>
-    ///     Use <c>MapState&lt;TState&gt;(contractName)</c> inside <c>EnableSaga</c> callbacks. The internal
-    ///     <see cref="ISagaStateTypeRegistry" /> stores the mapping; there is no public <c>Register&lt;TState&gt;</c> on
-    ///     this builder.
-    /// </remarks>
-    public SagaModuleBuilder MapState<TState>(string sagaTypeName)
+    public SagaModuleBuilder DefineState<TState>(string sagaDefinitionId)
         where TState : class, new()
     {
-        _registry.Register<TState>(sagaTypeName);
+        _registry.RegisterStateType<TState>(sagaDefinitionId);
+        return this;
+    }
+
+    /// <summary>
+    ///     Maps one message contract name to a saga definition identifier registered through
+    ///     <see cref="DefineState{TState}" />.
+    /// </summary>
+    /// <param name="contractName">The durable message contract name.</param>
+    /// <param name="sagaDefinitionId">The saga definition identifier that owns state for the contract.</param>
+    /// <returns>The current builder.</returns>
+    public SagaModuleBuilder MapContract(string contractName, string sagaDefinitionId)
+    {
+        _registry.MapContract(contractName, sagaDefinitionId);
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers one saga state type and uses the same identifier for both definition and contract mapping.
+    /// </summary>
+    /// <typeparam name="TState">The saga state type.</typeparam>
+    /// <param name="contractName">The contract name used as the saga definition identifier.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     Equivalent to <c>DefineState&lt;TState&gt;(contractName)</c> for single-contract workflows.
+    /// </remarks>
+    public SagaModuleBuilder MapState<TState>(string contractName)
+        where TState : class, new()
+    {
+        _registry.RegisterStateType<TState>(contractName);
         return this;
     }
 

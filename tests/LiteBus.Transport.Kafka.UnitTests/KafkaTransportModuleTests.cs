@@ -1,1 +1,56 @@
-using AwesomeAssertions;using LiteBus.Runtime.Dependencies;using LiteBus.Runtime.Modules;using LiteBus.Transport.Abstractions;namespace LiteBus.Transport.Kafka.UnitTests;/// <summary>///     Verifies Kafka transport module registration behavior./// </summary>public sealed class KafkaTransportModuleTests{    /// <summary>    ///     Verifies the module registers transport services once per configuration.    /// </summary>    [Fact]    public void Build_ShouldRegisterTransportServicesOnce()    {        var configuration = new ModuleConfiguration(new DependencyRegistry());        var options = new KafkaTransportOptions        {            BootstrapServers = "localhost:9092"        };        var module = new KafkaTransportModule(options);        module.Build(configuration);        module.Build(configuration);        configuration.DependencyRegistry            .Count(descriptor => descriptor.DependencyType == typeof(IMessageTransport))            .Should()            .Be(1);        configuration.DependencyRegistry            .Count(descriptor => descriptor.DependencyType == typeof(IMessageConsumer))            .Should()            .Be(1);    }}
+using AwesomeAssertions;
+using LiteBus.Runtime.Dependencies;
+using LiteBus.Runtime.Modules;
+using LiteBus.Transport.Abstractions;
+using LiteBus.Transport.InMemory;
+
+namespace LiteBus.Transport.Kafka.UnitTests;
+
+/// <summary>
+///     Verifies Kafka transport module registration behavior.
+/// </summary>
+public sealed class KafkaTransportModuleTests
+{
+    /// <summary>
+    ///     Verifies the module registers transport services on first build.
+    /// </summary>
+    [Fact]
+    public void Build_ShouldRegisterTransportServices()
+    {
+        var configuration = new ModuleConfiguration(new DependencyRegistry());
+
+        var options = new KafkaTransportOptions
+        {
+            BootstrapServers = "localhost:9092"
+        };
+
+        new KafkaTransportModule(options).Build(configuration);
+
+        configuration.DependencyRegistry
+            .Count(descriptor => descriptor.DependencyType == typeof(IMessageTransport))
+            .Should()
+            .Be(1);
+
+        configuration.DependencyRegistry
+            .Count(descriptor => descriptor.DependencyType == typeof(IMessageConsumer))
+            .Should()
+            .Be(1);
+    }
+
+    /// <summary>
+    ///     Verifies a second transport module throws instead of silently no-oping.
+    /// </summary>
+    [Fact]
+    public void Build_SecondTransportModule_ShouldThrow()
+    {
+        var configuration = new ModuleConfiguration(new DependencyRegistry());
+
+        new InMemoryTransportModule().Build(configuration);
+
+        var options = new KafkaTransportOptions { BootstrapServers = "localhost:9092" };
+
+        var act = () => new KafkaTransportModule(options).Build(configuration);
+
+        act.Should().Throw<Transport.TransportAlreadyRegisteredException>();
+    }
+}

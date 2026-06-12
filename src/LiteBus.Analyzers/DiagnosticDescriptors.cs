@@ -106,7 +106,7 @@ public static class DiagnosticDescriptors
     internal static readonly DiagnosticDescriptor OrphanHandlerTag = new(
         DiagnosticIds.OrphanHandlerTag,
         "Orphan handler tag",
-        "Handler '{0}' is tagged with '{1}', but no command or event mediation filter references that tag in this compilation",
+        "Handler '{0}' is tagged with '{1}', but no command, query, or event mediation filter references that tag in this compilation",
         "LiteBus.Handlers",
         DiagnosticSeverity.Warning,
         true,
@@ -143,7 +143,7 @@ public static class DiagnosticDescriptors
         "Processor enabled without dispatcher",
         "{0} enables the background processor but does not register a dispatcher in the same configuration scope. Call {2}, a broker-specific Use*Dispatch extension, or RegisterDispatcher before Enable{1}Processor.",
         "LiteBus.Configuration",
-        DiagnosticSeverity.Warning,
+        DiagnosticSeverity.Error,
         true);
 
     /// <summary>

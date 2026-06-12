@@ -32,7 +32,7 @@ public sealed class TestInboxStore :
     }
 
     /// <inheritdoc />
-    public Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    public Task<RequeueResult> RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
     {
         return _inner.RequeueAsync(messageIds, cancellationToken);
     }

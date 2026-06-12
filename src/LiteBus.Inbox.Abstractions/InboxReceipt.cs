@@ -43,6 +43,11 @@ public sealed record InboxReceipt
     ///     Gets the tenant isolation metadata copied from acceptance metadata or from the stored duplicate row.
     /// </summary>
     public required TenantScope Tenant { get; init; }
+
+    /// <summary>
+    ///     Gets whether the store accepted a new row or returned an existing one for the supplied idempotency metadata.
+    /// </summary>
+    public InboxAcceptOutcome Outcome { get; init; } = InboxAcceptOutcome.Accepted;
 }
 
 /// <summary>
@@ -84,4 +89,9 @@ public sealed record InboxReceipt<TMessage> where TMessage : notnull
     ///     Gets the tenant isolation metadata copied from acceptance metadata or from the stored duplicate row.
     /// </summary>
     public required TenantScope Tenant { get; init; }
+
+    /// <summary>
+    ///     Gets whether the store accepted a new row or returned an existing one for the supplied idempotency metadata.
+    /// </summary>
+    public InboxAcceptOutcome Outcome { get; init; } = InboxAcceptOutcome.Accepted;
 }

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 using Microsoft.EntityFrameworkCore;
@@ -18,14 +20,14 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
     where TContext : DbContext
 {
     /// <summary>
+    ///     Gets the shared acceptance pipeline used to create envelopes and map receipts.
+    /// </summary>
+    private readonly InboxAcceptanceService _acceptanceService;
+
+    /// <summary>
     ///     Gets the database context that owns the ambient transaction for staged envelopes.
     /// </summary>
     private readonly TContext _dbContext;
-
-    /// <summary>
-    ///     Gets the factory used to create envelopes before interceptor staging.
-    /// </summary>
-    private readonly IInboxEnvelopeFactory _envelopeFactory;
 
     /// <summary>
     ///     Gets the interceptor that queues envelopes until the next <c>SaveChanges</c> call.
@@ -38,147 +40,144 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
     /// <param name="interceptor">The interceptor that stages envelopes for the active context.</param>
     /// <param name="dbContext">The database context that owns the ambient transaction.</param>
     /// <param name="envelopeFactory">The factory used to create envelopes before interceptor staging.</param>
-    /// <param name="clock">The time provider reserved for factory visibility resolution.</param>
     public TransactionalInbox(
         LiteBusInboxSaveChangesInterceptor interceptor,
         TContext dbContext,
-        IInboxEnvelopeFactory envelopeFactory,
-        TimeProvider clock)
+        IInboxEnvelopeFactory envelopeFactory)
     {
         _interceptor = interceptor ?? throw new ArgumentNullException(nameof(interceptor));
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-        _envelopeFactory = envelopeFactory ?? throw new ArgumentNullException(nameof(envelopeFactory));
-        _ = clock ?? throw new ArgumentNullException(nameof(clock));
+        _acceptanceService = new InboxAcceptanceService(
+            envelopeFactory ?? throw new ArgumentNullException(nameof(envelopeFactory)));
     }
 
     /// <inheritdoc />
-    public async Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
+    public Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
         InboxAcceptItem<TMessage> item,
         CancellationToken cancellationToken = default)
         where TMessage : notnull
     {
-        ArgumentNullException.ThrowIfNull(item);
-
-        var envelope = await _envelopeFactory
-            .CreateAsync(InboxAcceptItem.From(item), cancellationToken)
-            .ConfigureAwait(false);
-
-        _interceptor.Enqueue(_dbContext, envelope);
-
-        return CreateReceipt<TMessage>(envelope, item.Message.GetType());
+        return _acceptanceService.AcceptAsync(item, StageAsync, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
+    public Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
         IReadOnlyList<InboxAcceptItem> items,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(items);
-
         if (items.Count == 0)
         {
-            return Array.Empty<InboxReceipt>();
+            return Task.FromResult<IReadOnlyList<InboxReceipt>>(Array.Empty<InboxReceipt>());
         }
 
-        var envelopes = await _envelopeFactory.CreateBatchAsync(items, cancellationToken).ConfigureAwait(false);
-        var receipts = new InboxReceipt[envelopes.Count];
-
-        for (var index = 0; index < envelopes.Count; index++)
-        {
-            _interceptor.Enqueue(_dbContext, envelopes[index]);
-            receipts[index] = CreateUntypedReceipt(envelopes[index], items[index].Message.GetType());
-        }
-
-        return receipts;
-    }
-
-    /// <summary>
-    ///     Maps a staged envelope to a typed acceptance receipt.
-    /// </summary>
-    /// <typeparam name="TMessage">The compile-time message type associated with the acceptance command.</typeparam>
-    /// <param name="envelope">The envelope staged for the next <c>SaveChanges</c> call.</param>
-    /// <param name="messageType">The runtime message type used for contract lookup.</param>
-    /// <returns>The typed acceptance receipt returned to callers.</returns>
-    private static InboxReceipt<TMessage> CreateReceipt<TMessage>(InboxEnvelope envelope, Type messageType)
-        where TMessage : notnull
-    {
-        return new InboxReceipt<TMessage>
-        {
-            Id = envelope.Id,
-            MessageType = messageType,
-            Contract = new MessageContractReference
+        return _acceptanceService.AcceptBatchAsync(
+            items,
+            async (envelopes, token) =>
             {
-                Name = envelope.ContractName,
-                Version = envelope.ContractVersion
+                var staged = new InboxEnvelope[envelopes.Count];
+
+                for (var index = 0; index < envelopes.Count; index++)
+                {
+                    staged[index] = await StageAsync(envelopes[index], token).ConfigureAwait(false);
+                }
+
+                return staged;
             },
-            AcceptedAt = envelope.CreatedAt,
-            Trace = ResolveTrace(envelope.CorrelationId, envelope.CausationId, envelope.TraceContext),
-            Tenant = ResolveTenant(envelope.TenantId)
-        };
+            cancellationToken);
     }
 
     /// <summary>
-    ///     Maps a staged envelope to an untyped acceptance receipt for batch APIs.
+    ///     Stages one envelope through the save-changes interceptor or returns an existing row for
+    ///     <see cref="IdempotencyConflictMode.ReturnExisting" />.
     /// </summary>
-    /// <param name="envelope">The envelope staged for the next <c>SaveChanges</c> call.</param>
-    /// <param name="messageType">The runtime message type used for contract lookup.</param>
-    /// <returns>The acceptance receipt returned to batch callers.</returns>
-    private static InboxReceipt CreateUntypedReceipt(InboxEnvelope envelope, Type messageType)
+    /// <param name="envelope">The envelope created for the current accept attempt.</param>
+    /// <param name="cancellationToken">The token used to cancel the lookup.</param>
+    /// <returns>The envelope staged for persistence or the existing stored envelope.</returns>
+    private async Task<InboxEnvelope> StageAsync(InboxEnvelope envelope, CancellationToken cancellationToken)
     {
-        return new InboxReceipt
+        if (envelope.IdempotencyConflictMode == IdempotencyConflictMode.ReturnExisting)
         {
-            Id = envelope.Id,
-            MessageType = messageType,
-            Contract = new MessageContractReference
+            var existing = await FindExistingAsync(envelope, cancellationToken).ConfigureAwait(false);
+
+            if (existing is not null)
             {
-                Name = envelope.ContractName,
-                Version = envelope.ContractVersion
-            },
-            AcceptedAt = envelope.CreatedAt,
-            Trace = ResolveTrace(envelope.CorrelationId, envelope.CausationId, envelope.TraceContext),
-            Tenant = ResolveTenant(envelope.TenantId)
+                return existing;
+            }
+        }
+
+        _interceptor.Enqueue(_dbContext, envelope);
+        return envelope;
+    }
+
+    /// <summary>
+    ///     Finds an existing inbox row matching the attempted message identifier or idempotency key.
+    /// </summary>
+    /// <param name="envelope">The envelope created for the current accept attempt.</param>
+    /// <param name="cancellationToken">The token used to cancel the lookup.</param>
+    /// <returns>The existing envelope when one is already tracked or persisted; otherwise <see langword="null" />.</returns>
+    private async Task<InboxEnvelope?> FindExistingAsync(InboxEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (_dbContext is not IInboxDbContext inboxDbContext)
+        {
+            return null;
+        }
+
+        var local = inboxDbContext.InboxMessages.Local.FirstOrDefault(message =>
+            message.Id == envelope.Id ||
+            !string.IsNullOrWhiteSpace(envelope.IdempotencyKey) &&
+            string.Equals(message.IdempotencyKey, envelope.IdempotencyKey, StringComparison.Ordinal));
+
+        if (local is not null)
+        {
+            return ToEnvelope(local);
+        }
+
+        if (string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
+        {
+            var trackedById = await inboxDbContext.InboxMessages
+                .AsNoTracking()
+                .FirstOrDefaultAsync(message => message.Id == envelope.Id, cancellationToken)
+                .ConfigureAwait(false);
+
+            return trackedById is null ? null : ToEnvelope(trackedById);
+        }
+
+        var tracked = await inboxDbContext.InboxMessages
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                message => message.Id == envelope.Id || message.IdempotencyKey == envelope.IdempotencyKey,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return tracked is null ? null : ToEnvelope(tracked);
+    }
+
+    /// <summary>
+    ///     Maps a persistence entity to an inbox envelope.
+    /// </summary>
+    /// <param name="entity">The tracked or queried inbox entity.</param>
+    /// <returns>The mapped inbox envelope.</returns>
+    private static InboxEnvelope ToEnvelope(InboxMessageEntity entity)
+    {
+        return new InboxEnvelope
+        {
+            Id = entity.Id,
+            ContractName = entity.ContractName,
+            ContractVersion = entity.ContractVersion,
+            Payload = entity.Payload,
+            CreatedAt = entity.CreatedAt,
+            VisibleAfter = entity.VisibleAfter,
+            Status = entity.Status,
+            AttemptCount = entity.AttemptCount,
+            IdempotencyKey = entity.IdempotencyKey,
+            LeaseOwner = entity.LeaseOwner,
+            LeaseExpiresAt = entity.LeaseExpiresAt,
+            LastError = entity.LastError,
+            CorrelationId = entity.CorrelationId,
+            CausationId = entity.CausationId,
+            TenantId = entity.TenantId,
+            TraceContext = entity.TraceContext,
+            CompletedAt = entity.CompletedAt
         };
-    }
-
-    /// <summary>
-    ///     Reconstructs trace metadata from persisted envelope columns.
-    /// </summary>
-    /// <param name="correlationId">The optional correlation identifier stored with the envelope.</param>
-    /// <param name="causationId">The optional causation identifier stored with the envelope.</param>
-    /// <param name="traceContext">The optional distributed trace context stored with the envelope.</param>
-    /// <returns>The trace metadata represented by the stored columns.</returns>
-    private static MessageTrace ResolveTrace(
-        string? correlationId,
-        string? causationId,
-        string? traceContext)
-    {
-        if (!string.IsNullOrWhiteSpace(traceContext) && !string.IsNullOrWhiteSpace(correlationId) && !string.IsNullOrWhiteSpace(causationId))
-        {
-            return new MessageTrace.Distributed(correlationId, causationId, traceContext);
-        }
-
-        if (!string.IsNullOrWhiteSpace(correlationId) && !string.IsNullOrWhiteSpace(causationId))
-        {
-            return new MessageTrace.Workflow(correlationId, causationId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(correlationId))
-        {
-            return new MessageTrace.Correlated(correlationId);
-        }
-
-        return MessageTrace.None.Instance;
-    }
-
-    /// <summary>
-    ///     Reconstructs tenant metadata from the persisted tenant identifier column.
-    /// </summary>
-    /// <param name="tenantId">The optional tenant identifier stored with the envelope.</param>
-    /// <returns>The tenant metadata represented by the stored column.</returns>
-    private static TenantScope ResolveTenant(string? tenantId)
-    {
-        return string.IsNullOrWhiteSpace(tenantId)
-            ? TenantScope.Unscoped.Instance
-            : new TenantScope.Isolated(tenantId);
     }
 }

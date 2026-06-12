@@ -1,5 +1,6 @@
 using Azure.Messaging.ServiceBus;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.AzureServiceBus;
@@ -30,10 +31,7 @@ public sealed class AzureServiceBusTransportModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageTransport)))
-        {
-            return;
-        }
+        TransportModuleRegistration.EnsureTransportNotRegistered(configuration, nameof(AzureServiceBusTransportModule));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(AzureServiceBusTransportOptions),

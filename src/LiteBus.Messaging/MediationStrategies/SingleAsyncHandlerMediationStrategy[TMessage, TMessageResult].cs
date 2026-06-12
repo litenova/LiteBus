@@ -34,19 +34,28 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
 
         try
         {
-            await messageDependencies.RunAsyncPreHandlers(message);
-
-            var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
-
-            if (handler is null)
+            using (AmbientExecutionContext.CreateScope(executionContext))
             {
-                throw new LiteBusConfigurationException(
-                    $"Handler for {typeof(TMessage).Name} is not of the expected type.");
+                await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken);
+
+                var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
+
+                if (handler is null)
+                {
+                    throw new LiteBusConfigurationException(
+                        $"Handler for {typeof(TMessage).Name} is not of the expected type.");
+                }
+
+                messageResult = await HandlerInvocation.InvokeMainHandlerAsync<TMessage, TMessageResult>(
+                    handler,
+                    message,
+                    executionContext.CancellationToken);
+
+                await messageDependencies.RunAsyncPostHandlers(
+                    message,
+                    messageResult,
+                    executionContext.CancellationToken);
             }
-
-            messageResult = await (Task<TMessageResult>) handler.Handle(message);
-
-            await messageDependencies.RunAsyncPostHandlers(message, messageResult);
 
             // A post-handler may have written an override result to the execution context.
             // When present, it takes precedence over the value returned by the main handler.
@@ -67,7 +76,21 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            await messageDependencies.RunAsyncErrorHandlers(message, messageResult, ExceptionDispatchInfo.Capture(e));
+            MessageErrorContext errorContext;
+
+            using (AmbientExecutionContext.CreateScope(executionContext))
+            {
+                errorContext = await messageDependencies.RunAsyncErrorHandlers(
+                    message,
+                    messageResult,
+                    ExceptionDispatchInfo.Capture(e),
+                    executionContext.CancellationToken);
+            }
+
+            if (errorContext.HandledResult is TMessageResult handledResult)
+            {
+                return handledResult;
+            }
         }
 
         return messageResult!;

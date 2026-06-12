@@ -159,6 +159,34 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
     }
 
     /// <inheritdoc />
+    public async Task PersistLeaseLossOutcomeAsync(
+        InboxEnvelope sourceEnvelope,
+        ConcurrentProcessorPassAccumulator<InboxEnvelope> accumulator,
+        InboxProcessorOptions options,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var visibleAfter = _clock.GetUtcNow().Add(options.Retry.CalculateDelay(sourceEnvelope.AttemptCount));
+        var updated = sourceEnvelope.AsFailed(MessageProcessorDiagnostics.LeaseLostDuringProcessingError, visibleAfter);
+        var persistToken = options.HonorShutdownTokenOnPersist ? cancellationToken : CancellationToken.None;
+
+        var persistResult = await _stateWriter.PersistAsync(new[] { updated }, persistToken).ConfigureAwait(false);
+
+        if (persistResult.SkippedCount > 0)
+        {
+            InboxProcessorTelemetry.RecordPersistSkipped();
+
+            logger.LogWarning(
+                "Inbox lease-loss persist skipped for message {MessageId} because the active lease was lost.",
+                sourceEnvelope.Id);
+
+            return;
+        }
+
+        InboxProcessorEnvelopeHandler.RecordTerminalOutcome(updated, accumulator);
+    }
+
+    /// <inheritdoc />
     public async Task PersistTerminalOutcomeAsync(
         InboxEnvelope sourceEnvelope,
         InboxEnvelope updated,
@@ -182,14 +210,26 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                var error = MessageProcessorDiagnostics.FormatError(exception);
+                if (options.HookFailurePolicy == ProcessorHookFailurePolicy.CompleteDespiteHookFailure)
+                {
+                    logger.LogWarning(
+                        exception,
+                        "Inbox AfterDispatch hook failed for message {MessageId}; completing dispatch despite hook failure.",
+                        updated.Id);
 
-                logger.LogWarning(
-                    exception,
-                    "Inbox AfterDispatch hook failed for message {MessageId}; moving to dead letter.",
-                    updated.Id);
+                    terminal = updated;
+                }
+                else
+                {
+                    var error = MessageProcessorDiagnostics.FormatError(exception);
 
-                terminal = sourceEnvelope.AsDeadLettered(error);
+                    logger.LogWarning(
+                        exception,
+                        "Inbox AfterDispatch hook failed for message {MessageId}; moving to dead letter.",
+                        updated.Id);
+
+                    terminal = sourceEnvelope.AsDeadLettered(error);
+                }
             }
 
             var persistResult = await _stateWriter.PersistAsync(new[] { terminal }, persistToken).ConfigureAwait(false);

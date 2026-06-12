@@ -110,11 +110,11 @@ internal sealed class OutboxManager : IOutboxManager
                 return requeuedCount;
             }
 
-            await _operationsStore.RequeueAsync(
+            var result = await _operationsStore.RequeueAsync(
                 page.Items.Select(envelope => envelope.Id).ToArray(),
                 cancellationToken).ConfigureAwait(false);
 
-            requeuedCount += page.Items.Count;
+            requeuedCount += result.Requeued;
 
             if (!page.HasMore)
             {
@@ -126,17 +126,16 @@ internal sealed class OutboxManager : IOutboxManager
     }
 
     /// <inheritdoc />
-    public async Task<int> RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    public Task<RequeueResult> RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
 
         if (messageIds.Count == 0)
         {
-            return 0;
+            return Task.FromResult(new RequeueResult(0, 0));
         }
 
-        await _operationsStore.RequeueAsync(messageIds, cancellationToken).ConfigureAwait(false);
-        return messageIds.Count;
+        return _operationsStore.RequeueAsync(messageIds, cancellationToken);
     }
 
     /// <inheritdoc />

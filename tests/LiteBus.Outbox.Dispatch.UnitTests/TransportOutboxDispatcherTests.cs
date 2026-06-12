@@ -51,6 +51,75 @@ public sealed class TransportOutboxDispatcherTests
     }
 
     /// <summary>
+    ///     Verifies invalid payloads skip deserialization when validation is disabled.
+    /// </summary>
+    [Fact]
+    public async Task DispatchAsync_when_validate_payload_disabled_should_publish_without_deserializing()
+    {
+        var transport = new TestMessageTransport();
+        var contractRegistry = new MessageContractRegistry();
+        contractRegistry.Register<TestOrderSubmittedEvent>("orders.events.order-submitted");
+
+        var dispatcher = new TransportOutboxDispatcher(
+            transport,
+            contractRegistry,
+            new SystemTextJsonMessageSerializer(),
+            new TransportOutboxDispatcherOptions
+            {
+                DefaultDestination = "orders.events",
+                ValidatePayloadBeforeDispatch = false
+            });
+
+        await dispatcher.DispatchAsync(new OutboxEnvelope
+        {
+            Id = Guid.NewGuid(),
+            ContractName = "orders.events.order-submitted",
+            ContractVersion = 1,
+            Payload = "not-json",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Status = OutboxStatus.Publishing,
+            AttemptCount = 1
+        });
+
+        transport.Published.Should().ContainSingle();
+    }
+
+    /// <summary>
+    ///     Verifies invalid payloads fail fast when validation is enabled.
+    /// </summary>
+    [Fact]
+    public async Task DispatchAsync_when_validate_payload_enabled_should_throw_before_publish()
+    {
+        var transport = new TestMessageTransport();
+        var contractRegistry = new MessageContractRegistry();
+        contractRegistry.Register<TestOrderSubmittedEvent>("orders.events.order-submitted");
+
+        var dispatcher = new TransportOutboxDispatcher(
+            transport,
+            contractRegistry,
+            new SystemTextJsonMessageSerializer(),
+            new TransportOutboxDispatcherOptions
+            {
+                DefaultDestination = "orders.events",
+                ValidatePayloadBeforeDispatch = true
+            });
+
+        var act = async () => await dispatcher.DispatchAsync(new OutboxEnvelope
+        {
+            Id = Guid.NewGuid(),
+            ContractName = "orders.events.order-submitted",
+            ContractVersion = 1,
+            Payload = "not-json",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Status = OutboxStatus.Publishing,
+            AttemptCount = 1
+        });
+
+        await act.Should().ThrowAsync<Exception>();
+        transport.Published.Should().BeEmpty();
+    }
+
+    /// <summary>
     ///     Sample event used by transport dispatch tests.
     /// </summary>
     private sealed record TestOrderSubmittedEvent

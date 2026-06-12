@@ -1,10 +1,16 @@
 using AwesomeAssertions;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Events.Abstractions;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Outbox;
+using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.Dispatch.InProcess;
+using LiteBus.Outbox.Storage.InMemory;
 
 namespace LiteBus.Enterprise.UnitTests;
 
@@ -27,8 +33,7 @@ public sealed class PayloadEncryptionTests
 
         var inbox = new Inbox.Inbox(
             store,
-            new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, encryptor),
-            TimeProvider.System);
+            new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, encryptor));
 
         await inbox.AcceptAsync(InboxAcceptItem<TestCommand>.From(new TestCommand { Value = "secret" }));
 
@@ -39,6 +44,58 @@ public sealed class PayloadEncryptionTests
         await dispatcher.DispatchAsync(stored);
 
         CapturingInboxDispatcher.LastValue.Should().Be("secret");
+    }
+
+    /// <summary>
+    ///     Verifies <see cref="CommandInboxDispatcher" /> decrypts payloads protected by <see cref="IInboxPayloadProtector" />.
+    /// </summary>
+    [Fact]
+    public async Task CommandInboxDispatcher_DecryptsProtectedPayload()
+    {
+        var store = new InMemoryInboxStore();
+        IInboxPayloadProtector protector = new PrefixInboxPayloadProtector("enc:");
+        var registry = new MessageContractRegistry();
+        registry.Register<TestCommand>("test-command");
+        var serializer = new SystemTextJsonMessageSerializer();
+        var mediator = new CapturingCommandMediator();
+
+        var inbox = new Inbox.Inbox(
+            store,
+            new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector));
+
+        await inbox.AcceptAsync(InboxAcceptItem<TestCommand>.From(new TestCommand { Value = "secret" }));
+
+        var stored = store.GetAll().Single();
+        var dispatcher = new CommandInboxDispatcher(mediator, registry, serializer, protector);
+        await dispatcher.DispatchAsync(stored);
+
+        CapturingCommandMediator.LastValue.Should().Be("secret");
+    }
+
+    /// <summary>
+    ///     Verifies <see cref="EventOutboxDispatcher" /> decrypts payloads protected by <see cref="IOutboxPayloadProtector" />.
+    /// </summary>
+    [Fact]
+    public async Task EventOutboxDispatcher_DecryptsProtectedPayload()
+    {
+        IOutboxPayloadProtector protector = new PrefixOutboxPayloadProtector("enc:");
+        var registry = new MessageContractRegistry();
+        registry.Register<TestEvent>("test-event");
+        var serializer = new SystemTextJsonMessageSerializer();
+        var mediator = new CapturingEventMediator();
+        var store = new InMemoryOutboxStore();
+
+        var outbox = new Outbox.Outbox(
+            store,
+            new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector));
+
+        await outbox.EnqueueAsync(OutboxEnqueueItem<TestEvent>.From(new TestEvent { Value = "secret" }));
+
+        var stored = store.GetAll().Single();
+        var dispatcher = new EventOutboxDispatcher(mediator, registry, serializer, protector);
+        await dispatcher.DispatchAsync(stored);
+
+        CapturingEventMediator.LastValue.Should().Be("secret");
     }
 
     /// <summary>
@@ -126,5 +183,130 @@ public sealed class PayloadEncryptionTests
 
             LastValue = ((TestCommand) command).Value;
         }
+    }
+
+    /// <summary>
+    ///     Prefix-based inbox protector for dispatch tests.
+    /// </summary>
+    private sealed class PrefixInboxPayloadProtector : IInboxPayloadProtector
+    {
+        /// <summary>
+        ///     Gets the ciphertext prefix.
+        /// </summary>
+        private readonly string _prefix;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="PrefixInboxPayloadProtector" /> class.
+        /// </summary>
+        /// <param name="prefix">The ciphertext prefix.</param>
+        public PrefixInboxPayloadProtector(string prefix)
+        {
+            _prefix = prefix;
+        }
+
+        /// <inheritdoc />
+        public Task<string> EncryptAsync(string plaintext, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_prefix + plaintext);
+        }
+
+        /// <inheritdoc />
+        public Task<string> DecryptAsync(string ciphertext, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(ciphertext[_prefix.Length..]);
+        }
+    }
+
+    /// <summary>
+    ///     Prefix-based outbox protector for dispatch tests.
+    /// </summary>
+    private sealed class PrefixOutboxPayloadProtector : IOutboxPayloadProtector
+    {
+        /// <summary>
+        ///     Gets the ciphertext prefix.
+        /// </summary>
+        private readonly string _prefix;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="PrefixOutboxPayloadProtector" /> class.
+        /// </summary>
+        /// <param name="prefix">The ciphertext prefix.</param>
+        public PrefixOutboxPayloadProtector(string prefix)
+        {
+            _prefix = prefix;
+        }
+
+        /// <inheritdoc />
+        public Task<string> EncryptAsync(string plaintext, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_prefix + plaintext);
+        }
+
+        /// <inheritdoc />
+        public Task<string> DecryptAsync(string ciphertext, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(ciphertext[_prefix.Length..]);
+        }
+    }
+
+    /// <summary>
+    ///     Captures the last command sent through the in-process mediator.
+    /// </summary>
+    private sealed class CapturingCommandMediator : ICommandMediator
+    {
+        /// <summary>
+        ///     Gets the last command value observed by the mediator.
+        /// </summary>
+        public static string LastValue { get; private set; } = string.Empty;
+
+        /// <inheritdoc />
+        public Task SendAsync(ICommand command, CommandMediationSettings? settings = null, CancellationToken cancellationToken = default)
+        {
+            LastValue = ((TestCommand) command).Value;
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc />
+        public Task<TResult> SendAsync<TResult>(ICommand<TResult> command, CommandMediationSettings? settings = null, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    /// <summary>
+    ///     Captures the last event published through the in-process mediator.
+    /// </summary>
+    private sealed class CapturingEventMediator : IEventMediator
+    {
+        /// <summary>
+        ///     Gets the last event value observed by the mediator.
+        /// </summary>
+        public static string LastValue { get; private set; } = string.Empty;
+
+        /// <inheritdoc />
+        public Task PublishAsync(IEvent @event, EventMediationSettings? settings = null, CancellationToken cancellationToken = default)
+        {
+            LastValue = ((TestEvent) @event).Value;
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc />
+        public Task PublishAsync<TEvent>(TEvent @event, EventMediationSettings? settings = null, CancellationToken cancellationToken = default)
+            where TEvent : notnull
+        {
+            LastValue = ((TestEvent) (object) @event).Value;
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    ///     Test event payload.
+    /// </summary>
+    private sealed class TestEvent : IEvent
+    {
+        /// <summary>
+        ///     Gets or sets the value.
+        /// </summary>
+        public string Value { get; set; } = string.Empty;
     }
 }

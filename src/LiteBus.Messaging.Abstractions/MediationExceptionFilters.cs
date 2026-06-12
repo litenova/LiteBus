@@ -1,12 +1,11 @@
 using System;
-using LiteBus.Messaging.Abstractions;
 
-namespace LiteBus.Messaging.MediationStrategies;
+namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
 ///     Identifies exceptions that should propagate from mediation instead of being routed to error handlers.
 /// </summary>
-internal static class MediationExceptionFilters
+public static class MediationExceptionFilters
 {
     /// <summary>
     ///     Determines whether an exception should be handled by registered error handlers.
@@ -19,6 +18,7 @@ internal static class MediationExceptionFilters
     {
         return exception is not LiteBusExecutionAbortedException
             and not NoHandlerFoundException
-            and not MultipleHandlerFoundException;
+            and not MultipleHandlerFoundException
+            and not OperationCanceledException;
     }
 }

@@ -11,7 +11,7 @@ public static class PostgreSqlSagaSchema
     /// <summary>
     ///     Gets the saga table schema version implemented by this package release.
     /// </summary>
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     /// <summary>
     ///     Ensures the saga schema exists.
@@ -75,6 +75,7 @@ public static class PostgreSqlSagaSchema
         [
             "correlation_id",
             "saga_type",
+            "tenant_id",
             "state_json",
             "optimistic_lock_version",
             "is_completed",

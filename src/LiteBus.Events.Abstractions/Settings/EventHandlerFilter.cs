@@ -170,7 +170,7 @@ namespace LiteBus.Events.Abstractions;
 ///         descriptor => descriptor.Tags.Contains(tag);
 ///     
 ///     public static EventHandlerFilter ByPriority(int maxPriority) =>
-///         descriptor => descriptor.Order <= maxPriority;
+///         descriptor => descriptor.Priority <= maxPriority;
 ///     
 ///     public static EventHandlerFilter ExcludeNamespaces(params string[] namespaces) =>
 ///         descriptor => !namespaces.Any(ns => descriptor.HandlerType.Namespace?.StartsWith(ns) == true);

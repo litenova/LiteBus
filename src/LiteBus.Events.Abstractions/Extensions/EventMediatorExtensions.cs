@@ -52,4 +52,31 @@ public static class EventMediatorExtensions
             },
             cancellationToken);
     }
+
+    /// <summary>
+    ///     Publishes a typed event asynchronously using the specified event mediator with a specific tag.
+    /// </summary>
+    /// <typeparam name="TEvent">The event type to publish.</typeparam>
+    /// <param name="eventMediator">The event mediator to use for publishing the event.</param>
+    /// <param name="event">The event to publish.</param>
+    /// <param name="tag">A tag that specifies the context or category of the event.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the publish operation.</param>
+    /// <returns>A task that represents the asynchronous publish operation.</returns>
+    public static Task PublishAsync<TEvent>(
+        this IEventMediator eventMediator,
+        TEvent @event,
+        string tag,
+        CancellationToken cancellationToken = default)
+        where TEvent : notnull
+    {
+        return eventMediator.PublishAsync(@event,
+            new EventMediationSettings
+            {
+                Routing = new EventRoutingSettings
+                {
+                    Tags = [tag]
+                }
+            },
+            cancellationToken);
+    }
 }

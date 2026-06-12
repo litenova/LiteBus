@@ -65,7 +65,7 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
                 WorkItemId = workItemId,
                 IdempotencyKey = $"work:{workItemId}"
             },
-            new InboxAcceptMetadata
+            InboxAcceptMetadata.Immediate with
             {
                 Identity = new MessageIdentity.Supplied(messageId),
                 Trace = new MessageTrace.Workflow("corr-pg-dispatch", "cause-pg-dispatch"),

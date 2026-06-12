@@ -1,5 +1,6 @@
 using LiteBus.Inbox;
 using LiteBus.Runtime.Abstractions.Hosting;
+using LiteBus.Runtime.Extensions.Microsoft.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -57,28 +58,7 @@ public static class LiteBusHostedServiceExtensions
     {
         ArgumentNullException.ThrowIfNull(provider);
 
-        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
-        var processorIndex = -1;
-
-        for (var index = 0; index < manifest.BackgroundServices.Count; index++)
-        {
-            if (manifest.BackgroundServices[index] == typeof(InboxProcessorBackgroundService))
-            {
-                processorIndex = index;
-                break;
-            }
-        }
-
-        if (processorIndex < 0)
-        {
-            throw new InvalidOperationException(
-                "Inbox processor background service is not registered in the LiteBus host manifest.");
-        }
-
-        var hostedServices = provider.GetServices<IHostedService>().ToList();
-        var backgroundServiceOffset = manifest.StartupTasks.Count > 0 ? 1 : 0;
-
-        return hostedServices[backgroundServiceOffset + processorIndex];
+        return provider.GetHostedServiceForBackgroundService<InboxProcessorBackgroundService>();
     }
 
     /// <summary>

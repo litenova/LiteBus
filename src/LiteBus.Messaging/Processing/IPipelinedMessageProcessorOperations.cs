@@ -71,6 +71,22 @@ internal interface IPipelinedMessageProcessorOperations<TEnvelope, in TOptions>
         CancellationToken cancellationToken);
 
     /// <summary>
+    ///     Persists a retryable outcome when dispatch was canceled because the active lease was lost.
+    /// </summary>
+    /// <param name="sourceEnvelope">The leased message whose renewal failed during dispatch.</param>
+    /// <param name="accumulator">The pass accumulator that collects outcomes from this worker.</param>
+    /// <param name="options">The processor options for the pass.</param>
+    /// <param name="logger">The logger used for persistence diagnostics.</param>
+    /// <param name="cancellationToken">A token used to cancel dispatch-side work.</param>
+    /// <returns>A task that completes when the lease-loss outcome is persisted.</returns>
+    Task PersistLeaseLossOutcomeAsync(
+        TEnvelope sourceEnvelope,
+        ConcurrentProcessorPassAccumulator<TEnvelope> accumulator,
+        TOptions options,
+        ILogger logger,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     ///     Persists the terminal outcome for one dispatched message.
     /// </summary>
     /// <param name="sourceEnvelope">The leased message that was dispatched.</param>

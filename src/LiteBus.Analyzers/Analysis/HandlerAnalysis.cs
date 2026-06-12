@@ -19,6 +19,7 @@ internal static class HandlerAnalysis
         ("LiteBus.Commands.Abstractions.ICommandHandler`2", "command"),
         ("LiteBus.Events.Abstractions.IEventHandler`1", "event"),
         ("LiteBus.Queries.Abstractions.IQueryHandler`2", "query"),
+        ("LiteBus.Queries.Abstractions.IStreamQueryHandler`2", "stream query"),
         ("LiteBus.Commands.Abstractions.ICommandPreHandler`1", "command pre-handler"),
         ("LiteBus.Events.Abstractions.IEventPreHandler`1", "event pre-handler"),
         ("LiteBus.Queries.Abstractions.IQueryPreHandler`1", "query pre-handler"),
@@ -26,8 +27,10 @@ internal static class HandlerAnalysis
         ("LiteBus.Events.Abstractions.IEventPostHandler`1", "event post-handler"),
         ("LiteBus.Queries.Abstractions.IQueryPostHandler`1", "query post-handler"),
         ("LiteBus.Commands.Abstractions.ICommandErrorHandler`1", "command error-handler"),
+        ("LiteBus.Commands.Abstractions.ICommandErrorHandler`2", "command error-handler"),
         ("LiteBus.Events.Abstractions.IEventErrorHandler`1", "event error-handler"),
-        ("LiteBus.Queries.Abstractions.IQueryErrorHandler`1", "query error-handler")
+        ("LiteBus.Queries.Abstractions.IQueryErrorHandler`1", "query error-handler"),
+        ("LiteBus.Queries.Abstractions.IQueryErrorHandler`2", "query error-handler")
     };
 
     /// <summary>

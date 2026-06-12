@@ -23,6 +23,21 @@ public sealed record MessageErrorContext
     public object? MessageResult { get; init; }
 
     /// <summary>
+    ///     Gets or sets the outcome that determines whether the original exception propagates after error handlers run.
+    /// </summary>
+    /// <value>
+    ///     Defaults to <see cref="MessageErrorOutcome.Unhandled" />, which rethrows the original exception unless a handler
+    ///     sets <see cref="MessageErrorOutcome.Handled" />.
+    /// </value>
+    public MessageErrorOutcome Outcome { get; set; } = MessageErrorOutcome.Unhandled;
+
+    /// <summary>
+    ///     Gets or sets the result to return when <see cref="Outcome" /> is <see cref="MessageErrorOutcome.Handled" /> and the
+    ///     mediated message has a typed result.
+    /// </summary>
+    public object? HandledResult { get; set; }
+
+    /// <summary>
     ///     Creates a typed view of the error context for handler implementations.
     /// </summary>
     /// <typeparam name="TMessage">The message type expected by the handler.</typeparam>

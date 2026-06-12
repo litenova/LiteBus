@@ -36,7 +36,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
                 OrderId = Guid.NewGuid(),
                 IdempotencyKey = "ship-visible"
             },
-            new InboxAcceptMetadata
+            InboxAcceptMetadata.Immediate with
             {
                 Visibility = new MessageVisibility.At(visibleAfter)
             }));
@@ -65,7 +65,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
             },
-            new InboxAcceptMetadata
+            InboxAcceptMetadata.Immediate with
             {
                 Idempotency = new Idempotency.Keyed($"ship:{orderId}")
             }));
@@ -165,7 +165,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
                 OrderId = Guid.NewGuid(),
                 IdempotencyKey = "future"
             },
-            new InboxAcceptMetadata
+            InboxAcceptMetadata.Immediate with
             {
                 Visibility = new MessageVisibility.At(BaseTime.AddMinutes(30))
             }));
@@ -193,7 +193,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
                 OrderId = Guid.NewGuid(),
                 IdempotencyKey = "due-later"
             },
-            new InboxAcceptMetadata
+            InboxAcceptMetadata.Immediate with
             {
                 Visibility = new MessageVisibility.At(BaseTime.AddMinutes(5))
             }));

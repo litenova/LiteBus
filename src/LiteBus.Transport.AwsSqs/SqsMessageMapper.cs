@@ -11,6 +11,11 @@ namespace LiteBus.Transport.AwsSqs;
 internal static class SqsMessageMapper
 {
     /// <summary>
+    ///     The base64 content encoding marker stored in SQS message attributes.
+    /// </summary>
+    private const string Base64ContentEncoding = "base64";
+
+    /// <summary>
     ///     Creates an SQS send request from a LiteBus publish request.
     /// </summary>
     /// <param name="request">The publish request describing destination, body, and headers.</param>
@@ -19,11 +24,22 @@ internal static class SqsMessageMapper
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        var body = request.Body.Span;
+        var useBase64 = !IsValidUtf8Text(body);
+
         var sendRequest = new SendMessageRequest
         {
             QueueUrl = request.Destination,
-            MessageBody = Encoding.UTF8.GetString(request.Body.Span)
+            MessageBody = useBase64
+                ? Convert.ToBase64String(body)
+                : Encoding.UTF8.GetString(body)
         };
+
+        if (useBase64)
+        {
+            sendRequest.MessageAttributes[TransportHeaders.ContentEncoding] =
+                CreateStringAttribute(Base64ContentEncoding);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.MessageId))
         {
@@ -32,7 +48,8 @@ internal static class SqsMessageMapper
 
         if (!string.IsNullOrWhiteSpace(request.CorrelationId))
         {
-            sendRequest.MessageAttributes["CorrelationId"] = CreateStringAttribute(request.CorrelationId);
+            sendRequest.MessageAttributes[TransportHeaders.CorrelationId] =
+                CreateStringAttribute(request.CorrelationId);
         }
 
         if (!string.IsNullOrWhiteSpace(request.Route))
@@ -63,7 +80,7 @@ internal static class SqsMessageMapper
     {
         ArgumentNullException.ThrowIfNull(ackHandlers);
 
-        var body = Encoding.UTF8.GetBytes(message.Body ?? string.Empty);
+        var body = DecodeBody(message);
         var headers = CopyMessageAttributes(message.MessageAttributes);
 
         return new TransportMessage
@@ -73,13 +90,56 @@ internal static class SqsMessageMapper
             Destination = queueUrl,
             Route = GetAttribute(headers, "Route"),
             MessageId = message.MessageId ?? GetAttribute(headers, TransportHeaders.MessageId),
-            CorrelationId = GetAttribute(headers, TransportHeaders.CorrelationId) ?? GetAttribute(headers, "CorrelationId"),
+            CorrelationId = GetAttribute(headers, TransportHeaders.CorrelationId)
+                              ?? GetAttribute(headers, TransportHeaders.LegacyCorrelationId),
             Redelivered = message.Attributes.TryGetValue("ApproximateReceiveCount", out var count) &&
                           int.TryParse(count, NumberStyles.Integer, CultureInfo.InvariantCulture, out var receiveCount) &&
                           receiveCount > 1,
             AckAsync = ackHandlers.AckAsync,
             NackAsync = ackHandlers.NackAsync
         };
+    }
+
+    /// <summary>
+    ///     Decodes the SQS message body using the optional content-encoding attribute.
+    /// </summary>
+    /// <param name="message">The received SQS message.</param>
+    /// <returns>The decoded message body bytes.</returns>
+    private static byte[] DecodeBody(Message message)
+    {
+        var rawBody = message.Body ?? string.Empty;
+
+        if (message.MessageAttributes.TryGetValue(TransportHeaders.ContentEncoding, out var encoding) &&
+            string.Equals(encoding.StringValue, Base64ContentEncoding, StringComparison.Ordinal))
+        {
+            return Convert.FromBase64String(rawBody);
+        }
+
+        return Encoding.UTF8.GetBytes(rawBody);
+    }
+
+    /// <summary>
+    ///     Returns whether the payload is valid UTF-8 text without embedded null bytes.
+    /// </summary>
+    /// <param name="body">The publish body bytes.</param>
+    /// <returns><see langword="true" /> when the body can be sent as a plain UTF-8 SQS message body.</returns>
+    private static bool IsValidUtf8Text(ReadOnlySpan<byte> body)
+    {
+        if (body.IsEmpty)
+        {
+            return true;
+        }
+
+        try
+        {
+            var text = Encoding.UTF8.GetString(body);
+
+            return !text.Contains('\0');
+        }
+        catch (DecoderFallbackException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

@@ -36,17 +36,33 @@ internal static class ProcessorLeaseHeartbeat
         }
 
         using var operationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var leaseWasLost = false;
+        var heartbeatContext = context with
+        {
+            OnLeaseLost = () =>
+            {
+                leaseWasLost = true;
+                context.OnLeaseLost?.Invoke();
+            }
+        };
 
-        if (!await TryRenewLeaseAsync(context, operationCts).ConfigureAwait(false))
+        if (!await TryRenewLeaseAsync(heartbeatContext, operationCts).ConfigureAwait(false))
         {
             throw new OperationCanceledException(operationCts.Token);
         }
 
-        var heartbeatTask = RenewLoopAsync(context, operationCts, cancellationToken);
+        var heartbeatTask = RenewLoopAsync(heartbeatContext, operationCts, cancellationToken);
 
         try
         {
-            return await operation(operationCts.Token).ConfigureAwait(false);
+            var result = await operation(operationCts.Token).ConfigureAwait(false);
+
+            if (leaseWasLost)
+            {
+                throw new OperationCanceledException(operationCts.Token);
+            }
+
+            return result;
         }
         finally
         {

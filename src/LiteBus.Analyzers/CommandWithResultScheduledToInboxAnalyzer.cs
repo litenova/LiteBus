@@ -40,7 +40,7 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
         var symbol = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol as IMethodSymbol;
 
         if (symbol is null ||
-            symbol.Name != "AcceptAsync" ||
+            !IsInboxWriteMethod(symbol) ||
             !IsInboxAcceptMethod(symbol, context.Compilation))
         {
             return;
@@ -68,8 +68,18 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
     }
 
     /// <summary>
+    ///     Determines whether the invoked method writes commands into the inbox.
+    /// </summary>
+    /// <param name="method">The invoked method symbol.</param>
+    /// <returns><see langword="true" /> when the method accepts inbox messages.</returns>
+    private static bool IsInboxWriteMethod(IMethodSymbol method)
+    {
+        return method.Name is "AcceptAsync" or "AcceptBatchAsync";
+    }
+
+    /// <summary>
     ///     Determines whether the method symbol is an inbox acceptance API on
-    ///     <c>LiteBus.Inbox.Abstractions.IInbox</c>.
+    ///     <c>LiteBus.Inbox.Abstractions.IInbox</c> or <c>ITransactionalInbox</c>.
     /// </summary>
     /// <param name="method">The invoked method symbol.</param>
     /// <param name="compilation">The compilation being analyzed.</param>
@@ -77,18 +87,25 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
     private static bool IsInboxAcceptMethod(IMethodSymbol method, Compilation compilation)
     {
         var inboxInterface = compilation.GetTypeByMetadataName("LiteBus.Inbox.Abstractions.IInbox");
+        var transactionalInboxInterface = compilation.GetTypeByMetadataName("LiteBus.Inbox.Abstractions.ITransactionalInbox");
 
-        if (inboxInterface is null || method.ContainingType is null)
+        if (method.ContainingType is null)
         {
             return false;
         }
 
-        if (SymbolEqualityComparer.Default.Equals(method.ContainingType, inboxInterface))
+        if (inboxInterface is not null &&
+            (SymbolEqualityComparer.Default.Equals(method.ContainingType, inboxInterface) ||
+             method.ContainingType.AllInterfaces.Any(candidate =>
+                 SymbolEqualityComparer.Default.Equals(candidate, inboxInterface))))
         {
             return true;
         }
 
-        return method.ContainingType.AllInterfaces.Any(candidate => SymbolEqualityComparer.Default.Equals(candidate, inboxInterface));
+        return transactionalInboxInterface is not null &&
+               (SymbolEqualityComparer.Default.Equals(method.ContainingType, transactionalInboxInterface) ||
+                method.ContainingType.AllInterfaces.Any(candidate =>
+                    SymbolEqualityComparer.Default.Equals(candidate, transactionalInboxInterface)));
     }
 
     /// <summary>

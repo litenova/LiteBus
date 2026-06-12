@@ -152,8 +152,7 @@ public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<Inbox
 
                 return new StoreBoundTransactionalInbox(
                     participant.ResolveStore(),
-                    serviceProvider.GetRequiredService<IInboxEnvelopeFactory>(),
-                    serviceProvider.GetRequiredService<TimeProvider>());
+                    serviceProvider.GetRequiredService<IInboxEnvelopeFactory>());
             },
             InstanceLifetime.Scoped));
     }

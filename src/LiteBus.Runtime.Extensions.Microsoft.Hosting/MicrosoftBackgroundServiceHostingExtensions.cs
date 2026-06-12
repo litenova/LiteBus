@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using BackgroundServiceHostAdapter = LiteBus.Runtime.Extensions.Hosting.BackgroundServiceHostAdapter;
+using StartupTaskGate = LiteBus.Runtime.Extensions.Hosting.StartupTaskGate;
+using StartupTaskPhaseHostedService = LiteBus.Runtime.Extensions.Hosting.StartupTaskPhaseHostedService;
 
 namespace LiteBus.Runtime.Extensions.Microsoft.Hosting;
 
@@ -27,13 +31,15 @@ public static class MicrosoftBackgroundServiceHostingExtensions
         ArgumentNullException.ThrowIfNull(startupTasks);
         ArgumentNullException.ThrowIfNull(backgroundServices);
 
-        var startupTaskTypes = DeduplicatePreserveOrder(startupTasks);
-        var backgroundServiceTypes = DeduplicatePreserveOrder(backgroundServices);
+        var startupTaskTypes = HostingRegistrationHelpers.DeduplicatePreserveOrder(startupTasks);
+        var backgroundServiceTypes = HostingRegistrationHelpers.DeduplicatePreserveOrder(backgroundServices);
 
         if (startupTaskTypes.Count == 0 && backgroundServiceTypes.Count == 0)
         {
             return;
         }
+
+        services.AddSingleton<BackgroundServiceHostedServiceIndex>();
 
         if (startupTaskTypes.Count > 0)
         {
@@ -76,30 +82,16 @@ public static class MicrosoftBackgroundServiceHostingExtensions
         foreach (var implementationType in backgroundServiceTypes)
         {
             services.Add(ServiceDescriptor.Singleton<IHostedService>(serviceProvider =>
-                new BackgroundServiceHostAdapter(
-                    (IBackgroundService) serviceProvider.GetRequiredService(implementationType),
-                    serviceProvider.GetRequiredService<StartupTaskGate>())));
-        }
-    }
-
-    /// <summary>
-    ///     Returns types in first-seen order while skipping duplicates.
-    /// </summary>
-    /// <param name="types">The types to deduplicate.</param>
-    /// <returns>The deduplicated type list.</returns>
-    private static List<Type> DeduplicatePreserveOrder(IReadOnlyList<Type> types)
-    {
-        var result = new List<Type>(types.Count);
-        var registeredTypes = new HashSet<Type>();
-
-        foreach (var implementationType in types)
-        {
-            if (registeredTypes.Add(implementationType))
             {
-                result.Add(implementationType);
-            }
-        }
+                var adapter = new BackgroundServiceHostAdapter(
+                    (IBackgroundService) serviceProvider.GetRequiredService(implementationType),
+                    serviceProvider.GetRequiredService<StartupTaskGate>());
 
-        return result;
+                serviceProvider.GetRequiredService<BackgroundServiceHostedServiceIndex>()
+                    .Register(implementationType, adapter);
+
+                return adapter;
+            }));
+        }
     }
 }

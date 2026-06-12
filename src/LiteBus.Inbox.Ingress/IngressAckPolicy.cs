@@ -29,6 +29,7 @@ public static class IngressAckPolicy
         return exception is not (
             MessageContractNotRegisteredException
             or InboxDispatchException
+            or InboxIngressException
             or InboxStorageException
             or InvalidOperationException
             or ArgumentException

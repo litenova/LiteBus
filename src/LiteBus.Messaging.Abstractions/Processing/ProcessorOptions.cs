@@ -77,4 +77,12 @@ public record ProcessorOptions
     ///     <see langword="false" /> by default.
     /// </value>
     public bool HonorShutdownTokenOnPersist { get; init; }
+
+    /// <summary>
+    ///     Gets the policy applied when an <c>AfterDispatch</c> hook throws after dispatch succeeds.
+    /// </summary>
+    /// <value>
+    ///     <see cref="ProcessorHookFailurePolicy.DeadLetter" /> by default.
+    /// </value>
+    public ProcessorHookFailurePolicy HookFailurePolicy { get; init; } = ProcessorHookFailurePolicy.DeadLetter;
 }

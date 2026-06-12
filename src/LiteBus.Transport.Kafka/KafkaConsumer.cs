@@ -202,7 +202,8 @@ public sealed class KafkaConsumer : IMessageConsumer
                 var transportMessage = KafkaMessageMapper.ToTransportMessage(
                     result,
                     options.Destination,
-                    ackHandlers);
+                    ackHandlers,
+                    _seekBackoff.IsRedelivery(offset));
 
                 await handler(transportMessage, cancellationToken).ConfigureAwait(false);
             }

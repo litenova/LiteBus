@@ -25,12 +25,14 @@ public sealed class AmqpInboxIngressHandler
     /// <param name="inbox">The inbox writer used to accept deserialized messages.</param>
     /// <param name="contractRegistry">The registry used to resolve persisted contracts back to CLR types.</param>
     /// <param name="messageSerializer">The serializer used to hydrate AMQP message bodies.</param>
+    /// <param name="options">The ingress options that control body limits and delivery authorization.</param>
     public AmqpInboxIngressHandler(
         IInbox inbox,
         IContractReader contractRegistry,
-        IMessageSerializer messageSerializer)
+        IMessageSerializer messageSerializer,
+        TransportInboxIngressOptions options)
     {
-        _inner = new TransportInboxIngressHandler(inbox, contractRegistry, messageSerializer);
+        _inner = new TransportInboxIngressHandler(inbox, contractRegistry, messageSerializer, options);
     }
 
     /// <summary>

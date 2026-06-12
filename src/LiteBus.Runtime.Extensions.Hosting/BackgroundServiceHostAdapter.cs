@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using LiteBus.Runtime.Abstractions;
 using Microsoft.Extensions.Hosting;
 
-namespace LiteBus.Runtime.Extensions.Microsoft.Hosting;
+namespace LiteBus.Runtime.Extensions.Hosting;
 
 /// <summary>
 ///     Adapts <see cref="IBackgroundService" /> to the generic host <see cref="BackgroundService" /> contract.

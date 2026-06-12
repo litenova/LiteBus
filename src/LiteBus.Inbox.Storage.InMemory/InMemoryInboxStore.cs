@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Abstractions.Exceptions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 
@@ -97,24 +98,29 @@ public sealed class InMemoryInboxStore :
     }
 
     /// <inheritdoc />
-    public Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    public Task<RequeueResult> RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
 
         if (messageIds.Count == 0)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(new RequeueResult(0, 0));
         }
+
+        var requeued = 0;
 
         lock (_sync)
         {
             foreach (var messageId in messageIds)
             {
-                RequeueDeadLetterIfNeeded(messageId);
+                if (RequeueDeadLetterIfNeeded(messageId))
+                {
+                    requeued++;
+                }
             }
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult(new RequeueResult(messageIds.Count, requeued));
     }
 
     /// <inheritdoc />
@@ -450,14 +456,16 @@ public sealed class InMemoryInboxStore :
     ///     Requeues one dead-lettered envelope when it is currently in the dead-letter state.
     /// </summary>
     /// <param name="messageId">The message identifier.</param>
-    private void RequeueDeadLetterIfNeeded(Guid messageId)
+    /// <returns><see langword="true" /> when the row was requeued; otherwise <see langword="false" />.</returns>
+    private bool RequeueDeadLetterIfNeeded(Guid messageId)
     {
         if (!_envelopes.TryGetValue(messageId, out var envelope) || envelope.Status != InboxStatus.DeadLettered)
         {
-            return;
+            return false;
         }
 
         _envelopes[messageId] = envelope.AsRequeued();
+        return true;
     }
 
     /// <summary>
@@ -612,6 +620,7 @@ public sealed class InMemoryInboxStore :
     {
         if (_envelopes.TryGetValue(envelope.Id, out var existingById))
         {
+            ThrowIfStrictConflict(envelope, existingById.Id);
             return existingById;
         }
 
@@ -619,6 +628,7 @@ public sealed class InMemoryInboxStore :
             _idempotencyIndex.TryGetValue(envelope.IdempotencyKey, out var existingId) &&
             _envelopes.TryGetValue(existingId, out var existingByKey))
         {
+            ThrowIfStrictConflict(envelope, existingByKey.Id);
             return existingByKey;
         }
 
@@ -683,5 +693,26 @@ public sealed class InMemoryInboxStore :
         }
 
         return envelope;
+    }
+
+    /// <summary>
+    ///     Throws when a duplicate idempotency key or message identifier is rejected under strict conflict mode.
+    /// </summary>
+    /// <param name="envelope">The envelope attempted for insert.</param>
+    /// <param name="existingId">The identifier of the stored row that conflicts with the attempt.</param>
+    private static void ThrowIfStrictConflict(InboxEnvelope envelope, Guid existingId)
+    {
+        if (envelope.IdempotencyConflictMode != IdempotencyConflictMode.Strict)
+        {
+            return;
+        }
+
+        if (envelope.Id == existingId)
+        {
+            return;
+        }
+
+        throw new IdempotencyConflictException(
+            $"An inbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
     }
 }

@@ -70,8 +70,10 @@ public sealed class OutboxProcessorCorrectnessTests
         var result = await processor.ProcessPendingAsync();
 
         result.SucceededCount.Should().Be(0);
+        result.FailedCount.Should().Be(1);
         dispatchCount.Should().BeLessThan(2);
-        store.Inner.Get(messageId).Status.Should().Be(OutboxStatus.Publishing);
+        store.Inner.Get(messageId).Status.Should().Be(OutboxStatus.Failed);
+        store.Inner.Get(messageId).LastError.Should().Be(MessageProcessorDiagnostics.LeaseLostDuringProcessingError);
     }
 
     [Fact]

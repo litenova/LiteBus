@@ -215,15 +215,8 @@ public sealed class SqsConsumer : IMessageConsumer
                         options.Destination,
                         ackHandlers);
 
-                    try
-                    {
-                        await handler(transportMessage, cancellationToken).ConfigureAwait(false);
-                        batchFailed = false;
-                    }
-                    catch (Exception) when (!cancellationToken.IsCancellationRequested)
-                    {
-                        await transportMessage.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
-                    }
+                    await handler(transportMessage, cancellationToken).ConfigureAwait(false);
+                    batchFailed = false;
                 }
 
                 if (batchFailed)

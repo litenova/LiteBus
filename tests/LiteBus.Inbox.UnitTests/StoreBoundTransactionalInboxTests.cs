@@ -19,7 +19,7 @@ public sealed class StoreBoundTransactionalInboxTests
         registry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
         var serializer = new SystemTextJsonMessageSerializer();
         var factory = new InboxEnvelopeFactory(registry, serializer, TimeProvider.System);
-        var writer = new StoreBoundTransactionalInbox(store, factory, TimeProvider.System);
+        var writer = new StoreBoundTransactionalInbox(store, factory);
 
         var receipt = await writer.AcceptAsync(InboxAcceptItem<InboxTestFixtures.ShipOrderCommand>.From(
             new InboxTestFixtures.ShipOrderCommand { OrderId = Guid.NewGuid(), IdempotencyKey = "k" }));

@@ -1,5 +1,5 @@
 using System;
-using LiteBus.Transport.Amqp;
+using LiteBus.Transport;
 using OpenTelemetry.Metrics;
 
 namespace LiteBus.Transport.Extensions.OpenTelemetry;
@@ -19,17 +19,5 @@ public static class LiteBusTransportOpenTelemetryExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         return builder.AddMeter(LiteBusTransportTelemetry.MeterName);
-    }
-
-    /// <summary>
-    ///     Adds the LiteBus AMQP transport meter to the meter provider builder.
-    /// </summary>
-    /// <param name="builder">The meter provider builder receiving LiteBus AMQP metrics.</param>
-    /// <returns>The meter provider builder for method chaining.</returns>
-    public static MeterProviderBuilder AddLiteBusAmqpMetrics(this MeterProviderBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        return builder.AddMeter(LiteBusTransportAmqpTelemetry.MeterName);
     }
 }

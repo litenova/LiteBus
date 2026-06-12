@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Queries.Abstractions;
 
@@ -13,10 +15,19 @@ namespace LiteBus.Queries.Abstractions;
 public sealed class QueryMediationSettings
 {
     /// <summary>
+    ///     Gets or initializes the query routing configuration that determines which handlers should execute.
+    /// </summary>
+    /// <value>
+    ///     A <see cref="QueryRoutingSettings" /> instance containing routing configuration.
+    /// </value>
+    public QueryRoutingSettings Routing { get; init; } = new();
+
+    /// <summary>
     ///     Gets the filters to be applied during query mediation.
     /// </summary>
     /// <remarks>
     ///     Filters determine which handlers participate in the query processing pipeline.
+    ///     Prefer <see cref="Routing" /> for new code; this property remains for backward compatibility.
     /// </remarks>
     public QueryMediationFilters Filters { get; } = new();
 
@@ -49,5 +60,15 @@ public sealed class QueryMediationSettings
         ///     If the collection is empty, all registered handlers will be considered.
         /// </remarks>
         public IEnumerable<string> Tags { get; set; } = new List<string>();
+
+        /// <summary>
+        ///     Gets or sets a predicate function used to filter query handlers by their descriptor.
+        /// </summary>
+        /// <remarks>
+        ///     This predicate is evaluated for each potential handler descriptor before execution.
+        ///     Use this for advanced filtering scenarios beyond tag-based filtering.
+        ///     The predicate is applied after tag filtering.
+        /// </remarks>
+        public Func<IHandlerDescriptor, bool> HandlerPredicate { get; set; } = _ => true;
     }
 }

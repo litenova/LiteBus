@@ -1,5 +1,6 @@
 using Confluent.Kafka;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.Kafka;
@@ -29,10 +30,7 @@ public sealed class KafkaTransportModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageTransport)))
-        {
-            return;
-        }
+        TransportModuleRegistration.EnsureTransportNotRegistered(configuration, nameof(KafkaTransportModule));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(KafkaTransportOptions),

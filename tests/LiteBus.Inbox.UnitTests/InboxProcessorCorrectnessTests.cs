@@ -105,8 +105,10 @@ public sealed class InboxProcessorCorrectnessTests
         var result = await processor.ProcessPendingAsync();
 
         result.SucceededCount.Should().Be(0);
+        result.FailedCount.Should().Be(1);
         dispatchCount.Should().BeLessThan(2);
-        store.Inner.Get(commandId).Status.Should().Be(InboxStatus.Processing);
+        store.Inner.Get(commandId).Status.Should().Be(InboxStatus.Failed);
+        store.Inner.Get(commandId).LastError.Should().Be(MessageProcessorDiagnostics.LeaseLostDuringProcessingError);
     }
 
     [Fact]
@@ -253,6 +255,48 @@ public sealed class InboxProcessorCorrectnessTests
 
         store.PersistedStatuses.Should().Equal(InboxStatus.DeadLettered);
         store.Inner.Get(commandId).Status.Should().Be(InboxStatus.DeadLettered);
+    }
+
+    [Fact]
+    public async Task PipelinedProcessor_when_hook_failure_policy_is_complete_despite_hook_failure_should_mark_completed()
+    {
+        var store = new InMemoryInboxStore();
+        var dispatchCount = 0;
+
+        var processor = new PipelinedInboxProcessor(
+            store,
+            store,
+            new CountingInboxDispatcher(() => Interlocked.Increment(ref dispatchCount)),
+            new InboxProcessorOptions
+            {
+                BatchSize = 1,
+                LeaseOwner = "hook-complete-worker",
+                LeaseDuration = TimeSpan.FromMinutes(1),
+                DispatcherConcurrency = 1,
+                Retry = new RetryOptions { UseJitter = false },
+                HookFailurePolicy = ProcessorHookFailurePolicy.CompleteDespiteHookFailure
+            },
+            TimeProvider.System,
+            [new ThrowingAfterDispatchHook()]);
+
+        var commandId = Guid.NewGuid();
+
+        await store.AddAsync(new InboxEnvelope
+        {
+            Id = commandId,
+            ContractName = "orders.commands.ship",
+            ContractVersion = 1,
+            Payload = "{}",
+            CreatedAt = BaseTime,
+            AttemptCount = 0,
+            Status = InboxStatus.Pending
+        });
+
+        var result = await processor.ProcessPendingAsync();
+
+        dispatchCount.Should().Be(1);
+        result.SucceededCount.Should().Be(1);
+        store.Get(commandId).Status.Should().Be(InboxStatus.Completed);
     }
 
     [Fact]

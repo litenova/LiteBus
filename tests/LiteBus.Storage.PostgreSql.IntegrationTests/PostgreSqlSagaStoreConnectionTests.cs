@@ -45,7 +45,7 @@ public sealed class PostgreSqlSagaStoreConnectionTests : IClassFixture<PostgreSq
 
         var correlation = new SagaCorrelation
         {
-            SagaType = "order-flow",
+            SagaDefinitionId = "order-flow",
             CorrelationId = Guid.NewGuid().ToString("N")
         };
 

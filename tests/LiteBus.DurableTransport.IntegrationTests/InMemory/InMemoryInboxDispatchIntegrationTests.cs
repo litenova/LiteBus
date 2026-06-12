@@ -47,7 +47,7 @@ public sealed class InMemoryInboxDispatchIntegrationTests : LiteBusTestBase
                 WorkItemId = workItemId,
                 IdempotencyKey = $"work:{workItemId}"
             },
-            Metadata = new InboxAcceptMetadata
+            Metadata = InboxAcceptMetadata.Immediate with
             {
                 Trace = new MessageTrace.Workflow("corr-dispatch", "cause-dispatch"),
                 Tenant = new TenantScope.Isolated("tenant-dispatch")

@@ -14,6 +14,7 @@ internal static class LiteBusSymbols
     internal static readonly ImmutableArray<string> ImpureDependencyMetadataNames = ImmutableArray.Create(
         "LiteBus.Commands.Abstractions.ICommandMediator",
         "LiteBus.Events.Abstractions.IEventMediator",
+        "LiteBus.Queries.Abstractions.IQueryMediator",
         "LiteBus.Inbox.Abstractions.IInbox",
         "LiteBus.Inbox.Abstractions.ITransactionalInbox`1",
         "LiteBus.Inbox.Abstractions.IInboxStore",

@@ -19,7 +19,7 @@ public sealed class StoreBoundTransactionalOutboxTests
         registry.Register<TestEvent>("orders.events.submitted");
         var serializer = new SystemTextJsonMessageSerializer();
         var factory = new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System);
-        var writer = new StoreBoundTransactionalOutbox(store, factory, TimeProvider.System);
+        var writer = new StoreBoundTransactionalOutbox(store, factory);
 
         var receipt = await writer.EnqueueAsync(OutboxWriterTestFactory.Item(new TestEvent { OrderId = Guid.NewGuid() }));
 

@@ -8,7 +8,7 @@ namespace LiteBus.Messaging;
 /// <summary>
 ///     Default in-memory registry for message contracts.
 /// </summary>
-public sealed class MessageContractRegistry : IMessageContractRegistry
+internal sealed class MessageContractRegistry : IMessageContractRegistry
 {
     /// <summary>
     ///     Maps registered CLR message types to their stable contract metadata.
@@ -72,19 +72,11 @@ public sealed class MessageContractRegistry : IMessageContractRegistry
     {
         ArgumentNullException.ThrowIfNull(messageType);
 
-        var attribute = messageType.GetCustomAttribute<MessageContractAttribute>(false);
-
         lock (_syncRoot)
         {
             if (_contractsByType.TryGetValue(messageType, out var contract))
             {
                 return contract;
-            }
-
-            if (attribute is not null)
-            {
-                RegisterLocked(messageType, attribute.Name, attribute.Version);
-                return _contractsByType[messageType];
             }
         }
 

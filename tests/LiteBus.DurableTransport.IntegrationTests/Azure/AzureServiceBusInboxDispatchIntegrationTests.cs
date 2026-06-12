@@ -59,7 +59,7 @@ public sealed class AzureServiceBusInboxDispatchIntegrationTests : LiteBusTestBa
                 WorkItemId = workItemId,
                 IdempotencyKey = $"work:{workItemId}"
             },
-            Metadata = new InboxAcceptMetadata
+            Metadata = InboxAcceptMetadata.Immediate with
             {
                 Trace = new MessageTrace.Workflow("corr-azure-dispatch", "cause-azure-dispatch"),
                 Tenant = new TenantScope.Isolated("tenant-azure")

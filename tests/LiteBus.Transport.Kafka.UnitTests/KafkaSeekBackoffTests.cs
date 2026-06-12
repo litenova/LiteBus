@@ -31,6 +31,28 @@ public sealed class KafkaSeekBackoffTests
     }
 
     /// <summary>
+    ///     Verifies seeked offsets are reported as redeliveries until committed.
+    /// </summary>
+    [Fact]
+    public void IsRedelivery_afterSeek_ShouldBeTrueUntilCommit()
+    {
+        var backoff = new KafkaSeekBackoff(new KafkaTransportOptions
+        {
+            BootstrapServers = "localhost:9092"
+        });
+
+        var offset = new TopicPartitionOffset("orders", 0, 10);
+
+        backoff.IsRedelivery(offset).Should().BeFalse();
+
+        backoff.RecordSeek(offset);
+        backoff.IsRedelivery(offset).Should().BeTrue();
+
+        backoff.RecordCommit(offset);
+        backoff.IsRedelivery(offset).Should().BeFalse();
+    }
+
+    /// <summary>
     ///     Verifies committing an offset clears failure tracking for that offset.
     /// </summary>
     [Fact]

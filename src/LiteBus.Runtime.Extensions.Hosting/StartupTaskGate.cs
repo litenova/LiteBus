@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace LiteBus.Runtime.Extensions.Autofac.Hosting;
+namespace LiteBus.Runtime.Extensions.Hosting;
 
 /// <summary>
 ///     Signals when startup tasks have finished so long-running background service loops can begin.

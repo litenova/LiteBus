@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using LiteBus.Analyzers.Analysis;
@@ -12,6 +14,13 @@ namespace LiteBus.Analyzers;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
 {
+    /// <summary>
+    ///     Open generic handler interfaces analyzed for impure dependencies.
+    /// </summary>
+    private static readonly ImmutableArray<string> QueryHandlerInterfaceMetadataNames = ImmutableArray.Create(
+        "LiteBus.Queries.Abstractions.IQueryHandler`2",
+        "LiteBus.Queries.Abstractions.IStreamQueryHandler`2");
+
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
         ImmutableArray.Create(DiagnosticDescriptors.QueryHandlerImpurity);
@@ -35,23 +44,60 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        if (!LiteBusSymbols.ImplementsGenericInterface(
-                handlerType,
-                context.Compilation,
-                "LiteBus.Queries.Abstractions.IQueryHandler`2"))
+        if (!ImplementsAnyQueryHandler(handlerType, context.Compilation))
         {
             return;
         }
 
+        var reportedDependencies = new HashSet<string>(StringComparer.Ordinal);
+
         foreach (var member in handlerType.GetMembers())
         {
-            if (member is IMethodSymbol { MethodKind: MethodKind.Constructor } constructor)
+            switch (member)
             {
-                foreach (var parameter in constructor.Parameters)
-                {
-                    ReportIfImpure(context, handlerType, parameter.Type, parameter.Locations.FirstOrDefault());
-                }
+                case IMethodSymbol { MethodKind: MethodKind.Constructor } constructor:
+                    AnalyzeParameters(context, handlerType, constructor.Parameters, reportedDependencies);
+                    break;
+                case IMethodSymbol method when method.MethodKind is MethodKind.Ordinary or MethodKind.LocalFunction:
+                    AnalyzeParameters(context, handlerType, method.Parameters, reportedDependencies);
+                    break;
+                case IFieldSymbol field:
+                    ReportIfImpure(context, handlerType, field.Type, field.Locations.FirstOrDefault(), reportedDependencies);
+                    break;
+                case IPropertySymbol property:
+                    ReportIfImpure(context, handlerType, property.Type, property.Locations.FirstOrDefault(), reportedDependencies);
+                    break;
             }
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether the handler type implements a supported query handler interface.
+    /// </summary>
+    /// <param name="handlerType">The handler type symbol.</param>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <returns><see langword="true" /> when the type implements a supported query handler interface.</returns>
+    private static bool ImplementsAnyQueryHandler(INamedTypeSymbol handlerType, Compilation compilation)
+    {
+        return QueryHandlerInterfaceMetadataNames.Any(metadataName =>
+            LiteBusSymbols.ImplementsGenericInterface(handlerType, compilation, metadataName));
+    }
+
+    /// <summary>
+    ///     Reports impure dependency types used by method parameters.
+    /// </summary>
+    /// <param name="context">The symbol analysis context.</param>
+    /// <param name="handlerType">The query handler type symbol.</param>
+    /// <param name="parameters">The parameters to inspect.</param>
+    private static void AnalyzeParameters(
+        SymbolAnalysisContext context,
+        INamedTypeSymbol handlerType,
+        ImmutableArray<IParameterSymbol> parameters,
+        HashSet<string> reportedDependencies)
+    {
+        foreach (var parameter in parameters)
+        {
+            ReportIfImpure(context, handlerType, parameter.Type, parameter.Locations.FirstOrDefault(), reportedDependencies);
         }
     }
 
@@ -66,11 +112,17 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
         SymbolAnalysisContext context,
         INamedTypeSymbol handlerType,
         ITypeSymbol dependencyType,
-        Location? location)
+        Location? location,
+        HashSet<string> reportedDependencies)
     {
         var dependencyMetadataName = GetImpureDependencyMetadataName(dependencyType, context.Compilation);
 
         if (dependencyMetadataName is null)
+        {
+            return;
+        }
+
+        if (!reportedDependencies.Add(dependencyMetadataName))
         {
             return;
         }

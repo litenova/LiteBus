@@ -10,6 +10,12 @@ namespace LiteBus.Messaging.Abstractions;
 public static class MessageProcessorDiagnostics
 {
     /// <summary>
+    ///     Gets the compact error persisted when dispatch is canceled because lease renewal failed.
+    /// </summary>
+    public const string LeaseLostDuringProcessingError =
+        "Lease lost during processing; scheduling retry.";
+
+    /// <summary>
     ///     Copies non-empty trace fields from a stored envelope into mediation settings items.
     /// </summary>
     /// <param name="items">The mediation items dictionary to populate with trace metadata.</param>

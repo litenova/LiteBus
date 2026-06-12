@@ -96,10 +96,11 @@ public sealed class MessageModule : IModule
             typeof(IMessageMediator),
             typeof(MessageMediator)));
 
-        // Register execution context accessor as transient factory.
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IExecutionContext),
-            _ => AmbientExecutionContext.Current));
+        if (configuration.TryGetContext<MessageContractBuilder>(out var sharedContracts)
+            && sharedContracts is { HasRegistrations: true })
+        {
+            sharedContracts.ApplyTo(messageContractRegistry);
+        }
     }
 
     /// <summary>
@@ -118,7 +119,10 @@ public sealed class MessageModule : IModule
 
             if (handlerType is { IsClass: true, IsAbstract: false })
             {
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(handlerType, handlerType));
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    handlerType,
+                    handlerType,
+                    InstanceLifetime.Scoped));
             }
         }
     }

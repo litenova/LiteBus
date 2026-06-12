@@ -9,7 +9,7 @@ using LiteBus.Messaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Dispatch.InProcess;
 using LiteBus.Outbox.Storage.InMemory;
-using LiteBus.Saga;
+using LiteBus.Saga.InboxIntegration;
 using LiteBus.Samples.V6.Commands;
 using LiteBus.Samples.V6.Diagnostics;
 using LiteBus.Samples.V6.Events;
@@ -55,9 +55,9 @@ public static class LiteBusV6Composition
                     LeaseDuration = TimeSpan.FromMinutes(1)
                 });
 
-                inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
                 inbox.UseInMemoryStorage();
                 inbox.UseInProcessDispatch();
+                inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
                 inbox.EnableSaga(registry => registry.MapState<OrderSagaState>("orders.saga.advance"));
                 inbox.AddDiagnosticCheck<PaymentSampleDiagnosticCheck>("payments.sample.health");
 
@@ -92,9 +92,9 @@ public static class LiteBusV6Composition
             builder.Modules.AddOutboxModule(outbox =>
             {
                 outbox.Contracts.Register<PaymentProcessed>("payments.payment-processed");
-                outbox.EnableOutboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
                 outbox.UseInMemoryStorage();
                 outbox.UseInProcessDispatch();
+                outbox.EnableOutboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
 
                 // Production PostgreSQL storage (add LiteBus.Outbox.Storage.PostgreSql + Npgsql packages):
                 // Share the same NpgsqlDataSource registered for inbox; see docs/Transactional-Messaging-Writes.md.

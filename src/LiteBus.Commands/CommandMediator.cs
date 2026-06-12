@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
@@ -43,8 +45,9 @@ public sealed class CommandMediator : ICommandMediator
         {
             MessageMediationStrategy = mediationStrategy,
             MessageResolveStrategy = findStrategy,
-            Tags = commandMediationSettings.Filters.Tags,
-            Items = commandMediationSettings.Items
+            Tags = ResolveTags(commandMediationSettings),
+            Items = commandMediationSettings.Items,
+            HandlerPredicate = ResolveHandlerPredicate(commandMediationSettings)
         };
 
         return _messageMediator.Mediate(command, request, cancellationToken);
@@ -65,10 +68,32 @@ public sealed class CommandMediator : ICommandMediator
         {
             MessageResolveStrategy = findStrategy,
             MessageMediationStrategy = mediationStrategy,
-            Tags = commandMediationSettings.Filters.Tags,
-            Items = commandMediationSettings.Items
+            Tags = ResolveTags(commandMediationSettings),
+            Items = commandMediationSettings.Items,
+            HandlerPredicate = ResolveHandlerPredicate(commandMediationSettings)
         };
 
         return _messageMediator.Mediate(command, request, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Resolves mediation tags from routing settings with legacy filter fallback.
+    /// </summary>
+    /// <param name="settings">The command mediation settings supplied by the caller.</param>
+    /// <returns>The tag collection applied during mediation.</returns>
+    private static IEnumerable<string> ResolveTags(CommandMediationSettings settings)
+    {
+        var routingTags = settings.Routing.Tags.ToList();
+        return routingTags.Count > 0 ? routingTags : settings.Filters.Tags;
+    }
+
+    /// <summary>
+    ///     Resolves the handler predicate from routing settings with legacy filter fallback.
+    /// </summary>
+    /// <param name="settings">The command mediation settings supplied by the caller.</param>
+    /// <returns>The predicate applied after tag filtering.</returns>
+    private static Func<IHandlerDescriptor, bool> ResolveHandlerPredicate(CommandMediationSettings settings)
+    {
+        return descriptor => settings.Routing.HandlerPredicate(descriptor) && settings.Filters.HandlerPredicate(descriptor);
     }
 }

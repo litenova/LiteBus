@@ -1,6 +1,7 @@
 using LiteBus.Commands;
 using LiteBus.Events;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Queries;
 using LiteBus.Samples.Commands;
 
@@ -18,6 +19,10 @@ public static class ServiceCollectionExtensions
         services.AddLiteBus(registry =>
         {
             var exampleAssembly = typeof(PlaceOrderCommandHandler).Assembly;
+
+            registry.AddMessageModule(_ =>
+            {
+            });
 
             registry.AddCommandModule(module => module.RegisterFromAssembly(exampleAssembly));
             registry.AddQueryModule(module => module.RegisterFromAssembly(exampleAssembly));

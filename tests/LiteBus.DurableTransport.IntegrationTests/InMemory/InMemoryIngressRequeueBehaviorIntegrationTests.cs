@@ -125,8 +125,7 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
 
                 var inner = new Inbox.Inbox(
                     store,
-                    new InboxEnvelopeFactory(contracts, serializer, clock),
-                    clock);
+                    new InboxEnvelopeFactory(contracts, serializer, clock));
 
                 return new FlakyInbox(inner, new IOException("transient store failure"));
             });

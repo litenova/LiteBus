@@ -36,6 +36,7 @@ internal static class KafkaMessageMapper
     /// <param name="result">The consumed Kafka record.</param>
     /// <param name="destination">The topic name configured for the consumer.</param>
     /// <param name="ackHandlers">The acknowledgement handlers wired by the consumer.</param>
+    /// <param name="redelivered">Whether the record is being consumed again after a seek retry in the current session.</param>
     /// <returns>The transport message passed to consumer handlers.</returns>
     /// <remarks>
     ///     <see cref="TransportMessage.ReturnToQueueAsync" /> seeks to the consumed offset so the record is read again
@@ -45,7 +46,8 @@ internal static class KafkaMessageMapper
     internal static TransportMessage ToTransportMessage(
         ConsumeResult<string, byte[]> result,
         string destination,
-        TransportConsumerAckHandlers ackHandlers)
+        TransportConsumerAckHandlers ackHandlers,
+        bool redelivered)
     {
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(ackHandlers);
@@ -58,7 +60,7 @@ internal static class KafkaMessageMapper
             Route = result.Message.Key,
             MessageId = GetHeader(result.Message.Headers, TransportHeaders.MessageId),
             CorrelationId = GetHeader(result.Message.Headers, TransportHeaders.CorrelationId),
-            Redelivered = false,
+            Redelivered = redelivered,
             AckAsync = ackHandlers.AckAsync,
             NackAsync = ackHandlers.NackAsync
         };

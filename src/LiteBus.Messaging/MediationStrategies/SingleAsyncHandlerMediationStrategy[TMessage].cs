@@ -44,19 +44,26 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         IMessageDependencies messageDependencies,
         IExecutionContext executionContext)
     {
-        Task? messageResult = null;
+        object? messageResult = null;
 
         try
         {
-            await messageDependencies.RunAsyncPreHandlers(message);
+            using (AmbientExecutionContext.CreateScope(executionContext))
+            {
+                await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken);
 
-            var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
+                var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
 
-            messageResult = (Task) handler.Handle(message);
+                await HandlerInvocation.InvokeMainHandlerAsync<TMessage>(
+                    handler,
+                    message,
+                    executionContext.CancellationToken);
 
-            await messageResult;
-
-            await messageDependencies.RunAsyncPostHandlers(message, messageResult);
+                await messageDependencies.RunAsyncPostHandlers(
+                    message,
+                    messageResult,
+                    executionContext.CancellationToken);
+            }
         }
         catch (LiteBusExecutionAbortedException)
         {
@@ -64,7 +71,14 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            await messageDependencies.RunAsyncErrorHandlers(message, messageResult, ExceptionDispatchInfo.Capture(e));
+            using (AmbientExecutionContext.CreateScope(executionContext))
+            {
+                await messageDependencies.RunAsyncErrorHandlers(
+                    message,
+                    messageResult,
+                    ExceptionDispatchInfo.Capture(e),
+                    executionContext.CancellationToken);
+            }
         }
     }
 }

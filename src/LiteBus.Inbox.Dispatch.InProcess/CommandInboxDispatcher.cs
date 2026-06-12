@@ -41,9 +41,9 @@ public sealed class CommandInboxDispatcher : IInboxDispatcher
     private readonly IMessageSerializer _messageSerializer;
 
     /// <summary>
-    ///     Gets the optional encryptor used to decrypt stored payloads before deserialization.
+    ///     Gets the optional inbox protector used to decrypt stored payloads before deserialization.
     /// </summary>
-    private readonly IPayloadEncryptor? _payloadEncryptor;
+    private readonly IInboxPayloadProtector? _payloadProtector;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="CommandInboxDispatcher" /> class.
@@ -51,17 +51,17 @@ public sealed class CommandInboxDispatcher : IInboxDispatcher
     /// <param name="commandMediator">The command mediator used to execute deserialized commands.</param>
     /// <param name="contractRegistry">The registry used to resolve persisted contracts back to CLR types.</param>
     /// <param name="messageSerializer">The serializer used to hydrate envelope payloads.</param>
-    /// <param name="payloadEncryptor">The optional encryptor used to decrypt stored payloads before deserialization.</param>
+    /// <param name="payloadProtector">The optional inbox protector used to decrypt stored payloads before deserialization.</param>
     public CommandInboxDispatcher(
         ICommandMediator commandMediator,
         IContractReader contractRegistry,
         IMessageSerializer messageSerializer,
-        IPayloadEncryptor? payloadEncryptor = null)
+        IInboxPayloadProtector? payloadProtector = null)
     {
         _commandMediator = commandMediator ?? throw new ArgumentNullException(nameof(commandMediator));
         _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
         _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
-        _payloadEncryptor = payloadEncryptor;
+        _payloadProtector = payloadProtector;
     }
 
     /// <inheritdoc />
@@ -71,7 +71,7 @@ public sealed class CommandInboxDispatcher : IInboxDispatcher
 
         var messageType = _contractRegistry.GetMessageType(envelope.ContractName, envelope.ContractVersion);
 
-        var payload = await PayloadProtection.UnprotectAsync(envelope.Payload, _payloadEncryptor, cancellationToken)
+        var payload = await PayloadProtection.UnprotectAsync(envelope.Payload, _payloadProtector, cancellationToken)
             .ConfigureAwait(false);
 
         var message = await _messageSerializer.DeserializeAsync(messageType, payload, cancellationToken).ConfigureAwait(false);

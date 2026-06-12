@@ -192,6 +192,13 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
             }
             catch (OperationCanceledException)
             {
+                await _operations.PersistLeaseLossOutcomeAsync(
+                    envelope,
+                    accumulator,
+                    _options,
+                    _logger,
+                    cancellationToken).ConfigureAwait(false);
+
                 continue;
             }
 

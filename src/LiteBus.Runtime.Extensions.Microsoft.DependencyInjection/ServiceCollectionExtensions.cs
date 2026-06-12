@@ -96,13 +96,12 @@ public static class ServiceCollectionExtensions
         configure(builder);
 
         var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
+        moduleConfiguration.SetContext(sharedContracts);
 
         foreach (var moduleDescriptor in moduleRegistry)
         {
             moduleDescriptor.Module.Build(moduleConfiguration);
         }
-
-        builder.ApplySharedContracts(moduleConfiguration);
 
         RegisterHostManifest(services, moduleConfiguration);
         services.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
@@ -117,11 +116,6 @@ public static class ServiceCollectionExtensions
     /// <param name="moduleConfiguration">The module configuration that collected host registrations.</param>
     private static void RegisterHostManifest(IServiceCollection services, ModuleConfiguration moduleConfiguration)
     {
-        var manifest = new LiteBusHostManifest(
-            moduleConfiguration.StartupTasks.ToList(),
-            moduleConfiguration.BackgroundServices.ToList(),
-            moduleConfiguration.DiagnosticChecks.ToList());
-
-        services.AddSingleton(manifest);
+        services.AddSingleton(LiteBusHostManifest.FromConfiguration(moduleConfiguration));
     }
 }

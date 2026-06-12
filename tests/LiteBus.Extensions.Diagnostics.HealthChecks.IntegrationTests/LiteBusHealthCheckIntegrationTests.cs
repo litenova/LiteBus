@@ -78,6 +78,31 @@ public sealed class LiteBusHealthCheckIntegrationTests
     }
 
     [Fact]
+    public async Task AddLiteBus_WhenNoDiagnosticProbesAndFailHealthWhenNoProbesIsFalse_ShouldReportHealthyHealthCheck()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddLiteBus(registry =>
+        {
+            registry.AddMessageModule(_ =>
+            {
+            });
+        });
+
+        services.AddHealthChecks().AddLiteBus(options => options.FailHealthWhenNoProbes = false);
+
+        await using var provider = services.BuildServiceProvider();
+        var healthCheckService = provider.GetRequiredService<HealthCheckService>();
+
+        var report = await healthCheckService.CheckHealthAsync();
+
+        report.Status.Should().Be(HealthStatus.Healthy);
+        report.Entries["litebus"].Status.Should().Be(HealthStatus.Healthy);
+        report.Entries["litebus"].Description.Should().Be("No LiteBus diagnostic probes are registered.");
+    }
+
+    [Fact]
     public async Task AddLiteBus_WhenNoDiagnosticProbesAreRegistered_ShouldReportDegradedHealthCheck()
     {
         var services = new ServiceCollection();

@@ -122,13 +122,13 @@ public sealed class PostgreSqlInboxStore :
     }
 
     /// <inheritdoc />
-    public async Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
+    public async Task<RequeueResult> RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
 
         if (messageIds.Count == 0)
         {
-            return;
+            return new RequeueResult(0, 0);
         }
 
         if (messageIds.Count == 1)
@@ -149,8 +149,8 @@ public sealed class PostgreSqlInboxStore :
             singleCommand.Parameters.AddWithValue("pending_status", (int) InboxStatus.Pending);
             singleCommand.Parameters.AddWithValue("dead_lettered_status", (int) InboxStatus.DeadLettered);
             singleCommand.Parameters.AddWithValue("message_id", messageIds[0]);
-            await singleCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-            return;
+            var requeued = await singleCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            return new RequeueResult(1, requeued);
         }
 
         var sql = $"""
@@ -169,7 +169,8 @@ public sealed class PostgreSqlInboxStore :
         command.Parameters.AddWithValue("pending_status", (int) InboxStatus.Pending);
         command.Parameters.AddWithValue("dead_lettered_status", (int) InboxStatus.DeadLettered);
         PostgreSqlParameterExtensions.AddUuidArrayParameter(command, "message_ids", messageIds.ToArray());
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        var batchRequeued = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return new RequeueResult(messageIds.Count, batchRequeued);
     }
 
     /// <inheritdoc />
@@ -336,7 +337,8 @@ public sealed class PostgreSqlInboxStore :
                        status = @processing_status,
                        lease_owner = @lease_owner,
                        lease_expires_at = @lease_expires_at,
-                       attempt_count = inbox.attempt_count + 1
+                       attempt_count = inbox.attempt_count + 1,
+                       last_attempted_at = @now
                    FROM candidates
                    WHERE inbox.message_id = candidates.message_id
                    RETURNING
@@ -510,7 +512,22 @@ public sealed class PostgreSqlInboxStore :
 
         var storedEnvelope = await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false);
 
-        return storedEnvelope ?? await FindExistingAsync(envelope.Id, envelope.IdempotencyKey, cancellationToken).ConfigureAwait(false);
+        if (storedEnvelope is not null)
+        {
+            return storedEnvelope;
+        }
+
+        var existing = await FindExistingAsync(envelope.Id, envelope.IdempotencyKey, cancellationToken).ConfigureAwait(false);
+
+        if (existing is not null &&
+            envelope.IdempotencyConflictMode == Messaging.Abstractions.DurableMessaging.IdempotencyConflictMode.Strict &&
+            existing.Id != envelope.Id)
+        {
+            throw new Messaging.Abstractions.DurableMessaging.IdempotencyConflictException(
+                $"An inbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
+        }
+
+        return existing ?? envelope;
     }
 
     /// <inheritdoc />

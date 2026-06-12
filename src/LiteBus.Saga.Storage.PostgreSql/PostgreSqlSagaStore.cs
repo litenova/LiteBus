@@ -67,13 +67,13 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                    FROM {_tableName}
                    WHERE correlation_id = @correlation_id
                        AND saga_type = @saga_type
+                       AND tenant_id = @tenant_id
                    LIMIT 1;
                    """;
 
         await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var command = CreateCommand(connection, sql);
-        command.Parameters.AddWithValue("correlation_id", correlation.CorrelationId);
-        command.Parameters.AddWithValue("saga_type", correlation.SagaType);
+        AddCorrelationKeyParameters(command, correlation);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
@@ -116,6 +116,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                              INSERT INTO {_tableName} (
                                  correlation_id,
                                  saga_type,
+                                 tenant_id,
                                  state_json,
                                  optimistic_lock_version,
                                  is_completed,
@@ -124,12 +125,13 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                              VALUES (
                                  @correlation_id,
                                  @saga_type,
+                                 @tenant_id,
                                  @state_json,
                                  1,
                                  false,
                                  @now,
                                  @now)
-                             ON CONFLICT (correlation_id, saga_type) DO NOTHING;
+                             ON CONFLICT (correlation_id, saga_type, tenant_id) DO NOTHING;
                              """;
 
             await using var insertCommand = CreateCommand(connection, insertSql);
@@ -152,6 +154,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                              updated_at = @now
                          WHERE correlation_id = @correlation_id
                              AND saga_type = @saga_type
+                             AND tenant_id = @tenant_id
                              AND optimistic_lock_version = @expected_version
                              AND is_completed = false;
                          """;
@@ -169,9 +172,9 @@ public sealed class PostgreSqlSagaStore : ISagaStore
     }
 
     /// <inheritdoc />
-    public async Task CompleteAsync(SagaCorrelation correlation, CancellationToken cancellationToken = default)
+    public async Task CompleteAsync(SagaCompleteItem item, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(correlation);
+        ArgumentNullException.ThrowIfNull(item);
 
         var now = _clock.GetUtcNow();
 
@@ -179,17 +182,103 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                    UPDATE {_tableName}
                    SET
                        is_completed = true,
+                       optimistic_lock_version = optimistic_lock_version + 1,
                        updated_at = @now
                    WHERE correlation_id = @correlation_id
-                       AND saga_type = @saga_type;
+                       AND saga_type = @saga_type
+                       AND tenant_id = @tenant_id
+                       AND optimistic_lock_version = @expected_version
+                       AND is_completed = false;
                    """;
 
         await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var command = CreateCommand(connection, sql);
-        command.Parameters.AddWithValue("correlation_id", correlation.CorrelationId);
-        command.Parameters.AddWithValue("saga_type", correlation.SagaType);
+        AddCorrelationKeyParameters(command, item.Correlation);
+        command.Parameters.AddWithValue("expected_version", item.ExpectedVersion);
         command.Parameters.AddWithValue("now", now);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        var updated = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        if (updated == 0)
+        {
+            throw new SagaConcurrencyException(item.Correlation);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SagaInstanceSummary>> QueryAsync(
+        SagaQueryFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+
+        var sql = $"""
+                   SELECT correlation_id, saga_type, tenant_id, optimistic_lock_version, is_completed, created_at, updated_at
+                   FROM {_tableName}
+                   WHERE (@saga_type IS NULL OR saga_type = @saga_type)
+                       AND (@correlation_id IS NULL OR correlation_id = @correlation_id)
+                       AND (@tenant_id IS NULL OR tenant_id = @tenant_id)
+                       AND (@is_completed IS NULL OR is_completed = @is_completed)
+                   ORDER BY updated_at DESC
+                   LIMIT @take;
+                   """;
+
+        await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = CreateCommand(connection, sql);
+        command.Parameters.AddWithValue("saga_type", (object?) filter.SagaDefinitionId ?? DBNull.Value);
+        command.Parameters.AddWithValue("correlation_id", (object?) filter.CorrelationId ?? DBNull.Value);
+        command.Parameters.AddWithValue("tenant_id", (object?) NormalizeTenantId(filter.TenantId) ?? DBNull.Value);
+        command.Parameters.AddWithValue("is_completed", (object?) filter.IsCompleted ?? DBNull.Value);
+        command.Parameters.AddWithValue("take", filter.Take);
+
+        var results = new List<SagaInstanceSummary>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var tenantId = reader.GetString(2);
+
+            results.Add(new SagaInstanceSummary
+            {
+                Correlation = new SagaCorrelation
+                {
+                    CorrelationId = reader.GetString(0),
+                    SagaDefinitionId = reader.GetString(1),
+                    TenantId = string.IsNullOrEmpty(tenantId) ? null : tenantId
+                },
+                Version = reader.GetInt32(3),
+                IsCompleted = reader.GetBoolean(4),
+                CreatedAt = reader.GetFieldValue<DateTimeOffset>(5),
+                UpdatedAt = reader.GetFieldValue<DateTimeOffset>(6)
+            });
+        }
+
+        return results;
+    }
+
+    /// <inheritdoc />
+    public async Task<int> PurgeAsync(SagaPurgeFilter filter, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+
+        var sql = $"""
+                   DELETE FROM {_tableName}
+                   WHERE (@saga_type IS NULL OR saga_type = @saga_type)
+                       AND (@correlation_id IS NULL OR correlation_id = @correlation_id)
+                       AND (@tenant_id IS NULL OR tenant_id = @tenant_id)
+                       AND (@is_completed IS NULL OR is_completed = @is_completed)
+                       AND (@completed_before IS NULL OR (is_completed = true AND updated_at < @completed_before));
+                   """;
+
+        await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = CreateCommand(connection, sql);
+        command.Parameters.AddWithValue("saga_type", (object?) filter.SagaDefinitionId ?? DBNull.Value);
+        command.Parameters.AddWithValue("correlation_id", (object?) filter.CorrelationId ?? DBNull.Value);
+        command.Parameters.AddWithValue("tenant_id", (object?) NormalizeTenantId(filter.TenantId) ?? DBNull.Value);
+        command.Parameters.AddWithValue("is_completed", (object?) filter.IsCompleted ?? DBNull.Value);
+        command.Parameters.AddWithValue("completed_before", (object?) filter.CompletedBefore ?? DBNull.Value);
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -214,6 +303,18 @@ public sealed class PostgreSqlSagaStore : ISagaStore
     }
 
     /// <summary>
+    ///     Adds correlation key parameters to one command.
+    /// </summary>
+    /// <param name="command">The command receiving parameters.</param>
+    /// <param name="correlation">The saga correlation.</param>
+    private static void AddCorrelationKeyParameters(NpgsqlCommand command, SagaCorrelation correlation)
+    {
+        command.Parameters.AddWithValue("correlation_id", correlation.CorrelationId);
+        command.Parameters.AddWithValue("saga_type", correlation.SagaDefinitionId);
+        command.Parameters.AddWithValue("tenant_id", NormalizeTenantId(correlation.TenantId));
+    }
+
+    /// <summary>
     ///     Adds correlation, state, and timestamp parameters to one command.
     /// </summary>
     /// <param name="command">The command receiving parameters.</param>
@@ -226,11 +327,20 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         string stateJson,
         DateTimeOffset now)
     {
-        command.Parameters.AddWithValue("correlation_id", correlation.CorrelationId);
-        command.Parameters.AddWithValue("saga_type", correlation.SagaType);
+        AddCorrelationKeyParameters(command, correlation);
 
         var stateParameter = command.Parameters.Add("state_json", NpgsqlDbType.Jsonb);
         stateParameter.Value = stateJson;
         command.Parameters.AddWithValue("now", now);
+    }
+
+    /// <summary>
+    ///     Normalizes tenant identifiers for primary-key storage.
+    /// </summary>
+    /// <param name="tenantId">The tenant identifier.</param>
+    /// <returns>The normalized tenant identifier stored in saga rows.</returns>
+    private static string NormalizeTenantId(string? tenantId)
+    {
+        return string.IsNullOrWhiteSpace(tenantId) ? string.Empty : tenantId;
     }
 }

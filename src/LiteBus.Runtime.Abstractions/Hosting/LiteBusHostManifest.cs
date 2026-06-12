@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 
 namespace LiteBus.Runtime.Abstractions.Hosting;
@@ -42,4 +43,22 @@ public sealed class LiteBusHostManifest
     /// </summary>
     /// <value>The probe descriptors applications can resolve from dependency injection.</value>
     public IReadOnlyList<DiagnosticCheckDescriptor> DiagnosticChecks { get; }
+
+    /// <summary>
+    ///     Creates a manifest snapshot from module configuration after all modules have been built.
+    /// </summary>
+    /// <param name="moduleConfiguration">The module configuration that collected host registrations.</param>
+    /// <returns>A manifest describing startup tasks, background services, and diagnostic probes.</returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="moduleConfiguration" /> is <see langword="null" />.
+    /// </exception>
+    public static LiteBusHostManifest FromConfiguration(IModuleConfiguration moduleConfiguration)
+    {
+        ArgumentNullException.ThrowIfNull(moduleConfiguration);
+
+        return new LiteBusHostManifest(
+            moduleConfiguration.StartupTasks.ToList(),
+            moduleConfiguration.BackgroundServices.ToList(),
+            moduleConfiguration.DiagnosticChecks.ToList());
+    }
 }

@@ -37,7 +37,7 @@ public sealed class PaymentsController : ControllerBase
         var receipt = await _inbox.AcceptAsync(
             InboxAcceptItem<ProcessPaymentCommand>.From(
                 new ProcessPaymentCommand(request.PaymentId, request.Amount),
-                new InboxAcceptMetadata
+                InboxAcceptMetadata.Immediate with
                 {
                     Idempotency = new Idempotency.Keyed($"payment:{request.PaymentId}"),
                     Trace = new MessageTrace.Correlated(request.PaymentId.ToString())

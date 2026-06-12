@@ -53,4 +53,23 @@ public static class TransportHeaders
     ///     Gets the header name for an optional visible-after timestamp.
     /// </summary>
     public const string VisibleAfter = "litebus-visible-after";
+
+    /// <summary>
+    ///     Gets the header name for an optional relative visibility delay expressed as an ISO 8601 duration or tick count.
+    /// </summary>
+    public const string VisibleAfterDelay = "litebus-visible-after-delay";
+
+    /// <summary>
+    ///     Gets the header name for the SQS message body encoding when the payload is base64-encoded.
+    /// </summary>
+    public const string ContentEncoding = "litebus-content-encoding";
+
+    /// <summary>
+    ///     Gets the legacy PascalCase correlation header accepted on ingress for backward compatibility.
+    /// </summary>
+    /// <remarks>
+    ///     Publishers should emit <see cref="CorrelationId" /> only. Ingress may read this alias when the canonical header
+    ///     is absent.
+    /// </remarks>
+    public const string LegacyCorrelationId = "CorrelationId";
 }

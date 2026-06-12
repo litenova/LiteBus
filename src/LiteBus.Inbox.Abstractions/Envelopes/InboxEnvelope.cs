@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 
 namespace LiteBus.Inbox.Abstractions;
 
@@ -56,6 +57,11 @@ public sealed record InboxEnvelope
     ///     Gets the optional idempotency key used to detect duplicate submissions.
     /// </summary>
     public string? IdempotencyKey { get; init; }
+
+    /// <summary>
+    ///     Gets how duplicate idempotency keys are handled for this accept attempt. The value is not persisted.
+    /// </summary>
+    public IdempotencyConflictMode IdempotencyConflictMode { get; init; } = IdempotencyConflictMode.ReturnExisting;
 
     /// <summary>
     ///     Gets the optional processing lease owner that currently holds the message.

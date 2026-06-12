@@ -16,6 +16,7 @@ public sealed class IngressAckPolicyTests
     [Theory]
     [InlineData(typeof(MessageContractNotRegisteredException))]
     [InlineData(typeof(InboxDispatchException))]
+    [InlineData(typeof(InboxIngressException))]
     [InlineData(typeof(InboxStorageException))]
     [InlineData(typeof(InvalidOperationException))]
     [InlineData(typeof(ArgumentException))]
@@ -60,6 +61,11 @@ public sealed class IngressAckPolicyTests
         if (exceptionType == typeof(InboxDispatchException))
         {
             return new InboxDispatchException("missing header");
+        }
+
+        if (exceptionType == typeof(InboxIngressException))
+        {
+            return new InboxIngressException("ingress rejected");
         }
 
         if (exceptionType == typeof(InboxStorageException))

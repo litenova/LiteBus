@@ -1,6 +1,6 @@
 using LiteBus.Inbox.Abstractions;
 
-namespace LiteBus.Saga;
+namespace LiteBus.Saga.InboxIntegration;
 
 /// <summary>
 ///     Provides saga configuration extensions for <see cref="InboxModuleBuilder" />.

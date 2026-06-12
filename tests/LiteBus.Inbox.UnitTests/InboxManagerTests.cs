@@ -24,7 +24,8 @@ public sealed class InboxManagerTests
 
         var requeued = await manager.RequeueAsync([messageId]);
 
-        requeued.Should().Be(1);
+        requeued.Requested.Should().Be(1);
+        requeued.Requeued.Should().Be(1);
 
         var page = await manager.QueryAsync(
             new InboxMessageFilter { Statuses = [InboxStatus.Pending] },

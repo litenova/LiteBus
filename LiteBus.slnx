@@ -63,6 +63,8 @@
         <Project Path="src/LiteBus.Outbox.Extensions.OpenTelemetry/LiteBus.Outbox.Extensions.OpenTelemetry.csproj"/>
         <Project
                 Path="src/LiteBus.Transport.Extensions.OpenTelemetry/LiteBus.Transport.Extensions.OpenTelemetry.csproj"/>
+        <Project
+                Path="src/LiteBus.Transport.Amqp.Extensions.OpenTelemetry/LiteBus.Transport.Amqp.Extensions.OpenTelemetry.csproj"/>
         <Project Path="src/LiteBus.Inbox.Abstractions/LiteBus.Inbox.Abstractions.csproj"/>
         <Project Path="src/LiteBus.Inbox.Dispatch/LiteBus.Inbox.Dispatch.csproj"/>
         <Project Path="src/LiteBus.Inbox.Dispatch.Amqp/LiteBus.Inbox.Dispatch.Amqp.csproj"/>
@@ -105,6 +107,7 @@
                 Path="src/LiteBus.Queries.Extensions.Microsoft.DependencyInjection/LiteBus.Queries.Extensions.Microsoft.DependencyInjection.csproj"/>
         <Project Path="src/LiteBus.Queries/LiteBus.Queries.csproj"/>
         <Project Path="src/LiteBus.Runtime.Abstractions/LiteBus.Runtime.Abstractions.csproj"/>
+        <Project Path="src/LiteBus.Runtime.Extensions.Hosting/LiteBus.Runtime.Extensions.Hosting.csproj"/>
         <Project Path="src/LiteBus.Runtime.Extensions.Autofac/LiteBus.Runtime.Extensions.Autofac.csproj"/>
         <Project
                 Path="src/LiteBus.Runtime.Extensions.Autofac.Hosting/LiteBus.Runtime.Extensions.Autofac.Hosting.csproj"/>
@@ -159,6 +162,7 @@
         <Project
                 Path="tests/LiteBus.Inbox.Dispatch.InProcess.UnitTests/LiteBus.Inbox.Dispatch.InProcess.UnitTests.csproj"/>
         <Project Path="tests/LiteBus.Inbox.Dispatch.UnitTests/LiteBus.Inbox.Dispatch.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Inbox.Dispatch.AwsSqs.UnitTests/LiteBus.Inbox.Dispatch.AwsSqs.UnitTests.csproj"/>
         <Project Path="tests/LiteBus.Inbox.Ingress.UnitTests/LiteBus.Inbox.Ingress.UnitTests.csproj"/>
         <Project
                 Path="tests/LiteBus.Inbox.Ingress.Amqp.IntegrationTests/LiteBus.Inbox.Ingress.Amqp.IntegrationTests.csproj"/>

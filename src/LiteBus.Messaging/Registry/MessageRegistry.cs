@@ -222,14 +222,24 @@ internal sealed class MessageRegistry : IMessageRegistry
     /// <param name="newDescriptors">The new handler descriptors to link.</param>
     private void LinkHandlersToCommittedMessages(IList<IHandlerDescriptor> newDescriptors)
     {
-        if (newDescriptors.Count > 0 && _committedMessages.Count > 0)
+        if (newDescriptors.Count == 0 || _committedMessages.Count == 0)
         {
-            // Create snapshot to avoid modification during enumeration.
-            var committedSnapshot = _committedMessages.ToList();
+            return;
+        }
+
+        var committedSnapshot = _committedMessages.ToList();
+
+        foreach (var handlerDescriptor in newDescriptors)
+        {
+            var handlerMessageType = handlerDescriptor.MessageType;
 
             foreach (var messageDescriptor in committedSnapshot)
             {
-                messageDescriptor.AddDescriptors(newDescriptors);
+                if (messageDescriptor.MessageType == handlerMessageType
+                    || messageDescriptor.MessageType.IsAssignableTo(handlerMessageType))
+                {
+                    messageDescriptor.AddDescriptor(handlerDescriptor);
+                }
             }
         }
     }

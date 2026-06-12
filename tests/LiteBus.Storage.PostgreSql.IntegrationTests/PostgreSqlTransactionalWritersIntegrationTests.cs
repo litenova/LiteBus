@@ -43,7 +43,7 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
         await using var connection = await _fixture.DataSource.OpenConnectionAsync();
         await using var transaction = await connection.BeginTransactionAsync();
         var store = registration.CreateTransactionalStore(connection, transaction);
-        var writer = new StoreBoundTransactionalOutbox(store, factory, TimeProvider.System);
+        var writer = new StoreBoundTransactionalOutbox(store, factory);
 
         await InsertOrderAsync(connection, transaction, outboxOptions.SchemaName, ordersTableName, orderId, 15m)
             ;
@@ -73,8 +73,8 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
         await using var transaction = await connection.BeginTransactionAsync();
         var inboxStore = tables.InboxRegistration.CreateTransactionalStore(connection, transaction);
         var outboxStore = tables.OutboxRegistration.CreateTransactionalStore(connection, transaction);
-        var inbox = new StoreBoundTransactionalInbox(inboxStore, inboxFactory, TimeProvider.System);
-        var outbox = new StoreBoundTransactionalOutbox(outboxStore, outboxFactory, TimeProvider.System);
+        var inbox = new StoreBoundTransactionalInbox(inboxStore, inboxFactory);
+        var outbox = new StoreBoundTransactionalOutbox(outboxStore, outboxFactory);
 
         await InsertOrderAsync(
                 connection,

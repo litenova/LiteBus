@@ -39,8 +39,29 @@ public interface ISagaStore
     ///     Marks a saga instance completed so subsequent loads return <see cref="SagaInstance{TState}.IsCompleted" />
     ///     <see langword="true" />.
     /// </summary>
-    /// <param name="correlation">The correlation that identifies the saga instance.</param>
+    /// <param name="item">The correlation and expected version for completion.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>A task that completes when completion is recorded.</returns>
-    Task CompleteAsync(SagaCorrelation correlation, CancellationToken cancellationToken = default);
+    /// <exception cref="SagaConcurrencyException">
+    ///     Thrown when the stored version does not match <see cref="SagaCompleteItem.ExpectedVersion" />.
+    /// </exception>
+    Task CompleteAsync(SagaCompleteItem item, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Queries persisted saga rows that match the supplied filter.
+    /// </summary>
+    /// <param name="filter">The optional query predicates.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The matching saga summaries.</returns>
+    Task<IReadOnlyList<SagaInstanceSummary>> QueryAsync(
+        SagaQueryFilter filter,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Purges persisted saga rows that match the supplied filter.
+    /// </summary>
+    /// <param name="filter">The optional purge predicates.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The number of rows removed.</returns>
+    Task<int> PurgeAsync(SagaPurgeFilter filter, CancellationToken cancellationToken = default);
 }

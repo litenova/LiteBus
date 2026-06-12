@@ -95,6 +95,10 @@ public sealed class MissingMessageContractRegistrationAnalyzerTests
                                   public void Register(Type messageType, string name, int version)
                                   {
                                   }
+
+                                  public void RegisterFromAssembly(System.Reflection.Assembly assembly)
+                                  {
+                                  }
                               }
                               """;
 
@@ -166,6 +170,10 @@ public sealed class MissingMessageContractRegistrationAnalyzerTests
                                   public void Register<T>(string name, int version)
                                   {
                                   }
+
+                                  public void RegisterFromAssembly(System.Reflection.Assembly assembly)
+                                  {
+                                  }
                               }
                               """;
 
@@ -200,6 +208,46 @@ public sealed class MissingMessageContractRegistrationAnalyzerTests
             "OrderSubmittedEvent",
             "OrderSubmittedEventHandler",
             "OrderSubmittedEvent");
+    }
+
+    /// <summary>
+    ///     Verifies that <c>RegisterFromAssembly</c> satisfies durable contract registration for LB1007.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task HandledMessageCoveredByRegisterFromAssembly_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Reflection;
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record ProcessPaymentCommand(int PaymentId) : ICommand;
+
+                              public sealed class ProcessPaymentCommandHandler : ICommandHandler<ProcessPaymentCommand>
+                              {
+                                  public Task HandleAsync(ProcessPaymentCommand command, CancellationToken cancellationToken = default)
+                                      => Task.CompletedTask;
+                              }
+
+                              public static class InboxModuleConfiguration
+                              {
+                                  public static void Configure(ContractsRegistry contracts)
+                                  {
+                                      contracts.RegisterFromAssembly(typeof(ProcessPaymentCommand).Assembly);
+                                  }
+                              }
+
+                              public sealed class ContractsRegistry
+                              {
+                                  public void RegisterFromAssembly(Assembly assembly)
+                                  {
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<MissingMessageContractRegistrationAnalyzer>(source);
     }
 
     /// <summary>

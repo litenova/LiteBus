@@ -40,4 +40,13 @@ public sealed class TransportOutboxDispatcherOptions
     ///     <see cref="OutboxEnvelope.ContractName" />.
     /// </value>
     public Func<OutboxEnvelope, string>? ResolveRoute { get; set; }
+
+    /// <summary>
+    ///     Gets or sets a value indicating whether leased payloads are deserialized to validate contract wiring before publish.
+    /// </summary>
+    /// <value>
+    ///     <see langword="false" /> by default. When <see langword="true" />, dispatch validates payloads by deserializing
+    ///     them before publishing the stored bytes to the transport.
+    /// </value>
+    public bool ValidatePayloadBeforeDispatch { get; set; }
 }

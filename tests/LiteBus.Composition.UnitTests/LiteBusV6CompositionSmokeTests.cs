@@ -62,7 +62,7 @@ public sealed class LiteBusV6CompositionSmokeTests : LiteBusTestBase
 
         const string correlationId = "order-sample-smoke-1";
 
-        var metadata = new InboxAcceptMetadata
+        var metadata = InboxAcceptMetadata.Immediate with
         {
             Trace = new MessageTrace.Correlated(correlationId)
         };
@@ -74,7 +74,7 @@ public sealed class LiteBusV6CompositionSmokeTests : LiteBusTestBase
         await processor.ProcessPendingAsync();
 
         var instance = await sagaStore.LoadAsync<OrderSagaState>(
-            new SagaCorrelation { CorrelationId = correlationId, SagaType = OrderSagaContractName });
+            new SagaCorrelation { CorrelationId = correlationId, SagaDefinitionId = OrderSagaContractName });
 
         Assert.NotNull(instance);
         instance.State.Step.Should().Be(2);

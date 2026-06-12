@@ -282,6 +282,11 @@ internal static class ContractRegistrationAnalysis
             return false;
         }
 
+        if (!IsContractWriterInvocation(method))
+        {
+            return false;
+        }
+
         if (method.TypeArguments.Length > 0)
         {
             return true;
@@ -292,6 +297,41 @@ internal static class ContractRegistrationAnalysis
         return firstParameter is not null &&
                firstParameter.Type.Name == "Type" &&
                firstParameter.Type.ContainingNamespace?.ToDisplayString() == "System";
+    }
+
+    /// <summary>
+    ///     Determines whether the invoked method belongs to a durable contract writer surface.
+    /// </summary>
+    /// <param name="method">The invoked method symbol.</param>
+    /// <returns><see langword="true" /> when the receiver is a contract writer type.</returns>
+    private static bool IsContractWriterInvocation(IMethodSymbol method)
+    {
+        var containingType = method.ContainingType;
+
+        if (containingType is null)
+        {
+            return false;
+        }
+
+        foreach (var interfaceType in containingType.AllInterfaces)
+        {
+            if (interfaceType.Name is "IContractWriter" or "IMessageContractRegistry" &&
+                interfaceType.ContainingNamespace?.ToDisplayString() is
+                    "LiteBus.Messaging.Abstractions" or "LiteBus.Runtime.Abstractions")
+            {
+                return true;
+            }
+        }
+
+        if (containingType.Name is "MessageContractBuilder" &&
+            containingType.ContainingNamespace?.ToDisplayString() is "LiteBus.Messaging" or "LiteBus.Runtime")
+        {
+            return true;
+        }
+
+        return containingType.GetMembers()
+            .OfType<IMethodSymbol>()
+            .Any(member => member.Name is "RegisterFromAssembly" or "AddFromAssembly");
     }
 
     /// <summary>

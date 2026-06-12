@@ -16,8 +16,8 @@ public static class InboxDeadLetterStoreExtensions
     /// <param name="store">The dead-letter store that performs the requeue operation.</param>
     /// <param name="messageIds">The envelope identifiers to requeue. Each value must parse as a <see cref="Guid" />.</param>
     /// <param name="cancellationToken">A token that cancels the requeue operation.</param>
-    /// <returns>A task that represents the asynchronous requeue operation.</returns>
-    public static Task RequeueAsync(
+    /// <returns>A task that completes with the number of messages requested and requeued.</returns>
+    public static Task<RequeueResult> RequeueAsync(
         this IInboxDeadLetterStore store,
         IReadOnlyList<string> messageIds,
         CancellationToken cancellationToken = default)
@@ -27,7 +27,7 @@ public static class InboxDeadLetterStoreExtensions
 
         if (messageIds.Count == 0)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(new RequeueResult(0, 0));
         }
 
         var parsedIds = new Guid[messageIds.Count];

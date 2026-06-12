@@ -26,8 +26,7 @@ internal static class OutboxWriterTestFactory
     {
         return new Outbox(
             store,
-            new OutboxEnvelopeFactory(contractRegistry, serializer, clock, payloadProtector),
-            clock);
+            new OutboxEnvelopeFactory(contractRegistry, serializer, clock, payloadProtector));
     }
 
     /// <summary>

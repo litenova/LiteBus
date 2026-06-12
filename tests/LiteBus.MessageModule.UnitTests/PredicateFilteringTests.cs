@@ -77,6 +77,7 @@ public sealed class PredicateFilteringTests : LiteBusTestBase
 
         var settings = new EventMediationSettings
         {
+            AutoRegisterUnregisteredMessageTypes = true,
             Routing = new EventRoutingSettings
             {
                 HandlerPredicate = descriptor => descriptor.HandlerType.IsAssignableTo(typeof(IFilterableHandler))
@@ -84,7 +85,7 @@ public sealed class PredicateFilteringTests : LiteBusTestBase
         };
 
         // ACT
-        await eventMediator.PublishAsync(@event, settings);
+        await eventMediator.PublishAsync((FilteredEvent)@event, settings);
 
         // ASSERT
         var filteredEvent = (FilteredEvent) @event;

@@ -34,6 +34,10 @@ public sealed class MissingMessageContractRegistrationAnalyzer : DiagnosticAnaly
             context.Compilation,
             context.CancellationToken);
 
+        var registeredAssemblies = ContractRegistrationAnalysis.CollectRegisterFromAssemblyTargets(
+            context.Compilation,
+            context.CancellationToken);
+
         var handlers = HandlerAnalysis.CollectHandlerRegistrations(context.Compilation, context.CancellationToken)
             .Where(handler => handler.Pipeline is "command" or "event")
             .ToList();
@@ -47,7 +51,10 @@ public sealed class MissingMessageContractRegistrationAnalyzer : DiagnosticAnaly
             }
 
             if (ContractRegistrationAnalysis.HasMessageContractAttribute(handler.MessageType) ||
-                registeredContracts.Contains(handler.MessageType, SymbolEqualityComparer.Default))
+                ContractRegistrationAnalysis.IsExplicitlyRegistered(
+                    handler.MessageType,
+                    registeredContracts,
+                    registeredAssemblies))
             {
                 continue;
             }

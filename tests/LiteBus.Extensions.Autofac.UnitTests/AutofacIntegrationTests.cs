@@ -2,7 +2,11 @@ using Autofac;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Autofac.UnitTests.UseCases;
+using LiteBus.Inbox;
+using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
+using LiteBus.Runtime.Abstractions.Diagnostics;
+using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
 
 namespace LiteBus.Extensions.Autofac.UnitTests;
@@ -49,5 +53,40 @@ public sealed class AutofacIntegrationTests : LiteBusTestBase
         command.ExecutedHandlers[0].Should().Be<RegisterComponentCommandPreHandler>();
         command.ExecutedHandlers[1].Should().Be<RegisterComponentCommandHandler>();
         command.ExecutedHandlers[2].Should().Be<RegisterComponentCommandPostHandler>();
+    }
+
+    [Fact]
+    public void AddLiteBus_WithModuleRegistryOverload_ShouldRegisterLiteBusHostManifest()
+    {
+        var builder = new ContainerBuilder();
+
+        builder.AddLiteBus(registry =>
+        {
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddInboxModule(inbox =>
+            {
+                inbox.UseInMemoryStorage();
+                inbox.AddDiagnosticCheck<SampleDiagnosticCheck>("litebus.sample");
+            });
+        });
+
+        using var container = builder.Build();
+        var manifest = container.Resolve<LiteBusHostManifest>();
+
+        manifest.DiagnosticChecks.Should().ContainSingle();
+        manifest.DiagnosticChecks[0].Name.Should().Be("litebus.sample");
+    }
+
+    private sealed class SampleDiagnosticCheck : IDiagnosticCheck
+    {
+        public string Name => "litebus.sample";
+
+        public Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new DiagnosticResult(DiagnosticStatus.Healthy, "Sample probe succeeded."));
+        }
     }
 }

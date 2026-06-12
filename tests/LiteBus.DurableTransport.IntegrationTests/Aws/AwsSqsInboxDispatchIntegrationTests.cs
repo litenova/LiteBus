@@ -56,7 +56,7 @@ public sealed class AwsSqsInboxDispatchIntegrationTests : LiteBusTestBase
                 WorkItemId = workItemId,
                 IdempotencyKey = $"work:{workItemId}"
             },
-            Metadata = new InboxAcceptMetadata
+            Metadata = InboxAcceptMetadata.Immediate with
             {
                 Trace = new MessageTrace.Correlated("corr-sqs-dispatch")
             }

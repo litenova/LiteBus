@@ -54,6 +54,10 @@ public sealed class ExplicitMessageContractRegistrationAnalyzerTests
                                   public void Register<T>(string name, int version)
                                   {
                                   }
+
+                                  public void RegisterFromAssembly(System.Reflection.Assembly assembly)
+                                  {
+                                  }
                               }
                               """;
 

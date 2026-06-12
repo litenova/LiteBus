@@ -73,6 +73,46 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
     }
 
     [Fact]
+    public async Task RegisterBackgroundServices_WhenStartupTaskThrows_ShouldStillReleaseGateForBackgroundServices()
+    {
+        var services = new ServiceCollection();
+
+        services.RegisterBackgroundServices(
+            [typeof(FailingStartupTask)],
+            [typeof(GateReleasedBackgroundService)]);
+
+        await using var provider = services.BuildServiceProvider();
+        var hostedServices = provider.GetServices<IHostedService>().ToList();
+
+        using var cts = new CancellationTokenSource();
+
+        Exception? startupFailure = null;
+
+        foreach (var hostedService in hostedServices)
+        {
+            try
+            {
+                await hostedService.StartAsync(cts.Token);
+            }
+            catch (Exception exception)
+            {
+                startupFailure = exception;
+            }
+        }
+
+        startupFailure.Should().NotBeNull();
+
+        await Task.Delay(50, cts.Token);
+
+        provider.GetRequiredService<GateReleasedBackgroundService>().StartedAfterStartup.Should().BeTrue();
+
+        foreach (var hostedService in hostedServices)
+        {
+            await hostedService.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task RegisterBackgroundServices_WhenStartupTaskRegisteredFirst_ShouldCompleteStartupBeforeContinuousLoop()
     {
         RecordingStartupTaskState.StartupCompleted = false;
@@ -100,6 +140,15 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
         foreach (var hostedService in hostedServices)
         {
             await hostedService.StopAsync(CancellationToken.None);
+        }
+    }
+
+    private sealed class FailingStartupTask : IStartupTask
+    {
+        /// <inheritdoc />
+        public Task RunAsync(CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException("Startup task failed for test.");
         }
     }
 
@@ -132,6 +181,25 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
         public async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             StartedAfterStartup = RecordingStartupTaskState.StartupCompleted;
+
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await Task.Delay(10, stoppingToken);
+            }
+        }
+    }
+
+    private sealed class GateReleasedBackgroundService : IBackgroundService
+    {
+        /// <summary>
+        ///     Gets a value indicating whether the continuous loop started after the startup gate released.
+        /// </summary>
+        public bool StartedAfterStartup { get; private set; }
+
+        /// <inheritdoc />
+        public async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            StartedAfterStartup = true;
 
             while (!stoppingToken.IsCancellationRequested)
             {

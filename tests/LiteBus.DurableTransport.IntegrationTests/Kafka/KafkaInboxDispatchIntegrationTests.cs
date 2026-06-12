@@ -59,7 +59,7 @@ public sealed class KafkaInboxDispatchIntegrationTests : LiteBusTestBase
                     WorkItemId = workItemId,
                     IdempotencyKey = $"work:{workItemId}"
                 },
-                Metadata = new InboxAcceptMetadata
+                Metadata = InboxAcceptMetadata.Immediate with
                 {
                     Trace = new MessageTrace.Workflow("corr-kafka-dispatch", "cause-kafka-dispatch"),
                     Tenant = new TenantScope.Isolated("tenant-kafka")

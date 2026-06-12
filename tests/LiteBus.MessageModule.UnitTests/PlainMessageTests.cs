@@ -38,7 +38,10 @@ public sealed class PlainMessageTests : LiteBusTestBase
         var plainMessage = new FakePlainMessage();
 
         // Act
-        await eventPublisher.PublishAsync(plainMessage);
+        await eventPublisher.PublishAsync(plainMessage, new EventMediationSettings
+        {
+            AutoRegisterUnregisteredMessageTypes = true
+        });
 
         // Assert
         plainMessage.ExecutedTypes.Should().HaveCount(3);

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Transport.Abstractions;
+using LiteBus.Transport;
 
 namespace LiteBus.Outbox.Dispatch;
 
@@ -19,32 +19,15 @@ internal static class OutboxTransportEnvelopeMapper
     {
         ArgumentNullException.ThrowIfNull(envelope);
 
-        var headers = new Dictionary<string, object?>(StringComparer.Ordinal)
-        {
-            [TransportHeaders.MessageId] = envelope.Id.ToString("D"),
-            [TransportHeaders.ContractName] = envelope.ContractName,
-            [TransportHeaders.ContractVersion] = envelope.ContractVersion
-        };
-
-        AddOptionalHeader(headers, TransportHeaders.CorrelationId, envelope.CorrelationId);
-        AddOptionalHeader(headers, TransportHeaders.CausationId, envelope.CausationId);
-        AddOptionalHeader(headers, TransportHeaders.TenantId, envelope.TenantId);
-        AddOptionalHeader(headers, TransportHeaders.TraceContext, envelope.TraceContext);
-
-        return headers;
-    }
-
-    /// <summary>
-    ///     Adds one optional header when the value is present.
-    /// </summary>
-    /// <param name="headers">The header dictionary being built.</param>
-    /// <param name="name">The header name.</param>
-    /// <param name="value">The optional header value.</param>
-    private static void AddOptionalHeader(Dictionary<string, object?> headers, string name, string? value)
-    {
-        if (!string.IsNullOrWhiteSpace(value))
-        {
-            headers[name] = value;
-        }
+        return TransportEnvelopeHeaderMapper.BuildHeaders(new TransportEnvelopeHeaderSource(
+            envelope.Id,
+            envelope.ContractName,
+            envelope.ContractVersion,
+            envelope.CorrelationId,
+            envelope.CausationId,
+            envelope.TenantId,
+            envelope.TraceContext,
+            envelope.IdempotencyKey,
+            envelope.VisibleAfter));
     }
 }

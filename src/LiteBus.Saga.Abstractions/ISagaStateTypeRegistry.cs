@@ -1,22 +1,38 @@
 namespace LiteBus.Saga.Abstractions;
 
 /// <summary>
-///     Maps saga type names to CLR state types used by <see cref="ISagaStore" /> serialization.
+///     Maps saga definition identifiers and message contract names to CLR state types.
 /// </summary>
 public interface ISagaStateTypeRegistry
 {
     /// <summary>
-    ///     Registers a saga state type for the supplied saga type name.
+    ///     Registers a saga state type for the supplied saga definition identifier.
     /// </summary>
     /// <typeparam name="TState">The saga state type.</typeparam>
-    /// <param name="sagaTypeName">The saga type name, typically a message contract name.</param>
-    void Register<TState>(string sagaTypeName)
+    /// <param name="sagaDefinitionId">The stable saga definition identifier.</param>
+    void RegisterStateType<TState>(string sagaDefinitionId)
         where TState : class, new();
 
     /// <summary>
-    ///     Resolves the saga state type for a saga type name.
+    ///     Maps one message contract name to a saga definition identifier.
     /// </summary>
-    /// <param name="sagaTypeName">The saga type name to resolve.</param>
-    /// <returns>The registered state type, or <see langword="null" /> when the saga type is unknown.</returns>
-    Type? Resolve(string sagaTypeName);
+    /// <param name="contractName">The durable message contract name.</param>
+    /// <param name="sagaDefinitionId">The saga definition identifier that owns state for the contract.</param>
+    void MapContract(string contractName, string sagaDefinitionId);
+
+    /// <summary>
+    ///     Resolves the saga definition identifier for a message contract name.
+    /// </summary>
+    /// <param name="contractName">The durable message contract name.</param>
+    /// <returns>
+    ///     The mapped saga definition identifier, or <see langword="null" /> when the contract is not mapped.
+    /// </returns>
+    string? ResolveDefinitionId(string contractName);
+
+    /// <summary>
+    ///     Resolves the saga state type for a saga definition identifier.
+    /// </summary>
+    /// <param name="sagaDefinitionId">The saga definition identifier to resolve.</param>
+    /// <returns>The registered state type, or <see langword="null" /> when the definition is unknown.</returns>
+    Type? ResolveStateType(string sagaDefinitionId);
 }

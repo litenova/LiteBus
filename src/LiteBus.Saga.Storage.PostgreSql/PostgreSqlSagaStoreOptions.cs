@@ -18,7 +18,7 @@ public sealed record PostgreSqlSagaStoreOptions
     /// <summary>
     ///     Gets a value indicating whether schema creation runs during host startup.
     /// </summary>
-    public bool EnsureSchemaCreationOnStartup { get; init; }
+    public bool EnsureSchemaCreationOnStartup { get; init; } = true;
 
     /// <summary>
     ///     Gets a value indicating whether schema validation runs during host startup.

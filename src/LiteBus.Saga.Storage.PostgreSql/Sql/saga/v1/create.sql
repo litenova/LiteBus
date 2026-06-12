@@ -10,6 +10,12 @@ CREATE TABLE IF NOT EXISTS {{QualifiedTableName}}
     text
     NOT
     NULL,
+    tenant_id
+    text
+    NOT
+    NULL
+    DEFAULT
+    '',
     state_json
     jsonb
     NOT
@@ -34,7 +40,8 @@ CREATE TABLE IF NOT EXISTS {{QualifiedTableName}}
     KEY
 (
     correlation_id,
-    saga_type
+    saga_type,
+    tenant_id
 )
     );
 

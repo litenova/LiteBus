@@ -15,16 +15,16 @@ public interface IInboxDeadLetterStore
     /// </summary>
     /// <param name="messageIds">The envelope identifiers to requeue.</param>
     /// <param name="cancellationToken">A token that cancels the requeue operation.</param>
-    /// <returns>A task that represents the asynchronous requeue operation.</returns>
-    Task RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default);
+    /// <returns>The number of rows requested versus actually requeued.</returns>
+    Task<RequeueResult> RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Requeues one dead-lettered envelope for manual replay.
     /// </summary>
     /// <param name="messageId">The envelope identifier to requeue.</param>
     /// <param name="cancellationToken">A token that cancels the requeue operation.</param>
-    /// <returns>A task that represents the asynchronous requeue operation.</returns>
-    Task RequeueAsync(Guid messageId, CancellationToken cancellationToken = default)
+    /// <returns>The number of rows requested versus actually requeued.</returns>
+    Task<RequeueResult> RequeueAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         return RequeueAsync([messageId], cancellationToken);
     }

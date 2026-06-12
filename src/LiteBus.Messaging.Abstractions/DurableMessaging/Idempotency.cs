@@ -34,5 +34,9 @@ public abstract record Idempotency
     ///     Carries an application-defined idempotency key stored with the envelope.
     /// </summary>
     /// <param name="Key">The idempotency key used for insert-time deduplication.</param>
-    public sealed record Keyed(string Key) : Idempotency;
+    /// <param name="ConflictMode">
+    ///     How duplicate keys are handled. Defaults to <see cref="IdempotencyConflictMode.ReturnExisting" />.
+    /// </param>
+    public sealed record Keyed(string Key, IdempotencyConflictMode ConflictMode = IdempotencyConflictMode.ReturnExisting)
+        : Idempotency;
 }

@@ -60,6 +60,7 @@ public static class ContainerBuilderExtensions
             moduleDescriptor.Module.Build(moduleConfiguration);
         }
 
+        RegisterHostManifest(builder, moduleConfiguration);
         builder.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
 
         return builder;
@@ -92,24 +93,29 @@ public static class ContainerBuilderExtensions
         configure(liteBusBuilder);
 
         var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
+        moduleConfiguration.SetContext(sharedContracts);
 
         foreach (var moduleDescriptor in moduleRegistry)
         {
             moduleDescriptor.Module.Build(moduleConfiguration);
         }
 
-        liteBusBuilder.ApplySharedContracts(moduleConfiguration);
-
-        builder.Register(_ => new LiteBusHostManifest(
-                moduleConfiguration.StartupTasks.ToList(),
-                moduleConfiguration.BackgroundServices.ToList(),
-                moduleConfiguration.DiagnosticChecks.ToList()))
-            .As<LiteBusHostManifest>()
-            .SingleInstance();
-
+        RegisterHostManifest(builder, moduleConfiguration);
         builder.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
 
         return builder;
+    }
+
+    /// <summary>
+    ///     Registers the host manifest describing startup tasks, background services, and diagnostic probes.
+    /// </summary>
+    /// <param name="builder">The Autofac container builder receiving the manifest registration.</param>
+    /// <param name="moduleConfiguration">The module configuration that collected host registrations.</param>
+    private static void RegisterHostManifest(ContainerBuilder builder, ModuleConfiguration moduleConfiguration)
+    {
+        builder.Register(_ => LiteBusHostManifest.FromConfiguration(moduleConfiguration))
+            .As<LiteBusHostManifest>()
+            .SingleInstance();
     }
 
     /// <summary>

@@ -152,8 +152,7 @@ public sealed class EfCoreInboxStorageModule : IInboxStorageModule
             transactionalInboxType,
             serviceProvider.GetRequiredService<LiteBusInboxSaveChangesInterceptor>(),
             dbContext,
-            serviceProvider.GetRequiredService<IInboxEnvelopeFactory>(),
-            serviceProvider.GetRequiredService<TimeProvider>())!;
+            serviceProvider.GetRequiredService<IInboxEnvelopeFactory>())!;
     }
 
     /// <summary>

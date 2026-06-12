@@ -37,7 +37,7 @@ public sealed class InboxTests : LiteBusTestBase
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
             },
-            new InboxAcceptMetadata
+            InboxAcceptMetadata.Immediate with
             {
                 Identity = new MessageIdentity.Supplied(commandId),
                 Idempotency = new Idempotency.Keyed($"ship:{orderId}"),
@@ -189,7 +189,7 @@ public sealed class InboxTests : LiteBusTestBase
 
         var orderId = Guid.NewGuid();
         var idempotencyKey = $"ship:{orderId}";
-        var metadata = new InboxAcceptMetadata { Idempotency = new Idempotency.Keyed(idempotencyKey) };
+        var metadata = InboxAcceptMetadata.Immediate with { Idempotency = new Idempotency.Keyed(idempotencyKey) };
 
         var first = await scheduler.AcceptAsync(InboxWriterTestFactory.Item(
             new InboxTestFixtures.ShipOrderCommand
@@ -403,7 +403,7 @@ public sealed class InboxTests : LiteBusTestBase
 
         await scheduler.AcceptAsync(InboxAcceptItem<InboxTestFixtures.InboxCheckCommand>.From(
             new InboxTestFixtures.InboxCheckCommand(),
-            new InboxAcceptMetadata
+            InboxAcceptMetadata.Immediate with
             {
                 Trace = new MessageTrace.Workflow("correlation-42", "causation-42"),
                 Tenant = new TenantScope.Isolated("tenant-42")

@@ -6,7 +6,7 @@ namespace LiteBus.Inbox.Abstractions;
 /// <summary>
 ///     Describes one message acceptance unit for typed writer calls.
 /// </summary>
-/// <typeparam name="TMessage">The compile-time message type carried in the item.</typeparam>
+/// <typeparam name="TMessage">The concrete message type carried in the item.</typeparam>
 /// <remarks>
 ///     Contract lookup at runtime always uses <c>message.GetType()</c> for each instance. Use
 ///     <see cref="InboxAcceptItem" /> when building heterogeneous batches.
@@ -108,14 +108,65 @@ public sealed record InboxAcceptItem<TMessage>
             }
         };
     }
+
+    /// <summary>
+    ///     Creates an acceptance item that stores a correlation identifier for distributed tracing.
+    /// </summary>
+    /// <param name="message">The message instance to accept.</param>
+    /// <param name="correlationId">The correlation identifier persisted with the envelope.</param>
+    /// <returns>An acceptance item with <see cref="MessageTrace.Correlated" /> metadata.</returns>
+    public static InboxAcceptItem<TMessage> WithCorrelation(TMessage message, string correlationId)
+    {
+        return From(message) with
+        {
+            Metadata = InboxAcceptMetadata.Immediate with
+            {
+                Trace = new MessageTrace.Correlated(correlationId)
+            }
+        };
+    }
+
+    /// <summary>
+    ///     Creates an acceptance item that stores distributed trace metadata with the envelope.
+    /// </summary>
+    /// <param name="message">The message instance to accept.</param>
+    /// <param name="trace">The trace metadata persisted outside the payload.</param>
+    /// <returns>An acceptance item carrying the supplied trace metadata.</returns>
+    public static InboxAcceptItem<TMessage> WithTrace(TMessage message, MessageTrace trace)
+    {
+        ArgumentNullException.ThrowIfNull(trace);
+
+        return From(message) with
+        {
+            Metadata = InboxAcceptMetadata.Immediate with { Trace = trace }
+        };
+    }
+
+    /// <summary>
+    ///     Creates an acceptance item that stores tenant isolation metadata with the envelope.
+    /// </summary>
+    /// <param name="message">The message instance to accept.</param>
+    /// <param name="tenantId">The tenant identifier persisted with the envelope.</param>
+    /// <returns>An acceptance item with <see cref="TenantScope.Isolated" /> metadata.</returns>
+    public static InboxAcceptItem<TMessage> WithTenant(TMessage message, string tenantId)
+    {
+        return From(message) with
+        {
+            Metadata = InboxAcceptMetadata.Immediate with
+            {
+                Tenant = new TenantScope.Isolated(tenantId)
+            }
+        };
+    }
 }
+
 
 /// <summary>
 ///     Describes one message acceptance unit for batch writer calls.
 /// </summary>
 /// <remarks>
 ///     Use this shape when a single batch contains messages of different CLR types. Contract lookup uses
-///     <c>message.GetType()</c> for each entry.
+///     <see cref="MessageType" /> when supplied; otherwise <c>message.GetType()</c> is used for each entry.
 /// </remarks>
 public sealed record InboxAcceptItem
 {
@@ -123,6 +174,11 @@ public sealed record InboxAcceptItem
     ///     Gets the message instance to serialize and store.
     /// </summary>
     public required object Message { get; init; }
+
+    /// <summary>
+    ///     Gets the optional runtime message type used for contract lookup on heterogeneous batches.
+    /// </summary>
+    public Type? MessageType { get; init; }
 
     /// <summary>
     ///     Gets per-message acceptance metadata applied outside the payload.
@@ -147,6 +203,25 @@ public sealed record InboxAcceptItem
     }
 
     /// <summary>
+    ///     Creates an untyped acceptance item with an explicit runtime type and optional metadata.
+    /// </summary>
+    /// <param name="message">The message instance to accept.</param>
+    /// <param name="messageType">The runtime message type used for contract lookup.</param>
+    /// <param name="metadata">
+    ///     Optional acceptance metadata. When omitted, <see cref="InboxAcceptMetadata.Immediate" /> is used.
+    /// </param>
+    /// <returns>An untyped acceptance item ready for batch APIs.</returns>
+    public static InboxAcceptItem From(object message, Type messageType, InboxAcceptMetadata? metadata = null)
+    {
+        return new InboxAcceptItem
+        {
+            Message = message,
+            MessageType = messageType,
+            Metadata = metadata ?? InboxAcceptMetadata.Immediate
+        };
+    }
+
+    /// <summary>
     ///     Converts a typed acceptance item into an untyped batch entry.
     /// </summary>
     /// <typeparam name="TMessage">The compile-time message type.</typeparam>
@@ -158,6 +233,7 @@ public sealed record InboxAcceptItem
         return new InboxAcceptItem
         {
             Message = item.Message,
+            MessageType = item.Message.GetType(),
             Metadata = item.Metadata
         };
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using ExecutionContext = LiteBus.Messaging.Contexts.Execution.ExecutionContext;
 
@@ -84,8 +85,8 @@ internal sealed class MessageMediator : IMessageMediator
         // Create a new execution context for the current scope.
         var executionContext = new ExecutionContext(cancellationToken, request.Tags, request.Items);
 
-        // Use a scope to manage the execution context.
-        using var _ = AmbientExecutionContext.CreateScope(executionContext);
+        // Retain the ambient scope until asynchronous mediation results complete.
+        var scope = AmbientExecutionContext.CreateScope(executionContext);
 
         // Get the actual type of the message.
         var messageType = message.GetType();
@@ -122,6 +123,42 @@ internal sealed class MessageMediator : IMessageMediator
             request.HandlerPredicate);
 
         // Mediate the message using the specified strategy.
-        return request.MessageMediationStrategy.Mediate(message, messageDependencies, AmbientExecutionContext.Current);
+        var result = request.MessageMediationStrategy.Mediate(message, messageDependencies, executionContext);
+
+        return MediationScopeRetention.RetainUntilPipelineCompletes(result, scope);
+    }
+
+    /// <inheritdoc />
+    public Task<TMessageResult> MediateAsync<TMessage, TMessageResult>(
+        TMessage message,
+        MessageMediationRequest<TMessage, TMessageResult> request,
+        CancellationToken cancellationToken = default)
+        where TMessage : notnull
+    {
+        var result = Mediate(message, request, cancellationToken);
+
+        if (result is Task<TMessageResult> typedTask)
+        {
+            return typedTask;
+        }
+
+        if (result is Task task)
+        {
+            return CompleteTaskAsResult<TMessageResult>(task);
+        }
+
+        return Task.FromResult(result);
+    }
+
+    /// <summary>
+    ///     Converts a completed non-generic <see cref="Task" /> into <see cref="Task{TMessageResult}" />.
+    /// </summary>
+    /// <typeparam name="TMessageResult">The expected async mediation result type.</typeparam>
+    /// <param name="task">The completed task returned from synchronous mediation.</param>
+    /// <returns>A task that completes with the mediation result.</returns>
+    private static async Task<TMessageResult> CompleteTaskAsResult<TMessageResult>(Task task)
+    {
+        await task.ConfigureAwait(false);
+        return (TMessageResult)(object)task;
     }
 }

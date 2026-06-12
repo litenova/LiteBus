@@ -84,4 +84,13 @@ public sealed record EventExecutionSettings
     ///     </para>
     /// </remarks>
     public ConcurrencyMode HandlersWithinSamePriorityConcurrencyMode { get; init; } = ConcurrencyMode.Sequential;
+
+    /// <summary>
+    ///     Gets or initializes how parallel handler failures are surfaced to callers.
+    /// </summary>
+    /// <value>
+    ///     A <see cref="ParallelFaultMode" /> value that controls whether the first failure cancels siblings or all
+    ///     failures are aggregated. The default is <see cref="ParallelFaultMode.PropagateFirst" />.
+    /// </value>
+    public ParallelFaultMode ParallelFaultMode { get; init; } = ParallelFaultMode.PropagateFirst;
 }

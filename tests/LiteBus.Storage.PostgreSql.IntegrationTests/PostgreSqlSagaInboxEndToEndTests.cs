@@ -7,7 +7,7 @@ using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
-using LiteBus.Saga;
+using LiteBus.Saga.InboxIntegration;
 using LiteBus.Saga.Abstractions;
 using LiteBus.Saga.Storage.PostgreSql;
 using LiteBus.Testing;
@@ -56,12 +56,12 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
 
         await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(
             new AdvanceOrderSagaCommand(),
-            new InboxAcceptMetadata { Trace = new MessageTrace.Correlated("order-9001") }));
+            InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated("order-9001") }));
 
         await processor.ProcessPendingAsync();
 
         var instance = await sagaStore.LoadAsync<OrderSagaState>(
-            new SagaCorrelation { CorrelationId = "order-9001", SagaType = "orders.saga.advance" });
+            new SagaCorrelation { CorrelationId = "order-9001", SagaDefinitionId = "orders.saga.advance" });
 
         instance.Should().NotBeNull();
         instance!.State.Step.Should().Be(1);

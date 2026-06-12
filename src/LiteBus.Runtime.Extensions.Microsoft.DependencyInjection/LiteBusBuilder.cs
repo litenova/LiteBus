@@ -34,20 +34,4 @@ public sealed class LiteBusBuilder : ILiteBusBuilder
     /// <inheritdoc />
     public IModuleRegistry Modules { get; }
 
-    /// <summary>
-    ///     Replays shared contract registrations against the module configuration contract registry.
-    /// </summary>
-    /// <param name="configuration">The module configuration produced while building registered modules.</param>
-    public void ApplySharedContracts(IModuleConfiguration configuration)
-    {
-        ArgumentNullException.ThrowIfNull(configuration);
-
-        if (!_sharedContracts.HasRegistrations)
-        {
-            return;
-        }
-
-        var registry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
-        _sharedContracts.ApplyTo(registry);
-    }
 }

@@ -43,8 +43,8 @@ public interface IInboxManager
     /// </summary>
     /// <param name="messageIds">The envelope identifiers to requeue.</param>
     /// <param name="cancellationToken">A token that cancels the replay operation.</param>
-    /// <returns>The number of messages requeued.</returns>
-    Task<int> RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default);
+    /// <returns>The number of rows requested versus actually requeued.</returns>
+    Task<RequeueResult> RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Deletes inbox messages that match the supplied filter.
