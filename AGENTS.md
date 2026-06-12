@@ -74,3 +74,41 @@ dotnet build LiteBus.slnx
 - Follow existing naming, project layout, and module patterns.
 - Keep changes scoped to the task.
 - Update `Changelog.md` under `v5.0.0` when public API or documented behavior changes.
+
+## Cursor Cloud specific instructions
+
+The VM has .NET SDKs 8, 9, and 10 installed (tests multi-target `net8.0;net9.0;net10.0`) and Docker.
+
+### Building and testing need public signing
+
+`src/LiteBus.Runtime` and `src/LiteBus.PostgreSql` declare `InternalsVisibleTo` with a fixed strong-name public key, so every project must be signed with that key to compile. The private key is the `STRONG_NAME_KEY` CI secret and is not available here. The workaround is OSS public signing against a public-key-only `LiteBus.snk` (git-ignored), which does not need the private key.
+
+The startup update script writes `LiteBus.snk` if it is missing, and `~/.bashrc` exports `SignAssembly=true`, `PublicSign=true`, and `AssemblyOriginatorKeyFile=/workspace/LiteBus.snk`. With those in place, the documented commands work unchanged:
+
+```bash
+dotnet build LiteBus.slnx   # also the StyleCop/XML-doc lint gate
+dotnet test LiteBus.slnx
+```
+
+If a shell does not pick up the exports (for example a stripped environment), pass them explicitly: `dotnet build LiteBus.slnx -p:SignAssembly=true -p:PublicSign=true -p:AssemblyOriginatorKeyFile=$PWD/LiteBus.snk`. Do not commit `LiteBus.snk`; committing it would flip on signing for contributors who lack the private key and break their builds.
+
+### PostgreSQL integration tests need a running Docker daemon
+
+`tests/LiteBus.PostgreSql.IntegrationTests` uses `Testcontainers.PostgreSql`, which starts a real PostgreSQL container. Docker is not managed by systemd here, so start the daemon manually if `docker info` fails:
+
+```bash
+sudo dockerd &
+```
+
+The first run pulls the `postgres` image. Unit-test projects have no Docker dependency.
+
+### Running the sample application
+
+`samples/LiteBus.Samples.NetCore` is an ASP.NET Core Web API exposing the `Orders` endpoints (`POST /api/Orders`, `GET /api/Orders/{id}`) backed by the command, query, and event modules. Run it in the Development environment for the Swagger UI at `/swagger`, and bind to HTTP to avoid the dev HTTPS certificate:
+
+```bash
+ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://0.0.0.0:5080 \
+  dotnet run --project samples/LiteBus.Samples.NetCore
+```
+
+The `Failed to determine the https port for redirect` warning is expected with an HTTP-only binding and is harmless. The sample stores nothing: `GET` returns a generated `OrderDto`, while `POST` runs the full pipeline and writes `[PlaceOrderCommandHandler]` and `[OrderPlacedEventHandler]` lines to the console.
