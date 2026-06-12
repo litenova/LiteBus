@@ -1,0 +1,4 @@
+# Gitignored files to copy into new Git worktrees (patterns only; commit this file).
+# Copy patterns inlined into .cursor/worktrees.json at bootstrap; also used by Claude Code / git-worktreeinclude.
+.env
+.env.local

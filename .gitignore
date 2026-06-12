@@ -58,3 +58,6 @@ build2.txt
 
 # Cursor agent plans (local only)
 .cursor/plans/
+
+# Git worktrees for parallel batch agents (@plan-batch / @apply-batch)
+.worktrees/
