@@ -146,7 +146,7 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
         using var host = await CreateHostAsync(
             inboxOptions,
             outboxOptions,
-            inbox => inbox.AddDiagnosticCheck<PostgreSqlInboxSchemaDiagnosticCheck>("litebus.inbox.schema"));
+            inbox => inbox.AddDiagnosticCheck<PostgreSqlInboxSchemaDiagnosticCheck>("inbox.postgresql.schema"));
 
         using var client = host.GetTestClient();
         var response = await client.GetAsync("/litebus/health");
@@ -155,9 +155,9 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
 
         var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
         var probes = payload.EnumerateArray().ToArray();
-        probes.Should().Contain(probe => probe.GetProperty("name").GetString() == "litebus.inbox.schema");
+        probes.Should().Contain(probe => probe.GetProperty("name").GetString() == "inbox.postgresql.schema");
 
-        var registeredProbe = probes.Single(probe => probe.GetProperty("name").GetString() == "litebus.inbox.schema");
+        var registeredProbe = probes.Single(probe => probe.GetProperty("name").GetString() == "inbox.postgresql.schema");
         registeredProbe.GetProperty("status").GetInt32().Should().Be((int) DiagnosticStatus.Healthy);
         registeredProbe.GetProperty("description").GetString().Should().Contain("schema validation succeeded");
         registeredProbe.GetProperty("data").GetProperty("component").GetString().Should().Be("inbox");

@@ -1477,10 +1477,10 @@ public sealed class EfCoreInboxStore :
         public Guid Id { get; set; }
 
         /// <summary>
-        ///     Gets the contract name column.
+        ///     Gets or sets the contract name column.
         /// </summary>
         [Column("contract_name")]
-        public string ContractName { get; } = string.Empty;
+        public string ContractName { get; set; } = string.Empty;
 
         /// <summary>
         ///     Gets or sets the contract version column.
@@ -1489,10 +1489,10 @@ public sealed class EfCoreInboxStore :
         public int ContractVersion { get; set; }
 
         /// <summary>
-        ///     Gets the payload column.
+        ///     Gets or sets the payload column.
         /// </summary>
         [Column("payload")]
-        public string Payload { get; } = string.Empty;
+        public string Payload { get; set; } = string.Empty;
 
         /// <summary>
         ///     Gets or sets the created timestamp column.

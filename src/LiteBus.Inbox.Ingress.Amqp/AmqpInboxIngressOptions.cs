@@ -38,6 +38,11 @@ public sealed record AmqpInboxIngressOptions
     public bool RequeueOnFailure { get; init; } = true;
 
     /// <summary>
+    ///     Gets a value indicating whether LiteBus application headers may override broker-scoped idempotency and tenant.
+    /// </summary>
+    public bool TrustApplicationHeaders { get; init; }
+
+    /// <summary>
     ///     Gets a value indicating whether the consumer should buffer deliveries and call batch inbox accept.
     /// </summary>
     /// <value>

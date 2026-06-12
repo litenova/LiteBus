@@ -57,6 +57,13 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
             });
         });
 
+        services.AddSingleton(new TransportInboxIngressOptions
+        {
+            Destination = ingressDestination,
+            PrefetchCount = 1,
+            RequeueOnFailure = true
+        });
+
         services.AddSingleton<TransportInboxIngressHandler>();
 
         await using var provider = services.BuildServiceProvider();
@@ -115,6 +122,18 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
                 .Should().Be(contractName);
 
             var store = provider.GetRequiredService<InMemoryInboxStore>();
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+
+            while (DateTime.UtcNow < deadline)
+            {
+                if (store.Get(messageId).Status == InboxStatus.Completed)
+                {
+                    break;
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(50));
+            }
+
             store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
         }
         finally

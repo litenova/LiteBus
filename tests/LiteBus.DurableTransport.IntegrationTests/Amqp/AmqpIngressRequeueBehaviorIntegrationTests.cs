@@ -62,7 +62,8 @@ public sealed class AmqpIngressRequeueBehaviorIntegrationTests : LiteBusTestBase
 
             await publisher.PublishAsync(new TransportPublishRequest
             {
-                Destination = ingressQueue,
+                Destination = string.Empty,
+                Route = ingressQueue,
                 Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, ContractName, 1)

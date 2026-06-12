@@ -51,6 +51,7 @@ public sealed class AmqpInboxIngressModule : IInboxIngressModule
             DeclareDestination = options.DeclareQueue,
             DurableDestination = options.DurableQueue,
             RequeueOnFailure = options.RequeueOnFailure,
+            TrustApplicationHeaders = options.TrustApplicationHeaders,
             EnableBatchAccept = options.EnableBatchAccept,
             BatchMaxWait = options.BatchMaxWait
         };
