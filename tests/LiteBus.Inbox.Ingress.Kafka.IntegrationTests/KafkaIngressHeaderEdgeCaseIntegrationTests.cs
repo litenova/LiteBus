@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
+using LiteBus.Transport.IntegrationTesting.Kafka;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Dispatch.Kafka;
 using LiteBus.Inbox.Ingress.Kafka;
@@ -33,6 +34,8 @@ public sealed class KafkaIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBase
     public KafkaIngressHeaderEdgeCaseIntegrationTests(KafkaBrokerFixture fixture)
     {
         _fixture = fixture;
+        DockerTestGate.EnsureBrokerAvailable(_fixture.IsAvailable, "Kafka");
+        Skip.IfNot(_fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
     }
 
     /// <summary>

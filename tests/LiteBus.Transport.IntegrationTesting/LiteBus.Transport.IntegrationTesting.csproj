@@ -13,6 +13,7 @@
         <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
         <PackageReference Include="Testcontainers"/>
         <PackageReference Include="Testcontainers.Kafka"/>
+        <PackageReference Include="Testcontainers.Redpanda"/>
         <PackageReference Include="Testcontainers.LocalStack"/>
         <PackageReference Include="Testcontainers.ServiceBus"/>
         <PackageReference Include="Xunit.SkippableFact"/>

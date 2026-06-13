@@ -30,18 +30,34 @@ public static class KafkaTransportTestInfrastructure
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bootstrapServers);
 
-        using var admin = new AdminClientBuilder(new AdminClientConfig { BootstrapServers = bootstrapServers }).Build();
-        _ = admin.GetMetadata(TimeSpan.FromSeconds(15));
-
-        var consumerConfig = new ConsumerConfig
+        try
         {
-            BootstrapServers = bootstrapServers,
-            GroupId = $"litebus-warmup-{Guid.NewGuid():N}",
-            EnableAutoCommit = false
-        };
+            using var admin = new AdminClientBuilder(new AdminClientConfig { BootstrapServers = bootstrapServers }).Build();
 
-        using var consumer = new ConsumerBuilder<string, byte[]>(consumerConfig).Build();
-        await Task.CompletedTask.ConfigureAwait(false);
+            // Wrap GetMetadata in Task.Run with timeout to prevent blocking fixture initialization
+            await Task.Run(() =>
+            {
+                try
+                {
+                    _ = admin.GetMetadata(TimeSpan.FromSeconds(10));
+                }
+                catch (KafkaException ex)
+                {
+                    // Warmup is optional - broker may still work even if metadata times out
+                    System.Diagnostics.Debug.WriteLine($"Kafka warmup GetMetadata failed: {ex.Message}");
+                }
+            }).WaitAsync(TimeSpan.FromSeconds(12)).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            // Warmup timeout is non-fatal; tests can continue
+            System.Diagnostics.Debug.WriteLine("Kafka warmup timed out");
+        }
+        catch (Exception ex)
+        {
+            // Warmup failures are not fatal
+            System.Diagnostics.Debug.WriteLine($"Kafka warmup failed: {ex.Message}");
+        }
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
+using LiteBus.Transport.IntegrationTesting.Kafka;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Kafka;
@@ -35,6 +36,54 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
     public KafkaInboxIngressEndToEndIntegrationTests(KafkaBrokerFixture fixture)
     {
         _fixture = fixture;
+        DockerTestGate.EnsureBrokerAvailable(_fixture.IsAvailable, "Kafka");
+        Skip.IfNot(_fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
+    }
+
+    /// <summary>
+    ///     Verifies that the Kafka ingress consumer can start without hanging.
+    /// </summary>
+    /// <returns>A task that completes when the consumer starts successfully.</returns>
+    [Fact]
+    public async Task ConsumerStartup_ShouldStartWithoutHanging()
+    {
+        var ingressTopic = KafkaTransportTestInfrastructure.CreateTopic("ingress-consumer-only");
+
+        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(
+            _fixture.TransportOptions.BootstrapServers,
+            ingressTopic).ConfigureAwait(false);
+
+        var connection = KafkaIngressTestSupport.CreateConnection(_fixture.TransportOptions);
+        var provider = new ServiceCollection()
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessageModule(_ => { });
+                registry.AddInboxModule(inbox =>
+                {
+                    inbox.UseInMemoryStorage();
+                    inbox.UseKafkaIngress(ingress =>
+                    {
+                        KafkaIngressTestSupport.ConfigureTestIngress(ingress);
+                        ingress.UseOptions(new KafkaInboxIngressOptions
+                        {
+                            Destination = ingressTopic,
+                            PrefetchCount = 1,
+                            Connection = connection
+                        });
+                    });
+                });
+            })
+            .BuildServiceProvider();
+
+        try
+        {
+            await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
+        }
+        finally
+        {
+            await KafkaIngressTestSupport.StopIngressAsync(provider).ConfigureAwait(false);
+            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -44,7 +93,6 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
     [Fact]
     public async Task PublishThroughKafka_ShouldAcceptProcessAndDispatchCommand()
     {
-        Console.WriteLine($"TEST: Starting E2E test at {DateTime.UtcNow:O}");
         var ingressTopic = KafkaTransportTestInfrastructure.CreateTopic("ingress");
         var dispatchTopic = KafkaTransportTestInfrastructure.CreateTopic("dispatch");
 
@@ -68,7 +116,6 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
             var command = new ShipOrderCommand { OrderId = orderId };
             var payload = JsonSerializer.SerializeToUtf8Bytes(command);
 
-            Console.WriteLine("TEST: Publishing message to ingress topic...");
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressTopic,
@@ -76,42 +123,24 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
             }).ConfigureAwait(false);
-            Console.WriteLine("TEST: Message published");
 
-            Console.WriteLine($"TEST: Starting end-to-end session at {DateTime.UtcNow:O}");
-            try
-            {
-                await KafkaIngressTestSupport.StartEndToEndAsync(provider).ConfigureAwait(false);
-                Console.WriteLine($"TEST: End-to-end session started at {DateTime.UtcNow:O}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"TEST: EXCEPTION in StartEndToEndAsync: {ex.GetType().Name}: {ex.Message}");
-                Console.WriteLine($"TEST: StackTrace: {ex.StackTrace}");
-                throw;
-            }
+            await KafkaIngressTestSupport.StartEndToEndAsync(provider).ConfigureAwait(false);
 
             var store = provider.GetRequiredService<InMemoryInboxStore>();
-            var inboxBefore = store.Get(messageId);
-            Console.WriteLine($"TEST: Inbox status before ConsumeOneAsync: {inboxBefore?.Status}");
 
-            Console.WriteLine($"TEST: Waiting for dispatch message from processor at {DateTime.UtcNow:O} (timeout 30s)");
             var (body, headers) = await KafkaTransportTestInfrastructure.ConsumeOneAsync(
                 _fixture.TransportOptions.BootstrapServers,
                 dispatchTopic,
                 TimeSpan.FromSeconds(30)).ConfigureAwait(false);
-            Console.WriteLine($"TEST: Dispatch message received at {DateTime.UtcNow:O}");
 
             body.Should().Contain(orderId.ToString());
             headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));
             headers[TransportHeaders.ContractName].Should().Be(ContractName);
 
-            Console.WriteLine("TEST: Waiting for inbox to mark message as completed...");
             await PollingWait.UntilAsync(
                 () => store.Get(messageId).Status == InboxStatus.Completed,
                 TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
-            Console.WriteLine("TEST: Inbox message completed");
             store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
         }
         finally

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
+using LiteBus.Transport.IntegrationTesting.Kafka;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox;
@@ -31,6 +32,8 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
     public KafkaOutboxDispatchIntegrationTests(KafkaBrokerFixture fixture)
     {
         _fixture = fixture;
+        DockerTestGate.EnsureBrokerAvailable(_fixture.IsAvailable, "Kafka");
+        Skip.IfNot(_fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using LiteBus.Transport.IntegrationTesting;
+using LiteBus.Transport.IntegrationTesting.Kafka;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Kafka;
@@ -33,6 +34,8 @@ public sealed class KafkaInboxDispatchIntegrationTests : LiteBusTestBase
     public KafkaInboxDispatchIntegrationTests(KafkaBrokerFixture fixture)
     {
         _fixture = fixture;
+        DockerTestGate.EnsureBrokerAvailable(_fixture.IsAvailable, "Kafka");
+        Skip.IfNot(_fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
     }
 
     /// <summary>

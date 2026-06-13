@@ -26,6 +26,7 @@
         <PackageVersion Include="Testcontainers.MsSql" Version="4.8.0"/>
         <PackageVersion Include="Testcontainers.RabbitMq" Version="4.8.0"/>
         <PackageVersion Include="Testcontainers.Kafka" Version="4.8.0"/>
+        <PackageVersion Include="Testcontainers.Redpanda" Version="4.8.0"/>
         <PackageVersion Include="Testcontainers.LocalStack" Version="4.8.0"/>
         <PackageVersion Include="Testcontainers.ServiceBus" Version="4.8.0"/>
         <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.18.4"/>
