@@ -64,26 +64,46 @@ Committed all Session 2 fixes from the handoff. Core lifecycle and disposal issu
 
 ## Known Issues & Blockers
 
-### Issue 1: Test Discovery Hangs on Full Suite
-**Symptom:** Running multiple test classes in parallel causes Docker setup phase to hang indefinitely  
-**Last observation:** Output file remains 0 bytes after 3+ minutes  
-**Root cause (hypothesis):** Testcontainers resource contention or concurrent test fixture initialization issue  
-**Impact:** Cannot run full test suite validation; must run tests individually  
-**Workaround:** Run single test or single test class at a time
-
-### Issue 2: E2E Test Hangs (~3+ minutes)
+### Issue 1: E2E Test Hangs - Two Failure Modes
 **Test:** PublishThroughKafka_ShouldAcceptProcessAndDispatchCommand  
-**Symptom:** Hangs during ConsumeOneAsync waiting for dispatch message  
-**Likely cause:** EndToEndSession runs processor on raw Task without proper host integration
-- Processor task may not be getting proper handler context
-- Dispatch message may never get published to dispatch topic
-- Test order alphabetically runs E2E first, blocking other tests
+
+**Mode A: First Run (Session 3)**
+- Test DOES enter test body (prints "TEST: Starting end-to-end session at...")
+- Hangs inside await KafkaIngressTestSupport.StartEndToEndAsync(provider)
+- Console output stops immediately after that line
+- Time elapsed: 3+ minutes
+- DEBUG logging added but not visible in output (either not reached or buffering issue)
+
+**Mode B: Subsequent Runs (Session 3)**
+- Test HANGS during fixture initialization
+- Never reaches test body (no "TEST:" console output)
+- Only 310 bytes of initial VSTest output
+- Time elapsed: 45+ seconds with no test body output
+- Suggests Docker/resource contention between consecutive test runs
+
+**Immediate root cause:** StartEndToEndAsync appears to hang in either:
+1. DirectKafkaIngressSession.Create() - service resolution
+2. InboxProcessorBackgroundService resolution
+3. EndToEndSession.StartAsync() -> DirectKafkaIngressSession.StartAsync()  -> _consumer.StartAsync()
+
+The Kafka consumer startup may be blocking on topic subscription or consume loop initialization.
+
+**Likely deeper issue:** Processor dispatch not working
+- Even if StartAsync completes, ConsumeOneAsync waits 30s for dispatch message
+- If processor doesn't dispatch, timeout + teardown = 3+ minutes total
+- Processor runs as raw Task without host manifest wiring; may not have proper execution context
+
+### Issue 2: Test Discovery Hangs on Full Suite  
+**Symptom:** Running multiple test classes in parallel causes fixture initialization to hang indefinitely  
+**Impact:** Cannot run full test suite validation; must run tests individually  
+**Status:** Likely related to Issue 1 - if E2E test hangs during init, it blocks all other tests waiting for shared fixture
 
 **Next steps for Session 4:**
-1. Add debug logging to processor dispatch path
-2. Verify processor receives and processes inbox message
-3. Check if dispatch transport is properly configured in E2E provider
-4. Compare with working AMQP/SQS E2E test patterns
+1. Add timeout to KafkaConsumer.StartAsync() consumer subscription phase
+2. Separate fixture creation from test execution to isolate hang point
+3. Add explicit logging to processor dispatch/execution path
+4. Compare E2E setup with working AMQP/SQS transports
+5. Consider if processor needs to be hosted via IHostService instead of raw Task
 
 ### Issue 3: TransientAcceptFailure Test
 **File:** KafkaInboxIngressFailureIntegrationTests.cs  
