@@ -76,13 +76,13 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
     }
 
     [Fact]
-    public async Task RegisterBackgroundServices_WhenStartupTaskThrows_ShouldStillReleaseGateForBackgroundServices()
+    public async Task RegisterBackgroundServices_WhenStartupTaskThrows_ShouldNotStartBackgroundServices()
     {
         var services = new ServiceCollection();
 
         services.RegisterBackgroundServices(
             [typeof(FailingStartupTask)],
-            [typeof(GateReleasedBackgroundService)]);
+            [typeof(StartupFailureBackgroundService)]);
 
          var provider = services.BuildServiceProvider();
          await using (provider.ConfigureAwait(false))
@@ -109,7 +109,7 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
 
         await Task.Delay(50, cts.Token).ConfigureAwait(false);
 
-        provider.GetRequiredService<GateReleasedBackgroundService>().StartedAfterStartup.Should().BeTrue();
+        provider.GetRequiredService<StartupFailureBackgroundService>().StartedAfterStartup.Should().BeFalse();
 
         foreach (var hostedService in hostedServices)
         {
@@ -198,10 +198,10 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
         }
     }
 
-    private sealed class GateReleasedBackgroundService : IBackgroundService
+    private sealed class StartupFailureBackgroundService : IBackgroundService
     {
         /// <summary>
-        ///     Gets a value indicating whether the continuous loop started after the startup gate released.
+        ///     Gets a value indicating whether the continuous loop started after startup tasks completed.
         /// </summary>
         public bool StartedAfterStartup { get; private set; }
 

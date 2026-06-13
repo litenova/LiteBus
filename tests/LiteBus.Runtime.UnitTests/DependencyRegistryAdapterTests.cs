@@ -4,6 +4,7 @@ using LiteBus.Extensions.Autofac;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
+using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Runtime.Dependencies;
 using LiteBus.Runtime.Extensions.Autofac;
 using LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
@@ -87,7 +88,7 @@ public sealed class DependencyRegistryAdapterTests
     }
 
     [Fact]
-    public void MicrosoftAddLiteBus_RegisterBackgroundServiceWithDifferentTypes_ShouldRegisterBothHostedServices()
+    public void MicrosoftAddLiteBus_RegisterBackgroundServiceWithDifferentTypes_ShouldRegisterOrchestratorAndManifestEntries()
     {
         var services = new ServiceCollection();
 
@@ -96,7 +97,13 @@ public sealed class DependencyRegistryAdapterTests
             registry.Register(new BackgroundServiceRegistrationModule(typeof(TestBackgroundService), typeof(OtherBackgroundService)));
         });
 
-        services.Count(service => service.ServiceType == typeof(IHostedService)).Should().Be(2);
+        services.Count(service => service.ServiceType == typeof(IHostedService)).Should().Be(1);
+
+        using var provider = services.BuildServiceProvider();
+        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
+
+        manifest.BackgroundServices.Should().Contain(typeof(TestBackgroundService));
+        manifest.BackgroundServices.Should().Contain(typeof(OtherBackgroundService));
     }
 
     [Fact]

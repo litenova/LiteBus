@@ -82,16 +82,34 @@ public sealed class ModuleRegistryTests
     }
 
     [Fact]
-    public void Register_AfterEnumeration_ShouldRebuildDependencyOrder()
+    public void Register_AfterBuildOrder_ShouldThrowLiteBusConfigurationException()
     {
         var registry = new ModuleRegistry();
         registry.Register(new FoundationModule());
         _ = registry.BuildOrder();
 
+        var act = () => registry.Register(new DependentModule());
+
+        act.Should()
+            .Throw<LiteBusConfigurationException>()
+            .WithMessage("*Cannot register modules after BuildOrder()*");
+    }
+
+    [Fact]
+    public void BuildOrder_ShouldFreezeFurtherRegistration()
+    {
+        var registry = new ModuleRegistry();
+        registry.Register(new FoundationModule());
         registry.Register(new DependentModule());
 
         var order = registry.BuildOrder().Select(descriptor => descriptor.ModuleType).ToList();
         order.IndexOf(typeof(FoundationModule)).Should().BeLessThan(order.IndexOf(typeof(DependentModule)));
+
+        var act = () => registry.Register(new IndependentModule());
+
+        act.Should()
+            .Throw<LiteBusConfigurationException>()
+            .WithMessage("*Cannot register modules after BuildOrder()*");
     }
 
     [Fact]

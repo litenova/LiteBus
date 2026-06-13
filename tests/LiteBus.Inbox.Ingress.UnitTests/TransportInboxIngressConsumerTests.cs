@@ -126,7 +126,7 @@ public sealed class TransportInboxIngressConsumerTests
                     return Task.CompletedTask;
                 })).ConfigureAwait(false);
 
-        nackRequeue.Should().BeEmpty();
+        nackRequeue.Should().ContainSingle().Which.Should().BeTrue();
     }
 
     /// <summary>
@@ -182,7 +182,8 @@ public sealed class TransportInboxIngressConsumerTests
         await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         await third.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         thirdCompleted.Should().BeTrue();
-        inbox.BatchAcceptCount.Should().Be(2);
+        inbox.BatchAcceptCount.Should().Be(1);
+        inbox.LastBatchItemCount.Should().Be(2);
     }
 
     /// <summary>
@@ -390,9 +391,14 @@ public sealed class TransportInboxIngressConsumerTests
         private readonly TaskCompletionSource _acceptGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         /// <summary>
-        ///     Gets the number of single accept calls observed.
+        ///     Gets the number of batch accept calls observed.
         /// </summary>
         public int BatchAcceptCount { get; private set; }
+
+        /// <summary>
+        ///     Gets the item count from the most recent batch accept call.
+        /// </summary>
+        public int LastBatchItemCount { get; private set; }
 
         /// <inheritdoc />
         public Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
@@ -427,6 +433,7 @@ public sealed class TransportInboxIngressConsumerTests
             CancellationToken cancellationToken = default)
         {
             await _acceptGate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            LastBatchItemCount = items.Count;
             BatchAcceptCount++;
             return [];
         }

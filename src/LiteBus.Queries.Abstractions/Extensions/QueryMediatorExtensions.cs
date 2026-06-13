@@ -77,7 +77,7 @@ public static class QueryMediatorExtensions
         return queryMediator.QueryAsync(query,
             new QueryMediationSettings
             {
-                Filters =
+                Routing = new QueryRoutingSettings
                 {
                     Tags = [tag]
                 }
@@ -111,7 +111,7 @@ public static class QueryMediatorExtensions
         return queryMediator.StreamAsync(query,
             new QueryMediationSettings
             {
-                Filters =
+                Routing = new QueryRoutingSettings
                 {
                     Tags = [tag]
                 }

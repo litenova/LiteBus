@@ -265,7 +265,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
 
         var settings = new CommandMediationSettings
         {
-            Filters =
+            Routing = new CommandRoutingSettings
             {
                 Tags = [Tags.Tag1]
             }
@@ -308,7 +308,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
 
         var settings = new CommandMediationSettings
         {
-            Filters =
+            Routing = new CommandRoutingSettings
             {
                 Tags = [Tags.Tag1, Tags.Tag2]
             }

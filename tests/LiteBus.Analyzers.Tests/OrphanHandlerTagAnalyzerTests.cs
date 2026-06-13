@@ -48,8 +48,13 @@ public sealed class OrphanHandlerTagAnalyzerTests
                               {
                                   public void Send(ICommandMediator mediator)
                                   {
-                                      var settings = new CommandMediationSettings();
-                                      settings.Filters.Tags = new List<string> { "frontend" };
+                                      var settings = new CommandMediationSettings
+                                      {
+                                          Routing = new CommandRoutingSettings
+                                          {
+                                              Tags = new List<string> { "frontend" }
+                                          }
+                                      };
                                   }
                               }
 
@@ -80,8 +85,13 @@ public sealed class OrphanHandlerTagAnalyzerTests
                               {
                                   public void Run(IQueryMediator mediator)
                                   {
-                                      var settings = new QueryMediationSettings();
-                                      settings.Filters.Tags = new List<string> { "reporting" };
+                                      var settings = new QueryMediationSettings
+                                      {
+                                          Routing = new QueryRoutingSettings
+                                          {
+                                              Tags = new List<string> { "reporting" }
+                                          }
+                                      };
                                   }
                               }
 
@@ -109,7 +119,7 @@ public sealed class OrphanHandlerTagAnalyzerTests
                               public static class CommandMediatorExtensions
                               {
                                   public static Task SendAsync(this ICommandMediator commandMediator, ICommand command, string tag, CancellationToken cancellationToken = default)
-                                      => commandMediator.SendAsync(command, new CommandMediationSettings { Filters = { Tags = [tag] } }, cancellationToken);
+                                      => commandMediator.SendAsync(command, new CommandMediationSettings { Routing = new CommandRoutingSettings { Tags = [tag] } }, cancellationToken);
                               }
 
                               public sealed class Sender

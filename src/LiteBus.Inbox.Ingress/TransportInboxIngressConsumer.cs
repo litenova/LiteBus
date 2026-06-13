@@ -117,6 +117,13 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
             {
                 _circuitBreaker?.ThrowIfOpen();
                 await _consumer.StartAsync(consumerOptions, HandleDeliveryAsync, stoppingToken).ConfigureAwait(false);
+
+                using var stopRegistration = stoppingToken.Register(static state =>
+                {
+                    var consumer = (IMessageConsumer)state!;
+                    _ = consumer.StopAsync(CancellationToken.None);
+                }, _consumer);
+
                 await _consumer.WaitUntilStoppedAsync(stoppingToken).ConfigureAwait(false);
                 _circuitBreaker?.RecordSuccess();
             }
@@ -136,7 +143,7 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
             {
                 CancelBatchFlushTimer();
                 await FlushBatchBufferAsync(CancellationToken.None).ConfigureAwait(false);
-                await _consumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                await _consumer.StopAsync(stoppingToken).ConfigureAwait(false);
             }
 
             if (stoppingToken.IsCancellationRequested)

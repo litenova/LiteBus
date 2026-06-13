@@ -8,6 +8,7 @@
         <PackageReference Include="RabbitMQ.Client"/>
         <PackageReference Include="Testcontainers"/>
         <PackageReference Include="Testcontainers.RabbitMq"/>
+        <PackageReference Include="Xunit.SkippableFact"/>
         <PackageReference Include="xunit"/>
         <PackageReference Include="xunit.runner.visualstudio">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -16,6 +17,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Transport.IntegrationTesting\LiteBus.Transport.IntegrationTesting.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands\LiteBus.Commands.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>

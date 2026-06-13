@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging;
@@ -48,9 +47,9 @@ public sealed class QueryMediator : IQueryMediator
             {
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,
-                Tags = ResolveTags(queryMediationSettings),
+                Tags = queryMediationSettings.Routing.Tags,
                 Items = queryMediationSettings.Items,
-                HandlerPredicate = ResolveHandlerPredicate(queryMediationSettings)
+                HandlerPredicate = queryMediationSettings.Routing.HandlerPredicate
             },
             cancellationToken);
     }
@@ -71,31 +70,10 @@ public sealed class QueryMediator : IQueryMediator
             {
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,
-                Tags = ResolveTags(queryMediationSettings),
+                Tags = queryMediationSettings.Routing.Tags,
                 Items = queryMediationSettings.Items,
-                HandlerPredicate = ResolveHandlerPredicate(queryMediationSettings)
+                HandlerPredicate = queryMediationSettings.Routing.HandlerPredicate
             },
             cancellationToken);
-    }
-
-    /// <summary>
-    ///     Resolves mediation tags from routing settings with legacy filter fallback.
-    /// </summary>
-    /// <param name="settings">The query mediation settings supplied by the caller.</param>
-    /// <returns>The tag collection applied during mediation.</returns>
-    private static IEnumerable<string> ResolveTags(QueryMediationSettings settings)
-    {
-        var routingTags = settings.Routing.Tags.ToList();
-        return routingTags.Count > 0 ? routingTags : settings.Filters.Tags;
-    }
-
-    /// <summary>
-    ///     Resolves the handler predicate from routing settings with legacy filter fallback.
-    /// </summary>
-    /// <param name="settings">The query mediation settings supplied by the caller.</param>
-    /// <returns>The predicate applied after tag filtering.</returns>
-    private static Func<IHandlerDescriptor, bool> ResolveHandlerPredicate(QueryMediationSettings settings)
-    {
-        return descriptor => settings.Routing.HandlerPredicate(descriptor) && settings.Filters.HandlerPredicate(descriptor);
     }
 }

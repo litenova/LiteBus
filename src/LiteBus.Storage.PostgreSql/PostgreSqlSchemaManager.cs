@@ -201,16 +201,20 @@ internal static class PostgreSqlSchemaManager
 
         if (inferredVersion < definition.CurrentSchemaVersion)
         {
-            if (tableExists)
-            {
-                context.Logger.Log(
-                    PostgreSqlSchemaLogLevel.Warning,
-                    $"{definition.Component} table '{context.StoreTable.QualifiedName}' exists but does not " +
-                    $"match schema version {definition.CurrentSchemaVersion}. Recreate the table or apply " +
-                    "GetCreateScript() through your migration pipeline.");
-            }
+            var details = tableExists
+                ? $"Table exists but column set infers schema version {inferredVersion}."
+                : $"Table column set infers schema version {inferredVersion}.";
 
-            return;
+            var exception = new PostgreSqlSchemaDriftException(
+                definition.Component,
+                context.StoreTable.SchemaName,
+                context.StoreTable.TableName,
+                definition.CurrentSchemaVersion,
+                inferredVersion > 0 ? inferredVersion : null,
+                details);
+
+            context.Logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
+            throw exception;
         }
 
         await PostgreSqlSchemaExecutor.ExecuteScriptAsync(

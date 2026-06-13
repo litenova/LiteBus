@@ -56,7 +56,7 @@ internal sealed class BackgroundServiceHostWrapper : IHostedService
 
         if (_executeTask is not null)
         {
-            await _executeTask.ConfigureAwait(false);
+            await _executeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 }

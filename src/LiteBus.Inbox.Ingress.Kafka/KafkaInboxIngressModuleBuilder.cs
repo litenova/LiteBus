@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Inbox.Ingress;
 
 namespace LiteBus.Inbox.Ingress.Kafka;
 
@@ -29,6 +30,18 @@ public sealed class KafkaInboxIngressModuleBuilder
     public KafkaInboxIngressModuleBuilder DisableIngressConsumer()
     {
         EnableIngressConsumer = false;
+        return this;
+    }
+
+    /// <summary>
+    ///     Replaces the Kafka inbox ingress host options.
+    /// </summary>
+    /// <param name="configure">The action that configures host options.</param>
+    /// <returns>The current builder.</returns>
+    public KafkaInboxIngressModuleBuilder ConfigureHost(Action<TransportInboxIngressHostOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        configure(HostOptions);
         return this;
     }
 

@@ -49,6 +49,12 @@ public sealed class KafkaConsumer : IMessageConsumer
     private TaskCompletionSource _stoppedTcs = CreateStoppedTaskSource();
 
     /// <summary>
+    ///     The maximum time one <see cref="IConsumer{TKey,TValue}.Consume(TimeSpan)" /> call may block while waiting
+    ///     for records or shutdown.
+    /// </summary>
+    private static readonly TimeSpan ConsumePollInterval = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="KafkaConsumer" /> class.
     /// </summary>
     /// <param name="consumer">The Kafka consumer used to read topic records.</param>
@@ -81,7 +87,6 @@ public sealed class KafkaConsumer : IMessageConsumer
 
             _stoppedTcs = CreateStoppedTaskSource();
             _consumeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _consumer.Subscribe(options.Destination);
             _consumeTask = RunConsumeLoopAsync(options, handler, _consumeCts.Token);
         }
         finally
@@ -89,6 +94,11 @@ public sealed class KafkaConsumer : IMessageConsumer
             _lifecycleGate.Release();
         }
     }
+
+    /// <summary>
+    ///     The maximum time to wait for the consume loop to exit after cancellation is requested.
+    /// </summary>
+    private static readonly TimeSpan StopWaitTimeout = TimeSpan.FromSeconds(5);
 
     /// <inheritdoc />
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -107,9 +117,36 @@ public sealed class KafkaConsumer : IMessageConsumer
 
             if (_consumeTask is not null)
             {
+                if (!_consumeTask.IsCompleted)
+                {
+                    try
+                    {
+                        _consumer.Unsubscribe();
+                    }
+                    catch (KafkaException)
+                    {
+                        // The consumer may already be closing after cancellation.
+                    }
+                }
+
                 try
                 {
-                    await _consumeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    await _consumeTask.WaitAsync(StopWaitTimeout, cancellationToken).ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                    try
+                    {
+                        await Task.Run(() => _consumer.Close(), CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                    }
+                    catch (TimeoutException)
+                    {
+                        // Close is best-effort when the consume loop does not exit promptly.
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Expected when host shutdown cancels the stop wait.
                 }
                 catch (OperationCanceledException)
                 {
@@ -117,7 +154,6 @@ public sealed class KafkaConsumer : IMessageConsumer
                 }
             }
 
-            _consumer.Unsubscribe();
             _consumeCts.Dispose();
             _consumeCts = null;
             _consumeTask = null;
@@ -138,10 +174,28 @@ public sealed class KafkaConsumer : IMessageConsumer
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        await StopAsync().ConfigureAwait(false);
-        _consumer.Close();
-        _consumer.Dispose();
-        _lifecycleGate.Dispose();
+        try
+        {
+            await StopAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            try
+            {
+                await Task.Run(() => _consumer.Close()).WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                // Close is best-effort during host teardown.
+            }
+            catch (ObjectDisposedException)
+            {
+                // Close is best-effort during host teardown.
+            }
+
+            _consumer.Dispose();
+            _lifecycleGate.Dispose();
+        }
     }
 
     /// <summary>
@@ -158,6 +212,8 @@ public sealed class KafkaConsumer : IMessageConsumer
     {
         try
         {
+            _consumer.Subscribe(options.Destination);
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (_pendingConsumeDelay > TimeSpan.Zero)
@@ -166,16 +222,21 @@ public sealed class KafkaConsumer : IMessageConsumer
                     _pendingConsumeDelay = TimeSpan.Zero;
                 }
 
-                ConsumeResult<string, byte[]> result;
+                ConsumeResult<string, byte[]>? result;
 
                 try
                 {
-                    result = _consumer.Consume(cancellationToken);
+                    result = _consumer.Consume(ConsumePollInterval);
                 }
                 catch (ConsumeException)
                 {
                     SignalStopped();
                     throw;
+                }
+
+                if (result is null)
+                {
+                    continue;
                 }
 
                 var offset = result.TopicPartitionOffset;
@@ -215,6 +276,15 @@ public sealed class KafkaConsumer : IMessageConsumer
         }
         finally
         {
+            try
+            {
+                _consumer.Unsubscribe();
+            }
+            catch (KafkaException)
+            {
+                // Unsubscribe can fail when the broker connection is already closing.
+            }
+
             SignalStopped();
         }
     }

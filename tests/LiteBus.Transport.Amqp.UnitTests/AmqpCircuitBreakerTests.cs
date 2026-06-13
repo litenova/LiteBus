@@ -6,7 +6,8 @@ namespace LiteBus.Transport.Amqp.UnitTests;
 public sealed class AmqpCircuitBreakerTests
 {
     /// <summary>
-    ///     Confirms consecutive failures open the circuit and increment <see cref="AmqpCircuitBreaker.FailureCount" />.
+    ///     Confirms consecutive failures open the circuit and expose the configured threshold via
+    ///     <see cref="AmqpCircuitBreaker.FailureCount" /> while open.
     /// </summary>
     [Fact]
     public void RecordFailure_until_threshold_ShouldOpenCircuitAndExposeFailureCount()
@@ -26,7 +27,7 @@ public sealed class AmqpCircuitBreakerTests
 
         breaker.RecordFailure();
         breaker.IsOpen.Should().BeTrue();
-        breaker.FailureCount.Should().Be(0);
+        breaker.FailureCount.Should().Be(2);
 
         var act = () => breaker.ThrowIfOpen();
         act.Should().Throw<AmqpCircuitBreakerOpenException>();

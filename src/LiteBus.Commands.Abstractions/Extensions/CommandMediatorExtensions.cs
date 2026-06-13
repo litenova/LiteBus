@@ -71,7 +71,7 @@ public static class CommandMediatorExtensions
         return commandMediator.SendAsync(command,
             new CommandMediationSettings
             {
-                Filters =
+                Routing = new CommandRoutingSettings
                 {
                     Tags = [tag]
                 }
@@ -102,7 +102,7 @@ public static class CommandMediatorExtensions
         return commandMediator.SendAsync(command,
             new CommandMediationSettings
             {
-                Filters =
+                Routing = new CommandRoutingSettings
                 {
                     Tags = [tag]
                 }

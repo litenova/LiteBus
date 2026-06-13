@@ -60,6 +60,7 @@ public static class ContainerBuilderExtensions
         }
 
         RegisterHostManifest(builder, moduleConfiguration);
+        builder.RegisterDiagnosticChecks(moduleConfiguration.DiagnosticChecks);
         builder.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
 
         return builder;
@@ -100,6 +101,7 @@ public static class ContainerBuilderExtensions
         }
 
         RegisterHostManifest(builder, moduleConfiguration);
+        builder.RegisterDiagnosticChecks(moduleConfiguration.DiagnosticChecks);
         builder.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
 
         return builder;

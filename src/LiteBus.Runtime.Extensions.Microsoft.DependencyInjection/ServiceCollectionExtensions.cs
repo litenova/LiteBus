@@ -54,6 +54,7 @@ public static class ServiceCollectionExtensions
         }
 
         RegisterHostManifest(services, moduleConfiguration);
+        services.RegisterDiagnosticChecks(moduleConfiguration.DiagnosticChecks);
         services.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
 
         return services;
@@ -104,6 +105,7 @@ public static class ServiceCollectionExtensions
         }
 
         RegisterHostManifest(services, moduleConfiguration);
+        services.RegisterDiagnosticChecks(moduleConfiguration.DiagnosticChecks);
         services.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
 
         return services;

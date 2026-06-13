@@ -65,7 +65,7 @@ jobs:
         run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName!~IntegrationTests"
 
       - name: Transport Fast Integration Tests
-        run: dotnet test tests/LiteBus.DurableTransport.IntegrationTests/LiteBus.DurableTransport.IntegrationTests.csproj --no-build --configuration Release --verbosity normal --filter "Category=TransportFast"
+        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --filter "Category=TransportFast"
 
       - name: Transport Docker Integration Tests
         env:
@@ -73,7 +73,7 @@ jobs:
         run: |
           trx_dir="${RUNNER_TEMP}/transport-docker"
           mkdir -p "${trx_dir}"
-          dotnet test tests/LiteBus.DurableTransport.IntegrationTests/LiteBus.DurableTransport.IntegrationTests.csproj \
+          dotnet test LiteBus.slnx \
             --no-build --configuration Release --verbosity normal \
             --filter "Category=TransportDocker" \
             --logger "trx;LogFileName=${trx_dir}/transport-docker.trx"
@@ -85,14 +85,14 @@ jobs:
         run: |
           trx_dir="${RUNNER_TEMP}/transport-azure"
           mkdir -p "${trx_dir}"
-          dotnet test tests/LiteBus.DurableTransport.IntegrationTests/LiteBus.DurableTransport.IntegrationTests.csproj \
+          dotnet test LiteBus.slnx \
             --no-build --configuration Release --verbosity normal \
             --filter "Category=TransportAzure" \
             --logger "trx;LogFileName=${trx_dir}/transport-azure.trx"
           bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-azure.trx"
 
       - name: Integration Tests
-        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName~IntegrationTests&FullyQualifiedName!~DurableTransport.IntegrationTests"
+        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure"
 
       - name: Upload Test Results
         if: always()

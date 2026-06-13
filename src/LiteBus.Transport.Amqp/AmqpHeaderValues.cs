@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.Amqp;
 

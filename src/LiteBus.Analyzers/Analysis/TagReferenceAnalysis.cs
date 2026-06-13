@@ -241,12 +241,8 @@ internal static class TagReferenceAnalysis
         var containingType = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
         return containingType is
-            "global::LiteBus.Commands.Abstractions.CommandMediationSettings.CommandMediationFilters" or
-            "LiteBus.Commands.Abstractions.CommandMediationSettings.CommandMediationFilters" or
             "global::LiteBus.Commands.Abstractions.CommandRoutingSettings" or
             "LiteBus.Commands.Abstractions.CommandRoutingSettings" or
-            "global::LiteBus.Queries.Abstractions.QueryMediationSettings.QueryMediationFilters" or
-            "LiteBus.Queries.Abstractions.QueryMediationSettings.QueryMediationFilters" or
             "global::LiteBus.Queries.Abstractions.QueryRoutingSettings" or
             "LiteBus.Queries.Abstractions.QueryRoutingSettings" or
             "global::LiteBus.Events.Abstractions.EventRoutingSettings" or

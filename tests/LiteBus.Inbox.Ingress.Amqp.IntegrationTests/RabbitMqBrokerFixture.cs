@@ -6,23 +6,28 @@ using Testcontainers.RabbitMq;
 namespace LiteBus.Inbox.Ingress.Amqp.IntegrationTests;
 
 /// <summary>
-///     Shared RabbitMQ container for ingress integration tests.
+///     Shared RabbitMQ container for durable transport integration tests.
 /// </summary>
 public sealed class RabbitMqBrokerFixture : IAsyncLifetime
 {
     /// <summary>
-    ///     Message shown when integration tests fail because Docker is not available.
+    ///     The shared collection name for RabbitMQ-backed durable transport tests.
     /// </summary>
-    public const string DockerRequiredMessage =
-        "AMQP integration tests require Docker. Start Docker Desktop (or the Docker daemon) and run the tests again.";
+    public const string CollectionName = "Inbox.Ingress.Amqp.RabbitMq";
 
     private RabbitMqContainer? _container;
+
+    /// <summary>
+    ///     Gets whether the RabbitMQ container started successfully.
+    /// </summary>
+    public bool IsAvailable { get; private set; }
 
     /// <summary>
     ///     Gets the connection options for the started RabbitMQ container.
     /// </summary>
     public AmqpConnectionOptions ConnectionOptions { get; private set; } = null!;
 
+    /// <inheritdoc />
     public async Task InitializeAsync()
     {
         try
@@ -40,13 +45,16 @@ public sealed class RabbitMqBrokerFixture : IAsyncLifetime
                 Uri = new Uri(_container.GetConnectionString()),
                 ClientProvidedName = "LiteBus.Inbox.Ingress.Amqp.IntegrationTests.RabbitMQ"
             };
+
+            IsAvailable = true;
         }
-        catch (Exception exception)
+        catch
         {
-            throw new InvalidOperationException(DockerRequiredMessage, exception);
+            IsAvailable = false;
         }
     }
 
+    /// <inheritdoc />
     public async Task DisposeAsync()
     {
         if (_container is not null)
@@ -74,6 +82,7 @@ public sealed class LavinMqBrokerFixture : IAsyncLifetime
     /// </summary>
     public AmqpConnectionOptions ConnectionOptions { get; private set; } = null!;
 
+    /// <inheritdoc />
     public async Task InitializeAsync()
     {
         try
@@ -102,6 +111,7 @@ public sealed class LavinMqBrokerFixture : IAsyncLifetime
         }
     }
 
+    /// <inheritdoc />
     public async Task DisposeAsync()
     {
         if (_container is not null)

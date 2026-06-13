@@ -170,7 +170,7 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
 
         var result = await queryMediator.QueryAsync(query, new QueryMediationSettings
         {
-            Filters =
+            Routing = new QueryRoutingSettings
             {
                 HandlerPredicate = descriptor => descriptor.HandlerType == typeof(PrimaryQueryHandler)
             }

@@ -203,7 +203,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
 
         var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
         var query = new QueryWithTag();
-        var settings = new QueryMediationSettings { Filters = { Tags = [Tags.Tag1] } };
+        var settings = new QueryMediationSettings { Routing = new QueryRoutingSettings { Tags = [Tags.Tag1] } };
 
         // Act
         await queryMediator.QueryAsync(query, settings).ConfigureAwait(true);
@@ -236,7 +236,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
 
         var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
         var query = new QueryWithTag();
-        var settings = new QueryMediationSettings { Filters = { Tags = [Tags.Tag1, Tags.Tag2] } };
+        var settings = new QueryMediationSettings { Routing = new QueryRoutingSettings { Tags = [Tags.Tag1, Tags.Tag2] } };
 
         // Act
         Func<Task> act = async () => await queryMediator.QueryAsync(query, settings).ConfigureAwait(true);

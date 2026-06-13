@@ -76,7 +76,7 @@ internal sealed class LiteBusHostOrchestrator : IHostedService
 
         if (_backgroundExecutionTask is not null)
         {
-            await _backgroundExecutionTask.ConfigureAwait(false);
+            await _backgroundExecutionTask.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
