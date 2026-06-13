@@ -44,6 +44,7 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
     [Fact]
     public async Task PublishThroughKafka_ShouldAcceptProcessAndDispatchCommand()
     {
+        Console.WriteLine($"TEST: Starting E2E test at {DateTime.UtcNow:O}");
         var ingressTopic = KafkaTransportTestInfrastructure.CreateTopic("ingress");
         var dispatchTopic = KafkaTransportTestInfrastructure.CreateTopic("dispatch");
 
@@ -63,11 +64,11 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
             manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
             manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
 
-            await KafkaIngressTestSupport.StartEndToEndAsync(provider).ConfigureAwait(false);
             var publisher = provider.GetRequiredService<IMessageTransport>();
             var command = new ShipOrderCommand { OrderId = orderId };
             var payload = JsonSerializer.SerializeToUtf8Bytes(command);
 
+            Console.WriteLine("TEST: Publishing message to ingress topic...");
             await publisher.PublishAsync(new TransportPublishRequest
             {
                 Destination = ingressTopic,
@@ -75,11 +76,18 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
                 MessageId = messageId.ToString("D"),
                 Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
             }).ConfigureAwait(false);
+            Console.WriteLine("TEST: Message published");
 
+            Console.WriteLine("TEST: Starting end-to-end session...");
+            await KafkaIngressTestSupport.StartEndToEndAsync(provider).ConfigureAwait(false);
+            Console.WriteLine("TEST: End-to-end session started");
+
+            Console.WriteLine("TEST: Waiting for dispatch message from processor...");
             var (body, headers) = await KafkaTransportTestInfrastructure.ConsumeOneAsync(
                 _fixture.TransportOptions.BootstrapServers,
                 dispatchTopic,
                 TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+            Console.WriteLine("TEST: Dispatch message received");
 
             body.Should().Contain(orderId.ToString());
             headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));
@@ -87,10 +95,12 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
 
             var store = provider.GetRequiredService<InMemoryInboxStore>();
 
+            Console.WriteLine("TEST: Waiting for inbox to mark message as completed...");
             await PollingWait.UntilAsync(
                 () => store.Get(messageId).Status == InboxStatus.Completed,
                 TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
+            Console.WriteLine("TEST: Inbox message completed");
             store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
         }
         finally

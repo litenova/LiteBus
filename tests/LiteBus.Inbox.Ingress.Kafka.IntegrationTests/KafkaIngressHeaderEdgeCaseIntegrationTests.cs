@@ -107,10 +107,6 @@ public sealed class KafkaIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBase
 
         try
         {
-        await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
-
-        try
-        {
             var publisher = provider.GetRequiredService<IMessageTransport>();
 
             await publisher.PublishAsync(new TransportPublishRequest
@@ -119,6 +115,8 @@ public sealed class KafkaIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBase
                 Body = Encoding.UTF8.GetBytes(body),
                 Headers = headers
             }).ConfigureAwait(false);
+
+            await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
 
             await PollingWait.UntilAsync(
                 () => provider.GetRequiredService<InMemoryInboxStore>().Count == expectedStoreCount,
@@ -133,10 +131,6 @@ public sealed class KafkaIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBase
         finally
         {
             await KafkaIngressTestSupport.StopIngressAsync(provider).ConfigureAwait(false);
-        }
-        }
-        finally
-        {
             await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
         }
     }

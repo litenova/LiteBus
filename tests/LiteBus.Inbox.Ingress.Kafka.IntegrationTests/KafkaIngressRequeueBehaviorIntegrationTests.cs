@@ -52,34 +52,28 @@ public sealed class KafkaIngressRequeueBehaviorIntegrationTests : LiteBusTestBas
 
         try
         {
+            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var messageId = Guid.NewGuid();
+
+            await publisher.PublishAsync(new TransportPublishRequest
+            {
+                Destination = ingressTopic,
+                Body = Encoding.UTF8.GetBytes("{not-json"),
+                MessageId = messageId.ToString("D"),
+                Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
+            }).ConfigureAwait(false);
+
             await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
 
-            try
-            {
-                var publisher = provider.GetRequiredService<IMessageTransport>();
-                var messageId = Guid.NewGuid();
-
-                await publisher.PublishAsync(new TransportPublishRequest
-                {
-                    Destination = ingressTopic,
-                    Body = Encoding.UTF8.GetBytes("{not-json"),
-                    MessageId = messageId.ToString("D"),
-                    Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-                }).ConfigureAwait(false);
-
-                await KafkaTransportTestInfrastructure.WaitForStableStoreCountAsync(
-                    () => GetInboxStoreCount(provider),
-                    0,
-                    TimeSpan.FromSeconds(2),
-                    TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-            }
-            finally
-            {
-                await KafkaIngressTestSupport.StopIngressAsync(provider).ConfigureAwait(false);
-            }
+            await KafkaTransportTestInfrastructure.WaitForStableStoreCountAsync(
+                () => GetInboxStoreCount(provider),
+                0,
+                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(10)).ConfigureAwait(false);
         }
         finally
         {
+            await KafkaIngressTestSupport.StopIngressAsync(provider).ConfigureAwait(false);
             await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
         }
     }
@@ -98,34 +92,28 @@ public sealed class KafkaIngressRequeueBehaviorIntegrationTests : LiteBusTestBas
 
         try
         {
+            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var messageId = Guid.NewGuid();
+
+            await publisher.PublishAsync(new TransportPublishRequest
+            {
+                Destination = ingressTopic,
+                Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
+                MessageId = messageId.ToString("D"),
+                Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
+            }).ConfigureAwait(false);
+
             await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
 
-            try
-            {
-                var publisher = provider.GetRequiredService<IMessageTransport>();
-                var messageId = Guid.NewGuid();
+            await PollingWait.UntilAsync(
+                () => GetInboxStoreCount(provider) == 1,
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
-                await publisher.PublishAsync(new TransportPublishRequest
-                {
-                    Destination = ingressTopic,
-                    Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
-                    MessageId = messageId.ToString("D"),
-                    Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-                }).ConfigureAwait(false);
-
-                await PollingWait.UntilAsync(
-                    () => GetInboxStoreCount(provider) == 1,
-                    TimeSpan.FromSeconds(30)).ConfigureAwait(false);
-
-                GetInboxStoreCount(provider).Should().Be(1);
-            }
-            finally
-            {
-                await KafkaIngressTestSupport.StopIngressAsync(provider).ConfigureAwait(false);
-            }
+            GetInboxStoreCount(provider).Should().Be(1);
         }
         finally
         {
+            await KafkaIngressTestSupport.StopIngressAsync(provider).ConfigureAwait(false);
             await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
         }
     }

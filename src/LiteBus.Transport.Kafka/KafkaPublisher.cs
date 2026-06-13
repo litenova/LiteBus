@@ -35,7 +35,6 @@ public sealed class KafkaPublisher : IMessageTransport, IDisposable
     public void Dispose()
     {
         _producer.Flush(TimeSpan.FromSeconds(5));
-        _producer.Dispose();
     }
 
     /// <inheritdoc />

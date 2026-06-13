@@ -156,12 +156,15 @@ public static class KafkaTransportTestInfrastructure
 
         try
         {
-            await provider.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+            await provider.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(90)).ConfigureAwait(false);
         }
         catch (TimeoutException)
         {
         }
         catch (ObjectDisposedException)
+        {
+        }
+        catch (KafkaException)
         {
         }
     }

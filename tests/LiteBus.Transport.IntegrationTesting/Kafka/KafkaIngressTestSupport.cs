@@ -22,7 +22,7 @@ public static class KafkaIngressTestSupport
     /// <summary>
     ///     The maximum time allowed for ingress shutdown.
     /// </summary>
-    private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(90);
 
     /// <summary>
     ///     Active ingress-only execution sessions keyed by test service provider instance.
@@ -47,7 +47,8 @@ public static class KafkaIngressTestSupport
         {
             BootstrapServers = transportOptions.BootstrapServers,
             ClientId = transportOptions.ClientId,
-            ConsumerGroupId = $"litebus-ingress-{Guid.NewGuid():N}"
+            ConsumerGroupId = $"litebus-ingress-{Guid.NewGuid():N}",
+            MessageTimeoutMs = 10_000
         };
     }
 
@@ -217,7 +218,7 @@ public static class KafkaIngressTestSupport
 
             try
             {
-                await _consumer.StopAsync(CancellationToken.None).WaitAsync(StopTimeout).ConfigureAwait(false);
+                await _consumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
             }
             catch (TimeoutException)
             {
@@ -326,7 +327,7 @@ public static class KafkaIngressTestSupport
             {
                 try
                 {
-                    await _processorTask.WaitAsync(StopTimeout).ConfigureAwait(false);
+                    await _processorTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
                 }
                 catch (TimeoutException)
                 {

@@ -53,10 +53,6 @@ public sealed class KafkaIngressIdempotencyIntegrationTests : LiteBusTestBase
 
         try
         {
-        await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
-
-        try
-        {
             var publisher = provider.GetRequiredService<IMessageTransport>();
 
             await publisher.PublishAsync(new TransportPublishRequest
@@ -75,6 +71,8 @@ public sealed class KafkaIngressIdempotencyIntegrationTests : LiteBusTestBase
                 Headers = headers
             }).ConfigureAwait(false);
 
+            await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
+
             await PollingWait.UntilAsync(
                 () => provider.GetRequiredService<InMemoryInboxStore>().Count == 1,
                 TimeSpan.FromSeconds(15)).ConfigureAwait(false);
@@ -84,10 +82,6 @@ public sealed class KafkaIngressIdempotencyIntegrationTests : LiteBusTestBase
         finally
         {
             await KafkaIngressTestSupport.StopIngressAsync(provider).ConfigureAwait(false);
-        }
-        }
-        finally
-        {
             await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
         }
     }

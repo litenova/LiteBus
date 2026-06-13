@@ -98,7 +98,12 @@ public sealed class KafkaConsumer : IMessageConsumer
     /// <summary>
     ///     The maximum time to wait for the consume loop to exit after cancellation is requested.
     /// </summary>
-    private static readonly TimeSpan StopWaitTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan StopWaitTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    ///     The maximum time to wait for a blocking <see cref="IConsumer{TKey,TValue}.Close" /> call during teardown.
+    /// </summary>
+    private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromSeconds(30);
 
     /// <inheritdoc />
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -117,18 +122,6 @@ public sealed class KafkaConsumer : IMessageConsumer
 
             if (_consumeTask is not null)
             {
-                if (!_consumeTask.IsCompleted)
-                {
-                    try
-                    {
-                        _consumer.Unsubscribe();
-                    }
-                    catch (KafkaException)
-                    {
-                        // The consumer may already be closing after cancellation.
-                    }
-                }
-
                 try
                 {
                     await _consumeTask.WaitAsync(StopWaitTimeout, cancellationToken).ConfigureAwait(false);
@@ -137,11 +130,22 @@ public sealed class KafkaConsumer : IMessageConsumer
                 {
                     try
                     {
-                        await Task.Run(() => _consumer.Close(), CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                        await Task.Run(() => _consumer.Close(), CancellationToken.None)
+                            .WaitAsync(CloseWaitTimeout, CancellationToken.None)
+                            .ConfigureAwait(false);
                     }
                     catch (TimeoutException)
                     {
                         // Close is best-effort when the consume loop does not exit promptly.
+                    }
+
+                    try
+                    {
+                        await _consumeTask.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false);
+                    }
+                    catch (TimeoutException)
+                    {
+                        // The consume loop may still be blocked in native code.
                     }
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -180,20 +184,6 @@ public sealed class KafkaConsumer : IMessageConsumer
         }
         finally
         {
-            try
-            {
-                await Task.Run(() => _consumer.Close()).WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-            }
-            catch (TimeoutException)
-            {
-                // Close is best-effort during host teardown.
-            }
-            catch (ObjectDisposedException)
-            {
-                // Close is best-effort during host teardown.
-            }
-
-            _consumer.Dispose();
             _lifecycleGate.Dispose();
         }
     }
@@ -256,6 +246,11 @@ public sealed class KafkaConsumer : IMessageConsumer
                             _consumer.Seek(offset);
                             _pendingConsumeDelay = _seekBackoff.RecordSeek(offset);
                         }
+                        else
+                        {
+                            _seekBackoff.RecordCommit(offset);
+                            CommitOffset(result);
+                        }
 
                         return Task.CompletedTask;
                     }
@@ -276,15 +271,6 @@ public sealed class KafkaConsumer : IMessageConsumer
         }
         finally
         {
-            try
-            {
-                _consumer.Unsubscribe();
-            }
-            catch (KafkaException)
-            {
-                // Unsubscribe can fail when the broker connection is already closing.
-            }
-
             SignalStopped();
         }
     }

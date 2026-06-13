@@ -61,10 +61,6 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
 
         try
         {
-        await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
-
-        try
-        {
             var inbox = provider.GetRequiredService<IInbox>();
 
             await inbox.AcceptAsync(new InboxAcceptItem<ShipOrderCommand>
@@ -83,6 +79,8 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
                 Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
             }).ConfigureAwait(false);
 
+            await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
+
             await PollingWait.UntilAsync(
                 () => GetInboxStoreCount(provider) == 1,
                 TimeSpan.FromSeconds(15)).ConfigureAwait(false);
@@ -96,10 +94,6 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
         finally
         {
             await KafkaIngressTestSupport.StopIngressAsync(provider).ConfigureAwait(false);
-        }
-        }
-        finally
-        {
             await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
         }
     }

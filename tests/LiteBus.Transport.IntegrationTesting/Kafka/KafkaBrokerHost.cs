@@ -19,11 +19,18 @@ public sealed class KafkaBrokerHost : IAsyncDisposable
     ///     Starts the Kafka test container when Docker is available.
     /// </summary>
     /// <returns>A task that completes when the broker is ready.</returns>
+    /// <remarks>
+    ///     Uses the Debian-based Confluent Platform image pinned by <see cref="KafkaBuilder.KafkaImage" /> so
+    ///     librdkafka native bindings avoid Alpine musl/glibc mismatches during integration tests.
+    /// </remarks>
     public async Task StartAsync()
     {
         await DockerTestGate.RunAsync(async () =>
         {
-            _container = new KafkaBuilder().Build();
+            _container = new KafkaBuilder()
+                .WithImage(KafkaBuilder.KafkaImage)
+                .WithVendor(KafkaVendor.Confluent)
+                .Build();
             await _container.StartAsync().ConfigureAwait(false);
 
             TransportOptions = new KafkaTransportOptions

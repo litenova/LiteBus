@@ -40,8 +40,8 @@ internal static class KafkaMessageMapper
     /// <returns>The transport message passed to consumer handlers.</returns>
     /// <remarks>
     ///     <see cref="TransportMessage.ReturnToQueueAsync" /> seeks to the consumed offset so the record is read again
-    ///     before the offset is committed. <see cref="TransportMessage.DiscardAsync" /> leaves the offset uncommitted
-    ///     until the consumer group rebalances or restarts.
+    ///     before the offset is committed. <see cref="TransportMessage.DiscardAsync" /> commits the offset so poison
+    ///     deliveries are skipped without blocking the consume loop.
     /// </remarks>
     internal static TransportMessage ToTransportMessage(
         ConsumeResult<string, byte[]> result,
