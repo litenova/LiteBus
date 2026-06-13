@@ -78,22 +78,33 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
             }).ConfigureAwait(false);
             Console.WriteLine("TEST: Message published");
 
-            Console.WriteLine("TEST: Starting end-to-end session...");
-            await KafkaIngressTestSupport.StartEndToEndAsync(provider).ConfigureAwait(false);
-            Console.WriteLine("TEST: End-to-end session started");
+            Console.WriteLine($"TEST: Starting end-to-end session at {DateTime.UtcNow:O}");
+            try
+            {
+                await KafkaIngressTestSupport.StartEndToEndAsync(provider).ConfigureAwait(false);
+                Console.WriteLine($"TEST: End-to-end session started at {DateTime.UtcNow:O}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"TEST: EXCEPTION in StartEndToEndAsync: {ex.GetType().Name}: {ex.Message}");
+                Console.WriteLine($"TEST: StackTrace: {ex.StackTrace}");
+                throw;
+            }
 
-            Console.WriteLine("TEST: Waiting for dispatch message from processor...");
+            var store = provider.GetRequiredService<InMemoryInboxStore>();
+            var inboxBefore = store.Get(messageId);
+            Console.WriteLine($"TEST: Inbox status before ConsumeOneAsync: {inboxBefore?.Status}");
+
+            Console.WriteLine($"TEST: Waiting for dispatch message from processor at {DateTime.UtcNow:O} (timeout 30s)");
             var (body, headers) = await KafkaTransportTestInfrastructure.ConsumeOneAsync(
                 _fixture.TransportOptions.BootstrapServers,
                 dispatchTopic,
                 TimeSpan.FromSeconds(30)).ConfigureAwait(false);
-            Console.WriteLine("TEST: Dispatch message received");
+            Console.WriteLine($"TEST: Dispatch message received at {DateTime.UtcNow:O}");
 
             body.Should().Contain(orderId.ToString());
             headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));
             headers[TransportHeaders.ContractName].Should().Be(ContractName);
-
-            var store = provider.GetRequiredService<InMemoryInboxStore>();
 
             Console.WriteLine("TEST: Waiting for inbox to mark message as completed...");
             await PollingWait.UntilAsync(

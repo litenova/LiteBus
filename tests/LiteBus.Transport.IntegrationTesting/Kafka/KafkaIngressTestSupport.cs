@@ -88,14 +88,21 @@ public static class KafkaIngressTestSupport
     {
         ArgumentNullException.ThrowIfNull(provider);
 
-        var session = new EndToEndSession(
-            DirectKafkaIngressSession.Create(provider),
-            provider.GetRequiredService<InboxProcessorBackgroundService>());
+        Console.WriteLine("DEBUG: StartEndToEndAsync - Creating DirectKafkaIngressSession");
+        var ingressSession = DirectKafkaIngressSession.Create(provider);
+        Console.WriteLine("DEBUG: StartEndToEndAsync - Getting InboxProcessorBackgroundService");
+        var processor = provider.GetRequiredService<InboxProcessorBackgroundService>();
+        Console.WriteLine("DEBUG: StartEndToEndAsync - Creating EndToEndSession");
+        var session = new EndToEndSession(ingressSession, processor);
 
+        Console.WriteLine("DEBUG: StartEndToEndAsync - Adding to sessions table");
         EndToEndSessions.Add(provider, session);
 
+        Console.WriteLine("DEBUG: StartEndToEndAsync - Calling session.StartAsync");
         await session.StartAsync().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        Console.WriteLine("DEBUG: StartEndToEndAsync - session.StartAsync completed, applying warmup delay");
         await Task.Delay(IngressWarmupDelay).ConfigureAwait(false);
+        Console.WriteLine("DEBUG: StartEndToEndAsync - completed");
     }
 
     /// <summary>
@@ -197,6 +204,7 @@ public static class KafkaIngressTestSupport
         /// <returns>A task that completes when the consumer has subscribed.</returns>
         public Task StartAsync()
         {
+            Console.WriteLine($"DEBUG: DirectKafkaIngressSession.StartAsync - destination={_options.Destination}");
             var consumerOptions = new TransportConsumerOptions
             {
                 Destination = _options.Destination,
@@ -205,6 +213,7 @@ public static class KafkaIngressTestSupport
                 DurableDestination = _options.DurableDestination
             };
 
+            Console.WriteLine("DEBUG: DirectKafkaIngressSession.StartAsync - calling _consumer.StartAsync");
             return _consumer.StartAsync(consumerOptions, HandleDeliveryAsync, _stoppingCts.Token);
         }
 
@@ -311,8 +320,11 @@ public static class KafkaIngressTestSupport
         /// <returns>A task that completes when both loops have started.</returns>
         public async Task StartAsync()
         {
+            Console.WriteLine("DEBUG: EndToEndSession.StartAsync - Starting ingress session");
             await _ingressSession.StartAsync().ConfigureAwait(false);
+            Console.WriteLine("DEBUG: EndToEndSession.StartAsync - Ingress session started, starting processor");
             _processorTask = _processor.ExecuteAsync(_processorStoppingCts.Token);
+            Console.WriteLine("DEBUG: EndToEndSession.StartAsync - Processor task created");
         }
 
         /// <summary>
