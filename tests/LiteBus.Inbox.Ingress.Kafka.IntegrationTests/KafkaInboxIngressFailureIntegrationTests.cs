@@ -1,7 +1,6 @@
 using System.Text;
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
-using LiteBus.Transport.IntegrationTesting.Kafka;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Kafka;
@@ -51,57 +50,6 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
     }
 
     /// <summary>
-    ///     Verifies that a store capacity failure does not increase pending rows beyond the pre-filled store.
-    /// </summary>
-    /// <returns>A task that completes when store and broker assertions succeed.</returns>
-    [Fact]
-    public async Task StoreFull_ShouldNotIncreasePendingRowsBeyondCapacity()
-    {
-        var ingressTopic = KafkaTransportTestInfrastructure.CreateTopic("ingress-store-full");
-        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, ingressTopic).ConfigureAwait(false);
-
-        var provider = BuildProvider(ingressTopic, 1);
-
-        try
-        {
-            var inbox = provider.GetRequiredService<IInbox>();
-
-            await inbox.AcceptAsync(new InboxAcceptItem<ShipOrderCommand>
-            {
-                Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
-            }).ConfigureAwait(false);
-
-            var publisher = provider.GetRequiredService<IMessageTransport>();
-            var messageId = Guid.NewGuid();
-
-            await publisher.PublishAsync(new TransportPublishRequest
-            {
-                Destination = ingressTopic,
-                Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
-                MessageId = messageId.ToString("D"),
-                Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-            }).ConfigureAwait(false);
-
-            await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
-
-            await PollingWait.UntilAsync(
-                () => GetInboxStoreCount(provider) == 1,
-                TimeSpan.FromSeconds(15)).ConfigureAwait(false);
-
-            await KafkaTransportTestInfrastructure.WaitForStableStoreCountAsync(
-                () => GetInboxStoreCount(provider),
-                1,
-                TimeSpan.FromSeconds(2),
-                TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-        }
-        finally
-        {
-            await KafkaIngressTestSupport.StopIngressAsync(provider).ConfigureAwait(false);
-            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
-        }
-    }
-
-    /// <summary>
     ///     Verifies that invalid JSON does not create inbox rows.
     /// </summary>
     /// <returns>A task that completes when the store assertion succeeds.</returns>
@@ -109,6 +57,64 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
     public async Task InvalidJson_ShouldNotWriteToStore()
     {
         await RunFailureScenarioAsync("{not-json", ContractName, 1, 0).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Verifies that a store capacity failure does not increase pending rows beyond the pre-filled store.
+    /// </summary>
+    /// <returns>A task that completes when store assertions succeed.</returns>
+    [Fact]
+    public async Task StoreFull_ShouldNotIncreasePendingRowsBeyondCapacity()
+    {
+        var ingressTopic = KafkaTransportTestInfrastructure.CreateTopic("ingress-store-full");
+        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, ingressTopic)
+            .ConfigureAwait(false);
+
+        var provider = BuildProvider(ingressTopic, 1);
+
+        try
+        {
+            try
+            {
+                var inbox = provider.GetRequiredService<IInbox>();
+
+                await inbox.AcceptAsync(new InboxAcceptItem<ShipOrderCommand>
+                {
+                    Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
+                }).ConfigureAwait(false);
+
+                await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
+
+                var publisher = provider.GetRequiredService<IMessageTransport>();
+                var messageId = Guid.NewGuid();
+
+                await publisher.PublishAsync(new TransportPublishRequest
+                {
+                    Destination = ingressTopic,
+                    Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
+                    MessageId = messageId.ToString("D"),
+                    Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
+                }).ConfigureAwait(false);
+
+                await PollingWait.UntilAsync(
+                    () => GetInboxStoreCount(provider) == 1,
+                    TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+
+                await KafkaTransportTestInfrastructure.WaitForStableStoreCountAsync(
+                    () => GetInboxStoreCount(provider),
+                    1,
+                    TimeSpan.FromSeconds(2),
+                    TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            }
+            finally
+            {
+                await KafkaIngressTestSupport.StopIngressAsync(provider).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -128,59 +134,64 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
         var attempts = 0;
         var observedMessageIds = new List<string>();
 
-         var provider = BuildTransportOnlyProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var publisher = provider.GetRequiredService<IMessageTransport>();
-        var consumer = provider.GetRequiredService<IMessageConsumer>();
-
-        await publisher.PublishAsync(new TransportPublishRequest
-        {
-            Destination = ingressTopic,
-            Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
-            MessageId = messageId.ToString("D"),
-            Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-        }).ConfigureAwait(false);
-
-        using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-
-        var consumerOptions = new TransportConsumerOptions
-        {
-            Destination = ingressTopic,
-            PrefetchCount = 1
-        };
-
-        await consumer.StartAsync(
-            consumerOptions,
-            async (message, cancellationToken) =>
-            {
-                var currentMessageId = message.MessageId ?? string.Empty;
-                observedMessageIds.Add(currentMessageId);
-                var currentAttempt = Interlocked.Increment(ref attempts);
-
-                if (currentAttempt == 1)
-                {
-                    await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
-                    return;
-                }
-
-                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
-                await runCts.CancelAsync().ConfigureAwait(false);
-            },
-            runCts.Token).ConfigureAwait(false);
+        var provider = BuildTransportOnlyProvider();
 
         try
         {
-            await PollingWait.UntilAsync(() => Volatile.Read(ref attempts) >= 2, TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var consumer = provider.GetRequiredService<IMessageConsumer>();
+
+            await publisher.PublishAsync(new TransportPublishRequest
+            {
+                Destination = ingressTopic,
+                Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
+                MessageId = messageId.ToString("D"),
+                Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
+            }).ConfigureAwait(false);
+
+            using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+            var consumerOptions = new TransportConsumerOptions
+            {
+                Destination = ingressTopic,
+                PrefetchCount = 1
+            };
+
+            await consumer.StartAsync(
+                consumerOptions,
+                async (message, cancellationToken) =>
+                {
+                    var currentMessageId = message.MessageId ?? string.Empty;
+                    observedMessageIds.Add(currentMessageId);
+                    var currentAttempt = Interlocked.Increment(ref attempts);
+
+                    if (currentAttempt == 1)
+                    {
+                        await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
+                        return;
+                    }
+
+                    await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+                    await runCts.CancelAsync().ConfigureAwait(false);
+                },
+                runCts.Token).ConfigureAwait(false);
+
+            try
+            {
+                await PollingWait.UntilAsync(() => Volatile.Read(ref attempts) >= 2, TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+            }
+            finally
+            {
+                await consumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+
+            observedMessageIds.Should().HaveCountGreaterThanOrEqualTo(2);
+            observedMessageIds.Should().OnlyContain(id => id == messageId.ToString("D"));
+            attempts.Should().BeGreaterThanOrEqualTo(2);
         }
         finally
         {
-            await consumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
-        }
-
-        observedMessageIds.Should().HaveCountGreaterThanOrEqualTo(2);
-        observedMessageIds.Should().OnlyContain(id => id == messageId.ToString("D"));
-        attempts.Should().BeGreaterThanOrEqualTo(2);
+            await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
         }
     }
 
@@ -199,38 +210,45 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
         int expectedPendingCount)
     {
         var ingressTopic = KafkaTransportTestInfrastructure.CreateTopic("ingress-fail");
-        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, ingressTopic).ConfigureAwait(false);
+        await KafkaTransportTestInfrastructure.EnsureTopicsExistAsync(_fixture.TransportOptions.BootstrapServers, ingressTopic)
+            .ConfigureAwait(false);
 
         var provider = BuildProvider(ingressTopic);
 
         try
         {
-            var publisher = provider.GetRequiredService<IMessageTransport>();
-            var messageId = Guid.NewGuid();
-
-            await publisher.PublishAsync(new TransportPublishRequest
+            try
             {
-                Destination = ingressTopic,
-                Body = Encoding.UTF8.GetBytes(body),
-                MessageId = messageId.ToString("D"),
-                Headers = TransportTestHeaders.Create(messageId, contractName, contractVersion)
-            }).ConfigureAwait(false);
+                await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
 
-            await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
+                var publisher = provider.GetRequiredService<IMessageTransport>();
+                var messageId = Guid.NewGuid();
 
-            await PollingWait.UntilAsync(
-                () => GetInboxStoreCount(provider) == expectedPendingCount,
-                TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+                await publisher.PublishAsync(new TransportPublishRequest
+                {
+                    Destination = ingressTopic,
+                    Body = Encoding.UTF8.GetBytes(body),
+                    MessageId = messageId.ToString("D"),
+                    Headers = TransportTestHeaders.Create(messageId, contractName, contractVersion)
+                }).ConfigureAwait(false);
 
-            await KafkaTransportTestInfrastructure.WaitForStableStoreCountAsync(
-                () => GetInboxStoreCount(provider),
-                expectedPendingCount,
-                TimeSpan.FromSeconds(2),
-                TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+                await PollingWait.UntilAsync(
+                    () => GetInboxStoreCount(provider) == expectedPendingCount,
+                    TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+
+                await KafkaTransportTestInfrastructure.WaitForStableStoreCountAsync(
+                    () => GetInboxStoreCount(provider),
+                    expectedPendingCount,
+                    TimeSpan.FromSeconds(2),
+                    TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            }
+            finally
+            {
+                await KafkaIngressTestSupport.StopIngressAsync(provider).ConfigureAwait(false);
+            }
         }
         finally
         {
-            await KafkaIngressTestSupport.StopIngressAsync(provider).ConfigureAwait(false);
             await KafkaTransportTestInfrastructure.DisposeProviderSafelyAsync(provider).ConfigureAwait(false);
         }
     }

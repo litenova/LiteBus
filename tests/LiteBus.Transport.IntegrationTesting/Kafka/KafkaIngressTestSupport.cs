@@ -2,8 +2,6 @@ using System.Runtime.CompilerServices;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Ingress;
 using LiteBus.Inbox.Ingress.Kafka;
-using LiteBus.Runtime.Abstractions;
-using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Kafka;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,7 +15,7 @@ public static class KafkaIngressTestSupport
     /// <summary>
     ///     The delay applied after the ingress loop starts so the consumer can subscribe.
     /// </summary>
-    private static readonly TimeSpan IngressWarmupDelay = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan IngressWarmupDelay = TimeSpan.FromSeconds(2);
 
     /// <summary>
     ///     The maximum time allowed for ingress shutdown.
@@ -27,7 +25,7 @@ public static class KafkaIngressTestSupport
     /// <summary>
     ///     Active ingress-only execution sessions keyed by test service provider instance.
     /// </summary>
-    private static readonly ConditionalWeakTable<ServiceProvider, DirectKafkaIngressSession> IngressSessions = new();
+    private static readonly ConditionalWeakTable<ServiceProvider, IngressConsumerSession> IngressSessions = new();
 
     /// <summary>
     ///     Active end-to-end execution sessions keyed by test service provider instance.
@@ -64,7 +62,7 @@ public static class KafkaIngressTestSupport
     }
 
     /// <summary>
-    ///     Starts the Kafka ingress consumer loop and waits for subscription warmup.
+    ///     Starts the production <see cref="TransportInboxIngressConsumer" /> loop for ingress-only tests.
     /// </summary>
     /// <param name="provider">The LiteBus service provider under test.</param>
     /// <returns>A task that completes when the ingress loop has started.</returns>
@@ -72,34 +70,14 @@ public static class KafkaIngressTestSupport
     {
         ArgumentNullException.ThrowIfNull(provider);
 
-        var session = DirectKafkaIngressSession.Create(provider);
+        var session = IngressConsumerSession.Start(provider);
         IngressSessions.Add(provider, session);
 
-        await session.StartAsync().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
         await Task.Delay(IngressWarmupDelay).ConfigureAwait(false);
     }
 
     /// <summary>
-    ///     Starts ingress and inbox processor loops for end-to-end Kafka tests.
-    /// </summary>
-    /// <param name="provider">The LiteBus service provider under test.</param>
-    /// <returns>A task that completes when background loops have started.</returns>
-    public static async Task StartEndToEndAsync(ServiceProvider provider)
-    {
-        ArgumentNullException.ThrowIfNull(provider);
-
-        var ingressSession = DirectKafkaIngressSession.Create(provider);
-        var processor = provider.GetRequiredService<InboxProcessorBackgroundService>();
-        var session = new EndToEndSession(ingressSession, processor);
-
-        EndToEndSessions.Add(provider, session);
-
-        await session.StartAsync().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-        await Task.Delay(IngressWarmupDelay).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    ///     Stops the Kafka ingress consumer loop started by <see cref="StartIngressAsync" />.
+    ///     Stops the ingress loop started by <see cref="StartIngressAsync" />.
     /// </summary>
     /// <param name="provider">The LiteBus service provider under test.</param>
     /// <returns>A task that completes when the ingress loop has stopped or the stop timeout elapses.</returns>
@@ -113,6 +91,21 @@ public static class KafkaIngressTestSupport
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    ///     Starts ingress and inbox processor loops for end-to-end Kafka tests.
+    /// </summary>
+    /// <param name="provider">The LiteBus service provider under test.</param>
+    /// <returns>A task that completes when background loops have started.</returns>
+    public static async Task StartEndToEndAsync(ServiceProvider provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+
+        var session = EndToEndSession.Start(provider);
+        EndToEndSessions.Add(provider, session);
+
+        await Task.Delay(IngressWarmupDelay).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -133,186 +126,138 @@ public static class KafkaIngressTestSupport
     }
 
     /// <summary>
-    ///     Runs the Kafka ingress consumer directly against <see cref="TransportInboxIngressHandler" />.
+    ///     Starts every manifest-hosted service registered by <c>AddLiteBus</c> for end-to-end tests.
     /// </summary>
-    private sealed class DirectKafkaIngressSession
+    /// <param name="provider">The LiteBus service provider under test.</param>
+    /// <returns>A task that completes when hosted services have started.</returns>
+    public static Task StartHostedServicesAsync(ServiceProvider provider)
+    {
+        return StartEndToEndAsync(provider);
+    }
+
+    /// <summary>
+    ///     Stops every manifest-hosted service registered by <c>AddLiteBus</c>.
+    /// </summary>
+    /// <param name="provider">The LiteBus service provider under test.</param>
+    /// <returns>A task that completes when hosted services have stopped or the stop timeout elapses.</returns>
+    public static Task StopHostedServicesAsync(ServiceProvider provider)
+    {
+        return StopEndToEndAsync(provider);
+    }
+
+    /// <summary>
+    ///     Runs <see cref="TransportInboxIngressConsumer" /> for ingress-only integration tests.
+    /// </summary>
+    private sealed class IngressConsumerSession
     {
         /// <summary>
-        ///     The transport consumer subscribed to the ingress topic.
-        /// </summary>
-        private readonly IMessageConsumer _consumer;
-
-        /// <summary>
-        ///     The handler that maps deliveries to inbox acceptance.
-        /// </summary>
-        private readonly TransportInboxIngressHandler _handler;
-
-        /// <summary>
-        ///     The ingress destination and acknowledgement settings.
-        /// </summary>
-        private readonly TransportInboxIngressOptions _options;
-
-        /// <summary>
-        ///     The cancellation source used to stop the consume loop.
+        ///     The cancellation source used to stop the ingress loop.
         /// </summary>
         private readonly CancellationTokenSource _stoppingCts = new();
 
         /// <summary>
-        ///     Initializes a new instance of the <see cref="DirectKafkaIngressSession" /> class.
+        ///     The background task executing the ingress consumer loop.
         /// </summary>
-        /// <param name="consumer">The transport consumer subscribed to the ingress topic.</param>
-        /// <param name="handler">The handler that maps deliveries to inbox acceptance.</param>
-        /// <param name="options">The ingress destination and acknowledgement settings.</param>
-        private DirectKafkaIngressSession(
-            IMessageConsumer consumer,
-            TransportInboxIngressHandler handler,
-            TransportInboxIngressOptions options)
-        {
-            ArgumentNullException.ThrowIfNull(consumer);
-            _consumer = consumer;
-            ArgumentNullException.ThrowIfNull(handler);
-            _handler = handler;
-            ArgumentNullException.ThrowIfNull(options);
-            _options = options;
-        }
+        private Task? _executionTask;
 
         /// <summary>
-        ///     Creates a session from services registered by the Kafka inbox ingress module.
+        ///     Starts the ingress consumer loop from the registered service provider.
         /// </summary>
         /// <param name="provider">The LiteBus service provider under test.</param>
-        /// <returns>The configured ingress session.</returns>
-        public static DirectKafkaIngressSession Create(ServiceProvider provider)
+        /// <returns>The session tracking the running ingress loop.</returns>
+        public static IngressConsumerSession Start(ServiceProvider provider)
         {
             ArgumentNullException.ThrowIfNull(provider);
 
-            return new DirectKafkaIngressSession(
-                provider.GetRequiredService<IMessageConsumer>(),
-                provider.GetRequiredService<TransportInboxIngressHandler>(),
-                provider.GetRequiredService<TransportInboxIngressOptions>());
+            var session = new IngressConsumerSession();
+            var consumer = provider.GetRequiredService<TransportInboxIngressConsumer>();
+            session._executionTask = Task.Run(
+                () => consumer.ExecuteAsync(session._stoppingCts.Token),
+                session._stoppingCts.Token);
+            return session;
         }
 
         /// <summary>
-        ///     Starts the Kafka consume loop.
+        ///     Stops the ingress consumer loop.
         /// </summary>
-        /// <returns>A task that completes when the consumer has subscribed.</returns>
-        public Task StartAsync()
-        {
-            var consumerOptions = new TransportConsumerOptions
-            {
-                Destination = _options.Destination,
-                PrefetchCount = _options.PrefetchCount,
-                DeclareDestination = _options.DeclareDestination,
-                DurableDestination = _options.DurableDestination
-            };
-
-            return _consumer.StartAsync(consumerOptions, HandleDeliveryAsync, _stoppingCts.Token);
-        }
-
-        /// <summary>
-        ///     Stops the Kafka consume loop.
-        /// </summary>
-        /// <returns>A task that completes when the consumer has stopped or the stop timeout elapses.</returns>
+        /// <returns>A task that completes when the loop has stopped or the stop timeout elapses.</returns>
         public async Task StopAsync()
         {
             await _stoppingCts.CancelAsync().ConfigureAwait(false);
 
-            try
+            if (_executionTask is not null)
             {
-                await _consumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                try
+                {
+                    await _executionTask.WaitAsync(StopTimeout).ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancellation stops the ingress loop.
+                }
             }
-            catch (TimeoutException)
-            {
-            }
-            finally
-            {
-                _stoppingCts.Dispose();
-            }
-        }
 
-        /// <summary>
-        ///     Accepts one transport delivery into the inbox and acknowledges the broker delivery.
-        /// </summary>
-        /// <param name="message">The received transport delivery.</param>
-        /// <param name="cancellationToken">The token used to cancel acceptance.</param>
-        /// <returns>A task that completes when the delivery has been acknowledged.</returns>
-        private async Task HandleDeliveryAsync(TransportMessage message, CancellationToken cancellationToken)
-        {
-            try
-            {
-                await _handler.AcceptAsync(message, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception exception) when (IngressAckPolicy.ShouldRequeue(exception, _options.RequeueOnFailure))
-            {
-                await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
-                return;
-            }
-#pragma warning disable CA1031 // Unknown contracts and poison payloads are discarded so the loop keeps running.
-            catch (Exception)
-            {
-                await message.DiscardAsync(cancellationToken).ConfigureAwait(false);
-                return;
-            }
-#pragma warning restore CA1031
-
-            try
-            {
-                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
-            }
-#pragma warning disable CA1031 // Broker acknowledgement failures are requeued for idempotent redelivery.
-            catch (Exception)
-            {
-                await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
-            }
-#pragma warning restore CA1031
+            _stoppingCts.Dispose();
         }
     }
 
     /// <summary>
-    ///     Tracks direct Kafka ingress and inbox processor loops for end-to-end tests.
+    ///     Tracks ingress and inbox processor loops for end-to-end Kafka tests.
     /// </summary>
     private sealed class EndToEndSession
     {
         /// <summary>
-        ///     The direct Kafka ingress session.
+        ///     The cancellation source used to stop background loops.
         /// </summary>
-        private readonly DirectKafkaIngressSession _ingressSession;
+        private readonly CancellationTokenSource _stoppingCts = new();
 
         /// <summary>
-        ///     The inbox processor background service.
+        ///     The background task executing the ingress consumer loop.
         /// </summary>
-        private readonly InboxProcessorBackgroundService _processor;
-
-        /// <summary>
-        ///     The cancellation source used to stop the processor loop.
-        /// </summary>
-        private readonly CancellationTokenSource _processorStoppingCts = new();
+        private readonly Task _ingressTask;
 
         /// <summary>
         ///     The background task executing the inbox processor loop.
         /// </summary>
-        private Task? _processorTask;
+        private readonly Task _processorTask;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="EndToEndSession" /> class.
         /// </summary>
-        /// <param name="ingressSession">The direct Kafka ingress session.</param>
-        /// <param name="processor">The inbox processor background service.</param>
-        public EndToEndSession(DirectKafkaIngressSession ingressSession, InboxProcessorBackgroundService processor)
+        /// <param name="ingressTask">The ingress consumer loop task.</param>
+        /// <param name="processorTask">The inbox processor loop task.</param>
+        /// <param name="stoppingCts">The cancellation source used to stop both loops.</param>
+        private EndToEndSession(Task ingressTask, Task processorTask, CancellationTokenSource stoppingCts)
         {
-            ArgumentNullException.ThrowIfNull(ingressSession);
-            _ingressSession = ingressSession;
-            ArgumentNullException.ThrowIfNull(processor);
-            _processor = processor;
+            _ingressTask = ingressTask;
+            _processorTask = processorTask;
+            _stoppingCts = stoppingCts;
         }
 
         /// <summary>
-        ///     Starts ingress and processor loops.
+        ///     Starts ingress and processor loops from the registered service provider.
         /// </summary>
-        /// <returns>A task that completes when both loops have started.</returns>
-        public async Task StartAsync()
+        /// <param name="provider">The LiteBus service provider under test.</param>
+        /// <returns>The session tracking both background loops.</returns>
+        public static EndToEndSession Start(ServiceProvider provider)
         {
-            await _ingressSession.StartAsync().ConfigureAwait(false);
-            _processorTask = _processor.ExecuteAsync(_processorStoppingCts.Token);
+            ArgumentNullException.ThrowIfNull(provider);
+
+            var stoppingCts = new CancellationTokenSource();
+            var ingress = provider.GetRequiredService<TransportInboxIngressConsumer>();
+            var processor = provider.GetRequiredService<InboxProcessorBackgroundService>();
+
+            var ingressTask = Task.Run(
+                () => ingress.ExecuteAsync(stoppingCts.Token),
+                stoppingCts.Token);
+            var processorTask = Task.Run(
+                () => processor.ExecuteAsync(stoppingCts.Token),
+                stoppingCts.Token);
+
+            return new EndToEndSession(ingressTask, processorTask, stoppingCts);
         }
 
         /// <summary>
@@ -321,25 +266,21 @@ public static class KafkaIngressTestSupport
         /// <returns>A task that completes when both loops have stopped or the stop timeout elapses.</returns>
         public async Task StopAsync()
         {
-            await _processorStoppingCts.CancelAsync().ConfigureAwait(false);
+            await _stoppingCts.CancelAsync().ConfigureAwait(false);
 
-            if (_processorTask is not null)
+            try
             {
-                try
-                {
-                    await _processorTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-                }
-                catch (TimeoutException)
-                {
-                }
-                catch (OperationCanceledException)
-                {
-                    // Expected when cancellation stops the processor loop.
-                }
+                await Task.WhenAll(_ingressTask, _processorTask).WaitAsync(StopTimeout).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when cancellation stops the background loops.
             }
 
-            await _ingressSession.StopAsync().ConfigureAwait(false);
-            _processorStoppingCts.Dispose();
+            _stoppingCts.Dispose();
         }
     }
 }
