@@ -2,9 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Outbox.Abstractions;
 
-namespace LiteBus.Outbox;
+namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
 ///     Enqueues events through a bound <see cref="ITransactionalOutboxStore" /> without committing the caller transaction.

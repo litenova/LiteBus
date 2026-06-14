@@ -8,6 +8,8 @@
 
         <PackageReference Include="Azure.Messaging.ServiceBus"/>
 
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+
     </ItemGroup>
 
 

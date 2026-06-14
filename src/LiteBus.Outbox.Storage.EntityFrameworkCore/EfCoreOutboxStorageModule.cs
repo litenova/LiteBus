@@ -9,7 +9,7 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 /// <summary>
 ///     Registers the Entity Framework Core outbox store with LiteBus dependency injection.
 /// </summary>
-public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<OutboxModule>
+public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -31,6 +31,8 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+
+        OutboxModuleRegistrationGuard.EnsureCoreRegistered(configuration);
 
         var moduleBuilder = new EfCoreOutboxStorageModuleBuilder();
         _builder(moduleBuilder);

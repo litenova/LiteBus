@@ -80,8 +80,7 @@ public sealed class AzureServiceBusInboxDispatchIntegrationTests : LiteBusTestBa
             .Should().Be(receipt.Id.ToString("D"));
         AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractName)
             .Should().Be(ContractName);
-        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractVersion)
-            .Should().Be(ContractVersion.ToString());
+        headers[TransportHeaders.ContractVersion].Should().Be(ContractVersion);
         AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CorrelationId)
             .Should().Be("corr-azure-dispatch");
         AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CausationId)

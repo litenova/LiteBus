@@ -2,14 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Outbox.Abstractions;
 
-namespace LiteBus.Outbox;
+namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
 ///     Shared outbox enqueue pipeline used by writer and transactional writer implementations.
 /// </summary>
-internal sealed class OutboxWriterCore
+public sealed class OutboxWriterCore
 {
     /// <summary>
     ///     Gets the factory used to create envelopes before persistence.
@@ -35,7 +34,7 @@ internal sealed class OutboxWriterCore
     /// <param name="persistAsync">The delegate that persists or stages the created envelope.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed enqueue receipt returned to callers.</returns>
-    internal async Task<OutboxReceipt<TEvent>> EnqueueAsync<TEvent>(
+    public async Task<OutboxReceipt<TEvent>> EnqueueAsync<TEvent>(
         OutboxEnqueueItem<TEvent> item,
         Func<OutboxEnvelope, CancellationToken, Task<OutboxEnvelope>> persistAsync,
         CancellationToken cancellationToken)
@@ -57,7 +56,7 @@ internal sealed class OutboxWriterCore
     /// <param name="persistAsync">The delegate that persists or stages the created envelope.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The enqueue receipt returned to callers.</returns>
-    internal async Task<OutboxReceipt> EnqueueAsync(
+    public async Task<OutboxReceipt> EnqueueAsync(
         OutboxEnqueueItem item,
         Func<OutboxEnvelope, CancellationToken, Task<OutboxEnvelope>> persistAsync,
         CancellationToken cancellationToken)
@@ -79,7 +78,7 @@ internal sealed class OutboxWriterCore
     /// <param name="persistBatchAsync">The delegate that persists or stages the created envelopes.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed enqueue receipts returned to batch callers.</returns>
-    internal async Task<IReadOnlyList<OutboxReceipt<TEvent>>> EnqueueBatchAsync<TEvent>(
+    public async Task<IReadOnlyList<OutboxReceipt<TEvent>>> EnqueueBatchAsync<TEvent>(
         IReadOnlyList<OutboxEnqueueItem<TEvent>> items,
         Func<IReadOnlyList<OutboxEnvelope>, CancellationToken, Task<IReadOnlyList<OutboxEnvelope>>> persistBatchAsync,
         CancellationToken cancellationToken)
@@ -107,7 +106,7 @@ internal sealed class OutboxWriterCore
     /// <param name="persistBatchAsync">The delegate that persists or stages the created envelopes.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The enqueue receipts returned to batch callers.</returns>
-    internal async Task<IReadOnlyList<OutboxReceipt>> EnqueueBatchAsync(
+    public async Task<IReadOnlyList<OutboxReceipt>> EnqueueBatchAsync(
         IReadOnlyList<OutboxEnqueueItem> items,
         Func<IReadOnlyList<OutboxEnvelope>, CancellationToken, Task<IReadOnlyList<OutboxEnvelope>>> persistBatchAsync,
         CancellationToken cancellationToken)

@@ -37,7 +37,7 @@ public sealed class TestMessageTransport : IMessageTransport
 
         if (IsDisconnected)
         {
-            throw new InvalidOperationException("Fake transport is disconnected.");
+            throw new InvalidOperationException("Test transport is disconnected.");
         }
 
         if (NextPublishException is not null)

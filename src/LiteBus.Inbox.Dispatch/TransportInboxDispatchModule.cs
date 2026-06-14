@@ -10,7 +10,7 @@ namespace LiteBus.Inbox.Dispatch;
 /// <summary>
 ///     Module that registers <see cref="TransportInboxDispatcher" /> and an optional transport child module.
 /// </summary>
-public sealed class TransportInboxDispatchModule : IInboxDispatcherModule, IRequires<InboxModule>
+public sealed class TransportInboxDispatchModule : IInboxDispatcherModule
 {
     /// <summary>
     ///     Gets the dispatcher options configured by the application.
@@ -38,6 +38,8 @@ public sealed class TransportInboxDispatchModule : IInboxDispatcherModule, IRequ
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+
+        InboxModuleRegistrationGuard.EnsureCoreRegistered(configuration);
 
         if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IInboxDispatcher)))
         {

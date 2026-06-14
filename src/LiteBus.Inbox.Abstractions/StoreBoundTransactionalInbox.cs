@@ -2,9 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Inbox.Abstractions;
 
-namespace LiteBus.Inbox;
+namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
 ///     Accepts messages through a bound <see cref="ITransactionalInboxStore" /> without committing the caller transaction.

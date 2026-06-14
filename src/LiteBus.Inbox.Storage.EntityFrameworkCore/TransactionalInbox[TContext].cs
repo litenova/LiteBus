@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
+using LiteBus.Storage.EntityFrameworkCore.Stores;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
@@ -14,6 +15,14 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 ///     serialization follow the same path as <see cref="IInbox" /> while rows commit with the active
 ///     <see cref="DbContext" /> transaction.
 /// </summary>
+/// <remarks>
+///     <para>
+///         <see cref="IdempotencyConflictMode.ReturnExisting" /> resolves tracked, pending, and persisted rows by message
+///         identifier or tenant-scoped idempotency key before staging. <see cref="IdempotencyConflictMode.Strict" />
+///         always stages the new envelope so duplicate scoped keys surface as <see cref="DbUpdateException" /> on
+///         <c>SaveChanges</c> and roll back the caller unit of work.
+///     </para>
+/// </remarks>
 /// <typeparam name="TContext">The application database context type bound to the current scope.</typeparam>
 public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
     where TContext : DbContext
@@ -94,6 +103,10 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
     /// <param name="envelope">The envelope created for the current accept attempt.</param>
     /// <param name="cancellationToken">The token used to cancel the lookup.</param>
     /// <returns>The envelope staged for persistence or the existing stored envelope.</returns>
+    /// <remarks>
+    ///     Strict conflict mode never resolves duplicates here; conflicting scoped keys are left for the database unique
+    ///     index to reject during <c>SaveChanges</c>.
+    /// </remarks>
     private async Task<InboxEnvelope> StageAsync(InboxEnvelope envelope, CancellationToken cancellationToken)
     {
         if (envelope.IdempotencyConflictMode == IdempotencyConflictMode.ReturnExisting)
@@ -111,7 +124,7 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
     }
 
     /// <summary>
-    ///     Finds an existing inbox row matching the attempted message identifier or idempotency key.
+    ///     Finds an existing inbox row matching the attempted message identifier or tenant-scoped idempotency key.
     /// </summary>
     /// <param name="envelope">The envelope created for the current accept attempt.</param>
     /// <param name="cancellationToken">The token used to cancel the lookup.</param>
@@ -123,14 +136,16 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
             return null;
         }
 
-        var local = inboxDbContext.InboxMessages.Local.FirstOrDefault(message =>
-            message.Id == envelope.Id ||
-            !string.IsNullOrWhiteSpace(envelope.IdempotencyKey) &&
-            string.Equals(message.IdempotencyKey, envelope.IdempotencyKey, StringComparison.Ordinal));
+        var local = FindLocalMatch(inboxDbContext, envelope);
 
         if (local is not null)
         {
             return ToEnvelope(local);
+        }
+
+        if (_interceptor.TryFindPending(_dbContext, envelope, out var pending))
+        {
+            return pending;
         }
 
         if (string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
@@ -143,14 +158,36 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
             return trackedById is null ? null : ToEnvelope(trackedById);
         }
 
+        var normalizedTenantId = EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId);
+
         var tracked = await inboxDbContext.InboxMessages
             .AsNoTracking()
-            .FirstOrDefaultAsync(
-                message => message.Id == envelope.Id || message.IdempotencyKey == envelope.IdempotencyKey,
-                cancellationToken)
+            .Where(message =>
+                message.Id == envelope.Id ||
+                message.IdempotencyKey == envelope.IdempotencyKey &&
+                message.TenantId == normalizedTenantId)
+            .OrderBy(message => message.Id == envelope.Id ? 0 : 1)
+            .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
 
         return tracked is null ? null : ToEnvelope(tracked);
+    }
+
+    /// <summary>
+    ///     Finds a tracked inbox row matching the attempted message identifier or tenant-scoped idempotency key.
+    /// </summary>
+    /// <param name="inboxDbContext">The inbox database context bound to the current scope.</param>
+    /// <param name="envelope">The envelope created for the current accept attempt.</param>
+    /// <returns>The tracked entity when one matches; otherwise <see langword="null" />.</returns>
+    private static InboxMessageEntity? FindLocalMatch(IInboxDbContext inboxDbContext, InboxEnvelope envelope)
+    {
+        var normalizedTenantId = EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId);
+
+        return inboxDbContext.InboxMessages.Local.FirstOrDefault(message =>
+            message.Id == envelope.Id ||
+            !string.IsNullOrWhiteSpace(envelope.IdempotencyKey) &&
+            string.Equals(message.IdempotencyKey, envelope.IdempotencyKey, StringComparison.Ordinal) &&
+            EfCoreIdempotencyResolution.NormalizeTenantId(message.TenantId) == normalizedTenantId);
     }
 
     /// <summary>

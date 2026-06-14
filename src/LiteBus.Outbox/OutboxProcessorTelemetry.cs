@@ -7,8 +7,38 @@ namespace LiteBus.Outbox;
 /// <summary>
 ///     OpenTelemetry activity and metric instrumentation for outbox processing.
 /// </summary>
+/// <remarks>
+///     Pass-level counter instrument names are stable and documented in
+///     <c>docs/Architecture.md</c> as internal-only until promoted to
+///     <see cref="LiteBusOutboxTelemetry" /> public constants.
+/// </remarks>
 internal static class OutboxProcessorTelemetry
 {
+    /// <summary>
+    ///     Gets the instrument name incremented once per processor pass.
+    /// </summary>
+    private const string PassInstrumentName = "litebus.outbox.processor.passes";
+
+    /// <summary>
+    ///     Gets the instrument name incremented for each successfully published message.
+    /// </summary>
+    private const string PublishedInstrumentName = "litebus.outbox.processor.published";
+
+    /// <summary>
+    ///     Gets the instrument name incremented for each failed message scheduled for retry.
+    /// </summary>
+    private const string FailedInstrumentName = "litebus.outbox.processor.failed";
+
+    /// <summary>
+    ///     Gets the instrument name incremented for each dead-lettered message.
+    /// </summary>
+    private const string DeadLetteredInstrumentName = "litebus.outbox.processor.dead_lettered";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when the background loop catches an unhandled exception.
+    /// </summary>
+    private const string LoopErrorInstrumentName = "litebus.outbox.processor.loop_errors";
+
     /// <summary>
     ///     Gets the activity source used for outbox processor spans.
     /// </summary>
@@ -22,27 +52,27 @@ internal static class OutboxProcessorTelemetry
     /// <summary>
     ///     Gets the counter incremented once per processor pass.
     /// </summary>
-    private static readonly Counter<long> PassCounter = Meter.CreateCounter<long>("litebus.outbox.processor.passes");
+    private static readonly Counter<long> PassCounter = Meter.CreateCounter<long>(PassInstrumentName);
 
     /// <summary>
     ///     Gets the counter incremented for each successfully published message.
     /// </summary>
-    private static readonly Counter<long> PublishedCounter = Meter.CreateCounter<long>("litebus.outbox.processor.published");
+    private static readonly Counter<long> PublishedCounter = Meter.CreateCounter<long>(PublishedInstrumentName);
 
     /// <summary>
     ///     Gets the counter incremented for each failed message scheduled for retry.
     /// </summary>
-    private static readonly Counter<long> FailedCounter = Meter.CreateCounter<long>("litebus.outbox.processor.failed");
+    private static readonly Counter<long> FailedCounter = Meter.CreateCounter<long>(FailedInstrumentName);
 
     /// <summary>
     ///     Gets the counter incremented for each dead-lettered message.
     /// </summary>
-    private static readonly Counter<long> DeadLetteredCounter = Meter.CreateCounter<long>("litebus.outbox.processor.dead_lettered");
+    private static readonly Counter<long> DeadLetteredCounter = Meter.CreateCounter<long>(DeadLetteredInstrumentName);
 
     /// <summary>
     ///     Gets the counter incremented when the background loop catches an unhandled exception.
     /// </summary>
-    private static readonly Counter<long> LoopErrorCounter = Meter.CreateCounter<long>("litebus.outbox.processor.loop_errors");
+    private static readonly Counter<long> LoopErrorCounter = Meter.CreateCounter<long>(LoopErrorInstrumentName);
 
     /// <summary>
     ///     Gets the counter incremented when lease renewal fails during publication.

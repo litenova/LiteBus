@@ -95,7 +95,30 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
         _logger = logger ?? NullLogger<TransportInboxIngressConsumer>.Instance;
     }
 
+    /// <summary>
+    ///     The delegate that writes the delivery discard event after a non-requeue acceptance failure.
+    /// </summary>
+    private static readonly Action<ILogger, string?, string?, string?, Exception> DeliveryDiscardedAfterAcceptFailureMessage =
+        LoggerMessage.Define<string?, string?, string?>(
+            LogLevel.Warning,
+            new EventId(3005, "DeliveryDiscardedAfterAcceptFailure"),
+            "Transport inbox ingress delivery discarded after non-requeue acceptance failure. MessageId={MessageId}, Destination={Destination}, CorrelationId={CorrelationId}");
+
+    /// <summary>
+    ///     The delegate that writes the batch accept fallback event.
+    /// </summary>
+    private static readonly Action<ILogger, int, Exception> BatchAcceptFallbackMessage =
+        LoggerMessage.Define<int>(
+            LogLevel.Warning,
+            new EventId(3006, "BatchAcceptFallback"),
+            "Transport inbox ingress batch accept failed; falling back to per-message acceptance for {BatchSize} deliveries.");
+
     /// <inheritdoc />
+    /// <remarks>
+    ///     The ingress restart loop uses a broad <see cref="Exception" /> handler because broker SDK faults cannot be
+    ///     enumerated safely at the transport boundary. Failures are logged and the consumer loop retries after
+    ///     <see cref="TransportInboxIngressHostOptions.RetryPollInterval" />.
+    /// </remarks>
     public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!_hostOptions.Enabled)
@@ -242,6 +265,11 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
     ///     Flushes the batch buffer when the max-wait timer elapses.
     /// </summary>
     /// <returns>A task that completes when the partial batch has been flushed.</returns>
+    /// <remarks>
+    ///     Batch flush timer failures use a broad <see cref="Exception" /> handler because store and broker faults
+    ///     cannot be enumerated safely at the ingress boundary. Failures are logged so partial batches are visible
+    ///     without stopping the ingress loop.
+    /// </remarks>
     private async Task OnBatchFlushTimerElapsedAsync()
     {
         try
@@ -306,6 +334,11 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
     /// <param name="message">The received transport delivery.</param>
     /// <param name="cancellationToken">The token used to cancel acceptance.</param>
     /// <returns>A task that completes when the delivery has been acknowledged.</returns>
+    /// <remarks>
+    ///     Non-requeue acceptance failures use a broad <see cref="Exception" /> handler because store, contract, and
+    ///     serialization faults cannot be enumerated safely at the ingress boundary. Those deliveries are logged and
+    ///     discarded so poison messages do not block the consume loop.
+    /// </remarks>
     private async Task AcceptAndAcknowledgeAsync(TransportMessage message, CancellationToken cancellationToken)
     {
         _circuitBreaker?.ThrowIfOpen();
@@ -321,8 +354,14 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
         }
 
 #pragma warning disable CA1031 // Non-requeue acceptance failures are discarded so poison deliveries do not block the loop.
-        catch (Exception)
+        catch (Exception exception)
         {
+            DeliveryDiscardedAfterAcceptFailureMessage(
+                _logger,
+                message.MessageId,
+                message.Destination,
+                message.CorrelationId,
+                exception);
             await message.DiscardAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -367,6 +406,10 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
     /// <param name="messages">The buffered transport deliveries.</param>
     /// <param name="cancellationToken">The token used to cancel acceptance.</param>
     /// <returns>A task that completes when the batch has been accepted and acknowledged.</returns>
+    /// <remarks>
+    ///     Batch accept failures use a broad <see cref="Exception" /> handler because store faults cannot be narrowed
+    ///     without losing isolated poison handling. Failures are logged before per-message fallback acceptance.
+    /// </remarks>
     private async Task AcceptAndAcknowledgeBatchAsync(
         IReadOnlyList<TransportMessage> messages,
         CancellationToken cancellationToken)
@@ -379,8 +422,10 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
         }
 
 #pragma warning disable CA1031 // Batch accept failures fall back to per-message acceptance for isolated poison handling.
-        catch (Exception)
+        catch (Exception exception)
         {
+            BatchAcceptFallbackMessage(_logger, messages.Count, exception);
+
             foreach (var message in messages)
             {
                 try

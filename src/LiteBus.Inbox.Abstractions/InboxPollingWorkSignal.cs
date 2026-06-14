@@ -1,14 +1,13 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Outbox.Abstractions;
 
-namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
+namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Default outbox work signal registered by EF Core storage when no broker-specific signal is configured.
+///     Default inbox work signal that relies on polling delay only.
 /// </summary>
-public sealed class OutboxPollingWorkSignal : IOutboxWorkSignal
+public sealed class InboxPollingWorkSignal : IInboxWorkSignal
 {
     /// <inheritdoc />
     public Task WaitForWorkOrDelayAsync(TimeSpan pollInterval, CancellationToken cancellationToken = default)

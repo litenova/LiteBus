@@ -19,6 +19,8 @@ namespace LiteBus.Durable.IntegrationTests.Dispatch.Outbox.AzureServiceBus;
 [Trait("Category", TransportTestTraits.Azure)]
 public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestBase
 {
+    private const int ContractVersion = 1;
+
     /// <summary>
     ///     The shared Service Bus emulator fixture.
     /// </summary>
@@ -83,8 +85,7 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
             .Should().Be(messageId.ToString("D"));
         AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractName)
             .Should().Be("orders.order-submitted");
-        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractVersion)
-            .Should().Be("1");
+        headers[TransportHeaders.ContractVersion].Should().Be(ContractVersion);
         AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CorrelationId)
             .Should().Be("corr-azure-outbox");
         AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CausationId)

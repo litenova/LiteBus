@@ -3,7 +3,6 @@
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
-        <ProjectReference Include="..\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
         <ProjectReference Include="..\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
         <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
     </ItemGroup>

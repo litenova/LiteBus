@@ -15,12 +15,14 @@ namespace LiteBus.Inbox.Dispatch.InProcess;
 ///     <c>AddInboxModule</c> after <c>AddCommandModule</c>. The inbox module supplies contract registration and the
 ///     command module supplies <c>ICommandMediator</c> from <c>LiteBus.Commands.Abstractions</c>.
 /// </remarks>
-public sealed class CommandInboxDispatchModule : IInboxDispatcherModule, IRequires<InboxModule>
+public sealed class CommandInboxDispatchModule : IInboxDispatcherModule
 {
     /// <inheritdoc />
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+
+        InboxModuleRegistrationGuard.EnsureCoreRegistered(configuration);
 
         if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IInboxDispatcher)))
         {

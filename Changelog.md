@@ -26,21 +26,22 @@ All notable changes to this project will be documented in this file.
 - Analyzer LB1004 message targets `IInbox.AcceptAsync`, `AcceptBatchAsync`, `ITransactionalInbox`, and `InboxAcceptItem` rather than scheduler APIs.
 - Analyzer inventory documented through LB1017 in [Analyzers](docs/Analyzers.md), including LB1014 (processor without dispatcher, error severity), LB1015–LB1016 (transactional EF/interceptor and DbContext), and LB1017 (explicit contract registration for attributed types).
 - Saga: per-dispatch `AsyncLocal` scope, `SagaDefinitionId` and tenant-scoped primary keys, versioned `SagaCompleteItem`, hook save/complete semantics, concurrency retry in `SagaProcessorHook`, `ISagaStore.QueryAsync` / `PurgeAsync`, removed `ISaga<TState>`.
-- **Pre-GA naming pass (documentation and incremental renames before v6.0.0 GA):** see
-  [Migration Guide v6](docs/Migration-Guide-v6.md) for the full inventory. Highlights:
+- **Pre-GA naming pass (complete in shipping libraries):** see
+  [Migration Guide v6](docs/Migration-Guide-v6.md) for the legacy → v6 inventory for consumer upgrades. Highlights:
   - `MediateOptions` → `MessageMediationRequest`; handler conflict exceptions consolidated to
     `MultipleHandlerFoundException`.
   - In-process dispatch: `UseCommandInboxDispatcher` / `UseEventOutboxDispatcher` → `UseInProcessDispatch`.
   - EF Core: `UseEfCoreStorage` / `EfCore*StoreOptions` → `UseEntityFrameworkCoreStorage` /
     `EntityFrameworkCore*StoreOptions`.
-  - AWS SQS packages: `*.Aws` → `*.AwsSqs` (NuGet IDs aligned with `AwsSqs*` types).
+  - AWS SQS packages: `*.Aws` / `*.AwsSqsSqs` → `*.AwsSqs` (NuGet IDs aligned with `AwsSqs*` types).
   - ASP.NET management: `*QueryParameters` / `*PurgeParameters` → `*QueryBinding` / `*PurgeBinding`.
   - Outbox writer items: `Event` → `Message`, `EventType` → `MessageType`; `InboxAcceptMetadata.Default` →
     `Immediate`; typed `InboxReceipt<TMessage>` on single-message accept.
   - Event settings flatten: `EventRoutingSettings`, `EventExecutionSettings`, `EventHandlerFilter`.
-  - Transport telemetry type renames (`LiteBusTransport*Telemetry`); `Fake*` → `Test*` in `LiteBus.Testing`.
+  - Transport telemetry type renames (`LiteBusTransport*Telemetry`); legacy `LiteBus.Testing` `Fake*` mediators and
+    stores → `Test*` (unrelated to sample message fixtures such as `FakeCommand` in test projects).
   - Immutable `*Options` → `sealed record` where applicable; `*HostOptions` remain `sealed class`.
-  - Backlog: `LeaseRenewalRequest`, `SagaSaveItem<TState>`, `MessageErrorContext` (see migration guide).
+  - Shipped value objects: `LeaseRenewalRequest`, `SagaSaveItem<TState>`, `MessageErrorContext`.
 - **Writer construction:** removed `InboxAcceptItems` and `OutboxEnqueueItems` companion types. Build items with
   static factories on `InboxAcceptItem` / `OutboxEnqueueItem` (`From`, `WithTopic`, `WithIdempotency`, and related
   helpers). Use body-only `AcceptAsync(message)` / `EnqueueAsync(message)` overloads when metadata is

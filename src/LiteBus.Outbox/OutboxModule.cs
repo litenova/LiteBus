@@ -146,10 +146,6 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
         if (_builder.IsCleanupEnabled)
         {
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(OutboxCleanupHostOptions),
-                _builder.CleanupHostOptions));
-
-            configuration.DependencyRegistry.Register(new DependencyDescriptor(
                 typeof(OutboxCleanupBackgroundService),
                 typeof(OutboxCleanupBackgroundService)));
 

@@ -9,7 +9,7 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 /// <summary>
 ///     Registers the Entity Framework Core inbox store with LiteBus dependency injection.
 /// </summary>
-public sealed class EfCoreInboxStorageModule : IInboxStorageModule, IRequires<InboxModule>
+public sealed class EfCoreInboxStorageModule : IInboxStorageModule
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -30,6 +30,8 @@ public sealed class EfCoreInboxStorageModule : IInboxStorageModule, IRequires<In
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+
+        InboxModuleRegistrationGuard.EnsureCoreRegistered(configuration);
 
         var moduleBuilder = new EfCoreInboxStorageModuleBuilder();
         _builder(moduleBuilder);

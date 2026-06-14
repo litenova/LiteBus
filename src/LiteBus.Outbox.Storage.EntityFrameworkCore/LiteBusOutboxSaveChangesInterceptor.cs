@@ -4,7 +4,9 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Storage.EntityFrameworkCore.Stores;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -20,15 +22,16 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 ///     </para>
 ///     <para>
 ///         Call <see cref="Enqueue(DbContext, OutboxEnvelope)" /> before <c>SaveChanges</c>. The interceptor copies
-///         pending
-///         envelopes into the matching <see cref="IOutboxDbContext" /> so the provider writes them in the caller's
-///         transaction.
+///         pending envelopes into the matching <see cref="IOutboxDbContext" /> so the provider writes them in the
+///         caller's transaction.
 ///     </para>
 ///     <para>
-///         Under <see cref="Messaging.Abstractions.DurableMessaging.IdempotencyConflictMode.Strict" />, duplicate
-///         <c>message_id</c> or <c>idempotency_key</c> conflicts raise on <c>SaveChanges</c> and abort the caller unit
-///         of work. <see cref="TransactionalOutbox{TContext}" /> resolves
-///         <see cref="Messaging.Abstractions.DurableMessaging.IdempotencyConflictMode.ReturnExisting" /> before staging.
+///         Under <see cref="IdempotencyConflictMode.Strict" />, duplicate <c>(tenant_id, idempotency_key)</c> pairs are
+///         staged without deduplication so the unique index raises <see cref="DbUpdateException" /> on
+///         <c>SaveChanges</c> and aborts the caller unit of work. Under
+///         <see cref="IdempotencyConflictMode.ReturnExisting" />, <see cref="TransactionalOutbox{TContext}" /> resolves
+///         existing rows before staging and the flush step skips duplicate scoped keys still present in the pending
+///         batch.
 ///     </para>
 ///     <para>
 ///         Register the interceptor on the application <see cref="DbContext" /> through
@@ -43,7 +46,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
     /// <summary>
     ///     Holds pending envelopes keyed by the <see cref="DbContext" /> that will flush them.
     /// </summary>
-    private static readonly ConditionalWeakTable<DbContext, List<OutboxEnvelope>> PendingEnvelopes = new();
+    private static readonly ConditionalWeakTable<DbContext, List<OutboxEnvelope>> PendingEnvelopesByContext = new();
 
     /// <summary>
     ///     Adds an outbox envelope to the pending list flushed by the next <c>SaveChanges</c> call on
@@ -56,8 +59,49 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(envelope);
 
-        var pending = PendingEnvelopes.GetValue(context, static _ => []);
+        var pending = PendingEnvelopesByContext.GetValue(context, static _ => []);
         pending.Add(envelope);
+    }
+
+    /// <summary>
+    ///     Tries to find a pending envelope queued for the same context with a matching message identifier or
+    ///     tenant-scoped idempotency key.
+    /// </summary>
+    /// <param name="context">The database context that owns the ambient transaction.</param>
+    /// <param name="envelope">The envelope created for the current enqueue attempt.</param>
+    /// <param name="existing">The pending envelope when one matches the lookup.</param>
+    /// <returns><see langword="true" /> when a matching envelope is still pending flush.</returns>
+    public bool TryFindPending(DbContext context, OutboxEnvelope envelope, out OutboxEnvelope existing)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(envelope);
+        existing = default!;
+
+        if (!PendingEnvelopesByContext.TryGetValue(context, out var pending) || pending.Count == 0)
+        {
+            return false;
+        }
+
+        var normalizedTenantId = EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId);
+
+        foreach (var candidate in pending)
+        {
+            if (candidate.Id == envelope.Id)
+            {
+                existing = candidate;
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey) &&
+                string.Equals(candidate.IdempotencyKey, envelope.IdempotencyKey, StringComparison.Ordinal) &&
+                EfCoreIdempotencyResolution.NormalizeTenantId(candidate.TenantId) == normalizedTenantId)
+            {
+                existing = candidate;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <inheritdoc />
@@ -86,17 +130,19 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
     /// <param name="context">The context currently saving changes.</param>
     private static void FlushPendingEnvelopes(DbContext? context)
     {
-        if (context is null || !PendingEnvelopes.TryGetValue(context, out var pending) || pending.Count == 0)
+        if (context is null)
         {
             return;
         }
 
-        var envelopes = pending
-            .GroupBy(envelope => envelope.Id)
-            .Select(group => group.First())
-            .ToList();
+        if (!PendingEnvelopesByContext.TryGetValue(context, out var pending) || pending.Count == 0)
+        {
+            return;
+        }
 
-        PendingEnvelopes.Remove(context);
+        var envelopes = PrepareEnvelopesForFlush(pending);
+
+        PendingEnvelopesByContext.Remove(context);
 
         if (context is not IOutboxDbContext outboxDbContext)
         {
@@ -110,7 +156,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
 
         foreach (var envelope in envelopes)
         {
-            if (trackedIds.Contains(envelope.Id))
+            if (ShouldSkipFlush(outboxDbContext, envelope, trackedIds))
             {
                 continue;
             }
@@ -118,6 +164,77 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
             outboxDbContext.OutboxMessages.Add(ToEntity(envelope));
             trackedIds.Add(envelope.Id);
         }
+    }
+
+    /// <summary>
+    ///     Collapses duplicate message identifiers and, for <see cref="IdempotencyConflictMode.ReturnExisting" />, duplicate
+    ///     tenant-scoped idempotency keys within one pending batch.
+    /// </summary>
+    /// <param name="pending">The envelopes queued for the current flush.</param>
+    /// <returns>The envelopes that should be appended to the change tracker.</returns>
+    private static List<OutboxEnvelope> PrepareEnvelopesForFlush(List<OutboxEnvelope> pending)
+    {
+        var seenIds = new HashSet<Guid>();
+        var seenReturnExistingScopes = new HashSet<string>(StringComparer.Ordinal);
+        var envelopes = new List<OutboxEnvelope>(pending.Count);
+
+        foreach (var envelope in pending)
+        {
+            if (!seenIds.Add(envelope.Id))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
+            {
+                envelopes.Add(envelope);
+                continue;
+            }
+
+            if (envelope.IdempotencyConflictMode == IdempotencyConflictMode.ReturnExisting)
+            {
+                var scopeKey = EfCoreIdempotencyResolution.CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey);
+
+                if (!seenReturnExistingScopes.Add(scopeKey))
+                {
+                    continue;
+                }
+            }
+
+            envelopes.Add(envelope);
+        }
+
+        return envelopes;
+    }
+
+    /// <summary>
+    ///     Determines whether a pending envelope should be skipped because an equivalent row is already tracked.
+    /// </summary>
+    /// <param name="outboxDbContext">The outbox database context currently saving changes.</param>
+    /// <param name="envelope">The pending envelope under consideration.</param>
+    /// <param name="trackedIds">The message identifiers already tracked on the context.</param>
+    /// <returns><see langword="true" /> when the envelope should not be appended again.</returns>
+    private static bool ShouldSkipFlush(
+        IOutboxDbContext outboxDbContext,
+        OutboxEnvelope envelope,
+        HashSet<Guid> trackedIds)
+    {
+        if (trackedIds.Contains(envelope.Id))
+        {
+            return true;
+        }
+
+        if (envelope.IdempotencyConflictMode != IdempotencyConflictMode.ReturnExisting ||
+            string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
+        {
+            return false;
+        }
+
+        var normalizedTenantId = EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId);
+
+        return outboxDbContext.OutboxMessages.Local.Any(message =>
+            string.Equals(message.IdempotencyKey, envelope.IdempotencyKey, StringComparison.Ordinal) &&
+            EfCoreIdempotencyResolution.NormalizeTenantId(message.TenantId) == normalizedTenantId);
     }
 
     /// <summary>
@@ -143,7 +260,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
             LastError = envelope.LastError,
             CorrelationId = envelope.CorrelationId,
             CausationId = envelope.CausationId,
-            TenantId = envelope.TenantId,
+            TenantId = EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
             IdempotencyKey = envelope.IdempotencyKey,
             TraceContext = envelope.TraceContext
         };

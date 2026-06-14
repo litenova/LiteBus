@@ -391,9 +391,9 @@ Surfaces that predate this taxonomy should be aligned when their area is next to
 
 ### Composite module pattern
 
-Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs during `Register()` before any `Build()`. The builder action runs inside `DeclareChildren`. `Build()` registers core services only. Sub-modules check for a parent context marker as their first `Build()` operation. The registry inserts children depth-first after the parent, then topological sort runs. Duplicate registration of the same module type throws `LiteBusConfigurationException` at compose time.
+Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs during `Register()` before any `Build()`. The builder action runs inside `DeclareChildren`. `Build()` registers core services only. Parent modules set `InboxCoreRegisteredMarker` / `OutboxCoreRegisteredMarker` on configuration context during `Build()`. Storage and dispatch adapters call `InboxModuleRegistrationGuard.EnsureCoreRegistered` / `OutboxModuleRegistrationGuard.EnsureCoreRegistered` at the start of `Build()` so standalone registration fails fast. Ingress adapters register through the parent builder; composite child insertion keeps them under `InboxModule`. The registry inserts children depth-first during `Register()`, then topological sort runs. Duplicate registration of the same module type throws `LiteBusConfigurationException` at compose time.
 
-**Compose through parent module builders.** Register storage, dispatch, and ingress inside the parent module builder via `Use*` extensions. Do not add new top-level `IModuleRegistry` shortcuts that bypass the parent builder or skip context markers. Mark obsolete patterns rather than extending them.
+**Compose through parent module builders.** Register storage, dispatch, and ingress inside the parent module builder via `Use*` extensions. Do not add new top-level `IModuleRegistry` shortcuts that bypass the parent builder. Mark obsolete patterns rather than extending them.
 
 ### Composition rules
 

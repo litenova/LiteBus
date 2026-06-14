@@ -11,7 +11,7 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 /// <summary>
 ///     Module for registering the PostgreSQL inbox store.
 /// </summary>
-public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<InboxModule>
+public sealed class PostgreSqlInboxModule : IInboxStorageModule
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -32,6 +32,8 @@ public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<Inbox
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+
+        InboxModuleRegistrationGuard.EnsureCoreRegistered(configuration);
 
         var moduleBuilder = new PostgreSqlInboxModuleBuilder();
         _builder(moduleBuilder);

@@ -3,6 +3,11 @@ namespace LiteBus.Inbox.Ingress;
 /// <summary>
 ///     Public OpenTelemetry instrument names for transport inbox ingress.
 /// </summary>
+/// <remarks>
+///     Ingress metrics use <see cref="MeterName" /> (<c>LiteBus.Inbox</c>), the same meter as inbox processor
+///     instrumentation. Register it with <c>AddLiteBusInboxMetrics()</c> from
+///     <c>LiteBus.Inbox.Extensions.OpenTelemetry</c>.
+/// </remarks>
 public static class LiteBusInboxIngressTelemetry
 {
     /// <summary>

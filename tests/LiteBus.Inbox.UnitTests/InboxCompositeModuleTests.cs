@@ -25,7 +25,7 @@ public sealed class InboxCompositeModuleTests
 
         act.Should()
             .Throw<LiteBusConfigurationException>()
-            .WithMessage("*requires*InboxModule*not registered*");
+            .WithMessage("*AddInboxModule*");
     }
 
     [Fact]

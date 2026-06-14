@@ -2,14 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Inbox.Abstractions;
 
-namespace LiteBus.Inbox;
+namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
 ///     Shared inbox acceptance pipeline used by writer and transactional writer implementations.
 /// </summary>
-internal sealed class InboxAcceptanceService
+public sealed class InboxAcceptanceService
 {
     /// <summary>
     ///     Gets the factory used to create envelopes before persistence.
@@ -34,7 +33,7 @@ internal sealed class InboxAcceptanceService
     /// <param name="persistAsync">The delegate that persists or stages the created envelope.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed acceptance receipt returned to callers.</returns>
-    internal async Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
+    public async Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
         InboxAcceptItem<TMessage> item,
         Func<InboxEnvelope, CancellationToken, Task<InboxEnvelope>> persistAsync,
         CancellationToken cancellationToken)
@@ -60,7 +59,7 @@ internal sealed class InboxAcceptanceService
     /// <param name="persistAsync">The delegate that persists or stages the created envelope.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The acceptance receipt returned to callers.</returns>
-    internal async Task<InboxReceipt> AcceptAsync(
+    public async Task<InboxReceipt> AcceptAsync(
         InboxAcceptItem item,
         Func<InboxEnvelope, CancellationToken, Task<InboxEnvelope>> persistAsync,
         CancellationToken cancellationToken)
@@ -82,7 +81,7 @@ internal sealed class InboxAcceptanceService
     /// <param name="persistBatchAsync">The delegate that persists or stages the created envelopes.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The acceptance receipts returned to batch callers.</returns>
-    internal async Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
+    public async Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
         IReadOnlyList<InboxAcceptItem> items,
         Func<IReadOnlyList<InboxEnvelope>, CancellationToken, Task<IReadOnlyList<InboxEnvelope>>> persistBatchAsync,
         CancellationToken cancellationToken)

@@ -11,7 +11,7 @@ namespace LiteBus.Outbox.Dispatch;
 /// <summary>
 ///     Module that registers <see cref="TransportOutboxDispatcher" /> and an optional transport child module.
 /// </summary>
-public sealed class TransportOutboxDispatchModule : IOutboxDispatcherModule, IRequires<OutboxModule>
+public sealed class TransportOutboxDispatchModule : IOutboxDispatcherModule
 {
     /// <inheritdoc />
     public ProcessorHookFailurePolicy DefaultHookFailurePolicy =>
@@ -44,6 +44,8 @@ public sealed class TransportOutboxDispatchModule : IOutboxDispatcherModule, IRe
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+
+        OutboxModuleRegistrationGuard.EnsureCoreRegistered(configuration);
 
         if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IOutboxDispatcher)))
         {

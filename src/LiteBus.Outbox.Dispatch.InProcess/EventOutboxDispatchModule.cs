@@ -15,12 +15,14 @@ namespace LiteBus.Outbox.Dispatch.InProcess;
 ///     <c>AddOutboxModule</c> after <c>AddEventModule</c>. The outbox module supplies contract registration and the
 ///     event module supplies <c>IEventMediator</c> from <c>LiteBus.Events.Abstractions</c>.
 /// </remarks>
-public sealed class EventOutboxDispatchModule : IOutboxDispatcherModule, IRequires<OutboxModule>
+public sealed class EventOutboxDispatchModule : IOutboxDispatcherModule
 {
     /// <inheritdoc />
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+
+        OutboxModuleRegistrationGuard.EnsureCoreRegistered(configuration);
 
         if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IOutboxDispatcher)))
         {

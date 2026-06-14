@@ -1,5 +1,7 @@
 using Azure.Messaging.ServiceBus;
 using LiteBus.Transport.Abstractions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LiteBus.Transport.AzureServiceBus;
 
@@ -24,6 +26,20 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     private readonly AzureServiceBusTransportOptions _options;
 
     /// <summary>
+    ///     Gets the logger used for processor recovery diagnostics.
+    /// </summary>
+    private readonly ILogger<AzureServiceBusConsumer> _logger;
+
+    /// <summary>
+    ///     The delegate that writes the processor session restart event.
+    /// </summary>
+    private static readonly Action<ILogger, Exception> ProcessorSessionRestartMessage =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(4001, "ProcessorSessionRestarting"),
+            "Azure Service Bus consumer processor session failed and will restart with backoff.");
+
+    /// <summary>
     ///     Gets the cancellation source used to stop the active recovery loop.
     /// </summary>
     private CancellationTokenSource? _consumeCts;
@@ -43,12 +59,17 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     /// </summary>
     /// <param name="client">The shared Service Bus client used to create processors.</param>
     /// <param name="options">The transport options controlling reconnect backoff.</param>
-    public AzureServiceBusConsumer(ServiceBusClient client, AzureServiceBusTransportOptions options)
+    /// <param name="logger">The optional logger for processor recovery diagnostics.</param>
+    public AzureServiceBusConsumer(
+        ServiceBusClient client,
+        AzureServiceBusTransportOptions options,
+        ILogger<AzureServiceBusConsumer>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(client);
         _client = client;
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
+        _logger = logger ?? NullLogger<AzureServiceBusConsumer>.Instance;
     }
 
     /// <inheritdoc />
@@ -135,7 +156,8 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     /// </summary>
     /// <remarks>
     ///     <see cref="ServiceBusException" /> and <see cref="ObjectDisposedException" /> are handled explicitly before
-    ///     the final <see cref="Exception" /> handler, which retries on any other unexpected processor failure.
+    ///     the final <see cref="Exception" /> handler, which logs unexpected processor failures and retries with
+    ///     exponential backoff because SDK-specific fault types cannot enumerate every recoverable session failure.
     /// </remarks>
     /// <param name="options">The consumer options for the active subscription.</param>
     /// <param name="handler">The handler invoked for each delivery.</param>
@@ -178,10 +200,10 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
                     break;
                 }
 #pragma warning disable CA1031 // Last-resort recovery boundary: unexpected processor failures restart the session with backoff.
-                catch (Exception)
-#pragma warning restore CA1031
+                catch (Exception exception)
                 {
-                    // Last-resort recovery boundary: unexpected processor failures restart the session with backoff.
+                    ProcessorSessionRestartMessage(_logger, exception);
+
                     if (cancellationToken.IsCancellationRequested)
                     {
                         break;
@@ -192,6 +214,7 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
                     retryDelay = TimeSpan.FromMilliseconds(
                         Math.Min(retryDelay.TotalMilliseconds * 2, _options.ConsumerErrorRetryMaxInterval.TotalMilliseconds));
                 }
+#pragma warning restore CA1031
             }
         }
         finally

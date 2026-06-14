@@ -1,9 +1,7 @@
 using System;
-using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
-using LiteBus.Outbox.Abstractions;
 
-namespace LiteBus.Outbox;
+namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
 ///     Maps stored outbox envelopes to enqueue receipts shared by writer implementations.
@@ -28,11 +26,11 @@ internal static class OutboxReceiptMapper
                 Version = storedEnvelope.ContractVersion
             },
             StoredAt = storedEnvelope.CreatedAt,
-            Trace = DurableEnvelopeMetadataMapper.ResolveTrace(
+            Trace = ResolveTrace(
                 storedEnvelope.CorrelationId,
                 storedEnvelope.CausationId,
                 storedEnvelope.TraceContext),
-            Tenant = DurableEnvelopeMetadataMapper.ResolveTenant(storedEnvelope.TenantId)
+            Tenant = ResolveTenant(storedEnvelope.TenantId)
         };
     }
 
@@ -57,5 +55,49 @@ internal static class OutboxReceiptMapper
             Trace = receipt.Trace,
             Tenant = receipt.Tenant
         };
+    }
+
+    /// <summary>
+    ///     Reconstructs trace metadata from persisted envelope columns.
+    /// </summary>
+    /// <param name="correlationId">The optional correlation identifier stored with the envelope.</param>
+    /// <param name="causationId">The optional causation identifier stored with the envelope.</param>
+    /// <param name="traceContext">The optional distributed trace context stored with the envelope.</param>
+    /// <returns>The trace metadata represented by the stored columns.</returns>
+    private static MessageTrace ResolveTrace(
+        string? correlationId,
+        string? causationId,
+        string? traceContext)
+    {
+        if (!string.IsNullOrWhiteSpace(traceContext) &&
+            !string.IsNullOrWhiteSpace(correlationId) &&
+            !string.IsNullOrWhiteSpace(causationId))
+        {
+            return new MessageTrace.Distributed(correlationId, causationId, traceContext);
+        }
+
+        if (!string.IsNullOrWhiteSpace(correlationId) && !string.IsNullOrWhiteSpace(causationId))
+        {
+            return new MessageTrace.Workflow(correlationId, causationId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(correlationId))
+        {
+            return new MessageTrace.Correlated(correlationId);
+        }
+
+        return MessageTrace.None.Instance;
+    }
+
+    /// <summary>
+    ///     Reconstructs tenant metadata from the persisted tenant identifier column.
+    /// </summary>
+    /// <param name="tenantId">The optional tenant identifier stored with the envelope.</param>
+    /// <returns>The tenant metadata represented by the stored column.</returns>
+    private static TenantScope ResolveTenant(string? tenantId)
+    {
+        return string.IsNullOrWhiteSpace(tenantId)
+            ? TenantScope.Unscoped.Instance
+            : new TenantScope.Isolated(tenantId);
     }
 }

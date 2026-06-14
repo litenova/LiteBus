@@ -1,14 +1,13 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Inbox.Abstractions;
 
-namespace LiteBus.Inbox;
+namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
-///     Default inbox work signal that relies on polling delay only.
+///     Default outbox work signal that relies on polling delay only.
 /// </summary>
-public sealed class InboxPollingWorkSignal : IInboxWorkSignal
+public sealed class OutboxPollingWorkSignal : IOutboxWorkSignal
 {
     /// <inheritdoc />
     public Task WaitForWorkOrDelayAsync(TimeSpan pollInterval, CancellationToken cancellationToken = default)

@@ -23,7 +23,7 @@ public sealed class OutboxCompositeModuleTests
 
         act.Should()
             .Throw<LiteBusConfigurationException>()
-            .WithMessage("*requires*OutboxModule*not registered*");
+            .WithMessage("*AddOutboxModule*");
     }
 
     [Fact]
