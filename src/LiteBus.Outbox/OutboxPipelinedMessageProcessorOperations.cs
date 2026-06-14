@@ -121,6 +121,12 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
     }
 
     /// <inheritdoc />
+    public void RecordPersistFailed()
+    {
+        OutboxProcessorTelemetry.RecordPersistFailed();
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
         string leaseOwner,
         OutboxProcessorOptions options,

@@ -1,10 +1,12 @@
 using LiteBus.Transport.Amqp;
+using LiteBus.Transport.IntegrationTesting;
 
 namespace LiteBus.Inbox.Dispatch.Amqp.IntegrationTests;
 
 /// <summary>
 ///     Inbox AMQP dispatch integration tests against LavinMQ.
 /// </summary>
+[Trait("Category", TransportTestTraits.Docker)]
 public sealed class LavinMqInboxDispatchIntegrationTests : AmqpInboxDispatcherIntegrationTests, IClassFixture<LavinMqFixture>
 {
     private readonly LavinMqFixture _fixture;

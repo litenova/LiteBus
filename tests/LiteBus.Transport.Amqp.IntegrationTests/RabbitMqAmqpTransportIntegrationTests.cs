@@ -1,8 +1,11 @@
+using LiteBus.Transport.IntegrationTesting;
+
 namespace LiteBus.Transport.Amqp.IntegrationTests;
 
 /// <summary>
 ///     Runs shared AMQP transport tests against RabbitMQ.
 /// </summary>
+[Trait("Category", TransportTestTraits.Docker)]
 public sealed class RabbitMqAmqpTransportIntegrationTests : AmqpTransportIntegrationTests, IClassFixture<RabbitMqFixture>
 {
     /// <summary>

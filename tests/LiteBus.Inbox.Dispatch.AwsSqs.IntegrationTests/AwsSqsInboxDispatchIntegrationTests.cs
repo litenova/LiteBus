@@ -15,6 +15,7 @@ namespace LiteBus.Inbox.Dispatch.AwsSqs.IntegrationTests;
 ///     End-to-end inbox dispatch integration tests for the AWS SQS transport adapter.
 /// </summary>
 [Collection(LocalStackSqsCollection.Name)]
+[Trait("Category", TransportTestTraits.Docker)]
 public sealed class AwsSqsInboxDispatchIntegrationTests : LiteBusTestBase
 {
     private const string ContractName = "tests.remote-work";

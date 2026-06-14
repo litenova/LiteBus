@@ -6,6 +6,7 @@ using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Testing;
 using LiteBus.Transport.Amqp;
+using LiteBus.Transport.IntegrationTesting;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Inbox.Ingress.Amqp.IntegrationTests;
@@ -14,6 +15,7 @@ namespace LiteBus.Inbox.Ingress.Amqp.IntegrationTests;
 ///     Verifies AMQP batch ingress acceptance at prefetch threshold and
 ///     <see cref="AmqpInboxIngressOptions.BatchMaxWait" />.
 /// </summary>
+[Trait("Category", TransportTestTraits.Docker)]
 public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
 {
     /// <summary>

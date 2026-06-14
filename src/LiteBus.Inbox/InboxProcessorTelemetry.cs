@@ -70,6 +70,12 @@ internal static class InboxProcessorTelemetry
         Meter.CreateCounter<long>(LiteBusInboxTelemetry.ProcessorPersistRejectedInstrumentName);
 
     /// <summary>
+    ///     Gets the counter incremented when terminal persist throws and the processor continues the pass.
+    /// </summary>
+    private static readonly Counter<long> PersistFailedCounter =
+        Meter.CreateCounter<long>(LiteBusInboxTelemetry.ProcessorPersistFailedInstrumentName);
+
+    /// <summary>
     ///     Gets the histogram recording inbox dispatch duration in milliseconds.
     /// </summary>
     private static readonly Histogram<double> DispatchDurationHistogram =
@@ -98,6 +104,14 @@ internal static class InboxProcessorTelemetry
     {
         PersistSkippedCounter.Add(1);
         PersistRejectedCounter.Add(1);
+    }
+
+    /// <summary>
+    ///     Records that terminal persist threw and the processor continued with remaining envelopes.
+    /// </summary>
+    public static void RecordPersistFailed()
+    {
+        PersistFailedCounter.Add(1);
     }
 
     /// <summary>

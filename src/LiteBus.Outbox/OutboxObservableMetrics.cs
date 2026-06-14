@@ -126,6 +126,7 @@ internal sealed class OutboxObservableMetrics
 #pragma warning disable CA1031 // Status count probes must tolerate any backing-store failure during metric export.
         catch (Exception)
         {
+            OutboxDiagnosticsTelemetry.RecordUnavailable();
             return new Dictionary<OutboxStatus, int>();
         }
 #pragma warning restore CA1031

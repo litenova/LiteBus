@@ -1,8 +1,11 @@
+using LiteBus.Transport.IntegrationTesting;
+
 namespace LiteBus.Transport.Amqp.IntegrationTests;
 
 /// <summary>
 ///     Runs shared AMQP transport tests against LavinMQ.
 /// </summary>
+[Trait("Category", TransportTestTraits.Docker)]
 public sealed class LavinMqAmqpTransportIntegrationTests : AmqpTransportIntegrationTests, IClassFixture<LavinMqFixture>
 {
     /// <summary>

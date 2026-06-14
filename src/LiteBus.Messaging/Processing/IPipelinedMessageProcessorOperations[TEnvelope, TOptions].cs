@@ -45,6 +45,11 @@ internal interface IPipelinedMessageProcessorOperations<TEnvelope, in TOptions>
     void RecordLeaseLost();
 
     /// <summary>
+    ///     Records telemetry when terminal persistence throws and the processor continues the pass.
+    /// </summary>
+    void RecordPersistFailed();
+
+    /// <summary>
     ///     Leases a batch of pending messages for one pass.
     /// </summary>
     /// <param name="leaseOwner">The worker name assigned to leased messages.</param>

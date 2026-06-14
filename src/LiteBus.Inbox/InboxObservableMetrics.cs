@@ -131,6 +131,7 @@ internal sealed class InboxObservableMetrics
 #pragma warning disable CA1031 // Status count probes must tolerate any backing-store failure during metric export.
         catch (Exception)
         {
+            InboxDiagnosticsTelemetry.RecordUnavailable();
             return EmptyStatusCounts;
         }
 #pragma warning restore CA1031

@@ -59,4 +59,14 @@ public static class LiteBusOutboxTelemetry
     ///     Gets the instrument name incremented when terminal persist rejects an update because the lease was lost.
     /// </summary>
     public const string ProcessorPersistRejectedInstrumentName = "litebus.outbox.processor.persist_rejected";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when outbox diagnostics probes fail to read queue depth from the store.
+    /// </summary>
+    public const string DiagnosticsUnavailableInstrumentName = "litebus.outbox.diagnostics.unavailable";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when terminal persist throws and the processor continues the pass.
+    /// </summary>
+    public const string ProcessorPersistFailedInstrumentName = "litebus.outbox.processor.persist_failed";
 }

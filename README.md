@@ -69,6 +69,7 @@ Register the modules and send the command:
 builder.Services.AddLiteBus(registry =>
 {
     var assembly = typeof(Program).Assembly;
+    registry.AddMessageModule(_ => { });
     registry.AddCommandModule(module => module.RegisterFromAssembly(assembly));
     registry.AddQueryModule(module => module.RegisterFromAssembly(assembly));
     registry.AddEventModule(module => module.RegisterFromAssembly(assembly));

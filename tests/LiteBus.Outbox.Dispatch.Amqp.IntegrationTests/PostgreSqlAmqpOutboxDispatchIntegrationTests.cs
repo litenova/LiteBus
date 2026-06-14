@@ -9,6 +9,7 @@ using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Storage.PostgreSql;
 using LiteBus.Testing;
 using LiteBus.Transport.Amqp;
+using LiteBus.Transport.IntegrationTesting;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Outbox.Dispatch.Amqp.IntegrationTests;
@@ -16,6 +17,7 @@ namespace LiteBus.Outbox.Dispatch.Amqp.IntegrationTests;
 /// <summary>
 ///     End-to-end outbox AMQP dispatch tests with PostgreSQL storage.
 /// </summary>
+[Trait("Category", TransportTestTraits.Docker)]
 public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBase, IClassFixture<PostgreSqlFixture>, IClassFixture<RabbitMqFixture>
 {
     private const string TestSchemaName = "litebus_tests";

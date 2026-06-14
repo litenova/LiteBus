@@ -8,6 +8,7 @@ using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Testing;
 using LiteBus.Transport.Amqp;
+using LiteBus.Transport.IntegrationTesting;
 using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 
@@ -16,6 +17,7 @@ namespace LiteBus.Inbox.Ingress.Amqp.IntegrationTests;
 /// <summary>
 ///     Tests AMQP inbox ingress failure acknowledgement behavior.
 /// </summary>
+[Trait("Category", TransportTestTraits.Docker)]
 public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
 {
     /// <summary>

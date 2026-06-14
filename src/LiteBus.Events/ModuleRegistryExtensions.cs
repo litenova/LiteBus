@@ -77,6 +77,7 @@ public static class ModuleRegistryExtensions
     /// // Simple registration with default configuration
     /// services.AddLiteBus(registry =>
     /// {
+    ///     registry.AddMessageModule(_ => { });
     ///     registry.AddEventModule();
     /// });
     /// </code>

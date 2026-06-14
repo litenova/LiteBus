@@ -128,6 +128,63 @@ public abstract class InboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that a tenant-scoped lease request does not claim rows owned by another tenant.
+    /// </summary>
+    [Fact]
+    public async Task LeasePendingAsync_WhenTenantFilterDoesNotMatchStoredTenant_ShouldNotLeaseRow()
+    {
+        var roles = CreateStore();
+        var now = BaseTime;
+        var tenantBCommandId = Guid.NewGuid();
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(tenantBCommandId, now) with
+        {
+            TenantId = "tenant-b",
+            IdempotencyKey = "tenant-b-ship"
+        });
+
+        var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 5,
+            LeaseOwner = "worker-a",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1),
+            TenantId = "tenant-a"
+        });
+
+        leased.Should().BeEmpty();
+    }
+
+    /// <summary>
+    ///     Verifies that a tenant-scoped message query excludes rows stored for another tenant.
+    /// </summary>
+    [Fact]
+    public async Task QueryAsync_WhenTenantFilterDoesNotMatchStoredTenant_ShouldExcludeOtherTenantRows()
+    {
+        var roles = CreateStore();
+        var now = BaseTime;
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now) with
+        {
+            TenantId = "tenant-a",
+            IdempotencyKey = "tenant-a-query"
+        });
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(1)) with
+        {
+            TenantId = "tenant-b",
+            IdempotencyKey = "tenant-b-query"
+        });
+
+        var tenantAPage = await roles.MessageQuery.QueryAsync(
+            new InboxMessageFilter { TenantId = "tenant-a" },
+            new InboxMessagePageRequest { PageSize = 10 });
+
+        tenantAPage.Items.Should().ContainSingle();
+        tenantAPage.Items[0].TenantId.Should().Be("tenant-a");
+    }
+
+    /// <summary>
     ///     Verifies that duplicate command identifiers return the original stored row.
     /// </summary>
     [Fact]

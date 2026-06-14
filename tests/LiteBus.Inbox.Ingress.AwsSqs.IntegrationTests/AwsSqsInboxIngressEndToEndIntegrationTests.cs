@@ -18,6 +18,7 @@ namespace LiteBus.Inbox.Ingress.AwsSqs.IntegrationTests;
 ///     End-to-end SQS ingress tests that verify store, processor, and transport dispatch.
 /// </summary>
 [Collection(LocalStackSqsCollection.Name)]
+[Trait("Category", TransportTestTraits.Docker)]
 public sealed class AwsSqsInboxIngressEndToEndIntegrationTests : LiteBusTestBase
 {
     private const string ContractName = "orders.commands.ship";

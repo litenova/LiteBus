@@ -1,8 +1,11 @@
+using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
+using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Dispatch.InProcess;
+using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Saga.Abstractions;
 using LiteBus.Samples.V6;
 using LiteBus.Samples.V6.Saga;
@@ -42,7 +45,13 @@ public sealed class LiteBusV6CompositionSmokeTests : LiteBusTestBase
         provider.GetRequiredService<ISagaStore>().Should().NotBeNull();
         provider.GetRequiredService<ISagaContext>().Should().NotBeNull();
 
-        provider.GetServices<IHostedService>().Should().HaveCountGreaterThanOrEqualTo(2);
+        provider.GetServices<IHostedService>().Should().ContainSingle()
+            .Which.GetType().Name.Should().Be("LiteBusHostOrchestrator");
+
+        LiteBusHostedServiceExtensions.AssertBackgroundServices(
+            provider,
+            typeof(InboxProcessorBackgroundService),
+            typeof(OutboxProcessorBackgroundService));
     }
 
     /// <summary>

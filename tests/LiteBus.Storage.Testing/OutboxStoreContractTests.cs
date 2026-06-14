@@ -99,6 +99,65 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that a tenant-scoped lease request does not claim rows owned by another tenant.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task LeasePendingAsync_WhenTenantFilterDoesNotMatchStoredTenant_ShouldNotLeaseRow()
+    {
+        var store = CreateStore();
+        var messageId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now) with
+        {
+            TenantId = "tenant-b",
+            IdempotencyKey = "tenant-b-outbox"
+        }).ConfigureAwait(false);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 5,
+            LeaseOwner = "publisher-a",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1),
+            TenantId = "tenant-a"
+        }).ConfigureAwait(false);
+
+        leased.Should().BeEmpty();
+    }
+
+    /// <summary>
+    ///     Verifies that a tenant-scoped message query excludes rows stored for another tenant.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task QueryAsync_WhenTenantFilterDoesNotMatchStoredTenant_ShouldExcludeOtherTenantRows()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now) with
+        {
+            TenantId = "tenant-a",
+            IdempotencyKey = "tenant-a-outbox"
+        }).ConfigureAwait(false);
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(1)) with
+        {
+            TenantId = "tenant-b",
+            IdempotencyKey = "tenant-b-outbox"
+        }).ConfigureAwait(false);
+
+        var tenantAPage = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { TenantId = "tenant-a" },
+            new OutboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
+
+        tenantAPage.Items.Should().ContainSingle();
+        tenantAPage.Items[0].TenantId.Should().Be("tenant-a");
+    }
+
+    /// <summary>
     ///     Verifies that duplicate message identifiers return the original stored row.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>

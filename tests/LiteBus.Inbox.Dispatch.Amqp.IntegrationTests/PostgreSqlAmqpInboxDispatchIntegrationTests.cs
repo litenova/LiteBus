@@ -6,6 +6,7 @@ using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Storage.PostgreSql;
 using LiteBus.Testing;
 using LiteBus.Transport.Amqp;
+using LiteBus.Transport.IntegrationTesting;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Inbox.Dispatch.Amqp.IntegrationTests;
@@ -13,6 +14,7 @@ namespace LiteBus.Inbox.Dispatch.Amqp.IntegrationTests;
 /// <summary>
 ///     End-to-end inbox AMQP dispatch tests with PostgreSQL storage.
 /// </summary>
+[Trait("Category", TransportTestTraits.Docker)]
 public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBase, IClassFixture<PostgreSqlFixture>, IClassFixture<RabbitMqFixture>
 {
     private const string ContractName = "tests.remote-work";

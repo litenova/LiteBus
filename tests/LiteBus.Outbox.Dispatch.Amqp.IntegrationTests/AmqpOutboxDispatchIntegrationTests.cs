@@ -8,6 +8,7 @@ using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Testing;
 using LiteBus.Transport.Amqp;
+using LiteBus.Transport.IntegrationTesting;
 using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 
@@ -302,6 +303,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
 /// <summary>
 ///     Outbox AMQP dispatch tests against RabbitMQ.
 /// </summary>
+[Trait("Category", TransportTestTraits.Docker)]
 public sealed class RabbitMqOutboxDispatchIntegrationTests : AmqpOutboxDispatchIntegrationTests, IClassFixture<RabbitMqFixture>
 {
     private readonly RabbitMqFixture _fixture;
@@ -325,6 +327,7 @@ public sealed class RabbitMqOutboxDispatchIntegrationTests : AmqpOutboxDispatchI
 /// <summary>
 ///     Outbox AMQP dispatch tests against LavinMQ.
 /// </summary>
+[Trait("Category", TransportTestTraits.Docker)]
 public sealed class LavinMqOutboxDispatchIntegrationTests : AmqpOutboxDispatchIntegrationTests, IClassFixture<LavinMqFixture>
 {
     private readonly LavinMqFixture _fixture;

@@ -234,6 +234,8 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
                     exception,
                     "Terminal persistence failed for message {MessageId}. Continuing the pass with remaining envelopes.",
                     _operations.GetMessageId(envelope));
+
+                _operations.RecordPersistFailed();
             }
 #pragma warning restore CA1031
         }

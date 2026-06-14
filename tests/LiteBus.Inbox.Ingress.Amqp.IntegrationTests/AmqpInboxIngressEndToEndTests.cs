@@ -8,6 +8,7 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
 using LiteBus.Transport.Amqp;
+using LiteBus.Transport.IntegrationTesting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -16,6 +17,7 @@ namespace LiteBus.Inbox.Ingress.Amqp.IntegrationTests;
 /// <summary>
 ///     End-to-end AMQP ingress tests that verify store, processor, and transport dispatch.
 /// </summary>
+[Trait("Category", TransportTestTraits.Docker)]
 public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
 {
     /// <summary>
