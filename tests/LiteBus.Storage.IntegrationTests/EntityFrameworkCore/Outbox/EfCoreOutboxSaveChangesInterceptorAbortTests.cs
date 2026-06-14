@@ -14,6 +14,11 @@ namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Outbox;
 public sealed class EfCoreOutboxSaveChangesInterceptorAbortTests : IClassFixture<PostgreSqlFixture>
 {
     /// <summary>
+    ///     Tenant scope used so PostgreSQL unique indexes treat duplicate idempotency keys as conflicts.
+    /// </summary>
+    private const string TenantId = "ef-outbox-abort-test";
+
+    /// <summary>
     ///     The PostgreSQL fixture shared across tests.
     /// </summary>
     private readonly PostgreSqlFixture _fixture;
@@ -40,14 +45,12 @@ public sealed class EfCoreOutboxSaveChangesInterceptorAbortTests : IClassFixture
          var seedContext = CreateContext(storeOptions, interceptor);
          await using (seedContext.ConfigureAwait(false))
          {
-        await seedContext.Database.EnsureCreatedAsync().ConfigureAwait(true);
         interceptor.Enqueue(seedContext, CreateEnvelope(idempotencyKey));
         await seedContext.SaveChangesAsync().ConfigureAwait(true);
 
          var context = CreateContext(storeOptions, interceptor);
          await using (context.ConfigureAwait(false))
          {
-        await context.Database.EnsureCreatedAsync().ConfigureAwait(true);
          var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(true);
          await using (transaction.ConfigureAwait(false))
          {
@@ -110,7 +113,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorAbortTests : IClassFixture
         LiteBusOutboxSaveChangesInterceptor? interceptor = null)
     {
         var builder = new DbContextOptionsBuilder<IntegrationOutboxAbortDbContext>()
-            .UseNpgsql(_fixture.ConnectionString);
+            .UseNpgsql(EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(_fixture.ConnectionString, storeOptions));
 
         if (interceptor is not null)
         {
@@ -137,6 +140,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorAbortTests : IClassFixture
             Status = OutboxStatus.Pending,
             AttemptCount = 0,
             IdempotencyKey = idempotencyKey,
+            TenantId = TenantId,
             IdempotencyConflictMode = IdempotencyConflictMode.Strict
         };
     }
