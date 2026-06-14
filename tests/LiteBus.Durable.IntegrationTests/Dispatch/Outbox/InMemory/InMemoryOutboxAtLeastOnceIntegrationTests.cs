@@ -30,13 +30,25 @@ public sealed class InMemoryOutboxAtLeastOnceIntegrationTests : LiteBusTestBase
         var innerStore = new InMemoryOutboxStore(timeProvider: clock);
         var store = new SkippingPublishedPersistOutboxStore(innerStore);
         var publishCount = 0;
+        var firstPublish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
          var provider = BuildProvider(destination);
          await using (provider.ConfigureAwait(false))
          {
         var broker = provider.GetRequiredService<InMemoryTransportBroker>();
-         var consumer = await StartCountingConsumerAsync(             broker,             destination,             () => Interlocked.Increment(ref publishCount),             2,             received).ConfigureAwait(true);
+         var consumer = await StartCountingConsumerAsync(
+             broker,
+             destination,
+             () =>
+             {
+                 if (Interlocked.Increment(ref publishCount) == 1)
+                 {
+                     firstPublish.TrySetResult();
+                 }
+             },
+             2,
+             received).ConfigureAwait(true);
          await using (consumer.ConfigureAwait(true))
          {
 
@@ -71,6 +83,11 @@ public sealed class InMemoryOutboxAtLeastOnceIntegrationTests : LiteBusTestBase
         }).ConfigureAwait(false);
 
         await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+        using (var firstPublishCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+        {
+            await firstPublish.Task.WaitAsync(firstPublishCancellation.Token).ConfigureAwait(false);
+        }
 
         publishCount.Should().Be(1);
         innerStore.Get(messageId).Status.Should().Be(OutboxStatus.Publishing);
