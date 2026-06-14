@@ -30,6 +30,16 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
     public const string FailureQueueName = "litebus-fail";
 
     /// <summary>
+    ///     Gets the pinned Service Bus emulator image used for reproducible CI startup.
+    /// </summary>
+    private const string EmulatorImage = "mcr.microsoft.com/azure-messaging/servicebus-emulator:1.1.2";
+
+    /// <summary>
+    ///     Gets the initial SQL wait interval in seconds passed to the emulator container on cold CI starts.
+    /// </summary>
+    private const string SqlWaitIntervalSeconds = "60";
+
+    /// <summary>
     ///     The running Service Bus emulator container.
     /// </summary>
     private ServiceBusContainer? _container;
@@ -53,8 +63,9 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
             {
                 var configPath = Path.Combine(AppContext.BaseDirectory, "Azure", "servicebus-emulator-config.json");
 
-                _container = new ServiceBusBuilder()
+                _container = new ServiceBusBuilder(EmulatorImage)
                     .WithAcceptLicenseAgreement(true)
+                    .WithEnvironment("SQL_WAIT_INTERVAL", SqlWaitIntervalSeconds)
                     .WithConfig(configPath)
                     .Build();
 

@@ -18,6 +18,9 @@
           }
         ]
       }
-    ]
+    ],
+    "Logging": {
+      "Type": "Console"
+    }
   }
 }

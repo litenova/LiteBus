@@ -19,16 +19,16 @@
         <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4"/>
         <PackageVersion Include="System.Linq.Async" Version="6.0.3"/>
         <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.8"/>
-        <PackageVersion Include="Testcontainers" Version="4.8.0"/>
+        <PackageVersion Include="Testcontainers" Version="4.11.0"/>
         <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.4"/>
         <PackageVersion Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0"/>
-        <PackageVersion Include="Testcontainers.PostgreSql" Version="4.8.0"/>
-        <PackageVersion Include="Testcontainers.MsSql" Version="4.8.0"/>
-        <PackageVersion Include="Testcontainers.RabbitMq" Version="4.8.0"/>
-        <PackageVersion Include="Testcontainers.Kafka" Version="4.8.0"/>
-        <PackageVersion Include="Testcontainers.Redpanda" Version="4.8.0"/>
-        <PackageVersion Include="Testcontainers.LocalStack" Version="4.8.0"/>
-        <PackageVersion Include="Testcontainers.ServiceBus" Version="4.8.0"/>
+        <PackageVersion Include="Testcontainers.PostgreSql" Version="4.11.0"/>
+        <PackageVersion Include="Testcontainers.MsSql" Version="4.11.0"/>
+        <PackageVersion Include="Testcontainers.RabbitMq" Version="4.11.0"/>
+        <PackageVersion Include="Testcontainers.Kafka" Version="4.11.0"/>
+        <PackageVersion Include="Testcontainers.Redpanda" Version="4.11.0"/>
+        <PackageVersion Include="Testcontainers.LocalStack" Version="4.11.0"/>
+        <PackageVersion Include="Testcontainers.ServiceBus" Version="4.11.0"/>
         <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.18.4"/>
         <PackageVersion Include="AWSSDK.SQS" Version="3.7.400.118"/>
         <PackageVersion Include="Confluent.Kafka" Version="2.8.0"/>
