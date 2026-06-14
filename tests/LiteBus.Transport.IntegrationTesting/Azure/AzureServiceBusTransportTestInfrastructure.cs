@@ -9,7 +9,7 @@ namespace LiteBus.Transport.IntegrationTesting.Azure;
 public static class AzureServiceBusTransportTestInfrastructure
 {
     /// <summary>
-    ///     Receives one message from the supplied queue.
+    ///     Receives one message from the supplied queue and completes it so later tests do not observe stale deliveries.
     /// </summary>
     /// <param name="connectionString">The Service Bus connection string.</param>
     /// <param name="queueName">The queue name to read from.</param>
@@ -43,6 +43,8 @@ public static class AzureServiceBusTransportTestInfrastructure
             {
                 headers[property.Key] = property.Value;
             }
+
+            await receiver.CompleteMessageAsync(message).ConfigureAwait(false);
 
             return (message.Body.ToString(), headers);
         }

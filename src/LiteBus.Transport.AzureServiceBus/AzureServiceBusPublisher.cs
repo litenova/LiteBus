@@ -7,7 +7,7 @@ namespace LiteBus.Transport.AzureServiceBus;
 /// <summary>
 ///     Publishes messages to Azure Service Bus queues or topics.
 /// </summary>
-public sealed class AzureServiceBusPublisher : IMessageTransport, IAsyncDisposable
+public sealed class AzureServiceBusPublisher : IMessageTransport, IDisposable, IAsyncDisposable
 {
     /// <summary>
     ///     Gets the circuit breaker guarding publish operations.
@@ -36,6 +36,14 @@ public sealed class AzureServiceBusPublisher : IMessageTransport, IAsyncDisposab
         ArgumentNullException.ThrowIfNull(circuitBreaker);
         _client = client;
         _circuitBreaker = circuitBreaker;
+    }
+
+    /// <summary>
+    ///     Releases cached senders using the synchronous disposal path required by dependency injection scopes.
+    /// </summary>
+    public void Dispose()
+    {
+        DisposeAsync().AsTask().ConfigureAwait(false).GetAwaiter().GetResult();
     }
 
     /// <inheritdoc />
