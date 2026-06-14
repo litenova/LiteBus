@@ -1,7 +1,0 @@
-{
-  "profile": "build-test",
-  "restore": "dotnet restore LiteBus.slnx",
-  "build": "dotnet build LiteBus.slnx --no-restore -v quiet",
-  "finalVerify": "dotnet build LiteBus.slnx && dotnet test LiteBus.slnx --no-build --results-directory ./TestResults/final",
-  "forbidden": ["dotnet run", "npm run dev", "vite", "next dev"]
-}
