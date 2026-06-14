@@ -129,94 +129,21 @@
     <Folder Name="/tests/">
         <File Path="tests/Directory.Build.props"/>
         <File Path="tests/Directory.Packages.props"/>
-        <Project Path="tests/LiteBus.Transport.Amqp.IntegrationTests/LiteBus.Transport.Amqp.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Transport.AzureServiceBus.UnitTests/LiteBus.Transport.AzureServiceBus.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Transport.AwsSqs.UnitTests/LiteBus.Transport.AwsSqs.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Transport.InMemory.UnitTests/LiteBus.Transport.InMemory.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Analyzers.UnitTests/LiteBus.Analyzers.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Durable.IntegrationTests/LiteBus.Durable.IntegrationTests.csproj"/>
+        <Project Path="tests/LiteBus.Enterprise.UnitTests/LiteBus.Enterprise.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Extensions.IntegrationTests/LiteBus.Extensions.IntegrationTests.csproj"/>
+        <Project Path="tests/LiteBus.Extensions.UnitTests/LiteBus.Extensions.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Inbox.UnitTests/LiteBus.Inbox.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Mediator.UnitTests/LiteBus.Mediator.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Outbox.UnitTests/LiteBus.Outbox.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Runtime.UnitTests/LiteBus.Runtime.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Storage.IntegrationTests/LiteBus.Storage.IntegrationTests.csproj"/>
+        <Project Path="tests/LiteBus.Storage.Testing/LiteBus.Storage.Testing.csproj"/>
+        <Project Path="tests/LiteBus.Storage.UnitTests/LiteBus.Storage.UnitTests.csproj"/>
         <Project
                 Path="tests/LiteBus.Transport.IntegrationTesting/LiteBus.Transport.IntegrationTesting.csproj"/>
-        <Project Path="tests/LiteBus.Transport.Kafka.UnitTests/LiteBus.Transport.Kafka.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Saga.UnitTests/LiteBus.Saga.UnitTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Saga.Storage.PostgreSql.UnitTests/LiteBus.Saga.Storage.PostgreSql.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Analyzers.Tests/LiteBus.Analyzers.Tests.csproj"/>
-        <Project Path="tests/LiteBus.CommandModule.UnitTests/LiteBus.CommandModule.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Composition.UnitTests/LiteBus.Composition.UnitTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Extensions.AspNetCore.IntegrationTests/LiteBus.Extensions.AspNetCore.IntegrationTests.csproj"/>
-        <Project Path="tests/LiteBus.Extensions.AspNetCore.UnitTests/LiteBus.Extensions.AspNetCore.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.EventModule.UnitTests/LiteBus.EventModule.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Enterprise.UnitTests/LiteBus.Enterprise.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Extensions.Autofac.UnitTests/LiteBus.Extensions.Autofac.UnitTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Extensions.Diagnostics.HealthChecks.IntegrationTests/LiteBus.Extensions.Diagnostics.HealthChecks.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Extensions.OpenTelemetry.IntegrationTests/LiteBus.Extensions.OpenTelemetry.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Inbox.Dispatch.Amqp.IntegrationTests/LiteBus.Inbox.Dispatch.Amqp.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Inbox.Dispatch.AwsSqs.IntegrationTests/LiteBus.Inbox.Dispatch.AwsSqs.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Inbox.Dispatch.AzureServiceBus.IntegrationTests/LiteBus.Inbox.Dispatch.AzureServiceBus.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Inbox.Dispatch.InMemory.IntegrationTests/LiteBus.Inbox.Dispatch.InMemory.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Inbox.Dispatch.Kafka.IntegrationTests/LiteBus.Inbox.Dispatch.Kafka.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Inbox.Dispatch.InProcess.UnitTests/LiteBus.Inbox.Dispatch.InProcess.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Inbox.Dispatch.UnitTests/LiteBus.Inbox.Dispatch.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Inbox.Dispatch.AwsSqs.UnitTests/LiteBus.Inbox.Dispatch.AwsSqs.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Inbox.Ingress.UnitTests/LiteBus.Inbox.Ingress.UnitTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Inbox.Ingress.Amqp.IntegrationTests/LiteBus.Inbox.Ingress.Amqp.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Inbox.Ingress.AwsSqs.IntegrationTests/LiteBus.Inbox.Ingress.AwsSqs.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Inbox.Ingress.AzureServiceBus.IntegrationTests/LiteBus.Inbox.Ingress.AzureServiceBus.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Inbox.Ingress.InMemory.IntegrationTests/LiteBus.Inbox.Ingress.InMemory.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Inbox.Ingress.Kafka.IntegrationTests/LiteBus.Inbox.Ingress.Kafka.IntegrationTests.csproj"/>
-        <Project Path="tests/LiteBus.Inbox.Ingress.Amqp.UnitTests/LiteBus.Inbox.Ingress.Amqp.UnitTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests/LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests/LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Inbox.Abstractions.UnitTests/LiteBus.Inbox.Abstractions.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Inbox.Storage.InMemory.UnitTests/LiteBus.Inbox.Storage.InMemory.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Inbox.UnitTests/LiteBus.Inbox.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Messaging.Abstractions.UnitTests/LiteBus.Messaging.Abstractions.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.MessageModule.UnitTests/LiteBus.MessageModule.UnitTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Outbox.Dispatch.Amqp.IntegrationTests/LiteBus.Outbox.Dispatch.Amqp.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Outbox.Dispatch.AwsSqs.IntegrationTests/LiteBus.Outbox.Dispatch.AwsSqs.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Outbox.Dispatch.AzureServiceBus.IntegrationTests/LiteBus.Outbox.Dispatch.AzureServiceBus.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Outbox.Dispatch.InMemory.IntegrationTests/LiteBus.Outbox.Dispatch.InMemory.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Outbox.Dispatch.Kafka.IntegrationTests/LiteBus.Outbox.Dispatch.Kafka.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Outbox.Dispatch.InProcess.UnitTests/LiteBus.Outbox.Dispatch.InProcess.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Outbox.Dispatch.UnitTests/LiteBus.Outbox.Dispatch.UnitTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests/LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests/LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Outbox.Storage.InMemory.UnitTests/LiteBus.Outbox.Storage.InMemory.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Outbox.UnitTests/LiteBus.Outbox.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.QueryModule.UnitTests/LiteBus.QueryModule.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Runtime.UnitTests/LiteBus.Runtime.UnitTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Storage.EntityFrameworkCore.UnitTests/LiteBus.Storage.EntityFrameworkCore.UnitTests.csproj"/>
-        <Project
-                Path="tests/LiteBus.Storage.PostgreSql.IntegrationTests/LiteBus.Storage.PostgreSql.IntegrationTests.csproj"/>
-        <Project Path="tests/LiteBus.Storage.PostgreSql.UnitTests/LiteBus.Storage.PostgreSql.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Storage.Testing/LiteBus.Storage.Testing.csproj"/>
+        <Project Path="tests/LiteBus.Transport.IntegrationTests/LiteBus.Transport.IntegrationTests.csproj"/>
         <Project Path="tests/LiteBus.Transport.UnitTests/LiteBus.Transport.UnitTests.csproj"/>
-        <Project Path="tests/LiteBus.Transport.Amqp.UnitTests/LiteBus.Transport.Amqp.UnitTests.csproj"/>
     </Folder>
 </Solution>

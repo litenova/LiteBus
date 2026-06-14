@@ -19,11 +19,21 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\LiteBus.Commands\LiteBus.Commands.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
-        <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.AwsSqs\LiteBus.Inbox.Dispatch.AwsSqs.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.InMemory\LiteBus.Inbox.Dispatch.InMemory.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.InProcess\LiteBus.Inbox.Dispatch.InProcess.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch\LiteBus.Inbox.Dispatch.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.Amqp\LiteBus.Inbox.Ingress.Amqp.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress\LiteBus.Inbox.Ingress.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.Abstractions\LiteBus.Transport.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.InMemory\LiteBus.Transport.InMemory.csproj"/>
     </ItemGroup>
 
 </Project>

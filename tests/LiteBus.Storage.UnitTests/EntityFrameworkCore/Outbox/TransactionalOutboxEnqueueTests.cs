@@ -1,0 +1,198 @@
+using System.Text.Json;
+using LiteBus.Outbox;
+using LiteBus.Outbox.Storage.EntityFrameworkCore;
+using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
+using LiteBus.Outbox.Abstractions;
+using Microsoft.EntityFrameworkCore;
+
+namespace LiteBus.Storage.UnitTests.EntityFrameworkCore.Outbox;
+
+/// <summary>
+///     Verifies <see cref="TransactionalOutbox" /> enqueues typed events through contract resolution and serialization.
+/// </summary>
+public sealed class TransactionalOutboxEnqueueTests
+{
+    /// <summary>
+    ///     Confirms enqueue stages a serialized envelope with metadata before <c>SaveChanges</c>.
+    /// </summary>
+    [Fact]
+    public async Task EnqueueAsync_should_stage_envelope_with_contract_and_metadata()
+    {
+        var databaseName = Guid.NewGuid().ToString("N");
+        var interceptor = new LiteBusOutboxSaveChangesInterceptor();
+
+        var options = new DbContextOptionsBuilder<TransactionalOutboxDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .AddLiteBusOutboxInterceptor(interceptor)
+            .Options;
+
+         var context = new TransactionalOutboxDbContext(options);
+         await using (context.ConfigureAwait(false))
+         {
+        await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
+        var registry = new MessageContractRegistry();
+        registry.Register<OrderSubmittedEvent>("orders.events.submitted", 2);
+
+        var serializer = new SynchronousMessageSerializer();
+
+        var transactionalOutbox = new TransactionalOutbox<TransactionalOutboxDbContext>(
+            interceptor,
+            context,
+            new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System));
+
+        var orderId = Guid.NewGuid();
+        var messageId = Guid.NewGuid();
+
+        var receipt = await transactionalOutbox.EnqueueAsync(
+            OutboxEnqueueItem<OrderSubmittedEvent>.From(
+                new OrderSubmittedEvent { OrderId = orderId },
+                new OutboxEnqueueMetadata
+                {
+                    Identity = new MessageIdentity.Supplied(messageId),
+                    Idempotency = new Idempotency.Keyed("idem-1"),
+                    Visibility = MessageVisibility.Immediate.Instance,
+                    Trace = new MessageTrace.Distributed(
+                        "corr-1",
+                        "cause-1",
+                        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
+                    Tenant = new TenantScope.Isolated("tenant-1"),
+                    Target = new PublicationTarget.Topic("orders")
+                })).ConfigureAwait(false);
+
+        receipt.Contract.Name.Should().Be("orders.events.submitted");
+        receipt.Contract.Version.Should().Be(2);
+
+        receipt.Trace.Should().Be(new MessageTrace.Distributed(
+            "corr-1",
+            "cause-1",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"));
+
+        var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
+        savedCount.Should().Be(1);
+
+        var stored = await context.OutboxMessages.SingleAsync().ConfigureAwait(false);
+        stored.Id.Should().Be(receipt.Id);
+        stored.ContractName.Should().Be("orders.events.submitted");
+        stored.ContractVersion.Should().Be(2);
+        stored.Topic.Should().Be("orders");
+        stored.CorrelationId.Should().Be("corr-1");
+        stored.CausationId.Should().Be("cause-1");
+        stored.TenantId.Should().Be("tenant-1");
+        stored.IdempotencyKey.Should().Be("idem-1");
+        stored.TraceContext.Should().Be("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
+        stored.Payload.Should().Contain(orderId.ToString("D"));
+        stored.Status.Should().Be(OutboxStatus.Pending);
+        }
+    }
+
+    /// <summary>
+    ///     Confirms transactional enqueue encrypts payloads the same way as <see cref="IOutbox" />.
+    /// </summary>
+    [Fact]
+    public async Task EnqueueAsync_should_encrypt_payload_when_protector_configured()
+    {
+        var databaseName = Guid.NewGuid().ToString("N");
+        var interceptor = new LiteBusOutboxSaveChangesInterceptor();
+
+        var options = new DbContextOptionsBuilder<TransactionalOutboxDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .AddLiteBusOutboxInterceptor(interceptor)
+            .Options;
+
+         var context = new TransactionalOutboxDbContext(options);
+         await using (context.ConfigureAwait(false))
+         {
+        await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
+        var registry = new MessageContractRegistry();
+        registry.Register<OrderSubmittedEvent>("orders.events.submitted");
+        var serializer = new SynchronousMessageSerializer();
+        IOutboxPayloadProtector protector = new PrefixPayloadProtector("tx-outbox:");
+
+        var transactionalOutbox = new TransactionalOutbox<TransactionalOutboxDbContext>(
+            interceptor,
+            context,
+            new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector));
+
+        await transactionalOutbox.EnqueueAsync(
+            OutboxEnqueueItem<OrderSubmittedEvent>.From(new OrderSubmittedEvent { OrderId = Guid.NewGuid() })).ConfigureAwait(false);
+
+        await context.SaveChangesAsync().ConfigureAwait(false);
+
+        var stored = await context.OutboxMessages.SingleAsync().ConfigureAwait(false);
+        stored.Payload.Should().StartWith("tx-outbox:");
+        }
+    }
+
+    private sealed record OrderSubmittedEvent
+    {
+        public Guid OrderId { get; init; }
+    }
+
+    /// <summary>
+    ///     Serializes synchronously so enqueue and save run on the same test execution flow.
+    /// </summary>
+    /// <summary>
+    ///     Prefix-based test encryptor for transactional outbox tests.
+    /// </summary>
+    private sealed class PrefixPayloadProtector : IOutboxPayloadProtector
+    {
+        /// <summary>
+        ///     Gets the ciphertext prefix.
+        /// </summary>
+        private readonly string _prefix;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="PrefixPayloadProtector" /> class.
+        /// </summary>
+        /// <param name="prefix">The ciphertext prefix.</param>
+        public PrefixPayloadProtector(string prefix)
+        {
+            _prefix = prefix;
+        }
+
+        /// <inheritdoc />
+        public Task<string> EncryptAsync(string plaintext, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_prefix + plaintext);
+        }
+
+        /// <inheritdoc />
+        public Task<string> DecryptAsync(string ciphertext, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(ciphertext[_prefix.Length..]);
+        }
+    }
+
+    private sealed class SynchronousMessageSerializer : IMessageSerializer
+    {
+        /// <inheritdoc />
+        public Task<string> SerializeAsync<TMessage>(TMessage message, CancellationToken cancellationToken = default)
+            where TMessage : notnull
+        {
+            return Task.FromResult(JsonSerializer.Serialize(message));
+        }
+
+        /// <inheritdoc />
+        public Task<object> DeserializeAsync(Type messageType, string payload, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(JsonSerializer.Deserialize(payload, messageType)!);
+        }
+    }
+
+    private sealed class TransactionalOutboxDbContext : DbContext, IOutboxDbContext
+    {
+        public TransactionalOutboxDbContext(DbContextOptions<TransactionalOutboxDbContext> options)
+            : base(options)
+        {
+        }
+
+        public DbSet<OutboxMessageEntity> OutboxMessages => Set<OutboxMessageEntity>();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.GetModelBuilderConfiguration();
+        }
+    }
+}

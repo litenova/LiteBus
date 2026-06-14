@@ -43,6 +43,7 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="LiteBus.Analyzers.Tests"/>
+        <InternalsVisibleTo Include="LiteBus.Analyzers.UnitTests"/>
     </ItemGroup>
 
     <Target Name="IncludeAnalyzersInPackage" DependsOnTargets="Build" BeforeTargets="_GetPackageFiles">
