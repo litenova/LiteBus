@@ -76,12 +76,18 @@ public sealed class AzureServiceBusInboxDispatchIntegrationTests : LiteBusTestBa
             TimeSpan.FromSeconds(45)).ConfigureAwait(false);
 
         body.Should().Contain(workItemId.ToString());
-        headers[TransportHeaders.MessageId].Should().Be(receipt.Id.ToString("D"));
-        headers[TransportHeaders.ContractName].Should().Be(ContractName);
-        headers[TransportHeaders.ContractVersion].Should().Be(ContractVersion.ToString());
-        headers[TransportHeaders.CorrelationId].Should().Be("corr-azure-dispatch");
-        headers[TransportHeaders.CausationId].Should().Be("cause-azure-dispatch");
-        headers[TransportHeaders.TenantId].Should().Be("tenant-azure");
+        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.MessageId)
+            .Should().Be(receipt.Id.ToString("D"));
+        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractName)
+            .Should().Be(ContractName);
+        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractVersion)
+            .Should().Be(ContractVersion.ToString());
+        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CorrelationId)
+            .Should().Be("corr-azure-dispatch");
+        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CausationId)
+            .Should().Be("cause-azure-dispatch");
+        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.TenantId)
+            .Should().Be("tenant-azure");
         }
     }
 

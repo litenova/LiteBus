@@ -79,12 +79,18 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
             new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
         payload!.OrderId.Should().Be(orderId);
-        headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));
-        headers[TransportHeaders.ContractName].Should().Be("orders.order-submitted");
-        headers[TransportHeaders.ContractVersion].Should().Be("1");
-        headers[TransportHeaders.CorrelationId].Should().Be("corr-azure-outbox");
-        headers[TransportHeaders.CausationId].Should().Be("cause-azure-outbox");
-        headers[TransportHeaders.TenantId].Should().Be("tenant-azure-east");
+        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.MessageId)
+            .Should().Be(messageId.ToString("D"));
+        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractName)
+            .Should().Be("orders.order-submitted");
+        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractVersion)
+            .Should().Be("1");
+        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CorrelationId)
+            .Should().Be("corr-azure-outbox");
+        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CausationId)
+            .Should().Be("cause-azure-outbox");
+        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.TenantId)
+            .Should().Be("tenant-azure-east");
         }
     }
 
@@ -124,7 +130,8 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
             queueName,
             TimeSpan.FromSeconds(45)).ConfigureAwait(false);
 
-        headers[TransportHeaders.ContractName].Should().Be(contractRoute);
+        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractName)
+            .Should().Be(contractRoute);
         }
     }
 

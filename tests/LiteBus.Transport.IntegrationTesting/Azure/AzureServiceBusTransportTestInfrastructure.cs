@@ -55,6 +55,19 @@ public static class AzureServiceBusTransportTestInfrastructure
     }
 
     /// <summary>
+    ///     Gets a required string header value from Azure Service Bus application properties.
+    /// </summary>
+    /// <param name="headers">The application properties copied from a received message.</param>
+    /// <param name="headerName">The header name to read.</param>
+    /// <returns>The header value as a string.</returns>
+    public static string GetHeader(IReadOnlyDictionary<string, object?> headers, string headerName)
+    {
+        ArgumentNullException.ThrowIfNull(headers);
+        headers.TryGetValue(headerName, out var value);
+        return value?.ToString() ?? string.Empty;
+    }
+
+    /// <summary>
     ///     Waits until the supplied queue reports the expected active message count.
     /// </summary>
     /// <param name="connectionString">The Service Bus connection string.</param>
