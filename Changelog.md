@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+Nothing yet.
+
+## v6.0.0
+
+Greenfield release for durable messaging on **.NET 10** (`net10.0` only). Adopt v6 as a fresh integration: nested module builders, `AcceptAsync` /
+`EnqueueAsync`, pipelined processors only, and PostgreSQL **schema version 1** with no in-place upgrade from LiteBus v5
+table shapes. Historical v4/v5 upgrade steps remain in [Migration Guide v4](docs/Migration-Guide-v4.md)
+and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
+
 ### Added
 
 - `IInboxEnvelopeFactory` / `IOutboxEnvelopeFactory` shared by auto-commit writers, store-bound transactional writers,
@@ -12,50 +21,10 @@ All notable changes to this project will be documented in this file.
   `StoreBoundTransactionalOutbox`.
 - PostgreSQL `CreateTransactionalStore`, `EnableAmbientTransactionProvider()`, and `IPostgreSqlTransactionProvider` for
   ambient participation.
-- [Transactional messaging writes](docs/Transactional-Messaging-Writes.md) scenario guide; integration and unit tests (
-  T-21–T-24).
 - Writer item/metadata model: `InboxAcceptItem`, `InboxAcceptMetadata`, `OutboxEnqueueItem`, `OutboxEnqueueMetadata`,
   and shared durable value objects in `LiteBus.Messaging.Abstractions.DurableMessaging`.
-- [v6 feature index](docs/v6-Feature-Index.md) and updated writer examples across inbox/outbox docs.
-
-### Changed
-
-- **Writer APIs:** `IInbox.AcceptAsync` and `IOutbox.EnqueueAsync` take `InboxAcceptItem` / `OutboxEnqueueItem` with
-  per-message metadata. Removed `InboxOptions`, `OutboxOptions`, `IInboxScheduler`, and `IOutboxScheduler`. Deferred
-  visibility uses `MessageVisibility` on metadata.
-- Analyzer LB1004 message targets `IInbox.AcceptAsync`, `AcceptBatchAsync`, `ITransactionalInbox`, and `InboxAcceptItem` rather than scheduler APIs.
-- Analyzer inventory documented through LB1017 in [Analyzers](docs/Analyzers.md), including LB1014 (processor without dispatcher, error severity), LB1015–LB1016 (transactional EF/interceptor and DbContext), and LB1017 (explicit contract registration for attributed types).
-- Saga: per-dispatch `AsyncLocal` scope, `SagaDefinitionId` and tenant-scoped primary keys, versioned `SagaCompleteItem`, hook save/complete semantics, concurrency retry in `SagaProcessorHook`, `ISagaStore.QueryAsync` / `PurgeAsync`, removed `ISaga<TState>`.
-- **Pre-GA naming pass (complete in shipping libraries):** see
-  [Migration Guide v6](docs/Migration-Guide-v6.md) for the legacy → v6 inventory for consumer upgrades. Highlights:
-  - `MediateOptions` → `MessageMediationRequest`; handler conflict exceptions consolidated to
-    `MultipleHandlerFoundException`.
-  - In-process dispatch: `UseCommandInboxDispatcher` / `UseEventOutboxDispatcher` → `UseInProcessDispatch`.
-  - EF Core: `UseEfCoreStorage` / `EfCore*StoreOptions` → `UseEntityFrameworkCoreStorage` /
-    `EntityFrameworkCore*StoreOptions`.
-  - AWS SQS packages: `*.Aws` / `*.AwsSqsSqs` → `*.AwsSqs` (NuGet IDs aligned with `AwsSqs*` types).
-  - ASP.NET management: `*QueryParameters` / `*PurgeParameters` → `*QueryBinding` / `*PurgeBinding`.
-  - Outbox writer items: `Event` → `Message`, `EventType` → `MessageType`; `InboxAcceptMetadata.Default` →
-    `Immediate`; typed `InboxReceipt<TMessage>` on single-message accept.
-  - Event settings flatten: `EventRoutingSettings`, `EventExecutionSettings`, `EventHandlerFilter`.
-  - Transport telemetry type renames (`LiteBusTransport*Telemetry`); legacy `LiteBus.Testing` `Fake*` mediators and
-    stores → `Test*` (unrelated to sample message fixtures such as `FakeCommand` in test projects).
-  - Immutable `*Options` → `sealed record` where applicable; `*HostOptions` remain `sealed class`.
-  - Shipped value objects: `LeaseRenewalRequest`, `SagaSaveItem<TState>`, `MessageErrorContext`.
-- **Writer construction:** removed `InboxAcceptItems` and `OutboxEnqueueItems` companion types. Build items with
-  static factories on `InboxAcceptItem` / `OutboxEnqueueItem` (`From`, `WithTopic`, `WithIdempotency`, and related
-  helpers). Use body-only `AcceptAsync(message)` / `EnqueueAsync(message)` overloads when metadata is
-  `*Metadata.Immediate`.
-
-## v6.0.0
-
-Greenfield release for durable messaging. Adopt v6 as a fresh integration: nested module builders, `AcceptAsync` /
-`EnqueueAsync`, pipelined processors only, and PostgreSQL **schema version 1** with no in-place upgrade from LiteBus v5
-table shapes. Historical v4/v5 upgrade steps remain in [Migration Guide v4](docs/Migration-Guide-v4.md)
-and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
-
-### Added
-
+- [Transactional messaging writes](docs/Transactional-Messaging-Writes.md) scenario guide.
+- `LiteBus.Testing` package with `Test*` mediators, inbox/outbox test doubles, and assertion helpers.
 - `ICompositeModule` and nested `InboxModuleBuilder` / `OutboxModuleBuilder` with `UsePostgreSqlStorage`,
   `UseEntityFrameworkCoreStorage`, `UseInMemoryStorage`, `UseInProcessDispatch`, `UseAmqpDispatch`,
   and `UseAmqpIngress`.
@@ -75,19 +44,23 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
   cleanup, dead-letter replay APIs.
 - Transactional outbox: `LiteBusOutboxSaveChangesInterceptor`, `ITransactionalOutbox<TContext>`, aligned PostgreSQL
   connection and EF `UseExistingDbContext` participation APIs.
-- `LiteBus.Analyzers` rules LB1001, LB1003, LB1004, LB1005, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1013.
+- `LiteBus.Analyzers` rules LB1001, LB1003, LB1004, LB1005, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1013,
+  LB1014 (processor without dispatcher), LB1015–LB1016 (transactional EF/interceptor and DbContext), LB1017 (explicit
+  contract registration for attributed types). See [Analyzers](docs/Analyzers.md).
 - Saga inbox integration (`inbox.EnableSaga()`), payload encryption hooks, tenant lease filters, management and health
   extensions.
 - Docs corpus under `docs/` with [Home](docs/Home.md), [Migration Guide v6](docs/Migration-Guide-v6.md),
-  and [v6 feature index](docs/v6-Feature-Index.md).
+  [v6 feature index](docs/v6-Feature-Index.md), and [Capability catalog](docs/Capability-Catalog.md).
 
 ### Breaking changes
 
 - **Target framework:** `net10.0` only (.NET 8 and 9 dropped).
-- **Writer APIs:** `IInbox.AcceptAsync` and `IOutbox.EnqueueAsync` replace `AddAsync` / scheduler aliases. No obsolete
-  shims.
-- **In-process dispatch:** `UseInProcessDispatch()` and `UseInProcessDispatch()` replace flat
-  `AddInboxInProcessDispatcher` / event publisher dispatch paths.
+- **Writer APIs:** `IInbox.AcceptAsync` and `IOutbox.EnqueueAsync` replace `AddAsync` / scheduler aliases. Removed
+  `InboxOptions`, `OutboxOptions`, `IInboxScheduler`, and `IOutboxScheduler`. Deferred visibility uses `MessageVisibility`
+  on `*Metadata`. No obsolete shims.
+- **Writer construction:** removed `InboxAcceptItems` and `OutboxEnqueueItems` companion types. Build items with static
+  factories on `InboxAcceptItem` / `OutboxEnqueueItem` (`From`, `WithTopic`, `WithIdempotency`, and related helpers).
+- **In-process dispatch:** `UseInProcessDispatch()` replaces flat `AddInboxInProcessDispatcher` / event publisher dispatch paths.
 - **Processors:** pipelined processors only; sequential legacy loops removed.
 - **PostgreSQL schema:** version **1** greenfield DDL. Drop legacy LiteBus tables and apply v1 create scripts; no
   `GetUpgradeScript` path from v5 shapes.
@@ -110,6 +83,13 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
 - Module configuration throws when two modules register the same service type with different bindings.
 - PostgreSQL store options default `EnsureSchemaCreationOnStartup = true`; optional validate-only startup for
   migration-owned DDL.
+- Analyzer LB1004 targets `IInbox.AcceptAsync`, `AcceptBatchAsync`, `ITransactionalInbox`, and `InboxAcceptItem` rather
+  than scheduler APIs.
+- Saga: per-dispatch `AsyncLocal` scope, `SagaDefinitionId` and tenant-scoped primary keys, versioned `SagaCompleteItem`,
+  hook save/complete semantics, concurrency retry in `SagaProcessorHook`, `ISagaStore.QueryAsync` / `PurgeAsync`, removed
+  `ISaga<TState>`.
+- **v6.0 API renames (complete in shipping libraries):** see [Migration Guide v6](docs/Migration-Guide-v6.md) for the
+  legacy → v6 inventory.
 
 ### Fixed
 
@@ -121,7 +101,7 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
 ### Docs
 
 - Purged wiki-dump corruption from `docs/*.md`; canonical docs start at line 1 with a single `#` title.
-- Rewrote `docs/_Sidebar.md` with relative links and production tier badges.
+- Rewrote `docs/_Sidebar.md` with relative links; production tiers documented on [Home](docs/Home.md).
 - README points to `docs/Home.md`; wiki documented as legacy mirror.
 - Added `docs/internal/Test-Coverage-Matrix.md` for GA coverage tracking.
 
@@ -215,8 +195,9 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
   you must enforce idempotency with application keys such as `CommandScheduleOptions.IdempotencyKey` and
   `OutboxOptions.MessageId`.
 - v5 ships durable storage for **PostgreSQL only** (`LiteBus.Inbox.Storage.PostgreSql`,
-  `LiteBus.Outbox.Storage.PostgreSql`). Entity Framework Core and SQL Server store packages remain on the roadmap; bring
-  your own store by implementing the writer, lease, and state role interfaces until those packages ship.
+  `LiteBus.Outbox.Storage.PostgreSql`). Entity Framework Core and SQL Server store packages shipped in **v6**
+  (`LiteBus.Inbox.Storage.EntityFrameworkCore`, `LiteBus.Outbox.Storage.EntityFrameworkCore`); dedicated SQL Server
+  Npgsql-style packages remain on the [Roadmap](docs/Roadmap.md).
 
 ## v4.4.0
 

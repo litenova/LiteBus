@@ -6,7 +6,7 @@
   LiteBus
 </h1>
 
-<h4 align="center">A semantic, high-performance mediator for CQS and DDD in .NET. Free under MIT, forever.</h4>
+<h4 align="center">A semantic, high-performance mediator for CQS and DDD in .NET 10. Free under MIT, forever.</h4>
 
 <p align="center">
   <a href="https://github.com/litenova/LiteBus/actions/workflows/release.yml">
@@ -23,8 +23,8 @@
   </a>
 </p>
 
-LiteBus is an in-process mediator that keeps commands, queries, and events as separate, first-class concepts so your
-application code stays self-documenting. It runs handlers through a typed pipeline, caches handler metadata at startup,
+LiteBus is an in-process mediator for **.NET 10** that keeps commands, queries, and events as separate, first-class concepts so your
+application code stays self-documenting. Version 6 adds durable inbox and outbox messaging with composable storage, dispatch, and ingress packages. It runs handlers through a typed pipeline, caches handler metadata at startup,
 and depends on no DI container.
 
 - **Semantic by design.** `ICommand<TResult>`, `IQuery<TResult>`, and `IEvent` instead of one generic request. Events
@@ -135,7 +135,7 @@ See [LiteBus vs. MediatR](docs/LiteBus-and-MediatR-Differences.md) for the full 
 
 ## Documentation
 
-Canonical documentation lives in [docs/Home.md](docs/Home.md): concepts, per-module guides, reliable messaging,
+Canonical documentation lives in [docs/Home.md](docs/Home.md): v6 concepts, per-module guides, reliable messaging,
 internals, troubleshooting, and a glossary. The [GitHub wiki](https://github.com/litenova/LiteBus/wiki) is a legacy
 mirror.
 
