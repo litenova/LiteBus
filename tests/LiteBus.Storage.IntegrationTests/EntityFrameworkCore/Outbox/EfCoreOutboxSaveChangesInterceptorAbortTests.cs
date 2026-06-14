@@ -1,5 +1,6 @@
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -135,7 +136,8 @@ public sealed class EfCoreOutboxSaveChangesInterceptorAbortTests : IClassFixture
             CreatedAt = DateTimeOffset.UtcNow,
             Status = OutboxStatus.Pending,
             AttemptCount = 0,
-            IdempotencyKey = idempotencyKey
+            IdempotencyKey = idempotencyKey,
+            IdempotencyConflictMode = IdempotencyConflictMode.Strict
         };
     }
 

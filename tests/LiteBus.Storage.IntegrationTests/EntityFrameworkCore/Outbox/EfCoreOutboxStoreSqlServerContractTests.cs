@@ -7,6 +7,7 @@ namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Outbox;
 /// <summary>
 ///     Runs shared outbox store contract tests against Entity Framework Core with SQL Server.
 /// </summary>
+[Collection(SqlServerOutboxCollection.Name)]
 public sealed class EfCoreOutboxStoreSqlServerContractTests : OutboxStoreContractTests, IClassFixture<SqlServerFixture>
 {
     /// <summary>

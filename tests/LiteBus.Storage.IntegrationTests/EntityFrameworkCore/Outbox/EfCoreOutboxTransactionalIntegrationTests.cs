@@ -1,6 +1,7 @@
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Storage.EntityFrameworkCore;
+using LiteBus.Storage.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
@@ -136,9 +137,11 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
          await using (context.ConfigureAwait(false))
          {
 
-        await context.Database.ExecuteSqlInterpolatedAsync(
+        var qualifiedOrdersTable = PostgreSqlIdentifier.Qualify(storeOptions.SchemaName, ordersTableName);
+
+        await context.Database.ExecuteSqlRawAsync(
             $"""
-             CREATE TABLE IF NOT EXISTS "{storeOptions.SchemaName}"."{ordersTableName}" (
+             CREATE TABLE IF NOT EXISTS {qualifiedOrdersTable} (
                  order_id uuid NOT NULL PRIMARY KEY,
                  amount numeric NOT NULL);
              """).ConfigureAwait(false);

@@ -6,6 +6,7 @@ namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Inbox;
 /// <summary>
 ///     Runs inbox retention contract tests against Entity Framework Core with SQL Server.
 /// </summary>
+[Collection(SqlServerInboxCollection.Name)]
 public sealed class EfCoreInboxRetentionStoreSqlServerContractTests : InboxRetentionStoreContractTests, IClassFixture<SqlServerFixture>
 {
     /// <summary>
