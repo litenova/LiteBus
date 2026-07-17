@@ -1,3 +1,4 @@
+using LiteBus.Transport.AwsSqs;
 using System.Text;
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
@@ -94,7 +95,7 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
                 Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
             }).ConfigureAwait(false);
 
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
             var messageId = Guid.NewGuid();
 
             await publisher.PublishAsync(new TransportPublishRequest
@@ -145,7 +146,7 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
 
         try
         {
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
             var messageId = Guid.NewGuid();
 
             await publisher.PublishAsync(new TransportPublishRequest
@@ -177,6 +178,7 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new AwsSqsTransportModule(_fixture.TransportOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -192,16 +194,14 @@ public sealed class AwsSqsInboxIngressFailureIntegrationTests : LiteBusTestBase
 
                     inbox.UseAwsSqsDispatch(_ =>
                     {
-                    }, _fixture.TransportOptions);
+                    });
 
                 inbox.UseAwsSqsIngress(ingress =>
                 {
-                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AwsSqsInboxIngressOptions
                         {
                             Destination = ingressQueueUrl,
                             PrefetchCount = 1,
-                            Connection = _fixture.TransportOptions,
                             RequeueOnFailure = true
                         });
                     });

@@ -42,7 +42,7 @@ public sealed class TransportOutboxDispatcher : IOutboxDispatcher
     /// <summary>
     ///     Gets the transport used as the dispatch target.
     /// </summary>
-    private readonly IMessageTransport _transport;
+    private readonly ITransportPublisher _transport;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="TransportOutboxDispatcher" /> class.
@@ -54,7 +54,7 @@ public sealed class TransportOutboxDispatcher : IOutboxDispatcher
     /// <param name="payloadProtector">The optional outbox protector used to decrypt stored payloads before deserialization.</param>
     /// <param name="tenantRoutingStrategy">The optional tenant routing strategy used to resolve transport routes.</param>
     public TransportOutboxDispatcher(
-        IMessageTransport transport,
+        ITransportPublisher transport,
         IContractReader contractRegistry,
         IMessageSerializer messageSerializer,
         TransportOutboxDispatcherOptions options,

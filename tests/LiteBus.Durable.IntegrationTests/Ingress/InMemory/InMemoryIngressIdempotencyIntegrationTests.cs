@@ -1,3 +1,4 @@
+using LiteBus.Transport.InMemory;
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
 using LiteBus.Inbox;
@@ -41,7 +42,7 @@ public sealed class InMemoryIngressIdempotencyIntegrationTests : LiteBusTestBase
 
         try
         {
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
             var headers = TransportTestHeaders.Create(messageId, ContractName, 1);
 
             await publisher.PublishAsync(new TransportPublishRequest
@@ -83,6 +84,7 @@ public sealed class InMemoryIngressIdempotencyIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new InMemoryTransportModule());
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -95,7 +97,6 @@ public sealed class InMemoryIngressIdempotencyIntegrationTests : LiteBusTestBase
 
                     inbox.UseInMemoryIngress(ingress =>
                     {
-                        ingress.UseRegisteredTransport();
                         ingress.UseOptions(new InMemoryInboxIngressOptions
                         {
                             Destination = ingressDestination,

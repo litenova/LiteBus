@@ -1,3 +1,4 @@
+using LiteBus.Transport.Kafka;
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
 using LiteBus.Transport.IntegrationTesting.Kafka;
@@ -150,6 +151,7 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new KafkaTransportModule(_fixture.TransportOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -167,8 +169,7 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
                     });
 
                     outbox.UseKafkaDispatch(
-                        transport => transport.DefaultDestination = topic,
-                        _fixture.TransportOptions);
+                        transport => transport.DefaultDestination = topic);
                 });
             })
             .BuildServiceProvider();

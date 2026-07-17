@@ -84,6 +84,7 @@ public sealed class AzureServiceBusOptionalIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new AzureServiceBusTransportModule(transportOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -102,8 +103,7 @@ public sealed class AzureServiceBusOptionalIntegrationTests : LiteBusTestBase
                     inbox.UseInMemoryStorage();
 
                     inbox.UseAzureServiceBusDispatch(
-                        transport => transport.DefaultDestination = queueName,
-                        transportOptions);
+                        transport => transport.DefaultDestination = queueName);
                 });
             })
             .BuildServiceProvider();

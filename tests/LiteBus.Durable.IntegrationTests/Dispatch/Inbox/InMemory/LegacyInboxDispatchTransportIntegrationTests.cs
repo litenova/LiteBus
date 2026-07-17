@@ -1,3 +1,4 @@
+using LiteBus.Transport.InMemory;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
@@ -98,6 +99,7 @@ public sealed class InboxDispatchTransportIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new InMemoryTransportModule());
                 registry.AddMessageModule(_ =>
                 {
                 });

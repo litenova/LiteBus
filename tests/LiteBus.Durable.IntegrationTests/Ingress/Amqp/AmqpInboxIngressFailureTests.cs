@@ -149,6 +149,7 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
+                registry.Register(new AmqpTransportModule(connectionOptions));
             registry.AddMessageModule(_ =>
             {
             });
@@ -170,16 +171,14 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
 
                 inbox.UseAmqpDispatch(_ =>
                 {
-                }, connectionOptions);
+                });
 
                 inbox.UseAmqpIngress(ingress =>
                 {
-                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AmqpInboxIngressOptions
                     {
                         QueueName = queueName,
                         PrefetchCount = 1,
-                        Connection = connectionOptions,
                         RequeueOnFailure = true
                     });
                 });

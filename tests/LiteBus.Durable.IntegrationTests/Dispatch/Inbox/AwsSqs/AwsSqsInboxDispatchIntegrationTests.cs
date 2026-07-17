@@ -1,3 +1,4 @@
+using LiteBus.Transport.AwsSqs;
 using LiteBus.Transport.IntegrationTesting;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
@@ -89,6 +90,7 @@ public sealed class AwsSqsInboxDispatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new AwsSqsTransportModule(_fixture.TransportOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -107,8 +109,7 @@ public sealed class AwsSqsInboxDispatchIntegrationTests : LiteBusTestBase
                     inbox.UseInMemoryStorage();
 
                     inbox.UseAwsSqsDispatch(
-                        transport => transport.DefaultDestination = queueUrl,
-                        _fixture.TransportOptions);
+                        transport => transport.DefaultDestination = queueUrl);
                 });
             })
             .BuildServiceProvider();

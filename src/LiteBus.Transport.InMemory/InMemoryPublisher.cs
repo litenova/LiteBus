@@ -6,7 +6,7 @@ namespace LiteBus.Transport.InMemory;
 /// <summary>
 ///     Publishes transport messages into the in-memory channel broker.
 /// </summary>
-public sealed class InMemoryPublisher : IMessageTransport
+public sealed class InMemoryPublisher : ITransportPublisher
 {
     /// <summary>
     ///     Gets the shared broker receiving published deliveries.

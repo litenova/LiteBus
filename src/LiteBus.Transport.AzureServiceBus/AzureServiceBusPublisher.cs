@@ -7,7 +7,7 @@ namespace LiteBus.Transport.AzureServiceBus;
 /// <summary>
 ///     Publishes messages to Azure Service Bus queues or topics.
 /// </summary>
-public sealed class AzureServiceBusPublisher : IMessageTransport, IDisposable, IAsyncDisposable
+public sealed class AzureServiceBusPublisher : ITransportPublisher, IDisposable, IAsyncDisposable
 {
     /// <summary>
     ///     Gets the circuit breaker guarding publish operations.

@@ -1,3 +1,4 @@
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Dependencies;
 using LiteBus.Runtime.Modules;
 using LiteBus.Transport.Abstractions;
@@ -27,7 +28,7 @@ public sealed class AwsSqsTransportModuleTests
         new AwsSqsTransportModule(options).Build(configuration);
 
         configuration.DependencyRegistry
-            .Count(descriptor => descriptor.DependencyType == typeof(IMessageTransport))
+            .Count(descriptor => descriptor.DependencyType == typeof(ITransportPublisher))
             .Should()
             .Be(1);
     }
@@ -46,6 +47,8 @@ public sealed class AwsSqsTransportModuleTests
 
         var act = () => new AwsSqsTransportModule(options).Build(configuration);
 
-        act.Should().Throw<Transport.TransportAlreadyRegisteredException>();
+        act.Should()
+            .Throw<LiteBusConfigurationException>()
+            .WithMessage("*already registered*");
     }
 }

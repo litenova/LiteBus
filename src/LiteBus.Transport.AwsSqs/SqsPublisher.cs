@@ -7,7 +7,7 @@ namespace LiteBus.Transport.AwsSqs;
 /// <summary>
 ///     Publishes messages to Amazon SQS queues.
 /// </summary>
-public sealed class SqsPublisher : IMessageTransport
+public sealed class SqsPublisher : ITransportPublisher
 {
     /// <summary>
     ///     Gets the circuit breaker guarding publish operations.

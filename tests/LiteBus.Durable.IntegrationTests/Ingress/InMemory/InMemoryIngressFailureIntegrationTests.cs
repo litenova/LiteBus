@@ -1,3 +1,4 @@
+using LiteBus.Transport.InMemory;
 using System.Text;
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
@@ -71,7 +72,7 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
             Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
         }).ConfigureAwait(false);
 
-        var publisher = provider.GetRequiredService<IMessageTransport>();
+        var publisher = provider.GetRequiredService<ITransportPublisher>();
         var messageId = Guid.NewGuid();
 
         await publisher.PublishAsync(new TransportPublishRequest
@@ -111,7 +112,7 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
          {
         await StartIngressAsync(provider).ConfigureAwait(false);
 
-        var publisher = provider.GetRequiredService<IMessageTransport>();
+        var publisher = provider.GetRequiredService<ITransportPublisher>();
         var messageId = Guid.NewGuid();
 
         await publisher.PublishAsync(new TransportPublishRequest
@@ -139,6 +140,7 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new InMemoryTransportModule());
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -156,7 +158,6 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
 
                     inbox.UseInMemoryIngress(ingress =>
                     {
-                        ingress.UseRegisteredTransport();
                         ingress.UseOptions(new InMemoryInboxIngressOptions
                         {
                             Destination = ingressDestination,

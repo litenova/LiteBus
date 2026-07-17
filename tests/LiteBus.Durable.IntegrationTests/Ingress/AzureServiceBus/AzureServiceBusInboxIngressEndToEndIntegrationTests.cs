@@ -1,3 +1,4 @@
+using LiteBus.Transport.AzureServiceBus;
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
 using LiteBus.Inbox;
@@ -64,7 +65,7 @@ public sealed class AzureServiceBusInboxIngressEndToEndIntegrationTests : LiteBu
 
         try
         {
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
 
             await publisher.PublishAsync(new TransportPublishRequest
             {
@@ -104,6 +105,7 @@ public sealed class AzureServiceBusInboxIngressEndToEndIntegrationTests : LiteBu
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new AzureServiceBusTransportModule(_fixture.TransportOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -123,17 +125,14 @@ public sealed class AzureServiceBusInboxIngressEndToEndIntegrationTests : LiteBu
                     inbox.UseInMemoryStorage();
 
                     inbox.UseAzureServiceBusDispatch(
-                        transport => transport.DefaultDestination = dispatchQueue,
-                        _fixture.TransportOptions);
+                        transport => transport.DefaultDestination = dispatchQueue);
 
                 inbox.UseAzureServiceBusIngress(ingress =>
                 {
-                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AzureServiceBusInboxIngressOptions
                         {
                             Destination = ingressQueue,
                             PrefetchCount = 1,
-                            Connection = _fixture.TransportOptions
                         });
                     });
                 });

@@ -1,17 +1,10 @@
-using LiteBus.Transport.Kafka;
-
 namespace LiteBus.Inbox.Ingress.Kafka;
 
 /// <summary>
-///     Configures Kafka inbox ingress and connection settings.
+///     Configures Kafka inbox ingress.
 /// </summary>
 public sealed record KafkaInboxIngressOptions
 {
-    /// <summary>
-    ///     Gets the Kafka connection settings used by the ingress consumer.
-    /// </summary>
-    public required KafkaTransportOptions Connection { get; init; }
-
     /// <summary>
     ///     Gets the topic name the ingress consumer subscribes to.
     /// </summary>

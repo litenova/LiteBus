@@ -1,3 +1,4 @@
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Dependencies;
 using LiteBus.Runtime.Modules;
 using LiteBus.Transport;
@@ -30,7 +31,9 @@ public sealed class AzureServiceBusTransportModuleTests
 
         var act = () => module.Build(configuration);
 
-        act.Should().Throw<TransportAlreadyRegisteredException>();
+        act.Should()
+            .Throw<LiteBusConfigurationException>()
+            .WithMessage("*already registered*");
     }
 
     /// <summary>

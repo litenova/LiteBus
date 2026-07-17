@@ -203,6 +203,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new AmqpTransportModule(ConnectionOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -220,7 +221,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
                     });
 
                     builder.UseAmqpDispatch(
-                        transport => transport.DefaultDestination = exchangeName, ConnectionOptions);
+                        transport => transport.DefaultDestination = exchangeName);
                 });
             })
             .BuildServiceProvider();
@@ -509,6 +510,7 @@ public sealed class AmqpOutboxDispatchRegistrationTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -520,7 +522,7 @@ public sealed class AmqpOutboxDispatchRegistrationTests : LiteBusTestBase
                     outbox.UseAmqpDispatch(
                         _ =>
                         {
-                        }, new AmqpConnectionOptions { HostName = "localhost" });
+                        });
                 });
             })
             .BuildServiceProvider();

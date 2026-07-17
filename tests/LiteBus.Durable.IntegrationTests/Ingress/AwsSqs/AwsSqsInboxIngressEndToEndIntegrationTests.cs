@@ -1,3 +1,4 @@
+using LiteBus.Transport.AwsSqs;
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
 using LiteBus.Inbox;
@@ -61,7 +62,7 @@ public sealed class AwsSqsInboxIngressEndToEndIntegrationTests : LiteBusTestBase
 
         try
         {
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
             var command = new ShipOrderCommand { OrderId = orderId };
             var payload = JsonSerializer.SerializeToUtf8Bytes(command);
 
@@ -108,6 +109,7 @@ public sealed class AwsSqsInboxIngressEndToEndIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new AwsSqsTransportModule(_fixture.TransportOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -127,17 +129,14 @@ public sealed class AwsSqsInboxIngressEndToEndIntegrationTests : LiteBusTestBase
                     inbox.UseInMemoryStorage();
 
                     inbox.UseAwsSqsDispatch(
-                        transport => transport.DefaultDestination = dispatchQueueUrl,
-                        _fixture.TransportOptions);
+                        transport => transport.DefaultDestination = dispatchQueueUrl);
 
                 inbox.UseAwsSqsIngress(ingress =>
                 {
-                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AwsSqsInboxIngressOptions
                         {
                             Destination = ingressQueueUrl,
                             PrefetchCount = 1,
-                            Connection = _fixture.TransportOptions
                         });
                     });
                 });

@@ -1,3 +1,4 @@
+using LiteBus.Transport.Kafka;
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
 using LiteBus.Inbox;
@@ -69,7 +70,7 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
 
             try
             {
-                var publisher = provider.GetRequiredService<IMessageTransport>();
+                var publisher = provider.GetRequiredService<ITransportPublisher>();
                 var command = new ShipOrderCommand { OrderId = orderId };
                 var payload = JsonSerializer.SerializeToUtf8Bytes(command);
 
@@ -122,6 +123,7 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new KafkaTransportModule(connection));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -145,19 +147,16 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
                         {
                             transport.DefaultDestination = dispatchTopic;
                             transport.ResolveRoute = _ => dispatchTopic;
-                        },
-                        connection);
+                        });
 
                     inbox.UseKafkaIngress(ingress =>
                     {
                         KafkaIngressTestSupport.ConfigureTestIngress(ingress);
-                        ingress.UseRegisteredTransport();
 
                         ingress.UseOptions(new KafkaInboxIngressOptions
                         {
                             Destination = ingressTopic,
                             PrefetchCount = 1,
-                            Connection = connection
                         });
                     });
                 });

@@ -5,7 +5,7 @@ using LiteBus.Transport.Abstractions;
 namespace LiteBus.Transport.Kafka;
 
 /// <summary>
-///     Module that registers Kafka transport services implementing <see cref="Abstractions.IMessageTransport" />.
+///     Module that registers Kafka transport services implementing <see cref="Abstractions.ITransportPublisher" />.
 /// </summary>
 public sealed class KafkaTransportModule : IModule
 {
@@ -29,8 +29,6 @@ public sealed class KafkaTransportModule : IModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        TransportModuleRegistration.EnsureTransportNotRegistered(configuration, nameof(KafkaTransportModule));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(KafkaTransportOptions),
@@ -89,7 +87,7 @@ public sealed class KafkaTransportModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IMessageTransport),
+            typeof(ITransportPublisher),
             typeof(KafkaPublisher)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

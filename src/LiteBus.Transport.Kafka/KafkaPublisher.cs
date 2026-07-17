@@ -6,7 +6,7 @@ namespace LiteBus.Transport.Kafka;
 /// <summary>
 ///     Publishes messages to Kafka topics.
 /// </summary>
-public sealed class KafkaPublisher : IMessageTransport, IDisposable
+public sealed class KafkaPublisher : ITransportPublisher, IDisposable
 {
     /// <summary>
     ///     Gets the circuit breaker guarding publish operations.

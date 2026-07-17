@@ -53,7 +53,7 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
 
         try
         {
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
             var messageId = Guid.NewGuid();
 
             await publisher.PublishAsync(new TransportPublishRequest
@@ -94,7 +94,7 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
 
         try
         {
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
             var messageId = Guid.NewGuid();
             var orderId = Guid.NewGuid();
 
@@ -133,6 +133,7 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
 
         services.AddLiteBus(registry =>
         {
+                registry.Register(new AwsSqsTransportModule(CreateTestTransportOptions()));
             registry.AddMessageModule(_ =>
             {
             });
@@ -144,16 +145,14 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
 
                 inbox.UseAwsSqsDispatch(_ =>
                 {
-                }, CreateTestTransportOptions());
+                });
 
                 inbox.UseAwsSqsIngress(ingress =>
                 {
-                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AwsSqsInboxIngressOptions
                     {
                         Destination = ingressQueueUrl,
                         PrefetchCount = 1,
-                        Connection = CreateTestTransportOptions(),
                         RequeueOnFailure = requeueOnFailure
                     });
                 });

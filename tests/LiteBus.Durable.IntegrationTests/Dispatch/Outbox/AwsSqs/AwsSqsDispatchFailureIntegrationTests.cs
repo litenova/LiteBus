@@ -136,6 +136,7 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
+                registry.Register(new AwsSqsTransportModule(transportOptions));
             registry.AddMessageModule(_ =>
             {
             });
@@ -158,8 +159,7 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
                 });
 
                 outbox.UseAwsSqsDispatch(
-                    transport => transport.DefaultDestination = "http://127.0.0.1:1/000000000000/unreachable",
-                    transportOptions);
+                    transport => transport.DefaultDestination = "http://127.0.0.1:1/000000000000/unreachable");
             });
         });
 

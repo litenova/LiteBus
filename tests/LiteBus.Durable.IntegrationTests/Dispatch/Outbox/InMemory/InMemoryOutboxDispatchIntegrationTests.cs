@@ -139,6 +139,7 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new InMemoryTransportModule());
                 registry.AddMessageModule(_ =>
                 {
                 });

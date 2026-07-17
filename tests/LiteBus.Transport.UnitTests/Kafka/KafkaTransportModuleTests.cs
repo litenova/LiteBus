@@ -1,3 +1,4 @@
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Dependencies;
 using LiteBus.Runtime.Modules;
 using LiteBus.Transport.Abstractions;
@@ -27,7 +28,7 @@ public sealed class KafkaTransportModuleTests
         new KafkaTransportModule(options).Build(configuration);
 
         configuration.DependencyRegistry
-            .Count(descriptor => descriptor.DependencyType == typeof(IMessageTransport))
+            .Count(descriptor => descriptor.DependencyType == typeof(ITransportPublisher))
             .Should()
             .Be(1);
 
@@ -51,6 +52,8 @@ public sealed class KafkaTransportModuleTests
 
         var act = () => new KafkaTransportModule(options).Build(configuration);
 
-        act.Should().Throw<Transport.TransportAlreadyRegisteredException>();
+        act.Should()
+            .Throw<LiteBusConfigurationException>()
+            .WithMessage("*already registered*");
     }
 }

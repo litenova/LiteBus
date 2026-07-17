@@ -88,6 +88,7 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new AmqpTransportModule(connectionOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -113,7 +114,7 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
                         {
                             transport.DefaultDestination = exchangeName;
                             transport.ResolveRoute = _ => routingKey;
-                        }, connectionOptions);
+                        });
                 });
             })
             .BuildServiceProvider(new ServiceProviderOptions

@@ -1,3 +1,4 @@
+using LiteBus.Transport.Kafka;
 using LiteBus.Transport.IntegrationTesting;
 using LiteBus.Transport.IntegrationTesting.Kafka;
 using LiteBus.Inbox;
@@ -101,6 +102,7 @@ public sealed class KafkaInboxDispatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new KafkaTransportModule(_fixture.TransportOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -119,8 +121,7 @@ public sealed class KafkaInboxDispatchIntegrationTests : LiteBusTestBase
                     inbox.UseInMemoryStorage();
 
                     inbox.UseKafkaDispatch(
-                        transport => transport.DefaultDestination = topic,
-                        _fixture.TransportOptions);
+                        transport => transport.DefaultDestination = topic);
                 });
             })
             .BuildServiceProvider(new ServiceProviderOptions

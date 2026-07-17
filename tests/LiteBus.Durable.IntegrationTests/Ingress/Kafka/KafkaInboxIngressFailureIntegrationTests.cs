@@ -85,7 +85,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
 
                 await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
 
-                var publisher = provider.GetRequiredService<IMessageTransport>();
+                var publisher = provider.GetRequiredService<ITransportPublisher>();
                 var messageId = Guid.NewGuid();
 
                 await publisher.PublishAsync(new TransportPublishRequest
@@ -138,7 +138,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
 
         try
         {
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
             var consumer = provider.GetRequiredService<IMessageConsumer>();
 
             await publisher.PublishAsync(new TransportPublishRequest
@@ -221,7 +221,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
             {
                 await KafkaIngressTestSupport.StartIngressAsync(provider).ConfigureAwait(false);
 
-                var publisher = provider.GetRequiredService<IMessageTransport>();
+                var publisher = provider.GetRequiredService<ITransportPublisher>();
                 var messageId = Guid.NewGuid();
 
                 await publisher.PublishAsync(new TransportPublishRequest
@@ -277,6 +277,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new KafkaTransportModule(connection));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -298,7 +299,6 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
                         {
                             Destination = ingressTopic,
                             PrefetchCount = 1,
-                            Connection = connection,
                             RequeueOnFailure = true
                         });
                     });

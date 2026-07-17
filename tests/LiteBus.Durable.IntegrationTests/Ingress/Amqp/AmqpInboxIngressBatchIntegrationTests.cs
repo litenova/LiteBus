@@ -107,6 +107,7 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new AmqpTransportModule(connectionOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -118,16 +119,14 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
 
                     inbox.UseAmqpDispatch(_ =>
                     {
-                    }, connectionOptions);
+                    });
 
                 inbox.UseAmqpIngress(ingress =>
                 {
-                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AmqpInboxIngressOptions
                         {
                             QueueName = queueName,
                             PrefetchCount = prefetch,
-                            Connection = connectionOptions,
                             EnableBatchAccept = true,
                             BatchMaxWait = batchMaxWait
                         });

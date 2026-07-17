@@ -133,6 +133,7 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
+                registry.Register(new KafkaTransportModule(transportOptions));
             registry.AddMessageModule(_ =>
             {
             });
@@ -155,8 +156,7 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
                 });
 
                 outbox.UseKafkaDispatch(
-                    transport => transport.DefaultDestination = "unreachable-topic",
-                    transportOptions);
+                    transport => transport.DefaultDestination = "unreachable-topic");
             });
         });
 

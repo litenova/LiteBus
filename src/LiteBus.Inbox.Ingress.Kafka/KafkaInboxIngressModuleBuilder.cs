@@ -24,28 +24,12 @@ public sealed class KafkaInboxIngressModuleBuilder
     public bool EnableIngressConsumer { get; private set; } = true;
 
     /// <summary>
-    ///     Gets a value indicating whether ingress should use a transport module registered elsewhere in the graph.
-    /// </summary>
-    internal bool UseRegisteredTransportOnly { get; private set; }
-
-    /// <summary>
     ///     Disables registration of the Kafka ingress consumer background service.
     /// </summary>
     /// <returns>The current builder.</returns>
     public KafkaInboxIngressModuleBuilder DisableIngressConsumer()
     {
         EnableIngressConsumer = false;
-        return this;
-    }
-
-    /// <summary>
-    ///     Uses an existing <see cref="LiteBus.Transport.Kafka.KafkaTransportModule" /> in the module graph instead of
-    ///     declaring a child module.
-    /// </summary>
-    /// <returns>The current builder.</returns>
-    public KafkaInboxIngressModuleBuilder UseRegisteredTransport()
-    {
-        UseRegisteredTransportOnly = true;
         return this;
     }
 

@@ -3,7 +3,7 @@ namespace LiteBus.Transport.Abstractions;
 /// <summary>
 ///     Publishes messages to a transport broker.
 /// </summary>
-public interface IMessageTransport
+public interface ITransportPublisher
 {
     /// <summary>
     ///     Publishes one message to the configured broker.

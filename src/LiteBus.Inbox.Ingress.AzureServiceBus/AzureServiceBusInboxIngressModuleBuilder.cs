@@ -23,28 +23,12 @@ public sealed class AzureServiceBusInboxIngressModuleBuilder
     public bool EnableIngressConsumer { get; private set; } = true;
 
     /// <summary>
-    ///     Gets a value indicating whether ingress should use a transport module registered elsewhere in the graph.
-    /// </summary>
-    internal bool UseRegisteredTransportOnly { get; private set; }
-
-    /// <summary>
     ///     Disables registration of the Service Bus ingress consumer background service.
     /// </summary>
     /// <returns>The current builder.</returns>
     public AzureServiceBusInboxIngressModuleBuilder DisableIngressConsumer()
     {
         EnableIngressConsumer = false;
-        return this;
-    }
-
-    /// <summary>
-    ///     Uses an existing <see cref="LiteBus.Transport.AzureServiceBus.AzureServiceBusTransportModule" /> in the
-    ///     module graph instead of declaring a child module.
-    /// </summary>
-    /// <returns>The current builder.</returns>
-    public AzureServiceBusInboxIngressModuleBuilder UseRegisteredTransport()
-    {
-        UseRegisteredTransportOnly = true;
         return this;
     }
 

@@ -51,7 +51,11 @@ public static class V6CompositionSmokeRegistration
                 inbox.UseInMemoryStorage();
                 inbox.UseInProcessDispatch();
                 inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
-                inbox.EnableSaga(registry => registry.MapState<OrderSagaState>("orders.saga.advance"));
+                inbox.EnableSaga(saga =>
+                {
+                    saga.MapState<OrderSagaState>("orders.saga.advance");
+                    saga.UseInMemoryStorage();
+                });
             });
 
             builder.Modules.AddOutboxModule(outbox =>

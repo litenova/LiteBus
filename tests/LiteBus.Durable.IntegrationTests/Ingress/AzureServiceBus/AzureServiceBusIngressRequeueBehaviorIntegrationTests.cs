@@ -1,3 +1,4 @@
+using LiteBus.Transport.AzureServiceBus;
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
 using LiteBus.Inbox;
@@ -55,7 +56,7 @@ public sealed class AzureServiceBusIngressRequeueBehaviorIntegrationTests : Lite
 
         try
         {
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
             var messageId = Guid.NewGuid();
 
             await publisher.PublishAsync(new TransportPublishRequest
@@ -88,6 +89,7 @@ public sealed class AzureServiceBusIngressRequeueBehaviorIntegrationTests : Lite
 
         services.AddLiteBus(registry =>
         {
+                registry.Register(new AzureServiceBusTransportModule(_fixture.TransportOptions));
             registry.AddMessageModule(_ =>
             {
             });
@@ -99,16 +101,14 @@ public sealed class AzureServiceBusIngressRequeueBehaviorIntegrationTests : Lite
 
                 inbox.UseAzureServiceBusDispatch(_ =>
                 {
-                }, _fixture.TransportOptions);
+                });
 
                 inbox.UseAzureServiceBusIngress(ingress =>
                 {
-                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AzureServiceBusInboxIngressOptions
                     {
                         Destination = ingressQueue,
                         PrefetchCount = 1,
-                        Connection = _fixture.TransportOptions,
                         RequeueOnFailure = true
                     });
                 });

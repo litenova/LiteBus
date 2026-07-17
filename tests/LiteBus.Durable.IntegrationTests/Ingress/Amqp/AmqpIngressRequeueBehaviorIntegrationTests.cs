@@ -59,7 +59,7 @@ public sealed class AmqpIngressRequeueBehaviorIntegrationTests : LiteBusTestBase
 
         try
         {
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
             var messageId = Guid.NewGuid();
 
             await publisher.PublishAsync(new TransportPublishRequest
@@ -120,6 +120,7 @@ public sealed class AmqpIngressRequeueBehaviorIntegrationTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
+                registry.Register(new AmqpTransportModule(_broker.ConnectionOptions));
             registry.AddMessageModule(_ =>
             {
             });
@@ -131,16 +132,14 @@ public sealed class AmqpIngressRequeueBehaviorIntegrationTests : LiteBusTestBase
 
                 inbox.UseAmqpDispatch(_ =>
                 {
-                }, _broker.ConnectionOptions);
+                });
 
                 inbox.UseAmqpIngress(ingress =>
                 {
-                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AmqpInboxIngressOptions
                     {
                         QueueName = ingressQueue,
                         PrefetchCount = 1,
-                        Connection = _broker.ConnectionOptions,
                         RequeueOnFailure = requeueOnFailure
                     });
                 });

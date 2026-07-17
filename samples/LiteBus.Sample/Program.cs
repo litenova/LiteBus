@@ -24,12 +24,12 @@ builder.Services.AddLiteBus(liteBus =>
 {
     var applicationAssembly = typeof(ProcessPaymentCommand).Assembly;
 
-    liteBus.Modules.AddMessageModule(_ => { });
-    liteBus.Modules.AddCommandModule(commands => commands.RegisterFromAssembly(applicationAssembly));
-    liteBus.Modules.AddQueryModule(queries => queries.RegisterFromAssembly(applicationAssembly));
-    liteBus.Modules.AddEventModule(events => events.RegisterFromAssembly(applicationAssembly));
+    liteBus.AddMessaging(_ => { });
+    liteBus.AddCommands(commands => commands.RegisterFromAssembly(applicationAssembly));
+    liteBus.AddQueries(queries => queries.RegisterFromAssembly(applicationAssembly));
+    liteBus.AddEvents(events => events.RegisterFromAssembly(applicationAssembly));
 
-    liteBus.Modules.AddInboxModule(inbox =>
+    liteBus.AddInbox(inbox =>
     {
         inbox.Contracts.Register<ProcessPaymentCommand>("payments.process");
         inbox.UseInMemoryStorage();
@@ -37,7 +37,7 @@ builder.Services.AddLiteBus(liteBus =>
         inbox.EnableInboxProcessor(options => options.PollInterval = TimeSpan.FromMilliseconds(100));
     });
 
-    liteBus.Modules.AddOutboxModule(outbox =>
+    liteBus.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<PaymentProcessed>("payments.processed");
         outbox.UseInMemoryStorage();

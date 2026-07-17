@@ -6,7 +6,7 @@ namespace LiteBus.Transport.AzureServiceBus;
 
 /// <summary>
 ///     Module that registers Azure Service Bus transport services implementing
-///     <see cref="Abstractions.IMessageTransport" />.
+///     <see cref="Abstractions.ITransportPublisher" />.
 /// </summary>
 public sealed class AzureServiceBusTransportModule : IModule
 {
@@ -30,8 +30,6 @@ public sealed class AzureServiceBusTransportModule : IModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        TransportModuleRegistration.EnsureTransportNotRegistered(configuration, nameof(AzureServiceBusTransportModule));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(AzureServiceBusTransportOptions),
@@ -58,7 +56,7 @@ public sealed class AzureServiceBusTransportModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IMessageTransport),
+            typeof(ITransportPublisher),
             typeof(AzureServiceBusPublisher)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

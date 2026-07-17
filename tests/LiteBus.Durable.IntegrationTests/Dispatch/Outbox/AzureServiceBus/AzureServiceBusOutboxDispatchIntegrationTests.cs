@@ -1,3 +1,4 @@
+using LiteBus.Transport.AzureServiceBus;
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
 using LiteBus.Messaging;
@@ -146,6 +147,7 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new AzureServiceBusTransportModule(_fixture.TransportOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -163,8 +165,7 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
                     });
 
                     outbox.UseAzureServiceBusDispatch(
-                        transport => transport.DefaultDestination = queueName,
-                        _fixture.TransportOptions);
+                        transport => transport.DefaultDestination = queueName);
                 });
             })
             .BuildServiceProvider();

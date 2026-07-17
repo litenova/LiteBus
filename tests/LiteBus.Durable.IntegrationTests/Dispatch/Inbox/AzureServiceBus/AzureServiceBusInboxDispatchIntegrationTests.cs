@@ -1,3 +1,4 @@
+using LiteBus.Transport.AzureServiceBus;
 using LiteBus.Transport.IntegrationTesting;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
@@ -100,6 +101,7 @@ public sealed class AzureServiceBusInboxDispatchIntegrationTests : LiteBusTestBa
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new AzureServiceBusTransportModule(_fixture.TransportOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -118,8 +120,7 @@ public sealed class AzureServiceBusInboxDispatchIntegrationTests : LiteBusTestBa
                     inbox.UseInMemoryStorage();
 
                     inbox.UseAzureServiceBusDispatch(
-                        transport => transport.DefaultDestination = queueName,
-                        _fixture.TransportOptions);
+                        transport => transport.DefaultDestination = queueName);
                 });
             })
             .BuildServiceProvider();

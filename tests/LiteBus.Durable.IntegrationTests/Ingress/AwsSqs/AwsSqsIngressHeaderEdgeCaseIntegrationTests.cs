@@ -1,3 +1,4 @@
+using LiteBus.Transport.AwsSqs;
 using System.Text;
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
@@ -107,7 +108,7 @@ public sealed class AwsSqsIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBas
 
         try
         {
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
 
             await publisher.PublishAsync(new TransportPublishRequest
             {
@@ -137,6 +138,7 @@ public sealed class AwsSqsIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBas
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new AwsSqsTransportModule(_fixture.TransportOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -148,16 +150,14 @@ public sealed class AwsSqsIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBas
 
                     inbox.UseAwsSqsDispatch(_ =>
                     {
-                    }, _fixture.TransportOptions);
+                    });
 
                     inbox.UseAwsSqsIngress(ingress =>
                     {
-                        ingress.UseRegisteredTransport();
                         ingress.UseOptions(new AwsSqsInboxIngressOptions
                         {
                             Destination = ingressQueueUrl,
                             PrefetchCount = 1,
-                            Connection = _fixture.TransportOptions,
                             RequeueOnFailure = true
                         });
                     });

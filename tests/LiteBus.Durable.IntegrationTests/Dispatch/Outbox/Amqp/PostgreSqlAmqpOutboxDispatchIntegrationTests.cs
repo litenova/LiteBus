@@ -98,6 +98,7 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new AmqpTransportModule(_rabbitMqFixture.ConnectionOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -121,7 +122,7 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
                     });
 
                     outbox.UseAmqpDispatch(
-                        transport => transport.DefaultDestination = exchangeName, _rabbitMqFixture.ConnectionOptions);
+                        transport => transport.DefaultDestination = exchangeName);
                 });
             })
             .BuildServiceProvider();

@@ -4,7 +4,7 @@ using LiteBus.Transport.Abstractions;
 namespace LiteBus.Transport.InMemory;
 
 /// <summary>
-///     Module that registers in-memory transport services implementing <see cref="Abstractions.IMessageTransport" />.
+///     Module that registers in-memory transport services implementing <see cref="Abstractions.ITransportPublisher" />.
 /// </summary>
 public sealed class InMemoryTransportModule : IModule
 {
@@ -12,8 +12,6 @@ public sealed class InMemoryTransportModule : IModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        TransportModuleRegistration.EnsureTransportNotRegistered(configuration, nameof(InMemoryTransportModule));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(InMemoryTransportBroker),
@@ -26,7 +24,7 @@ public sealed class InMemoryTransportModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IMessageTransport),
+            typeof(ITransportPublisher),
             typeof(InMemoryPublisher)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

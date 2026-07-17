@@ -1,3 +1,4 @@
+using LiteBus.Transport.InMemory;
 using System.Text.Json;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
@@ -148,6 +149,7 @@ public sealed class OutboxDispatchTransportIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new InMemoryTransportModule());
                 registry.AddMessageModule(_ =>
                 {
                 });

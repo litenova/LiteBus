@@ -56,7 +56,7 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
 
         try
         {
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
             var command = new ShipOrderCommand { OrderId = orderId };
             var payload = JsonSerializer.SerializeToUtf8Bytes(command);
 
@@ -106,6 +106,7 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new InMemoryTransportModule());
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -127,7 +128,6 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
 
                     inbox.UseInMemoryIngress(ingress =>
                     {
-                        ingress.UseRegisteredTransport();
                         ingress.UseOptions(new InMemoryInboxIngressOptions
                         {
                             Destination = ingressDestination,

@@ -10,37 +10,12 @@ namespace LiteBus.Inbox.Dispatch.Amqp;
 public static class InboxModuleBuilderAmqpDispatchExtensions
 {
     /// <summary>
-    ///     Registers an AMQP-backed inbox dispatcher and the matching transport module.
+    ///     Registers an AMQP-backed inbox dispatcher that uses the root AMQP transport.
     /// </summary>
     /// <param name="builder">The inbox module builder.</param>
     /// <param name="configure">The dispatcher configuration action.</param>
-    /// <param name="connectionOptions">The AMQP connection settings.</param>
     /// <returns>The inbox module builder for chaining.</returns>
     public static InboxModuleBuilder UseAmqpDispatch(
-        this InboxModuleBuilder builder,
-        Action<TransportInboxDispatcherOptions> configure,
-        AmqpConnectionOptions connectionOptions)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(configure);
-        ArgumentNullException.ThrowIfNull(connectionOptions);
-
-        var options = new TransportInboxDispatcherOptions();
-        configure(options);
-        return builder.RegisterDispatcher(
-            new TransportInboxDispatchModule<AmqpTransportModule>(
-                options,
-                new AmqpTransportModule(connectionOptions)));
-    }
-
-    /// <summary>
-    ///     Registers an AMQP-backed inbox dispatcher that uses an <see cref="AmqpTransportModule" /> registered elsewhere
-    ///     in the module graph.
-    /// </summary>
-    /// <param name="builder">The inbox module builder.</param>
-    /// <param name="configure">The dispatcher configuration action.</param>
-    /// <returns>The inbox module builder for chaining.</returns>
-    public static InboxModuleBuilder UseAmqpDispatchWithRegisteredTransport(
         this InboxModuleBuilder builder,
         Action<TransportInboxDispatcherOptions> configure)
     {

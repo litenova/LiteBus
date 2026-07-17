@@ -4,6 +4,7 @@
     <ItemGroup>
 
         <ProjectReference Include="..\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
 
         <ProjectReference Include="..\LiteBus.Outbox.Dispatch\LiteBus.Outbox.Dispatch.csproj"/>
 

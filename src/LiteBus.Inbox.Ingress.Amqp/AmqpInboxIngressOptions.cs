@@ -1,9 +1,7 @@
-using LiteBus.Transport.Amqp;
-
 namespace LiteBus.Inbox.Ingress.Amqp;
 
 /// <summary>
-///     Configures the AMQP inbox ingress consumer and broker connection settings.
+///     Configures the AMQP inbox ingress consumer.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -20,11 +18,6 @@ namespace LiteBus.Inbox.Ingress.Amqp;
 /// </remarks>
 public sealed record AmqpInboxIngressOptions
 {
-    /// <summary>
-    ///     Gets the broker connection settings used by the ingress consumer.
-    /// </summary>
-    public AmqpConnectionOptions Connection { get; init; } = new();
-
     /// <summary>
     ///     Gets the queue name the ingress consumer subscribes to.
     /// </summary>

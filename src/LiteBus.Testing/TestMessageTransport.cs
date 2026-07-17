@@ -6,7 +6,7 @@ namespace LiteBus.Testing;
 /// <summary>
 ///     In-memory transport double with controllable publish outcomes and recorded publications.
 /// </summary>
-public sealed class TestMessageTransport : IMessageTransport
+public sealed class TestMessageTransport : ITransportPublisher
 {
     /// <summary>
     ///     Gets the publications recorded by <see cref="PublishAsync" />.

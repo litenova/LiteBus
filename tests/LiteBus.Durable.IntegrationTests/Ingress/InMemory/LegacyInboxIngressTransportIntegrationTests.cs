@@ -1,3 +1,4 @@
+using LiteBus.Transport.InMemory;
 using System.Text.Json;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
@@ -36,6 +37,7 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
+                registry.Register(new InMemoryTransportModule());
             registry.AddMessageModule(_ =>
             {
             });
@@ -94,7 +96,7 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
 
         try
         {
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
             var command = new ShipOrderCommand { OrderId = orderId };
             var payload = JsonSerializer.SerializeToUtf8Bytes(command);
 

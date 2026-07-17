@@ -5,7 +5,7 @@ using LiteBus.Transport.Abstractions;
 namespace LiteBus.Transport.Amqp;
 
 /// <summary>
-///     Module that registers AMQP transport services implementing <see cref="Abstractions.IMessageTransport" />.
+///     Module that registers AMQP transport services implementing <see cref="Abstractions.ITransportPublisher" />.
 /// </summary>
 public sealed class AmqpTransportModule : IModule
 {
@@ -29,8 +29,6 @@ public sealed class AmqpTransportModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        TransportModuleRegistration.EnsureTransportNotRegistered(configuration, nameof(AmqpTransportModule));
-
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(AmqpConnectionOptions),
             _options));
@@ -50,7 +48,7 @@ public sealed class AmqpTransportModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IMessageTransport),
+            typeof(ITransportPublisher),
             typeof(AmqpPublisher)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

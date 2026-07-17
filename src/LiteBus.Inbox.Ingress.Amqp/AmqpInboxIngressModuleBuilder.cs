@@ -21,28 +21,12 @@ public sealed class AmqpInboxIngressModuleBuilder
     public bool EnableIngressConsumer { get; private set; } = true;
 
     /// <summary>
-    ///     Gets a value indicating whether ingress should use a transport module registered elsewhere in the graph.
-    /// </summary>
-    internal bool UseRegisteredTransportOnly { get; private set; }
-
-    /// <summary>
     ///     Disables registration of the AMQP ingress consumer background service.
     /// </summary>
     /// <returns>The current builder.</returns>
     public AmqpInboxIngressModuleBuilder DisableIngressConsumer()
     {
         EnableIngressConsumer = false;
-        return this;
-    }
-
-    /// <summary>
-    ///     Uses an existing <see cref="LiteBus.Transport.Amqp.AmqpTransportModule" /> in the module graph instead of
-    ///     declaring a child module.
-    /// </summary>
-    /// <returns>The current builder.</returns>
-    public AmqpInboxIngressModuleBuilder UseRegisteredTransport()
-    {
-        UseRegisteredTransportOnly = true;
         return this;
     }
 

@@ -1,3 +1,4 @@
+using LiteBus.Transport.AzureServiceBus;
 using System.Text;
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
@@ -96,7 +97,7 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
                 Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
             }).ConfigureAwait(false);
 
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
             var messageId = Guid.NewGuid();
 
             await publisher.PublishAsync(new TransportPublishRequest
@@ -147,7 +148,7 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
 
         try
         {
-            var publisher = provider.GetRequiredService<IMessageTransport>();
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
             var messageId = Guid.NewGuid();
 
             await publisher.PublishAsync(new TransportPublishRequest
@@ -180,6 +181,7 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new AzureServiceBusTransportModule(_fixture.TransportOptions));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -195,16 +197,14 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
 
                     inbox.UseAzureServiceBusDispatch(_ =>
                     {
-                    }, _fixture.TransportOptions);
+                    });
 
                 inbox.UseAzureServiceBusIngress(ingress =>
                 {
-                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AzureServiceBusInboxIngressOptions
                         {
                             Destination = ingressQueue,
                             PrefetchCount = 1,
-                            Connection = _fixture.TransportOptions,
                             RequeueOnFailure = true
                         });
                     });

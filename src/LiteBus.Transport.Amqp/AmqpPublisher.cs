@@ -11,7 +11,7 @@ namespace LiteBus.Transport.Amqp;
 /// <summary>
 ///     Publishes AMQP messages through a shared connection manager.
 /// </summary>
-public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport, IAsyncDisposable
+public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncDisposable
 {
     /// <summary>
     ///     Gets the circuit breaker shared with the connection manager when it is a <see cref="AmqpConnectionManager" />.

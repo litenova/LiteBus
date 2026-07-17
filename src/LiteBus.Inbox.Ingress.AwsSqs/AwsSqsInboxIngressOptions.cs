@@ -1,17 +1,10 @@
-using LiteBus.Transport.AwsSqs;
-
 namespace LiteBus.Inbox.Ingress.AwsSqs;
 
 /// <summary>
-///     Configures AWS SQS inbox ingress and connection settings.
+///     Configures AWS SQS inbox ingress.
 /// </summary>
 public sealed record AwsSqsInboxIngressOptions
 {
-    /// <summary>
-    ///     Gets the SQS connection settings used by the ingress consumer.
-    /// </summary>
-    public required AwsSqsTransportOptions Connection { get; init; }
-
     /// <summary>
     ///     Gets the queue URL the ingress consumer polls.
     /// </summary>

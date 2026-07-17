@@ -16,11 +16,6 @@ public static class TransportMetricsRegistration
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (configuration.TryGetContext<TransportMetricsRegisteredMarker>(out _))
-        {
-            return;
-        }
-
         if (!string.IsNullOrWhiteSpace(broker))
         {
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -34,6 +29,5 @@ public static class TransportMetricsRegistration
             InstanceLifetime.Singleton));
 
         configuration.RegisterStartupTask(typeof(TransportObservableMetricsInitializer));
-        configuration.SetContext(new TransportMetricsRegisteredMarker());
     }
 }

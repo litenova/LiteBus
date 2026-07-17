@@ -50,7 +50,7 @@ public sealed class TransportHeaderMappingException : Exception
         return new TransportHeaderMappingException(
             headerName,
             $"Transport header '{headerName}' is required but missing or empty on the delivery. " +
-            $"Publishers must set '{headerName}' when sending through IMessageTransport, " +
+            $"Publishers must set '{headerName}' when sending through ITransportPublisher, " +
             "TransportOutboxDispatcher, TransportInboxDispatcher, or an equivalent transport adapter.");
     }
 
@@ -65,7 +65,7 @@ public sealed class TransportHeaderMappingException : Exception
         return new TransportHeaderMappingException(
             headerName,
             $"Transport header '{headerName}' is invalid: {detail} " +
-            $"Publishers must set '{headerName}' correctly when sending through IMessageTransport, " +
+            $"Publishers must set '{headerName}' correctly when sending through ITransportPublisher, " +
             "TransportOutboxDispatcher, TransportInboxDispatcher, or an equivalent transport adapter.");
     }
 }

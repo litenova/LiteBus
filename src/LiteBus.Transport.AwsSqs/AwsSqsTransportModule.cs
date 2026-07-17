@@ -7,7 +7,7 @@ using LiteBus.Transport.Abstractions;
 namespace LiteBus.Transport.AwsSqs;
 
 /// <summary>
-///     Module that registers AWS SQS transport services implementing <see cref="Abstractions.IMessageTransport" />.
+///     Module that registers AWS SQS transport services implementing <see cref="Abstractions.ITransportPublisher" />.
 /// </summary>
 public sealed class AwsSqsTransportModule : IModule
 {
@@ -30,8 +30,6 @@ public sealed class AwsSqsTransportModule : IModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        TransportModuleRegistration.EnsureTransportNotRegistered(configuration, nameof(AwsSqsTransportModule));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(AwsSqsTransportOptions),
@@ -72,7 +70,7 @@ public sealed class AwsSqsTransportModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IMessageTransport),
+            typeof(ITransportPublisher),
             typeof(SqsPublisher)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

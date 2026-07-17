@@ -23,6 +23,7 @@ using LiteBus.Outbox.Dispatch.AzureServiceBus;
 using LiteBus.Outbox.Dispatch.InMemory;
 using LiteBus.Outbox.Dispatch.Kafka;
 using LiteBus.Outbox.Storage.InMemory;
+using LiteBus.Runtime.Abstractions;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Amqp;
@@ -42,14 +43,18 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
     /// <summary>
     ///     Verifies inbox broker dispatch extensions register <see cref="TransportInboxDispatcher" /> and transport services.
     /// </summary>
+    /// <param name="transportModule">The root transport module required by the dispatcher.</param>
     /// <param name="configure">The inbox module configuration action.</param>
     [Theory]
     [MemberData(nameof(InboxDispatchConfigurations))]
-    public void InboxDispatchExtensions_ShouldRegisterTransportDispatcher(Action<InboxModuleBuilder> configure)
+    public void InboxDispatchExtensions_ShouldRegisterTransportDispatcher(
+        IModule transportModule,
+        Action<InboxModuleBuilder> configure)
     {
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(transportModule);
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -63,7 +68,7 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
             .BuildServiceProvider();
 
         provider.GetRequiredService<IInboxDispatcher>().Should().BeOfType<TransportInboxDispatcher>();
-        provider.GetRequiredService<IMessageTransport>().Should().NotBeNull();
+        provider.GetRequiredService<ITransportPublisher>().Should().NotBeNull();
         provider.GetRequiredService<IMessageConsumer>().Should().NotBeNull();
     }
 
@@ -71,14 +76,18 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
     ///     Verifies outbox broker dispatch extensions register <see cref="TransportOutboxDispatcher" /> and transport
     ///     services.
     /// </summary>
+    /// <param name="transportModule">The root transport module required by the dispatcher.</param>
     /// <param name="configure">The outbox module configuration action.</param>
     [Theory]
     [MemberData(nameof(OutboxDispatchConfigurations))]
-    public void OutboxDispatchExtensions_ShouldRegisterTransportDispatcher(Action<OutboxModuleBuilder> configure)
+    public void OutboxDispatchExtensions_ShouldRegisterTransportDispatcher(
+        IModule transportModule,
+        Action<OutboxModuleBuilder> configure)
     {
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(transportModule);
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -92,21 +101,25 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
             .BuildServiceProvider();
 
         provider.GetRequiredService<IOutboxDispatcher>().Should().BeOfType<TransportOutboxDispatcher>();
-        provider.GetRequiredService<IMessageTransport>().Should().NotBeNull();
+        provider.GetRequiredService<ITransportPublisher>().Should().NotBeNull();
         provider.GetRequiredService<IMessageConsumer>().Should().NotBeNull();
     }
 
     /// <summary>
     ///     Verifies broker ingress extensions register the shared ingress handler and consumer types.
     /// </summary>
+    /// <param name="transportModule">The root transport module required by ingress.</param>
     /// <param name="configure">The inbox module configuration action.</param>
     [Theory]
     [MemberData(nameof(InboxIngressConfigurations))]
-    public void InboxIngressExtensions_ShouldRegisterIngressServices(Action<InboxModuleBuilder> configure)
+    public void InboxIngressExtensions_ShouldRegisterIngressServices(
+        IModule transportModule,
+        Action<InboxModuleBuilder> configure)
     {
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(transportModule);
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -124,7 +137,7 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
     }
 
     /// <summary>
-    ///     Verifies ingress can depend on the in-memory transport child owned by inbox dispatch.
+    ///     Verifies ingress and dispatch share an in-memory transport registered at the root.
     /// </summary>
     [Fact]
     public void InMemoryIngress_WithRegisteredTransport_ShouldShareDispatchTransport()
@@ -134,6 +147,7 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                registry.Register(new InMemoryTransportModule());
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -146,7 +160,6 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
                     {
                         ingressConfigurationCount++;
                         ingress.DisableIngressConsumer();
-                        ingress.UseRegisteredTransport();
                         ingress.UseOptions(new InMemoryInboxIngressOptions { Destination = "commands" });
                     });
                 });
@@ -178,7 +191,6 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
                     inbox.UseInMemoryIngress(ingress =>
                     {
                         ingress.DisableIngressConsumer();
-                        ingress.UseRegisteredTransport();
                         ingress.UseOptions(new InMemoryInboxIngressOptions { Destination = "commands" });
                     });
                 });
@@ -208,11 +220,10 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
                 registry.AddInboxModule(inbox =>
                 {
                     inbox.UseInMemoryStorage();
-                    inbox.UseInMemoryDispatchWithRegisteredTransport();
+                    inbox.UseInMemoryDispatch();
                     inbox.UseInMemoryIngress(ingress =>
                     {
                         ingress.DisableIngressConsumer();
-                        ingress.UseRegisteredTransport();
                         ingress.UseOptions(new InMemoryInboxIngressOptions { Destination = "commands" });
                     });
                 });
@@ -220,7 +231,7 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
                 registry.AddOutboxModule(outbox =>
                 {
                     outbox.UseInMemoryStorage();
-                    outbox.UseInMemoryDispatchWithRegisteredTransport();
+                    outbox.UseInMemoryDispatch();
                 });
             })
             .BuildServiceProvider();
@@ -228,7 +239,7 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
         provider.GetRequiredService<IInboxDispatcher>().Should().BeOfType<TransportInboxDispatcher>();
         provider.GetRequiredService<IOutboxDispatcher>().Should().BeOfType<TransportOutboxDispatcher>();
         provider.GetRequiredService<TransportInboxIngressHandler>().Should().NotBeNull();
-        provider.GetServices<IMessageTransport>().Should().ContainSingle();
+        provider.GetServices<ITransportPublisher>().Should().ContainSingle();
         provider.GetServices<IMessageConsumer>().Should().ContainSingle();
     }
 
@@ -236,110 +247,101 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
     ///     Gets inbox dispatch configuration cases for each broker package.
     /// </summary>
     /// <returns>The inbox dispatch configuration data.</returns>
-    public static TheoryData<Action<InboxModuleBuilder>> InboxDispatchConfigurations()
+    public static TheoryData<IModule, Action<InboxModuleBuilder>> InboxDispatchConfigurations()
     {
-        return
-        [
-            inbox => inbox.UseInMemoryDispatch(),
-            inbox => inbox.UseAmqpDispatch(_ =>
-            {
-            }, new AmqpConnectionOptions { HostName = "localhost" }),
-            inbox => inbox.UseAzureServiceBusDispatch(
-                _ =>
-                {
-                },
-                new AzureServiceBusTransportOptions { ConnectionString = "Endpoint=sb://example/;SharedAccessKeyName=a;SharedAccessKey=b" }),
-            inbox => inbox.UseAwsSqsDispatch(_ =>
-            {
-            }, new AwsSqsTransportOptions { ServiceUrl = "http://localhost:4566" }),
-            inbox => inbox.UseKafkaDispatch(_ =>
-            {
-            }, new KafkaTransportOptions { BootstrapServers = "localhost:9092" })
-        ];
+        var data = new TheoryData<IModule, Action<InboxModuleBuilder>>();
+        data.Add(new InMemoryTransportModule(), inbox => inbox.UseInMemoryDispatch());
+        data.Add(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }), inbox => inbox.UseAmqpDispatch(_ =>
+        {
+        }));
+        data.Add(new AzureServiceBusTransportModule(new AzureServiceBusTransportOptions
+        {
+            ConnectionString = "Endpoint=sb://example/;SharedAccessKeyName=a;SharedAccessKey=b"
+        }), inbox => inbox.UseAzureServiceBusDispatch(_ =>
+        {
+        }));
+        data.Add(new AwsSqsTransportModule(new AwsSqsTransportOptions { ServiceUrl = "http://localhost:4566" }), inbox => inbox.UseAwsSqsDispatch(_ =>
+        {
+        }));
+        data.Add(new KafkaTransportModule(new KafkaTransportOptions { BootstrapServers = "localhost:9092" }), inbox => inbox.UseKafkaDispatch(_ =>
+        {
+        }));
+        return data;
     }
 
     /// <summary>
     ///     Gets outbox dispatch configuration cases for each broker package.
     /// </summary>
     /// <returns>The outbox dispatch configuration data.</returns>
-    public static TheoryData<Action<OutboxModuleBuilder>> OutboxDispatchConfigurations()
+    public static TheoryData<IModule, Action<OutboxModuleBuilder>> OutboxDispatchConfigurations()
     {
-        return
-        [
-            outbox => outbox.UseInMemoryDispatch(),
-            outbox => outbox.UseAmqpDispatch(_ =>
-            {
-            }, new AmqpConnectionOptions { HostName = "localhost" }),
-            outbox => outbox.UseAzureServiceBusDispatch(
-                _ =>
-                {
-                },
-                new AzureServiceBusTransportOptions { ConnectionString = "Endpoint=sb://example/;SharedAccessKeyName=a;SharedAccessKey=b" }),
-            outbox => outbox.UseAwsSqsDispatch(_ =>
-            {
-            }, new AwsSqsTransportOptions { ServiceUrl = "http://localhost:4566" }),
-            outbox => outbox.UseKafkaDispatch(_ =>
-            {
-            }, new KafkaTransportOptions { BootstrapServers = "localhost:9092" })
-        ];
+        var data = new TheoryData<IModule, Action<OutboxModuleBuilder>>();
+        data.Add(new InMemoryTransportModule(), outbox => outbox.UseInMemoryDispatch());
+        data.Add(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }), outbox => outbox.UseAmqpDispatch(_ =>
+        {
+        }));
+        data.Add(new AzureServiceBusTransportModule(new AzureServiceBusTransportOptions
+        {
+            ConnectionString = "Endpoint=sb://example/;SharedAccessKeyName=a;SharedAccessKey=b"
+        }), outbox => outbox.UseAzureServiceBusDispatch(_ =>
+        {
+        }));
+        data.Add(new AwsSqsTransportModule(new AwsSqsTransportOptions { ServiceUrl = "http://localhost:4566" }), outbox => outbox.UseAwsSqsDispatch(_ =>
+        {
+        }));
+        data.Add(new KafkaTransportModule(new KafkaTransportOptions { BootstrapServers = "localhost:9092" }), outbox => outbox.UseKafkaDispatch(_ =>
+        {
+        }));
+        return data;
     }
 
     /// <summary>
     ///     Gets inbox ingress configuration cases for each broker package.
     /// </summary>
     /// <returns>The inbox ingress configuration data.</returns>
-    public static TheoryData<Action<InboxModuleBuilder>> InboxIngressConfigurations()
+    public static TheoryData<IModule, Action<InboxModuleBuilder>> InboxIngressConfigurations()
     {
-        return
-        [
-            inbox => inbox.UseInMemoryIngress(ingress =>
+        var data = new TheoryData<IModule, Action<InboxModuleBuilder>>();
+        data.Add(new InMemoryTransportModule(), inbox => inbox.UseInMemoryIngress(ingress =>
+        {
+            ingress.DisableIngressConsumer();
+            ingress.UseOptions(new InMemoryInboxIngressOptions { Destination = "commands" });
+        }));
+        data.Add(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }), inbox => inbox.UseAmqpIngress(ingress =>
+        {
+            ingress.DisableIngressConsumer();
+            ingress.UseOptions(new AmqpInboxIngressOptions
             {
-                ingress.DisableIngressConsumer();
-                ingress.UseOptions(new InMemoryInboxIngressOptions { Destination = "commands" });
-            }),
-            inbox => inbox.UseAmqpIngress(ingress =>
+                QueueName = "commands"
+            });
+        }));
+        data.Add(new AzureServiceBusTransportModule(new AzureServiceBusTransportOptions
+        {
+            ConnectionString = "Endpoint=sb://example/;SharedAccessKeyName=a;SharedAccessKey=b"
+        }), inbox => inbox.UseAzureServiceBusIngress(ingress =>
+        {
+            ingress.DisableIngressConsumer();
+            ingress.UseOptions(new AzureServiceBusInboxIngressOptions
             {
-                ingress.DisableIngressConsumer();
-
-                ingress.UseOptions(new AmqpInboxIngressOptions
-                {
-                    QueueName = "commands",
-                    Connection = new AmqpConnectionOptions { HostName = "localhost" }
-                });
-            }),
-            inbox => inbox.UseAzureServiceBusIngress(ingress =>
+                Destination = "commands"
+            });
+        }));
+        data.Add(new AwsSqsTransportModule(new AwsSqsTransportOptions { ServiceUrl = "http://localhost:4566" }), inbox => inbox.UseAwsSqsIngress(ingress =>
+        {
+            ingress.DisableIngressConsumer();
+            ingress.UseOptions(new AwsSqsInboxIngressOptions
             {
-                ingress.DisableIngressConsumer();
-
-                ingress.UseOptions(new AzureServiceBusInboxIngressOptions
-                {
-                    Destination = "commands",
-                    Connection = new AzureServiceBusTransportOptions
-                    {
-                        ConnectionString = "Endpoint=sb://example/;SharedAccessKeyName=a;SharedAccessKey=b"
-                    }
-                });
-            }),
-            inbox => inbox.UseAwsSqsIngress(ingress =>
+                Destination = "http://localhost:4566/000000000000/commands"
+            });
+        }));
+        data.Add(new KafkaTransportModule(new KafkaTransportOptions { BootstrapServers = "localhost:9092" }), inbox => inbox.UseKafkaIngress(ingress =>
+        {
+            ingress.DisableIngressConsumer();
+            ingress.UseOptions(new KafkaInboxIngressOptions
             {
-                ingress.DisableIngressConsumer();
-
-                ingress.UseOptions(new AwsSqsInboxIngressOptions
-                {
-                    Destination = "http://localhost:4566/000000000000/commands",
-                    Connection = new AwsSqsTransportOptions { ServiceUrl = "http://localhost:4566" }
-                });
-            }),
-            inbox => inbox.UseKafkaIngress(ingress =>
-            {
-                ingress.DisableIngressConsumer();
-
-                ingress.UseOptions(new KafkaInboxIngressOptions
-                {
-                    Destination = "commands",
-                    Connection = new KafkaTransportOptions { BootstrapServers = "localhost:9092" }
-                });
-            })
-        ];
+                Destination = "commands"
+            });
+        }));
+        return data;
     }
 }
