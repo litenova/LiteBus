@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -24,6 +25,11 @@ internal sealed class ModuleRegistry : IModuleRegistry
     private readonly HashSet<Type> _registeredTypes = [];
 
     /// <summary>
+    ///     Additional ordering edges inferred from composite parent-child relationships.
+    /// </summary>
+    private readonly Dictionary<Type, HashSet<Type>> _implicitDependenciesByModuleType = [];
+
+    /// <summary>
     ///     Cached module descriptors sorted in dependency order.
     /// </summary>
     private IReadOnlyList<ModuleDescriptor>? _cachedOrderedModules;
@@ -45,9 +51,43 @@ internal sealed class ModuleRegistry : IModuleRegistry
                 "Complete all module registration before building the module graph.");
         }
 
+        List<IModule> stagedModules = [];
+        HashSet<Type> stagedTypes = [];
+        Dictionary<Type, HashSet<Type>> stagedDependencies = [];
+        StageModule(module, stagedModules, stagedTypes, stagedDependencies);
+
+        _orderedModules.AddRange(stagedModules);
+        _registeredTypes.UnionWith(stagedTypes);
+
+        foreach (var (moduleType, dependencies) in stagedDependencies)
+        {
+            _implicitDependenciesByModuleType[moduleType] = dependencies;
+        }
+
+        _cachedOrderedModules = null;
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Expands one module and its composite descendants without mutating the live registry.
+    /// </summary>
+    /// <param name="module">The module currently being staged.</param>
+    /// <param name="stagedModules">The modules staged by the current registration call.</param>
+    /// <param name="stagedTypes">The module types staged by the current registration call.</param>
+    /// <param name="stagedDependencies">Composite ordering edges staged by the current registration call.</param>
+    /// <exception cref="LiteBusConfigurationException">Thrown when a module type is already registered or staged.</exception>
+    private void StageModule(
+        IModule module,
+        List<IModule> stagedModules,
+        HashSet<Type> stagedTypes,
+        Dictionary<Type, HashSet<Type>> stagedDependencies)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+
         var moduleType = module.GetType();
 
-        if (!_registeredTypes.Add(moduleType))
+        if (_registeredTypes.Contains(moduleType) || !stagedTypes.Add(moduleType))
         {
             throw new LiteBusConfigurationException(
                 $"Module '{moduleType.FullName ?? moduleType.Name}' is already registered. " +
@@ -55,16 +95,39 @@ internal sealed class ModuleRegistry : IModuleRegistry
                 "For MessageModule, call AddMessageModule() once before semantic modules such as AddCommandModule().");
         }
 
-        _orderedModules.Add(module);
+        stagedModules.Add(module);
 
         if (module is ICompositeModule composite)
         {
-            composite.DeclareChildren(child => Register(child));
+            if (!Enum.IsDefined(composite.BuildOrder))
+            {
+                throw new LiteBusConfigurationException(
+                    $"Composite module '{moduleType.FullName ?? moduleType.Name}' returned an invalid build order.");
+            }
+
+            composite.DeclareChildren(child =>
+            {
+                ArgumentNullException.ThrowIfNull(child);
+
+                var childType = child.GetType();
+                StageModule(child, stagedModules, stagedTypes, stagedDependencies);
+
+                var dependentType = composite.BuildOrder == CompositeModuleBuildOrder.ParentFirst
+                    ? childType
+                    : moduleType;
+                var dependencyType = composite.BuildOrder == CompositeModuleBuildOrder.ParentFirst
+                    ? moduleType
+                    : childType;
+
+                if (!stagedDependencies.TryGetValue(dependentType, out var dependencies))
+                {
+                    dependencies = [];
+                    stagedDependencies.Add(dependentType, dependencies);
+                }
+
+                dependencies.Add(dependencyType);
+            });
         }
-
-        _cachedOrderedModules = null;
-
-        return this;
     }
 
     /// <inheritdoc />
@@ -88,7 +151,21 @@ internal sealed class ModuleRegistry : IModuleRegistry
             return _cachedOrderedModules;
         }
 
-        var descriptors = _orderedModules.Select(ModuleDescriptor.Create).ToList();
+        var descriptors = _orderedModules.Select(module =>
+        {
+            var descriptor = ModuleDescriptor.Create(module);
+
+            if (!_implicitDependenciesByModuleType.TryGetValue(descriptor.ModuleType, out var implicitDependencies))
+            {
+                return descriptor;
+            }
+
+            var dependencies = descriptor.Dependencies
+                .Concat(implicitDependencies)
+                .ToFrozenSet();
+
+            return new ModuleDescriptor(module, dependencies);
+        }).ToList();
         _cachedOrderedModules = TopologicalSort(descriptors);
         _isFrozen = true;
         return _cachedOrderedModules;
@@ -109,10 +186,11 @@ internal sealed class ModuleRegistry : IModuleRegistry
         List<ModuleDescriptor> result = [];
         HashSet<Type> visited = [];
         HashSet<Type> visiting = [];
+        List<Type> visitingPath = [];
 
         foreach (var descriptor in descriptors)
         {
-            Visit(descriptor.ModuleType, descriptorsByType, visited, visiting, result);
+            Visit(descriptor.ModuleType, descriptorsByType, visited, visiting, visitingPath, result);
         }
 
         return result.AsReadOnly();
@@ -125,6 +203,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
     /// <param name="descriptorsByType">Dictionary mapping module types to their descriptors.</param>
     /// <param name="visited">Set of already processed module types.</param>
     /// <param name="visiting">Set of module types currently being processed (for cycle detection).</param>
+    /// <param name="visitingPath">Ordered module path currently being processed for cycle diagnostics.</param>
     /// <param name="result">The result list where modules are added in dependency order.</param>
     /// <exception cref="LiteBusConfigurationException">
     ///     Thrown when a circular dependency is detected or when a required dependency is missing.
@@ -134,6 +213,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
         IReadOnlyDictionary<Type, ModuleDescriptor> descriptorsByType,
         ISet<Type> visited,
         ISet<Type> visiting,
+        IList<Type> visitingPath,
         IList<ModuleDescriptor> result)
     {
         if (visited.Contains(moduleType))
@@ -143,14 +223,23 @@ internal sealed class ModuleRegistry : IModuleRegistry
 
         if (!visiting.Add(moduleType))
         {
+            var cycleStart = visitingPath.IndexOf(moduleType);
+            var cycle = visitingPath
+                .Skip(cycleStart < 0 ? 0 : cycleStart)
+                .Append(moduleType)
+                .Select(static type => type.Name);
+
             throw new LiteBusConfigurationException(
-                $"Circular dependency detected involving module '{moduleType.Name}'. " +
+                $"Circular dependency detected: {string.Join(" -> ", cycle)}. " +
                 "Check your IRequires<T> declarations for cycles.");
         }
 
+        visitingPath.Add(moduleType);
         var descriptor = descriptorsByType[moduleType];
 
-        foreach (var dependencyType in descriptor.Dependencies)
+        foreach (var dependencyType in descriptor.Dependencies.OrderBy(
+                     static type => type.FullName ?? type.Name,
+                     StringComparer.Ordinal))
         {
             if (!descriptorsByType.ContainsKey(dependencyType))
             {
@@ -159,9 +248,10 @@ internal sealed class ModuleRegistry : IModuleRegistry
                     "but it is not registered. Ensure all required modules are added to the module registry.");
             }
 
-            Visit(dependencyType, descriptorsByType, visited, visiting, result);
+            Visit(dependencyType, descriptorsByType, visited, visiting, visitingPath, result);
         }
 
+        visitingPath.RemoveAt(visitingPath.Count - 1);
         visiting.Remove(moduleType);
         visited.Add(moduleType);
         result.Add(descriptor);

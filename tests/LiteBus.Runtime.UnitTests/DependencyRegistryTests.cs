@@ -56,6 +56,19 @@ public sealed class DependencyRegistryTests
     }
 
     [Fact]
+    public void RegisterCollection_ShouldPreserveRegistrationOrder()
+    {
+        var registry = new DependencyRegistry();
+
+        registry.RegisterCollection(DependencyDescriptor.ForCollection(typeof(ITestService), typeof(TestServiceB)));
+        registry.RegisterCollection(DependencyDescriptor.ForCollection(typeof(ITestService), typeof(TestServiceA)));
+
+        registry.Select(descriptor => descriptor.ImplementationType)
+            .Should()
+            .Equal(typeof(TestServiceB), typeof(TestServiceA));
+    }
+
+    [Fact]
     public void Register_WithNullDescriptor_ShouldThrowArgumentNullException()
     {
         var registry = new DependencyRegistry();

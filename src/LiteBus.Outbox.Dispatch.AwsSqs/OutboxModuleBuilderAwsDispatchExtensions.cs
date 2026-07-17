@@ -29,6 +29,27 @@ public static class OutboxModuleBuilderAwsDispatchExtensions
         configure(options);
 
         return builder.RegisterDispatcher(
-            new TransportOutboxDispatchModule(options, new AwsSqsTransportModule(transportOptions)));
+            new TransportOutboxDispatchModule<AwsSqsTransportModule>(
+                options,
+                new AwsSqsTransportModule(transportOptions)));
+    }
+
+    /// <summary>
+    ///     Registers an AWS SQS outbox dispatcher that uses an <see cref="AwsSqsTransportModule" /> registered elsewhere
+    ///     in the module graph.
+    /// </summary>
+    /// <param name="builder">The outbox module builder.</param>
+    /// <param name="configure">The dispatcher configuration action.</param>
+    /// <returns>The outbox module builder for chaining.</returns>
+    public static OutboxModuleBuilder UseAwsSqsDispatchWithRegisteredTransport(
+        this OutboxModuleBuilder builder,
+        Action<TransportOutboxDispatcherOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var options = new TransportOutboxDispatcherOptions();
+        configure(options);
+        return builder.RegisterDispatcher(new TransportOutboxDispatchModule<AwsSqsTransportModule>(options));
     }
 }

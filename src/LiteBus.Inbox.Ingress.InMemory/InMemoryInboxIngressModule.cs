@@ -12,12 +12,23 @@ namespace LiteBus.Inbox.Ingress.InMemory;
 /// <summary>
 ///     Module that registers in-memory inbox ingress services.
 /// </summary>
-public sealed class InMemoryInboxIngressModule : IInboxIngressModule
+public sealed class InMemoryInboxIngressModule :
+    IInboxIngressModule,
+    ICompositeModule,
+    IRequires<InMemoryTransportModule>
 {
+    /// <inheritdoc />
+    public CompositeModuleBuildOrder BuildOrder => CompositeModuleBuildOrder.ChildrenFirst;
+
     /// <summary>
     ///     The module builder action supplied at registration time.
     /// </summary>
     private readonly Action<InMemoryInboxIngressModuleBuilder> _builder;
+
+    /// <summary>
+    ///     The builder populated while the module graph declares children.
+    /// </summary>
+    private InMemoryInboxIngressModuleBuilder? _moduleBuilder;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="InMemoryInboxIngressModule" /> class.
@@ -30,12 +41,28 @@ public sealed class InMemoryInboxIngressModule : IInboxIngressModule
     }
 
     /// <inheritdoc />
+    public void DeclareChildren(Action<IModule> registerChild)
+    {
+        ArgumentNullException.ThrowIfNull(registerChild);
+
+        _moduleBuilder = new InMemoryInboxIngressModuleBuilder();
+        _builder(_moduleBuilder);
+
+        if (!_moduleBuilder.UseRegisteredTransportOnly)
+        {
+            registerChild(new InMemoryTransportModule());
+        }
+    }
+
+    /// <inheritdoc />
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var moduleBuilder = new InMemoryInboxIngressModuleBuilder();
-        _builder(moduleBuilder);
+        var moduleBuilder = _moduleBuilder ??
+                            throw new LiteBusConfigurationException(
+                                "InMemoryInboxIngressModule.Build was called without a prior DeclareChildren call. " +
+                                "Register the module through IModuleRegistry.");
 
         var options = moduleBuilder.Options;
 
@@ -77,7 +104,7 @@ public sealed class InMemoryInboxIngressModule : IInboxIngressModule
     }
 
     /// <summary>
-    ///     Ensures <see cref="IMessageConsumer" /> is registered, bootstrapping in-memory transport when needed.
+    ///     Ensures <see cref="IMessageConsumer" /> was registered by the declared or shared transport module.
     /// </summary>
     /// <param name="configuration">The module configuration receiving dependency registrations.</param>
     private static void EnsureTransportRegistered(IModuleConfiguration configuration)
@@ -87,15 +114,8 @@ public sealed class InMemoryInboxIngressModule : IInboxIngressModule
             return;
         }
 
-        new InMemoryTransportModule().Build(configuration);
-
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageConsumer)))
-        {
-            return;
-        }
-
         throw new LiteBusConfigurationException(
             "In-memory inbox ingress requires IMessageConsumer to be registered. " +
-            "Register InMemoryTransportModule before calling UseInMemoryIngress().");
+            "Allow UseInMemoryIngress to declare InMemoryTransportModule or call UseRegisteredTransport after registering a shared transport module.");
     }
 }

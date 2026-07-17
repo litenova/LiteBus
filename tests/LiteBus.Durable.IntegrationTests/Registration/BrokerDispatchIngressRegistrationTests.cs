@@ -28,6 +28,7 @@ using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Amqp;
 using LiteBus.Transport.AwsSqs;
 using LiteBus.Transport.AzureServiceBus;
+using LiteBus.Transport.InMemory;
 using LiteBus.Transport.Kafka;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -120,6 +121,115 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
 
         provider.GetRequiredService<TransportInboxIngressHandler>().Should().NotBeNull();
         provider.GetRequiredService<IMessageConsumer>().Should().NotBeNull();
+    }
+
+    /// <summary>
+    ///     Verifies ingress can depend on the in-memory transport child owned by inbox dispatch.
+    /// </summary>
+    [Fact]
+    public void InMemoryIngress_WithRegisteredTransport_ShouldShareDispatchTransport()
+    {
+        var ingressConfigurationCount = 0;
+
+        var provider = new ServiceCollection()
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessageModule(_ =>
+                {
+                });
+
+                registry.AddInboxModule(inbox =>
+                {
+                    inbox.UseInMemoryStorage();
+                    inbox.UseInMemoryDispatch();
+                    inbox.UseInMemoryIngress(ingress =>
+                    {
+                        ingressConfigurationCount++;
+                        ingress.DisableIngressConsumer();
+                        ingress.UseRegisteredTransport();
+                        ingress.UseOptions(new InMemoryInboxIngressOptions { Destination = "commands" });
+                    });
+                });
+            })
+            .BuildServiceProvider();
+
+        ingressConfigurationCount.Should().Be(1);
+        provider.GetRequiredService<IInboxDispatcher>().Should().BeOfType<TransportInboxDispatcher>();
+        provider.GetRequiredService<TransportInboxIngressHandler>().Should().NotBeNull();
+        provider.GetServices<IMessageConsumer>().Should().ContainSingle();
+    }
+
+    /// <summary>
+    ///     Verifies shared ingress transport mode requires the matching transport module in the graph.
+    /// </summary>
+    [Fact]
+    public void InMemoryIngress_WithMissingRegisteredTransport_ShouldRejectConfiguration()
+    {
+        var act = () => new ServiceCollection()
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessageModule(_ =>
+                {
+                });
+
+                registry.AddInboxModule(inbox =>
+                {
+                    inbox.UseInMemoryStorage();
+                    inbox.UseInMemoryIngress(ingress =>
+                    {
+                        ingress.DisableIngressConsumer();
+                        ingress.UseRegisteredTransport();
+                        ingress.UseOptions(new InMemoryInboxIngressOptions { Destination = "commands" });
+                    });
+                });
+            })
+            .BuildServiceProvider();
+
+        act.Should()
+            .Throw<LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException>()
+            .WithMessage("*InMemoryInboxIngressModule*requires*InMemoryTransportModule*");
+    }
+
+    /// <summary>
+    ///     Verifies one transport module can serve inbox dispatch, outbox dispatch, and inbox ingress.
+    /// </summary>
+    [Fact]
+    public void RegisteredTransport_ShouldSupportCombinedDurableComposition()
+    {
+        var provider = new ServiceCollection()
+            .AddLiteBus(registry =>
+            {
+                registry.Register(new InMemoryTransportModule());
+
+                registry.AddMessageModule(_ =>
+                {
+                });
+
+                registry.AddInboxModule(inbox =>
+                {
+                    inbox.UseInMemoryStorage();
+                    inbox.UseInMemoryDispatchWithRegisteredTransport();
+                    inbox.UseInMemoryIngress(ingress =>
+                    {
+                        ingress.DisableIngressConsumer();
+                        ingress.UseRegisteredTransport();
+                        ingress.UseOptions(new InMemoryInboxIngressOptions { Destination = "commands" });
+                    });
+                });
+
+                registry.AddOutboxModule(outbox =>
+                {
+                    outbox.UseInMemoryStorage();
+                    outbox.UseInMemoryDispatchWithRegisteredTransport();
+                });
+            })
+            .BuildServiceProvider();
+
+        provider.GetRequiredService<IInboxDispatcher>().Should().BeOfType<TransportInboxDispatcher>();
+        provider.GetRequiredService<IOutboxDispatcher>().Should().BeOfType<TransportOutboxDispatcher>();
+        provider.GetRequiredService<TransportInboxIngressHandler>().Should().NotBeNull();
+        provider.GetServices<IMessageTransport>().Should().ContainSingle();
+        provider.GetServices<IMessageConsumer>().Should().ContainSingle();
     }
 
     /// <summary>

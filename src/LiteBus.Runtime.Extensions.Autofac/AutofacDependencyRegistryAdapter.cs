@@ -145,8 +145,9 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
         }
         else if (descriptor.ImplementationType is not null)
         {
-            registration = _builder.RegisterType(descriptor.ImplementationType)
-                .As(descriptor.DependencyType);
+            registration = descriptor.ImplementationType.IsGenericTypeDefinition
+                ? _builder.RegisterGeneric(descriptor.ImplementationType).As(descriptor.DependencyType)
+                : _builder.RegisterType(descriptor.ImplementationType).As(descriptor.DependencyType);
         }
         else
         {

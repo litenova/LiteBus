@@ -13,15 +13,27 @@ namespace LiteBus.Runtime.UnitTests;
 public sealed class ModuleConfigurationDiagnosticCheckTests
 {
     [Fact]
-    public void RegisterDiagnosticCheck_SameTypeTwice_ShouldIgnoreSecondRegistration()
+    public void RegisterDiagnosticCheck_SameTypeAndNameTwice_ShouldIgnoreSecondRegistration()
     {
         var configuration = new ModuleConfiguration(new MicrosoftDependencyRegistryAdapter(new ServiceCollection()));
 
         configuration.RegisterDiagnosticCheck(typeof(SampleDiagnosticCheck), "litebus.sample");
-        configuration.RegisterDiagnosticCheck(typeof(SampleDiagnosticCheck), "litebus.sample.duplicate");
+        configuration.RegisterDiagnosticCheck(typeof(SampleDiagnosticCheck), "litebus.sample");
 
         configuration.DiagnosticChecks.Should().HaveCount(1);
         configuration.DiagnosticChecks[0].Name.Should().Be("litebus.sample");
+    }
+
+    [Fact]
+    public void RegisterDiagnosticCheck_SameTypeWithDifferentName_ShouldThrowLiteBusConfigurationException()
+    {
+        var configuration = new ModuleConfiguration(new MicrosoftDependencyRegistryAdapter(new ServiceCollection()));
+        configuration.RegisterDiagnosticCheck(typeof(SampleDiagnosticCheck), "litebus.sample");
+
+        var act = () => configuration.RegisterDiagnosticCheck(typeof(SampleDiagnosticCheck), "litebus.other");
+
+        act.Should().Throw<LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException>()
+            .WithMessage("*litebus.sample*litebus.other*");
     }
 
     [Fact]

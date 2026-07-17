@@ -27,6 +27,28 @@ public static class InboxModuleBuilderAmqpDispatchExtensions
 
         var options = new TransportInboxDispatcherOptions();
         configure(options);
-        return builder.RegisterDispatcher(new TransportInboxDispatchModule(options, new AmqpTransportModule(connectionOptions)));
+        return builder.RegisterDispatcher(
+            new TransportInboxDispatchModule<AmqpTransportModule>(
+                options,
+                new AmqpTransportModule(connectionOptions)));
+    }
+
+    /// <summary>
+    ///     Registers an AMQP-backed inbox dispatcher that uses an <see cref="AmqpTransportModule" /> registered elsewhere
+    ///     in the module graph.
+    /// </summary>
+    /// <param name="builder">The inbox module builder.</param>
+    /// <param name="configure">The dispatcher configuration action.</param>
+    /// <returns>The inbox module builder for chaining.</returns>
+    public static InboxModuleBuilder UseAmqpDispatchWithRegisteredTransport(
+        this InboxModuleBuilder builder,
+        Action<TransportInboxDispatcherOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var options = new TransportInboxDispatcherOptions();
+        configure(options);
+        return builder.RegisterDispatcher(new TransportInboxDispatchModule<AmqpTransportModule>(options));
     }
 }

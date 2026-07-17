@@ -71,6 +71,18 @@ public sealed class DependencyRegistryAdapterTests
     }
 
     [Fact]
+    public void MicrosoftAdapter_RegisterOpenGeneric_ShouldResolveClosedService()
+    {
+        var services = new ServiceCollection();
+        var adapter = new MicrosoftDependencyRegistryAdapter(services);
+        adapter.Register(new DependencyDescriptor(typeof(IGenericTestService<>), typeof(GenericTestService<>)));
+
+        var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<IGenericTestService<string>>().Should().BeOfType<GenericTestService<string>>();
+    }
+
+    [Fact]
     public void MicrosoftAddLiteBus_RegisterBackgroundServiceTwice_ShouldRegisterSingleHostedService()
     {
         var services = new ServiceCollection();
@@ -164,6 +176,18 @@ public sealed class DependencyRegistryAdapterTests
 
         outerFirst.Should().BeSameAs(outerSecond);
         inner.Should().NotBeSameAs(outerFirst);
+    }
+
+    [Fact]
+    public void AutofacAdapter_RegisterOpenGeneric_ShouldResolveClosedService()
+    {
+        var builder = new ContainerBuilder();
+        var adapter = new AutofacDependencyRegistryAdapter(builder);
+        adapter.Register(new DependencyDescriptor(typeof(IGenericTestService<>), typeof(GenericTestService<>)));
+
+        using var container = builder.Build();
+
+        container.Resolve<IGenericTestService<string>>().Should().BeOfType<GenericTestService<string>>();
     }
 
     [Fact]

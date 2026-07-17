@@ -23,6 +23,25 @@ public static class OutboxModuleBuilderInMemoryDispatchExtensions
 
         var options = new TransportOutboxDispatcherOptions();
         configure?.Invoke(options);
-        return builder.RegisterDispatcher(new TransportOutboxDispatchModule(options, new InMemoryTransportModule()));
+        return builder.RegisterDispatcher(
+            new TransportOutboxDispatchModule<InMemoryTransportModule>(options, new InMemoryTransportModule()));
+    }
+
+    /// <summary>
+    ///     Registers an in-memory outbox dispatcher that uses an <see cref="InMemoryTransportModule" /> registered elsewhere
+    ///     in the module graph.
+    /// </summary>
+    /// <param name="builder">The outbox module builder.</param>
+    /// <param name="configure">The optional dispatcher configuration action.</param>
+    /// <returns>The outbox module builder for chaining.</returns>
+    public static OutboxModuleBuilder UseInMemoryDispatchWithRegisteredTransport(
+        this OutboxModuleBuilder builder,
+        Action<TransportOutboxDispatcherOptions>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var options = new TransportOutboxDispatcherOptions();
+        configure?.Invoke(options);
+        return builder.RegisterDispatcher(new TransportOutboxDispatchModule<InMemoryTransportModule>(options));
     }
 }

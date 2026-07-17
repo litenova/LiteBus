@@ -25,7 +25,7 @@ public sealed class DependencyDescriptorTests
     [Fact]
     public void Equals_WithSameInstanceReference_ShouldBeEqual()
     {
-        var instance = new object();
+        var instance = new TestServiceA();
         var left = new DependencyDescriptor(typeof(ITestService), instance);
         var right = new DependencyDescriptor(typeof(ITestService), instance);
 
@@ -35,8 +35,8 @@ public sealed class DependencyDescriptorTests
     [Fact]
     public void Equals_WithDifferentInstancesForSameServiceType_ShouldNotBeEqual()
     {
-        var left = new DependencyDescriptor(typeof(ITestService), new object());
-        var right = new DependencyDescriptor(typeof(ITestService), new object());
+        var left = new DependencyDescriptor(typeof(ITestService), new TestServiceA());
+        var right = new DependencyDescriptor(typeof(ITestService), new TestServiceA());
 
         left.Should().NotBe(right);
     }
@@ -77,4 +77,60 @@ public sealed class DependencyDescriptorTests
         descriptor.Lifetime.Should().Be(InstanceLifetime.Singleton);
         descriptor.Factory.Should().NotBeNull();
     }
+
+    [Fact]
+    public void TypeConstructor_WithUnrelatedImplementationType_ShouldThrowArgumentException()
+    {
+        var act = () => new DependencyDescriptor(typeof(ITestService), typeof(UnrelatedService));
+
+        act.Should().Throw<ArgumentException>()
+            .WithParameterName("implementationType");
+    }
+
+    [Fact]
+    public void TypeConstructor_WithAbstractImplementationType_ShouldThrowArgumentException()
+    {
+        var act = () => new DependencyDescriptor(typeof(ITestService), typeof(AbstractTestService));
+
+        act.Should().Throw<ArgumentException>()
+            .WithParameterName("implementationType");
+    }
+
+    [Fact]
+    public void TypeConstructor_WithCompatibleOpenGenericImplementation_ShouldRetainTypes()
+    {
+        var descriptor = new DependencyDescriptor(typeof(IGenericService<>), typeof(GenericService<>));
+
+        descriptor.DependencyType.Should().Be(typeof(IGenericService<>));
+        descriptor.ImplementationType.Should().Be(typeof(GenericService<>));
+    }
+
+    [Fact]
+    public void InstanceConstructor_WithUnrelatedInstance_ShouldThrowArgumentException()
+    {
+        var act = () => new DependencyDescriptor(typeof(ITestService), new UnrelatedService());
+
+        act.Should().Throw<ArgumentException>()
+            .WithParameterName("instance");
+    }
+
+    [Fact]
+    public void TypeConstructor_WithUndefinedLifetime_ShouldThrowArgumentOutOfRangeException()
+    {
+        var act = () => new DependencyDescriptor(
+            typeof(ITestService),
+            typeof(TestServiceA),
+            (InstanceLifetime) 999);
+
+        act.Should().Throw<ArgumentOutOfRangeException>()
+            .WithParameterName("lifetime");
+    }
+
+    private interface IGenericService<T>;
+
+    private abstract class AbstractTestService : ITestService;
+
+    private sealed class GenericService<T> : IGenericService<T>;
+
+    private sealed class UnrelatedService;
 }

@@ -1,5 +1,4 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
-using LiteBus.Inbox.Dispatch.InMemory;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Testing;
@@ -24,6 +23,9 @@ public sealed class AmqpInboxIngressModuleRegistrationTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                var connection = new AmqpConnectionOptions { HostName = "localhost" };
+                registry.Register(new AmqpTransportModule(connection));
+
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -31,16 +33,16 @@ public sealed class AmqpInboxIngressModuleRegistrationTests : LiteBusTestBase
                 registry.AddInboxModule(inbox =>
                 {
                     inbox.UseInMemoryStorage();
-                    inbox.UseInMemoryDispatch();
 
                     inbox.UseAmqpIngress(ingress =>
                     {
                         ingress.DisableIngressConsumer();
+                        ingress.UseRegisteredTransport();
 
                         ingress.UseOptions(new AmqpInboxIngressOptions
                         {
                             QueueName = "litebus.inbox.ingress.rabbit",
-                            Connection = new AmqpConnectionOptions { HostName = "localhost" }
+                            Connection = connection
                         });
                     });
                 });

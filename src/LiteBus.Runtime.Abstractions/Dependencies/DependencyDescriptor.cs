@@ -60,6 +60,8 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     {
         ArgumentNullException.ThrowIfNull(dependencyType);
         ArgumentNullException.ThrowIfNull(implementationType);
+        ValidateLifetime(lifetime);
+        ValidateTypeRegistration(dependencyType, implementationType);
 
         DependencyType = dependencyType;
         ImplementationType = implementationType;
@@ -95,6 +97,14 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     {
         ArgumentNullException.ThrowIfNull(dependencyType);
         ArgumentNullException.ThrowIfNull(instance);
+
+        if (!dependencyType.IsInstanceOfType(instance))
+        {
+            throw new ArgumentException(
+                $"Instance type '{instance.GetType().FullName ?? instance.GetType().Name}' is not assignable to " +
+                $"service type '{dependencyType.FullName ?? dependencyType.Name}'.",
+                nameof(instance));
+        }
 
         DependencyType = dependencyType;
         Instance = instance;
@@ -154,6 +164,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     {
         ArgumentNullException.ThrowIfNull(dependencyType);
         ArgumentNullException.ThrowIfNull(factory);
+        ValidateLifetime(lifetime);
 
         DependencyType = dependencyType;
         Factory = factory;
@@ -346,5 +357,81 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     public static bool operator !=(DependencyDescriptor? left, DependencyDescriptor? right)
     {
         return !Equals(left, right);
+    }
+
+    /// <summary>
+    ///     Validates an instance lifetime supplied by a public descriptor constructor.
+    /// </summary>
+    /// <param name="lifetime">The lifetime value to validate.</param>
+    private static void ValidateLifetime(InstanceLifetime lifetime)
+    {
+        if (!Enum.IsDefined(lifetime))
+        {
+            throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, "The instance lifetime is not defined.");
+        }
+    }
+
+    /// <summary>
+    ///     Validates that an implementation type is concrete and compatible with its service type.
+    /// </summary>
+    /// <param name="dependencyType">The service type exposed to consumers.</param>
+    /// <param name="implementationType">The implementation type created by the container.</param>
+    private static void ValidateTypeRegistration(Type dependencyType, Type implementationType)
+    {
+        if (!implementationType.IsClass || implementationType.IsAbstract)
+        {
+            throw new ArgumentException(
+                $"Implementation type '{implementationType.FullName ?? implementationType.Name}' must be a concrete class.",
+                nameof(implementationType));
+        }
+
+        var isCompatible = dependencyType.IsGenericTypeDefinition
+            ? IsOpenGenericImplementation(dependencyType, implementationType)
+            : dependencyType.IsAssignableFrom(implementationType);
+
+        if (!isCompatible)
+        {
+            throw new ArgumentException(
+                $"Implementation type '{implementationType.FullName ?? implementationType.Name}' is not assignable to " +
+                $"service type '{dependencyType.FullName ?? dependencyType.Name}'.",
+                nameof(implementationType));
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether an open generic implementation closes an open generic service contract.
+    /// </summary>
+    /// <param name="dependencyType">The open generic service contract.</param>
+    /// <param name="implementationType">The candidate open generic implementation.</param>
+    /// <returns><see langword="true" /> when the implementation closes the contract.</returns>
+    private static bool IsOpenGenericImplementation(Type dependencyType, Type implementationType)
+    {
+        if (!implementationType.IsGenericTypeDefinition)
+        {
+            return false;
+        }
+
+        if (dependencyType == implementationType)
+        {
+            return true;
+        }
+
+        foreach (var interfaceType in implementationType.GetInterfaces())
+        {
+            if (interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == dependencyType)
+            {
+                return true;
+            }
+        }
+
+        for (var baseType = implementationType.BaseType; baseType is not null; baseType = baseType.BaseType)
+        {
+            if (baseType.IsGenericType && baseType.GetGenericTypeDefinition() == dependencyType)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

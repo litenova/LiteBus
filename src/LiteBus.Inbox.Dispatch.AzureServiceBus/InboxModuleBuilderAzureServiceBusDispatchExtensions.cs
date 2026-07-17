@@ -29,6 +29,28 @@ public static class InboxModuleBuilderAzureServiceBusDispatchExtensions
         configure(options);
 
         return builder.RegisterDispatcher(
-            new TransportInboxDispatchModule(options, new AzureServiceBusTransportModule(transportOptions)));
+            new TransportInboxDispatchModule<AzureServiceBusTransportModule>(
+                options,
+                new AzureServiceBusTransportModule(transportOptions)));
+    }
+
+    /// <summary>
+    ///     Registers an Azure Service Bus inbox dispatcher that uses an <see cref="AzureServiceBusTransportModule" />
+    ///     registered elsewhere in the module graph.
+    /// </summary>
+    /// <param name="builder">The inbox module builder.</param>
+    /// <param name="configure">The dispatcher configuration action.</param>
+    /// <returns>The inbox module builder for chaining.</returns>
+    public static InboxModuleBuilder UseAzureServiceBusDispatchWithRegisteredTransport(
+        this InboxModuleBuilder builder,
+        Action<TransportInboxDispatcherOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var options = new TransportInboxDispatcherOptions();
+        configure(options);
+        return builder.RegisterDispatcher(
+            new TransportInboxDispatchModule<AzureServiceBusTransportModule>(options));
     }
 }

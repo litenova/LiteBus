@@ -10,12 +10,23 @@ namespace LiteBus.Inbox.Ingress.Amqp;
 /// <summary>
 ///     Module that registers AMQP inbox ingress services.
 /// </summary>
-public sealed class AmqpInboxIngressModule : IInboxIngressModule
+public sealed class AmqpInboxIngressModule :
+    IInboxIngressModule,
+    ICompositeModule,
+    IRequires<AmqpTransportModule>
 {
+    /// <inheritdoc />
+    public CompositeModuleBuildOrder BuildOrder => CompositeModuleBuildOrder.ChildrenFirst;
+
     /// <summary>
     ///     The module builder action supplied at registration time.
     /// </summary>
     private readonly Action<AmqpInboxIngressModuleBuilder> _builder;
+
+    /// <summary>
+    ///     The builder populated while the module graph declares children.
+    /// </summary>
+    private AmqpInboxIngressModuleBuilder? _moduleBuilder;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="AmqpInboxIngressModule" /> class.
@@ -28,12 +39,28 @@ public sealed class AmqpInboxIngressModule : IInboxIngressModule
     }
 
     /// <inheritdoc />
+    public void DeclareChildren(Action<IModule> registerChild)
+    {
+        ArgumentNullException.ThrowIfNull(registerChild);
+
+        _moduleBuilder = new AmqpInboxIngressModuleBuilder();
+        _builder(_moduleBuilder);
+
+        if (!_moduleBuilder.UseRegisteredTransportOnly)
+        {
+            registerChild(new AmqpTransportModule(_moduleBuilder.Options.Connection));
+        }
+    }
+
+    /// <inheritdoc />
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var moduleBuilder = new AmqpInboxIngressModuleBuilder();
-        _builder(moduleBuilder);
+        var moduleBuilder = _moduleBuilder ??
+                            throw new LiteBusConfigurationException(
+                                "AmqpInboxIngressModule.Build was called without a prior DeclareChildren call. " +
+                                "Register the module through IModuleRegistry.");
 
         var options = moduleBuilder.Options;
 
@@ -43,7 +70,7 @@ public sealed class AmqpInboxIngressModule : IInboxIngressModule
                 $"{nameof(AmqpInboxIngressOptions.QueueName)} must be configured before registering AMQP inbox ingress.");
         }
 
-        EnsureTransportRegistered(configuration, options);
+        EnsureTransportRegistered(configuration);
 
         var ingressOptions = new TransportInboxIngressOptions
         {
@@ -85,20 +112,11 @@ public sealed class AmqpInboxIngressModule : IInboxIngressModule
     }
 
     /// <summary>
-    ///     Ensures <see cref="IMessageConsumer" /> is registered, bootstrapping AMQP transport from ingress options when
-    ///     needed.
+    ///     Ensures <see cref="IMessageConsumer" /> was registered by the declared or shared transport module.
     /// </summary>
     /// <param name="configuration">The module configuration receiving dependency registrations.</param>
-    /// <param name="options">The AMQP ingress options supplying connection settings when transport is not pre-registered.</param>
-    private static void EnsureTransportRegistered(IModuleConfiguration configuration, AmqpInboxIngressOptions options)
+    private static void EnsureTransportRegistered(IModuleConfiguration configuration)
     {
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageConsumer)))
-        {
-            return;
-        }
-
-        new AmqpTransportModule(options.Connection).Build(configuration);
-
         if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageConsumer)))
         {
             return;
@@ -106,6 +124,6 @@ public sealed class AmqpInboxIngressModule : IInboxIngressModule
 
         throw new LiteBusConfigurationException(
             "AMQP inbox ingress requires IMessageConsumer to be registered. " +
-            "Configure AmqpInboxIngressOptions.Connection or register AmqpTransportModule before calling UseAmqpIngress().");
+            "Allow UseAmqpIngress to declare AmqpTransportModule or call UseRegisteredTransport after registering a shared transport module.");
     }
 }

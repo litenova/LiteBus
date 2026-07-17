@@ -12,12 +12,23 @@ namespace LiteBus.Inbox.Ingress.Kafka;
 /// <summary>
 ///     Module that registers Kafka inbox ingress services.
 /// </summary>
-public sealed class KafkaInboxIngressModule : IInboxIngressModule
+public sealed class KafkaInboxIngressModule :
+    IInboxIngressModule,
+    ICompositeModule,
+    IRequires<KafkaTransportModule>
 {
+    /// <inheritdoc />
+    public CompositeModuleBuildOrder BuildOrder => CompositeModuleBuildOrder.ChildrenFirst;
+
     /// <summary>
     ///     The module builder action supplied at registration time.
     /// </summary>
     private readonly Action<KafkaInboxIngressModuleBuilder> _builder;
+
+    /// <summary>
+    ///     The builder populated while the module graph declares children.
+    /// </summary>
+    private KafkaInboxIngressModuleBuilder? _moduleBuilder;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="KafkaInboxIngressModule" /> class.
@@ -30,12 +41,32 @@ public sealed class KafkaInboxIngressModule : IInboxIngressModule
     }
 
     /// <inheritdoc />
+    public void DeclareChildren(Action<IModule> registerChild)
+    {
+        ArgumentNullException.ThrowIfNull(registerChild);
+
+        _moduleBuilder = new KafkaInboxIngressModuleBuilder();
+        _builder(_moduleBuilder);
+
+        var options = _moduleBuilder.Options ??
+                      throw new LiteBusConfigurationException(
+                          $"{nameof(KafkaInboxIngressOptions)} must be configured before registering Kafka inbox ingress.");
+
+        if (!_moduleBuilder.UseRegisteredTransportOnly)
+        {
+            registerChild(new KafkaTransportModule(options.Connection));
+        }
+    }
+
+    /// <inheritdoc />
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var moduleBuilder = new KafkaInboxIngressModuleBuilder();
-        _builder(moduleBuilder);
+        var moduleBuilder = _moduleBuilder ??
+                            throw new LiteBusConfigurationException(
+                                "KafkaInboxIngressModule.Build was called without a prior DeclareChildren call. " +
+                                "Register the module through IModuleRegistry.");
 
         var options = moduleBuilder.Options ??
                       throw new LiteBusConfigurationException(
@@ -47,7 +78,7 @@ public sealed class KafkaInboxIngressModule : IInboxIngressModule
                 $"{nameof(KafkaInboxIngressOptions.Destination)} must be configured before registering Kafka inbox ingress.");
         }
 
-        EnsureTransportRegistered(configuration, options);
+        EnsureTransportRegistered(configuration);
 
         var ingressOptions = new TransportInboxIngressOptions
         {
@@ -79,20 +110,11 @@ public sealed class KafkaInboxIngressModule : IInboxIngressModule
     }
 
     /// <summary>
-    ///     Ensures <see cref="IMessageConsumer" /> is registered, bootstrapping Kafka transport from ingress options when
-    ///     needed.
+    ///     Ensures <see cref="IMessageConsumer" /> was registered by the declared or shared transport module.
     /// </summary>
     /// <param name="configuration">The module configuration receiving dependency registrations.</param>
-    /// <param name="options">The ingress options supplying connection settings when transport is not pre-registered.</param>
-    private static void EnsureTransportRegistered(IModuleConfiguration configuration, KafkaInboxIngressOptions options)
+    private static void EnsureTransportRegistered(IModuleConfiguration configuration)
     {
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageConsumer)))
-        {
-            return;
-        }
-
-        new KafkaTransportModule(options.Connection).Build(configuration);
-
         if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageConsumer)))
         {
             return;
@@ -100,6 +122,6 @@ public sealed class KafkaInboxIngressModule : IInboxIngressModule
 
         throw new LiteBusConfigurationException(
             "Kafka inbox ingress requires IMessageConsumer to be registered. " +
-            "Configure KafkaInboxIngressOptions.Connection or register KafkaTransportModule before calling UseKafkaIngress().");
+            "Allow UseKafkaIngress to declare KafkaTransportModule or call UseRegisteredTransport after registering a shared transport module.");
     }
 }

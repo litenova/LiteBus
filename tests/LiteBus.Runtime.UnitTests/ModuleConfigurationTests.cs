@@ -63,16 +63,31 @@ public sealed class ModuleConfigurationTests
     }
 
     [Fact]
-    public void SetContext_WithLaterValue_ShouldOverwriteExistingContext()
+    public void SetContext_WithDifferentLaterValue_ShouldThrowLiteBusConfigurationException()
     {
         var configuration = new ModuleConfiguration(new DependencyRegistry());
         var first = new FoundationModule();
         var second = new FoundationModule();
 
         configuration.SetContext(first);
-        configuration.SetContext(second);
 
-        configuration.GetContext<FoundationModule>().Should().BeSameAs(second);
+        var act = () => configuration.SetContext(second);
+
+        act.Should().Throw<LiteBusConfigurationException>()
+            .WithMessage("*single owner*");
+        configuration.GetContext<FoundationModule>().Should().BeSameAs(first);
+    }
+
+    [Fact]
+    public void SetContext_WithSameInstance_ShouldRemainIdempotent()
+    {
+        var configuration = new ModuleConfiguration(new DependencyRegistry());
+        var context = new FoundationModule();
+
+        configuration.SetContext(context);
+        configuration.SetContext(context);
+
+        configuration.GetContext<FoundationModule>().Should().BeSameAs(context);
     }
 
     [Fact]
@@ -120,6 +135,28 @@ public sealed class ModuleConfigurationTests
         createCount.Should().Be(1);
     }
 
+    [Fact]
+    public void GetOrCreateContext_WhenFactoryReturnsNull_ShouldThrowLiteBusConfigurationException()
+    {
+        var configuration = new ModuleConfiguration(new DependencyRegistry());
+
+        var act = () => configuration.GetOrCreateContext<FoundationModule>(() => null!);
+
+        act.Should().Throw<LiteBusConfigurationException>()
+            .WithMessage("*returned null*");
+    }
+
+    [Fact]
+    public void RegisterStartupTask_WithAbstractImplementation_ShouldThrowArgumentException()
+    {
+        var configuration = new ModuleConfiguration(new DependencyRegistry());
+
+        var act = () => configuration.RegisterStartupTask(typeof(AbstractStartupTask));
+
+        act.Should().Throw<ArgumentException>()
+            .WithParameterName("implementationType");
+    }
+
     private sealed class RecordingStartupTask : IStartupTask
     {
         /// <inheritdoc />
@@ -136,6 +173,12 @@ public sealed class ModuleConfigurationTests
         {
             return Task.CompletedTask;
         }
+    }
+
+    private abstract class AbstractStartupTask : IStartupTask
+    {
+        /// <inheritdoc />
+        public abstract Task RunAsync(CancellationToken cancellationToken);
     }
 
     private sealed class TestMessageRegistry : IMessageRegistry

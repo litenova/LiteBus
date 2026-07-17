@@ -27,9 +27,9 @@ public sealed class InboxModuleBuilder
     private readonly List<DiagnosticCheckRegistration> _diagnosticChecks = [];
 
     /// <summary>
-    ///     Ingress sub-modules registered for this inbox.
+    ///     The configured ingress sub-module, if any.
     /// </summary>
-    private readonly List<IInboxIngressModule> _ingressModules = [];
+    private IInboxIngressModule? _ingressModule;
 
     /// <summary>
     ///     Saga sub-modules registered for this inbox.
@@ -188,7 +188,8 @@ public sealed class InboxModuleBuilder
     }
 
     /// <summary>
-    ///     Adds an ingress sub-module. Multiple ingress sources may be registered.
+    ///     Registers the ingress sub-module. Exactly one ingress source may be registered for an inbox module because
+    ///     ingress host options, transport consumer, and background-service ownership are singular per module.
     ///     Called by extension methods such as UseAmqpIngress().
     /// </summary>
     /// <param name="ingressModule">The ingress module to register as a child of the inbox module.</param>
@@ -196,7 +197,14 @@ public sealed class InboxModuleBuilder
     public InboxModuleBuilder RegisterIngress(IInboxIngressModule ingressModule)
     {
         ArgumentNullException.ThrowIfNull(ingressModule);
-        _ingressModules.Add(ingressModule);
+
+        if (_ingressModule is not null)
+        {
+            throw new LiteBusConfigurationException(
+                "Inbox ingress is already configured. Register one ingress source per inbox module.");
+        }
+
+        _ingressModule = ingressModule;
         return this;
     }
 
@@ -274,7 +282,10 @@ public sealed class InboxModuleBuilder
             modules.Add(_dispatcherModule);
         }
 
-        modules.AddRange(_ingressModules);
+        if (_ingressModule is not null)
+        {
+            modules.Add(_ingressModule);
+        }
         modules.AddRange(_sagaModules.Where(static module => module is ISagaStoreModule));
         modules.AddRange(_sagaModules.Where(static module => module is not ISagaStoreModule));
         return modules;

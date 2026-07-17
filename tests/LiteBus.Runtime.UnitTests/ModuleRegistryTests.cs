@@ -65,7 +65,7 @@ public sealed class ModuleRegistryTests
 
         act.Should()
             .Throw<LiteBusConfigurationException>()
-            .WithMessage("*Circular dependency*");
+            .WithMessage("*CycleAModule -> CycleBModule -> CycleAModule*");
     }
 
     [Fact]

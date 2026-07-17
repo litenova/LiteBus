@@ -23,12 +23,28 @@ public sealed class AwsSqsInboxIngressModuleBuilder
     public bool EnableIngressConsumer { get; private set; } = true;
 
     /// <summary>
+    ///     Gets a value indicating whether ingress should use a transport module registered elsewhere in the graph.
+    /// </summary>
+    internal bool UseRegisteredTransportOnly { get; private set; }
+
+    /// <summary>
     ///     Disables registration of the SQS ingress consumer background service.
     /// </summary>
     /// <returns>The current builder.</returns>
     public AwsSqsInboxIngressModuleBuilder DisableIngressConsumer()
     {
         EnableIngressConsumer = false;
+        return this;
+    }
+
+    /// <summary>
+    ///     Uses an existing <see cref="LiteBus.Transport.AwsSqs.AwsSqsTransportModule" /> in the module graph instead of
+    ///     declaring a child module.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    public AwsSqsInboxIngressModuleBuilder UseRegisteredTransport()
+    {
+        UseRegisteredTransportOnly = true;
         return this;
     }
 

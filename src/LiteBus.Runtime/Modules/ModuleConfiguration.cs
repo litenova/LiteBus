@@ -33,9 +33,9 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
     private readonly List<DiagnosticCheckDescriptor> _diagnosticChecks = [];
 
     /// <summary>
-    ///     Tracks diagnostic probe types already registered so duplicates are ignored without reordering.
+    ///     Tracks diagnostic probe names by implementation type so conflicting registrations fail during composition.
     /// </summary>
-    private readonly HashSet<Type> _diagnosticCheckTypes = [];
+    private readonly Dictionary<Type, string> _diagnosticCheckNamesByType = [];
 
     /// <summary>
     ///     Startup task implementation types registered for host execution in first-registration order.
@@ -78,13 +78,7 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
     public void RegisterStartupTask(Type implementationType)
     {
         ArgumentNullException.ThrowIfNull(implementationType);
-
-        if (!typeof(IStartupTask).IsAssignableFrom(implementationType))
-        {
-            throw new ArgumentException(
-                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(IStartupTask)}.",
-                nameof(implementationType));
-        }
+        ValidateHostImplementationType(implementationType, typeof(IStartupTask));
 
         if (_startupTaskTypes.Add(implementationType))
         {
@@ -105,12 +99,7 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
                 nameof(implementationType));
         }
 
-        if (!typeof(IBackgroundService).IsAssignableFrom(implementationType))
-        {
-            throw new ArgumentException(
-                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(IBackgroundService)}.",
-                nameof(implementationType));
-        }
+        ValidateHostImplementationType(implementationType, typeof(IBackgroundService));
 
         if (_backgroundServiceTypes.Add(implementationType))
         {
@@ -124,17 +113,22 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
         ArgumentNullException.ThrowIfNull(implementationType);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        if (!typeof(IDiagnosticCheck).IsAssignableFrom(implementationType))
+        ValidateHostImplementationType(implementationType, typeof(IDiagnosticCheck));
+
+        if (_diagnosticCheckNamesByType.TryGetValue(implementationType, out var registeredName))
         {
-            throw new ArgumentException(
-                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(IDiagnosticCheck)}.",
-                nameof(implementationType));
+            if (string.Equals(registeredName, name, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            throw new LiteBusConfigurationException(
+                $"Diagnostic check type '{implementationType.FullName ?? implementationType.Name}' is already registered " +
+                $"as '{registeredName}' and cannot also be registered as '{name}'.");
         }
 
-        if (_diagnosticCheckTypes.Add(implementationType))
-        {
-            _diagnosticChecks.Add(new DiagnosticCheckDescriptor(implementationType, name));
-        }
+        _diagnosticCheckNamesByType.Add(implementationType, name);
+        _diagnosticChecks.Add(new DiagnosticCheckDescriptor(implementationType, name));
     }
 
     /// <inheritdoc />
@@ -157,8 +151,19 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
 
         var contextType = typeof(T);
 
-        // Allow overwriting existing context (last one wins)
-        _contexts[contextType] = context;
+        if (_contexts.TryGetValue(contextType, out var existingContext))
+        {
+            if (ReferenceEquals(existingContext, context))
+            {
+                return;
+            }
+
+            throw new LiteBusConfigurationException(
+                $"Context of type '{contextType.FullName ?? contextType.Name}' is already registered. " +
+                "Each shared module context must have a single owner.");
+        }
+
+        _contexts.Add(contextType, context);
     }
 
     /// <inheritdoc />
@@ -187,9 +192,37 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
             return (T) existingContext;
         }
 
-        // Create new context using factory.
         var newContext = factory();
-        _contexts[contextType] = newContext;
+
+        if (newContext is null)
+        {
+            throw new LiteBusConfigurationException(
+                $"The context factory for '{contextType.FullName ?? contextType.Name}' returned null.");
+        }
+
+        _contexts.Add(contextType, newContext);
         return newContext;
+    }
+
+    /// <summary>
+    ///     Validates a host manifest implementation type before registration.
+    /// </summary>
+    /// <param name="implementationType">The candidate implementation type.</param>
+    /// <param name="contractType">The host manifest contract the implementation must satisfy.</param>
+    private static void ValidateHostImplementationType(Type implementationType, Type contractType)
+    {
+        if (!contractType.IsAssignableFrom(implementationType))
+        {
+            throw new ArgumentException(
+                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {contractType.Name}.",
+                nameof(implementationType));
+        }
+
+        if (!implementationType.IsClass || implementationType.IsAbstract)
+        {
+            throw new ArgumentException(
+                $"Type '{implementationType.FullName ?? implementationType.Name}' must be a concrete class.",
+                nameof(implementationType));
+        }
     }
 }

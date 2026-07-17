@@ -18,14 +18,19 @@ internal sealed class DependencyRegistrationTracker : IEnumerable<DependencyDesc
     private readonly Dictionary<Type, DependencyDescriptor> _descriptorsByServiceType = [];
 
     /// <summary>
-    ///     Tracks descriptors accepted by the registration policy.
+    ///     Tracks descriptors accepted by the registration policy for constant-time duplicate detection.
     /// </summary>
     private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
 
     /// <summary>
+    ///     Preserves descriptors in first-registration order for deterministic container translation.
+    /// </summary>
+    private readonly List<DependencyDescriptor> _orderedDescriptors = [];
+
+    /// <summary>
     ///     Gets the number of unique dependency descriptors tracked by this policy.
     /// </summary>
-    public int Count => _registeredDescriptors.Count;
+    public int Count => _orderedDescriptors.Count;
 
     /// <summary>
     ///     Applies registration policy for a descriptor and records it when accepted.
@@ -65,13 +70,19 @@ internal sealed class DependencyRegistrationTracker : IEnumerable<DependencyDesc
             _descriptorsByServiceType[descriptor.DependencyType] = descriptor;
         }
 
-        return _registeredDescriptors.Add(descriptor);
+        if (!_registeredDescriptors.Add(descriptor))
+        {
+            return false;
+        }
+
+        _orderedDescriptors.Add(descriptor);
+        return true;
     }
 
     /// <inheritdoc />
     public IEnumerator<DependencyDescriptor> GetEnumerator()
     {
-        return _registeredDescriptors.GetEnumerator();
+        return _orderedDescriptors.GetEnumerator();
     }
 
     /// <inheritdoc />

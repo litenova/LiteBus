@@ -43,6 +43,46 @@ public sealed class CompositeModuleRegistryTests
         act.Should().Throw<LiteBusConfigurationException>();
     }
 
+    [Fact]
+    public void Register_WhenCompositeExpansionFails_ShouldNotCommitPartialGraph()
+    {
+        var registry = new ModuleRegistry();
+        registry.Register(new ChildModuleB());
+
+        var act = () => registry.Register(new PartiallyInvalidCompositeModule());
+
+        act.Should().Throw<LiteBusConfigurationException>();
+        registry.IsModuleRegistered<PartiallyInvalidCompositeModule>().Should().BeFalse();
+        registry.IsModuleRegistered<ChildModuleA>().Should().BeFalse();
+        registry.IsModuleRegistered<ChildModuleB>().Should().BeTrue();
+        registry.BuildOrder().Select(descriptor => descriptor.ModuleType).Should().Equal(typeof(ChildModuleB));
+    }
+
+    [Fact]
+    public void BuildOrder_WithChildrenFirstComposite_ShouldBuildChildBeforeParent()
+    {
+        var registry = new ModuleRegistry();
+        registry.Register(new ChildrenFirstCompositeModule());
+
+        var order = registry.BuildOrder().Select(descriptor => descriptor.ModuleType);
+
+        order.Should().Equal(typeof(ChildrenFirstChildModule), typeof(ChildrenFirstCompositeModule));
+    }
+
+    [Fact]
+    public void BuildOrder_WithNestedOppositeRelationships_ShouldHonorEveryCompositeEdge()
+    {
+        var registry = new ModuleRegistry();
+        registry.Register(new OuterParentFirstCompositeModule());
+
+        var order = registry.BuildOrder().Select(descriptor => descriptor.ModuleType);
+
+        order.Should().Equal(
+            typeof(OuterParentFirstCompositeModule),
+            typeof(ChildrenFirstChildModule),
+            typeof(ChildrenFirstCompositeModule));
+    }
+
     private sealed class ParentCompositeModule : ICompositeModule
     {
         public void DeclareChildren(Action<IModule> registerChild)
@@ -65,6 +105,52 @@ public sealed class CompositeModuleRegistryTests
 
     private sealed class ChildModuleB : IModule
     {
+        public void Build(IModuleConfiguration configuration)
+        {
+        }
+    }
+
+    private sealed class PartiallyInvalidCompositeModule : ICompositeModule
+    {
+        public void DeclareChildren(Action<IModule> registerChild)
+        {
+            registerChild(new ChildModuleA());
+            registerChild(new ChildModuleB());
+        }
+
+        public void Build(IModuleConfiguration configuration)
+        {
+        }
+    }
+
+    private sealed class ChildrenFirstCompositeModule : ICompositeModule
+    {
+        public CompositeModuleBuildOrder BuildOrder => CompositeModuleBuildOrder.ChildrenFirst;
+
+        public void DeclareChildren(Action<IModule> registerChild)
+        {
+            registerChild(new ChildrenFirstChildModule());
+        }
+
+        public void Build(IModuleConfiguration configuration)
+        {
+        }
+    }
+
+    private sealed class ChildrenFirstChildModule : IModule
+    {
+        public void Build(IModuleConfiguration configuration)
+        {
+        }
+    }
+
+    private sealed class OuterParentFirstCompositeModule : ICompositeModule
+    {
+        public void DeclareChildren(Action<IModule> registerChild)
+        {
+            registerChild(new ChildrenFirstCompositeModule());
+        }
+
         public void Build(IModuleConfiguration configuration)
         {
         }

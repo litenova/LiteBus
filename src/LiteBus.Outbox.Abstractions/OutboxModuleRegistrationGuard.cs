@@ -5,7 +5,7 @@ using LiteBus.Runtime.Abstractions.Exceptions;
 namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
-///     Validates that outbox adapter modules are composed through <see cref="OutboxModule" />.
+///     Validates that outbox adapter modules are composed through <c>OutboxModule</c>.
 /// </summary>
 public static class OutboxModuleRegistrationGuard
 {

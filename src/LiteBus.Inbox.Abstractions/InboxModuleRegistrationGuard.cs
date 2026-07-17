@@ -5,7 +5,7 @@ using LiteBus.Runtime.Abstractions.Exceptions;
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Validates that inbox adapter modules are composed through <see cref="InboxModule" />.
+///     Validates that inbox adapter modules are composed through <c>InboxModule</c>.
 /// </summary>
 public static class InboxModuleRegistrationGuard
 {

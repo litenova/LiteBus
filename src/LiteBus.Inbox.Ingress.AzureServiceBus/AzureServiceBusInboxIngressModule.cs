@@ -12,12 +12,23 @@ namespace LiteBus.Inbox.Ingress.AzureServiceBus;
 /// <summary>
 ///     Module that registers Azure Service Bus inbox ingress services.
 /// </summary>
-public sealed class AzureServiceBusInboxIngressModule : IInboxIngressModule
+public sealed class AzureServiceBusInboxIngressModule :
+    IInboxIngressModule,
+    ICompositeModule,
+    IRequires<AzureServiceBusTransportModule>
 {
+    /// <inheritdoc />
+    public CompositeModuleBuildOrder BuildOrder => CompositeModuleBuildOrder.ChildrenFirst;
+
     /// <summary>
     ///     The module builder action supplied at registration time.
     /// </summary>
     private readonly Action<AzureServiceBusInboxIngressModuleBuilder> _builder;
+
+    /// <summary>
+    ///     The builder populated while the module graph declares children.
+    /// </summary>
+    private AzureServiceBusInboxIngressModuleBuilder? _moduleBuilder;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="AzureServiceBusInboxIngressModule" /> class.
@@ -30,12 +41,32 @@ public sealed class AzureServiceBusInboxIngressModule : IInboxIngressModule
     }
 
     /// <inheritdoc />
+    public void DeclareChildren(Action<IModule> registerChild)
+    {
+        ArgumentNullException.ThrowIfNull(registerChild);
+
+        _moduleBuilder = new AzureServiceBusInboxIngressModuleBuilder();
+        _builder(_moduleBuilder);
+
+        var options = _moduleBuilder.Options ??
+                      throw new LiteBusConfigurationException(
+                          $"{nameof(AzureServiceBusInboxIngressOptions)} must be configured before registering Azure Service Bus inbox ingress.");
+
+        if (!_moduleBuilder.UseRegisteredTransportOnly)
+        {
+            registerChild(new AzureServiceBusTransportModule(options.Connection));
+        }
+    }
+
+    /// <inheritdoc />
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var moduleBuilder = new AzureServiceBusInboxIngressModuleBuilder();
-        _builder(moduleBuilder);
+        var moduleBuilder = _moduleBuilder ??
+                            throw new LiteBusConfigurationException(
+                                "AzureServiceBusInboxIngressModule.Build was called without a prior DeclareChildren call. " +
+                                "Register the module through IModuleRegistry.");
 
         var options = moduleBuilder.Options ??
                       throw new LiteBusConfigurationException(
@@ -47,7 +78,7 @@ public sealed class AzureServiceBusInboxIngressModule : IInboxIngressModule
                 $"{nameof(AzureServiceBusInboxIngressOptions.Destination)} must be configured before registering Azure Service Bus inbox ingress.");
         }
 
-        EnsureTransportRegistered(configuration, options);
+        EnsureTransportRegistered(configuration);
 
         var ingressOptions = new TransportInboxIngressOptions
         {
@@ -79,22 +110,11 @@ public sealed class AzureServiceBusInboxIngressModule : IInboxIngressModule
     }
 
     /// <summary>
-    ///     Ensures <see cref="IMessageConsumer" /> is registered, bootstrapping Service Bus transport from ingress options
-    ///     when needed.
+    ///     Ensures <see cref="IMessageConsumer" /> was registered by the declared or shared transport module.
     /// </summary>
     /// <param name="configuration">The module configuration receiving dependency registrations.</param>
-    /// <param name="options">The ingress options supplying connection settings when transport is not pre-registered.</param>
-    private static void EnsureTransportRegistered(
-        IModuleConfiguration configuration,
-        AzureServiceBusInboxIngressOptions options)
+    private static void EnsureTransportRegistered(IModuleConfiguration configuration)
     {
-        if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageConsumer)))
-        {
-            return;
-        }
-
-        new AzureServiceBusTransportModule(options.Connection).Build(configuration);
-
         if (configuration.DependencyRegistry.Any(descriptor => descriptor.DependencyType == typeof(IMessageConsumer)))
         {
             return;
@@ -102,6 +122,6 @@ public sealed class AzureServiceBusInboxIngressModule : IInboxIngressModule
 
         throw new LiteBusConfigurationException(
             "Azure Service Bus inbox ingress requires IMessageConsumer to be registered. " +
-            "Configure AzureServiceBusInboxIngressOptions.Connection or register AzureServiceBusTransportModule before calling UseAzureServiceBusIngress().");
+            "Allow UseAzureServiceBusIngress to declare AzureServiceBusTransportModule or call UseRegisteredTransport after registering a shared transport module.");
     }
 }

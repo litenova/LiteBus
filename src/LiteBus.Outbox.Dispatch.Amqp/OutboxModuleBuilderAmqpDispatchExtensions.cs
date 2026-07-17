@@ -27,6 +27,28 @@ public static class OutboxModuleBuilderAmqpDispatchExtensions
 
         var options = new TransportOutboxDispatcherOptions();
         configure(options);
-        return builder.RegisterDispatcher(new TransportOutboxDispatchModule(options, new AmqpTransportModule(connectionOptions)));
+        return builder.RegisterDispatcher(
+            new TransportOutboxDispatchModule<AmqpTransportModule>(
+                options,
+                new AmqpTransportModule(connectionOptions)));
+    }
+
+    /// <summary>
+    ///     Registers an AMQP-backed outbox dispatcher that uses an <see cref="AmqpTransportModule" /> registered elsewhere
+    ///     in the module graph.
+    /// </summary>
+    /// <param name="builder">The outbox module builder.</param>
+    /// <param name="configure">The dispatcher configuration action.</param>
+    /// <returns>The outbox module builder for chaining.</returns>
+    public static OutboxModuleBuilder UseAmqpDispatchWithRegisteredTransport(
+        this OutboxModuleBuilder builder,
+        Action<TransportOutboxDispatcherOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var options = new TransportOutboxDispatcherOptions();
+        configure(options);
+        return builder.RegisterDispatcher(new TransportOutboxDispatchModule<AmqpTransportModule>(options));
     }
 }

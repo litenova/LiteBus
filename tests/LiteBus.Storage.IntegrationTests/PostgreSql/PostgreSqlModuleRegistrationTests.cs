@@ -246,6 +246,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
                 inbox.UseAmqpIngress(ingress =>
                 {
                     ingress.DisableIngressConsumer();
+                    ingress.UseRegisteredTransport();
 
                     ingress.UseOptions(new AmqpInboxIngressOptions
                     {
