@@ -45,6 +45,7 @@ All notable changes to this project will be documented in this file.
   prevent late completions from resetting a newer circuit generation.
 - Transport consumers now separate provider-neutral `MaxInFlightMessages` from RabbitMQ and Azure prefetch, SQS
   `ReceiveBatchSize`, and Azure `MaxConcurrentCalls`. Every ingress adapter carries the same nested `Safety` record.
+  In-memory destinations now apply configurable, lossless backpressure to queued and in-flight deliveries.
 
 ### Fixed
 
@@ -73,6 +74,8 @@ All notable changes to this project will be documented in this file.
 - Azure Service Bus no longer treats prefetch as callback concurrency, SQS no longer silently clamps an overloaded
   prefetch field, and Kafka and in-memory ingress no longer advertise prefetch settings they ignore. Invalid safety,
   SQS receive, and Azure concurrency bounds now fail during module composition.
+- In-memory transport publication no longer grows an unbounded channel. Publishers wait asynchronously at the
+  configured per-destination capacity, cancellation removes waiting publishers, and requeue retains its reservation.
 
 ### Breaking changes
 

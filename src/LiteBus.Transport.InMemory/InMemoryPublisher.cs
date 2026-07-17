@@ -78,7 +78,7 @@ public sealed class InMemoryPublisher : ITransportPublisher
                 CorrelationId = request.CorrelationId
             };
 
-            await endpoint.Writer.WriteAsync(delivery, cancellationToken).ConfigureAwait(false);
+            await endpoint.EnqueueAsync(delivery, cancellationToken).ConfigureAwait(false);
             circuitBreaker.RecordSuccess(permit);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

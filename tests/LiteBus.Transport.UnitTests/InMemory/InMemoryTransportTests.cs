@@ -126,6 +126,90 @@ public sealed class InMemoryTransportTests
     }
 
     /// <summary>
+    ///     Verifies a full destination blocks publication until the admitted delivery settles.
+    /// </summary>
+    [Fact]
+    public async Task PublishAsync_WhenDestinationIsFull_ShouldWaitForSettlement()
+    {
+        var broker = new InMemoryTransportBroker(
+            new InMemoryTransportOptions { DestinationCapacity = 1 });
+        var publisher = new InMemoryPublisher(broker, new TransportCircuitBreakerRegistry());
+        var consumer = new InMemoryConsumer(broker);
+        var deliveryCount = 0;
+
+        await publisher.PublishAsync(CreateRequest("bounded-destination")).ConfigureAwait(false);
+        var waitingPublish = publisher.PublishAsync(CreateRequest("bounded-destination"));
+
+        await Task.Delay(50).ConfigureAwait(false);
+        waitingPublish.IsCompleted.Should().BeFalse();
+
+        await consumer.StartAsync(
+            new TransportConsumerOptions { Destination = "bounded-destination" },
+            async (message, _) =>
+            {
+                deliveryCount++;
+
+                if (deliveryCount == 1)
+                {
+                    await message.ReturnToQueueAsync().ConfigureAwait(false);
+                    return;
+                }
+
+                await message.AcceptAsync().ConfigureAwait(false);
+            }).ConfigureAwait(false);
+
+        await waitingPublish.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        await WaitForAsync(() => deliveryCount >= 3, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+
+        deliveryCount.Should().BeGreaterThanOrEqualTo(3);
+
+        await consumer.StopAsync().ConfigureAwait(false);
+        await consumer.DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Verifies canceling a capacity wait does not consume a destination reservation.
+    /// </summary>
+    [Fact]
+    public async Task PublishAsync_WhenCapacityWaitIsCanceled_ShouldReleaseAdmissionWaiter()
+    {
+        var broker = new InMemoryTransportBroker(
+            new InMemoryTransportOptions { DestinationCapacity = 1 });
+        var publisher = new InMemoryPublisher(broker, new TransportCircuitBreakerRegistry());
+        var consumer = new InMemoryConsumer(broker);
+
+        await publisher.PublishAsync(CreateRequest("cancel-bounded-destination")).ConfigureAwait(false);
+        using var cancellationSource = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        var act = () => publisher.PublishAsync(
+            CreateRequest("cancel-bounded-destination"),
+            cancellationSource.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
+
+        var deliveryCount = 0;
+
+        await consumer.StartAsync(
+            new TransportConsumerOptions { Destination = "cancel-bounded-destination" },
+            async (message, _) =>
+            {
+                deliveryCount++;
+                await message.AcceptAsync().ConfigureAwait(false);
+            }).ConfigureAwait(false);
+
+        await WaitForAsync(() => deliveryCount == 1, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        await publisher.PublishAsync(CreateRequest("cancel-bounded-destination"))
+            .WaitAsync(TimeSpan.FromSeconds(2))
+            .ConfigureAwait(false);
+        await WaitForAsync(() => deliveryCount == 2, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+
+        deliveryCount.Should().Be(2);
+
+        await consumer.StopAsync().ConfigureAwait(false);
+        await consumer.DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
     ///     Verifies an open circuit is surfaced without recording a second broker failure.
     /// </summary>
     [Fact]
@@ -149,7 +233,7 @@ public sealed class InMemoryTransportTests
     public async Task PublishAsync_WithClosedDestination_ShouldRecordFailure()
     {
         var broker = new InMemoryTransportBroker();
-        broker.GetOrCreateEndpoint("closed-destination").Writer.TryComplete().Should().BeTrue();
+        broker.GetOrCreateEndpoint("closed-destination").TryComplete().Should().BeTrue();
         var circuitBreakerRegistry = new TransportCircuitBreakerRegistry();
         var circuitBreaker = circuitBreakerRegistry.GetPublisherCircuit("closed-destination");
         var publisher = new InMemoryPublisher(broker, circuitBreakerRegistry);

@@ -164,9 +164,18 @@ public sealed class InMemoryConsumer : IMessageConsumer
             {
                 while (reader.TryRead(out var delivery))
                 {
-                    var transportMessage = CreateTransportMessage(endpoint, delivery);
+                    var settlement = new InMemoryDeliverySettlement(endpoint, delivery);
+                    var transportMessage = CreateTransportMessage(delivery, settlement);
 
-                    await boundedHandler(transportMessage, cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        await boundedHandler(transportMessage, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        await settlement.RequeueAsync(CancellationToken.None).ConfigureAwait(false);
+                        throw;
+                    }
                 }
             }
         }
@@ -183,12 +192,12 @@ public sealed class InMemoryConsumer : IMessageConsumer
     /// <summary>
     ///     Creates a transport message with acknowledgement delegates for one pending delivery.
     /// </summary>
-    /// <param name="endpoint">The destination endpoint used to requeue rejected deliveries.</param>
     /// <param name="delivery">The pending delivery read from the channel.</param>
+    /// <param name="settlement">The settlement state that owns the delivery capacity reservation.</param>
     /// <returns>The transport message passed to consumer handlers.</returns>
     private static TransportMessage CreateTransportMessage(
-        InMemoryDestinationEndpoint endpoint,
-        InMemoryPendingDelivery delivery)
+        InMemoryPendingDelivery delivery,
+        InMemoryDeliverySettlement settlement)
     {
         return new TransportMessage
         {
@@ -200,42 +209,9 @@ public sealed class InMemoryConsumer : IMessageConsumer
             MessageId = delivery.MessageId,
             CorrelationId = delivery.CorrelationId,
             Redelivered = delivery.Redelivered,
-            AckAsync = _ => Task.CompletedTask,
-            NackAsync = (requeue, token) => RequeueIfNeededAsync(endpoint, delivery, requeue, token)
+            AckAsync = settlement.ReleaseAsync,
+            NackAsync = settlement.RejectAsync
         };
-    }
-
-    /// <summary>
-    ///     Requeues a rejected delivery when the handler requests redelivery.
-    /// </summary>
-    /// <param name="endpoint">The destination endpoint receiving the requeued delivery.</param>
-    /// <param name="delivery">The rejected delivery.</param>
-    /// <param name="requeue">A value indicating whether the delivery should be returned to the channel.</param>
-    /// <param name="cancellationToken">The token used to cancel the requeue operation.</param>
-    /// <returns>A task that completes when the rejection has been processed.</returns>
-    private static async Task RequeueIfNeededAsync(
-        InMemoryDestinationEndpoint endpoint,
-        InMemoryPendingDelivery delivery,
-        bool requeue,
-        CancellationToken cancellationToken)
-    {
-        if (!requeue)
-        {
-            return;
-        }
-
-        var redelivered = new InMemoryPendingDelivery
-        {
-            Body = delivery.Body,
-            Headers = delivery.Headers,
-            Destination = delivery.Destination,
-            Route = delivery.Route,
-            MessageId = delivery.MessageId,
-            CorrelationId = delivery.CorrelationId,
-            Redelivered = true
-        };
-
-        await endpoint.Writer.WriteAsync(redelivered, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
