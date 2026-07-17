@@ -619,7 +619,7 @@ public sealed class InMemoryInboxStore :
     {
         if (_envelopes.TryGetValue(envelope.Id, out var existingById))
         {
-            ThrowIfStrictConflict(envelope, existingById.Id);
+            ThrowIfStrictConflict(envelope, existingById);
             return existingById;
         }
 
@@ -627,7 +627,7 @@ public sealed class InMemoryInboxStore :
             _idempotencyIndex.TryGetValue(CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey), out var existingId) &&
             _envelopes.TryGetValue(existingId, out var existingByKey))
         {
-            ThrowIfStrictConflict(envelope, existingByKey.Id);
+            ThrowIfStrictConflict(envelope, existingByKey);
             return existingByKey;
         }
 
@@ -698,15 +698,22 @@ public sealed class InMemoryInboxStore :
     ///     Throws when a duplicate idempotency key or message identifier is rejected under strict conflict mode.
     /// </summary>
     /// <param name="envelope">The envelope attempted for insert.</param>
-    /// <param name="existingId">The identifier of the stored row that conflicts with the attempt.</param>
-    private static void ThrowIfStrictConflict(InboxEnvelope envelope, Guid existingId)
+    /// <param name="existing">The stored envelope that conflicts with the attempt.</param>
+    private static void ThrowIfStrictConflict(InboxEnvelope envelope, InboxEnvelope existing)
     {
         if (envelope.IdempotencyConflictMode != IdempotencyConflictMode.Strict)
         {
             return;
         }
 
-        if (envelope.Id == existingId)
+        if (envelope.Id == existing.Id &&
+            envelope.ContractVersion == existing.ContractVersion &&
+            string.Equals(envelope.ContractName, existing.ContractName, StringComparison.Ordinal) &&
+            string.Equals(envelope.Payload, existing.Payload, StringComparison.Ordinal) &&
+            string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) &&
+            string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) &&
+            string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) &&
+            string.Equals(envelope.TenantId, existing.TenantId, StringComparison.Ordinal))
         {
             return;
         }

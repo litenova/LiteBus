@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -294,7 +295,12 @@ public sealed class EfCoreOutboxStore :
 
             var provider = EfCoreProviderResolver.Resolve(dbContext, _options.LeaseProvider);
 
-            if (provider is EfCoreStorageProvider.InMemory or EfCoreStorageProvider.Sqlite)
+            if (provider == EfCoreStorageProvider.Sqlite)
+            {
+                return await LeasePendingSqliteAsync(dbContext, context, request, token).ConfigureAwait(false);
+            }
+
+            if (provider == EfCoreStorageProvider.InMemory)
             {
                 return await LeasePendingInMemoryAsync(context, request, token).ConfigureAwait(false);
             }
@@ -452,6 +458,7 @@ public sealed class EfCoreOutboxStore :
 
                 if (seenIds.TryGetValue(envelope.Id, out var duplicateById))
                 {
+                    ThrowIfStrictConflict(envelope, duplicateById);
                     results[index] = duplicateById;
                     continue;
                 }
@@ -461,8 +468,9 @@ public sealed class EfCoreOutboxStore :
                         envelope,
                         envelope => envelope.TenantId,
                         envelope => envelope.IdempotencyKey,
-                        out var duplicateByKey))
+                    out var duplicateByKey))
                 {
+                    ThrowIfStrictConflict(envelope, duplicateByKey);
                     results[index] = duplicateByKey;
                     continue;
                 }
@@ -471,6 +479,7 @@ public sealed class EfCoreOutboxStore :
 
                 if (local is not null)
                 {
+                    ThrowIfStrictConflict(envelope, local);
                     results[index] = ToEnvelope(local);
                     RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
                     continue;
@@ -481,6 +490,7 @@ public sealed class EfCoreOutboxStore :
 
                 if (existing is not null)
                 {
+                    ThrowIfStrictConflict(envelope, existing);
                     results[index] = ToEnvelope(existing);
                     RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
                     continue;
@@ -491,6 +501,13 @@ public sealed class EfCoreOutboxStore :
                         EfCoreIdempotencyResolution.CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey),
                         out var sourceIndex))
                 {
+                    if (envelope.IdempotencyConflictMode == IdempotencyConflictMode.Strict &&
+                        envelopes[sourceIndex].Id != envelope.Id)
+                    {
+                        throw new IdempotencyConflictException(
+                            $"An outbox message with idempotency key '{envelope.IdempotencyKey}' already exists in the batch.");
+                    }
+
                     pendingAliases[index] = sourceIndex;
                     continue;
                 }
@@ -1089,6 +1106,36 @@ public sealed class EfCoreOutboxStore :
     }
 
     /// <summary>
+    ///     Leases SQLite rows inside a serializable transaction so separate processes cannot select the same candidate set.
+    /// </summary>
+    /// <param name="dbContext">The SQLite database context.</param>
+    /// <param name="context">The LiteBus outbox context.</param>
+    /// <param name="request">The lease request.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The rows claimed by this transaction.</returns>
+    private static async Task<IReadOnlyList<OutboxEnvelope>> LeasePendingSqliteAsync(
+        DbContext dbContext,
+        IOutboxDbContext context,
+        OutboxLeaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        var transaction = await dbContext.Database
+            .BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            .ConfigureAwait(false);
+
+        try
+        {
+            var leased = await LeasePendingInMemoryCoreAsync(context, request, cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return leased;
+        }
+        finally
+        {
+            await transaction.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
     ///     Finds a tracked outbox row matching the message identifier or idempotency key.
     /// </summary>
     /// <param name="context">The database context.</param>
@@ -1592,12 +1639,54 @@ public sealed class EfCoreOutboxStore :
     /// <param name="existing">The conflicting entity already stored or tracked by the context.</param>
     private static void ThrowIfStrictConflict(OutboxEnvelope envelope, OutboxMessageEntity existing)
     {
-        if (envelope.IdempotencyConflictMode != IdempotencyConflictMode.Strict || envelope.Id == existing.Id)
+        if (envelope.IdempotencyConflictMode != IdempotencyConflictMode.Strict)
+        {
+            return;
+        }
+
+        if (envelope.Id == existing.Id &&
+            string.Equals(envelope.ContractName, existing.ContractName, StringComparison.Ordinal) &&
+            envelope.ContractVersion == existing.ContractVersion &&
+            string.Equals(envelope.Payload, existing.Payload, StringComparison.Ordinal) &&
+            string.Equals(envelope.Topic, existing.Topic, StringComparison.Ordinal) &&
+            string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) &&
+            string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) &&
+            string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) &&
+            string.Equals(
+                EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
+                existing.TenantId,
+                StringComparison.Ordinal))
         {
             return;
         }
 
         throw new IdempotencyConflictException(
             $"An outbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
+    }
+
+    /// <summary>
+    ///     Throws when a batch duplicate is rejected under strict conflict mode.
+    /// </summary>
+    /// <param name="envelope">The envelope attempted for insert.</param>
+    /// <param name="existing">The envelope already resolved in the batch.</param>
+    private static void ThrowIfStrictConflict(OutboxEnvelope envelope, OutboxEnvelope existing)
+    {
+        if (envelope.IdempotencyConflictMode == IdempotencyConflictMode.Strict &&
+            (envelope.Id != existing.Id ||
+             !string.Equals(envelope.ContractName, existing.ContractName, StringComparison.Ordinal) ||
+             envelope.ContractVersion != existing.ContractVersion ||
+             !string.Equals(envelope.Payload, existing.Payload, StringComparison.Ordinal) ||
+             !string.Equals(envelope.Topic, existing.Topic, StringComparison.Ordinal) ||
+             !string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) ||
+             !string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) ||
+             !string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) ||
+             !string.Equals(
+                 EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
+                 existing.TenantId,
+                 StringComparison.Ordinal)))
+        {
+            throw new IdempotencyConflictException(
+                $"An outbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
+        }
     }
 }

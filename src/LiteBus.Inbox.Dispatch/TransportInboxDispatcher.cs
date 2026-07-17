@@ -80,7 +80,18 @@ public sealed class TransportInboxDispatcher : IInboxDispatcher
 
         var messageType = _contractRegistry.GetMessageType(envelope.ContractName, envelope.ContractVersion);
 
-        var payload = await PayloadProtection.UnprotectAsync(envelope.Payload, _payloadProtector, cancellationToken)
+        var payload = await PayloadProtection.UnprotectAsync(
+                envelope.Payload,
+                _payloadProtector,
+                new PayloadProtectionContext
+                {
+                    MessageId = envelope.Id,
+                    ContractName = envelope.ContractName,
+                    ContractVersion = envelope.ContractVersion,
+                    TenantId = envelope.TenantId,
+                    Axis = "inbox"
+                },
+                cancellationToken)
             .ConfigureAwait(false);
 
         if (_options.ValidatePayloadBeforeDispatch)

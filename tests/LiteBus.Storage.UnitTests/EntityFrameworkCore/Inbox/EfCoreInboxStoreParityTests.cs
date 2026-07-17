@@ -1,6 +1,7 @@
 using LiteBus.Inbox.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using LiteBus.Inbox.Storage.EntityFrameworkCore;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 
 namespace LiteBus.Storage.UnitTests.EntityFrameworkCore.Inbox;
 
@@ -89,6 +90,28 @@ public sealed class EfCoreInboxStoreParityTests
          {
         (await context.InboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(1);
         }
+    }
+
+    /// <summary>
+    ///     Verifies strict batch replay rejects a changed payload under the same message identifier.
+    /// </summary>
+    [Fact]
+    public async Task AddBatchAsync_StrictSameIdWithChangedPayload_ShouldThrow()
+    {
+        var store = CreateStore(Guid.NewGuid().ToString("N"));
+        var original = CreatePendingEnvelope("tenant-a", new DateTimeOffset(2026, 1, 15, 12, 0, 0, TimeSpan.Zero));
+
+        await store.AddAsync(original).ConfigureAwait(true);
+
+        var duplicate = original with
+        {
+            Payload = "{\"changed\":true}",
+            IdempotencyConflictMode = IdempotencyConflictMode.Strict
+        };
+
+        var action = () => store.AddBatchAsync([duplicate]);
+
+        await action.Should().ThrowAsync<IdempotencyConflictException>().ConfigureAwait(true);
     }
 
     /// <summary>

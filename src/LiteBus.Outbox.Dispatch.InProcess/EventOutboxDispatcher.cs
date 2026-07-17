@@ -93,7 +93,18 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         {
             var messageType = _contractRegistry.GetMessageType(message.ContractName, message.ContractVersion);
 
-            var payload = await PayloadProtection.UnprotectAsync(message.Payload, _payloadProtector, cancellationToken)
+            var payload = await PayloadProtection.UnprotectAsync(
+                    message.Payload,
+                    _payloadProtector,
+                    new PayloadProtectionContext
+                    {
+                        MessageId = message.Id,
+                        ContractName = message.ContractName,
+                        ContractVersion = message.ContractVersion,
+                        TenantId = message.TenantId,
+                        Axis = "outbox"
+                    },
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             var messageInstance = await _messageSerializer.DeserializeAsync(messageType, payload, cancellationToken).ConfigureAwait(false);

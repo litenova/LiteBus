@@ -554,13 +554,31 @@ public sealed class PostgreSqlInboxStore :
 
         if (existing is not null &&
             envelope.IdempotencyConflictMode == Messaging.Abstractions.DurableMessaging.IdempotencyConflictMode.Strict &&
-            existing.Id != envelope.Id)
+            !HasSameSubmission(envelope, existing))
         {
             throw new Messaging.Abstractions.DurableMessaging.IdempotencyConflictException(
                 $"An inbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
         }
 
         return existing ?? envelope;
+    }
+
+    /// <summary>
+    ///     Determines whether a strict replay describes the same inbox submission.
+    /// </summary>
+    /// <param name="requested">The incoming envelope.</param>
+    /// <param name="stored">The existing envelope.</param>
+    /// <returns><see langword="true" /> when identity and message content match.</returns>
+    private static bool HasSameSubmission(InboxEnvelope requested, InboxEnvelope stored)
+    {
+        return requested.Id == stored.Id &&
+               requested.ContractVersion == stored.ContractVersion &&
+               string.Equals(requested.ContractName, stored.ContractName, StringComparison.Ordinal) &&
+               string.Equals(requested.Payload, stored.Payload, StringComparison.Ordinal) &&
+               string.Equals(requested.IdempotencyKey, stored.IdempotencyKey, StringComparison.Ordinal) &&
+               string.Equals(requested.CorrelationId, stored.CorrelationId, StringComparison.Ordinal) &&
+               string.Equals(requested.CausationId, stored.CausationId, StringComparison.Ordinal) &&
+               string.Equals(requested.TenantId, stored.TenantId, StringComparison.Ordinal);
     }
 
     /// <inheritdoc />
@@ -1154,7 +1172,7 @@ public sealed class PostgreSqlInboxStore :
         command.Parameters.AddWithValue($"contract_name{suffix}", envelope.ContractName);
         command.Parameters.AddWithValue($"contract_version{suffix}", envelope.ContractVersion);
 
-        var payloadParameter = command.Parameters.Add($"payload{suffix}", NpgsqlDbType.Jsonb);
+        var payloadParameter = command.Parameters.Add($"payload{suffix}", NpgsqlDbType.Text);
         payloadParameter.Value = envelope.Payload;
 
         command.Parameters.AddWithValue($"created_at{suffix}", envelope.CreatedAt);

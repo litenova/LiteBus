@@ -58,6 +58,31 @@ public sealed class PayloadProtectionTests
     }
 
     /// <summary>
+    ///     Verifies contextual encryptors receive the exact durable metadata supplied by the caller.
+    /// </summary>
+    [Fact]
+    public async Task Operations_WithContextualEncryptor_ForwardsProtectionContext()
+    {
+        var encryptor = new ContextualRecordingEncryptor();
+        var context = new PayloadProtectionContext
+        {
+            MessageId = Guid.NewGuid(),
+            ContractName = "orders.commands.ship",
+            ContractVersion = 2,
+            TenantId = "tenant-a",
+            Axis = "inbox"
+        };
+
+        var protectedPayload = await PayloadProtection.ProtectAsync("plain", encryptor, context).ConfigureAwait(false);
+        var unprotectedPayload = await PayloadProtection.UnprotectAsync("cipher", encryptor, context).ConfigureAwait(false);
+
+        protectedPayload.Should().Be("contextual:plain");
+        unprotectedPayload.Should().Be("contextual-decrypted:cipher");
+        encryptor.EncryptionContext.Should().Be(context);
+        encryptor.DecryptionContext.Should().Be(context);
+    }
+
+    /// <summary>
     ///     Verifies null payloads are rejected before optional encryptor delegation.
     /// </summary>
     [Fact]
@@ -130,6 +155,41 @@ public sealed class PayloadProtectionTests
             }
 
             return Task.FromResult($"decrypted:{ciphertext}");
+        }
+    }
+
+    private sealed class ContextualRecordingEncryptor : IContextualPayloadEncryptor
+    {
+        internal PayloadProtectionContext? DecryptionContext { get; private set; }
+
+        internal PayloadProtectionContext? EncryptionContext { get; private set; }
+
+        public Task<string> EncryptAsync(string plaintext, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult($"legacy:{plaintext}");
+        }
+
+        public Task<string> DecryptAsync(string ciphertext, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult($"legacy-decrypted:{ciphertext}");
+        }
+
+        public Task<string> EncryptAsync(
+            string plaintext,
+            PayloadProtectionContext context,
+            CancellationToken cancellationToken = default)
+        {
+            EncryptionContext = context;
+            return Task.FromResult($"contextual:{plaintext}");
+        }
+
+        public Task<string> DecryptAsync(
+            string ciphertext,
+            PayloadProtectionContext context,
+            CancellationToken cancellationToken = default)
+        {
+            DecryptionContext = context;
+            return Task.FromResult($"contextual-decrypted:{ciphertext}");
         }
     }
 }

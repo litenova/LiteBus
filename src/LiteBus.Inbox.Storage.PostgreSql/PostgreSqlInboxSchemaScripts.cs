@@ -64,7 +64,10 @@ internal static class PostgreSqlInboxSchemaScripts
             "Creates the version 1 inbox table, indexes, and optional insert notify trigger."),
         new(
             PostgreSqlInboxSchemaSqlPaths.V1EnsureIndexes,
-            "Ensures inbox indexes exist for schema version 1.")
+            "Ensures inbox indexes exist for schema version 1."),
+        new(
+            PostgreSqlInboxSchemaSqlPaths.V2PayloadText,
+            "Converts the payload column to text for opaque ciphertext support.")
     ];
 
     /// <summary>

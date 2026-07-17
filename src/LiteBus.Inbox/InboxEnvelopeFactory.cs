@@ -132,8 +132,21 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
         var contract = _contractRegistry.GetContract(ResolveContractType(messageType, message));
         var acceptedAt = _clock.GetUtcNow();
         var id = DurableEnvelopeMetadataMapper.ResolveMessageId(metadata.Identity);
+        var tenantId = DurableEnvelopeMetadataMapper.ResolveTenantId(metadata.Tenant);
         var payload = await _messageSerializer.SerializeAsync(message, cancellationToken).ConfigureAwait(false);
-        payload = await PayloadProtection.ProtectAsync(payload, _payloadProtector, cancellationToken).ConfigureAwait(false);
+        payload = await PayloadProtection.ProtectAsync(
+                payload,
+                _payloadProtector,
+                new PayloadProtectionContext
+                {
+                    MessageId = id,
+                    ContractName = contract.Name,
+                    ContractVersion = contract.Version,
+                    TenantId = tenantId,
+                    Axis = "inbox"
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
         var (correlationId, causationId, traceContext) = DurableEnvelopeMetadataMapper.ResolveTraceColumns(metadata.Trace);
 
         return new InboxEnvelope
@@ -150,7 +163,7 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
             IdempotencyConflictMode = DurableEnvelopeMetadataMapper.ResolveIdempotencyConflictMode(metadata.Idempotency),
             CorrelationId = correlationId,
             CausationId = causationId,
-            TenantId = DurableEnvelopeMetadataMapper.ResolveTenantId(metadata.Tenant),
+            TenantId = tenantId,
             TraceContext = traceContext
         };
     }

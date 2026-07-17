@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS {{QualifiedTableName}}
     NOT
     NULL,
     payload
-    jsonb
+    text
     NOT
     NULL,
     created_at

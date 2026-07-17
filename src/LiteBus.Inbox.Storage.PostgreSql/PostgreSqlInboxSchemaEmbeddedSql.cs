@@ -19,4 +19,9 @@ internal static class PostgreSqlInboxSchemaEmbeddedSql
     ///     Embedded resource path for inbox index ensure SQL.
     /// </summary>
     internal const string V1EnsureIndexes = "inbox/v1/ensure_indexes.sql";
+
+    /// <summary>
+    ///     Embedded resource path for the version 2 payload type migration.
+    /// </summary>
+    internal const string V2PayloadText = "inbox/v2/payload_text.sql";
 }

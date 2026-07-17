@@ -32,6 +32,7 @@
 - Lease ownership is recorded with `lease_owner` and `lease_expires_at`.
 - State writes are lease-guarded; stale workers return skipped/rejected persist counts.
 - Expired leases are reclaimable, which gives at-least-once execution behavior.
+- Payload is stored as text so configured encryptors can return opaque ciphertext. Existing tables created with a JSONB payload column require an application migration before encrypted writes use the text parameter type.
 
 ## Indexes
 

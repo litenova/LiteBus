@@ -84,7 +84,18 @@ public sealed class TransportOutboxDispatcher : IOutboxDispatcher
 
         var messageType = _contractRegistry.GetMessageType(message.ContractName, message.ContractVersion);
 
-        var payload = await PayloadProtection.UnprotectAsync(message.Payload, _payloadProtector, cancellationToken)
+        var payload = await PayloadProtection.UnprotectAsync(
+                message.Payload,
+                _payloadProtector,
+                new PayloadProtectionContext
+                {
+                    MessageId = message.Id,
+                    ContractName = message.ContractName,
+                    ContractVersion = message.ContractVersion,
+                    TenantId = message.TenantId,
+                    Axis = "outbox"
+                },
+                cancellationToken)
             .ConfigureAwait(false);
 
         if (_options.ValidatePayloadBeforeDispatch)

@@ -24,4 +24,9 @@ public static class PostgreSqlOutboxSchemaSqlPaths
     ///     Ensures outbox indexes exist for schema version 1.
     /// </summary>
     public const string V1EnsureIndexes = Root + "outbox/v1/ensure_indexes.sql";
+
+    /// <summary>
+    ///     Converts the payload column from JSONB to text for opaque ciphertext support.
+    /// </summary>
+    public const string V2PayloadText = Root + "outbox/v2/payload_text.sql";
 }

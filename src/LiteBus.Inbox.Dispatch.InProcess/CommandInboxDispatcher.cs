@@ -74,7 +74,18 @@ public sealed class CommandInboxDispatcher : IInboxDispatcher
 
         var messageType = _contractRegistry.GetMessageType(envelope.ContractName, envelope.ContractVersion);
 
-        var payload = await PayloadProtection.UnprotectAsync(envelope.Payload, _payloadProtector, cancellationToken)
+        var payload = await PayloadProtection.UnprotectAsync(
+                envelope.Payload,
+                _payloadProtector,
+                new PayloadProtectionContext
+                {
+                    MessageId = envelope.Id,
+                    ContractName = envelope.ContractName,
+                    ContractVersion = envelope.ContractVersion,
+                    TenantId = envelope.TenantId,
+                    Axis = "inbox"
+                },
+                cancellationToken)
             .ConfigureAwait(false);
 
         var message = await _messageSerializer.DeserializeAsync(messageType, payload, cancellationToken).ConfigureAwait(false);

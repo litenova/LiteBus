@@ -32,6 +32,7 @@
 - Store records `lease_owner` and `lease_expires_at` when rows are claimed.
 - Persist updates are lease-guarded; stale workers report skipped/rejected outcomes.
 - Expired publishing leases are eligible for a new worker.
+- Payload is stored as text so configured encryptors can return opaque ciphertext. Existing tables created with a JSONB payload column require an application migration before encrypted writes use the text parameter type.
 
 ## Indexes
 

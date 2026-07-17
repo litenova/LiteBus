@@ -175,8 +175,21 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
         var contract = _contractRegistry.GetContract(ResolveContractType(eventType, eventInstance));
         var storedAt = _clock.GetUtcNow();
         var id = DurableEnvelopeMetadataMapper.ResolveMessageId(metadata.Identity);
+        var tenantId = DurableEnvelopeMetadataMapper.ResolveTenantId(metadata.Tenant);
         var payload = await _messageSerializer.SerializeAsync(eventInstance, cancellationToken).ConfigureAwait(false);
-        payload = await PayloadProtection.ProtectAsync(payload, _payloadProtector, cancellationToken).ConfigureAwait(false);
+        payload = await PayloadProtection.ProtectAsync(
+                payload,
+                _payloadProtector,
+                new PayloadProtectionContext
+                {
+                    MessageId = id,
+                    ContractName = contract.Name,
+                    ContractVersion = contract.Version,
+                    TenantId = tenantId,
+                    Axis = "outbox"
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
         var (correlationId, causationId, traceContext) = DurableEnvelopeMetadataMapper.ResolveTraceColumns(metadata.Trace);
 
         return new OutboxEnvelope
@@ -192,7 +205,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
             AttemptCount = 0,
             CorrelationId = correlationId,
             CausationId = causationId,
-            TenantId = DurableEnvelopeMetadataMapper.ResolveTenantId(metadata.Tenant),
+            TenantId = tenantId,
             IdempotencyKey = DurableEnvelopeMetadataMapper.ResolveIdempotencyKey(metadata.Idempotency),
             IdempotencyConflictMode = DurableEnvelopeMetadataMapper.ResolveIdempotencyConflictMode(metadata.Idempotency),
             TraceContext = traceContext

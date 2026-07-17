@@ -65,7 +65,10 @@ internal static class PostgreSqlOutboxSchemaScripts
             "Creates the version 1 outbox table, indexes, and optional insert notify trigger."),
         new(
             PostgreSqlOutboxSchemaSqlPaths.V1EnsureIndexes,
-            "Ensures outbox indexes exist for schema version 1.")
+            "Ensures outbox indexes exist for schema version 1."),
+        new(
+            PostgreSqlOutboxSchemaSqlPaths.V2PayloadText,
+            "Converts the payload column to text for opaque ciphertext support.")
     ];
 
     /// <summary>

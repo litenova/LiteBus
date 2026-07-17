@@ -12,6 +12,8 @@ Inbox and outbox writers can encrypt serialized payload bodies before persistenc
 | Surface | Role |
 | --- | --- |
 | `IPayloadEncryptor` | Application implementation of `EncryptAsync` and `DecryptAsync` |
+| `IContextualPayloadEncryptor` | Optional authenticated encryption contract that receives message and contract metadata as associated data |
+| `PayloadProtectionContext` | Immutable message, contract, tenant, and axis metadata passed to contextual encryptors |
 | `IInboxPayloadProtector` | Inbox-specific dependency key adapted from the configured encryptor |
 | `IOutboxPayloadProtector` | Outbox-specific dependency key adapted from the configured encryptor |
 | `InboxModuleBuilder.UsePayloadEncryption` | Applies protection to inbox acceptance and dispatch |
@@ -44,7 +46,9 @@ Inbox and outbox can use separate implementations when they use different keys o
 | Transactional EF Core inbox and outbox writers | Encrypt within the caller's unit of work |
 | In-process and transport dispatchers | Decrypt stored payloads before validation or mediation |
 
-Storage adapters treat the protected payload as opaque text. Contract name and version stay plaintext so the registry can select a CLR type before deserialization. Topic, correlation, tenant, visibility, and status fields also remain plaintext for leasing and operations.
+Storage adapters treat the protected payload as opaque text. EF Core and PostgreSQL adapters map payload columns to text so ciphertext does not need to be valid JSON. Contract name and version stay plaintext so the registry can select a CLR type before deserialization. Topic, correlation, tenant, visibility, and status fields also remain plaintext for leasing and operations.
+
+Implement `IContextualPayloadEncryptor` when ciphertext must be bound to its row metadata. LiteBus passes `MessageId`, `ContractName`, `ContractVersion`, `TenantId`, and an axis value of `inbox` or `outbox`. Use these fields as authenticated associated data in an AEAD implementation. Existing `IPayloadEncryptor` implementations remain supported but do not receive associated data.
 
 ## Key Rotation
 
@@ -87,6 +91,7 @@ Repeated decrypt failures after a deployment usually identify missing keys, mism
 - Decryption runs before payload validation or deserialization.
 - All readers of one store must retain keys for every non-expired ciphertext.
 - Contract and operational metadata are not encrypted.
+- Contextual encryptors must reject decryption when supplied metadata differs from the values authenticated during encryption.
 - Transactional writers use the same axis protector as non-transactional writers.
 
 ## Non-Goals
