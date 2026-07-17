@@ -4,9 +4,6 @@
         <Platform Name="x64"/>
         <Platform Name="x86"/>
     </Configurations>
-    <Folder Name="/.github/">
-        <File Path=".github/dependabot.yml"/>
-    </Folder>
     <Folder Name="/.github/scripts/">
         <File Path=".github/scripts/generate-release-notes.sh"/>
     </Folder>
