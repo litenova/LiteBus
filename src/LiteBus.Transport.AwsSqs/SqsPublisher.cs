@@ -41,10 +41,18 @@ public sealed class SqsPublisher : IMessageTransport
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        _circuitBreaker.ThrowIfOpen();
+        using var activity = TransportTracing.StartPublishActivity(new TransportActivityMetadata
+        {
+            MessagingSystem = TransportMessagingSystems.AmazonSqs,
+            Destination = request.Destination,
+            Route = request.Route,
+            MessageId = request.MessageId,
+            CorrelationId = request.CorrelationId
+        });
 
         try
         {
+            _circuitBreaker.ThrowIfOpen();
             var sendRequest = SqsMessageMapper.ToSendMessageRequest(request);
 
             await _sqsClient.SendMessageAsync(sendRequest, cancellationToken).ConfigureAwait(false);
@@ -55,8 +63,14 @@ public sealed class SqsPublisher : IMessageTransport
         {
             throw;
         }
-        catch (AmazonSQSException)
+        catch (TransportCircuitBreakerOpenException exception)
         {
+            TransportTracing.RecordException(activity, exception);
+            throw;
+        }
+        catch (AmazonSQSException exception)
+        {
+            TransportTracing.RecordException(activity, exception);
             _circuitBreaker.RecordFailure();
             throw;
         }
@@ -64,6 +78,7 @@ public sealed class SqsPublisher : IMessageTransport
         catch (Exception exception)
 #pragma warning restore CA1031
         {
+            TransportTracing.RecordException(activity, exception);
             TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
             throw;
         }

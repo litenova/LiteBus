@@ -5,7 +5,7 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Abstractions.Exceptions;
-using LiteBus.Inbox.Dispatch.InMemory;
+using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Testing;
@@ -237,7 +237,7 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
                 {
                     inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship");
                     inbox.UseInMemoryStorage();
-                    inbox.UseInMemoryDispatch();
+                    inbox.UseInProcessDispatch();
 
                     inbox.UseAmqpIngress(ingress =>
                     {

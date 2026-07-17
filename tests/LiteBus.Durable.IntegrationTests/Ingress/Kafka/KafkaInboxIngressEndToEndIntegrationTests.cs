@@ -151,6 +151,7 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
                     inbox.UseKafkaIngress(ingress =>
                     {
                         KafkaIngressTestSupport.ConfigureTestIngress(ingress);
+                        ingress.UseRegisteredTransport();
 
                         ingress.UseOptions(new KafkaInboxIngressOptions
                         {

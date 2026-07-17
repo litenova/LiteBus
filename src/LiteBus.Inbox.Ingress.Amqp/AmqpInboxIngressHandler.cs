@@ -1,5 +1,6 @@
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Amqp;
 
@@ -81,6 +82,7 @@ public sealed class AmqpInboxIngressHandler
     {
         return new TransportMessage
         {
+            MessagingSystem = TransportMessagingSystems.RabbitMq,
             Body = message.Body,
             Headers = message.Headers,
             Destination = message.Exchange,

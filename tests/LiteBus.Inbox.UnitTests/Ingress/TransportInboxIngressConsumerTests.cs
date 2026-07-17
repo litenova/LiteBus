@@ -1,5 +1,7 @@
+using System.Diagnostics.Metrics;
 using System.Reflection;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Abstractions.Exceptions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
@@ -107,14 +109,73 @@ public sealed class TransportInboxIngressConsumerTests
     }
 
     /// <summary>
-    ///     Verifies acknowledgement failure after accept does not discard the broker delivery.
+    ///     Verifies authorization rejection is classified before inbox acceptance and discarded as a terminal ingress failure.
+    /// </summary>
+    /// <returns>A task that completes when the authorization policy assertion succeeds.</returns>
+    [Fact]
+    public async Task HandleDeliveryAsync_WhenAuthorizationRejects_ShouldDiscardWithoutAccept()
+    {
+        var ackCount = 0;
+        var authorizationCount = 0;
+        var nackRequeue = new List<bool>();
+        var inbox = new RecordingInbox();
+        var consumer = CreateConsumer(
+            true,
+            inbox: inbox,
+            options: new TransportInboxIngressOptions
+            {
+                RequeueOnFailure = true,
+                RequireStableIdentity = false,
+                AuthorizeDeliveryAsync = (_, _) =>
+                {
+                    authorizationCount++;
+                    return Task.FromException(new InboxIngressException("delivery rejected"));
+                }
+            });
+
+        await InvokeHandleDeliveryAsync(
+            consumer,
+            CreateValidMessage(
+                () =>
+                {
+                    ackCount++;
+                    return Task.CompletedTask;
+                },
+                (requeue, _) =>
+                {
+                    nackRequeue.Add(requeue);
+                    return Task.CompletedTask;
+                })).ConfigureAwait(false);
+
+        authorizationCount.Should().Be(1);
+        inbox.BatchAcceptCount.Should().Be(0);
+        ackCount.Should().Be(0);
+        nackRequeue.Should().ContainSingle().Which.Should().BeFalse();
+    }
+
+    /// <summary>
+    ///     Verifies acknowledgement failure after accept records telemetry and returns the broker delivery to the queue.
     /// </summary>
     /// <returns>A task that completes when the acknowledgement assertion succeeds.</returns>
     [Fact]
     public async Task HandleDeliveryAsync_WhenAckFailsAfterAccept_ShouldNotDiscard()
     {
+        long ackFailureCount = 0;
         var nackRequeue = new List<bool>();
-        var consumer = CreateConsumer(true);
+        var inbox = new RecordingInbox();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name == LiteBusInboxIngressTelemetry.MeterName &&
+                instrument.Name == LiteBusInboxIngressTelemetry.AckFailedAfterAcceptInstrumentName)
+            {
+                meterListener.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, measurement, _, _) =>
+            Interlocked.Add(ref ackFailureCount, measurement));
+        listener.Start();
+        var consumer = CreateConsumer(true, inbox: inbox);
 
         await InvokeHandleDeliveryAsync(
             consumer,
@@ -126,7 +187,9 @@ public sealed class TransportInboxIngressConsumerTests
                     return Task.CompletedTask;
                 })).ConfigureAwait(false);
 
+        inbox.BatchAcceptCount.Should().Be(1);
         nackRequeue.Should().ContainSingle().Which.Should().BeTrue();
+        Volatile.Read(ref ackFailureCount).Should().BeGreaterThanOrEqualTo(1);
     }
 
     /// <summary>

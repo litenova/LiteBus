@@ -26,6 +26,11 @@ public sealed class KafkaBrokerHost : IAsyncDisposable
     public const string DefaultRedpandaImage = "docker.redpanda.com/redpandadata/redpanda:v24.3.7";
 
     /// <summary>
+    ///     The default Confluent Platform image used for Kafka integration tests.
+    /// </summary>
+    public const string DefaultConfluentImage = "confluentinc/cp-kafka:7.5.12";
+
+    /// <summary>
     ///     The maximum time allowed for container startup and broker warmup.
     /// </summary>
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(3);
@@ -120,8 +125,7 @@ public sealed class KafkaBrokerHost : IAsyncDisposable
     /// <returns>The bootstrap servers in <c>host:port</c> form.</returns>
     private async Task<string> StartRedpandaAsync(CancellationToken cancellationToken)
     {
-        var container = new RedpandaBuilder()
-            .WithImage(ResolveRedpandaImage())
+        var container = new RedpandaBuilder(ResolveRedpandaImage())
             .Build();
 
         _container = container;
@@ -139,13 +143,12 @@ public sealed class KafkaBrokerHost : IAsyncDisposable
     /// <param name="cancellationToken">The token used to cancel container startup.</param>
     /// <returns>The bootstrap servers in <c>host:port</c> form.</returns>
     /// <remarks>
-    ///     Uses the Debian-based Confluent Platform image pinned by <see cref="KafkaBuilder.KafkaImage" /> so
+    ///     Uses the Debian-based Confluent Platform image pinned by <see cref="DefaultConfluentImage" /> so
     ///     librdkafka native bindings avoid Alpine musl/glibc mismatches during integration tests.
     /// </remarks>
     private async Task<string> StartConfluentKafkaAsync(CancellationToken cancellationToken)
     {
-        var container = new KafkaBuilder()
-            .WithImage(ResolveConfluentImage())
+        var container = new KafkaBuilder(ResolveConfluentImage())
             .WithVendor(KafkaVendor.Confluent)
             .Build();
 
@@ -214,7 +217,7 @@ public sealed class KafkaBrokerHost : IAsyncDisposable
         var configuredImage = Environment.GetEnvironmentVariable(TestImageEnvironmentVariable);
 
         return string.IsNullOrWhiteSpace(configuredImage)
-            ? KafkaBuilder.KafkaImage
+            ? DefaultConfluentImage
             : configuredImage;
     }
 

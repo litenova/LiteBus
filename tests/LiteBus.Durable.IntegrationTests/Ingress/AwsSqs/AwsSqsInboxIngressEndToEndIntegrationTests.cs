@@ -130,9 +130,10 @@ public sealed class AwsSqsInboxIngressEndToEndIntegrationTests : LiteBusTestBase
                         transport => transport.DefaultDestination = dispatchQueueUrl,
                         _fixture.TransportOptions);
 
-                    inbox.UseAwsSqsIngress(ingress =>
-                    {
-                        ingress.UseOptions(new AwsSqsInboxIngressOptions
+                inbox.UseAwsSqsIngress(ingress =>
+                {
+                    ingress.UseRegisteredTransport();
+                    ingress.UseOptions(new AwsSqsInboxIngressOptions
                         {
                             Destination = ingressQueueUrl,
                             PrefetchCount = 1,

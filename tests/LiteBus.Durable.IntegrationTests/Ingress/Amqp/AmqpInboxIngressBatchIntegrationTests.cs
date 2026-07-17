@@ -120,9 +120,10 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
                     {
                     }, connectionOptions);
 
-                    inbox.UseAmqpIngress(ingress =>
-                    {
-                        ingress.UseOptions(new AmqpInboxIngressOptions
+                inbox.UseAmqpIngress(ingress =>
+                {
+                    ingress.UseRegisteredTransport();
+                    ingress.UseOptions(new AmqpInboxIngressOptions
                         {
                             QueueName = queueName,
                             PrefetchCount = prefetch,

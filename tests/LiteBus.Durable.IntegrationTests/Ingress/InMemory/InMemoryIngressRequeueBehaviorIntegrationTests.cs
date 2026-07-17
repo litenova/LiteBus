@@ -110,6 +110,7 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
 
                 inbox.UseInMemoryIngress(ingress =>
                 {
+                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new InMemoryInboxIngressOptions
                     {
                         Destination = ingressDestination,

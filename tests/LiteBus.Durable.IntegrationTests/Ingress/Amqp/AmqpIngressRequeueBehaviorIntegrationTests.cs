@@ -93,7 +93,8 @@ public sealed class AmqpIngressRequeueBehaviorIntegrationTests : LiteBusTestBase
     {
         var factory = new ConnectionFactory
         {
-            Uri = _broker.ConnectionOptions.Uri
+            Uri = _broker.ConnectionOptions.Uri ??
+                  throw new InvalidOperationException("The AMQP test broker did not provide a connection URI.")
         };
 
          var connection = await factory.CreateConnectionAsync().ConfigureAwait(false);
@@ -134,6 +135,7 @@ public sealed class AmqpIngressRequeueBehaviorIntegrationTests : LiteBusTestBase
 
                 inbox.UseAmqpIngress(ingress =>
                 {
+                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AmqpInboxIngressOptions
                     {
                         QueueName = ingressQueue,

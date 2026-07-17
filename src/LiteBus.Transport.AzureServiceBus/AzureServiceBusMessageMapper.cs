@@ -46,6 +46,7 @@ internal static class AzureServiceBusMessageMapper
 
         return new TransportMessage
         {
+            MessagingSystem = TransportMessagingSystems.ServiceBus,
             Body = message.Body,
             Headers = CopyApplicationProperties(message.ApplicationProperties),
             Destination = destination,
@@ -107,7 +108,7 @@ internal static class AzureServiceBusMessageMapper
     /// </summary>
     /// <param name="properties">The broker application properties.</param>
     /// <returns>A read-only header dictionary.</returns>
-    private static IReadOnlyDictionary<string, object?> CopyApplicationProperties(
+    private static Dictionary<string, object?> CopyApplicationProperties(
         IReadOnlyDictionary<string, object> properties)
     {
         if (properties.Count == 0)

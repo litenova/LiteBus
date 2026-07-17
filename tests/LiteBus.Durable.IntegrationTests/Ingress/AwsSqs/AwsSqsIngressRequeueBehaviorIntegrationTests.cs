@@ -148,6 +148,7 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
 
                 inbox.UseAwsSqsIngress(ingress =>
                 {
+                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AwsSqsInboxIngressOptions
                     {
                         Destination = ingressQueueUrl,

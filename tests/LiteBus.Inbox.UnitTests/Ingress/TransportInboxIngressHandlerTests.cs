@@ -155,6 +155,61 @@ public sealed class TransportInboxIngressHandlerTests
     }
 
     /// <summary>
+    ///     Verifies the host authorization callback receives the original delivery and cancellation token before accept.
+    /// </summary>
+    [Fact]
+    public async Task AcceptAsync_WithAuthorizationCallback_ShouldAuthorizeBeforeStoreWrite()
+    {
+        var store = new InMemoryInboxStore();
+        var contractRegistry = new MessageContractRegistry();
+        contractRegistry.Register<TestIngressCommand>("orders.commands.ship");
+        var inbox = InboxWriterTestFactory.Create(
+            store,
+            contractRegistry,
+            new SystemTextJsonMessageSerializer(),
+            TimeProvider.System);
+        TransportMessage? authorizedMessage = null;
+        CancellationToken authorizedToken = default;
+        var callbackCount = 0;
+        var handler = new TransportInboxIngressHandler(
+            inbox,
+            contractRegistry,
+            new SystemTextJsonMessageSerializer(),
+            new TransportInboxIngressOptions
+            {
+                RequireStableIdentity = false,
+                AuthorizeDeliveryAsync = (message, cancellationToken) =>
+                {
+                    callbackCount++;
+                    authorizedMessage = message;
+                    authorizedToken = cancellationToken;
+                    return Task.CompletedTask;
+                }
+            });
+        var messageId = Guid.NewGuid();
+        var transportMessage = new TransportMessage
+        {
+            Body = """{"orderId":"authorized"}"""u8.ToArray(),
+            Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                [TransportHeaders.MessageId] = messageId.ToString("D"),
+                [TransportHeaders.ContractName] = "orders.commands.ship",
+                [TransportHeaders.ContractVersion] = "1"
+            },
+            AckAsync = _ => Task.CompletedTask,
+            NackAsync = (_, _) => Task.CompletedTask
+        };
+        using var cancellationSource = new CancellationTokenSource();
+
+        await handler.AcceptAsync(transportMessage, cancellationSource.Token).ConfigureAwait(false);
+
+        callbackCount.Should().Be(1);
+        authorizedMessage.Should().BeSameAs(transportMessage);
+        authorizedToken.Should().Be(cancellationSource.Token);
+        store.Get(messageId).Status.Should().Be(InboxStatus.Pending);
+    }
+
+    /// <summary>
     ///     Verifies batch ingress accepts each delivery independently.
     /// </summary>
     [Fact]

@@ -13,7 +13,7 @@ namespace LiteBus.Inbox.Ingress;
 /// <summary>
 ///     Consumes transport messages and accepts them into the inbox store as LiteBus background service work.
 /// </summary>
-public sealed class TransportInboxIngressConsumer : IBackgroundService
+public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposable
 {
     /// <summary>
     ///     The buffered deliveries waiting for a batch accept flush.
@@ -179,6 +179,16 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
                 await Task.Delay(_hostOptions.RetryPollInterval, stoppingToken).ConfigureAwait(false);
             }
         }
+    }
+
+    /// <summary>
+    ///     Releases the batch timer and admission gate owned by this consumer instance.
+    /// </summary>
+    public void Dispose()
+    {
+        CancelBatchFlushTimer();
+        _batchAdmission?.Dispose();
+        _batchAdmission = null;
     }
 
     /// <summary>
@@ -411,7 +421,7 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService
     ///     without losing isolated poison handling. Failures are logged before per-message fallback acceptance.
     /// </remarks>
     private async Task AcceptAndAcknowledgeBatchAsync(
-        IReadOnlyList<TransportMessage> messages,
+        List<TransportMessage> messages,
         CancellationToken cancellationToken)
     {
         _circuitBreaker?.ThrowIfOpen();

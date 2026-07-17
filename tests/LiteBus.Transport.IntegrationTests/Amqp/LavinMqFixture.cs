@@ -26,8 +26,7 @@ public sealed class LavinMqFixture : IAsyncLifetime
     {
         try
         {
-            _container = new ContainerBuilder()
-                .WithImage("cloudamqp/lavinmq")
+            _container = new ContainerBuilder("cloudamqp/lavinmq")
                 .WithPortBinding(5672, true)
                 .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
                 .Build();

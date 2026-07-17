@@ -126,9 +126,10 @@ public sealed class AzureServiceBusInboxIngressEndToEndIntegrationTests : LiteBu
                         transport => transport.DefaultDestination = dispatchQueue,
                         _fixture.TransportOptions);
 
-                    inbox.UseAzureServiceBusIngress(ingress =>
-                    {
-                        ingress.UseOptions(new AzureServiceBusInboxIngressOptions
+                inbox.UseAzureServiceBusIngress(ingress =>
+                {
+                    ingress.UseRegisteredTransport();
+                    ingress.UseOptions(new AzureServiceBusInboxIngressOptions
                         {
                             Destination = ingressQueue,
                             PrefetchCount = 1,

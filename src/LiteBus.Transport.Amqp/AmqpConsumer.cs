@@ -233,7 +233,6 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
             (message, token) =>
             {
                 var transportMessage = ToTransportMessage(message);
-                using var activity = TransportTracing.StartConsumeActivity(transportMessage);
                 return TransportConsumerHandlerInvoker.InvokeAsync(transportMessage, handler, token);
             },
             cancellationToken);
@@ -248,6 +247,7 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     {
         return new TransportMessage
         {
+            MessagingSystem = TransportMessagingSystems.RabbitMq,
             Body = message.Body,
             Headers = message.Headers,
             Destination = _activeQueueName ?? message.Exchange,
@@ -323,7 +323,7 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     /// </summary>
     /// <param name="headers">The optional AMQP headers dictionary.</param>
     /// <returns>A read-only header dictionary.</returns>
-    private static IReadOnlyDictionary<string, object?> CopyHeaders(IDictionary<string, object?>? headers)
+    private static Dictionary<string, object?> CopyHeaders(IDictionary<string, object?>? headers)
     {
         if (headers is null || headers.Count == 0)
         {

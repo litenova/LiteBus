@@ -32,8 +32,7 @@ public sealed class RabbitMqBrokerFixture : IAsyncLifetime
     {
         try
         {
-            _container = new RabbitMqBuilder()
-                .WithImage("rabbitmq:4-management")
+            _container = new RabbitMqBuilder("rabbitmq:4-management")
                 .WithUsername("guest")
                 .WithPassword("guest")
                 .Build();
@@ -87,8 +86,7 @@ public sealed class LavinMqBrokerFixture : IAsyncLifetime
     {
         try
         {
-            _container = new ContainerBuilder()
-                .WithImage("cloudamqp/lavinmq")
+            _container = new ContainerBuilder("cloudamqp/lavinmq")
                 .WithPortBinding(5672, true)
                 .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
                 .Build();

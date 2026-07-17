@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Inbox.Dispatch;
@@ -92,11 +91,6 @@ public sealed class TransportInboxDispatcher : IInboxDispatcher
         var route = ResolveRoute(envelope);
         var body = Encoding.UTF8.GetBytes(payload);
 
-        using var activity = TransportTracing.StartPublishActivity(
-            _options.DefaultDestination,
-            route,
-            envelope.Id.ToString("D"));
-
         await _transport.PublishAsync(
             new TransportPublishRequest
             {
@@ -122,7 +116,7 @@ public sealed class TransportInboxDispatcher : IInboxDispatcher
     {
         if (_tenantRoutingStrategy is not null)
         {
-            return _tenantRoutingStrategy.ResolveDestination(
+            return _tenantRoutingStrategy.ResolveRoute(
                 envelope.TenantId,
                 envelope.ContractName,
                 envelope.ContractName);

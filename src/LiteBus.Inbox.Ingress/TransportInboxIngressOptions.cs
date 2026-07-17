@@ -20,7 +20,7 @@ namespace LiteBus.Inbox.Ingress;
 ///     <para>
 ///         Set <see cref="TrustApplicationHeaders" /> to <see langword="true" /> only when the broker binding is
 ///         authenticated and upstream publishers are trusted. When trusted, <c>litebus-message-id</c> may supply identity,
-///         <c>litebus-idempotency-key</c> overrides broker-scoped deduplication, and <c>litebus-tenant-id</c> scopes the
+///         <c>litebus-idempotency-key</c> overrides broker-scoped deduplication, and <c>tenant-id</c> scopes the
 ///         accepted envelope. When <see langword="false" /> (the default), identity and idempotency always derive from the
 ///         broker delivery id regardless of application headers on the wire.
 ///     </para>

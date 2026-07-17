@@ -41,15 +41,18 @@ public sealed class InMemoryPublisher : IMessageTransport
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        _circuitBreaker.ThrowIfOpen();
-
-        using var activity = TransportTracing.StartPublishActivity(
-            request.Destination,
-            request.Route,
-            request.MessageId);
+        using var activity = TransportTracing.StartPublishActivity(new TransportActivityMetadata
+        {
+            MessagingSystem = TransportMessagingSystems.LiteBusInMemory,
+            Destination = request.Destination,
+            Route = request.Route,
+            MessageId = request.MessageId,
+            CorrelationId = request.CorrelationId
+        });
 
         try
         {
+            _circuitBreaker.ThrowIfOpen();
             var endpoint = _broker.GetOrCreateEndpoint(request.Destination);
 
             var delivery = new InMemoryPendingDelivery
@@ -69,8 +72,14 @@ public sealed class InMemoryPublisher : IMessageTransport
         {
             throw;
         }
+        catch (TransportCircuitBreakerOpenException exception)
+        {
+            TransportTracing.RecordException(activity, exception);
+            throw;
+        }
         catch (ChannelClosedException exception)
         {
+            TransportTracing.RecordException(activity, exception);
             TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
             throw;
         }
@@ -78,6 +87,7 @@ public sealed class InMemoryPublisher : IMessageTransport
         catch (Exception exception)
 #pragma warning restore CA1031
         {
+            TransportTracing.RecordException(activity, exception);
             TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
             throw;
         }
@@ -88,7 +98,7 @@ public sealed class InMemoryPublisher : IMessageTransport
     /// </summary>
     /// <param name="headers">The optional publish headers.</param>
     /// <returns>A header dictionary, or an empty dictionary when no headers were supplied.</returns>
-    private static IReadOnlyDictionary<string, object?> CopyHeaders(IReadOnlyDictionary<string, object?>? headers)
+    private static Dictionary<string, object?> CopyHeaders(IReadOnlyDictionary<string, object?>? headers)
     {
         if (headers is null || headers.Count == 0)
         {

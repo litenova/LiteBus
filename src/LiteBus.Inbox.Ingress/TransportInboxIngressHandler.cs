@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Abstractions.Exceptions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Inbox.Ingress;
@@ -77,8 +76,6 @@ public sealed class TransportInboxIngressHandler
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        using var activity = TransportTracing.StartConsumeActivity(message);
-
         try
         {
             var item = await BuildAcceptItemAsync(message, cancellationToken).ConfigureAwait(false);
@@ -113,10 +110,7 @@ public sealed class TransportInboxIngressHandler
         {
             var message = messages[index];
 
-            using (TransportTracing.StartConsumeActivity(message))
-            {
-                items[index] = await BuildAcceptItemAsync(message, cancellationToken).ConfigureAwait(false);
-            }
+            items[index] = await BuildAcceptItemAsync(message, cancellationToken).ConfigureAwait(false);
         }
 
         await _inbox.AcceptBatchAsync(items, cancellationToken).ConfigureAwait(false);

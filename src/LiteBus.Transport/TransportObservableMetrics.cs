@@ -1,16 +1,27 @@
 using System.Diagnostics.Metrics;
+using System.Threading;
 
 namespace LiteBus.Transport;
 
 /// <summary>
 ///     Registers observable OpenTelemetry gauges for transport circuit breaker state.
 /// </summary>
-public sealed class TransportObservableMetrics
+public sealed class TransportObservableMetrics : IDisposable
 {
+    /// <summary>
+    ///     The meter retained for the lifetime of this metrics registrar.
+    /// </summary>
+    private readonly Meter _meter;
+
     /// <summary>
     ///     The service provider used to resolve the shared circuit breaker at observation time.
     /// </summary>
     private readonly IServiceProvider _serviceProvider;
+
+    /// <summary>
+    ///     Tracks whether the meter has been disposed.
+    /// </summary>
+    private int _disposeState;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="TransportObservableMetrics" /> class.
@@ -21,17 +32,28 @@ public sealed class TransportObservableMetrics
         ArgumentNullException.ThrowIfNull(serviceProvider);
         _serviceProvider = serviceProvider;
 
-        var meter = new Meter(LiteBusTransportTelemetry.MeterName);
+        _meter = new Meter(LiteBusTransportTelemetry.MeterName);
 
-        meter.CreateObservableGauge(
+        _meter.CreateObservableGauge(
             LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName,
             ObserveCircuitBreakerOpen,
             description: "Whether the transport circuit breaker is open where 1 is open and 0 is closed.");
 
-        meter.CreateObservableGauge(
+        _meter.CreateObservableGauge(
             LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName,
             ObserveCircuitBreakerFailureCount,
             description: "The current consecutive transport failure count observed by the circuit breaker.");
+    }
+
+    /// <summary>
+    ///     Disposes the meter and unregisters its observable instruments.
+    /// </summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) == 0)
+        {
+            _meter.Dispose();
+        }
     }
 
     /// <summary>

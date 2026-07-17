@@ -9,6 +9,15 @@ namespace LiteBus.Transport.Abstractions;
 public sealed class TransportMessage
 {
     /// <summary>
+    ///     Gets the OpenTelemetry messaging system identifier supplied by the broker adapter, when available.
+    /// </summary>
+    /// <remarks>
+    ///     Custom adapters should use the well-known OpenTelemetry value for their broker. LiteBus records
+    ///     <c>litebus</c> when this value is absent.
+    /// </remarks>
+    public string? MessagingSystem { get; init; }
+
+    /// <summary>
     ///     Gets the delivery body. Copy or deserialize the payload before the handler returns.
     /// </summary>
     public required ReadOnlyMemory<byte> Body { get; init; }

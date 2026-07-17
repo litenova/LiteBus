@@ -54,6 +54,7 @@ internal static class KafkaMessageMapper
 
         return new TransportMessage
         {
+            MessagingSystem = TransportMessagingSystems.Kafka,
             Body = result.Message.Value ?? [],
             Headers = CopyHeaders(result.Message.Headers),
             Destination = destination,
@@ -117,7 +118,7 @@ internal static class KafkaMessageMapper
     /// </summary>
     /// <param name="headers">The Kafka headers from the consumed record.</param>
     /// <returns>A read-only header dictionary.</returns>
-    private static IReadOnlyDictionary<string, object?> CopyHeaders(Headers headers)
+    private static Dictionary<string, object?> CopyHeaders(Headers headers)
     {
         if (headers.Count == 0)
         {

@@ -14,7 +14,7 @@ namespace LiteBus.Durable.IntegrationTests.Ingress.AzureServiceBus;
 /// <summary>
 ///     Optional Azure Service Bus integration tests driven by environment configuration.
 /// </summary>
-[Trait("Category", TransportTestTraits.Azure)]
+[Trait("Category", TransportTestTraits.LiveAzure)]
 public sealed class AzureServiceBusOptionalIntegrationTests : LiteBusTestBase
 {
     /// <summary>

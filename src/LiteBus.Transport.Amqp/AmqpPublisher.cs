@@ -11,7 +11,7 @@ namespace LiteBus.Transport.Amqp;
 /// <summary>
 ///     Publishes AMQP messages through a shared connection manager.
 /// </summary>
-public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport
+public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport, IAsyncDisposable
 {
     /// <summary>
     ///     Gets the circuit breaker shared with the connection manager when it is a <see cref="AmqpConnectionManager" />.
@@ -27,6 +27,11 @@ public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport
     ///     Serializes publish operations on the shared publish channel.
     /// </summary>
     private readonly SemaphoreSlim _publishGate = new(1, 1);
+
+    /// <summary>
+    ///     Tracks whether asynchronous disposal has started.
+    /// </summary>
+    private int _disposeState;
 
     /// <summary>
     ///     Gets the lazily created channel reused for publications.
@@ -56,18 +61,33 @@ public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport
     public async Task PublishAsync(AmqpPublishRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
 
-        _circuitBreaker?.ThrowIfOpen();
+        using var activity = TransportTracing.StartPublishActivity(new TransportActivityMetadata
+        {
+            MessagingSystem = TransportMessagingSystems.RabbitMq,
+            Destination = request.Exchange,
+            Route = request.RoutingKey,
+            MessageId = request.MessageId,
+            CorrelationId = request.CorrelationId
+        });
 
-        using var activity = TransportTracing.StartPublishActivity(
-            request.Exchange,
-            request.RoutingKey,
-            request.MessageId);
+        try
+        {
+            _circuitBreaker?.ThrowIfOpen();
+        }
+        catch (TransportCircuitBreakerOpenException exception)
+        {
+            TransportTracing.RecordException(activity, exception);
+            throw;
+        }
 
         await _publishGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
+
             var channel = await GetPublishChannelAsync(cancellationToken).ConfigureAwait(false);
             var properties = CreateBasicProperties(channel, request);
 
@@ -89,13 +109,15 @@ public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport
             {
                 throw;
             }
-            catch (AlreadyClosedException)
+            catch (AlreadyClosedException exception)
             {
+                TransportTracing.RecordException(activity, exception);
                 _circuitBreaker?.RecordFailure();
                 throw;
             }
-            catch (BrokerUnreachableException)
+            catch (BrokerUnreachableException exception)
             {
+                TransportTracing.RecordException(activity, exception);
                 _circuitBreaker?.RecordFailure();
                 throw;
             }
@@ -103,6 +125,7 @@ public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport
             catch (Exception exception)
 #pragma warning restore CA1031
             {
+                TransportTracing.RecordException(activity, exception);
                 TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
                 throw;
             }
@@ -133,6 +156,30 @@ public sealed class AmqpPublisher : IAmqpPublisher, IMessageTransport
                 Headers = request.Headers
             },
             cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.CompareExchange(ref _disposeState, 1, 0) != 0)
+        {
+            return;
+        }
+
+        await _publishGate.WaitAsync().ConfigureAwait(false);
+
+        try
+        {
+            if (_publishChannel is not null)
+            {
+                await _publishChannel.DisposeAsync().ConfigureAwait(false);
+                _publishChannel = null;
+            }
+        }
+        finally
+        {
+            _publishGate.Release();
+        }
     }
 
     /// <summary>

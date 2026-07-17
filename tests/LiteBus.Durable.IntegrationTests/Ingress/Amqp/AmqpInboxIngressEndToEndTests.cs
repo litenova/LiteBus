@@ -108,6 +108,7 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
 
                 inbox.UseAmqpIngress(ingress =>
                 {
+                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AmqpInboxIngressOptions
                     {
                         QueueName = ingressQueue,

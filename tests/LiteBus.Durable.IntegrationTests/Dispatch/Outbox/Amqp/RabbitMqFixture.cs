@@ -26,8 +26,7 @@ public sealed class RabbitMqFixture : IAsyncLifetime
     {
         try
         {
-            _container = new RabbitMqBuilder()
-                .WithImage("rabbitmq:4-management")
+            _container = new RabbitMqBuilder("rabbitmq:4-management")
                 .WithUsername("guest")
                 .WithPassword("guest")
                 .Build();

@@ -112,6 +112,7 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
 
                 inbox.UseAmqpIngress(ingress =>
                 {
+                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AmqpInboxIngressOptions
                     {
                         QueueName = ingressQueue,

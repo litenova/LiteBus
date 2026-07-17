@@ -166,6 +166,7 @@ public sealed class InMemoryIngressHeaderEdgeCaseIntegrationTests : LiteBusTestB
 
                     inbox.UseInMemoryIngress(ingress =>
                     {
+                        ingress.UseRegisteredTransport();
                         ingress.UseOptions(new InMemoryInboxIngressOptions
                         {
                             Destination = ingressDestination,

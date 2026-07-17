@@ -33,8 +33,7 @@ public sealed class LocalStackSqsFixture : IAsyncLifetime
     {
         await DockerTestGate.RunAsync(async () =>
         {
-            _container = new LocalStackBuilder()
-                .WithImage("localstack/localstack:4.2")
+            _container = new LocalStackBuilder("localstack/localstack:4.2")
                 .Build();
 
             await _container.StartAsync().ConfigureAwait(false);

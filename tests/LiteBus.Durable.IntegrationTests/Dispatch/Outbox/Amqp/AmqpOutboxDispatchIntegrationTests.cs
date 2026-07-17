@@ -4,6 +4,7 @@ using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Testing;
@@ -121,6 +122,74 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
 
         var amqpMessage = await ConsumeOneAsync(queueName).ConfigureAwait(false);
         amqpMessage.RoutingKey.Should().Be(routingKey);
+        }
+    }
+
+    /// <summary>
+    ///     Verifies shutdown cancellation after a confirmed broker publish follows the configured terminal-persist policy.
+    /// </summary>
+    /// <param name="honorShutdownTokenOnPersist">Whether terminal persistence should receive the shutdown token.</param>
+    /// <returns>A task that completes when publication and persistence behavior are verified.</returns>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProcessPendingAsync_WhenShutdownBeginsAfterAmqpPublish_ShouldApplyTerminalPersistPolicy(
+        bool honorShutdownTokenOnPersist)
+    {
+        var queueName = CreateUniqueName("shutdown-persist");
+        var messageId = Guid.NewGuid();
+
+        await DeclareDirectQueueAsync(queueName).ConfigureAwait(false);
+
+        var provider = BuildProvider(string.Empty);
+        await using (provider.ConfigureAwait(false))
+        {
+            using var shutdownSource = new CancellationTokenSource();
+            var store = new InMemoryOutboxStore();
+            var stateWriter = new TokenCapturingOutboxStateWriter(store);
+            var dispatcher = new CancelAfterDispatchOutboxDispatcher(
+                provider.GetRequiredService<IOutboxDispatcher>(),
+                shutdownSource);
+            var processor = new PipelinedOutboxProcessor(
+                store,
+                stateWriter,
+                dispatcher,
+                new OutboxProcessorOptions
+                {
+                    BatchSize = 1,
+                    DispatcherConcurrency = 1,
+                    LeaseOwner = $"outbox-amqp-shutdown-{BrokerName}",
+                    LeaseDuration = TimeSpan.FromSeconds(10),
+                    LeaseHeartbeatInterval = TimeSpan.Zero,
+                    HonorShutdownTokenOnPersist = honorShutdownTokenOnPersist,
+                    Retry = new RetryOptions { UseJitter = false }
+                },
+                TimeProvider.System,
+                []);
+
+            await store.AddAsync(new OutboxEnvelope
+            {
+                Id = messageId,
+                ContractName = "orders.order-submitted",
+                ContractVersion = 1,
+                Payload = "{\"orderId\":\"11111111-1111-1111-1111-111111111111\"}",
+                Topic = queueName,
+                CreatedAt = DateTimeOffset.UtcNow,
+                AttemptCount = 0,
+                Status = OutboxStatus.Pending
+            }).ConfigureAwait(false);
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => processor.ProcessPendingAsync(shutdownSource.Token)).ConfigureAwait(false);
+
+            dispatcher.DispatchCompleted.Should().BeTrue();
+            shutdownSource.IsCancellationRequested.Should().BeTrue();
+            stateWriter.LastPersistToken.Should().Be(
+                honorShutdownTokenOnPersist ? shutdownSource.Token : CancellationToken.None);
+            store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
+
+            var message = await ConsumeOneAsync(queueName).ConfigureAwait(false);
+            message.MessageId.Should().Be(messageId.ToString("D"));
         }
     }
 
@@ -286,6 +355,82 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         public ConsumedAmqpMessage(AmqpReceivedMessage message, byte[] body)
             : this(message.MessageId, message.CorrelationId, message.RoutingKey, message.Headers, body)
         {
+        }
+    }
+
+    /// <summary>
+    ///     Cancels the processor token immediately after the inner AMQP dispatcher confirms publication.
+    /// </summary>
+    private sealed class CancelAfterDispatchOutboxDispatcher : IOutboxDispatcher
+    {
+        /// <summary>
+        ///     Gets the broker-backed dispatcher under test.
+        /// </summary>
+        private readonly IOutboxDispatcher _inner;
+
+        /// <summary>
+        ///     Gets the source canceled after broker publication completes.
+        /// </summary>
+        private readonly CancellationTokenSource _shutdownSource;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="CancelAfterDispatchOutboxDispatcher" /> class.
+        /// </summary>
+        /// <param name="inner">The broker-backed dispatcher under test.</param>
+        /// <param name="shutdownSource">The source canceled after dispatch completes.</param>
+        public CancelAfterDispatchOutboxDispatcher(
+            IOutboxDispatcher inner,
+            CancellationTokenSource shutdownSource)
+        {
+            _inner = inner;
+            _shutdownSource = shutdownSource;
+        }
+
+        /// <summary>
+        ///     Gets a value indicating whether the inner dispatcher completed before shutdown was requested.
+        /// </summary>
+        public bool DispatchCompleted { get; private set; }
+
+        /// <inheritdoc />
+        public async Task DispatchAsync(OutboxEnvelope message, CancellationToken cancellationToken = default)
+        {
+            await _inner.DispatchAsync(message, cancellationToken).ConfigureAwait(false);
+            DispatchCompleted = true;
+            await _shutdownSource.CancelAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Captures the token selected for terminal persistence after broker publication.
+    /// </summary>
+    private sealed class TokenCapturingOutboxStateWriter : IOutboxStateWriter
+    {
+        /// <summary>
+        ///     Gets the store that applies the terminal state after the token is captured.
+        /// </summary>
+        private readonly IOutboxStateWriter _inner;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="TokenCapturingOutboxStateWriter" /> class.
+        /// </summary>
+        /// <param name="inner">The store that applies terminal state.</param>
+        public TokenCapturingOutboxStateWriter(IOutboxStateWriter inner)
+        {
+            _inner = inner;
+        }
+
+        /// <summary>
+        ///     Gets the token supplied to the most recent terminal persistence call.
+        /// </summary>
+        public CancellationToken LastPersistToken { get; private set; }
+
+        /// <inheritdoc />
+        public Task<PersistResult> PersistAsync(
+            IReadOnlyList<OutboxEnvelope> envelopes,
+            CancellationToken cancellationToken = default)
+        {
+            LastPersistToken = cancellationToken;
+            return _inner.PersistAsync(envelopes, CancellationToken.None);
         }
     }
 

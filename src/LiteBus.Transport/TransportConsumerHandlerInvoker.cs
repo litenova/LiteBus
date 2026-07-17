@@ -28,6 +28,8 @@ public static class TransportConsumerHandlerInvoker
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(handler);
 
+        using var activity = TransportTracing.StartConsumeActivity(message);
+
         try
         {
             await handler(message, cancellationToken).ConfigureAwait(false);
@@ -40,6 +42,7 @@ public static class TransportConsumerHandlerInvoker
         catch (Exception exception) when (ShouldRequeueOnFailure(exception, cancellationToken))
 #pragma warning restore CA1031
         {
+            TransportTracing.RecordException(activity, exception);
             await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
         }
     }

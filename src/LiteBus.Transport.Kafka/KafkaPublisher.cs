@@ -47,10 +47,18 @@ public sealed class KafkaPublisher : IMessageTransport, IDisposable
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        _circuitBreaker.ThrowIfOpen();
+        using var activity = TransportTracing.StartPublishActivity(new TransportActivityMetadata
+        {
+            MessagingSystem = TransportMessagingSystems.Kafka,
+            Destination = request.Destination,
+            Route = request.Route,
+            MessageId = request.MessageId,
+            CorrelationId = request.CorrelationId
+        });
 
         try
         {
+            _circuitBreaker.ThrowIfOpen();
             var message = KafkaMessageMapper.ToKafkaMessage(request);
 
             await _producer
@@ -63,13 +71,20 @@ public sealed class KafkaPublisher : IMessageTransport, IDisposable
         {
             throw;
         }
-        catch (ProduceException<string, byte[]>)
+        catch (TransportCircuitBreakerOpenException exception)
         {
+            TransportTracing.RecordException(activity, exception);
+            throw;
+        }
+        catch (ProduceException<string, byte[]> exception)
+        {
+            TransportTracing.RecordException(activity, exception);
             _circuitBreaker.RecordFailure();
             throw;
         }
-        catch (KafkaException)
+        catch (KafkaException exception)
         {
+            TransportTracing.RecordException(activity, exception);
             _circuitBreaker.RecordFailure();
             throw;
         }
@@ -77,6 +92,7 @@ public sealed class KafkaPublisher : IMessageTransport, IDisposable
         catch (Exception exception)
 #pragma warning restore CA1031
         {
+            TransportTracing.RecordException(activity, exception);
             TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
             throw;
         }

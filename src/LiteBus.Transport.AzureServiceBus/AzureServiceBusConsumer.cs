@@ -263,8 +263,6 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
                     options.Destination,
                     ackHandlers);
 
-                using var activity = TransportTracing.StartConsumeActivity(transportMessage);
-
                 await TransportConsumerHandlerInvoker.InvokeAsync(transportMessage, handler, cancellationToken)
                     .ConfigureAwait(false);
             };

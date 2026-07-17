@@ -85,6 +85,7 @@ internal static class SqsMessageMapper
 
         return new TransportMessage
         {
+            MessagingSystem = TransportMessagingSystems.AmazonSqs,
             Body = body,
             Headers = headers,
             Destination = queueUrl,
@@ -185,7 +186,7 @@ internal static class SqsMessageMapper
     /// </summary>
     /// <param name="attributes">The SQS message attributes.</param>
     /// <returns>A read-only header dictionary.</returns>
-    private static IReadOnlyDictionary<string, object?> CopyMessageAttributes(
+    private static Dictionary<string, object?> CopyMessageAttributes(
         Dictionary<string, MessageAttributeValue> attributes)
     {
         if (attributes.Count == 0)
@@ -209,7 +210,7 @@ internal static class SqsMessageMapper
     /// <param name="headers">The header dictionary from the received message.</param>
     /// <param name="name">The header name to read.</param>
     /// <returns>The header value, or <see langword="null" /> when absent.</returns>
-    private static string? GetAttribute(IReadOnlyDictionary<string, object?> headers, string name)
+    private static string? GetAttribute(Dictionary<string, object?> headers, string name)
     {
         return headers.TryGetValue(name, out var value) ? Convert.ToString(value, CultureInfo.InvariantCulture) : null;
     }

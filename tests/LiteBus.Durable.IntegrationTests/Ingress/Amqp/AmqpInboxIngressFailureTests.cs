@@ -174,6 +174,7 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
 
                 inbox.UseAmqpIngress(ingress =>
                 {
+                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AmqpInboxIngressOptions
                     {
                         QueueName = queueName,

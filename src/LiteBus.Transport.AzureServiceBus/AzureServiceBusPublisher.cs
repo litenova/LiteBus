@@ -66,10 +66,18 @@ public sealed class AzureServiceBusPublisher : IMessageTransport, IDisposable, I
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        _circuitBreaker.ThrowIfOpen();
+        using var activity = TransportTracing.StartPublishActivity(new TransportActivityMetadata
+        {
+            MessagingSystem = TransportMessagingSystems.ServiceBus,
+            Destination = request.Destination,
+            Route = request.Route,
+            MessageId = request.MessageId,
+            CorrelationId = request.CorrelationId
+        });
 
         try
         {
+            _circuitBreaker.ThrowIfOpen();
             var sender = _senders.GetOrAdd(
                 request.Destination,
                 static (destination, client) => client.CreateSender(destination),
@@ -85,8 +93,14 @@ public sealed class AzureServiceBusPublisher : IMessageTransport, IDisposable, I
         {
             throw;
         }
-        catch (ServiceBusException)
+        catch (TransportCircuitBreakerOpenException exception)
         {
+            TransportTracing.RecordException(activity, exception);
+            throw;
+        }
+        catch (ServiceBusException exception)
+        {
+            TransportTracing.RecordException(activity, exception);
             _circuitBreaker.RecordFailure();
             throw;
         }
@@ -94,6 +108,7 @@ public sealed class AzureServiceBusPublisher : IMessageTransport, IDisposable, I
         catch (Exception exception)
 #pragma warning restore CA1031
         {
+            TransportTracing.RecordException(activity, exception);
             TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
             throw;
         }

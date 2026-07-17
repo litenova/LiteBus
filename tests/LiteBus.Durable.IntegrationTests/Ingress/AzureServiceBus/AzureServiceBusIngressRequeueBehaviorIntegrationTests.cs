@@ -103,6 +103,7 @@ public sealed class AzureServiceBusIngressRequeueBehaviorIntegrationTests : Lite
 
                 inbox.UseAzureServiceBusIngress(ingress =>
                 {
+                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AzureServiceBusInboxIngressOptions
                     {
                         Destination = ingressQueue,

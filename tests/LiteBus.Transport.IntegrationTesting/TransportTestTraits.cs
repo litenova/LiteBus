@@ -16,9 +16,14 @@ public static class TransportTestTraits
     public const string Docker = "TransportDocker";
 
     /// <summary>
-    ///     Transport tests that require the Azure Service Bus emulator or live namespace configuration.
+    ///     Transport tests that require the Azure Service Bus emulator.
     /// </summary>
     public const string Azure = "TransportAzure";
+
+    /// <summary>
+    ///     Optional transport tests that require explicit live Azure Service Bus credentials.
+    /// </summary>
+    public const string LiveAzure = "TransportLiveAzure";
 
     /// <summary>
     ///     AMQP transport tests documented for matrix completeness; AMQP wire tests live in sibling projects.

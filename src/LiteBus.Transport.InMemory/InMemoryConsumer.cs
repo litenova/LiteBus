@@ -149,7 +149,6 @@ public sealed class InMemoryConsumer : IMessageConsumer
                 while (reader.TryRead(out var delivery))
                 {
                     var transportMessage = CreateTransportMessage(endpoint, delivery);
-                    using var activity = TransportTracing.StartConsumeActivity(transportMessage);
 
                     await TransportConsumerHandlerInvoker.InvokeAsync(transportMessage, handler, cancellationToken)
                         .ConfigureAwait(false);
@@ -178,6 +177,7 @@ public sealed class InMemoryConsumer : IMessageConsumer
     {
         return new TransportMessage
         {
+            MessagingSystem = TransportMessagingSystems.LiteBusInMemory,
             Body = delivery.Body,
             Headers = delivery.Headers,
             Destination = delivery.Destination,
