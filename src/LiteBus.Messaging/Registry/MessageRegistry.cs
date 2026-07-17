@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Extensions;
 using LiteBus.Messaging.Registry.Abstractions;
 using LiteBus.Messaging.Registry.Builders;
 using LiteBus.Messaging.Registry.Descriptors;
@@ -99,13 +100,16 @@ internal sealed class MessageRegistry : IMessageRegistry
     {
         ArgumentNullException.ThrowIfNull(messageType);
 
-        var lookupType = messageType.IsGenericType
-            ? messageType.GetGenericTypeDefinition()
-            : messageType;
-
         lock (_lock)
         {
-            return _descriptorsByType.GetValueOrDefault(lookupType);
+            if (_descriptorsByType.TryGetValue(messageType, out var exactDescriptor))
+            {
+                return exactDescriptor;
+            }
+
+            return messageType.IsGenericType
+                ? _descriptorsByType.GetValueOrDefault(messageType.GetGenericTypeDefinition())
+                : null;
         }
     }
 
@@ -208,10 +212,7 @@ internal sealed class MessageRegistry : IMessageRegistry
         if (IsSystemNamespace(messageType))
             return;
 
-        // Normalize generic types to their generic type definition.
-        var normalizedType = messageType.IsGenericType
-            ? messageType.GetGenericTypeDefinition()
-            : messageType;
+        var normalizedType = messageType.NormalizeMessageRegistrationType();
 
         if (_descriptorsByType.ContainsKey(normalizedType) || !_pendingMessageTypes.Add(normalizedType))
             return;
@@ -247,15 +248,9 @@ internal sealed class MessageRegistry : IMessageRegistry
 
         foreach (var handlerDescriptor in newDescriptors)
         {
-            var handlerMessageType = handlerDescriptor.MessageType;
-
             foreach (var messageDescriptor in committedSnapshot)
             {
-                if (messageDescriptor.MessageType == handlerMessageType
-                    || messageDescriptor.MessageType.IsAssignableTo(handlerMessageType))
-                {
-                    messageDescriptor.AddDescriptor(handlerDescriptor);
-                }
+                messageDescriptor.AddDescriptor(handlerDescriptor);
             }
         }
     }

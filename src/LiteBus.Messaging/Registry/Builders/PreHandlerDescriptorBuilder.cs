@@ -31,7 +31,7 @@ public sealed class PreHandlerDescriptorBuilder : IHandlerDescriptorBuilder
 
             yield return new PreHandlerDescriptor
             {
-                MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
+                MessageType = messageType.NormalizeMessageRegistrationType(),
                 Priority = priority,
                 Tags = tags,
                 HandlerType = type

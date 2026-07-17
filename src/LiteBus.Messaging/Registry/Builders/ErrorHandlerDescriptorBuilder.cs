@@ -32,7 +32,7 @@ internal sealed class ErrorHandlerDescriptorBuilder : IHandlerDescriptorBuilder
 
             yield return new ErrorHandlerDescriptor
             {
-                MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
+                MessageType = messageType.NormalizeMessageRegistrationType(),
                 MessageResultType = messageResultType,
                 Priority = priority,
                 Tags = tags,

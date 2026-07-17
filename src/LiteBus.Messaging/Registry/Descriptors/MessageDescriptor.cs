@@ -177,6 +177,11 @@ internal sealed class MessageDescriptor : IMessageDescriptor
             return false;
         }
 
+        if (messageType.IsGenericType && messageType.GetGenericTypeDefinition() == openGenericType)
+        {
+            return true;
+        }
+
         foreach (var implementedInterface in messageType.GetInterfaces())
         {
             if (implementedInterface.IsGenericType &&

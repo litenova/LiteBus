@@ -118,7 +118,7 @@ public sealed class MessageRegistryTests : LiteBusTestBase
     }
 
     [Fact]
-    public void Register_GenericRecordStruct_ShouldRegisterGenericTypeDefinition()
+    public void Register_ClosedGenericRecordStruct_ShouldPreserveExactType()
     {
         // Arrange
         var registry = new MessageRegistry();
@@ -128,11 +128,11 @@ public sealed class MessageRegistryTests : LiteBusTestBase
 
         // Assert
         registry.Should().HaveCount(1);
-        registry.First().MessageType.Should().Be(typeof(GenericRecordStruct<>));
+        registry.First().MessageType.Should().Be(typeof(GenericRecordStruct<string>));
     }
 
     [Fact]
-    public void Register_GenericRecordClass_ShouldRegisterGenericTypeDefinition()
+    public void Register_ClosedGenericRecordClass_ShouldPreserveExactType()
     {
         // Arrange
         var registry = new MessageRegistry();
@@ -142,7 +142,29 @@ public sealed class MessageRegistryTests : LiteBusTestBase
 
         // Assert
         registry.Should().HaveCount(1);
-        registry.First().MessageType.Should().Be(typeof(GenericRecordClass<>));
+        registry.First().MessageType.Should().Be(typeof(GenericRecordClass<int>));
+    }
+
+    [Fact]
+    public void Register_ClosedGenericHandlers_ShouldKeepIndependentDescriptors()
+    {
+        var registry = new MessageRegistry();
+
+        registry.Register(typeof(ClosedGenericStringHandler));
+        registry.Register(typeof(ClosedGenericIntHandler));
+
+        var stringDescriptor = registry.Find(typeof(ClosedGenericCommand<string>));
+        var intDescriptor = registry.Find(typeof(ClosedGenericCommand<int>));
+
+        stringDescriptor.Should().NotBeNull();
+        stringDescriptor!.MessageType.Should().Be(typeof(ClosedGenericCommand<string>));
+        stringDescriptor.Handlers.Should().ContainSingle()
+            .Which.HandlerType.Should().Be(typeof(ClosedGenericStringHandler));
+
+        intDescriptor.Should().NotBeNull();
+        intDescriptor!.MessageType.Should().Be(typeof(ClosedGenericCommand<int>));
+        intDescriptor.Handlers.Should().ContainSingle()
+            .Which.HandlerType.Should().Be(typeof(ClosedGenericIntHandler));
     }
 
     [Fact]
@@ -323,6 +345,24 @@ public sealed class MessageRegistryTests : LiteBusTestBase
     public record GenericRecordClass<T>(T Value) : IEvent;
 
     public readonly record struct GenericRecordStruct<T>(T Value) : IEvent;
+
+    public sealed record ClosedGenericCommand<T>(T Value) : ICommand;
+
+    public sealed class ClosedGenericStringHandler : ICommandHandler<ClosedGenericCommand<string>>
+    {
+        public Task HandleAsync(ClosedGenericCommand<string> message, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    public sealed class ClosedGenericIntHandler : ICommandHandler<ClosedGenericCommand<int>>
+    {
+        public Task HandleAsync(ClosedGenericCommand<int> message, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
 
     public class TestHandler : IAsyncMessageHandler<TestRecordStruct>
     {

@@ -33,7 +33,7 @@ public sealed class HandlerDescriptorBuilder : IHandlerDescriptorBuilder
 
             yield return new MainHandlerDescriptor
             {
-                MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
+                MessageType = messageType.NormalizeMessageRegistrationType(),
                 MessageResultType = messageResultType,
                 Priority = priority,
                 Tags = tags,

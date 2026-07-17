@@ -32,7 +32,7 @@ public sealed class PostHandlerDescriptorBuilder : IHandlerDescriptorBuilder
 
             yield return new PostHandlerDescriptor
             {
-                MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
+                MessageType = messageType.NormalizeMessageRegistrationType(),
                 MessageResultType = messageResultType,
                 Priority = priority,
                 Tags = tags,

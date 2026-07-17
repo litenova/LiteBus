@@ -19,11 +19,7 @@ public sealed class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMes
     /// <inheritdoc />
     public IMessageDescriptor? Find(Type messageType, IMessageReader messageReader)
     {
-        var lookupType = messageType.IsGenericType
-            ? messageType.GetGenericTypeDefinition()
-            : messageType;
-
-        var descriptor = messageReader.Find(lookupType);
+        var descriptor = messageReader.Find(messageType);
 
         if (descriptor is not null)
         {
