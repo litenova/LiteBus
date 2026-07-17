@@ -13,7 +13,10 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $sourceRoot = Join-Path $repositoryRoot "src"
-$testingProject = Join-Path $repositoryRoot "tests/LiteBus.Storage.Testing/LiteBus.Storage.Testing.csproj"
+$testingProjects = @(
+    "tests/LiteBus.Storage.Testing/LiteBus.Storage.Testing.csproj"
+    "tests/LiteBus.Transport.Testing/LiteBus.Transport.Testing.csproj"
+) | ForEach-Object { Get-Item -LiteralPath (Join-Path $repositoryRoot $_) }
 $resolvedPackageDirectory = if ([IO.Path]::IsPathRooted($PackageDirectory)) {
     $PackageDirectory
 }
@@ -28,7 +31,7 @@ if (-not (Test-Path -LiteralPath $resolvedPackageDirectory -PathType Container))
 $errors = [Collections.Generic.List[string]]::new()
 $expectedPackageIds = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
 $projectFiles = Get-ChildItem -LiteralPath $sourceRoot -Recurse -Filter "*.csproj" -File
-$projectFiles = @($projectFiles + (Get-Item -LiteralPath $testingProject))
+$projectFiles = @($projectFiles + $testingProjects)
 
 foreach ($projectFile in $projectFiles) {
     [xml] $project = Get-Content -LiteralPath $projectFile.FullName -Raw

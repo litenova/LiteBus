@@ -134,6 +134,7 @@ Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactor
 | `LiteBus` | Aggregate meta-package (core modules; storage/dispatch remain opt-in) | Commands, Queries, Events, Messaging, Inbox, Outbox, abstractions | none |
 | `LiteBus.Testing` | Published test harness: `Test*` mediators and stores, `InboxOutboxTestHost`, processor pass helpers | `Commands`, `Events`, `Queries`, `Inbox`, `Outbox`, `Messaging`, `Runtime.Abstractions`, `Runtime.Extensions.Microsoft.Hosting`, `Extensions.Microsoft.DependencyInjection`, in-memory storage packages | `AwesomeAssertions`, `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Hosting.Abstractions`, `Newtonsoft.Json` |
 | `LiteBus.Storage.Testing` | Published xUnit store conformance bases for custom adapter authors | `Inbox.Abstractions`, `Outbox.Abstractions` | `AwesomeAssertions`, `xunit` |
+| `LiteBus.Transport.Testing` | Published xUnit publisher and consumer conformance base for custom adapter authors | `Transport.Abstractions` | `xunit` |
 
 ## Dependency Rules
 

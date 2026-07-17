@@ -234,6 +234,13 @@
           "LiteBus.Transport.Abstractions": "[1.0.0, )"
         }
       },
+      "litebus.transport.testing": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Transport.Abstractions": "[1.0.0, )",
+          "xunit": "[2.9.3, )"
+        }
+      },
       "AWSSDK.SQS": {
         "type": "CentralTransitive",
         "requested": "[3.7.400.118, )",

@@ -141,6 +141,7 @@
         <Project
                 Path="tests/LiteBus.Transport.IntegrationTesting/LiteBus.Transport.IntegrationTesting.csproj"/>
         <Project Path="tests/LiteBus.Transport.IntegrationTests/LiteBus.Transport.IntegrationTests.csproj"/>
+        <Project Path="tests/LiteBus.Transport.Testing/LiteBus.Transport.Testing.csproj"/>
         <Project Path="tests/LiteBus.Transport.UnitTests/LiteBus.Transport.UnitTests.csproj"/>
     </Folder>
 </Solution>

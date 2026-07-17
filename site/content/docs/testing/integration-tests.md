@@ -72,6 +72,7 @@ tests/
 |-- LiteBus.Runtime.UnitTests/
 |   `-- Runtime/Composition/  # v6 composition smoke (unit test, not integration)
 |-- LiteBus.Transport.IntegrationTesting/   # shared fixtures, traits (not an executor)
+|-- LiteBus.Transport.Testing/              # published transport contract suite
 |-- LiteBus.Storage.Testing/                # abstract store contract suites
 `-- LiteBus.Testing/                        # DI helpers
 ```
@@ -81,6 +82,7 @@ Supporting libraries (not test executors):
 | Library | Role |
 |---------|------|
 | `LiteBus.Transport.IntegrationTesting` | Shared broker fixtures, xUnit traits, `DockerTestGate`, `FlakyInbox`, polling helpers, Kafka/AWS/Azure fixture hosts |
+| `LiteBus.Transport.Testing` (`tests/`, also published as a package) | Abstract `TransportContractTests` suite for payload/header round trips, redelivery, and cancellation (not a vstest executor; `IsTestProject=false`) |
 | `LiteBus.Storage.Testing` (`tests/`, also published as a package) | Abstract `InboxStoreContractTests`, `OutboxStoreContractTests`, retention contract suites, lease renewal ownership checks (not a vstest executor; `IsTestProject=false`) |
 | `LiteBus.Testing` | `AddInboxStoreRoles`, `LiteBusTestBase`, manual `MessageRegistry` isolation |
 
@@ -460,6 +462,22 @@ Proves public `ActivitySourceName`, `MeterName`, and instrument constants are su
 | `QueryInboxMessages_ReturnsPersistedRows` | HTTP query reflects store contents |
 | `Purge_WithConfirm_DeletesRowsInStore` | Operator purge API |
 | `Health_IncludesRegisteredDiagnosticProbe` | Management health includes LiteBus probes |
+
+---
+
+## Shared Transport Contract Tests
+
+**Library:** `LiteBus.Transport.Testing` NuGet package (`tests/LiteBus.Transport.Testing/` in this repository)
+
+The abstract `TransportContractTests` class verifies the common `ITransportPublisher` and `IMessageConsumer` contract without depending on a broker SDK. Concrete test classes supply an isolated `TransportContractContext` containing the adapter instances, consumer endpoint, publish destination and route, and cleanup callback.
+
+| Contract | Required behavior |
+|----------|-------------------|
+| Publish and consume | Preserve payload bytes and canonical LiteBus metadata headers |
+| Return to queue | Deliver the same payload again before acknowledgement |
+| Pre-cancelled publish | Throw `OperationCanceledException` without accepting the message |
+
+LiteBus runs this suite against `LiteBus.Transport.InMemory` in unit tests and RabbitMQ in Docker integration tests. Custom adapter authors should reference `LiteBus.Transport.Testing`, derive one concrete xUnit class, and run it against the real broker used by their adapter.
 
 ---
 

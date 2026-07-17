@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <IsPackable>true</IsPackable>
+        <IsTestProject>false</IsTestProject>
+        <Description>Reusable xUnit conformance tests for LiteBus transport adapter authors.</Description>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <PackageId>LiteBus.Transport.Testing</PackageId>
+        <PackageTags>litebus;testing;transport;conformance</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>icon.png</PackageIcon>
+        <PackageProjectUrl>https://github.com/litenova/LiteBus</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/litenova/LiteBus</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <Authors>A. Shafie</Authors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="README.md" />
+        <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath="icon.png" />
+        <PackageReference Include="xunit" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.Abstractions\LiteBus.Transport.Abstractions.csproj" />
+    </ItemGroup>
+</Project>

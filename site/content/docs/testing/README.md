@@ -51,6 +51,10 @@ InMemory stores honor `InboxProcessorOptions.LeaseDuration` and `OutboxProcessor
 
 `LiteBus.Storage.Testing` is a packable test-support package. It defines abstract `InboxStoreContractTests` and `OutboxStoreContractTests` suites that custom adapter authors can inherit in their own xUnit projects. The source project remains under `tests/LiteBus.Storage.Testing/` so the same suites run against LiteBus providers in this repository.
 
+## Shared Transport Contract Tests
+
+`LiteBus.Transport.Testing` is a packable xUnit test-support package for transport adapter authors. Derive from `TransportContractTests` and return an isolated `TransportContractContext` for each scenario. The inherited suite verifies payload and metadata round trips, explicit redelivery, and pre-publication cancellation. LiteBus runs it against the in-memory adapter and RabbitMQ; third-party adapters should run it against their real broker in CI.
+
 ## PostgreSQL Integration Tests
 
 PostgreSQL storage integration tests use Testcontainers with `postgres:16-alpine`. They validate current-version creation, column and type drift, lease fencing, and migration-owned schema contracts.
@@ -147,6 +151,7 @@ Same legend and rows as [Integration tests: ingress matrix](integration-tests.md
 | `LiteBus.Durable.IntegrationTests` | Unified broker matrix (`Ingress/`, `Dispatch/`, `Registration/`) |
 | `LiteBus.Runtime.UnitTests` | v6 composition smoke (`Runtime/Composition/`) |
 | `LiteBus.Transport.IntegrationTesting` | Shared messages, traits, `FlakyInbox`, polling helpers |
+| `LiteBus.Transport.Testing` | Published transport adapter contract suite (not a test executor) |
 | `LiteBus.Transport.IntegrationTests` | AMQP wire protocol (no inbox/outbox) |
 | `LiteBus.Storage.IntegrationTests` | PostgreSQL and EF Core storage E2E |
 | `LiteBus.Extensions.IntegrationTests` | ASP.NET management, health checks, OpenTelemetry |

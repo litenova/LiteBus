@@ -14,6 +14,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Transport.IntegrationTesting\LiteBus.Transport.IntegrationTesting.csproj"/>
+        <ProjectReference Include="..\LiteBus.Transport.Testing\LiteBus.Transport.Testing.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>
     </ItemGroup>
 

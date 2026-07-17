@@ -76,6 +76,8 @@ Transport reference pages use a four-executor test map:
 | `LiteBus.Durable.IntegrationTests` | Dispatch and ingress hops that exercise transport through durable pipelines |
 | Application host executor | Consumer application integration that composes LiteBus modules; repo helper package `LiteBus.Transport.IntegrationTesting` provides fixtures only and is not an executor |
 
+Custom adapter authors can reference the published `LiteBus.Transport.Testing` package and derive from `TransportContractTests`. The broker-neutral suite verifies payload and header round trips, explicit redelivery, and cancellation against the adapter's real broker.
+
 ## Shared Observability Contract
 
 Transport circuit breaker metrics are emitted on meter `LiteBus.Transport` and tagged by `litebus.transport.broker`.

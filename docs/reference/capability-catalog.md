@@ -466,7 +466,7 @@ Each capability file ends with **Test coverage**:
 | Storage | [catalog/storage/README.md](../catalog/storage/README.md) | `LiteBus.Storage.*`, `*.Storage.*` unit and PostgreSQL integration tests |
 | Dispatch | [catalog/dispatch/README.md](../catalog/dispatch/README.md) | `LiteBus.Durable.IntegrationTests`, `LiteBus.Runtime.UnitTests` |
 | Ingress | [catalog/ingress/README.md](../catalog/ingress/README.md) | `LiteBus.Durable.IntegrationTests` (`Ingress/`) |
-| Transport | [catalog/transport/README.md](../catalog/transport/README.md) | `LiteBus.Transport.*`, `LiteBus.Transport.IntegrationTesting` |
+| Transport | [catalog/transport/README.md](../catalog/transport/README.md) | `LiteBus.Transport.*`, `LiteBus.Transport.Testing`, `LiteBus.Transport.IntegrationTesting` |
 | Hosting | [catalog/hosting/README.md](../catalog/hosting/README.md) | `Runtime`, `Extensions`, OpenTelemetry integration tests |
 | Saga | [catalog/saga/README.md](../catalog/saga/README.md) | `LiteBus.Saga.UnitTests`, `LiteBus.Saga.Storage.PostgreSql.UnitTests`, `LiteBus.Storage.IntegrationTests`, `LiteBus.Runtime.UnitTests` |
 | Runtime | [catalog/runtime/README.md](../catalog/runtime/README.md) | `LiteBus.Runtime*`, `Messaging` unit tests |

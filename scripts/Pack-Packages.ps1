@@ -21,9 +21,14 @@ else {
 
 New-Item -ItemType Directory -Force -Path $resolvedOutputDirectory | Out-Null
 
+$testingProjects = @(
+    "tests/LiteBus.Storage.Testing/LiteBus.Storage.Testing.csproj"
+    "tests/LiteBus.Transport.Testing/LiteBus.Transport.Testing.csproj"
+) | ForEach-Object { Get-Item -LiteralPath (Join-Path $repositoryRoot $_) }
+
 $projects = @(
     Get-ChildItem -LiteralPath $sourceRoot -Recurse -Filter "*.csproj" -File
-    Get-Item -LiteralPath (Join-Path $repositoryRoot "tests/LiteBus.Storage.Testing/LiteBus.Storage.Testing.csproj")
+    $testingProjects
 ) | Sort-Object FullName
 
 if ($projects.Count -eq 0) {
