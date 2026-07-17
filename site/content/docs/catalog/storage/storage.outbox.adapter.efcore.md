@@ -15,7 +15,7 @@ outbox.UseEntityFrameworkCoreStorage(o => o.UseDbContext<AppDbContext>());
 
 Default auto-commit operations create and dispose a context through `IDbContextFactory<TContext>`. Caller-owned transactional patterns are documented in [Outbox EF Core storage](../../integrations/outbox-ef-core-storage.md) and `storage.transactional.writes`.
 
-Supports PostgreSQL, SQL Server, MySQL, SQLite, and in-memory EF providers for leasing.
+Supports PostgreSQL, SQL Server, MySQL, SQLite, and in-memory EF providers for leasing. MySQL uses a chronological index with skip-locked `READ COMMITTED` transactions. SQLite uses UTC-tick timestamp columns and serializable file transactions.
 
 ## Public Surface
 
@@ -229,9 +229,26 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Expected outcome**: Domain and outbox rows committed
 - **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
 
+#### `EfCoreOutboxStoreMySqlContractTests` (Inherits `OutboxStoreContractTests`)
+
+- **Use case**: MySQL EF outbox contract parity
+- **Test kind**: Contract (integration)
+- **Description**: Full outbox contract suite against MySQL 8.4 through Pomelo
+- **Behavior**: Ordered concurrent leasing, append outcomes, fencing, queries, and purge
+- **Expected outcome**: Same outcomes as the shared contract suite
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
+
+#### `EfCoreOutboxStoreSqliteContractTests` (Inherits `OutboxStoreContractTests`)
+
+- **Use case**: File-backed SQLite outbox contract parity
+- **Test kind**: Contract (integration)
+- **Description**: Full outbox contract suite against independent contexts sharing one database file
+- **Behavior**: Serializable claims, UTC-tick timestamp queries, append outcomes, and fencing
+- **Expected outcome**: Same outcomes as the shared contract suite
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
+
 ### Untested
 
-- MySQL/Pomelo provider outbox contract suite (lease SQL exists; no dedicated contract test project entry).
 - Read/write split DbContext with explicit `UseExistingDbContext` integration test.
 
 ### Out-of-Scope

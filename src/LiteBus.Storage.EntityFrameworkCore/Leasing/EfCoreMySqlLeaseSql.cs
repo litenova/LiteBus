@@ -19,10 +19,11 @@ internal static class EfCoreMySqlLeaseSql
     internal static string BuildSelectCandidates(EfCoreLeaseComponent component, string qualifiedTableName)
     {
         var idColumn = EfCoreLeaseTableMetadata.GetIdColumn(component);
+        var createdAtIndex = EfCoreLeaseTableMetadata.GetCreatedAtIndexName(component);
 
         return """
                SELECT `__ID_COLUMN__` AS `Value`
-               FROM __TABLE__
+               FROM __TABLE__ FORCE INDEX (`__CREATED_AT_INDEX__`)
                WHERE
                    ({5} IS NULL OR `tenant_id` = {5})
                    AND ((`status` IN ({0}, {1}) AND (`visible_after` IS NULL OR `visible_after` <= {2}))
@@ -33,6 +34,7 @@ internal static class EfCoreMySqlLeaseSql
                FOR UPDATE SKIP LOCKED
                """
             .Replace("__TABLE__", qualifiedTableName, StringComparison.Ordinal)
+            .Replace("__CREATED_AT_INDEX__", createdAtIndex, StringComparison.Ordinal)
             .Replace("__ID_COLUMN__", idColumn, StringComparison.Ordinal);
     }
 
@@ -49,11 +51,6 @@ internal static class EfCoreMySqlLeaseSql
 
         return """
                UPDATE __TABLE__ AS `__ALIAS__`
-               INNER JOIN (
-                   SELECT `__ID_COLUMN__`
-                   FROM __TABLE__
-                   WHERE `__ID_COLUMN__` IN (__IN_CLAUSE__)
-               ) AS candidates ON `__ALIAS__`.`__ID_COLUMN__` = candidates.`__ID_COLUMN__`
                SET
                    `__ALIAS__`.`status` = {3},
                    `__ALIAS__`.`lease_owner` = {5},
@@ -61,6 +58,7 @@ internal static class EfCoreMySqlLeaseSql
                    `__ALIAS__`.`lease_generation` = `__ALIAS__`.`lease_generation` + 1,
                    `__ALIAS__`.`attempt_count` = `__ALIAS__`.`attempt_count` + 1,
                    `__ALIAS__`.`last_attempted_at` = {2}
+               WHERE `__ALIAS__`.`__ID_COLUMN__` IN (__IN_CLAUSE__)
                """
             .Replace("__TABLE__", qualifiedTableName, StringComparison.Ordinal)
             .Replace("__ID_COLUMN__", idColumn, StringComparison.Ordinal)
@@ -88,7 +86,7 @@ internal static class EfCoreMySqlLeaseSql
                ORDER BY `created_at` ASC
                """
             .Replace("__TABLE__", qualifiedTableName, StringComparison.Ordinal)
-            .Replace("__ID_COLUMN__", idColumn, StringComparison.Ordinal)
-            .Replace("__SELECT_LIST__", selectList, StringComparison.Ordinal);
+            .Replace("__SELECT_LIST__", selectList, StringComparison.Ordinal)
+            .Replace("__ID_COLUMN__", idColumn, StringComparison.Ordinal);
     }
 }

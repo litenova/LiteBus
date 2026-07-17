@@ -86,7 +86,7 @@ builder.Services.AddLiteBus(builder =>
 
 
 
-Indexes: unique filtered index on `(tenant_id, idempotency_key)`; composite index on `(status, visible_after, lease_expires_at, created_at)` for leasing. Null or whitespace `tenant_id` values normalize to an empty string for idempotency scope.
+Indexes: unique filtered index on `(tenant_id, idempotency_key)`; composite index on `(status, visible_after, lease_expires_at, created_at)` for eligibility; chronological index `IX_LiteBus_Inbox_CreatedAt` for ordered lease scans. Null or whitespace `tenant_id` values normalize to an empty string for idempotency scope.
 
 
 
@@ -187,7 +187,9 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 
 | SQL Server | `Microsoft.EntityFrameworkCore.SqlServer` | `dbo` (set explicitly) | `TEXT` |
 
-| MySQL / MariaDB | `Pomelo.EntityFrameworkCore.MySql` | application-defined | `TEXT` |
+| MySQL / MariaDB | `Pomelo.EntityFrameworkCore.MySql` | Current connection database | `TEXT` |
+
+| SQLite | `Microsoft.EntityFrameworkCore.Sqlite` | None | `TEXT` |
 
 
 
@@ -258,7 +260,11 @@ Use a `jsonb` column type on PostgreSQL. The column can remain unused until a fu
 
 
 
-`EfCoreInboxStore` uses EF for writes and state updates. Leasing uses provider-specific skip-locked SQL for PostgreSQL (`FOR UPDATE SKIP LOCKED`), SQL Server (`UPDLOCK`, `READPAST`, `ROWLOCK`), and MySQL (`FOR UPDATE SKIP LOCKED` inside a transaction). The in-memory EF provider uses a process lock for unit tests. SQLite is not supported for concurrent processor leasing.
+`EfCoreInboxStore` uses EF for writes and state updates. Leasing uses provider-specific skip-locked SQL for PostgreSQL (`FOR UPDATE SKIP LOCKED`), SQL Server (`UPDLOCK`, `READPAST`, `ROWLOCK`), and MySQL (`FOR UPDATE SKIP LOCKED` inside a `READ COMMITTED` transaction). MySQL migrations must include `IX_LiteBus_Inbox_CreatedAt`; the lease query selects this index to avoid range locks and deadlocks during ordered concurrent claims.
+
+SQLite is supported through a file-backed database. Model configuration stores every durable `DateTimeOffset` as UTC ticks so eligibility filters and chronological queries remain server-side. SQLite allows one writer at a time, so the store wraps each claim in a serializable transaction. Use PostgreSQL, SQL Server, or MySQL when concurrent write throughput exceeds that constraint.
+
+The in-memory EF provider uses a process lock for unit tests.
 
 
 

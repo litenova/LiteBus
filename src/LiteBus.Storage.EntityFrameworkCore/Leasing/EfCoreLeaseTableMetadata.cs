@@ -25,4 +25,16 @@ internal static class EfCoreLeaseTableMetadata
     {
         return component == EfCoreLeaseComponent.Inbox ? "inbox" : "outbox";
     }
+
+    /// <summary>
+    ///     Gets the chronological candidate index used by MySQL skip-locked scans.
+    /// </summary>
+    /// <param name="component">The lease component.</param>
+    /// <returns>The index name configured by the corresponding inbox or outbox model.</returns>
+    internal static string GetCreatedAtIndexName(EfCoreLeaseComponent component)
+    {
+        return component == EfCoreLeaseComponent.Inbox
+            ? "IX_LiteBus_Inbox_CreatedAt"
+            : "IX_LiteBus_Outbox_CreatedAt";
+    }
 }

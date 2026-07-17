@@ -48,7 +48,14 @@ public static class OutboxEntityFrameworkCoreModelExtensions
         ArgumentNullException.ThrowIfNull(entity);
         ArgumentNullException.ThrowIfNull(options);
 
-        entity.ToTable(options.TableName, options.SchemaName);
+        if (provider is EfCoreStorageProvider.MySql or EfCoreStorageProvider.Sqlite)
+        {
+            entity.ToTable(options.TableName);
+        }
+        else
+        {
+            entity.ToTable(options.TableName, options.SchemaName);
+        }
         entity.HasKey(message => message.Id);
 
         entity.Property(message => message.Id)
@@ -71,10 +78,12 @@ public static class OutboxEntityFrameworkCoreModelExtensions
             .HasColumnName("topic");
 
         entity.Property(message => message.CreatedAt)
-            .HasColumnName("created_at");
+            .HasColumnName("created_at")
+            .ConfigureUtcTimestampColumn(provider);
 
         entity.Property(message => message.VisibleAfter)
-            .HasColumnName("visible_after");
+            .HasColumnName("visible_after")
+            .ConfigureUtcTimestampColumn(provider);
 
         entity.Property(message => message.Status)
             .HasColumnName("status")
@@ -90,7 +99,8 @@ public static class OutboxEntityFrameworkCoreModelExtensions
             .HasColumnName("lease_generation");
 
         entity.Property(message => message.LeaseExpiresAt)
-            .HasColumnName("lease_expires_at");
+            .HasColumnName("lease_expires_at")
+            .ConfigureUtcTimestampColumn(provider);
 
         entity.Property(message => message.LastError)
             .HasColumnName("last_error");
@@ -116,16 +126,20 @@ public static class OutboxEntityFrameworkCoreModelExtensions
             .ConfigureJsonTraceContextColumn<OutboxMessageEntity>(provider);
 
         entity.Property(message => message.PublishedAt)
-            .HasColumnName("published_at");
+            .HasColumnName("published_at")
+            .ConfigureUtcTimestampColumn(provider);
 
         entity.Property(message => message.LastAttemptedAt)
-            .HasColumnName("last_attempted_at");
+            .HasColumnName("last_attempted_at")
+            .ConfigureUtcTimestampColumn(provider);
 
         entity.Property(message => message.FirstFailedAt)
-            .HasColumnName("first_failed_at");
+            .HasColumnName("first_failed_at")
+            .ConfigureUtcTimestampColumn(provider);
 
         entity.Property(message => message.DeadLetteredAt)
-            .HasColumnName("dead_lettered_at");
+            .HasColumnName("dead_lettered_at")
+            .ConfigureUtcTimestampColumn(provider);
 
         entity.Property(message => message.LastLeaseOwner)
             .HasColumnName("last_lease_owner");
@@ -134,6 +148,9 @@ public static class OutboxEntityFrameworkCoreModelExtensions
             .HasColumnName("error_type");
 
         entity.HasIndex(message => new { message.Status, message.VisibleAfter, message.LeaseExpiresAt, message.CreatedAt });
+
+        entity.HasIndex(message => message.CreatedAt)
+            .HasDatabaseName("IX_LiteBus_Outbox_CreatedAt");
 
         entity.HasIndex(message => message.Topic)
             .HasFilter("topic IS NOT NULL");

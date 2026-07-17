@@ -7,7 +7,7 @@
 
 ## What It Does
 
-`LiteBus.Storage.EntityFrameworkCore` supplies cross-axis EF primitives: provider detection (`EfCoreStorageProvider`), provider-specific lease SQL (PostgreSQL `FOR UPDATE SKIP LOCKED`, SQL Server, MySQL/Pomelo), serializable SQLite lease transactions, relational table qualification, JSON text normalization, bulk update capability probes, and shared durable store operation helpers. Inbox and outbox EF adapters use these types internally; applications typically interact through axis-specific model extensions and store options.
+`LiteBus.Storage.EntityFrameworkCore` supplies cross-axis EF primitives: provider detection (`EfCoreStorageProvider`), provider-specific lease SQL (PostgreSQL `FOR UPDATE SKIP LOCKED`, SQL Server, MySQL/Pomelo), serializable SQLite lease transactions, SQLite UTC-tick timestamp mapping, relational table qualification, JSON text normalization, bulk update capability probes, and shared durable store operation helpers. Inbox and outbox EF adapters use these types internally; applications typically interact through axis-specific model extensions and store options.
 
 ## Public Surface
 
@@ -65,6 +65,7 @@
 ## Invariants
 
 - Lease SQL requires a supported relational provider. SQLite leasing runs inside a serializable transaction, which serializes claims across store instances through the database write lock.
+- MySQL leasing uses `READ COMMITTED`, the axis `IX_LiteBus_*_CreatedAt` index, and direct primary-key updates so concurrent workers claim disjoint ordered batches without range-lock starvation.
 - Store options `SchemaName` and `TableName` must match the EF model configuration used in migrations.
 - Payload and trace context columns map to text so payload protection can return opaque ciphertext.
 
@@ -247,7 +248,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 ### Untested
 
 - Dedicated unit tests per provider lease SQL template file (coverage is indirect through contract and integration suites).
-- SQLite concurrent processor leasing at production scale (SQLite is test-oriented in this stack).
+- SQLite throughput under sustained multi-process writes; provider contracts cover concurrent claims across independent contexts on one file.
 
 ### Out-of-Scope
 

@@ -49,7 +49,7 @@ public static class EfCoreProviderResolver
             EfCoreRelationalProviderNames.Sqlite     => EfCoreStorageProvider.Sqlite,
             _ => throw new EfCoreStorageNotSupportedException(
                 $"Entity Framework provider '{providerName ?? "unknown"}' is not supported for LiteBus relational storage. " +
-                "Use PostgreSQL, SQL Server, MySQL (Pomelo), or the in-memory provider, or set an explicit lease provider override in store options.")
+                "Use PostgreSQL, SQL Server, MySQL (Pomelo), SQLite, or the in-memory provider, or set an explicit lease provider override in store options.")
         };
     }
 
@@ -64,6 +64,8 @@ public static class EfCoreProviderResolver
         {
             EfCoreStorageProvider.SqlServer  => "dbo",
             EfCoreStorageProvider.PostgreSql => "public",
+            EfCoreStorageProvider.MySql      => string.Empty,
+            EfCoreStorageProvider.Sqlite     => string.Empty,
             _                                => "dbo"
         };
     }

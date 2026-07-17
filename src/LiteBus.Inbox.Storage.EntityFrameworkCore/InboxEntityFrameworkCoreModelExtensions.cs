@@ -48,7 +48,14 @@ public static class InboxEntityFrameworkCoreModelExtensions
         ArgumentNullException.ThrowIfNull(entity);
         ArgumentNullException.ThrowIfNull(options);
 
-        entity.ToTable(options.TableName, options.SchemaName);
+        if (provider is EfCoreStorageProvider.MySql or EfCoreStorageProvider.Sqlite)
+        {
+            entity.ToTable(options.TableName);
+        }
+        else
+        {
+            entity.ToTable(options.TableName, options.SchemaName);
+        }
 
         entity.HasKey(message => message.Id);
 
@@ -69,10 +76,12 @@ public static class InboxEntityFrameworkCoreModelExtensions
             .IsRequired();
 
         entity.Property(message => message.CreatedAt)
-            .HasColumnName("created_at");
+            .HasColumnName("created_at")
+            .ConfigureUtcTimestampColumn(provider);
 
         entity.Property(message => message.VisibleAfter)
-            .HasColumnName("visible_after");
+            .HasColumnName("visible_after")
+            .ConfigureUtcTimestampColumn(provider);
 
         entity.Property(message => message.AttemptCount)
             .HasColumnName("attempt_count");
@@ -91,7 +100,8 @@ public static class InboxEntityFrameworkCoreModelExtensions
             .HasColumnName("lease_generation");
 
         entity.Property(message => message.LeaseExpiresAt)
-            .HasColumnName("lease_expires_at");
+            .HasColumnName("lease_expires_at")
+            .ConfigureUtcTimestampColumn(provider);
 
         entity.Property(message => message.LastError)
             .HasColumnName("last_error");
@@ -110,16 +120,20 @@ public static class InboxEntityFrameworkCoreModelExtensions
             .ConfigureJsonTraceContextColumn<InboxMessageEntity>(provider);
 
         entity.Property(message => message.CompletedAt)
-            .HasColumnName("completed_at");
+            .HasColumnName("completed_at")
+            .ConfigureUtcTimestampColumn(provider);
 
         entity.Property(message => message.LastAttemptedAt)
-            .HasColumnName("last_attempted_at");
+            .HasColumnName("last_attempted_at")
+            .ConfigureUtcTimestampColumn(provider);
 
         entity.Property(message => message.FirstFailedAt)
-            .HasColumnName("first_failed_at");
+            .HasColumnName("first_failed_at")
+            .ConfigureUtcTimestampColumn(provider);
 
         entity.Property(message => message.DeadLetteredAt)
-            .HasColumnName("dead_lettered_at");
+            .HasColumnName("dead_lettered_at")
+            .ConfigureUtcTimestampColumn(provider);
 
         entity.Property(message => message.LastLeaseOwner)
             .HasColumnName("last_lease_owner");
@@ -132,5 +146,8 @@ public static class InboxEntityFrameworkCoreModelExtensions
             .HasFilter("idempotency_key IS NOT NULL");
 
         entity.HasIndex(message => new { message.Status, message.VisibleAfter, message.LeaseExpiresAt, message.CreatedAt });
+
+        entity.HasIndex(message => message.CreatedAt)
+            .HasDatabaseName("IX_LiteBus_Inbox_CreatedAt");
     }
 }

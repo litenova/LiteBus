@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Root `Add*Transport` composition extensions for AMQP, Kafka, AWS SQS, Azure Service Bus, and in-memory transports.
 - Container-specific dispatch-scope lifecycle coverage for Autofac.
 - Axis-specific append results and outbox enqueue outcomes so receipts distinguish new rows from idempotent replays.
+- File-backed SQLite and MySQL 8.4 provider contract matrices for both Entity Framework Core durable stores.
 
 ### Changed
 
@@ -29,6 +30,8 @@ All notable changes to this project will be documented in this file.
   types as well as columns, indexes, and metadata.
 - Inbox and outbox store append methods return ordered append results containing the source-of-truth envelope and
   insertion outcome.
+- SQLite EF models store durable timestamps as UTC ticks, and MySQL leasing uses `READ COMMITTED` with a named
+  chronological index.
 
 ### Fixed
 
@@ -42,6 +45,10 @@ All notable changes to this project will be documented in this file.
   application clock offset cannot claim future-visible work or extend a lease incorrectly.
 - Inbox and outbox receipts now report exact message-ID and tenant-scoped idempotency replays as `AlreadyAccepted` or
   `AlreadyEnqueued` instead of inferring the outcome from envelope equality.
+- MySQL EF leasing now binds nullable tenant filters with a typed provider parameter, reloads the actual identifier
+  column, and claims disjoint ordered batches without range-lock starvation or update deadlocks.
+- SQLite EF leasing and operator queries now translate timestamp comparisons and ordering instead of failing on
+  `DateTimeOffset` expressions.
 
 ### Breaking changes
 
@@ -56,6 +63,8 @@ All notable changes to this project will be documented in this file.
   files before validation records inbox/outbox version 3 and saga version 2.
 - `IInboxStore` and `IOutboxStore` append methods return `InboxAppendResult` and `OutboxAppendResult`. The redundant
   typed `IOutbox.EnqueueBatchAsync<TEvent>` overload is removed; use the non-generic item batch overload.
+- EF application migrations must add `IX_LiteBus_Inbox_CreatedAt` and `IX_LiteBus_Outbox_CreatedAt`. Existing SQLite
+  tables must convert durable timestamp columns to UTC ticks stored as `INTEGER`.
 
 ## v6.0.0
 

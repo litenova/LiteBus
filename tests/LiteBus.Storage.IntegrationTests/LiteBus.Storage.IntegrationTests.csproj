@@ -3,15 +3,19 @@
     <ItemGroup>
         <PackageReference Include="AwesomeAssertions"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer"/>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk"/>
         <PackageReference Include="Npgsql"/>
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
+        <PackageReference Include="Pomelo.EntityFrameworkCore.MySql"/>
+        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3"/>
         <PackageReference Include="RabbitMQ.Client"/>
         <PackageReference Include="Testcontainers"/>
         <PackageReference Include="Testcontainers.MsSql"/>
+        <PackageReference Include="Testcontainers.MySql"/>
         <PackageReference Include="Testcontainers.PostgreSql"/>
         <PackageReference Include="Testcontainers.RabbitMq"/>
         <PackageReference Include="xunit"/>

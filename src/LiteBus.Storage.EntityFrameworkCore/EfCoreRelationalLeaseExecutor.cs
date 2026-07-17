@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Data;
+using System.Data.Common;
 using LiteBus.Storage.EntityFrameworkCore.Leasing;
 using Microsoft.EntityFrameworkCore;
 
@@ -163,8 +165,10 @@ internal static class EfCoreRelationalLeaseExecutor
         var selectSql = EfCoreMySqlLeaseSql.BuildSelectCandidates(component, qualifiedTableName);
         var updateSqlTemplate = EfCoreMySqlLeaseSql.BuildUpdate(component, qualifiedTableName);
         var reloadSqlTemplate = EfCoreMySqlLeaseSql.BuildReload(component, qualifiedTableName);
+        var selectTenantParameter = CreateNullableStringParameter(dbContext, "p_tenant_select", tenantId);
 
-        using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken)
+        using var transaction = await dbContext.Database
+            .BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -177,7 +181,7 @@ internal static class EfCoreRelationalLeaseExecutor
                     now,
                     processingStatus,
                     batchSize,
-                    (object?) tenantId ?? DBNull.Value,
+                    selectTenantParameter,
                     staleCutoff)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -200,7 +204,7 @@ internal static class EfCoreRelationalLeaseExecutor
                 batchSize,
                 leaseOwner,
                 leaseExpiresAt,
-                tenantId,
+                CreateNullableStringParameter(dbContext, "p_tenant_update", tenantId),
                 staleCutoff,
                 candidateIds);
 
@@ -254,7 +258,7 @@ internal static class EfCoreRelationalLeaseExecutor
     /// <param name="batchSize">The lease batch size.</param>
     /// <param name="leaseOwner">The lease owner.</param>
     /// <param name="leaseExpiresAt">The lease expiration timestamp.</param>
-    /// <param name="tenantId">The optional tenant filter applied to candidate rows.</param>
+    /// <param name="tenantParameter">The typed nullable tenant parameter.</param>
     /// <param name="staleCutoff">The earliest created timestamp eligible for stale in-flight reclaim.</param>
     /// <param name="candidateIds">The candidate identifiers.</param>
     /// <returns>The parameter array.</returns>
@@ -266,7 +270,7 @@ internal static class EfCoreRelationalLeaseExecutor
         int batchSize,
         string leaseOwner,
         DateTimeOffset leaseExpiresAt,
-        string? tenantId,
+        DbParameter tenantParameter,
         DateTimeOffset staleCutoff,
         List<Guid> candidateIds)
     {
@@ -278,7 +282,7 @@ internal static class EfCoreRelationalLeaseExecutor
         parameters[4] = batchSize;
         parameters[5] = leaseOwner;
         parameters[6] = leaseExpiresAt;
-        parameters[7] = (object?) tenantId ?? DBNull.Value;
+        parameters[7] = tenantParameter;
         parameters[8] = staleCutoff;
 
         for (var index = 0; index < candidateIds.Count; index++)
@@ -287,6 +291,23 @@ internal static class EfCoreRelationalLeaseExecutor
         }
 
         return parameters;
+    }
+
+    /// <summary>
+    ///     Creates a provider-specific nullable string parameter for raw SQL commands.
+    /// </summary>
+    /// <param name="dbContext">The database context whose provider creates the parameter.</param>
+    /// <param name="name">The parameter name.</param>
+    /// <param name="value">The optional string value.</param>
+    /// <returns>A typed parameter whose value is SQL NULL when the string is absent.</returns>
+    private static DbParameter CreateNullableStringParameter(DbContext dbContext, string name, string? value)
+    {
+        using var command = dbContext.Database.GetDbConnection().CreateCommand();
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.DbType = DbType.String;
+        parameter.Value = (object?) value ?? DBNull.Value;
+        return parameter;
     }
 
     /// <summary>

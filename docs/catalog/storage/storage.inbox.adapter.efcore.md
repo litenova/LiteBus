@@ -3,7 +3,7 @@
 - **ID**: `storage.inbox.adapter.efcore`
 - **Name**: Inbox EF Core adapter
 - **Maturity**: GA
-- **Summary**: Entity Framework Core inbox store with factory-created operation contexts and provider-specific leasing for PostgreSQL, SQL Server, and MySQL.
+- **Summary**: Entity Framework Core inbox store with factory-created operation contexts and provider-specific leasing for PostgreSQL, SQL Server, MySQL, and SQLite.
 
 ## What It Does
 
@@ -68,7 +68,7 @@ inbox.UseEntityFrameworkCoreStorage(o =>
 
 ### Extension Points
 
-- Any EF relational provider supported by `EfCoreStorageProvider` (PostgreSQL, SQL Server, MySQL; SQLite for tests).
+- Any EF relational provider supported by `EfCoreStorageProvider` (PostgreSQL, SQL Server, MySQL, and SQLite).
 - `UseExistingDbContext` for caller-owned context in handlers.
 
 ## Packages
@@ -94,7 +94,7 @@ inbox.UseEntityFrameworkCoreStorage(o =>
 
 - Automatic EF migrations from LiteBus
 - PostgreSQL NOTIFY (use PostgreSQL adapter for NOTIFY)
-- SQLite production guidance (supported for tests via provider resolver)
+- High-throughput SQLite writer workloads; SQLite serializes write transactions.
 
 ## Observability
 
@@ -237,12 +237,26 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Expected outcome**: Contract and metadata staged
 - **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
 
-### Untested
+#### `EfCoreInboxStoreMySqlContractTests` (Inherits `InboxStoreContractTests`)
 
-- MySQL/Pomelo provider inbox contract suite (lease SQL exists; no dedicated contract test project entry).
+- **Use case**: MySQL EF inbox contract parity
+- **Test kind**: Contract (integration)
+- **Description**: Full inbox contract suite against MySQL 8.4 through Pomelo
+- **Behavior**: Ordered concurrent leasing, append outcomes, fencing, queries, and purge
+- **Expected outcome**: Same outcomes as the shared contract suite
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
+
+#### `EfCoreInboxStoreSqliteContractTests` (Inherits `InboxStoreContractTests`)
+
+- **Use case**: File-backed SQLite inbox contract parity
+- **Test kind**: Contract (integration)
+- **Description**: Full inbox contract suite against independent contexts sharing one database file
+- **Behavior**: Serializable claims, UTC-tick timestamp queries, append outcomes, and fencing
+- **Expected outcome**: Same outcomes as the shared contract suite
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 ### Out-of-Scope
 
 - LiteBus-driven EF migrations or `EnsureCreated`.
 - PostgreSQL NOTIFY (use PostgreSQL Npgsql adapter).
-- SQLite as production guidance (test-oriented only).
+- SQLite write parallelism beyond the database's single-writer model.

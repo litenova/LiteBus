@@ -95,7 +95,7 @@ await appDbContext.SaveChangesAsync(cancellationToken);
 | `correlation_id`, `causation_id`, `tenant_id` | Optional metadata |
 | `idempotency_key` | Optional deduplication scoped per `tenant_id` (unique composite index with `IS NOT NULL` filter) |
 
-Indexes: unique filtered index on `(tenant_id, idempotency_key)`; composite index on `(status, visible_after, lease_expires_at, created_at)`; filtered index on `topic` where `topic IS NOT NULL`. Null or whitespace `tenant_id` values normalize to an empty string for idempotency scope.
+Indexes: unique filtered index on `(tenant_id, idempotency_key)`; composite index on `(status, visible_after, lease_expires_at, created_at)`; chronological index `IX_LiteBus_Outbox_CreatedAt`; filtered index on `topic` where `topic IS NOT NULL`. Null or whitespace `tenant_id` values normalize to an empty string for idempotency scope.
 
 Override names with `EntityFrameworkCoreOutboxStoreOptions` when needed.
 
@@ -120,7 +120,7 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 
 See [Inbox Entity Framework Core Storage](inbox-ef-core-storage.md) for the full provider column-type table. SQL Server apps should set `SchemaName = "dbo"` in store options so raw lease SQL matches your migrations.
 
-Supported leasing providers match inbox EF storage: PostgreSQL, SQL Server, MySQL (Pomelo), and the in-memory provider for tests. SQLite is not supported for concurrent processor leasing.
+Supported leasing providers match inbox EF storage: PostgreSQL, SQL Server, MySQL (Pomelo), SQLite, and the in-memory provider for tests. MySQL uses `READ COMMITTED`, `FOR UPDATE SKIP LOCKED`, and `IX_LiteBus_Outbox_CreatedAt` for ordered concurrent claims. SQLite stores durable timestamps as UTC ticks and serializes lease writers through its database transaction. See the inbox guide for the full provider table and SQLite throughput constraint.
 
 ## Align Store Options with Your EF Model
 
