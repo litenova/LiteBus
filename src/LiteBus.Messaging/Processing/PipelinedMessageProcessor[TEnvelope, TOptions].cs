@@ -175,20 +175,12 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
         await foreach (var envelope in reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
             TEnvelope? updated;
+            var heartbeatContext = CreateHeartbeatContext(envelope);
 
             try
             {
                 updated = await ProcessorLeaseHeartbeat.RunWithHeartbeatAsync(
-                    new LeaseHeartbeatContext(
-                        _operations.GetMessageId(envelope),
-                        _leaseOwner,
-                        _leaseStore,
-                        _options.LeaseDuration,
-                        _options.LeaseHeartbeatInterval,
-                        _clock,
-                        _operations.ProcessorName,
-                        _operations.RecordLeaseLost,
-                        _logger),
+                    heartbeatContext,
                     token => _operations.DispatchEnvelopeAsync(envelope, _options, token),
                     cancellationToken).ConfigureAwait(false);
             }
@@ -215,12 +207,21 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
 
             try
             {
-                await _operations.PersistTerminalOutcomeAsync(
-                    envelope,
-                    updated,
-                    accumulator,
-                    _options,
-                    _logger,
+                await ProcessorLeaseHeartbeat.RunWithHeartbeatAsync(
+                    heartbeatContext,
+                    async token =>
+                    {
+                        await _operations.PersistTerminalOutcomeAsync(
+                                envelope,
+                                updated,
+                                accumulator,
+                                _options,
+                                _logger,
+                                token)
+                            .ConfigureAwait(false);
+
+                        return true;
+                    },
                     cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -240,5 +241,24 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
             }
 #pragma warning restore CA1031
         }
+    }
+
+    /// <summary>
+    ///     Creates the lease heartbeat inputs for one envelope and reuses the same owner for terminal persistence.
+    /// </summary>
+    /// <param name="envelope">The envelope whose lease is being maintained.</param>
+    /// <returns>The heartbeat context for dispatch and terminal persistence.</returns>
+    private LeaseHeartbeatContext CreateHeartbeatContext(TEnvelope envelope)
+    {
+        return new LeaseHeartbeatContext(
+            _operations.GetMessageId(envelope),
+            _leaseOwner,
+            _leaseStore,
+            _options.LeaseDuration,
+            _options.LeaseHeartbeatInterval,
+            _clock,
+            _operations.ProcessorName,
+            _operations.RecordLeaseLost,
+            _logger);
     }
 }

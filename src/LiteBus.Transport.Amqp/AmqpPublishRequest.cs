@@ -46,7 +46,7 @@ public sealed class AmqpPublishRequest
     /// <summary>
     ///     Gets a value indicating whether the broker must route the message to at least one queue.
     /// </summary>
-    public bool Mandatory { get; init; }
+    public bool Mandatory { get; init; } = true;
 
     /// <summary>
     ///     Gets the optional AMQP message identifier written to message properties.

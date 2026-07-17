@@ -25,6 +25,21 @@ public static class TransportConsumerHandlerInvoker
         Func<TransportMessage, CancellationToken, Task> handler,
         CancellationToken cancellationToken)
     {
+        _ = await InvokeWithOutcomeAsync(message, handler, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Invokes a handler and reports whether the invoker returned a failed delivery to the broker.
+    /// </summary>
+    /// <param name="message">The transport delivery passed to the handler.</param>
+    /// <param name="handler">The handler invoked for the delivery.</param>
+    /// <param name="cancellationToken">The token used to cancel handler execution.</param>
+    /// <returns>The settlement outcome observed by the caller.</returns>
+    public static async Task<TransportConsumerInvocationOutcome> InvokeWithOutcomeAsync(
+        TransportMessage message,
+        Func<TransportMessage, CancellationToken, Task> handler,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(handler);
 
@@ -33,6 +48,7 @@ public static class TransportConsumerHandlerInvoker
         try
         {
             await handler(message, cancellationToken).ConfigureAwait(false);
+            return TransportConsumerInvocationOutcome.Handled;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -44,6 +60,7 @@ public static class TransportConsumerHandlerInvoker
         {
             TransportTracing.RecordException(activity, exception);
             await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
+            return TransportConsumerInvocationOutcome.Requeued;
         }
     }
 

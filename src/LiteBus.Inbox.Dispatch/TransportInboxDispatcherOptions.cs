@@ -30,7 +30,7 @@ public sealed class TransportInboxDispatcherOptions
     /// <summary>
     ///     Gets or sets a value indicating whether unroutable messages must cause the publish operation to fail.
     /// </summary>
-    public bool Mandatory { get; set; }
+    public bool Mandatory { get; set; } = true;
 
     /// <summary>
     ///     Gets or sets the optional route resolver invoked for each envelope.

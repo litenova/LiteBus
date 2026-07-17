@@ -92,47 +92,54 @@ internal sealed class MessageMediator : IMessageMediator
         // Retain ambient and dispatch scopes until asynchronous mediation results complete.
         var executionScope = AmbientExecutionContext.CreateScope(executionContext);
         var dispatchScope = _dispatchScopeFactory.CreateScope();
+        var resourceScope = new MediationResourceScope(executionScope, dispatchScope);
 
-        // Get the actual type of the message.
-        var messageType = message.GetType();
-
-        // Find the message descriptor.
-        var descriptor = request.MessageResolveStrategy.Find(messageType, _messageReader);
-
-        if (descriptor is null)
+        try
         {
-            if (!request.RegisterPlainMessagesOnSpot)
+            // Get the actual type of the message.
+            var messageType = message.GetType();
+
+            // Find the message descriptor.
+            var descriptor = request.MessageResolveStrategy.Find(messageType, _messageReader);
+
+            if (descriptor is null)
             {
-                throw new NoHandlerFoundException(messageType);
+                if (!request.RegisterPlainMessagesOnSpot)
+                {
+                    throw new NoHandlerFoundException(messageType);
+                }
+
+                _messageWriter.Register(messageType);
+
+                descriptor = request.MessageResolveStrategy.Find(messageType, _messageReader);
             }
 
-            _messageWriter.Register(messageType);
+            if (descriptor is null)
+            {
+                throw new MessageDescriptorNotFoundException(
+                    messageType,
+                    request.MessageResolveStrategy.GetType(),
+                    request.RegisterPlainMessagesOnSpot,
+                    _messageReader.Count);
+            }
 
-            descriptor = request.MessageResolveStrategy.Find(messageType, _messageReader);
+            // Resolve handlers from the per-mediation scope so scoped handlers get distinct instances.
+            var messageDependencies = new MessageDependencies(messageType,
+                descriptor,
+                dispatchScope.ServiceProvider,
+                request.Tags,
+                request.HandlerPredicate);
+
+            // Mediate the message using the specified strategy.
+            var result = request.MessageMediationStrategy.Mediate(message, messageDependencies, executionContext);
+
+            return MediationScopeRetention.RetainUntilPipelineCompletes(result, resourceScope);
         }
-
-        if (descriptor is null)
+        catch
         {
-            throw new MessageDescriptorNotFoundException(
-                messageType,
-                request.MessageResolveStrategy.GetType(),
-                request.RegisterPlainMessagesOnSpot,
-                _messageReader.Count);
+            resourceScope.Dispose();
+            throw;
         }
-
-        // Resolve handlers from the per-mediation scope so scoped handlers get distinct instances.
-        var messageDependencies = new MessageDependencies(messageType,
-            descriptor,
-            dispatchScope.ServiceProvider,
-            request.Tags,
-            request.HandlerPredicate);
-
-        // Mediate the message using the specified strategy.
-        var result = request.MessageMediationStrategy.Mediate(message, messageDependencies, executionContext);
-
-        return MediationScopeRetention.RetainUntilPipelineCompletes(
-            result,
-            new MediationResourceScope(executionScope, dispatchScope));
     }
 
     /// <inheritdoc />

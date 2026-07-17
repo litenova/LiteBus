@@ -74,8 +74,13 @@ internal static class PipelineHandlerInvocation
         MessageErrorContext context,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(context);
         _ = cancellationToken;
-        return (Task) handler.HandleError(context);
+
+        var outcome = handler.HandleError(context);
+
+        return outcome as Task ?? Task.CompletedTask;
     }
 
     /// <summary>

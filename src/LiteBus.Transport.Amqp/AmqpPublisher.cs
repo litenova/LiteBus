@@ -200,7 +200,7 @@ public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncD
             _publishChannel = null;
         }
 
-        _publishChannel = await _connectionManager.CreateChannelAsync(cancellationToken).ConfigureAwait(false);
+        _publishChannel = await _connectionManager.CreatePublisherChannelAsync(cancellationToken).ConfigureAwait(false);
         return _publishChannel;
     }
 

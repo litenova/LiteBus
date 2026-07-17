@@ -129,6 +129,16 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     }
 
     /// <inheritdoc />
+    public async Task<IChannel> CreatePublisherChannelAsync(CancellationToken cancellationToken = default)
+    {
+        var connection = await GetConnectionAsync(cancellationToken).ConfigureAwait(false);
+        return await connection.CreateChannelAsync(
+                new CreateChannelOptions(true, true, null, null),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         await _connectionGate.WaitAsync().ConfigureAwait(false);

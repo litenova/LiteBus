@@ -6,7 +6,7 @@ namespace LiteBus.Messaging.Abstractions;
 public enum ParallelFaultMode
 {
     /// <summary>
-    ///     The first handler failure cancels sibling tasks and propagates immediately.
+    ///     One handler failure is propagated after already-started sibling tasks settle.
     /// </summary>
     PropagateFirst = 0,
 

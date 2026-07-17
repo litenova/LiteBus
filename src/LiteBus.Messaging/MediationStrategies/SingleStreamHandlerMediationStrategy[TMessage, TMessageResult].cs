@@ -134,6 +134,10 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                             messageResultAsyncEnumerable,
                             ExceptionDispatchInfo.Capture(exception),
                             executionContext.CancellationToken).ConfigureAwait(false);
+
+                        // The source enumerator is no longer valid after a fault. Do not replay the previous item.
+                        hasResult = false;
+                        item = default;
                     }
                 }
 

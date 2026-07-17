@@ -89,8 +89,9 @@ public sealed record EventExecutionSettings
     ///     Gets or initializes how parallel handler failures are surfaced to callers.
     /// </summary>
     /// <value>
-    ///     A <see cref="ParallelFaultMode" /> value that controls whether the first failure cancels siblings or all
-    ///     failures are aggregated. The default is <see cref="ParallelFaultMode.PropagateFirst" />.
+    ///     A <see cref="ParallelFaultMode" /> value that controls whether one failure is propagated after sibling
+    ///     tasks settle or all failures are aggregated. Cancellation remains cooperative through the caller token.
+    ///     The default is <see cref="ParallelFaultMode.PropagateFirst" />.
     /// </value>
     public ParallelFaultMode ParallelFaultMode { get; init; } = ParallelFaultMode.PropagateFirst;
 }

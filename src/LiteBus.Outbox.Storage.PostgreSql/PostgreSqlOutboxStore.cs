@@ -70,6 +70,11 @@ public sealed class PostgreSqlOutboxStore :
                                               """;
 
     /// <summary>
+    ///     Limits each cleanup statement so retention work cannot monopolize a PostgreSQL table or transaction.
+    /// </summary>
+    private const int DeleteBatchSize = 1000;
+
+    /// <summary>
     ///     The PostgreSQL data source used to open commands against the outbox table.
     /// </summary>
     private readonly NpgsqlDataSource _dataSource;
@@ -184,16 +189,34 @@ public sealed class PostgreSqlOutboxStore :
     /// <inheritdoc />
     public async Task<int> DeletePublishedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
     {
-        var sql = $"""
-                   DELETE FROM {_tableName}
-                   WHERE status = @published_status
-                       AND COALESCE(published_at, created_at) < @older_than;
-                   """;
+        var deletedTotal = 0;
 
-        using var command = CreateCommand(sql);
-        command.Parameters.AddWithValue("published_status", (int) OutboxStatus.Published);
-        command.Parameters.AddWithValue("older_than", olderThan);
-        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        while (true)
+        {
+            var sql = $"""
+                       DELETE FROM {_tableName}
+                       WHERE ctid IN
+                       (
+                           SELECT ctid
+                           FROM {_tableName}
+                           WHERE status = @published_status
+                               AND COALESCE(published_at, created_at) < @older_than
+                           LIMIT @batch_size
+                       );
+                       """;
+
+            using var command = CreateCommand(sql);
+            command.Parameters.AddWithValue("published_status", (int) OutboxStatus.Published);
+            command.Parameters.AddWithValue("older_than", olderThan);
+            command.Parameters.AddWithValue("batch_size", DeleteBatchSize);
+            var deleted = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            deletedTotal += deleted;
+
+            if (deleted < DeleteBatchSize)
+            {
+                return deletedTotal;
+            }
+        }
     }
 
     /// <inheritdoc />
@@ -558,6 +581,18 @@ public sealed class PostgreSqlOutboxStore :
         if (envelopes.Count == 0)
         {
             return [];
+        }
+
+        if (envelopes.Any(envelope => envelope.IdempotencyConflictMode == Messaging.Abstractions.DurableMessaging.IdempotencyConflictMode.Strict))
+        {
+            var strictResults = new OutboxEnvelope[envelopes.Count];
+
+            for (var index = 0; index < envelopes.Count; index++)
+            {
+                strictResults[index] = await AddAsync(envelopes[index], cancellationToken).ConfigureAwait(false);
+            }
+
+            return strictResults;
         }
 
         if (envelopes.Count == 1)

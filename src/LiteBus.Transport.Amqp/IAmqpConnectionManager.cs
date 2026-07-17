@@ -23,4 +23,16 @@ public interface IAmqpConnectionManager : IAsyncDisposable
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A channel that the caller owns and must dispose.</returns>
     Task<IChannel> CreateChannelAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Creates a publisher-confirm channel on the shared connection.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A channel configured to await broker confirmations.</returns>
+    /// <remarks>
+    ///     The default implementation preserves compatibility for custom connection managers. The built-in manager
+    ///     overrides this member and enables confirmation tracking on the RabbitMQ channel.
+    /// </remarks>
+    Task<IChannel> CreatePublisherChannelAsync(CancellationToken cancellationToken = default)
+        => CreateChannelAsync(cancellationToken);
 }

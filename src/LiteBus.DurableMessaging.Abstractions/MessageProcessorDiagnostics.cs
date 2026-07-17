@@ -11,6 +11,11 @@ namespace LiteBus.Messaging.Abstractions;
 public static class MessageProcessorDiagnostics
 {
     /// <summary>
+    ///     The maximum number of characters written to a durable envelope error field.
+    /// </summary>
+    private const int MaxPersistedErrorLength = 1024;
+
+    /// <summary>
     ///     Gets the compact error persisted when dispatch is canceled because lease renewal failed.
     /// </summary>
     public const string LeaseLostDuringProcessingError =
@@ -86,7 +91,15 @@ public static class MessageProcessorDiagnostics
     {
         ArgumentNullException.ThrowIfNull(exception);
 
-        return $"{exception.GetType().FullName}: {exception.Message}";
+        var typeName = exception.GetType().FullName ?? exception.GetType().Name;
+        var message = string.IsNullOrWhiteSpace(exception.Message)
+            ? "No exception message was provided."
+            : exception.Message.Replace('\r', ' ').Replace('\n', ' ');
+        var formatted = $"{typeName}: {message}";
+
+        return formatted.Length <= MaxPersistedErrorLength
+            ? formatted
+            : formatted[..MaxPersistedErrorLength];
     }
 
     /// <summary>

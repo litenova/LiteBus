@@ -374,10 +374,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
         var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
         var query = new StreamErrorHandlingQuery();
 
-        await queryMediator.StreamAsync(query).ToListAsync().ConfigureAwait(true);
+        var results = await queryMediator.StreamAsync(query).ToListAsync().ConfigureAwait(true);
 
         query.ExecutedTypes.Should().Contain(typeof(StreamErrorHandlingQueryErrorHandler));
         query.ObservedErrorHandlerMessageResult.Should().NotBeNull();
         query.ObservedErrorHandlerMessageResult.Should().BeAssignableTo<IAsyncEnumerable<StreamErrorHandlingQueryResult>>();
+        results.Should().HaveCount(1);
     }
 }

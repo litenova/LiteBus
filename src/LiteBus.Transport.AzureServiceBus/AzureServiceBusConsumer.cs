@@ -236,6 +236,7 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
         CancellationToken cancellationToken)
     {
         var sessionStopped = CreateStoppedTaskSource();
+        var sessionError = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var processor = _client.CreateProcessor(
             options.Destination,
@@ -267,14 +268,21 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
                     .ConfigureAwait(false);
             };
 
-            processor.ProcessErrorAsync += _ =>
+            processor.ProcessErrorAsync += args =>
             {
+                sessionError.TrySetResult(args.Exception);
                 sessionStopped.TrySetResult();
                 return Task.CompletedTask;
             };
 
             await processor.StartProcessingAsync(cancellationToken).ConfigureAwait(false);
             await sessionStopped.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+            if (sessionError.Task.IsCompletedSuccessfully && sessionError.Task.Result is { } exception)
+            {
+                throw exception;
+            }
+
             await processor.StopProcessingAsync(CancellationToken.None).ConfigureAwait(false);
         }
         finally

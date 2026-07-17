@@ -217,9 +217,16 @@ public sealed class SqsConsumer : IMessageConsumer
                         options.Destination,
                         ackHandlers);
 
-                    await TransportConsumerHandlerInvoker.InvokeAsync(transportMessage, handler, cancellationToken)
+                    var outcome = await TransportConsumerHandlerInvoker.InvokeWithOutcomeAsync(
+                            transportMessage,
+                            handler,
+                            cancellationToken)
                         .ConfigureAwait(false);
-                    batchFailed = false;
+
+                    if (outcome == TransportConsumerInvocationOutcome.Handled)
+                    {
+                        batchFailed = false;
+                    }
                 }
 
                 if (batchFailed)

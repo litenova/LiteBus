@@ -67,6 +67,11 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     private Timer? _batchFlushTimer;
 
     /// <summary>
+    ///     Tracks the timer-triggered flush so shutdown can await work that already started.
+    /// </summary>
+    private Task? _activeBatchFlushTask;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="TransportInboxIngressConsumer" /> class.
     /// </summary>
     /// <param name="consumer">The transport consumer used to subscribe to the ingress destination.</param>
@@ -155,6 +160,12 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
                 break;
             }
 
+            catch (TransportCircuitBreakerOpenException)
+            {
+                // An open circuit is a scheduled pause, not a new downstream failure. Recording it here would
+                // continuously extend the open window and prevent the half-open probe from ever running.
+            }
+
 #pragma warning disable CA1031 // Ingress restart boundary records broker faults and retries the consumer loop.
             catch (Exception exception)
             {
@@ -165,6 +176,7 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
             finally
             {
                 CancelBatchFlushTimer();
+                await AwaitActiveBatchFlushAsync().ConfigureAwait(false);
                 await FlushBatchBufferAsync(CancellationToken.None).ConfigureAwait(false);
                 await _consumer.StopAsync(stoppingToken).ConfigureAwait(false);
             }
@@ -265,10 +277,45 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
         CancelBatchFlushTimerUnsafe();
 
         _batchFlushTimer = new Timer(
-            static state => _ = ((TransportInboxIngressConsumer) state!).OnBatchFlushTimerElapsedAsync(),
+            static state => ((TransportInboxIngressConsumer) state!).StartBatchFlush(),
             this,
             _options.BatchMaxWait,
             Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>
+    ///     Starts and records the timer-triggered flush task.
+    /// </summary>
+    private void StartBatchFlush()
+    {
+        lock (_batchSync)
+        {
+            if (_batchFlushTimer is null)
+            {
+                return;
+            }
+
+            _activeBatchFlushTask = OnBatchFlushTimerElapsedAsync();
+        }
+    }
+
+    /// <summary>
+    ///     Waits for a timer-triggered flush that was already started.
+    /// </summary>
+    /// <returns>A task that completes when the active timer flush has finished.</returns>
+    private async Task AwaitActiveBatchFlushAsync()
+    {
+        Task? activeTask;
+
+        lock (_batchSync)
+        {
+            activeTask = _activeBatchFlushTask;
+        }
+
+        if (activeTask is not null)
+        {
+            await activeTask.ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -441,6 +488,11 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
                 try
                 {
                     await AcceptAndAcknowledgeAsync(message, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception settlementException)
+                {
+                    // Release admission for the complete batch even when a transport cannot settle one delivery.
+                    TransportInboxIngressLogMessages.BatchFlushFailed(_logger, settlementException);
                 }
                 finally
                 {
