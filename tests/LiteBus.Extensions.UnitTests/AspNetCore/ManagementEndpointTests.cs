@@ -131,6 +131,33 @@ public sealed class ManagementEndpointTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    [Fact]
+    public async Task OutboxPurge_WithFiltersAndConfirmation_ReturnsOk()
+    {
+        using var host = await CreateHostAsync(new LiteBusManagementOptions
+        {
+            FailHealthWhenNoProbes = false,
+            AllowAnonymousManagement = true
+        }).ConfigureAwait(false);
+
+        using var client = host.GetTestClient();
+        var messageId = Guid.NewGuid();
+        var createdAfter = Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(-1).ToString("O"));
+        var createdBefore = Uri.EscapeDataString(DateTimeOffset.UtcNow.ToString("O"));
+        var path = $"/litebus/outbox/messages?messageId={messageId}" +
+                   "&statuses=Published&contractName=tests.event&topic=shipments" +
+                   "&correlationId=correlation&causationId=causation&tenantId=tenant-a" +
+                   $"&createdAfter={createdAfter}&createdBefore={createdBefore}";
+        using var request = new HttpRequestMessage(HttpMethod.Delete, path)
+        {
+            Content = JsonContent.Create(new { confirm = true })
+        };
+
+        using var response = await client.SendAsync(request).ConfigureAwait(false);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     private static Task<IHost> CreateHostAsync(
         LiteBusManagementOptions options,
         Action<InboxModuleBuilder>? configureInbox = null)

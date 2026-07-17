@@ -2,7 +2,35 @@
 
 This page covers testing durable messaging in LiteBus v6: InMemory storage for fast unit tests, shared store contract harnesses, Testcontainers for PostgreSQL and AMQP integration tests, and the durable transport integration matrix.
 
-For a full inventory of integration test projects, fixtures, scenarios, and CI filters, see [Integration Tests](integration-tests.md). Pull request and release workflows merge all collected Cobertura reports and require at least 90 percent line coverage after the integration test batch.
+For a full inventory of integration test projects, fixtures, scenarios, and CI filters, see [Integration Tests](integration-tests.md). Pull request and release workflows collect every test batch with the repository run settings and require at least 90 percent merged source-line coverage.
+
+## Coverage Gate
+
+`coverlet.runsettings` is the single collector configuration for local, pull request, and release runs. It emits JSON for the repository gate and Cobertura for Codecov and human-readable reports. The collector excludes test, sample, benchmark, and test-support assemblies.
+
+`scripts/Test-CoverageThreshold.ps1` merges executable line identities by source document and line number across every JSON report. It also merges branch identities and reports branch coverage, but the v6 required threshold is 90 percent for lines under `src/`. A line covered by any unit, transport, or integration batch counts once. A line present but uncovered in every batch also counts once. This avoids both duplicate counting and the false pass produced by averaging per-process percentages.
+
+CI writes isolated reports under `artifacts/coverage/` for these batches:
+
+- unit tests;
+- fast transport integration tests;
+- Docker-backed durable and wire transport tests;
+- Azure Service Bus emulator tests;
+- the remaining integration suite.
+
+After all batches finish, CI runs:
+
+```powershell
+./scripts/Test-CoverageThreshold.ps1 -Root artifacts/coverage -LineThreshold 90
+```
+
+For the same full-suite check locally, with Docker available, run:
+
+```powershell
+./scripts/run-coverage.ps1 -ResultsDirectory ./coverage -SkipReport -EnforceThreshold
+```
+
+Do not combine reports produced from different source revisions or build states. Source line identities can move between builds and make such a merge invalid.
 ## InMemory Storage
 
 The InMemory storage packages implement all store roles in one thread-safe class. They use `TimeProvider` for lease expiry simulation.

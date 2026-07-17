@@ -1,5 +1,6 @@
 using System.Text.Json;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Storage.Testing;
@@ -963,6 +964,143 @@ public abstract class InboxStoreContractTests
         batch[0].Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
         batch[0].Envelope.Id.Should().Be(commandId);
         batch[0].Envelope.Payload.Should().Be(first.Envelope.Payload);
+    }
+
+    /// <summary>
+    ///     Verifies that an empty batch is a successful no-op for every batch-oriented store role.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task EmptyBatchOperations_ShouldReturnEmptyResults()
+    {
+        var roles = CreateStore();
+
+        var appended = await roles.Writer.AddBatchAsync([]).ConfigureAwait(false);
+        var persisted = await roles.StateWriter.PersistAsync([]).ConfigureAwait(false);
+        var requeued = await roles.DeadLetterStore.RequeueAsync([]).ConfigureAwait(false);
+
+        appended.Should().BeEmpty();
+        persisted.AppliedCount.Should().Be(0);
+        persisted.SkippedCount.Should().Be(0);
+        requeued.Requested.Should().Be(0);
+        requeued.Requeued.Should().Be(0);
+    }
+
+    /// <summary>
+    ///     Verifies one persist batch can apply multiple rows for every terminal inbox status.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task PersistAsync_WithMixedTerminalBatch_ShouldApplyEveryTransition()
+    {
+        var roles = CreateStore();
+        var now = BaseTime;
+        var source = Enumerable.Range(0, 6)
+            .Select(index => CreatePendingEnvelope(Guid.NewGuid(), now.AddMilliseconds(index)))
+            .ToArray();
+        await roles.Writer.AddBatchAsync(source).ConfigureAwait(false);
+
+        var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = source.Length,
+            LeaseOwner = "mixed-worker",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        }).ConfigureAwait(false);
+
+        leased.Should().HaveCount(source.Length);
+        var terminal = new[]
+        {
+            leased[0].AsCompleted(),
+            leased[1].AsCompleted(),
+            leased[2].AsFailed("temporary-1", now.AddMinutes(5)),
+            leased[3].AsFailed("temporary-2", now.AddMinutes(5)),
+            leased[4].AsDeadLettered("poison-1"),
+            leased[5].AsDeadLettered("poison-2")
+        };
+
+        var result = await roles.StateWriter.PersistAsync(terminal).ConfigureAwait(false);
+        var page = await roles.MessageQuery.QueryAsync(
+            new InboxMessageFilter { MessageIds = source.Select(envelope => envelope.Id).ToArray() },
+            new InboxMessagePageRequest { PageSize = source.Length }).ConfigureAwait(false);
+
+        result.AppliedCount.Should().Be(source.Length);
+        result.SkippedCount.Should().Be(0);
+        page.Items.Should().HaveCount(source.Length);
+        page.Items.Count(envelope => envelope.Status == InboxStatus.Completed).Should().Be(2);
+        page.Items.Count(envelope => envelope.Status == InboxStatus.Failed).Should().Be(2);
+        page.Items.Count(envelope => envelope.Status == InboxStatus.DeadLettered).Should().Be(2);
+    }
+
+    /// <summary>
+    ///     Verifies every inbox message predicate composes consistently for query and purge operations.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task CompleteFilter_ShouldMatchOnlyTheIntendedMessage()
+    {
+        var roles = CreateStore();
+        var now = BaseTime;
+        var target = CreatePendingEnvelope(Guid.NewGuid(), now) with
+        {
+            ContractName = "tests.commands.filtered",
+            CorrelationId = "correlation-filtered",
+            CausationId = "causation-filtered",
+            TenantId = "tenant-filtered",
+            IdempotencyKey = "tenant-filtered-key"
+        };
+        var other = CreatePendingEnvelope(Guid.NewGuid(), now.AddMinutes(5)) with
+        {
+            ContractName = "tests.commands.other",
+            CorrelationId = "correlation-other",
+            CausationId = "causation-other",
+            TenantId = "tenant-other",
+            IdempotencyKey = "tenant-other-key"
+        };
+        await roles.Writer.AddBatchAsync([target, other]).ConfigureAwait(false);
+
+        var filter = new InboxMessageFilter
+        {
+            MessageId = target.Id,
+            MessageIds = [target.Id, other.Id],
+            Statuses = [InboxStatus.Pending],
+            ContractName = target.ContractName,
+            CorrelationId = target.CorrelationId,
+            CausationId = target.CausationId,
+            TenantId = target.TenantId,
+            CreatedAfter = now.AddMinutes(-1),
+            CreatedBefore = now.AddMinutes(1)
+        };
+
+        var page = await roles.MessageQuery.QueryAsync(
+            filter,
+            new InboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
+        var deleted = await roles.PurgeStore.PurgeAsync(filter).ConfigureAwait(false);
+
+        page.Items.Should().ContainSingle().Which.Id.Should().Be(target.Id);
+        deleted.Should().Be(1);
+    }
+
+    /// <summary>
+    ///     Verifies strict batch replay rejects changed content for an existing message identifier.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task AddBatchAsync_WithStrictChangedReplay_ShouldThrow()
+    {
+        var roles = CreateStore();
+        var original = CreatePendingEnvelope(Guid.NewGuid(), BaseTime);
+        await roles.Writer.EnqueueAsync(original).ConfigureAwait(false);
+
+        var action = () => roles.Writer.AddBatchAsync([
+            original with
+            {
+                Payload = "{\"changed\":true}",
+                IdempotencyConflictMode = IdempotencyConflictMode.Strict
+            }
+        ]);
+
+        await action.Should().ThrowAsync<IdempotencyConflictException>().ConfigureAwait(false);
     }
 
     /// <summary>

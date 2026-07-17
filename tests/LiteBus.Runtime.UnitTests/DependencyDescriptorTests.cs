@@ -126,11 +126,61 @@ public sealed class DependencyDescriptorTests
             .WithParameterName("lifetime");
     }
 
+    [Fact]
+    public void Equality_WithDifferentServicesOrCollectionMetadata_ShouldReturnFalse()
+    {
+        var descriptor = new DependencyDescriptor(typeof(ITestService), typeof(TestServiceA));
+        var differentService = new DependencyDescriptor(typeof(object), typeof(TestServiceA));
+        var collection = DependencyDescriptor.ForCollection(typeof(ITestService), typeof(TestServiceA));
+
+        descriptor.Equals(differentService).Should().BeFalse();
+        descriptor.Equals(collection).Should().BeFalse();
+        (descriptor == new DependencyDescriptor(typeof(ITestService), typeof(TestServiceA))).Should().BeTrue();
+        (descriptor != differentService).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ForCollection_WithInstanceOrFactory_ShouldRetainCollectionMetadata()
+    {
+        var instance = new TestServiceA();
+        Func<IServiceProvider, object> factory = _ => instance;
+
+        var instanceDescriptor = DependencyDescriptor.ForCollection(typeof(ITestService), instance);
+        var factoryDescriptor = DependencyDescriptor.ForCollection(
+            typeof(ITestService),
+            factory,
+            InstanceLifetime.Scoped);
+
+        instanceDescriptor.Instance.Should().BeSameAs(instance);
+        instanceDescriptor.IsCollectionRegistration.Should().BeTrue();
+        factoryDescriptor.Factory.Should().BeSameAs(factory);
+        factoryDescriptor.Lifetime.Should().Be(InstanceLifetime.Scoped);
+        factoryDescriptor.IsCollectionRegistration.Should().BeTrue();
+    }
+
+    [Fact]
+    public void OpenGenericRegistration_ShouldValidateImplementationShapeAndBaseTypes()
+    {
+        var derived = new DependencyDescriptor(typeof(GenericBase<>), typeof(DerivedGeneric<>));
+        var nonGenericAct = () => new DependencyDescriptor(typeof(IGenericService<>), typeof(TestServiceA));
+        var unrelatedAct = () => new DependencyDescriptor(typeof(IGenericService<>), typeof(UnrelatedGeneric<>));
+
+        derived.ImplementationType.Should().Be(typeof(DerivedGeneric<>));
+        nonGenericAct.Should().Throw<ArgumentException>();
+        unrelatedAct.Should().Throw<ArgumentException>();
+    }
+
     private interface IGenericService<T>;
 
     private abstract class AbstractTestService : ITestService;
 
     private sealed class GenericService<T> : IGenericService<T>;
+
+    private abstract class GenericBase<T>;
+
+    private sealed class DerivedGeneric<T> : GenericBase<T>;
+
+    private sealed class UnrelatedGeneric<T>;
 
     private sealed class UnrelatedService;
 }

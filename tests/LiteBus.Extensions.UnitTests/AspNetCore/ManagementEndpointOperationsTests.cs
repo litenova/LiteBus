@@ -112,6 +112,59 @@ public sealed class ManagementEndpointOperationsTests
     }
 
     /// <summary>
+    ///     Verifies processor-control routes return not found when the durable axes do not register controls.
+    /// </summary>
+    [Fact]
+    public async Task ProcessorRoutes_WithoutRegisteredControls_ShouldReturnNotFound()
+    {
+        using var host = await CreateHostAsync(CreateAnonymousOptions()).ConfigureAwait(false);
+        using var client = host.GetTestClient();
+        string[] getPaths =
+        [
+            "/litebus/inbox/processor/state",
+            "/litebus/outbox/processor/state"
+        ];
+        string[] postPaths =
+        [
+            "/litebus/inbox/processor/pause",
+            "/litebus/inbox/processor/resume",
+            "/litebus/inbox/processor/drain",
+            "/litebus/outbox/processor/pause",
+            "/litebus/outbox/processor/resume",
+            "/litebus/outbox/processor/drain"
+        ];
+
+        foreach (var path in getPaths)
+        {
+            using var response = await client.GetAsync(path).ConfigureAwait(false);
+            response.StatusCode.Should().Be(HttpStatusCode.NotFound, path);
+        }
+
+        foreach (var path in postPaths)
+        {
+            using var response = await client.PostAsync(path, null).ConfigureAwait(false);
+            response.StatusCode.Should().Be(HttpStatusCode.NotFound, path);
+        }
+    }
+
+    /// <summary>
+    ///     Verifies message lookup routes return not found when the requested message does not exist.
+    /// </summary>
+    [Fact]
+    public async Task MessageRoutes_WithUnknownId_ShouldReturnNotFound()
+    {
+        using var host = await CreateHostAsync(CreateAnonymousOptions()).ConfigureAwait(false);
+        using var client = host.GetTestClient();
+        var messageId = Guid.NewGuid();
+
+        using var inboxResponse = await client.GetAsync($"/litebus/inbox/messages/{messageId}").ConfigureAwait(false);
+        using var outboxResponse = await client.GetAsync($"/litebus/outbox/messages/{messageId}").ConfigureAwait(false);
+
+        inboxResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        outboxResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    /// <summary>
     ///     Verifies an absent durable axis returns the documented fallback response for every path in its route group.
     /// </summary>
     [Fact]

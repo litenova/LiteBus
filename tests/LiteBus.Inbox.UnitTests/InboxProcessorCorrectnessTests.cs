@@ -5,7 +5,9 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Messaging.Processing;
 using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LiteBus.Inbox.UnitTests;
@@ -16,6 +18,29 @@ namespace LiteBus.Inbox.UnitTests;
 public sealed class InboxProcessorCorrectnessTests
 {
     private static readonly DateTimeOffset BaseTime = new(2026, 6, 6, 8, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void ResolveLeaseOwner_ShouldPreserveExplicitOwnerOrGenerateDefault()
+    {
+        InboxProcessorFactory.ResolveLeaseOwner(new InboxProcessorOptions { LeaseOwner = "worker-a" })
+            .Should().Be("worker-a");
+        InboxProcessorFactory.ResolveLeaseOwner(new InboxProcessorOptions { LeaseOwner = " " })
+            .Should().StartWith($"{Environment.MachineName}:{Environment.ProcessId}:");
+
+        var nullAct = () => InboxProcessorFactory.ResolveLeaseOwner(null!);
+        nullAct.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void Create_WithoutRequiredServices_ShouldThrowConfigurationException()
+    {
+        using var services = new ServiceCollection().BuildServiceProvider();
+
+        var act = () => InboxProcessorFactory.Create(services);
+
+        act.Should().Throw<LiteBusConfigurationException>()
+            .WithMessage("*InboxProcessorOptions*");
+    }
 
     [Fact]
     public void ValidateOptions_when_heartbeat_exceeds_half_lease_duration_should_throw()

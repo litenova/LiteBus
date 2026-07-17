@@ -47,6 +47,31 @@ public sealed class MessageContractRegistryTests
     }
 
     [Fact]
+    public void MessageContractBuilder_ShouldRejectOpenTypesAndInvalidVersions()
+    {
+        var builder = new MessageContractBuilder();
+
+        var openTypeAct = () => builder.Register(typeof(List<>), "tests.open");
+        var invalidVersionAct = () => builder.Register<ReplayCommand>("tests.invalid", 0);
+
+        openTypeAct.Should().Throw<ArgumentException>().WithParameterName("messageType");
+        invalidVersionAct.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("version");
+        builder.HasRegistrations.Should().BeFalse();
+    }
+
+    [Fact]
+    public void MessageContractBuilder_AddFromAssembly_ShouldCaptureAttributedClosedTypes()
+    {
+        var builder = new MessageContractBuilder();
+        var registry = new MessageContractRegistry();
+
+        builder.AddFromAssembly(typeof(MessageContractRegistryTests).Assembly);
+        builder.ApplyTo(registry);
+
+        registry.GetContract(typeof(AttributedCommand)).Name.Should().Be("orders.commands.ship");
+    }
+
+    [Fact]
     public void GetContract_WhenAttributePresent_ShouldRequireExplicitRegistration()
     {
         var registry = new MessageContractRegistry();

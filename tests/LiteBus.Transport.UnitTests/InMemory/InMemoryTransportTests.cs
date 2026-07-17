@@ -1,4 +1,5 @@
 using System.Text;
+using System.Threading.Channels;
 using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.InMemory;
 
@@ -125,6 +126,62 @@ public sealed class InMemoryTransportTests
     }
 
     /// <summary>
+    ///     Verifies an open circuit is surfaced without recording a second broker failure.
+    /// </summary>
+    [Fact]
+    public async Task PublishAsync_WithOpenCircuit_ShouldRethrowCircuitException()
+    {
+        var circuitBreaker = new ThrowingCircuitBreaker(new TransportCircuitBreakerOpenException());
+        var publisher = new InMemoryPublisher(new InMemoryTransportBroker(), circuitBreaker);
+
+        var act = () => publisher.PublishAsync(CreateRequest("open-circuit"));
+
+        await act.Should().ThrowAsync<TransportCircuitBreakerOpenException>().ConfigureAwait(false);
+        circuitBreaker.RecordedFailures.Should().Be(0);
+    }
+
+    /// <summary>
+    ///     Verifies publishing to a closed destination records a circuit-breaker failure.
+    /// </summary>
+    [Fact]
+    public async Task PublishAsync_WithClosedDestination_ShouldRecordFailure()
+    {
+        var broker = new InMemoryTransportBroker();
+        broker.GetOrCreateEndpoint("closed-destination").Writer.TryComplete().Should().BeTrue();
+        var circuitBreaker = new TransportCircuitBreaker();
+        var publisher = new InMemoryPublisher(broker, circuitBreaker);
+
+        var act = () => publisher.PublishAsync(CreateRequest("closed-destination"));
+
+        await act.Should().ThrowAsync<ChannelClosedException>().ConfigureAwait(false);
+        circuitBreaker.FailureCount.Should().Be(1);
+    }
+
+    /// <summary>
+    ///     Verifies unexpected publish failures are recorded and rethrown.
+    /// </summary>
+    [Fact]
+    public async Task PublishAsync_WithUnexpectedFailure_ShouldRecordAndRethrow()
+    {
+        var circuitBreaker = new ThrowingCircuitBreaker(new InvalidOperationException("unexpected"));
+        var publisher = new InMemoryPublisher(new InMemoryTransportBroker(), circuitBreaker);
+
+        var act = () => publisher.PublishAsync(CreateRequest("unexpected-failure"));
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("unexpected").ConfigureAwait(false);
+        circuitBreaker.RecordedFailures.Should().Be(1);
+    }
+
+    private static TransportPublishRequest CreateRequest(string destination)
+    {
+        return new TransportPublishRequest
+        {
+            Destination = destination,
+            Body = Encoding.UTF8.GetBytes("payload")
+        };
+    }
+
+    /// <summary>
     ///     Waits until the supplied condition becomes true or the timeout elapses.
     /// </summary>
     /// <param name="condition">The condition polled until it returns <see langword="true" />.</param>
@@ -137,6 +194,36 @@ public sealed class InMemoryTransportTests
         while (!condition() && Environment.TickCount64 < deadline)
         {
             await Task.Delay(10).ConfigureAwait(false);
+        }
+    }
+
+    private sealed class ThrowingCircuitBreaker : ITransportCircuitBreaker
+    {
+        private readonly Exception _exception;
+
+        public ThrowingCircuitBreaker(Exception exception)
+        {
+            _exception = exception;
+        }
+
+        public bool IsOpen => _exception is TransportCircuitBreakerOpenException;
+
+        public int FailureCount => RecordedFailures;
+
+        public int RecordedFailures { get; private set; }
+
+        public void ThrowIfOpen()
+        {
+            throw _exception;
+        }
+
+        public void RecordSuccess()
+        {
+        }
+
+        public void RecordFailure()
+        {
+            RecordedFailures++;
         }
     }
 }

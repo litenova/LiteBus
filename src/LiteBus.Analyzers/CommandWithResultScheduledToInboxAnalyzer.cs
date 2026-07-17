@@ -193,7 +193,10 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
         var batchArgument = invocation.ArgumentList.Arguments[0].Expression;
         var builder = ImmutableArray.CreateBuilder<(ITypeSymbol MessageType, Location Location)>();
 
-        foreach (var element in GetCollectionElementExpressions(batchArgument))
+        foreach (var element in GetCollectionElementExpressions(
+                     batchArgument,
+                     semanticModel,
+                     cancellationToken))
         {
             var messageType = GetMessageTypeFromAcceptItem(element, semanticModel);
 
@@ -217,34 +220,141 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
     ///     Gets element expressions from array, collection, or list initialization syntax.
     /// </summary>
     /// <param name="expression">The batch argument expression.</param>
+    /// <param name="semanticModel">The semantic model used to resolve local symbols.</param>
+    /// <param name="cancellationToken">The cancellation token for syntax resolution.</param>
     /// <returns>The element expressions contained in the batch argument.</returns>
-    private static IEnumerable<ExpressionSyntax> GetCollectionElementExpressions(ExpressionSyntax expression)
+    private static IEnumerable<ExpressionSyntax> GetCollectionElementExpressions(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel,
+        CancellationToken cancellationToken)
     {
-        switch (expression)
-        {
-            case ImplicitArrayCreationExpressionSyntax { Initializer: not null } implicitArray:
-                return implicitArray.Initializer.Expressions;
-            case ArrayCreationExpressionSyntax { Initializer: not null } arrayCreation:
-                return arrayCreation.Initializer.Expressions;
-            case CollectionExpressionSyntax collectionExpression:
-                return collectionExpression.Elements
-                    .Select(GetCollectionElementExpression)
-                    .Where(element => element is not null)!;
-            default:
-                return [];
-        }
+        return GetCollectionElementExpressions(
+            expression,
+            semanticModel,
+            new HashSet<SyntaxNode>(),
+            cancellationToken);
     }
 
     /// <summary>
-    ///     Gets the expression from a collection expression element when it represents one value.
+    ///     Gets collection elements recursively, following local initializers and collection spreads.
     /// </summary>
-    /// <param name="element">The collection expression element.</param>
-    /// <returns>The element expression, if present.</returns>
-    private static ExpressionSyntax? GetCollectionElementExpression(CollectionElementSyntax element)
+    /// <param name="expression">The collection expression to inspect.</param>
+    /// <param name="semanticModel">The semantic model used to resolve local symbols.</param>
+    /// <param name="visited">The syntax nodes already followed while resolving local initializers.</param>
+    /// <param name="cancellationToken">The cancellation token for syntax resolution.</param>
+    /// <returns>The concrete element expressions that can be resolved at the invocation site.</returns>
+    private static IEnumerable<ExpressionSyntax> GetCollectionElementExpressions(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel,
+        ISet<SyntaxNode> visited,
+        CancellationToken cancellationToken)
     {
-        return element is ExpressionElementSyntax expressionElement
-            ? expressionElement.Expression
-            : null;
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!visited.Add(expression))
+        {
+            yield break;
+        }
+
+        switch (expression)
+        {
+            case ImplicitArrayCreationExpressionSyntax { Initializer: not null } implicitArray:
+                foreach (var element in implicitArray.Initializer.Expressions)
+                {
+                    yield return element;
+                }
+
+                yield break;
+            case ArrayCreationExpressionSyntax { Initializer: not null } arrayCreation:
+                foreach (var element in arrayCreation.Initializer.Expressions)
+                {
+                    yield return element;
+                }
+
+                yield break;
+            case ObjectCreationExpressionSyntax { Initializer: not null } objectCreation:
+                foreach (var element in objectCreation.Initializer.Expressions)
+                {
+                    yield return element;
+                }
+
+                yield break;
+            case ImplicitObjectCreationExpressionSyntax { Initializer: not null } implicitObjectCreation:
+                foreach (var element in implicitObjectCreation.Initializer.Expressions)
+                {
+                    yield return element;
+                }
+
+                yield break;
+            case CollectionExpressionSyntax collectionExpression:
+                foreach (var element in collectionExpression.Elements)
+                {
+                    if (element is ExpressionElementSyntax expressionElement)
+                    {
+                        yield return expressionElement.Expression;
+                        continue;
+                    }
+
+                    if (element is SpreadElementSyntax spreadElement)
+                    {
+                        foreach (var spreadExpression in GetCollectionElementExpressions(
+                                     spreadElement.Expression,
+                                     semanticModel,
+                                     visited,
+                                     cancellationToken))
+                        {
+                            yield return spreadExpression;
+                        }
+                    }
+                }
+
+                yield break;
+            case ParenthesizedExpressionSyntax parenthesizedExpression:
+                foreach (var element in GetCollectionElementExpressions(
+                             parenthesizedExpression.Expression,
+                             semanticModel,
+                             visited,
+                             cancellationToken))
+                {
+                    yield return element;
+                }
+
+                yield break;
+            case CastExpressionSyntax castExpression:
+                foreach (var element in GetCollectionElementExpressions(
+                             castExpression.Expression,
+                             semanticModel,
+                             visited,
+                             cancellationToken))
+                {
+                    yield return element;
+                }
+
+                yield break;
+            case IdentifierNameSyntax identifierName
+                when semanticModel.GetSymbolInfo(identifierName, cancellationToken).Symbol is ILocalSymbol local:
+                foreach (var syntaxReference in local.DeclaringSyntaxReferences)
+                {
+                    if (syntaxReference.GetSyntax(cancellationToken) is not VariableDeclaratorSyntax
+                        {
+                            Initializer.Value: { } initializer
+                        })
+                    {
+                        continue;
+                    }
+
+                    foreach (var element in GetCollectionElementExpressions(
+                                 initializer,
+                                 semanticModel,
+                                 visited,
+                                 cancellationToken))
+                    {
+                        yield return element;
+                    }
+                }
+
+                yield break;
+        }
     }
 
     /// <summary>

@@ -13,6 +13,8 @@ All notable changes to this project will be documented in this file.
 - File-backed SQLite and MySQL 8.4 provider contract matrices for both Entity Framework Core durable stores.
 - Published `LiteBus.Transport.Testing` xUnit conformance tests for third-party transport adapter authors.
 - Evaluated package inventory, source-linked compiled snippets, test-symbol discovery, and semantic documentation gates.
+- Shared durable-store contract cases for empty batches, mixed terminal outcomes, complete filters, dead-letter replay,
+  and strict idempotency conflicts.
 
 ### Changed
 
@@ -34,6 +36,8 @@ All notable changes to this project will be documented in this file.
   insertion outcome.
 - SQLite EF models store durable timestamps as UTC ticks, and MySQL leasing uses `READ COMMITTED` with a named
   chronological index.
+- Test coverage uses one canonical collector configuration and an exact source-line union across every CI batch.
+  Pull request and release jobs enforce 90 percent line coverage and treat Codecov upload failures as failures.
 
 ### Fixed
 
@@ -51,6 +55,8 @@ All notable changes to this project will be documented in this file.
   column, and claims disjoint ordered batches without range-lock starvation or update deadlocks.
 - SQLite EF leasing and operator queries now translate timestamp comparisons and ordering instead of failing on
   `DateTimeOffset` expressions.
+- Analyzer LB1004 now finds result-bearing commands in inbox batches expressed through local variables, arrays,
+  target-typed lists, parenthesized or cast expressions, and collection spreads.
 
 ### Breaking changes
 

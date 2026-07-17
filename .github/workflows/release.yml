@@ -94,10 +94,10 @@ jobs:
           echo "Docker is available."
 
       - name: Unit Tests
-        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName!~IntegrationTests"
+        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/unit --filter "FullyQualifiedName!~IntegrationTests"
 
       - name: Transport Fast Integration Tests
-        run: dotnet test tests/LiteBus.Durable.IntegrationTests --no-build --configuration Release --verbosity normal --filter "Category=TransportFast"
+        run: dotnet test tests/LiteBus.Durable.IntegrationTests --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/transport-fast --filter "Category=TransportFast"
 
       - name: Transport Docker Integration Tests
         env:
@@ -107,11 +107,17 @@ jobs:
           mkdir -p "${trx_dir}"
           dotnet test tests/LiteBus.Durable.IntegrationTests \
             --no-build --configuration Release --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings \
+            --results-directory artifacts/coverage/transport-docker-durable \
             --filter "Category=TransportDocker" \
             --logger "trx;LogFileName=${trx_dir}/durable-transport-docker.trx"
           bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/durable-transport-docker.trx"
           dotnet test tests/LiteBus.Transport.IntegrationTests \
             --no-build --configuration Release --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings \
+            --results-directory artifacts/coverage/transport-docker-wire \
             --filter "Category=TransportDocker" \
             --logger "trx;LogFileName=${trx_dir}/transport-wire-docker.trx"
           bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-wire-docker.trx"
@@ -124,21 +130,26 @@ jobs:
           mkdir -p "${trx_dir}"
           dotnet test tests/LiteBus.Durable.IntegrationTests \
             --no-build --configuration Release --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings \
+            --results-directory artifacts/coverage/transport-azure \
             --filter "Category=TransportAzure" \
             --logger "trx;LogFileName=${trx_dir}/transport-azure.trx"
           bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-azure.trx"
 
       - name: Integration Tests
-        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure"
+        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/integration --filter "FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure"
 
       - name: Enforce Merged Coverage Gate
         shell: pwsh
-        run: ./scripts/Test-CoverageThreshold.ps1 -Root . -Threshold 90
+        run: ./scripts/Test-CoverageThreshold.ps1 -Root artifacts/coverage -LineThreshold 90
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v6
         with:
-          fail_ci_if_error: false
+          files: ./artifacts/coverage/**/coverage.cobertura.xml
+          disable_search: true
+          fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
 

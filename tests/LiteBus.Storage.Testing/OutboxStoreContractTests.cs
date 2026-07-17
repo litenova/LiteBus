@@ -1,4 +1,5 @@
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Storage.Testing;
@@ -625,6 +626,210 @@ public abstract class OutboxStoreContractTests
         requeued.Should().ContainSingle();
         requeued[0].Id.Should().Be(messageId);
         requeued[0].Status.Should().Be(OutboxStatus.Publishing);
+    }
+
+    /// <summary>
+    ///     Verifies that an empty batch is a successful no-op for every batch-oriented store role.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task EmptyBatchOperations_ShouldReturnEmptyResults()
+    {
+        var store = CreateStore();
+
+        var appended = await store.Writer.AddBatchAsync([]).ConfigureAwait(false);
+        var persisted = await store.StateWriter.PersistAsync([]).ConfigureAwait(false);
+        var requeued = await store.DeadLetterStore.RequeueAsync([]).ConfigureAwait(false);
+
+        appended.Should().BeEmpty();
+        persisted.AppliedCount.Should().Be(0);
+        persisted.SkippedCount.Should().Be(0);
+        requeued.Requested.Should().Be(0);
+        requeued.Requeued.Should().Be(0);
+    }
+
+    /// <summary>
+    ///     Verifies one persist batch can apply multiple rows for every terminal outbox status.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task PersistAsync_WithMixedTerminalBatch_ShouldApplyEveryTransition()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var source = Enumerable.Range(0, 6)
+            .Select(index => CreatePendingEnvelope(Guid.NewGuid(), now.AddMilliseconds(index)))
+            .ToArray();
+
+        await store.Writer.AddBatchAsync(source).ConfigureAwait(false);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = source.Length,
+            LeaseOwner = "mixed-publisher",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        }).ConfigureAwait(false);
+
+        leased.Should().HaveCount(source.Length);
+        var terminal = new[]
+        {
+            leased[0].AsPublished(now),
+            leased[1].AsPublished(now.AddSeconds(1)),
+            leased[2].AsFailed("temporary-1", now.AddMinutes(5)),
+            leased[3].AsFailed("temporary-2", now.AddMinutes(5)),
+            leased[4].AsDeadLettered("poison-1"),
+            leased[5].AsDeadLettered("poison-2")
+        };
+
+        var result = await store.StateWriter.PersistAsync(terminal).ConfigureAwait(false);
+        var page = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { MessageIds = source.Select(envelope => envelope.Id).ToArray() },
+            new OutboxMessagePageRequest { PageSize = source.Length }).ConfigureAwait(false);
+
+        result.AppliedCount.Should().Be(source.Length);
+        result.SkippedCount.Should().Be(0);
+        page.Items.Should().HaveCount(source.Length);
+        page.Items.Count(envelope => envelope.Status == OutboxStatus.Published).Should().Be(2);
+        page.Items.Count(envelope => envelope.Status == OutboxStatus.Failed).Should().Be(2);
+        page.Items.Count(envelope => envelope.Status == OutboxStatus.DeadLettered).Should().Be(2);
+    }
+
+    /// <summary>
+    ///     Verifies that batch dead-letter replay reports both requested and updated rows.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task RequeueDeadLetterAsync_WithMultipleIds_ShouldRequeueEveryMatchingRow()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var source = new[]
+        {
+            CreatePendingEnvelope(Guid.NewGuid(), now),
+            CreatePendingEnvelope(Guid.NewGuid(), now.AddMilliseconds(1))
+        };
+
+        await store.Writer.AddBatchAsync(source).ConfigureAwait(false);
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = source.Length,
+            LeaseOwner = "requeue-publisher",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        }).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync(
+            leased.Select(envelope => envelope.AsDeadLettered("manual replay")).ToArray()).ConfigureAwait(false);
+
+        var result = await store.DeadLetterStore.RequeueAsync(
+            source.Select(envelope => envelope.Id.ToString("D")).ToArray()).ConfigureAwait(false);
+
+        result.Requested.Should().Be(source.Length);
+        result.Requeued.Should().Be(source.Length);
+    }
+
+    /// <summary>
+    ///     Verifies every outbox message predicate composes consistently for query and purge operations.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task CompleteFilter_ShouldMatchOnlyTheIntendedMessage()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var target = CreatePendingEnvelope(Guid.NewGuid(), now) with
+        {
+            ContractName = "tests.events.filtered",
+            Topic = "orders.filtered",
+            CorrelationId = "correlation-filtered",
+            CausationId = "causation-filtered",
+            TenantId = "tenant-filtered"
+        };
+        var other = CreatePendingEnvelope(Guid.NewGuid(), now.AddMinutes(5)) with
+        {
+            ContractName = "tests.events.other",
+            Topic = "orders.other",
+            CorrelationId = "correlation-other",
+            CausationId = "causation-other",
+            TenantId = "tenant-other"
+        };
+        await store.Writer.AddBatchAsync([target, other]).ConfigureAwait(false);
+
+        var filter = new OutboxMessageFilter
+        {
+            MessageId = target.Id,
+            MessageIds = [target.Id, other.Id],
+            Statuses = [OutboxStatus.Pending],
+            ContractName = target.ContractName,
+            Topic = target.Topic,
+            CorrelationId = target.CorrelationId,
+            CausationId = target.CausationId,
+            TenantId = target.TenantId,
+            CreatedAfter = now.AddMinutes(-1),
+            CreatedBefore = now.AddMinutes(1)
+        };
+
+        var page = await store.MessageQuery.QueryAsync(
+            filter,
+            new OutboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
+        var deleted = await store.PurgeStore.PurgeAsync(filter).ConfigureAwait(false);
+
+        page.Items.Should().ContainSingle().Which.Id.Should().Be(target.Id);
+        deleted.Should().Be(1);
+    }
+
+    /// <summary>
+    ///     Verifies batch append resolves a duplicate idempotency key to the original row.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task AddBatchAsync_ShouldReturnExistingRowForDuplicateIdempotencyKey()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var original = CreatePendingEnvelope(Guid.NewGuid(), now) with
+        {
+            TenantId = "tenant-batch",
+            IdempotencyKey = "batch-key"
+        };
+        var first = await store.Writer.EnqueueAsync(original).ConfigureAwait(false);
+
+        var batch = await store.Writer.AddBatchAsync([
+            original with { Id = Guid.NewGuid(), Payload = "{\"changed\":true}" },
+            CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(1)) with
+            {
+                TenantId = "tenant-batch",
+                IdempotencyKey = "batch-key-2"
+            }
+        ]).ConfigureAwait(false);
+
+        batch.Should().HaveCount(2);
+        batch[0].Outcome.Should().Be(OutboxEnqueueOutcome.AlreadyEnqueued);
+        batch[0].Envelope.Id.Should().Be(first.Envelope.Id);
+        batch[0].Envelope.Payload.Should().Be(first.Envelope.Payload);
+        batch[1].Outcome.Should().Be(OutboxEnqueueOutcome.Enqueued);
+    }
+
+    /// <summary>
+    ///     Verifies strict batch replay rejects changed content for an existing message identifier.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task AddBatchAsync_WithStrictChangedReplay_ShouldThrow()
+    {
+        var store = CreateStore();
+        var original = CreatePendingEnvelope(Guid.NewGuid(), BaseTime);
+        await store.Writer.EnqueueAsync(original).ConfigureAwait(false);
+
+        var action = () => store.Writer.AddBatchAsync([
+            original with
+            {
+                Payload = "{\"changed\":true}",
+                IdempotencyConflictMode = IdempotencyConflictMode.Strict
+            }
+        ]);
+
+        await action.Should().ThrowAsync<IdempotencyConflictException>().ConfigureAwait(false);
     }
 
     /// <summary>
