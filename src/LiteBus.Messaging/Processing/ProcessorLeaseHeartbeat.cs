@@ -24,6 +24,28 @@ internal static class ProcessorLeaseHeartbeat
         Func<CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        return await RunWithHeartbeatAsync(
+                context,
+                (heartbeatToken, _) => operation(heartbeatToken),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Runs processor work with lease renewal while exposing both the heartbeat token and the original shutdown token.
+    /// </summary>
+    /// <typeparam name="T">The result type returned by the operation.</typeparam>
+    /// <param name="context">The lease renewal inputs shared across heartbeat attempts.</param>
+    /// <param name="operation">The work executed with the heartbeat and original shutdown tokens.</param>
+    /// <param name="cancellationToken">A token used to cancel dispatch and stop renewals.</param>
+    /// <returns>The value returned by <paramref name="operation" />.</returns>
+    public static async Task<T> RunWithHeartbeatAsync<T>(
+        LeaseHeartbeatContext context,
+        Func<CancellationToken, CancellationToken, Task<T>> operation,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(context.LeaseStore);
         ArgumentNullException.ThrowIfNull(context.Clock);
@@ -32,7 +54,7 @@ internal static class ProcessorLeaseHeartbeat
 
         if (context.HeartbeatInterval <= TimeSpan.Zero)
         {
-            return await operation(cancellationToken).ConfigureAwait(false);
+            return await operation(cancellationToken, cancellationToken).ConfigureAwait(false);
         }
 
         using var operationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -55,7 +77,7 @@ internal static class ProcessorLeaseHeartbeat
 
         try
         {
-            var result = await operation(operationCts.Token).ConfigureAwait(false);
+            var result = await operation(operationCts.Token, cancellationToken).ConfigureAwait(false);
 
             if (leaseWasLost)
             {

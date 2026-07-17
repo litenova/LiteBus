@@ -126,6 +126,12 @@ public sealed class SqsConsumer : IMessageConsumer
     /// <inheritdoc />
     public async Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
     {
+        if (_consumeTask is { } consumeTask)
+        {
+            await consumeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         await _stoppedTcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 

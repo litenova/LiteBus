@@ -9,7 +9,7 @@ Processors claim work with time-bounded leases, renew leases during long handler
 
 ## What It Does
 
-Lease stores atomically claim due rows with `lease_owner` and `lease_expires_at`. Heartbeat renewal extends leases while dispatch runs. On failure, processors persist `Failed` with retry visibility computed from `RetryOptions`. When `AttemptCount` reaches `MaxAttempts`, rows move to `DeadLettered`. Operators requeue via `IInboxManager` / `IOutboxManager`. Lease loss during dispatch persists retryable failure instead of leaving row stuck in processing.
+Lease stores atomically claim due rows with `lease_owner` and `lease_expires_at`. Heartbeat renewal starts as soon as each envelope is leased, including while it waits for a worker slot, and continues through terminal persistence. On failure, processors persist `Failed` with retry visibility computed from `RetryOptions`. When `AttemptCount` reaches `MaxAttempts`, rows move to `DeadLettered`. Operators requeue via `IInboxManager` / `IOutboxManager`. Lease loss during dispatch persists retryable failure instead of leaving row stuck in processing.
 
 ## Public Surface
 
@@ -41,7 +41,7 @@ Lease stores atomically claim due rows with `lease_owner` and `lease_expires_at`
 - **`LeaseDuration`**: Claim TTL; stale processing rows become reclaimable after expiry.
 - **`LeaseHeartbeatInterval`**: Renewal cadence; must be `<= LeaseDuration / 2`.
 - **`Retry`**: `MaxAttempts`, delay, fixed or exponential backoff, optional jitter.
-- **`LeaseOwner`**: Stable per processor instance (background service holds singleton processor).
+- **`LeaseOwner`**: Optional operator label with an opaque random session suffix per processor instance. The suffix fences stale sessions that reuse the same configured label.
 
 ### Extension Points
 
@@ -70,6 +70,7 @@ Lease stores atomically claim due rows with `lease_owner` and `lease_expires_at`
 - `Retry.MaxAttempts` counts dispatch attempts on leased envelope
 - Requeue only moves rows from dead-letter state (partial requeue reported in `RequeueResult`)
 - Heartbeat failure during dispatch to retryable failed outcome, not indefinite processing
+- Queued leased envelopes renew their leases before a worker slot becomes available.
 
 ## Non-Goals
 

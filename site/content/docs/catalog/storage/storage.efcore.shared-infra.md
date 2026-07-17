@@ -7,7 +7,7 @@
 
 ## What It Does
 
-`LiteBus.Storage.EntityFrameworkCore` supplies cross-axis EF primitives: provider detection (`EfCoreStorageProvider`), provider-specific lease SQL (PostgreSQL `FOR UPDATE SKIP LOCKED`, SQL Server, MySQL/Pomelo), relational table qualification, JSON text normalization, bulk update capability probes, and shared durable store operation helpers. Inbox and outbox EF adapters use these types internally; applications typically interact through axis-specific model extensions and store options.
+`LiteBus.Storage.EntityFrameworkCore` supplies cross-axis EF primitives: provider detection (`EfCoreStorageProvider`), provider-specific lease SQL (PostgreSQL `FOR UPDATE SKIP LOCKED`, SQL Server, MySQL/Pomelo), serializable SQLite lease transactions, relational table qualification, JSON text normalization, bulk update capability probes, and shared durable store operation helpers. Inbox and outbox EF adapters use these types internally; applications typically interact through axis-specific model extensions and store options.
 
 ## Public Surface
 
@@ -44,7 +44,7 @@
 | --- | --- |
 | EF provider package | Determines lease SQL and column types (Npgsql, SQL Server, Pomelo) |
 | Store options `SchemaName` / `TableName` | Must match fluent model configuration |
-| Provider hint on model extensions | Optional PostgreSQL `jsonb` mapping for trace context |
+| Provider hint on model extensions | Selects text storage for payload and trace context columns |
 
 ### Extension Points
 
@@ -64,9 +64,9 @@
 
 ## Invariants
 
-- Lease SQL requires a supported relational provider; SQLite is not supported for concurrent processor leasing.
+- Lease SQL requires a supported relational provider. SQLite leasing runs inside a serializable transaction, which serializes claims across store instances through the database write lock.
 - Store options `SchemaName` and `TableName` must match the EF model configuration used in migrations.
-- PostgreSQL payload columns must map as `jsonb` when using `EfCoreStorageProvider.PostgreSql`.
+- Payload and trace context columns map to text so payload protection can return opaque ciphertext.
 
 ## Non-Goals
 

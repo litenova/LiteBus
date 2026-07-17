@@ -16,6 +16,8 @@
 
 This behavior applies to raw `IMessageConsumer` hosts. Inbox ingress modules use their own ingestion policy and can discard poison messages based on validation and storage outcomes.
 
+Consumer adapters retain the active consume task until `WaitUntilStoppedAsync` returns. Unexpected loop faults therefore reach the host supervision boundary instead of being reported only as a clean stop. Shutdown cancellation remains a normal completion path.
+
 ## Public Surface
 
 | API | Role |

@@ -1,6 +1,6 @@
 using System;
+using System.Linq;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
@@ -73,9 +73,13 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
         _operations = operations;
         _logger = logger;
 
-        _leaseOwner = string.IsNullOrWhiteSpace(_options.LeaseOwner)
-            ? $"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}"
+        var configuredLeaseOwner = string.IsNullOrWhiteSpace(_options.LeaseOwner)
+            ? $"{Environment.MachineName}:{Environment.ProcessId}"
             : _options.LeaseOwner;
+
+        // The opaque session suffix fences processor instances that share a configured owner. A reclaimed row
+        // therefore cannot be renewed or completed by the stale processor session.
+        _leaseOwner = $"{configuredLeaseOwner}:{Guid.NewGuid():N}";
     }
 
     /// <summary>
@@ -111,36 +115,18 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
                 _logger);
         }
 
-        var channel = Channel.CreateBounded<TEnvelope>(new BoundedChannelOptions(_options.BatchSize)
-        {
-            FullMode = BoundedChannelFullMode.Wait,
-            SingleWriter = true,
-            SingleReader = _options.DispatcherConcurrency == 1
-        });
-
         var accumulator = new ConcurrentProcessorPassAccumulator<TEnvelope>();
-        var workers = new Task[_options.DispatcherConcurrency];
-
-        for (var index = 0; index < workers.Length; index++)
-        {
-            workers[index] = RunWorkerAsync(channel.Reader, accumulator, cancellationToken);
-        }
+        using var workerSlots = new SemaphoreSlim(_options.DispatcherConcurrency, _options.DispatcherConcurrency);
+        var workers = leasedEnvelopes
+            .Select(envelope => RunEnvelopeAsync(envelope, accumulator, workerSlots, cancellationToken))
+            .ToArray();
 
         try
         {
-            foreach (var envelope in leasedEnvelopes)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await channel.Writer.WriteAsync(envelope, cancellationToken).ConfigureAwait(false);
-            }
-
-            channel.Writer.Complete();
             await Task.WhenAll(workers).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            channel.Writer.TryComplete();
-
             try
             {
                 await Task.WhenAll(workers).ConfigureAwait(false);
@@ -152,6 +138,8 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
             throw;
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+
         return _operations.FinalizePass(
             accumulator,
             leasedEnvelopes.Count,
@@ -161,86 +149,89 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
     }
 
     /// <summary>
-    ///     Consumes leased messages from the channel, dispatches them, and persists terminal outcomes.
+    ///     Keeps one leased envelope alive from acquisition through dispatch and terminal persistence.
     /// </summary>
-    /// <param name="reader">The channel reader supplying leased messages.</param>
+    /// <param name="envelope">The leased envelope.</param>
     /// <param name="accumulator">The pass accumulator that collects outcomes from this worker.</param>
+    /// <param name="workerSlots">The semaphore limiting active dispatch workers.</param>
     /// <param name="cancellationToken">A token used to cancel dispatch.</param>
-    /// <returns>A task that completes when the reader is completed.</returns>
-    private async Task RunWorkerAsync(
-        ChannelReader<TEnvelope> reader,
+    /// <returns>A task that completes when the envelope reaches a terminal outcome or is abandoned.</returns>
+    private async Task RunEnvelopeAsync(
+        TEnvelope envelope,
         ConcurrentProcessorPassAccumulator<TEnvelope> accumulator,
+        SemaphoreSlim workerSlots,
         CancellationToken cancellationToken)
     {
-        await foreach (var envelope in reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
-        {
-            TEnvelope? updated;
-            var heartbeatContext = CreateHeartbeatContext(envelope);
+        var heartbeatContext = CreateHeartbeatContext(envelope);
+        var dispatchCompleted = false;
 
-            try
-            {
-                updated = await ProcessorLeaseHeartbeat.RunWithHeartbeatAsync(
+        try
+        {
+            await ProcessorLeaseHeartbeat.RunWithHeartbeatAsync(
                     heartbeatContext,
-                    token => _operations.DispatchEnvelopeAsync(envelope, _options, token),
-                    cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (OperationCanceledException)
-            {
-                await _operations.PersistLeaseLossOutcomeAsync(
+                    async (heartbeatToken, shutdownToken) =>
+                    {
+                        await workerSlots.WaitAsync(heartbeatToken).ConfigureAwait(false);
+
+                        try
+                        {
+                            var updated = await _operations.DispatchEnvelopeAsync(envelope, _options, heartbeatToken)
+                                .ConfigureAwait(false);
+                            dispatchCompleted = true;
+
+                            if (updated is null)
+                            {
+                                return true;
+                            }
+
+                            await _operations.PersistTerminalOutcomeAsync(
+                                    envelope,
+                                    updated,
+                                    accumulator,
+                                    _options,
+                                    _logger,
+                                    _options.HonorShutdownTokenOnPersist ? shutdownToken : heartbeatToken)
+                                .ConfigureAwait(false);
+
+                            return true;
+                        }
+                        finally
+                        {
+                            workerSlots.Release();
+                        }
+                    },
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (OperationCanceledException)
+        {
+            await _operations.PersistLeaseLossOutcomeAsync(
                     envelope,
                     accumulator,
                     _options,
                     _logger,
-                    cancellationToken).ConfigureAwait(false);
-
-                continue;
-            }
-
-            if (updated is null)
-            {
-                continue;
-            }
-
-            try
-            {
-                await ProcessorLeaseHeartbeat.RunWithHeartbeatAsync(
-                    heartbeatContext,
-                    async token =>
-                    {
-                        await _operations.PersistTerminalOutcomeAsync(
-                                envelope,
-                                updated,
-                                accumulator,
-                                _options,
-                                _logger,
-                                token)
-                            .ConfigureAwait(false);
-
-                        return true;
-                    },
-                    cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-#pragma warning disable CA1031 // Do not catch general exception types
-            catch (Exception exception)
-            {
-                // One envelope persistence failure must not abort the entire processor pass.
-                MessageProcessorLogMessages.TerminalPersistenceFailed(
-                    _logger,
-                    _operations.GetMessageId(envelope),
-                    exception);
-
-                _operations.RecordPersistFailed();
-            }
-#pragma warning restore CA1031
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
+#pragma warning disable CA1031 // One envelope persistence failure must not abort the entire processor pass.
+        catch (Exception) when (!dispatchCompleted)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            MessageProcessorLogMessages.TerminalPersistenceFailed(
+                _logger,
+                _operations.GetMessageId(envelope),
+                exception);
+
+            _operations.RecordPersistFailed();
+        }
+#pragma warning restore CA1031
     }
 
     /// <summary>
