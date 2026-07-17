@@ -92,7 +92,7 @@ None at registration time. Misconfigured mappings surface at runtime as inactive
 - **Expected outcome**: Single saga row advanced through both steps.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
 
-#### `LiteBusV6CompositionSmokeTests.AddLiteBusV6_ShouldPersistSagaStateAcrossCorrelatedCommands`
+#### `LiteBusV6CompositionSmokeTests.AddV6CompositionSmoke_ShouldPersistSagaStateAcrossCorrelatedCommands`
 
 - **Use case**: Sample composition registers saga state mapping via `EnableSaga`.
 - **Test kind**: Composition

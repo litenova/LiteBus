@@ -128,7 +128,7 @@ No dedicated scheduled-vs-ready metric. Deferred rows appear in queue depth whil
 - **Expected outcome**: Future **`visible_after`** persisted on envelope row
 - **Remarks**: `LiteBus.Inbox.UnitTests`
 
-#### `MessageVisibilityTests.AcceptAsync_with_After_visibility_should_persist_relative_delay`
+#### `MessageVisibilityTests.AcceptAsync_with_After_visibility_should_apply_relative_delay`
 
 - **Use case**: When accept uses relative delay visibility, **`visible_after`** is computed from accept time plus delay
 - **Test kind**: Unit

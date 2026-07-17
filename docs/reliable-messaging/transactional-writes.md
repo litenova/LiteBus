@@ -203,7 +203,7 @@ public sealed class OrderUnitOfWork : IPostgreSqlTransactionProvider, IAsyncDisp
 
 Register: `services.AddScoped<IPostgreSqlTransactionProvider>(sp => sp.GetRequiredService<OrderUnitOfWork>());`
 
-Integration tests use the same pattern in `PostgreSqlTransactionalWritersIntegrationTests.ScopedTransactionProvider`.
+Integration tests use the same pattern in the `ScopedTransactionProvider` helper nested inside `PostgreSqlTransactionalWritersIntegrationTests`.
 
 ### 3. Enlist Marten on the Same Transaction
 

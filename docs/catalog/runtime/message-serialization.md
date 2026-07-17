@@ -46,7 +46,7 @@ No serializer-specific meter or activity contract exists in runtime core. Call s
 
 ### Covered Use Cases
 
-#### `LiteBusV6CompositionSmokeTests.AddLiteBusV6_ShouldRegisterCoreServicesAndHostedProcessors`
+#### `LiteBusV6CompositionSmokeTests.AddV6CompositionSmoke_ShouldRegisterCoreServicesAndHostedProcessors`
 
 - **Use case**: runtime composition registers serializer service in core graph
 - **Test kind**: Component

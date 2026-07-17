@@ -318,7 +318,7 @@ Register the matching `Add*Transport(...)` once at the root. Each dispatch exten
 - **Expected outcome**: No publish attempt
 - **Remarks**: `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/AwsSqs/`)
 
-#### `BrokerDispatchIngressRegistrationIntegrationTests.InboxDispatchExtensions_ShouldRegisterTransportDispatcher`
+#### `BrokerDispatchIngressRegistrationTests.InboxDispatchExtensions_ShouldRegisterTransportDispatcher`
 
 - **Use case**: When broker dispatch extensions are used on the inbox builder, the transport dispatcher registers
 - **Test kind**: Integration

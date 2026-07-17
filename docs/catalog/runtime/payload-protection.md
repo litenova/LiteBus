@@ -50,7 +50,7 @@ No dedicated instrumentation in runtime core.
 
 ### Covered Use Cases
 
-#### `LiteBusV6CompositionSmokeTests.AddLiteBusV6_ShouldPersistSagaStateAcrossCorrelatedCommands`
+#### `LiteBusV6CompositionSmokeTests.AddV6CompositionSmoke_ShouldPersistSagaStateAcrossCorrelatedCommands`
 - **Test kind**: Component
 - **Expected outcome**: runtime durable flow keeps correlated payload lifecycle stable
 

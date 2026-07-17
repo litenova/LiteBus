@@ -79,7 +79,7 @@ None.
 - **Expected outcome**: Exception; no row created.
 - **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
 
-#### `LiteBusV6CompositionSmokeTests.AddLiteBusV6_ShouldPersistSagaStateAcrossCorrelatedCommands`
+#### `LiteBusV6CompositionSmokeTests.AddV6CompositionSmoke_ShouldPersistSagaStateAcrossCorrelatedCommands`
 
 - **Use case**: Sample composition explicitly selects the in-memory store for a correlated workflow.
 - **Test kind**: Composition

@@ -118,7 +118,7 @@ No store-level OpenTelemetry instruments in v6.
 - **Expected outcome**: Final version in `[1, 2]`.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
 
-#### `LiteBusV6CompositionSmokeTests.AddLiteBusV6_ShouldPersistSagaStateAcrossCorrelatedCommands`
+#### `LiteBusV6CompositionSmokeTests.AddV6CompositionSmoke_ShouldPersistSagaStateAcrossCorrelatedCommands`
 
 - **Use case**: Explicit in-memory store satisfies the contract through composition.
 - **Test kind**: Composition

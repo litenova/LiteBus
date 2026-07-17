@@ -121,7 +121,7 @@ No dedicated meters or activity sources on `IProcessorEnvelopeHook` itself.
 - **Expected outcome**: At most one version increment lost; single saga row; inbox terminals consistent with final step count.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
 
-#### `LiteBusV6CompositionSmokeTests.AddLiteBusV6_ShouldPersistSagaStateAcrossCorrelatedCommands`
+#### `LiteBusV6CompositionSmokeTests.AddV6CompositionSmoke_ShouldPersistSagaStateAcrossCorrelatedCommands`
 
 - **Use case**: Sample v6 composition registers saga hook and persists state across correlated commands.
 - **Test kind**: Composition

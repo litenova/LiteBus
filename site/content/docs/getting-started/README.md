@@ -46,23 +46,19 @@ Use `RegisterFromAssembly` on command, query, and event module builders to disco
 
 ### Microsoft DI (`Program.cs`)
 
+<!-- snippet-source: samples/LiteBus.Sample/Documentation/ModuleRegistrationSnippet.cs#module-registration -->
 ```csharp
-var builder = WebApplication.CreateBuilder(args);
-
-builder.Services.AddLiteBus(builder =>
+services.AddLiteBus(liteBus =>
 {
-    builder.AddMessaging(_ =>
+    var applicationAssembly = typeof(ProcessPaymentCommand).Assembly;
+
+    liteBus.AddMessaging(_ =>
     {
     });
 
-    builder.AddCommands(module =>
-        module.RegisterFromAssembly(typeof(Program).Assembly));
-
-    builder.AddQueries(module =>
-        module.RegisterFromAssembly(typeof(Program).Assembly));
-
-    builder.AddEvents(module =>
-        module.RegisterFromAssembly(typeof(Program).Assembly));
+    liteBus.AddCommands(commands => commands.RegisterFromAssembly(applicationAssembly));
+    liteBus.AddQueries(queries => queries.RegisterFromAssembly(applicationAssembly));
+    liteBus.AddEvents(events => events.RegisterFromAssembly(applicationAssembly));
 });
 ```
 

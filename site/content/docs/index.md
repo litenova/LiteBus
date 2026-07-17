@@ -31,6 +31,7 @@ LiteBus v6 targets .NET 10 and remains unreleased. A page that describes a v6 AP
 | Select packages without widening dependencies | [Dependency Graph](architecture/dependency-graph.md) |
 | Review the full v6 feature inventory | [v6 Feature Index](reference/feature-index-v6.md) |
 | Find a contract, builder method, or adapter by capability | [Capability Catalog](reference/capability-catalog.md) |
+| Understand generated inventories and executable documentation checks | [Documentation Semantic Validation](reference/semantic-validation.md) |
 | Upgrade an application to v6 | [Migration Guide v6](migration/v6.md) |
 | Diagnose a configuration or runtime failure | [Troubleshooting](operations/troubleshooting.md) |
 
@@ -109,6 +110,7 @@ The [Transport](catalog/transport/README.md), [Dispatch](catalog/dispatch/README
 - [Integration Tests](testing/integration-tests.md) maps broker, storage, hosting, and end-to-end suites to CI categories.
 - [Performance Considerations](operations/performance.md) records allocation and concurrency constraints.
 - [Analyzers](reference/analyzers.md) lists compile-time diagnostics and their v6 behavior.
+- [Documentation Semantic Validation](reference/semantic-validation.md) defines generated inventories, compiled snippets, and executable claim anchors.
 
 ## Reference
 

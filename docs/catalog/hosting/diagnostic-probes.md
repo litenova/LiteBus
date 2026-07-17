@@ -82,7 +82,7 @@ When no probes are registered and fail-on-empty is true, runner returns degraded
 - **Expected outcome**: aggregate status is unhealthy
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/DiagnosticCheckRunnerTests.cs`
 
-#### `ModuleConfigurationDiagnosticCheckTests.RegisterDiagnosticCheck_SameTypeTwice_ShouldIgnoreSecondRegistration`
+#### `ModuleConfigurationDiagnosticCheckTests.RegisterDiagnosticCheck_SameTypeAndNameTwice_ShouldIgnoreSecondRegistration`
 
 - **Use case**: duplicate probe type deduplication
 - **Test kind**: Unit

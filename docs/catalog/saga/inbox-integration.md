@@ -105,7 +105,7 @@ Uses inbox processor observability; no separate manifest entry or meter for `Ena
 - **Expected outcome**: Bounded version increment; single saga row.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
 
-#### `LiteBusV6CompositionSmokeTests.AddLiteBusV6_ShouldRegisterCoreServicesAndHostedProcessors`
+#### `LiteBusV6CompositionSmokeTests.AddV6CompositionSmoke_ShouldRegisterCoreServicesAndHostedProcessors`
 
 - **Use case**: Sample composition registers saga services alongside inbox/outbox processors.
 - **Test kind**: Composition
@@ -114,7 +114,7 @@ Uses inbox processor observability; no separate manifest entry or meter for `Ena
 - **Expected outcome**: Saga services non-null; manifest lists processor background services.
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/Runtime/Composition/`.
 
-#### `LiteBusV6CompositionSmokeTests.AddLiteBusV6_ShouldPersistSagaStateAcrossCorrelatedCommands`
+#### `LiteBusV6CompositionSmokeTests.AddV6CompositionSmoke_ShouldPersistSagaStateAcrossCorrelatedCommands`
 
 - **Use case**: Sample `EnableSaga` configuration persists in-memory saga state.
 - **Test kind**: Composition

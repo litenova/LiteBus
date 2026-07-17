@@ -158,4 +158,4 @@ Same legend and rows as [Integration tests: ingress matrix](integration-tests.md
 
 ## Next
 
-See [Integration Tests](integration-tests.md) for the full project and scenario reference, [Cookbook and Scenarios](../getting-started/cookbook.md), or [Migration Guide v6](../migration/v6.md).
+See [Integration Tests](integration-tests.md) for the full project and scenario reference, [Documentation Semantic Validation](../reference/semantic-validation.md) for executable documentation anchors, [Cookbook and Scenarios](../getting-started/cookbook.md), or [Migration Guide v6](../migration/v6.md).

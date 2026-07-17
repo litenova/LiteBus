@@ -80,7 +80,7 @@ None on the pre-handler itself.
 - **Expected outcome**: PostgreSQL saga row updated.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
 
-#### `LiteBusV6CompositionSmokeTests.AddLiteBusV6_ShouldPersistSagaStateAcrossCorrelatedCommands`
+#### `LiteBusV6CompositionSmokeTests.AddV6CompositionSmoke_ShouldPersistSagaStateAcrossCorrelatedCommands`
 
 - **Use case**: Sample composition pre-handler enables handler saga mutations.
 - **Test kind**: Composition

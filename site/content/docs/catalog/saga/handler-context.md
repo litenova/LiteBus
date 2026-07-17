@@ -115,7 +115,7 @@ No meters, activities, or structured logging on `ISagaContext` itself.
 - **Expected outcome**: Final step count 1 or 2 with matching store version.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
 
-#### `LiteBusV6CompositionSmokeTests.AddLiteBusV6_ShouldPersistSagaStateAcrossCorrelatedCommands`
+#### `LiteBusV6CompositionSmokeTests.AddV6CompositionSmoke_ShouldPersistSagaStateAcrossCorrelatedCommands`
 
 - **Use case**: Sample handlers use injected `ISagaContext` across correlated commands.
 - **Test kind**: Composition

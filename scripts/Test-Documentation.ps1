@@ -94,14 +94,24 @@ function Test-ExactPathCase {
     return $true
 }
 
-$dependencyGraphPath = Join-Path $documentationRoot 'architecture/dependency-graph.md'
-$dependencyGraphContent = [IO.File]::ReadAllText($dependencyGraphPath)
-$sourceProjects = Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'src') -Filter '*.csproj' -File -Recurse
+$packageInventoryPath = Join-Path $documentationRoot 'architecture/generated-package-inventory.md'
+$packageInventoryGenerator = Join-Path $PSScriptRoot 'Get-PackageInventory.ps1'
+$expectedPackageInventory = & $packageInventoryGenerator
 
-foreach ($project in $sourceProjects) {
-    if ($dependencyGraphContent.IndexOf($project.BaseName, [StringComparison]::Ordinal) -lt 0) {
-        Add-Violation -Path $dependencyGraphPath -Line 1 -Message "Package inventory is missing shipping project '$($project.BaseName)'."
-    }
+if (-not $?) {
+    throw 'Evaluated package inventory generation failed.'
+}
+
+$actualPackageInventory = [IO.File]::ReadAllText($packageInventoryPath)
+
+if (-not [string]::Equals(
+    [string] $expectedPackageInventory,
+    $actualPackageInventory,
+    [StringComparison]::Ordinal)) {
+    Add-Violation `
+        -Path $packageInventoryPath `
+        -Line 1 `
+        -Message 'Generated package inventory is stale. Run scripts/Get-PackageInventory.ps1 with -OutputPath docs/architecture/generated-package-inventory.md.'
 }
 
 foreach ($file in $documentationFiles) {

@@ -75,6 +75,10 @@ jobs:
       - name: Build
         run: dotnet build LiteBus.slnx --configuration Release --no-restore /p:Version=${{ steps.version.outputs.version }} /p:ContinuousIntegrationBuild=true
 
+      - name: Validate Documentation Semantics
+        shell: pwsh
+        run: ./scripts/Test-DocumentationSemantics.ps1 -Configuration Release
+
       - name: Verify Benchmark Discovery
         run: dotnet run --project benchmarks/LiteBus.Processor.Benchmarks --configuration Release --no-build -- --list flat
 

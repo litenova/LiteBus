@@ -162,7 +162,7 @@ No dedicated saga hook meters or activity sources in v6.
 - **Expected outcome**: State and version advance together; the stale inbox message follows failure policy instead of reporting a lost update as completed.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
 
-#### `LiteBusV6CompositionSmokeTests.AddLiteBusV6_ShouldPersistSagaStateAcrossCorrelatedCommands`
+#### `LiteBusV6CompositionSmokeTests.AddV6CompositionSmoke_ShouldPersistSagaStateAcrossCorrelatedCommands`
 
 - **Use case**: Sample composition hook persists saga state across two correlated commands.
 - **Test kind**: Composition

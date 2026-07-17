@@ -97,7 +97,7 @@ None specific to correlation construction.
 - **Expected outcome**: Single row; version 2.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
 
-#### `LiteBusV6CompositionSmokeTests.AddLiteBusV6_ShouldPersistSagaStateAcrossCorrelatedCommands`
+#### `LiteBusV6CompositionSmokeTests.AddV6CompositionSmoke_ShouldPersistSagaStateAcrossCorrelatedCommands`
 
 - **Use case**: Sample composition correlates multiple commands on one saga instance.
 - **Test kind**: Composition

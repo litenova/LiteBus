@@ -143,7 +143,7 @@ Contract resolution failures surface as typed exceptions at accept, enqueue, or 
 - **Expected outcome**: `MessageContractNotRegisteredException`
 - **Remarks**: `LiteBus.Inbox.UnitTests`
 
-#### `InboxTests.ProcessPendingAsync_WhenContractNameUnknown_ShouldMarkFailed`
+#### `InboxProcessorEdgeCaseTests.ProcessPendingAsync_WhenContractNameUnknown_ShouldMarkFailed`
 
 - **Use case**: When a stored row references an unknown contract name, the processor marks it failed
 - **Test kind**: Unit

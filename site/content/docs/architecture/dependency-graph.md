@@ -4,6 +4,8 @@ LiteBus v6 splits packages by concern: runtime, messaging, semantic modules, dur
 
 v6.0 rename tables (`UseInProcessDispatch`, `*.AwsSqs` package IDs, EF Core public surface, and others) are documented in [Migration Guide v6](../migration/v6.md).
 
+The role table below is the normative dependency summary. [Generated Package Inventory](generated-package-inventory.md) records every evaluated shipping project reference and direct package reference; documentation CI rejects stale inventory.
+
 ## Dependency Roles
 
 Roles describe dependency direction and package purpose. They are not numeric layers. Feature axes remain independent from the role assigned to a package.

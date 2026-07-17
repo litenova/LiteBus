@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 - Axis-specific append results and outbox enqueue outcomes so receipts distinguish new rows from idempotent replays.
 - File-backed SQLite and MySQL 8.4 provider contract matrices for both Entity Framework Core durable stores.
 - Published `LiteBus.Transport.Testing` xUnit conformance tests for third-party transport adapter authors.
+- Evaluated package inventory, source-linked compiled snippets, test-symbol discovery, and semantic documentation gates.
 
 ### Changed
 
