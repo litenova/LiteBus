@@ -1,12 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <Description>Convenience meta-package that references LiteBus.Extensions.All and every semantic mediator Microsoft DI extension package.</Description>
+        <Description>Convenience meta-package that references every semantic mediator Microsoft DI extension package.</Description>
         <PackageTags>$(PackageTags);dependency-injection;composition</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Extensions.All\LiteBus.Extensions.All.csproj"/>
+        <ProjectReference Include="..\LiteBus.Commands.Extensions.Microsoft.DependencyInjection\LiteBus.Commands.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\LiteBus.Events.Extensions.Microsoft.DependencyInjection\LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging.Extensions.Microsoft.DependencyInjection\LiteBus.Messaging.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\LiteBus.Queries.Extensions.Microsoft.DependencyInjection\LiteBus.Queries.Extensions.Microsoft.DependencyInjection.csproj"/>
     </ItemGroup>
 
 </Project>

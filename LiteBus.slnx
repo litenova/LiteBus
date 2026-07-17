@@ -15,10 +15,6 @@
         <File Path=".github/workflows/manual-test-and-coverage.yml"/>
         <File Path=".github/workflows/release.yml"/>
     </Folder>
-    <Folder Name="/samples/">
-        <Project Path="samples/LiteBus.Samples.V6/LiteBus.Samples.V6.csproj"/>
-        <Project Path="samples/LiteBus.Samples/LiteBus.Samples.csproj"/>
-    </Folder>
     <Folder Name="/solution-items/">
         <File Path=".gitignore"/>
         <File Path="Changelog.md"/>
@@ -56,7 +52,6 @@
         <Project
                 Path="src/LiteBus.Events.Extensions.Microsoft.DependencyInjection/LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj"/>
         <Project Path="src/LiteBus.Events/LiteBus.Events.csproj"/>
-        <Project Path="src/LiteBus.Extensions.All/LiteBus.Extensions.All.csproj"/>
         <Project
                 Path="src/LiteBus.Extensions.Microsoft.DependencyInjection/LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
         <Project Path="src/LiteBus.Inbox.Extensions.OpenTelemetry/LiteBus.Inbox.Extensions.OpenTelemetry.csproj"/>
@@ -125,6 +120,11 @@
         <File Path="benchmarks/Directory.Build.props"/>
         <File Path="benchmarks/Directory.Packages.props"/>
         <Project Path="benchmarks/LiteBus.Processor.Benchmarks/LiteBus.Processor.Benchmarks.csproj"/>
+    </Folder>
+    <Folder Name="/samples/">
+        <File Path="samples/.editorconfig"/>
+        <File Path="samples/Directory.Build.props"/>
+        <Project Path="samples/LiteBus.Sample/LiteBus.Sample.csproj"/>
     </Folder>
     <Folder Name="/tests/">
         <File Path="tests/Directory.Build.props"/>
