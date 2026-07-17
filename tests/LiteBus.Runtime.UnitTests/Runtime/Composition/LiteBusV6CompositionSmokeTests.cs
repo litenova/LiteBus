@@ -7,34 +7,31 @@ using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Dispatch.InProcess;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Saga.Abstractions;
-using LiteBus.Samples.V6;
-using LiteBus.Samples.V6.Saga;
 using LiteBus.Testing;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using IInboxProcessor = LiteBus.Inbox.Abstractions.IInboxProcessor;
 
-namespace LiteBus.Runtime.UnitTests.Composition;
+namespace LiteBus.Runtime.UnitTests.Runtime.Composition;
 
 /// <summary>
-///     Smoke tests for the LiteBus v6 sample composition.
+///     Smoke tests for a representative v6 inbox/outbox/saga composition.
 /// </summary>
 public sealed class LiteBusV6CompositionSmokeTests : LiteBusTestBase
 {
     /// <summary>
-    ///     The saga contract name registered by the v6 sample.
+    ///     The saga contract name registered by the smoke composition.
     /// </summary>
     private const string OrderSagaContractName = "orders.saga.advance";
 
     /// <summary>
-    ///     Verifies that the sample v6 composition registers inbox, outbox, dispatchers, saga services, and hosted processors.
+    ///     Verifies that the smoke composition registers inbox, outbox, dispatchers, saga services, and hosted processors.
     /// </summary>
     [Fact]
-    public void AddLiteBusV6_ShouldRegisterCoreServicesAndHostedProcessors()
+    public void AddV6CompositionSmoke_ShouldRegisterCoreServicesAndHostedProcessors()
     {
         var services = new ServiceCollection();
-        services.AddLiteBusV6(new ConfigurationBuilder().Build());
+        services.AddV6CompositionSmoke();
 
         using var provider = services.BuildServiceProvider();
 
@@ -55,40 +52,39 @@ public sealed class LiteBusV6CompositionSmokeTests : LiteBusTestBase
     }
 
     /// <summary>
-    ///     Verifies that two correlated inbox commands advance saga state through the sample composition.
+    ///     Verifies that two correlated inbox commands advance saga state through the smoke composition.
     /// </summary>
     [Fact]
-    public async Task AddLiteBusV6_ShouldPersistSagaStateAcrossCorrelatedCommands()
+    public async Task AddV6CompositionSmoke_ShouldPersistSagaStateAcrossCorrelatedCommands()
     {
         var services = new ServiceCollection();
-        services.AddLiteBusV6(new ConfigurationBuilder().Build());
+        services.AddV6CompositionSmoke();
 
-         var provider = services.BuildServiceProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-
-        var inbox = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-        var sagaStore = provider.GetRequiredService<ISagaStore>();
-
-        const string correlationId = "order-sample-smoke-1";
-
-        var metadata = InboxAcceptMetadata.Immediate with
+        var provider = services.BuildServiceProvider();
+        await using (provider.ConfigureAwait(false))
         {
-            Trace = new MessageTrace.Correlated(correlationId)
-        };
+            var inbox = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
+            var sagaStore = provider.GetRequiredService<ISagaStore>();
 
-        await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(new AdvanceOrderSagaCommand(Guid.NewGuid()), metadata)).ConfigureAwait(false);
-        await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(new AdvanceOrderSagaCommand(Guid.NewGuid()), metadata)).ConfigureAwait(false);
+            const string correlationId = "order-sample-smoke-1";
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            var metadata = InboxAcceptMetadata.Immediate with
+            {
+                Trace = new MessageTrace.Correlated(correlationId)
+            };
 
-        var instance = await sagaStore.LoadAsync<OrderSagaState>(
-            new SagaCorrelation { CorrelationId = correlationId, SagaDefinitionId = OrderSagaContractName }).ConfigureAwait(false);
+            await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(new AdvanceOrderSagaCommand(Guid.NewGuid()), metadata)).ConfigureAwait(false);
+            await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(new AdvanceOrderSagaCommand(Guid.NewGuid()), metadata)).ConfigureAwait(false);
 
-        Assert.NotNull(instance);
-        instance.State.Step.Should().Be(2);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+            var instance = await sagaStore.LoadAsync<OrderSagaState>(
+                new SagaCorrelation { CorrelationId = correlationId, SagaDefinitionId = OrderSagaContractName }).ConfigureAwait(false);
+
+            Assert.NotNull(instance);
+            instance.State.Step.Should().Be(2);
         }
     }
 }

@@ -11,12 +11,15 @@ internal static class SagaCorrelationKey
     ///     Builds the in-memory storage key for one saga correlation.
     /// </summary>
     /// <param name="correlation">The saga correlation.</param>
-    /// <returns>The composite storage key.</returns>
-    internal static string BuildStorageKey(SagaCorrelation correlation)
+    /// <returns>The typed composite storage key.</returns>
+    internal static SagaStorageKey BuildStorageKey(SagaCorrelation correlation)
     {
         ArgumentNullException.ThrowIfNull(correlation);
 
-        return $"{NormalizeTenantId(correlation.TenantId)}:{correlation.SagaDefinitionId}:{correlation.CorrelationId}";
+        return new SagaStorageKey(
+            NormalizeTenantId(correlation.TenantId),
+            correlation.SagaDefinitionId,
+            correlation.CorrelationId);
     }
 
     /// <summary>

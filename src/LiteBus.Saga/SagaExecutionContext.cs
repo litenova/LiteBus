@@ -7,21 +7,21 @@ namespace LiteBus.Saga;
 ///     Ambient saga scope used by the inbox processor hook during one envelope dispatch.
 /// </summary>
 /// <remarks>
-///     Scope state is keyed by saga correlation so parallel dispatches with distinct correlations do not share mutable
-///     state. An instance <see cref="AsyncLocal{T}" /> re-attaches the active correlation within one asynchronous flow
-///     because values set after an awaited hook call do not flow to the host processor's continuation.
+///     Scope state is keyed by durable message identifier so parallel dispatches for the same saga correlation retain
+///     independent state snapshots. An instance <see cref="AsyncLocal{T}" /> identifies the scope attached to the current
+///     asynchronous execution flow.
 /// </remarks>
 public sealed class SagaExecutionContext : ISagaContext
 {
     /// <summary>
-    ///     The active dispatch scopes keyed by normalized saga correlation.
+    ///     The active dispatch scopes keyed by durable message identifier.
     /// </summary>
-    private readonly ConcurrentDictionary<string, Scope> _scopes = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<Guid, Scope> _scopes = new();
 
     /// <summary>
-    ///     The storage key for the active dispatch scope on the current asynchronous execution flow.
+    ///     The durable message identifier for the active scope on the current asynchronous execution flow.
     /// </summary>
-    private readonly AsyncLocal<string?> _ambientScopeKey = new();
+    private readonly AsyncLocal<Guid?> _ambientDispatchId = new();
 
     /// <summary>
     ///     Gets a value indicating whether the saga should be marked completed after dispatch.
@@ -48,12 +48,7 @@ public sealed class SagaExecutionContext : ISagaContext
     public TState GetState<TState>()
         where TState : class, new()
     {
-        if (GetActiveScope()?.State is null)
-        {
-            throw new InvalidOperationException("No saga scope is active for the current dispatch.");
-        }
-
-        return (TState)GetActiveScope()!.State;
+        return (TState)GetRequiredActiveScope().State;
     }
 
     /// <inheritdoc />
@@ -62,58 +57,64 @@ public sealed class SagaExecutionContext : ISagaContext
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        if (GetActiveScope() is null)
-        {
-            throw new InvalidOperationException("No saga scope is active for the current dispatch.");
-        }
-
-        GetActiveScope()!.State = state;
-        GetActiveScope()!.IsDirty = true;
+        var scope = GetRequiredActiveScope();
+        scope.State = state;
+        scope.IsDirty = true;
     }
 
     /// <inheritdoc />
     public void Complete()
     {
-        if (GetActiveScope() is null)
-        {
-            throw new InvalidOperationException("No saga scope is active for the current dispatch.");
-        }
-
-        GetActiveScope()!.ShouldComplete = true;
+        GetRequiredActiveScope().ShouldComplete = true;
     }
 
     /// <summary>
-    ///     Begins a saga scope for one correlation and state snapshot.
+    ///     Begins a saga scope for one durable message and state snapshot.
     /// </summary>
+    /// <param name="dispatchId">The unique durable message identifier for the dispatch.</param>
     /// <param name="correlation">The saga correlation.</param>
     /// <param name="state">The current state object.</param>
     /// <param name="version">The optimistic lock version.</param>
-    internal void Begin(SagaCorrelation correlation, object state, int version)
+    internal void Begin(Guid dispatchId, SagaCorrelation correlation, object state, int version)
     {
-        var scopeKey = SagaCorrelationKey.BuildStorageKey(correlation);
-        _scopes[scopeKey] = new Scope(correlation, state, version);
-        _ambientScopeKey.Value = scopeKey;
+        if (dispatchId == Guid.Empty)
+        {
+            throw new ArgumentException("A saga dispatch identifier cannot be empty.", nameof(dispatchId));
+        }
+
+        ArgumentNullException.ThrowIfNull(correlation);
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentOutOfRangeException.ThrowIfNegative(version);
+
+        if (!_scopes.TryAdd(dispatchId, new Scope(correlation, state, version)))
+        {
+            throw new InvalidOperationException($"A saga scope is already active for dispatch '{dispatchId}'.");
+        }
+
+        _ambientDispatchId.Value = dispatchId;
     }
 
     /// <summary>
-    ///     Re-attaches a previously started dispatch scope for one correlation on the current asynchronous flow.
+    ///     Re-attaches a previously started dispatch scope for one durable message on the current asynchronous flow.
     /// </summary>
-    /// <param name="correlation">The saga correlation.</param>
+    /// <param name="dispatchId">The unique durable message identifier for the dispatch.</param>
     /// <returns>
-    ///     <see langword="true" /> when a scope exists for the correlation; otherwise, <see langword="false" />.
+    ///     <see langword="true" /> when a scope exists for the message; otherwise, <see langword="false" />.
     /// </returns>
-    internal bool TryAttach(SagaCorrelation correlation)
+    internal bool TryAttach(Guid dispatchId)
     {
-        ArgumentNullException.ThrowIfNull(correlation);
-
-        var scopeKey = SagaCorrelationKey.BuildStorageKey(correlation);
-
-        if (!_scopes.ContainsKey(scopeKey))
+        if (dispatchId == Guid.Empty)
         {
+            throw new ArgumentException("A saga dispatch identifier cannot be empty.", nameof(dispatchId));
+        }
+
+        if (!_scopes.TryGetValue(dispatchId, out _))
+        {
+            _ambientDispatchId.Value = null;
             return false;
         }
 
-        _ambientScopeKey.Value = scopeKey;
+        _ambientDispatchId.Value = dispatchId;
         return true;
     }
 
@@ -125,14 +126,11 @@ public sealed class SagaExecutionContext : ISagaContext
     internal void RefreshLoadedState(object state, int version)
     {
         ArgumentNullException.ThrowIfNull(state);
+        ArgumentOutOfRangeException.ThrowIfNegative(version);
 
-        if (GetActiveScope() is null)
-        {
-            throw new InvalidOperationException("No saga scope is active for the current dispatch.");
-        }
-
-        GetActiveScope()!.State = state;
-        GetActiveScope()!.Version = version;
+        var scope = GetRequiredActiveScope();
+        scope.State = state;
+        scope.Version = version;
     }
 
     /// <summary>
@@ -140,50 +138,14 @@ public sealed class SagaExecutionContext : ISagaContext
     /// </summary>
     internal void Reset()
     {
-        var scopeKey = _ambientScopeKey.Value;
+        var dispatchId = _ambientDispatchId.Value;
 
-        _ambientScopeKey.Value = null;
+        _ambientDispatchId.Value = null;
 
-        if (scopeKey is not null)
+        if (dispatchId.HasValue)
         {
-            _scopes.TryRemove(scopeKey, out _);
+            _scopes.TryRemove(dispatchId.Value, out _);
         }
-    }
-
-    /// <summary>
-    ///     Captures handler mutations that must survive an optimistic concurrency reload.
-    /// </summary>
-    /// <returns>The shadow snapshot for the active scope.</returns>
-    internal DispatchShadow CaptureDispatchShadow()
-    {
-        if (GetActiveScope() is null)
-        {
-            throw new InvalidOperationException("No saga scope is active for the current dispatch.");
-        }
-
-        var scope = GetActiveScope()!;
-
-        return new DispatchShadow(
-            scope.State,
-            scope.IsDirty,
-            scope.ShouldComplete);
-    }
-
-    /// <summary>
-    ///     Replaces the active state object after a concurrency reload.
-    /// </summary>
-    /// <param name="state">The handler-owned state snapshot to persist.</param>
-    internal void ReapplyState(object state)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-
-        if (GetActiveScope() is null)
-        {
-            throw new InvalidOperationException("No saga scope is active for the current dispatch.");
-        }
-
-        GetActiveScope()!.State = state;
-        GetActiveScope()!.IsDirty = true;
     }
 
     /// <summary>
@@ -192,12 +154,7 @@ public sealed class SagaExecutionContext : ISagaContext
     /// <returns>The active state object.</returns>
     internal object GetActiveState()
     {
-        if (GetActiveScope()?.State is null)
-        {
-            throw new InvalidOperationException("No saga scope is active for the current dispatch.");
-        }
-
-        return GetActiveScope()!.State;
+        return GetRequiredActiveScope().State;
     }
 
     /// <summary>
@@ -206,30 +163,23 @@ public sealed class SagaExecutionContext : ISagaContext
     /// <returns>The active scope when one is attached; otherwise, <see langword="null" />.</returns>
     private Scope? GetActiveScope()
     {
-        if (_ambientScopeKey.Value is { } scopeKey && _scopes.TryGetValue(scopeKey, out var attachedScope))
+        if (_ambientDispatchId.Value is { } dispatchId && _scopes.TryGetValue(dispatchId, out var attachedScope))
         {
             return attachedScope;
-        }
-
-        if (_scopes.Count == 1)
-        {
-            foreach (var pair in _scopes)
-            {
-                _ambientScopeKey.Value = pair.Key;
-                return pair.Value;
-            }
         }
 
         return null;
     }
 
     /// <summary>
-    ///     Handler mutations captured before an optimistic concurrency reload.
+    ///     Gets the active scope or throws when the current execution flow has not attached one.
     /// </summary>
-    /// <param name="State">The state object observed at capture time.</param>
-    /// <param name="IsDirty">A value indicating whether the handler called <see cref="SetState{TState}" />.</param>
-    /// <param name="ShouldComplete">A value indicating whether the handler called <see cref="Complete" />.</param>
-    internal readonly record struct DispatchShadow(object State, bool IsDirty, bool ShouldComplete);
+    /// <returns>The active dispatch scope.</returns>
+    private Scope GetRequiredActiveScope()
+    {
+        return GetActiveScope()
+            ?? throw new InvalidOperationException("No saga scope is active for the current dispatch.");
+    }
 
     /// <summary>
     ///     One dispatch-scoped saga state bag.

@@ -1,7 +1,6 @@
 using LiteBus.Commands.Abstractions;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Saga.Abstractions;
 
 namespace LiteBus.Saga.InboxIntegration;
 
@@ -16,23 +15,13 @@ internal sealed class SagaInboxCommandScopePreHandler : ICommandPreHandler
     private readonly SagaExecutionContext _context;
 
     /// <summary>
-    ///     Gets the registry that maps saga definition identifiers to state types.
-    /// </summary>
-    private readonly ISagaStateTypeRegistry _stateTypeRegistry;
-
-    /// <summary>
     ///     Initializes a new instance of the <see cref="SagaInboxCommandScopePreHandler" /> class.
     /// </summary>
     /// <param name="context">The ambient saga context exposed to handlers.</param>
-    /// <param name="stateTypeRegistry">The registry that maps saga definition identifiers to state types.</param>
-    public SagaInboxCommandScopePreHandler(
-        SagaExecutionContext context,
-        ISagaStateTypeRegistry stateTypeRegistry)
+    public SagaInboxCommandScopePreHandler(SagaExecutionContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(stateTypeRegistry);
         _context = context;
-        _stateTypeRegistry = stateTypeRegistry;
     }
 
     /// <inheritdoc />
@@ -53,34 +42,13 @@ internal sealed class SagaInboxCommandScopePreHandler : ICommandPreHandler
             return Task.CompletedTask;
         }
 
-        if (!items.TryGetValue(MessageTraceContextKeys.CorrelationId, out var correlationValue)
-            || correlationValue is not string correlationId
-            || string.IsNullOrWhiteSpace(correlationId))
+        if (!items.TryGetValue(InboxExecutionContextKeys.MessageId, out var messageIdValue)
+            || messageIdValue is not Guid messageId)
         {
             return Task.CompletedTask;
         }
 
-        if (!items.TryGetValue(InboxExecutionContextKeys.ContractName, out var contractValue)
-            || contractValue is not string contractName)
-        {
-            return Task.CompletedTask;
-        }
-
-        var sagaDefinitionId = _stateTypeRegistry.ResolveDefinitionId(contractName);
-
-        if (sagaDefinitionId is null)
-        {
-            return Task.CompletedTask;
-        }
-
-        items.TryGetValue(MessageTraceContextKeys.TenantId, out var tenantValue);
-
-        _context.TryAttach(new SagaCorrelation
-        {
-            CorrelationId = correlationId,
-            SagaDefinitionId = sagaDefinitionId,
-            TenantId = tenantValue as string
-        });
+        _context.TryAttach(messageId);
 
         return Task.CompletedTask;
     }

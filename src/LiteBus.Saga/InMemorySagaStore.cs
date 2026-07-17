@@ -12,7 +12,12 @@ public sealed class InMemorySagaStore : ISagaStore
     /// <summary>
     ///     The saga rows keyed by tenant, definition, and correlation.
     /// </summary>
-    private readonly ConcurrentDictionary<string, SagaRow> _rows = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<SagaStorageKey, SagaRow> _rows = new();
+
+    /// <summary>
+    ///     The clock used to stamp saga row creation and update times.
+    /// </summary>
+    private readonly TimeProvider _clock;
 
     /// <summary>
     ///     The serializer used to convert state objects to JSON.
@@ -23,10 +28,12 @@ public sealed class InMemorySagaStore : ISagaStore
     ///     Initializes a new instance of the <see cref="InMemorySagaStore" /> class.
     /// </summary>
     /// <param name="serializer">The serializer used to convert state objects to JSON.</param>
-    public InMemorySagaStore(IMessageSerializer serializer)
+    /// <param name="clock">The optional clock used to stamp saga row timestamps.</param>
+    public InMemorySagaStore(IMessageSerializer serializer, TimeProvider? clock = null)
     {
         ArgumentNullException.ThrowIfNull(serializer);
         _serializer = serializer;
+        _clock = clock ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -61,26 +68,32 @@ public sealed class InMemorySagaStore : ISagaStore
     {
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(item.State);
+        ArgumentOutOfRangeException.ThrowIfNegative(item.ExpectedVersion);
 
         var key = SagaCorrelationKey.BuildStorageKey(item.Correlation);
         var stateJson = await _serializer.SerializeAsync(item.State, cancellationToken).ConfigureAwait(false);
+        var now = _clock.GetUtcNow();
 
         _rows.AddOrUpdate(
             key,
-            _ => new SagaRow(stateJson, 1, false),
+            _ => item.ExpectedVersion == 0
+                ? new SagaRow(stateJson, 1, false, now, now)
+                : throw new SagaConcurrencyException(item.Correlation),
             (_, existing) =>
             {
-                if (item.ExpectedVersion == 0)
+                if (item.ExpectedVersion == 0 ||
+                    existing.Version != item.ExpectedVersion ||
+                    existing.IsCompleted)
                 {
                     throw new SagaConcurrencyException(item.Correlation);
                 }
 
-                if (existing.Version != item.ExpectedVersion)
+                return existing with
                 {
-                    throw new SagaConcurrencyException(item.Correlation);
-                }
-
-                return new SagaRow(stateJson, existing.Version + 1, existing.IsCompleted);
+                    StateJson = stateJson,
+                    Version = existing.Version + 1,
+                    UpdatedAt = now
+                };
             });
     }
 
@@ -88,20 +101,28 @@ public sealed class InMemorySagaStore : ISagaStore
     public Task CompleteAsync(SagaCompleteItem item, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(item);
+        ArgumentOutOfRangeException.ThrowIfNegative(item.ExpectedVersion);
 
         var key = SagaCorrelationKey.BuildStorageKey(item.Correlation);
 
-        if (!_rows.TryGetValue(key, out var existing))
+        if (!_rows.TryGetValue(key, out var existing) ||
+            existing.Version != item.ExpectedVersion ||
+            existing.IsCompleted)
         {
             throw new SagaConcurrencyException(item.Correlation);
         }
 
-        if (existing.Version != item.ExpectedVersion)
+        var updated = existing with
+        {
+            IsCompleted = true,
+            Version = existing.Version + 1,
+            UpdatedAt = _clock.GetUtcNow()
+        };
+
+        if (!_rows.TryUpdate(key, updated, existing))
         {
             throw new SagaConcurrencyException(item.Correlation);
         }
-
-        _rows[key] = existing with { IsCompleted = true, Version = existing.Version + 1 };
 
         return Task.CompletedTask;
     }
@@ -112,9 +133,11 @@ public sealed class InMemorySagaStore : ISagaStore
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(filter);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(filter.Take, 0);
 
         var results = _rows
             .Where(pair => MatchesQuery(pair.Key, pair.Value, filter))
+            .OrderByDescending(pair => pair.Value.UpdatedAt)
             .Take(filter.Take)
             .Select(pair => ToSummary(pair.Key, pair.Value))
             .ToList();
@@ -152,7 +175,7 @@ public sealed class InMemorySagaStore : ISagaStore
     /// <param name="row">The saga row.</param>
     /// <param name="filter">The query filter.</param>
     /// <returns><see langword="true" /> when the row matches.</returns>
-    private static bool MatchesQuery(string key, SagaRow row, SagaQueryFilter filter)
+    private static bool MatchesQuery(SagaStorageKey key, SagaRow row, SagaQueryFilter filter)
     {
         return MatchesCorrelationKey(key, filter.TenantId, filter.SagaDefinitionId, filter.CorrelationId) &&
                (filter.IsCompleted is null || row.IsCompleted == filter.IsCompleted);
@@ -165,7 +188,7 @@ public sealed class InMemorySagaStore : ISagaStore
     /// <param name="row">The saga row.</param>
     /// <param name="filter">The purge filter.</param>
     /// <returns><see langword="true" /> when the row matches.</returns>
-    private static bool MatchesPurge(string key, SagaRow row, SagaPurgeFilter filter)
+    private static bool MatchesPurge(SagaStorageKey key, SagaRow row, SagaPurgeFilter filter)
     {
         if (!MatchesCorrelationKey(key, filter.TenantId, filter.SagaDefinitionId, filter.CorrelationId))
         {
@@ -177,42 +200,36 @@ public sealed class InMemorySagaStore : ISagaStore
             return false;
         }
 
-        return filter.CompletedBefore is null || row.IsCompleted;
+        return filter.CompletedBefore is null || row is { IsCompleted: true } && row.UpdatedAt < filter.CompletedBefore;
     }
 
     /// <summary>
     ///     Determines whether one storage key matches optional correlation filters.
     /// </summary>
-    /// <param name="key">The storage key.</param>
+    /// <param name="key">The typed storage key.</param>
     /// <param name="tenantId">The optional tenant filter.</param>
     /// <param name="sagaDefinitionId">The optional saga definition filter.</param>
     /// <param name="correlationId">The optional correlation filter.</param>
     /// <returns><see langword="true" /> when the key matches.</returns>
     private static bool MatchesCorrelationKey(
-        string key,
+        SagaStorageKey key,
         string? tenantId,
         string? sagaDefinitionId,
         string? correlationId)
     {
-        var parts = key.Split(':', 3);
-
-        if (parts.Length != 3)
-        {
-            return false;
-        }
-
         if (tenantId is not null &&
-            !string.Equals(parts[0], SagaCorrelationKey.NormalizeTenantId(tenantId), StringComparison.Ordinal))
+            !string.Equals(key.TenantId, SagaCorrelationKey.NormalizeTenantId(tenantId), StringComparison.Ordinal))
         {
             return false;
         }
 
-        if (sagaDefinitionId is not null && !string.Equals(parts[1], sagaDefinitionId, StringComparison.Ordinal))
+        if (sagaDefinitionId is not null &&
+            !string.Equals(key.SagaDefinitionId, sagaDefinitionId, StringComparison.Ordinal))
         {
             return false;
         }
 
-        return correlationId is null || string.Equals(parts[2], correlationId, StringComparison.Ordinal);
+        return correlationId is null || string.Equals(key.CorrelationId, correlationId, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -221,25 +238,30 @@ public sealed class InMemorySagaStore : ISagaStore
     /// <param name="key">The storage key.</param>
     /// <param name="row">The saga row.</param>
     /// <returns>The query summary.</returns>
-    private static SagaInstanceSummary ToSummary(string key, SagaRow row)
+    private static SagaInstanceSummary ToSummary(SagaStorageKey key, SagaRow row)
     {
-        var parts = key.Split(':', 3);
-
         return new SagaInstanceSummary
         {
             Correlation = new SagaCorrelation
             {
-                TenantId = string.IsNullOrEmpty(parts[0]) ? null : parts[0],
-                SagaDefinitionId = parts[1],
-                CorrelationId = parts[2]
+                TenantId = string.IsNullOrEmpty(key.TenantId) ? null : key.TenantId,
+                SagaDefinitionId = key.SagaDefinitionId,
+                CorrelationId = key.CorrelationId
             },
             Version = row.Version,
-            IsCompleted = row.IsCompleted
+            IsCompleted = row.IsCompleted,
+            CreatedAt = row.CreatedAt,
+            UpdatedAt = row.UpdatedAt
         };
     }
 
     /// <summary>
     ///     One persisted saga row.
     /// </summary>
-    private sealed record SagaRow(string StateJson, int Version, bool IsCompleted);
+    private sealed record SagaRow(
+        string StateJson,
+        int Version,
+        bool IsCompleted,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset UpdatedAt);
 }

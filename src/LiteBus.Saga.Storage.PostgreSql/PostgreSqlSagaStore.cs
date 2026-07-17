@@ -104,6 +104,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
     {
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(item.State);
+        ArgumentOutOfRangeException.ThrowIfNegative(item.ExpectedVersion);
 
         var now = _clock.GetUtcNow();
         var stateJson = await _serializer.SerializeAsync(item.State, cancellationToken).ConfigureAwait(false);
@@ -175,6 +176,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
     public async Task CompleteAsync(SagaCompleteItem item, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(item);
+        ArgumentOutOfRangeException.ThrowIfNegative(item.ExpectedVersion);
 
         var now = _clock.GetUtcNow();
 
@@ -211,6 +213,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(filter);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(filter.Take, 0);
 
         var sql = $"""
                    SELECT correlation_id, saga_type, tenant_id, optimistic_lock_version, is_completed, created_at, updated_at
@@ -225,11 +228,11 @@ public sealed class PostgreSqlSagaStore : ISagaStore
 
         using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         using var command = CreateCommand(connection, sql);
-        command.Parameters.AddWithValue("saga_type", (object?) filter.SagaDefinitionId ?? DBNull.Value);
-        command.Parameters.AddWithValue("correlation_id", (object?) filter.CorrelationId ?? DBNull.Value);
-        command.Parameters.AddWithValue("tenant_id", (object?) NormalizeTenantId(filter.TenantId) ?? DBNull.Value);
-        command.Parameters.AddWithValue("is_completed", (object?) filter.IsCompleted ?? DBNull.Value);
-        command.Parameters.AddWithValue("take", filter.Take);
+        AddOptionalParameter(command, "saga_type", NpgsqlDbType.Text, filter.SagaDefinitionId);
+        AddOptionalParameter(command, "correlation_id", NpgsqlDbType.Text, filter.CorrelationId);
+        AddOptionalParameter(command, "tenant_id", NpgsqlDbType.Text, NormalizeTenantFilter(filter.TenantId));
+        AddOptionalParameter(command, "is_completed", NpgsqlDbType.Boolean, filter.IsCompleted);
+        command.Parameters.AddWithValue("take", NpgsqlDbType.Integer, filter.Take);
 
         List<SagaInstanceSummary> results = [];
         using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -272,11 +275,11 @@ public sealed class PostgreSqlSagaStore : ISagaStore
 
         using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         using var command = CreateCommand(connection, sql);
-        command.Parameters.AddWithValue("saga_type", (object?) filter.SagaDefinitionId ?? DBNull.Value);
-        command.Parameters.AddWithValue("correlation_id", (object?) filter.CorrelationId ?? DBNull.Value);
-        command.Parameters.AddWithValue("tenant_id", (object?) NormalizeTenantId(filter.TenantId) ?? DBNull.Value);
-        command.Parameters.AddWithValue("is_completed", (object?) filter.IsCompleted ?? DBNull.Value);
-        command.Parameters.AddWithValue("completed_before", (object?) filter.CompletedBefore ?? DBNull.Value);
+        AddOptionalParameter(command, "saga_type", NpgsqlDbType.Text, filter.SagaDefinitionId);
+        AddOptionalParameter(command, "correlation_id", NpgsqlDbType.Text, filter.CorrelationId);
+        AddOptionalParameter(command, "tenant_id", NpgsqlDbType.Text, NormalizeTenantFilter(filter.TenantId));
+        AddOptionalParameter(command, "is_completed", NpgsqlDbType.Boolean, filter.IsCompleted);
+        AddOptionalParameter(command, "completed_before", NpgsqlDbType.TimestampTz, filter.CompletedBefore);
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -332,6 +335,35 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         var stateParameter = command.Parameters.Add("state_json", NpgsqlDbType.Jsonb);
         stateParameter.Value = stateJson;
         command.Parameters.AddWithValue("now", now);
+    }
+
+    /// <summary>
+    ///     Adds a nullable parameter with an explicit PostgreSQL type.
+    /// </summary>
+    /// <param name="command">The command receiving the parameter.</param>
+    /// <param name="name">The parameter name without the SQL prefix.</param>
+    /// <param name="type">The PostgreSQL parameter type.</param>
+    /// <param name="value">The parameter value, or <see langword="null" /> to bind a database null.</param>
+    private static void AddOptionalParameter(
+        NpgsqlCommand command,
+        string name,
+        NpgsqlDbType type,
+        object? value)
+    {
+        var parameter = command.Parameters.Add(name, type);
+        parameter.Value = value ?? DBNull.Value;
+    }
+
+    /// <summary>
+    ///     Preserves an omitted tenant filter while normalizing an explicit unscoped tenant.
+    /// </summary>
+    /// <param name="tenantId">The optional tenant filter.</param>
+    /// <returns>
+    ///     <see langword="null" /> when the query should include all tenants; otherwise, the normalized tenant identifier.
+    /// </returns>
+    private static string? NormalizeTenantFilter(string? tenantId)
+    {
+        return tenantId is null ? null : NormalizeTenantId(tenantId);
     }
 
     /// <summary>

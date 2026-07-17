@@ -12,9 +12,8 @@ using LiteBus.Saga.Abstractions;
 using LiteBus.Saga.Storage.PostgreSql;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using IInboxProcessor = LiteBus.Inbox.Abstractions.IInboxProcessor;
-using LiteBus.Storage.PostgreSql;
-using LiteBus.Outbox;
 
 namespace LiteBus.Storage.IntegrationTests.PostgreSql;
 
@@ -51,9 +50,7 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
 
         await PostgreSqlSagaSchema.EnsureAsync(_fixture.DataSource, sagaOptions).ConfigureAwait(false);
 
-         var provider = BuildProvider(inboxOptions, sagaOptions);
-         await using (provider.ConfigureAwait(false))
-         {
+        await using var provider = BuildProvider(inboxOptions, sagaOptions);
         var inbox = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
         var sagaStore = provider.GetRequiredService<ISagaStore>();
@@ -69,18 +66,132 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
 
         instance.Should().NotBeNull();
         instance!.State.Step.Should().Be(1);
+    }
+
+    /// <summary>
+    ///     Confirms host startup creates the saga schema before the inbox processor begins polling.
+    /// </summary>
+    [Fact]
+    public async Task HostedProcessor_StartAsync_ShouldInitializeSagaSchemaBeforeProcessing()
+    {
+        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
+        var sagaOptions = new PostgreSqlSagaStoreOptions
+        {
+            SchemaName = PostgreSqlTestInfrastructure.TestSchemaName,
+            TableName = $"saga_{Guid.NewGuid():N}"
+        };
+
+        await using var provider = BuildProvider(inboxOptions, sagaOptions, enableProcessor: true);
+        var hostedService = provider.GetRequiredService<IHostedService>();
+
+        await hostedService.StartAsync(CancellationToken.None).ConfigureAwait(false);
+
+        try
+        {
+            await PostgreSqlSagaSchema.ValidateAsync(_fixture.DataSource, sagaOptions).ConfigureAwait(false);
+
+            var inbox = provider.GetRequiredService<IInbox>();
+            var sagaStore = provider.GetRequiredService<ISagaStore>();
+            var correlation = new SagaCorrelation
+            {
+                CorrelationId = "order-hosted-startup",
+                SagaDefinitionId = "orders.saga.advance"
+            };
+
+            await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(
+                new AdvanceOrderSagaCommand(),
+                InboxAcceptMetadata.Immediate with
+                {
+                    Trace = new MessageTrace.Correlated(correlation.CorrelationId)
+                })).ConfigureAwait(false);
+
+            var processed = await PostgreSqlTestInfrastructure.WaitUntilAsync(
+                async () => (await sagaStore.LoadAsync<OrderSagaState>(correlation).ConfigureAwait(false)) is not null,
+                TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+
+            processed.Should().BeTrue();
+            var instance = await sagaStore.LoadAsync<OrderSagaState>(correlation).ConfigureAwait(false);
+            instance!.State.Step.Should().Be(1);
         }
+        finally
+        {
+            await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Confirms tenant metadata from inbox accepts persists separate saga rows for one correlation identifier.
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingAsync_WithTenantScopedAccepts_ShouldPersistSeparateSagaRows()
+    {
+        var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
+        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions).ConfigureAwait(false);
+
+        var sagaOptions = new PostgreSqlSagaStoreOptions
+        {
+            SchemaName = PostgreSqlTestInfrastructure.TestSchemaName,
+            TableName = $"saga_{Guid.NewGuid():N}"
+        };
+
+        await PostgreSqlSagaSchema.EnsureAsync(_fixture.DataSource, sagaOptions).ConfigureAwait(false);
+
+        await using var provider = BuildProvider(inboxOptions, sagaOptions);
+        var inbox = provider.GetRequiredService<IInbox>();
+        var processor = provider.GetRequiredService<IInboxProcessor>();
+        var sagaStore = provider.GetRequiredService<ISagaStore>();
+
+        await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(
+            new AdvanceOrderSagaCommand(),
+            InboxAcceptMetadata.Immediate with
+            {
+                Trace = new MessageTrace.Correlated("order-tenant-shared"),
+                Tenant = new TenantScope.Isolated("tenant-a")
+            })).ConfigureAwait(false);
+        await inbox.AcceptAsync(InboxAcceptItem<AdvanceOrderSagaCommand>.From(
+            new AdvanceOrderSagaCommand(),
+            InboxAcceptMetadata.Immediate with
+            {
+                Trace = new MessageTrace.Correlated("order-tenant-shared"),
+                Tenant = new TenantScope.Isolated("tenant-b")
+            })).ConfigureAwait(false);
+
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+        var tenantA = await sagaStore.LoadAsync<OrderSagaState>(new SagaCorrelation
+        {
+            CorrelationId = "order-tenant-shared",
+            SagaDefinitionId = "orders.saga.advance",
+            TenantId = "tenant-a"
+        }).ConfigureAwait(false);
+        var tenantB = await sagaStore.LoadAsync<OrderSagaState>(new SagaCorrelation
+        {
+            CorrelationId = "order-tenant-shared",
+            SagaDefinitionId = "orders.saga.advance",
+            TenantId = "tenant-b"
+        }).ConfigureAwait(false);
+        var summaries = await sagaStore.QueryAsync(new SagaQueryFilter
+        {
+            CorrelationId = "order-tenant-shared"
+        }).ConfigureAwait(false);
+
+        tenantA!.State.Step.Should().Be(1);
+        tenantB!.State.Step.Should().Be(1);
+        summaries.Select(summary => summary.Correlation.TenantId)
+            .Should().BeEquivalentTo(["tenant-a", "tenant-b"]);
     }
 
     /// <summary>
     ///     Builds the service provider for saga inbox integration tests.
     /// </summary>
-    /// <param name="InboxStoreOptions">The inbox PostgreSQL store options.</param>
+    /// <param name="inboxStoreOptions">The inbox PostgreSQL store options.</param>
     /// <param name="sagaOptions">The saga PostgreSQL store options.</param>
+    /// <param name="enableProcessor">Whether to start the hosted inbox processor.</param>
     /// <returns>The configured service provider.</returns>
     private ServiceProvider BuildProvider(
-        PostgreSqlInboxStoreOptions InboxStoreOptions,
-        PostgreSqlSagaStoreOptions sagaOptions)
+        PostgreSqlInboxStoreOptions inboxStoreOptions,
+        PostgreSqlSagaStoreOptions sagaOptions,
+        bool enableProcessor = false)
     {
         var services = new ServiceCollection();
 
@@ -101,7 +212,7 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
                 builder.UsePostgreSqlStorage(postgres =>
                 {
                     postgres.UseDataSource(_fixture.DataSource);
-                    postgres.UseOptions(InboxStoreOptions);
+                    postgres.UseOptions(inboxStoreOptions);
                 });
 
                 builder.Contracts.Register<AdvanceOrderSagaCommand>("orders.saga.advance");
@@ -113,6 +224,12 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
                 });
 
                 builder.UseInProcessDispatch();
+
+                if (enableProcessor)
+                {
+                    builder.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(25));
+                }
+
                 builder.EnableSaga(registry => registry.MapState<OrderSagaState>("orders.saga.advance"));
 
                 builder.UsePostgreSqlSagaStorage(postgres =>

@@ -18,8 +18,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\samples\LiteBus.Samples.V6\LiteBus.Samples.V6.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Commands.Extensions.Microsoft.DependencyInjection\LiteBus.Commands.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Events\LiteBus.Events.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Events.Extensions.Microsoft.DependencyInjection\LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands\LiteBus.Commands.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
