@@ -14,4 +14,9 @@ internal static class PostgreSqlSagaSchemaEmbeddedSql
     ///     The embedded resource path for the version 1 saga index ensure script.
     /// </summary>
     internal const string V1EnsureIndexes = "saga/v1/ensure_indexes.sql";
+
+    /// <summary>
+    ///     The embedded resource path for the version 2 applied message column migration.
+    /// </summary>
+    internal const string V2AddLastAppliedMessageId = "saga/v2/add_last_applied_message_id.sql";
 }

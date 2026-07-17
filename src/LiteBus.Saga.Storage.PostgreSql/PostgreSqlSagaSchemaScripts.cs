@@ -26,6 +26,7 @@ internal static class PostgreSqlSagaSchemaScripts
         "state_json",
         "optimistic_lock_version",
         "is_completed",
+        "last_applied_message_id",
         "created_at",
         "updated_at"
     ];
@@ -48,7 +49,10 @@ internal static class PostgreSqlSagaSchemaScripts
             "Creates the version 1 saga instances table with tenant-scoped primary key."),
         new(
             PostgreSqlSagaSchemaSqlPaths.V1EnsureIndexes,
-            "Ensures saga indexes exist for schema version 1.")
+            "Ensures saga indexes exist for schema version 1."),
+        new(
+            PostgreSqlSagaSchemaSqlPaths.V2AddLastAppliedMessageId,
+            "Adds the applied message identifier required for duplicate saga dispatch suppression.")
     ];
 
     /// <summary>

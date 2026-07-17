@@ -63,7 +63,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         ArgumentNullException.ThrowIfNull(correlation);
 
         var sql = $"""
-                   SELECT state_json::text, optimistic_lock_version, is_completed
+                   SELECT state_json::text, optimistic_lock_version, is_completed, last_applied_message_id
                    FROM {_tableName}
                    WHERE correlation_id = @correlation_id
                        AND saga_type = @saga_type
@@ -85,6 +85,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         var stateJson = reader.GetString(0);
         var version = reader.GetInt32(1);
         var isCompleted = reader.GetBoolean(2);
+        Guid? lastAppliedMessageId = reader.IsDBNull(3) ? null : reader.GetGuid(3);
         var state = await _serializer.DeserializeAsync(typeof(TState), stateJson, cancellationToken).ConfigureAwait(false);
 
         return new SagaInstance<TState>
@@ -92,7 +93,8 @@ public sealed class PostgreSqlSagaStore : ISagaStore
             Correlation = correlation,
             State = (TState) state,
             Version = version,
-            IsCompleted = isCompleted
+            IsCompleted = isCompleted,
+            LastAppliedMessageId = lastAppliedMessageId
         };
     }
 
@@ -121,6 +123,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                                  state_json,
                                  optimistic_lock_version,
                                  is_completed,
+                                 last_applied_message_id,
                                  created_at,
                                  updated_at)
                              VALUES (
@@ -130,13 +133,14 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                                  @state_json,
                                  1,
                                  false,
+                                 @applied_message_id,
                                  @now,
                                  @now)
                              ON CONFLICT (correlation_id, saga_type, tenant_id) DO NOTHING;
                              """;
 
             using var insertCommand = CreateCommand(connection, insertSql);
-            AddCorrelationParameters(insertCommand, item.Correlation, stateJson, now);
+            AddCorrelationParameters(insertCommand, item.Correlation, stateJson, now, item.AppliedMessageId);
             var inserted = await insertCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
             if (inserted == 0)
@@ -152,6 +156,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                          SET
                              state_json = @state_json,
                              optimistic_lock_version = optimistic_lock_version + 1,
+                             last_applied_message_id = @applied_message_id,
                              updated_at = @now
                          WHERE correlation_id = @correlation_id
                              AND saga_type = @saga_type
@@ -161,7 +166,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                          """;
 
         using var updateCommand = CreateCommand(connection, updateSql);
-        AddCorrelationParameters(updateCommand, item.Correlation, stateJson, now);
+        AddCorrelationParameters(updateCommand, item.Correlation, stateJson, now, item.AppliedMessageId);
         updateCommand.Parameters.AddWithValue("expected_version", item.ExpectedVersion);
 
         var updated = await updateCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -185,6 +190,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                    SET
                        is_completed = true,
                        optimistic_lock_version = optimistic_lock_version + 1,
+                       last_applied_message_id = @applied_message_id,
                        updated_at = @now
                    WHERE correlation_id = @correlation_id
                        AND saga_type = @saga_type
@@ -197,6 +203,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         using var command = CreateCommand(connection, sql);
         AddCorrelationKeyParameters(command, item.Correlation);
         command.Parameters.AddWithValue("expected_version", item.ExpectedVersion);
+        AddOptionalParameter(command, "applied_message_id", NpgsqlDbType.Uuid, item.AppliedMessageId);
         command.Parameters.AddWithValue("now", now);
 
         var updated = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -324,16 +331,19 @@ public sealed class PostgreSqlSagaStore : ISagaStore
     /// <param name="correlation">The saga correlation.</param>
     /// <param name="stateJson">The serialized state JSON.</param>
     /// <param name="now">The current timestamp.</param>
+    /// <param name="appliedMessageId">The durable inbox message identifier applied by this save.</param>
     private static void AddCorrelationParameters(
         NpgsqlCommand command,
         SagaCorrelation correlation,
         string stateJson,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        Guid? appliedMessageId)
     {
         AddCorrelationKeyParameters(command, correlation);
 
         var stateParameter = command.Parameters.Add("state_json", NpgsqlDbType.Jsonb);
         stateParameter.Value = stateJson;
+        AddOptionalParameter(command, "applied_message_id", NpgsqlDbType.Uuid, appliedMessageId);
         command.Parameters.AddWithValue("now", now);
     }
 

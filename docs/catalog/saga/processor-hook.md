@@ -13,6 +13,10 @@ On `PrepareDispatchScope` and at the start of `AfterDispatchAsync`, the hook att
 
 On `AfterDispatchAsync`, if the handler marked state dirty, the hook saves once with the observed version and propagates `SagaConcurrencyException` on conflict. It does not reload and replace a newer row with a stale handler-owned snapshot. If the handler called `Complete()`, the hook records completion and may reload and retry up to three attempts because completion is idempotent. Handler-thrown exceptions skip save. The processor then calls `AbandonDispatchScope`, which removes the keyed context entry before retry or dead-letter handling.
 
+Dispatches for the same tenant, saga definition, and correlation identifier are serialized inside one hook instance. The gate covers state load, handler dispatch, hook persistence, and scope cleanup, so two workers in one process cannot both load the same saga version. Separate processes still require the store's optimistic concurrency checks.
+
+Each save and completion records the inbox message identifier in `last_applied_message_id` when the store supports the optional field. A repeated delivery with that identifier skips the handler scope after a crash between saga persistence and inbox terminal persistence. The inbox row and saga row remain separate transactions in v6, so the message can still be retried after a process failure; the ledger makes that retry a no-op for the saga state.
+
 ## Public Surface
 
 | Surface | Package | Role |
@@ -44,11 +48,12 @@ On `AfterDispatchAsync`, if the handler marked state dirty, the hook saves once 
 - Handler throw: `AfterDispatchAsync` save path not reached for that failed dispatch attempt.
 - Failed and canceled dispatches release the message-keyed scope before the processor returns an outcome.
 - Parallel messages with the same saga correlation retain separate ambient snapshots.
+- Messages with the same saga correlation are serialized per hook instance before state load.
 - Dirty-state conflicts propagate without automatic state merge.
 - Completion-only conflicts may retry up to three attempts.
 - `SetState` and `Complete` in the same dispatch throw `InvalidOperationException` before persist.
 - Saga save runs after successful handler dispatch but before inbox terminal persistence.
-- Inbox terminal state and saga rows are separate persistence steps in v6.
+- Inbox terminal state and saga rows are separate persistence steps in v6. The applied-message ledger closes the duplicate-application window without claiming cross-store atomicity.
 
 ## Non-Goals
 

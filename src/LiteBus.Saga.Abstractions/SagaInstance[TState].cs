@@ -26,4 +26,9 @@ public sealed class SagaInstance<TState>
     ///     Gets a value indicating whether the saga has already been completed in storage.
     /// </summary>
     public required bool IsCompleted { get; init; }
+
+    /// <summary>
+    ///     Gets the durable inbox message identifier most recently applied to this saga row.
+    /// </summary>
+    public Guid? LastAppliedMessageId { get; init; }
 }

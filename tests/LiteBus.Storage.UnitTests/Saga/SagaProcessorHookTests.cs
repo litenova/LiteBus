@@ -175,22 +175,11 @@ public sealed class SagaProcessorHookTests
         registry.RegisterStateType<OrderSagaState>("process-order");
         var context = new SagaExecutionContext();
         var hook = new SagaProcessorHook(sagaStore, registry, serializer, context);
-        var bothPrepared = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var preparedCount = 0;
-
         async Task DispatchAsync(TestProcessorEnvelope envelope, int step)
         {
             await hook.BeforeDispatchAsync(envelope).ConfigureAwait(false);
             hook.PrepareDispatchScope(envelope);
             context.SetState(new OrderSagaState { Step = step });
-
-            if (Interlocked.Increment(ref preparedCount) == 2)
-            {
-                bothPrepared.SetResult();
-            }
-
-            await bothPrepared.Task.ConfigureAwait(false);
-
             context.GetState<OrderSagaState>().Step.Should().Be(step);
             await hook.AfterDispatchAsync(envelope).ConfigureAwait(false);
         }
@@ -198,10 +187,8 @@ public sealed class SagaProcessorHookTests
         var first = DispatchAsync(new TestProcessorEnvelope("process-order", "order-42"), 1);
         var second = DispatchAsync(new TestProcessorEnvelope("process-order", "order-42"), 2);
 
-        var action = () => Task.WhenAll(first, second);
-
-        await action.Should().ThrowAsync<SagaConcurrencyException>().ConfigureAwait(false);
-        new[] { first, second }.Count(task => task.IsCompletedSuccessfully).Should().Be(1);
+        await Task.WhenAll(first, second).ConfigureAwait(false);
+        new[] { first, second }.Should().OnlyContain(task => task.IsCompletedSuccessfully);
 
         var persisted = await sagaStore.LoadAsync<OrderSagaState>(new SagaCorrelation
         {
@@ -210,7 +197,7 @@ public sealed class SagaProcessorHookTests
         }).ConfigureAwait(false);
 
         persisted.Should().NotBeNull();
-        persisted!.Version.Should().Be(1);
+        persisted!.Version.Should().Be(2);
         persisted.State.Step.Should().BeOneOf(1, 2);
     }
 
@@ -356,6 +343,39 @@ public sealed class SagaProcessorHookTests
         sagaStore.SaveCount.Should().Be(1);
         sagaStore.LoadCount.Should().Be(1);
         context.IsActive.Should().BeFalse();
+    }
+
+    /// <summary>
+    ///     Verifies that replaying the same durable message skips a second saga mutation.
+    /// </summary>
+    [Fact]
+    public async Task BeforeDispatchAsync_WhenMessageWasAlreadyApplied_ShouldSkipSagaScope()
+    {
+        var serializer = new SystemTextJsonMessageSerializer();
+        var sagaStore = new InMemorySagaStore(serializer);
+        var registry = new SagaStateTypeRegistry();
+        registry.RegisterStateType<OrderSagaState>("process-order");
+        var context = new SagaExecutionContext();
+        var hook = new SagaProcessorHook(sagaStore, registry, serializer, context);
+        var envelope = new TestProcessorEnvelope("process-order", "order-42");
+
+        await hook.BeforeDispatchAsync(envelope).ConfigureAwait(false);
+        hook.PrepareDispatchScope(envelope);
+        context.SetState(new OrderSagaState { Step = 1 });
+        await hook.AfterDispatchAsync(envelope).ConfigureAwait(false);
+
+        await hook.BeforeDispatchAsync(envelope).ConfigureAwait(false);
+
+        context.IsActive.Should().BeFalse();
+        var persisted = await sagaStore.LoadAsync<OrderSagaState>(new SagaCorrelation
+        {
+            CorrelationId = "order-42",
+            SagaDefinitionId = "process-order"
+        }).ConfigureAwait(false);
+
+        persisted.Should().NotBeNull();
+        persisted!.State.Step.Should().Be(1);
+        persisted.LastAppliedMessageId.Should().Be(envelope.MessageId);
     }
 
     /// <summary>
@@ -615,25 +635,14 @@ public sealed class SagaProcessorHookTests
     }
 
     /// <summary>
-    ///     Test dispatcher that holds two concurrent saga completion requests at the same persistence boundary.
+    ///     Test dispatcher that requests saga completion.
     /// </summary>
     private sealed class ConcurrentSagaCompletingDispatcher : IInboxDispatcher
     {
         /// <summary>
-        ///     Signals when both dispatcher calls have requested completion.
-        /// </summary>
-        private readonly TaskCompletionSource _bothEntered =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        /// <summary>
         ///     Gets the ambient saga context.
         /// </summary>
         private readonly ISagaContext _sagaContext;
-
-        /// <summary>
-        ///     Tracks the number of dispatcher calls waiting at the completion gate.
-        /// </summary>
-        private int _enteredCount;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="ConcurrentSagaCompletingDispatcher" /> class.
@@ -647,15 +656,11 @@ public sealed class SagaProcessorHookTests
         /// <inheritdoc />
         public async Task DispatchAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
         {
-            _sagaContext.IsActive.Should().BeTrue();
-            _sagaContext.Complete();
-
-            if (Interlocked.Increment(ref _enteredCount) == 2)
+            if (_sagaContext.IsActive)
             {
-                _bothEntered.TrySetResult();
+                _sagaContext.Complete();
             }
-
-            await _bothEntered.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await Task.CompletedTask.ConfigureAwait(false);
         }
     }
 

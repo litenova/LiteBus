@@ -56,7 +56,8 @@ public sealed class InMemorySagaStore : ISagaStore
             Correlation = correlation,
             State = (TState) state,
             Version = row.Version,
-            IsCompleted = row.IsCompleted
+            IsCompleted = row.IsCompleted,
+            LastAppliedMessageId = row.LastAppliedMessageId
         };
     }
 
@@ -77,7 +78,7 @@ public sealed class InMemorySagaStore : ISagaStore
         _rows.AddOrUpdate(
             key,
             _ => item.ExpectedVersion == 0
-                ? new SagaRow(stateJson, 1, false, now, now)
+                ? new SagaRow(stateJson, 1, false, now, now, item.AppliedMessageId)
                 : throw new SagaConcurrencyException(item.Correlation),
             (_, existing) =>
             {
@@ -92,7 +93,8 @@ public sealed class InMemorySagaStore : ISagaStore
                 {
                     StateJson = stateJson,
                     Version = existing.Version + 1,
-                    UpdatedAt = now
+                    UpdatedAt = now,
+                    LastAppliedMessageId = item.AppliedMessageId
                 };
             });
     }
@@ -116,7 +118,8 @@ public sealed class InMemorySagaStore : ISagaStore
         {
             IsCompleted = true,
             Version = existing.Version + 1,
-            UpdatedAt = _clock.GetUtcNow()
+            UpdatedAt = _clock.GetUtcNow(),
+            LastAppliedMessageId = item.AppliedMessageId
         };
 
         if (!_rows.TryUpdate(key, updated, existing))
@@ -263,5 +266,6 @@ public sealed class InMemorySagaStore : ISagaStore
         int Version,
         bool IsCompleted,
         DateTimeOffset CreatedAt,
-        DateTimeOffset UpdatedAt);
+        DateTimeOffset UpdatedAt,
+        Guid? LastAppliedMessageId);
 }

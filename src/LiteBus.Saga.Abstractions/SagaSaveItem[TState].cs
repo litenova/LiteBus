@@ -13,17 +13,29 @@ public sealed record SagaSaveItem<TState>(SagaCorrelation Correlation, TState St
     where TState : class, new()
 {
     /// <summary>
+    ///     Gets the durable inbox message identifier applied by this save, when available.
+    /// </summary>
+    public Guid? AppliedMessageId { get; init; }
+    /// <summary>
     ///     Creates a save item from the active correlation, state snapshot, and expected version.
     /// </summary>
     /// <param name="correlation">The saga correlation.</param>
     /// <param name="state">The state snapshot to persist.</param>
     /// <param name="expectedVersion">The optimistic lock version observed on load.</param>
+    /// <param name="appliedMessageId">The durable inbox message identifier applied by this save.</param>
     /// <returns>The save item passed to <see cref="ISagaStore.SaveAsync{TState}" />.</returns>
-    public static SagaSaveItem<TState> From(SagaCorrelation correlation, TState state, int expectedVersion)
+    public static SagaSaveItem<TState> From(
+        SagaCorrelation correlation,
+        TState state,
+        int expectedVersion,
+        Guid? appliedMessageId = null)
     {
         ArgumentNullException.ThrowIfNull(correlation);
         ArgumentNullException.ThrowIfNull(state);
 
-        return new SagaSaveItem<TState>(correlation, state, expectedVersion);
+        return new SagaSaveItem<TState>(correlation, state, expectedVersion)
+        {
+            AppliedMessageId = appliedMessageId
+        };
     }
 }

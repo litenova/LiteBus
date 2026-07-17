@@ -22,8 +22,8 @@ internal static class SagaStoreInvoker
     /// <param name="stateType">The saga state type.</param>
     /// <param name="correlation">The saga correlation.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>The loaded state, version, and completion flag when a row exists.</returns>
-    internal static async Task<(object State, int Version, bool IsCompleted)?> LoadAsync(
+    /// <returns>The loaded state, version, completion flag, and applied message identifier when a row exists.</returns>
+    internal static async Task<(object State, int Version, bool IsCompleted, Guid? LastAppliedMessageId)?> LoadAsync(
         ISagaStore store,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
         Type stateType,
@@ -45,6 +45,7 @@ internal static class SagaStoreInvoker
     /// <param name="correlation">The saga correlation.</param>
     /// <param name="state">The state object.</param>
     /// <param name="expectedVersion">The optimistic lock version.</param>
+    /// <param name="appliedMessageId">The durable inbox message identifier applied by this save.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>A task that completes when the save succeeds.</returns>
     internal static Task SaveAsync(
@@ -54,13 +55,14 @@ internal static class SagaStoreInvoker
         SagaCorrelation correlation,
         object state,
         int expectedVersion,
+        Guid? appliedMessageId,
         CancellationToken cancellationToken)
     {
         var invoker = (SaveInvoker) InvokerCache.GetOrAdd(
             (stateType, nameof(ISagaStore.SaveAsync)),
             _ => CreateSaveInvoker(stateType));
 
-        return invoker(store, correlation, state, expectedVersion, cancellationToken);
+        return invoker(store, correlation, state, expectedVersion, appliedMessageId, cancellationToken);
     }
 
     /// <summary>
@@ -89,11 +91,13 @@ internal static class SagaStoreInvoker
             var stateProperty = result.GetType().GetProperty(nameof(SagaInstance<object>.State));
             var versionProperty = result.GetType().GetProperty(nameof(SagaInstance<object>.Version));
             var completedProperty = result.GetType().GetProperty(nameof(SagaInstance<object>.IsCompleted));
+            var appliedMessageProperty = result.GetType().GetProperty(nameof(SagaInstance<object>.LastAppliedMessageId));
 
             return (
                 stateProperty!.GetValue(result)!,
                 (int) versionProperty!.GetValue(result)!,
-                (bool) completedProperty!.GetValue(result)!);
+                (bool) completedProperty!.GetValue(result)!,
+                (Guid?) appliedMessageProperty?.GetValue(result));
         };
     }
 
@@ -110,9 +114,10 @@ internal static class SagaStoreInvoker
 
         var itemType = typeof(SagaSaveItem<>).MakeGenericType(stateType);
 
-        return (store, correlation, state, expectedVersion, cancellationToken) =>
+        return (store, correlation, state, expectedVersion, appliedMessageId, cancellationToken) =>
         {
             var item = Activator.CreateInstance(itemType, correlation, state, expectedVersion)!;
+            itemType.GetProperty(nameof(SagaSaveItem<object>.AppliedMessageId))?.SetValue(item, appliedMessageId);
             return (Task) method.Invoke(store, [item, cancellationToken])!;
         };
     }
@@ -124,7 +129,7 @@ internal static class SagaStoreInvoker
     /// <param name="correlation">The saga correlation.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The loaded state tuple when a row exists.</returns>
-    private delegate Task<(object State, int Version, bool IsCompleted)?> LoadInvoker(
+    private delegate Task<(object State, int Version, bool IsCompleted, Guid? LastAppliedMessageId)?> LoadInvoker(
         ISagaStore store,
         SagaCorrelation correlation,
         CancellationToken cancellationToken);
@@ -136,6 +141,7 @@ internal static class SagaStoreInvoker
     /// <param name="correlation">The saga correlation.</param>
     /// <param name="state">The state object.</param>
     /// <param name="expectedVersion">The optimistic lock version.</param>
+    /// <param name="appliedMessageId">The durable inbox message identifier applied by this save.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>A task that completes when the save succeeds.</returns>
     private delegate Task SaveInvoker(
@@ -143,5 +149,6 @@ internal static class SagaStoreInvoker
         SagaCorrelation correlation,
         object state,
         int expectedVersion,
+        Guid? appliedMessageId,
         CancellationToken cancellationToken);
 }

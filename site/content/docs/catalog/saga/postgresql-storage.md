@@ -7,11 +7,11 @@
 
 ## What It Does
 
-`PostgreSqlSagaStore` persists saga instances in `litebus_saga_instances` by default (configurable schema and table name). Primary key is tenant-scoped: `correlation_id`, `saga_type` (saga definition id), and `tenant_id`. State is JSON in `state_json`; `optimistic_lock_version` supports concurrent updates.
+`PostgreSqlSagaStore` persists saga instances in `litebus_saga_instances` by default (configurable schema and table name). Primary key is tenant-scoped: `correlation_id`, `saga_type` (saga definition id), and `tenant_id`. State is JSON in `state_json`; `optimistic_lock_version` supports concurrent updates. `last_applied_message_id` records the most recent inbox message applied to the row so a repeated delivery can be ignored safely.
 
 `UsePostgreSqlStorage(configure)` on `SagaModuleBuilder` selects `PostgreSqlSagaModule` and can wire `NpgsqlDataSource` or connection string helpers through `PostgreSqlSagaModuleBuilder`.
 
-Schema version **1** ships embedded SQL. `EnsureSchemaCreationOnStartup` defaults to `true` via `PostgreSqlSagaStoreOptions`. Schema bootstrap shares the `PostgreSqlSchemaManager` rail with inbox and outbox when co-located in one database.
+Schema version **1** creates new tables with the applied-message column. The package also ships an additive SQL migration for tables created by older LiteBus releases. Apply `src/LiteBus.Saga.Storage.PostgreSql/Sql/saga/v2/add_last_applied_message_id.sql` before enabling the v6 store against an existing table. `EnsureSchemaCreationOnStartup` defaults to `true` via `PostgreSqlSagaStoreOptions`. Schema bootstrap shares the `PostgreSqlSchemaManager` rail with inbox and outbox when co-located in one database.
 
 ## Public Surface
 
@@ -38,6 +38,7 @@ Schema version **1** ships embedded SQL. `EnsureSchemaCreationOnStartup` default
 ## Invariants
 
 - Optimistic updates compare `optimistic_lock_version` on save and complete.
+- Save and complete operations update `last_applied_message_id` with the inbox message identifier when the hook supplies one.
 - `tenant_id` participates in the primary key. A missing or whitespace tenant identifier is stored as an empty string.
 - An omitted `TenantId` query or purge predicate includes every tenant. An explicit whitespace predicate selects unscoped rows.
 - Saga schema is separate from inbox message rows; not one transaction with inbox terminal update in v6.
@@ -45,7 +46,7 @@ Schema version **1** ships embedded SQL. `EnsureSchemaCreationOnStartup` default
 ## Non-Goals
 
 - EF Core saga adapter is not shipped.
-- Does not migrate legacy saga schemas automatically beyond shipped v1 scripts.
+- Does not run the additive migration automatically. Apply the shipped migration through the application's schema migration process before startup validation.
 - Does not encrypt state JSON at rest (see payload encryption on inbox/outbox axis for message payloads).
 
 ## Observability

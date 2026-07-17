@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS {{QualifiedTableName}}
     boolean
     NOT
     NULL,
+    last_applied_message_id
+    uuid
+    NULL,
     created_at
     timestamptz
     NOT

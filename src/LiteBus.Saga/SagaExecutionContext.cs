@@ -38,6 +38,11 @@ public sealed class SagaExecutionContext : ISagaContext
     /// </summary>
     internal int Version => GetActiveScope()?.Version ?? 0;
 
+    /// <summary>
+    ///     Gets the durable message identifier for the active dispatch.
+    /// </summary>
+    internal Guid? DispatchId => _ambientDispatchId.Value;
+
     /// <inheritdoc />
     public bool IsActive => GetActiveScope() is not null;
 
@@ -48,7 +53,10 @@ public sealed class SagaExecutionContext : ISagaContext
     public TState GetState<TState>()
         where TState : class, new()
     {
-        return (TState)GetRequiredActiveScope().State;
+        var scope = GetRequiredActiveScope();
+        EnsureStateType(scope, typeof(TState));
+        scope.IsDirty = true;
+        return (TState)scope.State;
     }
 
     /// <inheritdoc />
@@ -58,6 +66,7 @@ public sealed class SagaExecutionContext : ISagaContext
         ArgumentNullException.ThrowIfNull(state);
 
         var scope = GetRequiredActiveScope();
+        EnsureStateType(scope, typeof(TState));
         scope.State = state;
         scope.IsDirty = true;
     }
@@ -86,7 +95,7 @@ public sealed class SagaExecutionContext : ISagaContext
         ArgumentNullException.ThrowIfNull(state);
         ArgumentOutOfRangeException.ThrowIfNegative(version);
 
-        if (!_scopes.TryAdd(dispatchId, new Scope(correlation, state, version)))
+        if (!_scopes.TryAdd(dispatchId, new Scope(correlation, state, state.GetType(), version)))
         {
             throw new InvalidOperationException($"A saga scope is already active for dispatch '{dispatchId}'.");
         }
@@ -129,6 +138,7 @@ public sealed class SagaExecutionContext : ISagaContext
         ArgumentOutOfRangeException.ThrowIfNegative(version);
 
         var scope = GetRequiredActiveScope();
+        EnsureStateType(scope, state.GetType());
         scope.State = state;
         scope.Version = version;
     }
@@ -182,6 +192,20 @@ public sealed class SagaExecutionContext : ISagaContext
     }
 
     /// <summary>
+    ///     Verifies that a saga operation uses the state type registered for the active definition.
+    /// </summary>
+    /// <param name="scope">The active saga scope.</param>
+    /// <param name="stateType">The state type requested by the operation.</param>
+    private static void EnsureStateType(Scope scope, Type stateType)
+    {
+        if (scope.StateType != stateType)
+        {
+            throw new InvalidOperationException(
+                $"Saga state type '{stateType.FullName}' does not match the registered type '{scope.StateType.FullName}'.");
+        }
+    }
+
+    /// <summary>
     ///     One dispatch-scoped saga state bag.
     /// </summary>
     private sealed class Scope
@@ -191,11 +215,13 @@ public sealed class SagaExecutionContext : ISagaContext
         /// </summary>
         /// <param name="correlation">The saga correlation.</param>
         /// <param name="state">The current state object.</param>
+        /// <param name="stateType">The registered state type.</param>
         /// <param name="version">The optimistic lock version.</param>
-        internal Scope(SagaCorrelation correlation, object state, int version)
+        internal Scope(SagaCorrelation correlation, object state, Type stateType, int version)
         {
             Correlation = correlation;
             State = state;
+            StateType = stateType;
             Version = version;
         }
 
@@ -208,6 +234,11 @@ public sealed class SagaExecutionContext : ISagaContext
         ///     Gets or sets the active state object for this scope.
         /// </summary>
         internal object State { get; set; }
+
+        /// <summary>
+        ///     Gets the registered saga state type that all replacements must preserve.
+        /// </summary>
+        internal Type StateType { get; }
 
         /// <summary>
         ///     Gets or sets the optimistic lock version observed when the saga was loaded.

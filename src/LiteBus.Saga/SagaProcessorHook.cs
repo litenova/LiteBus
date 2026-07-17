@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Saga.Abstractions;
@@ -13,6 +14,21 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
     ///     The maximum number of optimistic concurrency attempts for completion-only dispatches.
     /// </summary>
     private const int MaxCompletionAttempts = 3;
+
+    /// <summary>
+    ///     Serializes saga dispatches that target the same tenant, definition, and correlation.
+    /// </summary>
+    private readonly object _correlationGateSync = new();
+
+    /// <summary>
+    ///     Tracks correlation gates and waiters while dispatches are active.
+    /// </summary>
+    private readonly Dictionary<string, CorrelationGate> _correlationGates = new(StringComparer.Ordinal);
+
+    /// <summary>
+    ///     Maps active message identifiers to the correlation gate held by their dispatch scope.
+    /// </summary>
+    private readonly ConcurrentDictionary<Guid, (string Key, CorrelationGate Gate)> _dispatchGates = new();
 
     /// <summary>
     ///     Gets the ambient saga context exposed to handlers.
@@ -84,19 +100,41 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
         }
 
         var correlation = CreateCorrelation(envelope, sagaDefinitionId);
-        var initialState = Activator.CreateInstance(stateType)
-            ?? throw new InvalidOperationException($"Could not create saga state type '{stateType.FullName}'.");
+        var correlationKey = CreateCorrelationKey(correlation);
+        var correlationGate = AcquireCorrelationGate(correlationKey);
 
-        _context.Begin(envelope.MessageId, correlation, initialState, 0);
+        try
+        {
+            await correlationGate.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            _dispatchGates[envelope.MessageId] = (correlationKey, correlationGate);
+        }
+        catch
+        {
+            ReleaseCorrelationGate(correlationKey, correlationGate);
+            throw;
+        }
+
+        try
+        {
+            var initialState = Activator.CreateInstance(stateType)
+                ?? throw new InvalidOperationException($"Could not create saga state type '{stateType.FullName}'.");
+            _context.Begin(envelope.MessageId, correlation, initialState, 0);
+        }
+        catch
+        {
+            ReleaseDispatchGate(envelope.MessageId);
+            throw;
+        }
 
         try
         {
             var loaded = await SagaStoreInvoker.LoadAsync(_sagaStore, stateType, correlation, cancellationToken)
                 .ConfigureAwait(false);
 
-            if (loaded?.IsCompleted == true)
+            if (loaded?.LastAppliedMessageId == envelope.MessageId || loaded?.IsCompleted == true)
             {
                 _context.Reset();
+                ReleaseDispatchGate(envelope.MessageId);
                 return;
             }
 
@@ -108,6 +146,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
         catch
         {
             _context.Reset();
+            ReleaseDispatchGate(envelope.MessageId);
             throw;
         }
     }
@@ -128,6 +167,8 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
         {
             _context.Reset();
         }
+
+        ReleaseDispatchGate(envelope.MessageId);
     }
 
     /// <inheritdoc />
@@ -150,6 +191,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
         finally
         {
             _context.Reset();
+            ReleaseDispatchGate(envelope.MessageId);
         }
     }
 
@@ -181,6 +223,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
                     _context.Correlation,
                     state,
                     _context.Version,
+                    _context.DispatchId,
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -223,7 +266,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
             try
             {
                 await _sagaStore.CompleteAsync(
-                        SagaCompleteItem.From(correlation, _context.Version),
+                        SagaCompleteItem.From(correlation, _context.Version, _context.DispatchId),
                         cancellationToken)
                     .ConfigureAwait(false);
                 return;
@@ -271,5 +314,82 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
     private void TryAttachScope(IProcessorEnvelope envelope)
     {
         _context.TryAttach(envelope.MessageId);
+    }
+
+    /// <summary>
+    ///     Creates a stable in-process lock key for one saga instance.
+    /// </summary>
+    /// <param name="correlation">The saga correlation.</param>
+    /// <returns>The lock key.</returns>
+    private static string CreateCorrelationKey(SagaCorrelation correlation)
+    {
+        return $"{correlation.TenantId}\u001f{correlation.SagaDefinitionId}\u001f{correlation.CorrelationId}";
+    }
+
+    /// <summary>
+    ///     Gets or creates a correlation gate and records one active waiter.
+    /// </summary>
+    /// <param name="key">The correlation lock key.</param>
+    /// <returns>The gate registration.</returns>
+    private CorrelationGate AcquireCorrelationGate(string key)
+    {
+        lock (_correlationGateSync)
+        {
+            if (!_correlationGates.TryGetValue(key, out var gate))
+            {
+                gate = new CorrelationGate();
+                _correlationGates[key] = gate;
+            }
+
+            gate.WaiterCount++;
+            return gate;
+        }
+    }
+
+    /// <summary>
+    ///     Releases the semaphore and removes an unused correlation gate.
+    /// </summary>
+    /// <param name="messageId">The active message identifier.</param>
+    private void ReleaseDispatchGate(Guid messageId)
+    {
+        if (_dispatchGates.TryRemove(messageId, out var registration))
+        {
+            registration.Gate.Semaphore.Release();
+            ReleaseCorrelationGate(registration.Key, registration.Gate);
+        }
+    }
+
+    /// <summary>
+    ///     Removes one waiter registration and disposes an unused gate.
+    /// </summary>
+    /// <param name="key">The correlation lock key.</param>
+    /// <param name="gate">The correlation gate.</param>
+    private void ReleaseCorrelationGate(string key, CorrelationGate gate)
+    {
+        lock (_correlationGateSync)
+        {
+            gate.WaiterCount--;
+            if (gate.WaiterCount == 0 && _correlationGates.Remove(key))
+            {
+                gate.Semaphore.Dispose();
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Tracks one correlation semaphore and its active waiters.
+    /// </summary>
+    private sealed class CorrelationGate
+    {
+        /// <summary>
+        ///     Gets the semaphore that serializes one saga correlation.
+        /// </summary>
+        internal SemaphoreSlim Semaphore { get; } = new(1, 1);
+
+        /// <summary>
+        ///     Gets or sets the number of active owners and waiters.
+        /// </summary>
+        internal int WaiterCount { get; set; }
+
     }
 }
