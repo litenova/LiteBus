@@ -55,15 +55,15 @@ Deferred execution is expressed through `InboxAcceptMetadata.Visibility` (`Messa
 | `IInboxProcessor` | `PipelinedInboxProcessor` | Lease due envelopes, dispatch, record state |
 | `InboxProcessorOptions` | configured instance | Batch size, lease duration, retry policy |
 
-Storage, dispatch, and ingress register inside `AddInboxModule` through `Use*` extensions. The core module does not reference Commands, Events, PostgreSQL, EF Core, or RabbitMQ.
+Storage, dispatch, and ingress register inside `AddInbox` through `Use*` extensions. The core module does not reference Commands, Events, PostgreSQL, EF Core, or RabbitMQ.
 
 ```csharp
 services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddCommandModule(c => c.RegisterFromAssembly(typeof(ProcessPaymentCommand).Assembly));
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(c => c.RegisterFromAssembly(typeof(ProcessPaymentCommand).Assembly));
 
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<ProcessPaymentCommand>(
             name: "payments.commands.process-payment",
@@ -82,7 +82,7 @@ services.AddLiteBus(builder =>
 });
 ```
 
-Register every stored message type in `IMessageContractRegistry` with a stable name and version. You may register explicitly on the builder, share registrations through `ILiteBusBuilder.Contracts`, or use `RegisterFromAssembly`. Analyzers split contract coverage: **LB1007** warns on handled durable types without `[MessageContract]` or registration; **LB1017** warns on `[MessageContract]` types without explicit `Contracts.Register` or assembly scan. See [Analyzers](../reference/analyzers.md).
+Register every stored message type in `IMessageContractRegistry` with a stable name and version. Register explicitly on the inbox or messaging builder, or use `RegisterFromAssembly`. Analyzers split contract coverage: **LB1007** warns on handled durable types without `[MessageContract]` or registration; **LB1017** warns on `[MessageContract]` types without explicit `Contracts.Register` or assembly scan. See [Analyzers](../reference/analyzers.md).
 
 Closed generic types are supported when each closed shape is registered. Open generic contracts are rejected.
 
@@ -117,17 +117,17 @@ On the transactional EF path, duplicate `message_id` or `(tenant_id, idempotency
 | Extension | Package | Behavior |
 | --- | --- | --- |
 | `UseInProcessDispatch()` | `LiteBus.Inbox.Dispatch.InProcess` | Deserialize and `ICommandMediator.SendAsync` |
-| `UseAmqpDispatch(..., connectionOptions)` | `LiteBus.Inbox.Dispatch.Amqp` | Publish leased envelope through AMQP |
-| `UseAzureServiceBusDispatch(..., transportOptions)` | `LiteBus.Inbox.Dispatch.AzureServiceBus` | Publish through Azure Service Bus |
-| `UseAwsSqsDispatch(..., transportOptions)` | `LiteBus.Inbox.Dispatch.AwsSqs` | Publish through Amazon SQS |
-| `UseKafkaDispatch(..., transportOptions)` | `LiteBus.Inbox.Dispatch.Kafka` | Publish through Kafka |
+| `UseAmqpDispatch(...)` | `LiteBus.Inbox.Dispatch.Amqp` | Publish leased envelope through the root AMQP transport |
+| `UseAzureServiceBusDispatch(...)` | `LiteBus.Inbox.Dispatch.AzureServiceBus` | Publish through the root Azure Service Bus transport |
+| `UseAwsSqsDispatch(...)` | `LiteBus.Inbox.Dispatch.AwsSqs` | Publish through the root Amazon SQS transport |
+| `UseKafkaDispatch(...)` | `LiteBus.Inbox.Dispatch.Kafka` | Publish through the root Kafka transport |
 | `UseInMemoryDispatch(...)` | `LiteBus.Inbox.Dispatch.InMemory` | Publish through in-memory transport (tests, local pipelines) |
 
 Without a registered dispatcher, module build fails when the processor is enabled.
 
 ## Ingress
 
-Broker ingress extensions consume messages into `IInbox.AcceptAsync`: `UseAmqpIngress`, `UseAzureServiceBusIngress`, `UseAwsSqsIngress`, `UseKafkaIngress`, and `UseInMemoryIngress`. Each package registers the matching transport module when `IMessageConsumer` is not already registered.
+Broker ingress extensions consume messages into `IInbox.AcceptAsync`: `UseAmqpIngress`, `UseAzureServiceBusIngress`, `UseAwsSqsIngress`, `UseKafkaIngress`, and `UseInMemoryIngress`. Register the matching `Add*Transport(...)` extension once at the root; ingress does not own broker connectivity.
 
 `TransportInboxIngressOptions` controls ingress safety defaults:
 
@@ -169,11 +169,14 @@ On graceful shutdown, in-flight envelopes may remain in `Processing` until the l
 
 ## Saga Orchestration
 
-Saga integrates through `inbox.EnableSaga(...)` from `LiteBus.Saga.InboxIntegration`. Saga hooks implement `IProcessorEnvelopeHook` from `LiteBus.Orchestration.Abstractions`; the inbox core maps `InboxEnvelope` through an adapter. Saga does not reference inbox types on its public surface.
+Saga integrates through `inbox.EnableSaga(...)` from `LiteBus.Saga.InboxIntegration`. Saga hooks implement `IProcessorEnvelopeHook` from `LiteBus.DurableMessaging.Abstractions`; the inbox core maps `InboxEnvelope` through an adapter. Saga does not reference inbox types on its public surface.
 
 ```csharp
-inbox.EnableSaga(saga => saga.MapState<OrderSagaState>("process-order"));
-inbox.UsePostgreSqlSagaStorage(pg => pg.UseDataSource(dataSource));
+inbox.EnableSaga(saga =>
+{
+    saga.MapState<OrderSagaState>("process-order");
+    saga.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
+});
 ```
 
 ## Retry and Dead Letter

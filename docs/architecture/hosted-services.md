@@ -2,7 +2,7 @@
 
 LiteBus separates dependency registration from host execution through a **manifest model**. Modules register startup tasks, background services, and diagnostic probes on `IModuleConfiguration`; the generic host bridge runs them after `AddLiteBus` builds the manifest.
 
-| Layer | Responsibility | Package |
+| Surface | Responsibility | Package |
 | :--- | :--- | :--- |
 | `IStartupTask` | One-shot host startup work (`RunAsync`) | `LiteBus.Runtime.Abstractions` |
 | `IModuleConfiguration.RegisterStartupTask` | Manifest entry for startup tasks | `LiteBus.Runtime` |
@@ -14,13 +14,13 @@ LiteBus separates dependency registration from host execution through a **manife
 | `LiteBusHostManifest` | Resolved manifest after module build | `LiteBus.Runtime.Abstractions` |
 | Generic host bridge | Maps manifest entries to a single `IHostedService` orchestrator | `LiteBus.Runtime.Extensions.Hosting` (shared), `LiteBus.Runtime.Extensions.Microsoft.Hosting`, `LiteBus.Runtime.Extensions.Autofac.Hosting` |
 
-Call `services.AddLiteBus(builder => ...)` using `ILiteBusBuilder` from `LiteBus.Runtime.Composition`. Register storage, dispatch, ingress, and processors inside nested `AddInboxModule` / `AddOutboxModule` builders.
+Call `services.AddLiteBus(builder => ...)` using `ILiteBusBuilder` from `LiteBus.Runtime.Composition`. Register storage, dispatch, ingress, and processors inside nested `AddInbox` / `AddOutbox` builders.
 
 ## Service Lifetime Constraint
 
-Manifest-registered background services and startup tasks are composed as **singleton** host adapters. Processor loops, stores, and mediators registered by LiteBus modules therefore resolve handler and store dependencies from the root `IServiceProvider` unless you register scoped factories yourself.
+Manifest-registered background services and startup tasks are composed as **singleton** host adapters. Microsoft DI and Autofac integrations register one `IMessageDispatchScopeFactory`, and processors use it to open a fresh scope for every leased envelope.
 
-When handlers need a per-request `DbContext` or other scoped service, register handlers with scoped lifetime (the default from `RegisterFromAssembly`). `MessageMediator` creates a per-mediation dispatch scope through `IMessageDispatchScopeFactory`, so in-process `SendAsync` / `PublishAsync` calls resolve distinct scoped handler instances without manual scoping. Background processors use the same factory pattern per leased envelope. Do not inject scoped services directly into singleton processor services without a scope factory; open the scope inside the loop or accept path instead.
+When handlers need a per-request `DbContext` or another scoped service, register handlers with scoped lifetime (the default from `RegisterFromAssembly`). `MessageMediator` creates a per-mediation dispatch scope through `IMessageDispatchScopeFactory`, so in-process `SendAsync` / `PublishAsync` calls resolve distinct scoped handler instances without manual scoping. EF stores use application-registered `IDbContextFactory<TContext>` instances for operation contexts. Do not inject scoped services directly into singleton processor services.
 
 `IDiagnosticCheck.Name` must match the name passed to `AddDiagnosticCheck<TCheck>(string name)` on the inbox or outbox module builder. The health bridge validates the names at runtime.
 
@@ -29,10 +29,10 @@ When handlers need a per-request `DbContext` or other scoped service, register h
 ```csharp
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddCommandModule(c => c.Register<MyCommandHandler>());
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(c => c.Register<MyCommandHandler>());
 
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<MyCommand>("my.command", 1);
         inbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
@@ -49,10 +49,10 @@ builder.Services.AddLiteBus(builder =>
 ```csharp
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddEventModule(e => e.Register<OrderSubmittedEventHandler>());
+    builder.AddMessaging(_ => { });
+    builder.AddEvents(e => e.Register<OrderSubmittedEventHandler>());
 
-    builder.Modules.AddOutboxModule(outbox =>
+    builder.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<OrderSubmitted>("orders.events.submitted", 1);
         outbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
@@ -64,7 +64,7 @@ builder.Services.AddLiteBus(builder =>
 
 ## Registration Order Inside the Builder
 
-Configure storage and dispatch before enabling the processor in the same builder lambda. The builder records all three choices before module build, and this order keeps the required durable path visible in configuration. Storage modules register schema initializers as `IStartupTask` when schema initialization is enabled. Startup tasks run sequentially before background services.
+Configure storage, dispatch, and processor hosting in the same builder lambda. The builder records all choices before module build, so callback order does not change the resolved durable path. Storage modules register schema initializers as `IStartupTask` when schema initialization is enabled. Startup tasks run sequentially before background services.
 
 ```csharp
 inbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
@@ -92,7 +92,7 @@ Disable host schema work with `postgres.DisableSchemaInitialization()` when DDL 
 
 `UseAmqpIngress` registers `TransportInboxIngressConsumer` by default. Use `ingress.DisableIngressConsumer()` or `ingress.HostOptions.Enabled = false` to register the handler without a consumer loop.
 
-During module `Build()`, `AmqpInboxIngressModule` calls `EnsureTransportRegistered`. When `IMessageConsumer` is not already in the dependency registry, it builds `AmqpTransportModule` from `AmqpInboxIngressOptions.Connection`. When a consumer is already registered (for example by `UseAmqpDispatch` in the same inbox configuration), ingress skips transport bootstrap and reuses the existing consumer. Set `AmqpInboxIngressOptions.Connection` on ingress-only hosts, or register `AmqpTransportModule` before `UseAmqpIngress` when dispatch and ingress must share explicit connection settings.
+Register `AddAmqpTransport(connectionOptions)` once at the root composition boundary. AMQP ingress and dispatch declare that module as a dependency and share its `IMessageConsumer` and `ITransportPublisher`; neither feature adapter creates broker connectivity during `Build()`.
 
 ## Manual Execution
 
@@ -168,25 +168,24 @@ await inbox.AcceptAsync(
 
 `IInboxScheduler` and `IOutboxScheduler` were removed in v6. See [Migration guide v6](../migration/v6.md).
 
-### Shared Contracts on `ILiteBusBuilder`
+### Shared Contracts Through Messaging Composition
 
 ```csharp
 services.AddLiteBus(builder =>
 {
-    builder.Contracts.Register<OrderSubmitted>("orders.events.submitted", 1);
+    builder.AddMessaging(messaging =>
+        messaging.Contracts.Register<OrderSubmitted>("orders.events.submitted", 1));
+    builder.AddCommands(c => c.RegisterFromAssembly(typeof(MyCommandHandler).Assembly));
+    builder.AddEvents(e => e.RegisterFromAssembly(typeof(OrderSubmittedEventHandler).Assembly));
 
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddCommandModule(c => c.RegisterFromAssembly(typeof(MyCommandHandler).Assembly));
-    builder.Modules.AddEventModule(e => e.RegisterFromAssembly(typeof(OrderSubmittedEventHandler).Assembly));
-
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddInbox(inbox =>
     {
         inbox.UsePostgreSqlStorage(pg => pg.UseConnectionString(connectionString));
         inbox.UseInProcessDispatch();
         inbox.EnableInboxProcessor();
     });
 
-    builder.Modules.AddOutboxModule(outbox =>
+    builder.AddOutbox(outbox =>
     {
         outbox.UsePostgreSqlStorage(pg => pg.UseConnectionString(connectionString));
         outbox.UseInProcessDispatch();

@@ -33,7 +33,7 @@ Typical deployment: enable processor on generic host; application code accepts c
 
 - **`EnableInboxProcessor(host => ...)`** on inbox module builder registers manifest background service.
 - **`UseProcessorOptions(InboxProcessorOptions)`** configures batch, lease, retry, and concurrency.
-- **`Use*Storage()`** and exactly one **`Use*Dispatch()`** must register before `EnableInboxProcessor`.
+- **`Use*Storage()`** and exactly one **`Use*Dispatch()`** must be present in the same inbox builder; callback order is irrelevant.
 - **`IInboxProcessor`** registers transient; background service holds a singleton processor instance for stable lease owner.
 
 ### Configuration

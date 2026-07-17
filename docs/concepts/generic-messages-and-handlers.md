@@ -58,8 +58,8 @@ When registering a generic handler with the dependency injection container, you 
 // In Program.cs
 builder.Services.AddLiteBus(registry =>
 {
-    registry.AddMessageModule(_ => { });
-    registry.AddCommandModule(module =>
+    registry.AddMessaging(_ => { });
+    registry.AddCommands(module =>
     {
         // Register the open generic type.
         module.Register(typeof(CreateEntityCommandHandler<,>));
@@ -117,15 +117,15 @@ public sealed record ExportCompletedEvent<TPayload>(Guid ExportId);
 
 builder.Services.AddLiteBus(registry =>
 {
-    registry.AddMessageModule(_ => { });
-    registry.AddInboxModule(inbox =>
+    registry.AddMessaging(_ => { });
+    registry.AddInbox(inbox =>
     {
         inbox.Contracts.Register<ArchiveCommand<CustomerSnapshot>>(
             "archive.commands.customer-snapshot",
             version: 1);
     });
 
-    registry.AddOutboxModule(outbox =>
+    registry.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<ExportCompletedEvent<CustomerExport>>(
             "exports.events.customer-export-completed",

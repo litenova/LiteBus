@@ -1,6 +1,6 @@
 # Outbox AMQP Dispatch
 
-Publish leased outbox envelopes to an AMQP 0.9.1 broker through `outbox.UseAmqpDispatch(..., connectionOptions)` from `LiteBus.Outbox.Dispatch.Amqp`. The extension registers `LiteBus.Transport.Amqp` with the shared `LiteBus.Outbox.Dispatch` dispatcher.
+Publish leased outbox envelopes to an AMQP 0.9.1 broker through `outbox.UseAmqpDispatch(...)` from `LiteBus.Outbox.Dispatch.Amqp`. Register the shared transport once at the root.
 
 ## When to Use It
 
@@ -13,22 +13,22 @@ For in-process replay into LiteBus event handlers, use `UseInProcessDispatch()` 
 ```csharp
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddOutboxModule(outbox =>
+    builder.AddAmqpTransport(new AmqpConnectionOptions
+    {
+        Uri = new Uri(configuration.GetConnectionString("Amqp")!)
+    });
+    builder.AddMessaging(_ => { });
+    builder.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<OrderSubmitted>("orders.order-submitted", 1);
         outbox.UseInMemoryStorage(); // or UsePostgreSqlStorage / UseEntityFrameworkCoreStorage
-        outbox.UseAmqpDispatch(
-            o => o.DefaultDestination = "orders.order-submitted", new AmqpConnectionOptions
-            {
-                Uri = new Uri(configuration.GetConnectionString("Amqp"!)
-            }));
+        outbox.UseAmqpDispatch(o => o.DefaultDestination = "orders.order-submitted");
         outbox.EnableOutboxProcessor();
     });
 });
 ```
 
-`UseAmqpDispatch` registers the AMQP transport module with the outbox dispatcher. No separate `AmqpTransportModule` registration is required.
+`UseAmqpDispatch` requires the root AMQP transport module and only configures durable envelope routing.
 
 ## Routing
 

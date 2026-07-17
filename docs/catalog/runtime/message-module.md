@@ -13,6 +13,7 @@
 
 | API | Role |
 | --- | --- |
+| `ILiteBusBuilder.AddMessaging(Action<MessageModuleBuilder>)` | Normal package-owned composition entry |
 | `MessageModule(Action<MessageModuleBuilder>)` | Module entry |
 | `MessageModuleBuilder.Register<T>()` / `Register(Type)` | Message and handler registration |
 | `MessageModuleBuilder.RegisterFromAssembly(Assembly)` | Assembly scan registration |
@@ -34,6 +35,7 @@
 - Message registry is shared per composition context.
 - Core services are registered during build.
 - New handlers are registered with scoped lifetime.
+- Composition fails when no `IMessageDispatchScopeFactory` is registered by a host adapter or explicit manual-host opt-in.
 
 ## Non-Goals
 
@@ -47,7 +49,7 @@ No dedicated runtime meter.
 
 ### Covered Use Cases
 
-#### `MessageModuleRegistrationGuardTests.AddQueryModule_WithoutMessageModule_ShouldThrowLiteBusConfigurationException`
+#### `QueryModulePrerequisiteGuardTests.AddQueryModule_WithoutMessageModule_ShouldFailModuleGraphValidation`
 - **Test kind**: Unit
 - **Expected outcome**: semantic module registration is blocked without message module foundation
 

@@ -10,14 +10,11 @@ A custom module allows you to introduce a new type of message with its own contr
 First, define the core interfaces for your module.
 
 ```csharp
-// A marker for all registrable types in this module
-public interface IRegistrableNotificationConstruct { }
-
 // The base notification message contract
-public interface INotification : IRegistrableNotificationConstruct { }
+public interface INotification { }
 
 // The handler contract
-public interface INotificationHandler<in TNotification> : IRegistrableNotificationConstruct, IAsyncMessageHandler<TNotification>
+public interface INotificationHandler<in TNotification> : IAsyncMessageHandler<TNotification>
     where TNotification : INotification
 {
 }
@@ -63,11 +60,27 @@ public sealed class NotificationModuleBuilder
 {
     private readonly IMessageRegistry _messageRegistry;
     public NotificationModuleBuilder(IMessageRegistry messageRegistry) => _messageRegistry = messageRegistry;
-    public NotificationModuleBuilder Register<T>() where T : IRegistrableNotificationConstruct => _messageRegistry.Register(typeof(T));
+
+    public NotificationModuleBuilder Register<T>()
+    {
+        var type = typeof(T);
+        var isNotification = typeof(INotification).IsAssignableFrom(type);
+        var isHandler = type.GetInterfaces().Any(candidate =>
+            candidate.IsGenericType &&
+            candidate.GetGenericTypeDefinition() == typeof(INotificationHandler<>));
+
+        if (!isNotification && !isHandler)
+        {
+            throw new LiteBusNotSupportedException($"Type '{type}' is not a notification or notification handler.");
+        }
+
+        _messageRegistry.Register(type);
+        return this;
+    }
 }
 
 // The module itself, which handles DI registration
-internal sealed class NotificationModule : IModule
+internal sealed class NotificationModule : IModule, IRequires<MessageModule>
 {
     private readonly Action<NotificationModuleBuilder> _builderAction;
 
@@ -92,17 +105,17 @@ Finally, create an extension method to make registration easy.
 ```csharp
 public static class ModuleRegistryExtensions
 {
-    public static IModuleRegistry AddNotificationModule(this IModuleRegistry moduleRegistry, Action<NotificationModuleBuilder> builderAction)
+    public static ILiteBusBuilder AddNotifications(
+        this ILiteBusBuilder builder,
+        Action<NotificationModuleBuilder> builderAction)
     {
-        if (!moduleRegistry.IsModuleRegistered<MessageModule>())
-        {
-            moduleRegistry.Register(new MessageModule(_ => { }));
-        }
-        moduleRegistry.Register(new NotificationModule(builderAction));
-        return moduleRegistry;
+        builder.Modules.Register(new NotificationModule(builderAction));
+        return builder;
     }
 }
 ```
+
+The application still calls `AddMessaging(...)`. The graph validates `IRequires<MessageModule>` after the callback, independent of declaration order. A semantic abstraction should describe notifications and handlers only; do not expose registration-only marker interfaces through domain contracts.
 
 ## Custom Mediation Strategies
 

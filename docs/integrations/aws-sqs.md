@@ -8,7 +8,7 @@
 
 | Package | Role |
 | --- | --- |
-| `LiteBus.Transport.AwsSqs` | `IMessageTransport`, `SqsConsumer`, `AwsSqsTransportOptions` |
+| `LiteBus.Transport.AwsSqs` | `ITransportPublisher`, `SqsConsumer`, `AwsSqsTransportOptions` |
 | `LiteBus.Inbox.Dispatch.AwsSqs` | Inbox processor publish to SQS |
 | `LiteBus.Outbox.Dispatch.AwsSqs` | Outbox processor publish to SQS |
 | `LiteBus.Inbox.Ingress.AwsSqs` | SQS intake into `IInbox.AcceptAsync` |
@@ -25,18 +25,19 @@ var sqsOptions = new AwsSqsTransportOptions
     SecretKey = "test"
 };
 
-builder.Modules.AddInboxModule(inbox =>
+builder.AddAwsSqsTransport(sqsOptions);
+builder.AddMessaging(_ => { });
+builder.AddInbox(inbox =>
 {
     inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
     inbox.UseInMemoryStorage(); // or PostgreSQL in production
-    inbox.UseAwsSqsDispatch(_ => { }, sqsOptions);
+    inbox.UseAwsSqsDispatch(_ => { });
     inbox.UseAwsSqsIngress(ingress =>
     {
         ingress.UseOptions(new AwsSqsInboxIngressOptions
         {
             Destination = queueUrl,
             PrefetchCount = 10,
-            Connection = sqsOptions,
             RequeueOnFailure = true
         });
     });

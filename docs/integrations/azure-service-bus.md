@@ -8,7 +8,7 @@
 
 | Package | Role |
 | --- | --- |
-| `LiteBus.Transport.AzureServiceBus` | `IMessageTransport`, `AzureServiceBusConsumer`, connection options |
+| `LiteBus.Transport.AzureServiceBus` | `ITransportPublisher`, `AzureServiceBusConsumer`, connection options |
 | `LiteBus.Inbox.Dispatch.AzureServiceBus` | Inbox processor publish to Service Bus |
 | `LiteBus.Outbox.Dispatch.AzureServiceBus` | Outbox processor publish to Service Bus |
 | `LiteBus.Inbox.Ingress.AzureServiceBus` | Service Bus intake into `IInbox.AcceptAsync` |
@@ -21,18 +21,19 @@ var transportOptions = new AzureServiceBusTransportOptions
     ConnectionString = configuration["ServiceBus:ConnectionString"]!
 };
 
-builder.Modules.AddInboxModule(inbox =>
+builder.AddAzureServiceBusTransport(transportOptions);
+builder.AddMessaging(_ => { });
+builder.AddInbox(inbox =>
 {
     inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
     inbox.UseInMemoryStorage();
-    inbox.UseAzureServiceBusDispatch(_ => { }, transportOptions);
+    inbox.UseAzureServiceBusDispatch(_ => { });
     inbox.UseAzureServiceBusIngress(ingress =>
     {
         ingress.UseOptions(new AzureServiceBusInboxIngressOptions
         {
             Destination = "orders-ingress",
             PrefetchCount = 10,
-            Connection = transportOptions,
             RequeueOnFailure = true
         });
     });

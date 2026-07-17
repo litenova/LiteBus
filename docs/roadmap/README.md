@@ -55,7 +55,7 @@ RabbitMQ and LavinMQ use the same AMQP 0.9.1 implementations through alias regis
 
 | Package | Role |
 | --- | --- |
-| `LiteBus.Transport.Abstractions` | `IMessageTransport`, `IMessageConsumer`, `ITenantRoutingStrategy`, transport headers, `TransportHeaderValues` |
+| `LiteBus.Transport.Abstractions` | `ITransportPublisher`, `IMessageConsumer`, `ITenantRoutingStrategy`, transport headers, `TransportHeaderValues` |
 | `LiteBus.Transport` | Shared circuit breaker metrics, consumer handler invoker, publish failure policy |
 | `LiteBus.Transport.Amqp` | RabbitMQ adapter |
 | `LiteBus.Transport.AzureServiceBus` | Azure Service Bus adapter |
@@ -92,10 +92,10 @@ Analyzer rules include LB1001 through LB1017 (LB1002 is intentionally unused). S
 | Package | Role |
 | --- | --- |
 | `LiteBus.Saga.Abstractions` | `ISagaStore`, `ISagaContext`, `SagaCorrelation`, `SagaSaveItem` |
-| `LiteBus.Saga.InboxIntegration` | `EnableSaga()`, `SagaProcessorHook`, in-memory store default |
+| `LiteBus.Saga.InboxIntegration` | Nested `EnableSaga(...)` bridge |
 | `LiteBus.Saga.Storage.PostgreSql` | PostgreSQL saga instance persistence |
 
-Call `EnableSaga()` on `InboxModuleBuilder` to register the inbox processor hook that loads and persists saga state around dispatch. Map saga definition identifiers and contracts in the optional configure callback. Use `UsePostgreSqlSagaStorage()` when PostgreSQL persistence is required.
+Call `EnableSaga(...)` on `InboxModuleBuilder` to register the inbox processor hook that loads and persists saga state around dispatch. Select exactly one store inside the callback with `UseInMemoryStorage()` or `UsePostgreSqlStorage(...)`.
 
 ### Payload Encryption and Tenant Isolation (Implemented)
 
@@ -146,8 +146,8 @@ These items extend the v6 reliability platform. Scope is CQRS infrastructure onl
 
 ### Developer Experience
 
-- Nested or guarded module registration on `IModuleRegistry` (for example `EnableOutboxProcessor` only when `AddOutboxModule` ran first, or inbox dispatch extensions that require inbox storage).
-- Flat `ILiteBusBuilder` helpers (`RegisterFromAssembly`, `UsePostgreSqlInbox`, `UsePostgreSqlOutbox`) that bypass nested module builders. Deferred; apps install only the packages they need and call the matching `AddInboxModule` / `AddOutboxModule` extensions in order.
+- Nested or guarded module registration on `IModuleRegistry` (for example `EnableOutboxProcessor` only when `AddOutbox` ran first, or inbox dispatch extensions that require inbox storage).
+- Flat `ILiteBusBuilder` helpers (`RegisterFromAssembly`, `UsePostgreSqlInbox`, `UsePostgreSqlOutbox`) that bypass nested module builders. Deferred; apps install only the packages they need and call the matching `AddInbox` / `AddOutbox` extensions in order.
 - Source generators and AOT-friendly registration as an opt-in alternative to reflection-based discovery.
 - Contract catalog CLI and JSON Schema export for envelope contract documentation and CI validation.
 - Additional analyzers for registration guardrails not yet covered (LB1014 already reports processor enabled without a dispatcher).

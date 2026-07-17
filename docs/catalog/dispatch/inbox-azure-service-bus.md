@@ -41,7 +41,13 @@ The extension registers `TransportInboxDispatchModule` with `AzureServiceBusTran
 ```csharp
 services.AddLiteBus(litebus =>
 {
-    litebus.AddInboxModule(inbox =>
+    litebus.AddAzureServiceBusTransport(new AzureServiceBusTransportOptions
+    {
+        ConnectionString = "<namespace-connection-string>",
+        ClientId = "orders-dispatcher"
+    });
+
+    litebus.AddInbox(inbox =>
     {
         inbox.EnableInboxProcessor();
         inbox.UseAzureServiceBusDispatch(
@@ -49,11 +55,6 @@ services.AddLiteBus(litebus =>
             {
                 options.DefaultDestination = "commands";
                 options.ResolveRoute = envelope => envelope.ContractName;
-            },
-            new AzureServiceBusTransportOptions
-            {
-                ConnectionString = "<namespace-connection-string>",
-                ClientId = "orders-dispatcher"
             });
     });
 });
@@ -61,7 +62,7 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `InboxModuleBuilder.UseAzureServiceBusDispatch(Action<TransportInboxDispatcherOptions>, AzureServiceBusTransportOptions)` | Registers inbox transport dispatcher with Azure Service Bus transport module |
+| `InboxModuleBuilder.UseAzureServiceBusDispatch(Action<TransportInboxDispatcherOptions>)` | Registers inbox transport dispatcher that requires the root Azure Service Bus transport |
 | `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | Shared publish flow for inbox leases |
 
 `AzureServiceBusTransportOptions`:

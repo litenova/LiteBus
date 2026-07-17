@@ -33,7 +33,7 @@ Typical call sites: command post-handlers draining domain events, application se
 
 ### Registration
 
-- **`AddOutboxModule()`** with **`Use*Storage()`** registered inside the same outbox module builder (required before first enqueue).
+- **`AddOutbox()`** with **`Use*Storage()`** registered inside the same outbox module builder (required before first enqueue).
 - **`Contracts.Register<TEvent>(name, version)`** or **`RegisterFromAssembly`** for each stored event type.
 - Default **`IOutbox`** registers as singleton against the non-transactional store.
 
@@ -58,7 +58,7 @@ Typical call sites: command post-handlers draining domain events, application se
 
 ## Requires
 
-- `AddOutboxModule` with `Use*Storage` inside the same builder
+- `AddOutbox` with `Use*Storage` inside the same builder
 - Contract registration for each stored event type
 - Exactly one `IOutboxDispatcher` when the processor is enabled
 

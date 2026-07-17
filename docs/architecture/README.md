@@ -2,28 +2,30 @@
 
 LiteBus is an in-process mediator with semantic modules for commands, queries, and events. v6 adds durable messaging through orthogonal **Storage**, **Dispatch**, and **Ingress** adapters without turning the mediator into a broker.
 
-## Core Layers
+## Architecture Roles
 
-| Layer | Responsibility | Main packages |
+| Role | Responsibility | Main packages |
 | --- | --- | --- |
-| Runtime | Container-neutral module and dependency registration | `LiteBus.Runtime.Abstractions`, `LiteBus.Runtime` |
-| Messaging | Message registry, handler descriptors, mediation pipeline, contract registry | `LiteBus.Messaging.Abstractions`, `LiteBus.Messaging` |
-| Semantic modules | Command, query, and event mediators | `LiteBus.Commands`, `LiteBus.Queries`, `LiteBus.Events` |
-| Durable core | Accept messages, lease rows, record state | `LiteBus.Inbox`, `LiteBus.Outbox` |
-| Storage adapters | Persist envelopes (PostgreSQL, EF Core, InMemory) | `LiteBus.Inbox.Storage.*`, `LiteBus.Outbox.Storage.*`, `LiteBus.Storage.PostgreSql` |
-| Dispatch adapters | Execute or publish leased envelopes | `LiteBus.Inbox.Dispatch.*`, `LiteBus.Outbox.Dispatch.*` |
-| Ingress adapters | External transport into inbox storage | `LiteBus.Inbox.Ingress.*` |
-| Shared transport | Transport abstractions, circuit breaker, broker adapters | `LiteBus.Transport.Abstractions`, `LiteBus.Transport`, `LiteBus.Transport.Amqp`, `LiteBus.Transport.AzureServiceBus`, `LiteBus.Transport.AwsSqs`, `LiteBus.Transport.InMemory`, `LiteBus.Transport.Kafka` |
+| Platform contracts | Container-neutral modules, dispatch scope, and transport contracts | `LiteBus.Runtime.Abstractions`, `LiteBus.Transport.Abstractions` |
+| Mediation contracts | Message and semantic handler contracts | `LiteBus.Messaging.Abstractions`, command/query/event abstractions |
+| Durable contracts | Durable metadata, leases, processor hooks, and axis contracts | `LiteBus.DurableMessaging.Abstractions`, inbox/outbox/saga abstractions |
+| Core implementations | Module runtime, mediation, semantic mediators, and durable processors | `LiteBus.Runtime`, `LiteBus.Messaging`, `LiteBus.Commands`, `LiteBus.Queries`, `LiteBus.Events`, `LiteBus.Inbox`, `LiteBus.Outbox`, `LiteBus.Saga` |
+| Technology adapters | Broker and persistence SDK ownership | `LiteBus.Transport.*`, `LiteBus.Storage.PostgreSql`, `LiteBus.Storage.EntityFrameworkCore` |
+| Feature bridges | Storage, dispatch, ingress, and saga-to-inbox mapping | `LiteBus.Inbox.*`, `LiteBus.Outbox.*`, `LiteBus.Saga.InboxIntegration`, `LiteBus.Saga.Storage.*` adapters |
+| Host adapters | DI, hosting, telemetry, health, and ASP.NET Core mapping | `LiteBus.Runtime.Extensions.*`, `LiteBus.*.Extensions.*`, `LiteBus.Extensions.*` |
+| Consumer tooling | Analyzer and application test support | `LiteBus.Analyzers`, `LiteBus.Testing` |
 
 ## Startup Model
 
-Applications call `AddLiteBus` and register LiteBus through `ILiteBusBuilder` (`LiteBus.Runtime.Composition`) or `IModuleRegistry`. Each module contributes dependency descriptors to the runtime registry. The selected DI adapter translates descriptors into container registrations using shared conflict policy from `LiteBus.Runtime`.
+Applications call `AddLiteBus` and configure package extensions on `ILiteBusBuilder` from `LiteBus.Runtime.Abstractions`. The builder exposes only `Modules`; normal application code uses package-owned extensions such as `AddMessaging`, `AddCommands`, `AddInbox`, and `AddOutbox`. `IModuleRegistry` remains available for advanced composition. Each module contributes dependency descriptors, and the selected container adapter translates them into registrations.
 
 `IModuleRegistry.BuildOrder()` resolves modules in topological order and freezes further registration. `AddLiteBus` calls `BuildOrder()` after the configuration callback returns.
 
 Manifest startup tasks and background services are executed by a single generic-host orchestrator (`LiteBusHostOrchestrator`). Startup tasks run sequentially during `StartAsync`; background service loops start only after every startup task succeeds. A startup task failure aborts host startup and leaves background services unstarted.
 
 Core inbox and outbox modules register writers and processors only. Storage, dispatch, and ingress are separate registrations. Processor background services fail fast when no dispatcher is registered.
+
+Microsoft DI and Autofac each provide one `IMessageDispatchScopeFactory`. Messaging composition fails when no dispatch-scope adapter is registered. Manual hosts can select `RootMessageDispatchScopeFactory` explicitly when root-provider dispatch is acceptable.
 
 ## Mediation Pipeline
 
@@ -183,36 +185,37 @@ Framework-neutral diagnostic probes use `IDiagnosticCheck` and `LiteBusHostManif
 
 ## Transport Platform
 
-Broker clients implement `IMessageTransport` and `IMessageConsumer` from `LiteBus.Transport.Abstractions`. Shared dispatch logic lives in `LiteBus.Inbox.Dispatch` and `LiteBus.Outbox.Dispatch`. Broker-specific packages (`*.Dispatch.Amqp`, `*.Dispatch.InMemory`) register the matching transport module with the shared dispatcher. Ingress uses `LiteBus.Inbox.Ingress` with broker packages such as `LiteBus.Inbox.Ingress.Amqp`. Shared circuit breaker metrics live in `LiteBus.Transport`; transport header value parsing lives in `LiteBus.Transport.Abstractions`; envelope header mapping lives in the dispatch and ingress adapter packages.
+Broker clients implement `ITransportPublisher` and `IMessageConsumer` from `LiteBus.Transport.Abstractions`. Shared dispatch logic lives in `LiteBus.Inbox.Dispatch` and `LiteBus.Outbox.Dispatch`. Broker transports are root modules shared by dispatch and ingress adapters. Shared circuit breaker metrics live in `LiteBus.Transport`; transport header value parsing lives in `LiteBus.Transport.Abstractions`; envelope header mapping lives in the dispatch and ingress adapter packages.
 
-| Package | Layer | Broker | Destination mapping |
+| Package | Role | Broker | Destination mapping |
 | --- | --- | --- | --- |
-| `LiteBus.Transport.Amqp` | 2 | RabbitMQ | Publish: `Destination` = exchange, `Route` = routing key. Consume: `Destination` = queue name, `Route` = routing key |
-| `LiteBus.Transport.AzureServiceBus` | 2 | Azure Service Bus | `Destination` = queue or topic; `Route` = subject |
-| `LiteBus.Transport.AwsSqs` | 2 | Amazon SQS | `Destination` = queue URL |
-| `LiteBus.Transport.InMemory` | 2 | `System.Threading.Channels` | `Destination` = logical queue name |
-| `LiteBus.Transport.Kafka` | 2 | Apache Kafka (Confluent) | `Destination` = topic; `Route` = record key |
+| `LiteBus.Transport.Amqp` | Technology adapter | RabbitMQ | Publish: `Destination` = exchange, `Route` = routing key. Consume: `Destination` = queue name, `Route` = routing key |
+| `LiteBus.Transport.AzureServiceBus` | Technology adapter | Azure Service Bus | `Destination` = queue or topic; `Route` = subject |
+| `LiteBus.Transport.AwsSqs` | Technology adapter | Amazon SQS | `Destination` = queue URL |
+| `LiteBus.Transport.InMemory` | Technology adapter | `System.Threading.Channels` | `Destination` = logical queue name |
+| `LiteBus.Transport.Kafka` | Technology adapter | Apache Kafka (Confluent) | `Destination` = topic; `Route` = record key |
 
-Register one transport module per process. Each module registers `IMessageTransport`, `IMessageConsumer`, and the shared `LiteBus.Transport` circuit breaker metrics.
+Register one transport module per process. Each module registers `ITransportPublisher`, `IMessageConsumer`, and the shared `LiteBus.Transport` circuit breaker metrics.
 
 ```csharp
-inbox.UseAmqpDispatch(
-    options =>
+services.AddLiteBus(bus =>
+{
+    bus.AddAmqpTransport(new AmqpConnectionOptions
+    {
+        Uri = new Uri(configuration["Amqp:Uri"]!)
+    });
+    bus.AddMessaging(_ => { });
+
+    bus.AddInbox(inbox => inbox.UseAmqpDispatch(options =>
     {
         options.DefaultDestination = "orders.commands";
-    },
-    new AmqpConnectionOptions { Uri = new Uri(configuration["Amqp:Uri"]!) });
+    }));
 
-outbox.UseAmqpDispatch(
-    options =>
+    bus.AddOutbox(outbox => outbox.UseAmqpDispatch(options =>
     {
         options.DefaultDestination = "orders.events";
-    },
-    new AmqpConnectionOptions { Uri = new Uri(configuration["Amqp:Uri"]!) });
-
-// In-memory transport for pipeline tests without an external broker
-inbox.UseInMemoryDispatch(options => { options.DefaultDestination = "commands"; });
-outbox.UseInMemoryDispatch(options => { options.DefaultDestination = "events"; });
+    }));
+});
 ```
 
 ### Kafka At-Least-Once Semantics
@@ -241,9 +244,7 @@ Minimum acknowledgement and recovery behavior implemented by each adapter. Raw `
 
 ### AMQP Transport Bootstrap
 
-`UseAmqpDispatch` owns an `AmqpTransportModule` child by default. A host that shares one transport across inbox dispatch, outbox dispatch, and ingress registers `AmqpTransportModule` once at the composition root, calls `UseAmqpDispatchWithRegisteredTransport` on each durable builder, and calls `UseRegisteredTransport` on the ingress builder.
-
-Dispatch and ingress child modules declare `IRequires<AmqpTransportModule>`. Composition therefore validates the transport dependency and orders the shared transport before each adapter. Child modules never call another module's `Build()` method.
+`AddAmqpTransport` registers the single root `AmqpTransportModule`. `UseAmqpDispatch` and `UseAmqpIngress` only configure feature bridges. Their modules declare `IRequires<AmqpTransportModule>`, so composition rejects a missing root transport before any module builds. Kafka, AWS SQS, Azure Service Bus, and in-memory adapters use the same ownership rule.
 
 Inbox composite child order remains storage, dispatcher, then ingress for same-level children. Static module dependencies take precedence when topological sorting requires a lower-level transport module first.
 
@@ -259,12 +260,12 @@ Dispatch adapters turn a leased envelope into a side effect. Core processors cal
 Inbox processor
   -> IInboxDispatcher.DispatchAsync(InboxEnvelope)
      -> Inbox.Dispatch.InProcess: deserialize, require ICommand, ICommandMediator.SendAsync
-     -> Inbox.Dispatch + *.Dispatch.Amqp / *.Dispatch.InMemory: publish via IMessageTransport
+     -> Inbox.Dispatch + *.Dispatch.Amqp / *.Dispatch.InMemory: publish via ITransportPublisher
 
 Outbox processor
   -> IOutboxDispatcher.DispatchAsync(OutboxEnvelope)
      -> Outbox.Dispatch.InProcess: deserialize, IEventMediator.PublishAsync
-     -> Outbox.Dispatch + *.Dispatch.Amqp / *.Dispatch.InMemory: publish via IMessageTransport with contract headers
+     -> Outbox.Dispatch + *.Dispatch.Amqp / *.Dispatch.InMemory: publish via ITransportPublisher with contract headers
 ```
 
 ```mermaid
@@ -306,7 +307,7 @@ Pass-level abort still applies to leasing, channel fan-out, and cooperative shut
 | `HookFailurePolicy` | Dispatcher-specific | Transport outbox dispatch defaults to `CompleteDespiteHookFailure`; in-process outbox and inbox processors default to `DeadLetter`. See [Outbox](../reliable-messaging/outbox.md) and [Inbox](../reliable-messaging/inbox.md). |
 | `TenantId` | `null` | Limits leasing to one tenant partition |
 
-`IProcessorEnvelopeHook` implementations from `LiteBus.Orchestration.Abstractions` run around each leased envelope. Inbox and outbox map envelopes through adapters. `EnableSaga()` registers saga hooks without coupling `LiteBus.Saga` to inbox abstractions.
+`IProcessorEnvelopeHook` implementations from `LiteBus.DurableMessaging.Abstractions` run around each leased envelope. Inbox and outbox map envelopes through adapters. `EnableSaga()` registers saga hooks without coupling `LiteBus.Saga` to inbox abstractions.
 
 Set `DispatcherConcurrency` above `1` only when handlers are safe to run in parallel. Background services create a per-message DI scope so scoped handlers (for example `DbContext`) resolve correctly.
 
@@ -397,22 +398,27 @@ Closed generic messages are supported when each closed type has a registered con
 
 ## Saga Orchestration
 
-Saga integrates through `inbox.EnableSaga()` from `LiteBus.Saga.InboxIntegration`. Saga depends on `LiteBus.Orchestration.Abstractions` (`IProcessorEnvelopeHook`), not inbox types on its public surface. The inbox core invokes hooks through an envelope adapter.
+Saga integrates through `inbox.EnableSaga(...)` from `LiteBus.Saga.InboxIntegration`. `SagaModuleBuilder` owns exactly one explicit storage module. Use `UseInMemoryStorage()` for tests or select a persistence adapter; missing or duplicate storage fails composition.
 
-| Package | Layer | Responsibility |
+| Package | Role | Responsibility |
 | --- | --- | --- |
-| `LiteBus.Orchestration.Abstractions` | 1 | `IProcessorEnvelopeHook`, orchestration-neutral envelope contract |
-| `LiteBus.Saga.Abstractions` | 1 | `ISagaStore`, `ISagaContext`, saga state registry |
-| `LiteBus.Saga` | 2 | `SagaProcessorHook` implementation |
-| `LiteBus.Saga.InboxIntegration` | 4 | `EnableSaga()` on `InboxModuleBuilder` |
-| `LiteBus.Saga.Storage.PostgreSql` | 4 | PostgreSQL saga instance persistence |
+| `LiteBus.DurableMessaging.Abstractions` | Durable contracts | `IProcessorEnvelopeHook`, durable metadata, retry, and lease contracts |
+| `LiteBus.Saga.Abstractions` | Durable contracts | `ISagaStore`, `ISagaContext`, saga state registry |
+| `LiteBus.Saga` | Core implementation | `SagaProcessorHook`, `SagaModule`, and `SagaModuleBuilder` |
+| `LiteBus.Saga.InboxIntegration` | Feature bridge | Nested `EnableSaga(...)` on `InboxModuleBuilder` |
+| `LiteBus.Saga.Storage.PostgreSql` | Feature bridge | PostgreSQL saga instance persistence |
 
 ```csharp
-builder.Modules.AddInboxModule(inbox =>
+builder.AddMessaging(_ => { });
+builder.AddInbox(inbox =>
 {
     inbox.Contracts.Register<AdvanceOrderSagaCommand>("orders.saga.advance", 1);
-    inbox.EnableSaga(saga => saga.MapState<OrderSagaState>("orders.saga.advance"));
-    inbox.UsePostgreSqlSagaStorage(pg => pg.UseDataSource(dataSource));
+    inbox.EnableSaga(saga =>
+    {
+        saga.RegisterState<OrderSagaState>("orders.saga");
+        saga.MapContract("orders.saga.advance", "orders.saga");
+        saga.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
+    });
 });
 ```
 
@@ -437,12 +443,10 @@ inbox.UsePayloadEncryption(myEncryptor);
 outbox.UsePayloadEncryption(myEncryptor);
 
 inbox.UseProcessorOptions(new InboxProcessorOptions { TenantId = "tenant-a" });
-inbox.UseAmqpDispatch(
-    options =>
-    {
-        options.DefaultDestination = "commands";
-    },
-    new AmqpConnectionOptions { Uri = new Uri(configuration["Amqp:Uri"]!) });
+inbox.UseAmqpDispatch(options =>
+{
+    options.DefaultDestination = "commands";
+});
 ```
 
 ## Composite Store Roles
@@ -458,22 +462,25 @@ Fine-grained store interfaces remain public. Processors and managers depend on c
 
 ## Module Composition
 
-Parent modules with storage, dispatch, or ingress children implement `ICompositeModule`. `DeclareChildren` runs during `Register()` before any `Build()`. The builder action runs inside `DeclareChildren`. Child modules are inserted depth-first through `Register()`, then `BuildOrder()` topologically sorts modules that declare `IRequires<T>` prerequisites. `InboxModule` and `OutboxModule` set `InboxCoreRegisteredMarker` / `OutboxCoreRegisteredMarker` on the module configuration context during `Build()`. Storage and dispatch adapters call `InboxModuleRegistrationGuard` / `OutboxModuleRegistrationGuard` at the start of `Build()` so they fail fast when registered outside `AddInboxModule` / `AddOutboxModule`. Ingress adapters register only through the parent `InboxModuleBuilder` (`RegisterIngress`); they rely on composite parent-first registration rather than axis core markers. Duplicate registration of the same module type throws `LiteBusConfigurationException` at compose time.
+Parent modules use `ICompositeModule` to declare storage, dispatch, ingress, and saga children. Child membership is collected before build. `BuildOrder()` validates every `IRequires<TModule>` edge, inserts composite children, and topologically sorts the complete graph before any `Build()` call. Configuration context stores shared configuration objects only; registration markers and dependency-registry scans are not part of ordering. Duplicate registration of the same module type throws `LiteBusConfigurationException` at compose time.
 
 Register adapters inside the parent builder:
 
 ```csharp
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddAmqpTransport(new AmqpConnectionOptions
+    {
+        Uri = new Uri(configuration["Amqp:Uri"]!)
+    });
+    builder.AddMessaging(_ => { });
+    builder.AddInbox(inbox =>
     {
         inbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
-        inbox.UseAmqpDispatch(
-            options =>
-            {
-                options.DefaultDestination = "commands";
-            },
-            new AmqpConnectionOptions { Uri = new Uri(configuration["Amqp:Uri"]!) });
+        inbox.UseAmqpDispatch(options =>
+        {
+            options.DefaultDestination = "commands";
+        });
         inbox.EnableInboxProcessor();
     });
 });

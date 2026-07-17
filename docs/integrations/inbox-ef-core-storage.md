@@ -25,9 +25,12 @@ For PostgreSQL-backed apps that use raw Npgsql inbox storage instead, see [Postg
 
 
 ```csharp
+services.AddDbContextFactory<AppDbContext>(options => options.UseNpgsql(connectionString));
+
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddMessaging(_ => { });
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<PlaceOrder>("orders.place", 1);
         inbox.UseEntityFrameworkCoreStorage(options => options.UseDbContext<AppDbContext>());
@@ -39,7 +42,7 @@ builder.Services.AddLiteBus(builder =>
 
 
 
-`AppDbContext` must implement `IInboxDbContext` and expose `DbSet<InboxMessageEntity> InboxMessages`.
+`AppDbContext` must implement `IInboxDbContext` and expose `DbSet<InboxMessageEntity> InboxMessages`. The adapter requires `IDbContextFactory<AppDbContext>`, creates one context per store operation, and disposes it after the operation. It does not create a dependency injection scope inside the store.
 
 
 
@@ -92,7 +95,7 @@ Override names with `EntityFrameworkCoreInboxStoreOptions`:
 
 
 ```csharp
-builder.Modules.AddInboxModule(inbox =>
+builder.AddInbox(inbox =>
 {
     inbox.UseEntityFrameworkCoreStorage(options =>
     {

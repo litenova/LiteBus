@@ -41,18 +41,19 @@ Registers `TransportOutboxDispatchModule` with `KafkaTransportModule`. Outbox pr
 ```csharp
 services.AddLiteBus(litebus =>
 {
-    litebus.AddOutboxModule(outbox =>
+    litebus.AddKafkaTransport(new KafkaTransportOptions
+    {
+        BootstrapServers = "localhost:9092",
+        ClientId = "orders-outbox-dispatch"
+    });
+
+    litebus.AddOutbox(outbox =>
     {
         outbox.EnableOutboxProcessor();
         outbox.UseKafkaDispatch(
             options =>
             {
                 options.DefaultDestination = "orders.events";
-            },
-            new KafkaTransportOptions
-            {
-                BootstrapServers = "localhost:9092",
-                ClientId = "orders-outbox-dispatch"
             });
     });
 });
@@ -60,7 +61,7 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `OutboxModuleBuilder.UseKafkaDispatch(Action<TransportOutboxDispatcherOptions>, KafkaTransportOptions)` | Registers outbox transport dispatcher and Kafka transport module |
+| `OutboxModuleBuilder.UseKafkaDispatch(Action<TransportOutboxDispatcherOptions>)` | Registers outbox transport dispatcher that requires the root Kafka transport |
 | `TransportOutboxDispatchModule.DefaultHookFailurePolicy` | Defaults to `CompleteDespiteHookFailure` |
 | `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | Publishes outbox payload and headers to Kafka |
 

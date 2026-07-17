@@ -3,7 +3,7 @@
 - **ID**: `storage.inbox.adapter.efcore`
 - **Name**: Inbox EF Core adapter
 - **Maturity**: GA
-- **Summary**: Entity Framework Core inbox store on a shared `DbContext`, with provider-specific leasing for PostgreSQL, SQL Server, and MySQL.
+- **Summary**: Entity Framework Core inbox store with factory-created operation contexts and provider-specific leasing for PostgreSQL, SQL Server, and MySQL.
 
 ## What It Does
 
@@ -54,7 +54,7 @@ inbox.UseEntityFrameworkCoreStorage(o =>
 });
 ```
 
-- Single scoped/singleton store instance registered for all inbox store roles.
+- One store implementation is registered for all inbox store roles and opens an operation context through `IDbContextFactory<TContext>`.
 - Interceptor must also be added to `DbContextOptions` in application startup.
 
 ### Configuration
@@ -62,7 +62,7 @@ inbox.UseEntityFrameworkCoreStorage(o =>
 | Option surface | Purpose |
 | --- | --- |
 | `EntityFrameworkCoreInboxStoreOptions` | Schema, table, lease duration, conflict mode |
-| `UseDbContext<TContext>()` | Factory for store `DbContext` |
+| `UseDbContext<TContext>()` | Selects the application-registered `IDbContextFactory<TContext>` |
 | `EnableSaveChangesInterceptor()` / `EnforceTransactionalSetup()` | Transactional accept path |
 | `GetModelBuilderConfiguration()` | Application-owned EF model (see schema ownership) |
 
@@ -73,21 +73,22 @@ inbox.UseEntityFrameworkCoreStorage(o =>
 
 ## Packages
 
-| Package | Layer |
+| Package | Dependency role |
 | --- | --- |
-| `LiteBus.Inbox.Storage.EntityFrameworkCore` | 4 |
-| `LiteBus.Storage.EntityFrameworkCore` | 3 (transitive) |
+| `LiteBus.Inbox.Storage.EntityFrameworkCore` | Feature bridge |
+| `LiteBus.Storage.EntityFrameworkCore` | Technology adapter (transitive) |
 
 ## Requires
 
 - EF Core relational provider
+- `AddDbContextFactory<TContext>(...)` in application composition
 - Application migrations including inbox entity configuration
-- Dispatch registered before processor enablement
+- Dispatch and processor configuration in the same inbox builder
 
 ## Invariants
 
 - Model configuration must match store expectations (column names, indexes, filtered idempotency index).
-- Singleton auto-commit store uses scoped factory; transactional paths use caller context.
+- Auto-commit operations use factory-created contexts; transactional paths use the caller context.
 
 ## Non-Goals
 

@@ -33,7 +33,7 @@ Ingress adapters on the receiving side read the same header conventions to popul
 
 ## Non-Goals
 
-- Does not define broker-specific property bags beyond what `IMessageTransport` abstracts.
+- Does not define broker-specific property bags beyond what `ITransportPublisher` abstracts.
 - Does not validate header round-trip at dispatch time (consumer/ingress responsibility).
 - Does not encrypt header values (payload protection applies to body only).
 
@@ -121,6 +121,6 @@ No dedicated header-mapping counter or meter. Mapping failures surface as dispat
 
 ### Out-of-Scope
 
-- Broker-specific property bags beyond `IMessageTransport` abstraction
+- Broker-specific property bags beyond `ITransportPublisher` abstraction
 - Dispatch-time validation of header round-trip (consumer and ingress responsibility)
 - Encrypting header values (payload protection applies to body only)

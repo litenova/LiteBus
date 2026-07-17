@@ -7,7 +7,7 @@
 
 ## Purpose and Scope
 
-`UseAwsSqsIngress` registers `AwsSqsInboxIngressModule`. The module maps `AwsSqsInboxIngressOptions` (queue URL destination, prefetch batch size, requeue) into shared transport ingress options, bootstraps `AwsSqsTransportModule` when needed, and registers the shared handler and consumer.
+`UseAwsSqsIngress` registers `AwsSqsInboxIngressModule`. The module maps `AwsSqsInboxIngressOptions` (queue URL destination, prefetch batch size, requeue) into shared transport ingress options, requires a root `AwsSqsTransportModule`, and registers the shared handler and consumer.
 
 SQS visibility timeout and delete-on-ack semantics are implemented in the transport consumer; ingress applies shared accept-then-ack ordering on top.
 
@@ -21,22 +21,22 @@ AWS SQS ingress has strong scenario coverage, including requeue on and off, but 
 ## Public Surface
 
 ```csharp
-inbox.UseAwsSqsIngress(ingress =>
+bus.AddAwsSqsTransport(sqsOptions);
+bus.AddInbox(inbox => inbox.UseAwsSqsIngress(ingress =>
 {
     ingress.UseOptions(new AwsSqsInboxIngressOptions
     {
         Destination = queueUrl,
         PrefetchCount = 10,
-        Connection = sqsOptions,
         RequeueOnFailure = true
     });
-});
+}));
 ```
 
 | Builder API | Role |
 | --- | --- |
 | `InboxModuleBuilder.UseAwsSqsIngress(Action<AwsSqsInboxIngressModuleBuilder>)` | Registration extension |
-| `AwsSqsInboxIngressModuleBuilder.UseOptions(AwsSqsInboxIngressOptions)` | Queue URL and connection |
+| `AwsSqsInboxIngressModuleBuilder.UseOptions(AwsSqsInboxIngressOptions)` | Queue URL and ingress behavior |
 | `AwsSqsInboxIngressModuleBuilder.DisableIngressConsumer()` | Handler without poll loop |
 | `AwsSqsInboxIngressModule` | Child module |
 
@@ -45,7 +45,7 @@ inbox.UseAwsSqsIngress(ingress =>
 | Capability | AWS SQS ingress | AMQP ingress |
 | --- | --- | --- |
 | Destination required | `Destination` (queue URL) required | `QueueName` required |
-| Connection required | `Connection` required | `Connection` required |
+| Root transport required | `AddAwsSqsTransport(...)` | `AddAmqpTransport(...)` |
 | Prefetch setting | yes | yes |
 | `RequeueOnFailure` toggle | yes (default true) | yes (default true) |
 | `TrustApplicationHeaders` exposure on broker options | no | yes |
@@ -55,7 +55,7 @@ inbox.UseAwsSqsIngress(ingress =>
 ## Packages
 
 - `LiteBus.Inbox.Ingress.AwsSqs`
-- `LiteBus.Transport.AwsSqs` (transitive when bootstrapped)
+- `LiteBus.Transport.AwsSqs` (explicit root transport)
 
 ## Requires
 
@@ -66,7 +66,7 @@ inbox.UseAwsSqsIngress(ingress =>
 
 ## Invariants
 
-- `Destination` (queue URL) and `Connection` are required at compose time.
+- `Destination` (queue URL) and root `AddAwsSqsTransport(...)` are required at compose time.
 - Standard LiteBus wire headers required for contract resolution.
 - Beta tier per v6 feature index.
 - Identity and idempotency default to broker-scoped values (`RequireStableIdentity=true`, `TrustApplicationHeaders=false`).
@@ -92,7 +92,7 @@ Meter `LiteBus.Inbox` via `AddLiteBusInboxMetrics()`.
 | Signal | Broker tag | Registration |
 | --- | --- | --- |
 | `process {destination}` activity | `aws_sqs` | `AddLiteBusTransportInstrumentation()` |
-| `litebus.transport.circuit_breaker.open` | `sqs` | Transport metrics when ingress bootstraps adapter |
+| `litebus.transport.circuit_breaker.open` | `sqs` | Transport metrics from the root adapter |
 | `litebus.transport.circuit_breaker.failure_count` | `sqs` | same |
 
 Visibility timeout and delete semantics are transport-layer; ingress applies accept-then-ack ordering on top.

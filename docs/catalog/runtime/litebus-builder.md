@@ -3,33 +3,34 @@
 - **ID**: `runtime.litebus-builder`
 - **Name**: Composition builder surface
 - **Maturity**: GA
-- **Summary**: Exposes `Modules` and deferred `Contracts` registration through `ILiteBusBuilder`.
+- **Summary**: Exposes the package-neutral module registry through `ILiteBusBuilder`.
 
 ## What It Does
 
-`ILiteBusBuilder` is the root compose callback surface. `Modules` registers runtime and feature modules. `Contracts` captures shared contract registrations and replays them when `MessageModule` builds.
+`ILiteBusBuilder` is the root compose callback surface in `LiteBus.Runtime.Abstractions`. Its only member is `Modules`; installed feature packages add `AddMessaging`, `AddCommands`, `AddQueries`, `AddEvents`, `AddInbox`, `AddOutbox`, and root transport extensions. Advanced callers can use `Modules` directly.
 
 ## Public Surface
 
 | API | Role |
 | --- | --- |
 | `ILiteBusBuilder.Modules` | `IModuleRegistry` access |
-| `ILiteBusBuilder.Contracts` | Shared `IContractWriter` |
-| `LiteBusBuilder(IModuleRegistry, MessageContractBuilder)` | Runtime implementation |
+| `LiteBusBuilder(IModuleRegistry)` | Runtime implementation |
+| Package-owned `Add*` extensions | Normal feature composition without runtime-to-feature references |
 
 ## Packages
 
-- `LiteBus.Runtime`
+- `LiteBus.Runtime.Abstractions` for the interface
+- `LiteBus.Runtime` for the default implementation
 
 ## Requires
 
 - `runtime.module-registry`
-- `runtime.contract-registry`
 
 ## Invariants
 
-- Builder constructor rejects null dependencies.
-- Shared contract registrations are deferred until message module build.
+- Builder constructor rejects a null registry.
+- Runtime does not reference Messaging or any feature package.
+- Message contracts are registered on `AddMessaging`, `AddInbox`, or `AddOutbox` builders.
 
 ## Non-Goals
 
@@ -43,19 +44,19 @@ No dedicated telemetry.
 
 ### Covered Use Cases
 
-#### `LiteBusBuilderTests.AddLiteBus_WithSharedContracts_ShouldRegisterContractsInResolvedRegistry`
+#### `LiteBusBuilderTests.AddLiteBus_WithMessagingContracts_ShouldRegisterContractsInResolvedRegistry`
 - **Test kind**: Unit
-- **Expected outcome**: shared contracts are replayed into live contract registry
+- **Expected outcome**: contracts registered through `AddMessaging` resolve from the live contract registry
 
-#### `LiteBusBuilderTests.AddLiteBus_WithSharedAndModuleContracts_ShouldApplyBothWithoutConflict`
+#### `LiteBusBuilderTests.AddLiteBus_WithMultipleMessagingContracts_ShouldApplyAllRegistrations`
 - **Test kind**: Unit
-- **Expected outcome**: both registration paths succeed when compatible
+- **Expected outcome**: multiple module-owned registrations are applied together
 
 ### Untested Use Cases
 
 | Use case | Priority | Notes |
 | --- | --- | --- |
-| Very large shared contract lists | Low | Functional replay is covered |
+| Very large module-local contract lists | Low | Functional registration is covered |
 
 ### Out-of-Scope Use Cases
 

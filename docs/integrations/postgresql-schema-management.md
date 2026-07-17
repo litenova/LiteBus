@@ -119,10 +119,10 @@ When inbox and outbox share one database, build a single `NpgsqlDataSource` and 
 ```csharp
 var dataSource = NpgsqlDataSource.Create(configuration.GetConnectionString("OrdersDb")!);
 
-builder.Modules.AddInboxModule(inbox =>
+builder.AddInbox(inbox =>
     inbox.UsePostgreSqlStorage(p => p.UseDataSource(dataSource)));
 
-builder.Modules.AddOutboxModule(outbox =>
+builder.AddOutbox(outbox =>
     outbox.UsePostgreSqlStorage(p => p.UseDataSource(dataSource)));
 ```
 
@@ -178,7 +178,7 @@ Enable automatic schema creation when the generic host starts. Call `EnsureSchem
 ```csharp
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<MyCommand>("my.command", 1);
         inbox.UsePostgreSqlStorage(postgres =>
@@ -338,14 +338,14 @@ LiteBus v6 does not upgrade pre-v6 store tables. Drop and recreate the inbox/out
 Register storage and dispatchers before processor modules so dependencies resolve during module build:
 
 ```csharp
-builder.Modules.AddInboxModule(inbox =>
+builder.AddInbox(inbox =>
 {
     inbox.UsePostgreSqlStorage(pg => pg.EnsureSchemaCreationOnStartup());
     inbox.UseInProcessDispatch();
     inbox.EnableInboxProcessor();
 });
 
-builder.Modules.AddOutboxModule(outbox =>
+builder.AddOutbox(outbox =>
 {
     outbox.UsePostgreSqlStorage(pg => pg.EnsureSchemaCreationOnStartup());
     outbox.UseInProcessDispatch();

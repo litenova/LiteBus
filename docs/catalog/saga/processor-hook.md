@@ -26,7 +26,7 @@ On `AfterDispatchAsync`, if the handler marked state dirty, the hook saves once 
 ## Packages
 
 - `LiteBus.Saga`
-- `LiteBus.Orchestration.Abstractions` (implements `IProcessorEnvelopeHook`)
+- `LiteBus.DurableMessaging.Abstractions` (implements `IProcessorEnvelopeHook`)
 - `LiteBus.Saga.Abstractions` (store and registry dependencies)
 
 ## Requires
@@ -125,7 +125,7 @@ No dedicated saga hook meters or activity sources in v6.
 
 - **Use case**: Hook persists to PostgreSQL after in-process inbox dispatch.
 - **Test kind**: Integration
-- **Description**: `EnableSaga` + `UsePostgreSqlSagaStorage` composition.
+- **Description**: `EnableSaga` + `UsePostgreSqlStorage` composition.
 - **Behavior**: Single correlated command through full hook pipeline.
 - **Expected outcome**: PostgreSQL saga row with expected state snapshot.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.

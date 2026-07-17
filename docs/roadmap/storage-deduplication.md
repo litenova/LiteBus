@@ -52,12 +52,12 @@ Public surfaces (`IInboxStore`, `IOutboxStore`, `IInboxProcessingStore`, `IOutbo
 
 ## Design Constraints
 
-Follow [Dependency graph](../architecture/dependency-graph.md) layer rules:
+Follow [Dependency graph](../architecture/dependency-graph.md) dependency role rules:
 
 | Rule | Application |
 | --- | --- |
-| Layer 3 shared storage | Generic cores live in `LiteBus.Storage.PostgreSql` and `LiteBus.Storage.EntityFrameworkCore` only |
-| Layer 4 adapters | Inbox/outbox storage packages reference layer 3; they supply axis-specific mappers and table options |
+| Technology adapters | Generic cores live in `LiteBus.Storage.PostgreSql` and `LiteBus.Storage.EntityFrameworkCore` only |
+| Feature bridges | Inbox/outbox storage packages reference the matching technology adapter; they supply axis-specific mappers and table options |
 | Abstractions stay abstract | Store interfaces remain in `*.Abstractions`; mappers implement internal ports, not broker SDK types on public API |
 | Tests prove behavior | `LiteBus.Storage.Testing` contract bases must pass unchanged; add concurrent persist and batch idempotency regressions if cores move |
 
@@ -65,19 +65,19 @@ Follow [Dependency graph](../architecture/dependency-graph.md) layer rules:
 
 ```mermaid
 flowchart TB
-  subgraph abstractions [Layer 1 abstractions]
+  subgraph abstractions [Durable contracts]
     IInboxStore[IInboxStore / IInboxProcessingStore]
     IOutboxStore[IOutboxStore / IOutboxProcessingStore]
   end
 
-  subgraph adapters [Layer 4 adapters thin facades]
+  subgraph adapters [Feature bridges thin facades]
     PgInbox[PostgreSqlInboxStore]
     PgOutbox[PostgreSqlOutboxStore]
     EfInbox[EfCoreInboxStore]
     EfOutbox[EfCoreOutboxStore]
   end
 
-  subgraph shared [Layer 3 Stores folder]
+  subgraph shared [Technology adapter Stores folder]
     PgCore[RelationalPostgreSqlMessageStore TEnvelope]
     EfCore[RelationalEfCoreMessageStore TEntity TEnvelope]
     Helpers[BatchIdempotency WorkSignal BulkUpdate]
@@ -97,7 +97,7 @@ flowchart TB
 
 ### Port Interfaces (Internal)
 
-Define small internal ports in layer 3, implemented by axis mappers in layer 4:
+Define small internal ports in the technology adapter, implemented by axis mappers in feature bridges:
 
 | Port | Responsibility |
 | --- | --- |
@@ -142,7 +142,7 @@ PostgreSQL and EF paths share **orchestration** (lease batch, persist with owner
 | Contract parity | All storage contract tests pass for InMemory, PostgreSQL, EF (PostgreSQL + SQL Server where applicable) |
 | Correctness preserved | Atomic terminal persist (`lease_owner` + in-flight guard), batch idempotency, NOTIFY work signal unchanged |
 | Single fix path | One change in relational core fixes both axes (demonstrate with a controlled bugfix or shared metric) |
-| Layer compliance | No layer-4 adapter references from layer 3 except through generic parameters and internal mappers |
+| Role compliance | No technology adapter references a feature bridge; generic parameters and internal mapper contracts point in the allowed direction |
 
 ## Risks and Mitigations
 

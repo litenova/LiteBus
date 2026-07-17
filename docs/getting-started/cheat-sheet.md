@@ -14,21 +14,20 @@ await eventMediator.PublishAsync(new OrderPlaced(orderId));
 
 ## Module Registration
 
-Prefer the `ILiteBusBuilder` overload when contracts are shared across modules:
+Prefer the `ILiteBusBuilder` overload for normal package-owned feature composition:
 
 ```csharp
 services.AddLiteBus(builder =>
 {
     var assembly = typeof(Program).Assembly;
 
-    builder.Contracts.Register<OrderPlaced>("orders.events.placed", 1);
+    builder.AddMessaging(messaging =>
+        messaging.Contracts.Register<OrderPlaced>("orders.events.placed", 1));
+    builder.AddCommands(c => c.RegisterFromAssembly(assembly));
+    builder.AddQueries(q => q.RegisterFromAssembly(assembly));
+    builder.AddEvents(e => e.RegisterFromAssembly(assembly));
 
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddCommandModule(c => c.RegisterFromAssembly(assembly));
-    builder.Modules.AddQueryModule(q => q.RegisterFromAssembly(assembly));
-    builder.Modules.AddEventModule(e => e.RegisterFromAssembly(assembly));
-
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
         inbox.UseInMemoryStorage();
@@ -36,7 +35,7 @@ services.AddLiteBus(builder =>
         inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(2));
     });
 
-    builder.Modules.AddOutboxModule(outbox =>
+    builder.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<OrderPlaced>("orders.events.placed", 1);
         outbox.UseInMemoryStorage();
@@ -58,6 +57,18 @@ services.AddLiteBus(builder =>
 
 Only `ICommand` (no result) may be stored in the inbox. Analyzer LB1004 flags `ICommand<TResult>` at compile time.
 
+## Root Transport Composition
+
+Register horizontal transport infrastructure once on `ILiteBusBuilder`. Dispatch and ingress extensions require and share it.
+
+| Extension | NuGet package |
+| --- | --- |
+| `AddAmqpTransport(...)` | `LiteBus.Transport.Amqp` |
+| `AddKafkaTransport(...)` | `LiteBus.Transport.Kafka` |
+| `AddAwsSqsTransport(...)` | `LiteBus.Transport.AwsSqs` |
+| `AddAzureServiceBusTransport(...)` | `LiteBus.Transport.AzureServiceBus` |
+| `AddInMemoryTransport()` | `LiteBus.Transport.InMemory` |
+
 ## Inbox Composition (`Use*` Extensions)
 
 | Extension | NuGet package |
@@ -66,10 +77,10 @@ Only `ICommand` (no result) may be stored in the inbox. Analyzer LB1004 flags `I
 | `UsePostgreSqlStorage(...)` | `LiteBus.Inbox.Storage.PostgreSql` |
 | `UseEntityFrameworkCoreStorage(...)` | `LiteBus.Inbox.Storage.EntityFrameworkCore` |
 | `UseInProcessDispatch()` | `LiteBus.Inbox.Dispatch.InProcess` |
-| `UseAmqpDispatch(..., connectionOptions)` | `LiteBus.Inbox.Dispatch.Amqp` |
-| `UseAzureServiceBusDispatch(..., transportOptions)` | `LiteBus.Inbox.Dispatch.AzureServiceBus` |
-| `UseAwsSqsDispatch(..., transportOptions)` | `LiteBus.Inbox.Dispatch.AwsSqs` |
-| `UseKafkaDispatch(..., transportOptions)` | `LiteBus.Inbox.Dispatch.Kafka` |
+| `UseAmqpDispatch(...)` | `LiteBus.Inbox.Dispatch.Amqp` |
+| `UseAzureServiceBusDispatch(...)` | `LiteBus.Inbox.Dispatch.AzureServiceBus` |
+| `UseAwsSqsDispatch(...)` | `LiteBus.Inbox.Dispatch.AwsSqs` |
+| `UseKafkaDispatch(...)` | `LiteBus.Inbox.Dispatch.Kafka` |
 | `UseInMemoryDispatch(...)` | `LiteBus.Inbox.Dispatch.InMemory` |
 | `UseAmqpIngress(...)` | `LiteBus.Inbox.Ingress.Amqp` |
 | `UseAzureServiceBusIngress(...)` | `LiteBus.Inbox.Ingress.AzureServiceBus` |
@@ -87,10 +98,10 @@ Only `ICommand` (no result) may be stored in the inbox. Analyzer LB1004 flags `I
 | `UsePostgreSqlStorage(...)` | `LiteBus.Outbox.Storage.PostgreSql` |
 | `UseEntityFrameworkCoreStorage(...)` | `LiteBus.Outbox.Storage.EntityFrameworkCore` |
 | `UseInProcessDispatch()` | `LiteBus.Outbox.Dispatch.InProcess` |
-| `UseAmqpDispatch(..., connectionOptions)` | `LiteBus.Outbox.Dispatch.Amqp` |
-| `UseAzureServiceBusDispatch(..., transportOptions)` | `LiteBus.Outbox.Dispatch.AzureServiceBus` |
-| `UseAwsSqsDispatch(..., transportOptions)` | `LiteBus.Outbox.Dispatch.AwsSqs` |
-| `UseKafkaDispatch(..., transportOptions)` | `LiteBus.Outbox.Dispatch.Kafka` |
+| `UseAmqpDispatch(...)` | `LiteBus.Outbox.Dispatch.Amqp` |
+| `UseAzureServiceBusDispatch(...)` | `LiteBus.Outbox.Dispatch.AzureServiceBus` |
+| `UseAwsSqsDispatch(...)` | `LiteBus.Outbox.Dispatch.AwsSqs` |
+| `UseKafkaDispatch(...)` | `LiteBus.Outbox.Dispatch.Kafka` |
 | `UseInMemoryDispatch(...)` | `LiteBus.Outbox.Dispatch.InMemory` |
 | `EnableOutboxProcessor(...)` | `LiteBus.Outbox` |
 
@@ -114,7 +125,7 @@ var outboxReceipt = await outbox.EnqueueAsync(
 ## PostgreSQL Storage (Nested)
 
 ```csharp
-builder.Modules.AddInboxModule(inbox =>
+builder.AddInbox(inbox =>
 {
     inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
     inbox.UsePostgreSqlStorage(pg =>

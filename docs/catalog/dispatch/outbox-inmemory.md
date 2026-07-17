@@ -9,7 +9,7 @@
 
 ## What It Does
 
-`UseInMemoryDispatch` on `OutboxModuleBuilder` registers shared transport outbox dispatch with `InMemoryTransportModule`. Simulates broker publication for integration tests and sample multi-module hosts running in one process.
+`AddInMemoryTransport()` registers `InMemoryTransportModule` at the root. `UseInMemoryDispatch` on `OutboxModuleBuilder` registers shared transport outbox dispatch as a feature bridge. This simulates broker publication for integration tests and sample multi-module hosts running in one process.
 
 ## Packages
 
@@ -41,7 +41,9 @@
 ```csharp
 services.AddLiteBus(litebus =>
 {
-    litebus.AddOutboxModule(outbox =>
+    litebus.AddInMemoryTransport();
+
+    litebus.AddOutbox(outbox =>
     {
         outbox.EnableOutboxProcessor();
         outbox.UseInMemoryDispatch(options =>
@@ -54,7 +56,7 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `OutboxModuleBuilder.UseInMemoryDispatch(Action<TransportOutboxDispatcherOptions>? configure = null)` | Registers outbox transport dispatcher and in-memory transport |
+| `OutboxModuleBuilder.UseInMemoryDispatch(Action<TransportOutboxDispatcherOptions>? configure = null)` | Registers outbox transport dispatcher that requires the root in-memory transport |
 | `TransportOutboxDispatchModule.DefaultHookFailurePolicy` | Defaults to `CompleteDespiteHookFailure` |
 | `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | Shared outbox publish flow over in-process channel transport |
 

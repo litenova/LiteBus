@@ -7,7 +7,7 @@
 
 ## Purpose and Scope
 
-`UseKafkaIngress` registers `KafkaInboxIngressModule`. The module maps `KafkaInboxIngressOptions` (topic destination, prefetch, requeue) into `TransportInboxIngressOptions`, bootstraps `KafkaTransportModule` when needed, and registers the shared handler and consumer.
+`UseKafkaIngress` registers `KafkaInboxIngressModule`. The module maps `KafkaInboxIngressOptions` (topic destination, prefetch, requeue) into `TransportInboxIngressOptions` and registers the shared handler and consumer. A root `KafkaTransportModule` is required.
 
 Kafka consumer offsets commit after successful accept and ack path in the transport adapter. Beta tier: fewer ingress tuning knobs are exposed on `KafkaInboxIngressOptions` than on AMQP (no `TrustApplicationHeaders`, batch accept, or declare flags on the broker builder).
 
@@ -21,13 +21,14 @@ Kafka ingress is marked Beta because the core intake path is stable, but parity 
 ## Public Surface
 
 ```csharp
+builder.AddKafkaTransport(new KafkaTransportOptions { BootstrapServers = "localhost:9092" });
+
 inbox.UseKafkaIngress(ingress =>
 {
     ingress.UseOptions(new KafkaInboxIngressOptions
     {
         Destination = "orders.commands",
         PrefetchCount = 10,
-        Connection = new KafkaTransportOptions { BootstrapServers = "localhost:9092" },
         RequeueOnFailure = true
     });
 });
@@ -36,7 +37,7 @@ inbox.UseKafkaIngress(ingress =>
 | Builder API | Role |
 | --- | --- |
 | `InboxModuleBuilder.UseKafkaIngress(Action<KafkaInboxIngressModuleBuilder>)` | Registration extension |
-| `KafkaInboxIngressModuleBuilder.UseOptions(KafkaInboxIngressOptions)` | Topic and connection (connection required) |
+| `KafkaInboxIngressModuleBuilder.UseOptions(KafkaInboxIngressOptions)` | Topic, prefetch, and failure behavior |
 | `KafkaInboxIngressModuleBuilder.ConfigureHost(Action<TransportInboxIngressHostOptions>)` | Retry and enablement |
 | `KafkaInboxIngressModuleBuilder.DisableIngressConsumer()` | Handler without consumer loop |
 | `KafkaInboxIngressModule` | Child module |
@@ -46,7 +47,7 @@ inbox.UseKafkaIngress(ingress =>
 | Capability | Kafka ingress | AMQP ingress |
 | --- | --- | --- |
 | Destination required | `Destination` required | `QueueName` required |
-| Connection required | `Connection` required | `Connection` required |
+| Root transport required | `AddKafkaTransport(...)` | `AddAmqpTransport(...)` |
 | Prefetch setting | yes | yes |
 | `RequeueOnFailure` toggle | yes (default true) | yes (default true) |
 | `TrustApplicationHeaders` exposure on broker options | no | yes |
@@ -56,7 +57,7 @@ inbox.UseKafkaIngress(ingress =>
 ## Packages
 
 - `LiteBus.Inbox.Ingress.Kafka`
-- `LiteBus.Transport.Kafka` (transitive when bootstrapped)
+- `LiteBus.Transport.Kafka`
 
 ## Requires
 
@@ -67,7 +68,7 @@ inbox.UseKafkaIngress(ingress =>
 
 ## Invariants
 
-- `Destination` (topic) and `Connection` are required at compose time.
+- `Destination` (topic) and a root Kafka transport are required at compose time.
 - Consumer group and offset semantics follow `KafkaTransportOptions` (transport axis).
 - Idempotency uses broker record identifiers mapped through shared header mapping when present.
 - Identity and idempotency default to broker-scoped values (`RequireStableIdentity=true`, `TrustApplicationHeaders=false`).
@@ -93,7 +94,7 @@ Meter `LiteBus.Inbox` via `AddLiteBusInboxMetrics()`.
 | Signal | Registration |
 | --- | --- |
 | `process {destination}` activity | `AddLiteBusTransportInstrumentation()` |
-| `litebus.transport.circuit_breaker.*` with tag `kafka` | `AddLiteBusTransportMetrics()` when ingress bootstraps Kafka transport |
+| `litebus.transport.circuit_breaker.*` with tag `kafka` | `AddLiteBusTransportMetrics()` for the root Kafka transport |
 
 ### Structured Logs
 

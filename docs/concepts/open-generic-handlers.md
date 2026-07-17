@@ -78,8 +78,8 @@ public sealed class CommandMetricsPostHandler<TCommand> : ICommandPostHandler<TC
 ```csharp
 builder.Services.AddLiteBus(registry =>
 {
-    registry.AddMessageModule(_ => { });
-    registry.AddCommandModule(module =>
+    registry.AddMessaging(_ => { });
+    registry.AddCommands(module =>
     {
         module.RegisterFromAssembly(typeof(Program).Assembly);
     });
@@ -91,8 +91,8 @@ If the open generic handler lives in a different assembly, such as a shared libr
 ```csharp
 builder.Services.AddLiteBus(registry =>
 {
-    registry.AddMessageModule(_ => { });
-    registry.AddCommandModule(module =>
+    registry.AddMessaging(_ => { });
+    registry.AddCommands(module =>
     {
         module.Register(typeof(CommandLoggingPreHandler<>));
         module.Register(typeof(CommandMetricsPostHandler<>));

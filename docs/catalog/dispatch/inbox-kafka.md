@@ -43,7 +43,13 @@ Pair Kafka dispatch with inbox idempotency and idempotent handlers. Kafka has no
 ```csharp
 services.AddLiteBus(litebus =>
 {
-    litebus.AddInboxModule(inbox =>
+    litebus.AddKafkaTransport(new KafkaTransportOptions
+    {
+        BootstrapServers = "localhost:9092",
+        ClientId = "orders-inbox-dispatch"
+    });
+
+    litebus.AddInbox(inbox =>
     {
         inbox.EnableInboxProcessor();
         inbox.UseKafkaDispatch(
@@ -51,11 +57,6 @@ services.AddLiteBus(litebus =>
             {
                 options.DefaultDestination = "orders.commands";
                 options.ResolveRoute = envelope => envelope.ContractName;
-            },
-            new KafkaTransportOptions
-            {
-                BootstrapServers = "localhost:9092",
-                ClientId = "orders-inbox-dispatch"
             });
     });
 });
@@ -63,7 +64,7 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `InboxModuleBuilder.UseKafkaDispatch(Action<TransportInboxDispatcherOptions>, KafkaTransportOptions)` | Registers inbox transport dispatcher and Kafka transport module |
+| `InboxModuleBuilder.UseKafkaDispatch(Action<TransportInboxDispatcherOptions>)` | Registers inbox transport dispatcher that requires the root Kafka transport |
 | `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | Publishes inbox lease payload and headers to Kafka |
 
 `KafkaTransportOptions`:

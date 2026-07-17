@@ -97,11 +97,11 @@ Per **request**, use one connection and one transaction for atomic domain + mess
 **Registration:**
 
 ```csharp
-services.AddDbContext<OrdersDbContext>(options =>
+services.AddDbContextFactory<OrdersDbContext>(options =>
     options.UseNpgsql(connectionString)
         .AddLiteBusOutboxInterceptor());
 
-builder.Modules.AddOutboxModule(outbox =>
+builder.AddOutbox(outbox =>
 {
     outbox.UseEntityFrameworkCoreStorage(ef =>
     {
@@ -114,6 +114,8 @@ builder.Modules.AddOutboxModule(outbox =>
 ```
 
 `OrdersDbContext` must implement `IOutboxDbContext` and expose `DbSet<OutboxMessageEntity>`. Full schema steps: [Outbox Entity Framework Core storage](../integrations/outbox-ef-core-storage.md).
+
+`AddDbContextFactory` supplies operation contexts to the singleton LiteBus store and also registers `OrdersDbContext` for scoped transactional use. LiteBus does not create an `IServiceScope` inside the EF store.
 
 **Handler:**
 
@@ -144,7 +146,7 @@ Use this path when domain persistence is Marten, Dapper, or ADO.NET and you want
 ```csharp
 services.AddSingleton(dataSource);
 
-builder.Modules.AddOutboxModule(outbox =>
+builder.AddOutbox(outbox =>
 {
     outbox.UsePostgreSqlStorage(pg =>
     {

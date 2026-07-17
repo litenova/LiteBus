@@ -60,19 +60,19 @@ public sealed class CreateProductCommandHandler : ICommandHandler<CreateProductC
 }
 ```
 
-Register the message runtime first. The semantic module extensions enforce this declaration order, while the module registry uses dependency order when it builds the graph:
+Register the messaging and semantic features in one callback. The module registry validates the completed dependency graph, so callback order does not change build order:
 
 ```csharp
 builder.Services.AddLiteBus(liteBus =>
 {
     var applicationAssembly = typeof(Program).Assembly;
 
-    liteBus.Modules.AddMessageModule(_ => { });
-    liteBus.Modules.AddCommandModule(commands =>
+    liteBus.AddMessaging(_ => { });
+    liteBus.AddCommands(commands =>
         commands.RegisterFromAssembly(applicationAssembly));
-    liteBus.Modules.AddQueryModule(queries =>
+    liteBus.AddQueries(queries =>
         queries.RegisterFromAssembly(applicationAssembly));
-    liteBus.Modules.AddEventModule(events =>
+    liteBus.AddEvents(events =>
         events.RegisterFromAssembly(applicationAssembly));
 });
 ```
@@ -94,11 +94,11 @@ An inbox stores a command before execution. An outbox stores an event before pub
 ```csharp
 builder.Services.AddLiteBus(liteBus =>
 {
-    liteBus.Modules.AddMessageModule(_ => { });
-    liteBus.Modules.AddCommandModule(commands =>
+    liteBus.AddMessaging(_ => { });
+    liteBus.AddCommands(commands =>
         commands.RegisterFromAssembly(typeof(Program).Assembly));
 
-    liteBus.Modules.AddInboxModule(inbox =>
+    liteBus.AddInbox(inbox =>
     {
         inbox.Contracts.Register<CreateProductCommand>("catalog.create-product");
         inbox.UseInMemoryStorage();
@@ -112,16 +112,16 @@ Use in-memory storage for tests and local behavior checks. Use the PostgreSQL or
 
 ## Architecture
 
-LiteBus projects follow six dependency layers. A package can reference only its own layer or a lower layer.
+LiteBus projects follow an explicit dependency role matrix. Every shipping project is assigned one role, and architecture tests reject forbidden project edges and direct package references.
 
-| Layer | Responsibility |
+| Dependency role | Responsibility |
 | --- | --- |
-| 0 | Platform contracts shared across feature axes |
-| 1 | Domain abstractions for mediator, durable messaging, and saga concerns |
-| 2 | Default implementations and broker-neutral runtime behavior |
-| 3 | Shared storage infrastructure |
-| 4 | Storage, dispatch, and ingress adapters |
-| 5 | Dependency injection, hosting, ASP.NET Core, diagnostics, and telemetry composition |
+| Platform, mediation, and durable contracts | Stable abstractions without SDK or host dependencies |
+| Core implementation | Default implementations and broker-neutral runtime behavior |
+| Technology adapter | One persistence or broker technology |
+| Feature bridge | Storage, dispatch, ingress, and cross-feature integration |
+| Host adapter | Dependency injection, hosting, ASP.NET Core, diagnostics, and telemetry composition |
+| Consumer tooling and aggregate | Analyzer/test support and the core-only convenience package |
 
 The project count is intentional. Inbox and outbox remain separate, each broker and store remains opt-in, and integration SDKs do not enter unrelated dependency graphs. See [Architecture](docs/architecture/README.md) for the module lifecycle and package rules.
 

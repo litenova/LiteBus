@@ -12,9 +12,9 @@ The InMemory storage packages implement all store roles in one thread-safe class
 ```csharp
 services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddCommandModule(c => c.Register<ProcessPaymentCommandHandler>());
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(c => c.Register<ProcessPaymentCommandHandler>());
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
         inbox.UseInMemoryStorage();
@@ -30,9 +30,9 @@ Resolve `IInbox`, call `AcceptAsync`, then resolve `IInboxProcessor` and call `P
 ```csharp
 services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddEventModule(e => e.Register<OrderSubmittedEventHandler>());
-    builder.Modules.AddOutboxModule(outbox =>
+    builder.AddMessaging(_ => { });
+    builder.AddEvents(e => e.Register<OrderSubmittedEventHandler>());
+    builder.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<OrderSubmitted>("orders.order-submitted", 1);
         outbox.UseInMemoryStorage();
@@ -60,10 +60,10 @@ PostgreSQL storage integration tests use Testcontainers with `postgres:16-alpine
 ```csharp
 services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddCommandModule(c => c.Register<MyCommandHandler>());
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(c => c.Register<MyCommandHandler>());
 
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<MyCommand>("my.command", 1);
         inbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));

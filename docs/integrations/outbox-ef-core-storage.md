@@ -13,9 +13,12 @@ For Npgsql outbox storage and shared PostgreSQL schema helpers, see [PostgreSQL 
 ## Registration
 
 ```csharp
+services.AddDbContextFactory<AppDbContext>(options => options.UseNpgsql(connectionString));
+
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddOutboxModule(outbox =>
+    builder.AddMessaging(_ => { });
+    builder.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<OrderSubmitted>("orders.events.submitted", 1);
         outbox.UseEntityFrameworkCoreStorage(options => options.UseDbContext<AppDbContext>());
@@ -25,11 +28,11 @@ builder.Services.AddLiteBus(builder =>
 });
 ```
 
-`AppDbContext` must implement `IOutboxDbContext` and expose `DbSet<OutboxMessageEntity> OutboxMessages`.
+`AppDbContext` must implement `IOutboxDbContext` and expose `DbSet<OutboxMessageEntity> OutboxMessages`. The adapter requires `IDbContextFactory<AppDbContext>` and owns one context per store operation.
 
 ## Transactional Writes
 
-The default `IOutboxStore` registration calls `SaveChanges` inside `EfCoreOutboxStore` on a scoped context during `EnqueueAsync`. That commits outbox rows in a separate unit of work from your application `DbContext` unless you opt in to one of the patterns below.
+The default `IOutboxStore` registration creates a context through `IDbContextFactory<AppDbContext>` and calls `SaveChanges` during `EnqueueAsync`. That commits outbox rows in a separate unit of work from your application `DbContext` unless you opt in to one of the patterns below.
 
 ### Participate in the Caller `DbContext`
 
@@ -48,7 +51,7 @@ await appDbContext.SaveChangesAsync(cancellationToken);
 Register the interceptor in LiteBus and on your `DbContext` options:
 
 ```csharp
-builder.Modules.AddOutboxModule(outbox =>
+builder.AddOutbox(outbox =>
 {
     outbox.UseEntityFrameworkCoreStorage(storage =>
     {

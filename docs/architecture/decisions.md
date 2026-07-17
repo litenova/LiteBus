@@ -66,7 +66,7 @@ Status: Accepted
 
 Status: Accepted
 
-Saga hooks implement `IProcessorEnvelopeHook` from `LiteBus.Orchestration.Abstractions`. Registration stays on `inbox.EnableSaga()`; inbox maps envelopes through an adapter.
+Saga hooks implement `IProcessorEnvelopeHook` from `LiteBus.DurableMessaging.Abstractions`. Registration stays on `inbox.EnableSaga()`; inbox maps envelopes through an adapter.
 
 ## Next
 

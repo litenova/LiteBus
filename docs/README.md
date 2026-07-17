@@ -36,7 +36,7 @@ LiteBus v6 targets .NET 10 and remains unreleased. A page that describes a v6 AP
 
 ## Architecture and API Design
 
-- [Architecture](architecture/README.md) defines dependency layers, module registration, manifests, durable processing, and telemetry boundaries.
+- [Architecture](architecture/README.md) defines dependency roles, module registration, manifests, durable processing, and telemetry boundaries.
 - [Dependency Graph](architecture/dependency-graph.md) lists package roles and direct references.
 - [API Design](architecture/api-design.md) defines semantic input types, metadata variants, method shapes, and naming rules.
 - [Architecture Decisions](architecture/decisions.md) records decisions that constrain future work.

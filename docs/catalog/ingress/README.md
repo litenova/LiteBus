@@ -20,14 +20,14 @@ flowchart LR
 
 ## Packages
 
-| Package | Layer | Role |
+| Package | Dependency role | Purpose |
 | --- | --- | --- |
-| `LiteBus.Inbox.Ingress` | 4 | Shared handler, consumer loop, mapper, ack policy, telemetry |
-| `LiteBus.Inbox.Ingress.Amqp` | 4 | RabbitMQ and LavinMQ ingress adapter |
-| `LiteBus.Inbox.Ingress.Kafka` | 4 | Kafka ingress adapter |
-| `LiteBus.Inbox.Ingress.AzureServiceBus` | 4 | Service Bus ingress adapter |
-| `LiteBus.Inbox.Ingress.AwsSqs` | 4 | SQS ingress adapter |
-| `LiteBus.Inbox.Ingress.InMemory` | 4 | In-process ingress adapter for fast tests and local dev |
+| `LiteBus.Inbox.Ingress` | Feature bridge | Shared handler, consumer loop, mapper, ack policy, telemetry |
+| `LiteBus.Inbox.Ingress.Amqp` | Feature bridge | RabbitMQ and LavinMQ ingress adapter |
+| `LiteBus.Inbox.Ingress.Kafka` | Feature bridge | Kafka ingress adapter |
+| `LiteBus.Inbox.Ingress.AzureServiceBus` | Feature bridge | Service Bus ingress adapter |
+| `LiteBus.Inbox.Ingress.AwsSqs` | Feature bridge | SQS ingress adapter |
+| `LiteBus.Inbox.Ingress.InMemory` | Feature bridge | In-process ingress adapter for fast tests and local development |
 
 ## Capability Pages
 

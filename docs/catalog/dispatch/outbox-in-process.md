@@ -24,7 +24,7 @@ Use this path when integration events should fan out to local handlers only (sam
 ## Requires
 
 - `durable-core.outbox`
-- `mediator.events` (`AddEventModule`)
+- `mediator.events` (`AddEvents`)
 - `runtime.contract-registry`
 - `dispatch.registration`
 
@@ -46,8 +46,8 @@ Use this path when integration events should fan out to local handlers only (sam
 ```csharp
 services.AddLiteBus(litebus =>
 {
-    litebus.AddEventModule(events => { /* handlers */ });
-    litebus.AddOutboxModule(outbox =>
+    litebus.AddEvents(events => { /* handlers */ });
+    litebus.AddOutbox(outbox =>
     {
         outbox.EnableOutboxProcessor();
         outbox.UseInProcessDispatch();

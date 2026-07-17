@@ -41,7 +41,13 @@ Registers `TransportOutboxDispatchModule` with `AwsSqsTransportModule`. Processo
 ```csharp
 services.AddLiteBus(litebus =>
 {
-    litebus.AddOutboxModule(outbox =>
+    litebus.AddAwsSqsTransport(new AwsSqsTransportOptions
+    {
+        Region = "us-east-1",
+        LongPollWaitTimeSeconds = 20
+    });
+
+    litebus.AddOutbox(outbox =>
     {
         outbox.EnableOutboxProcessor();
         outbox.UseAwsSqsDispatch(
@@ -49,11 +55,6 @@ services.AddLiteBus(litebus =>
             {
                 options.DefaultDestination = "https://sqs.us-east-1.amazonaws.com/111122223333/events";
                 options.ResolveRoute = envelope => envelope.Topic ?? envelope.ContractName;
-            },
-            new AwsSqsTransportOptions
-            {
-                Region = "us-east-1",
-                LongPollWaitTimeSeconds = 20
             });
     });
 });
@@ -61,7 +62,7 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `OutboxModuleBuilder.UseAwsSqsDispatch(Action<TransportOutboxDispatcherOptions>, AwsSqsTransportOptions)` | Registers outbox transport dispatcher and SQS transport module |
+| `OutboxModuleBuilder.UseAwsSqsDispatch(Action<TransportOutboxDispatcherOptions>)` | Registers outbox transport dispatcher that requires the root SQS transport |
 | `TransportOutboxDispatchModule.DefaultHookFailurePolicy` | Defaults to `CompleteDespiteHookFailure` |
 | `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | Shared outbox publish logic |
 

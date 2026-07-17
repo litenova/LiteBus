@@ -9,7 +9,7 @@
 
 `PostgreSqlSagaStore` persists saga instances in `litebus_saga_instances` by default (configurable schema and table name). Primary key is tenant-scoped: `correlation_id`, `saga_type` (saga definition id), and `tenant_id`. State is JSON in `state_json`; `optimistic_lock_version` supports concurrent updates.
 
-`UsePostgreSqlSagaStorage(configure)` on `InboxModuleBuilder` registers `PostgreSqlSagaModule`, replaces the default in-memory store, and can wire `NpgsqlDataSource` or connection string helpers through `PostgreSqlSagaModuleBuilder`.
+`UsePostgreSqlStorage(configure)` on `SagaModuleBuilder` selects `PostgreSqlSagaModule` and can wire `NpgsqlDataSource` or connection string helpers through `PostgreSqlSagaModuleBuilder`.
 
 Schema version **1** ships embedded SQL. `EnsureSchemaCreationOnStartup` defaults to `true` via `PostgreSqlSagaStoreOptions`. Schema bootstrap shares the `PostgreSqlSchemaManager` rail with inbox and outbox when co-located in one database.
 
@@ -17,7 +17,7 @@ Schema version **1** ships embedded SQL. `EnsureSchemaCreationOnStartup` default
 
 | Surface | Package | Role |
 | --- | --- | --- |
-| `InboxModuleBuilder.UsePostgreSqlSagaStorage(...)` | `LiteBus.Saga.Storage.PostgreSql` | Inbox builder extension for durable saga storage |
+| `SagaModuleBuilder.UsePostgreSqlStorage(...)` | `LiteBus.Saga.Storage.PostgreSql` | Nested durable saga storage selection |
 | `PostgreSqlSagaModuleBuilder` | `LiteBus.Saga.Storage.PostgreSql` | Configures data source, connection string, store options, schema init toggle |
 | `PostgreSqlSagaStoreOptions` | `LiteBus.Saga.Storage.PostgreSql` | Configurable schema/table plus startup ensure and validate flags |
 | `PostgreSqlSagaStore` | `LiteBus.Saga.Storage.PostgreSql` | PostgreSQL `ISagaStore` implementation |
@@ -81,7 +81,7 @@ No dedicated PostgreSQL saga meters in v6.
 
 - **Use case**: Full composition persists saga row through PostgreSQL store.
 - **Test kind**: Integration
-- **Description**: `UsePostgreSqlSagaStorage` with shared test data source.
+- **Description**: `UsePostgreSqlStorage` with shared test data source.
 - **Behavior**: Hook save after in-process dispatch.
 - **Expected outcome**: Load returns expected state from PostgreSQL.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.

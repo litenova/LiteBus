@@ -1,11 +1,11 @@
 # Transport Axis Capability Catalog
 
-LiteBus transport is the broker-facing publish and consume axis at layers 0 through 2. Dispatch and ingress call transport contracts (`IMessageTransport`, `IMessageConsumer`) but own durable storage, leasing, and processor policy.
+LiteBus transport is the broker-facing publish and consume axis. Dispatch and ingress call transport contracts (`ITransportPublisher`, `IMessageConsumer`) but own durable storage, leasing, and processor policy.
 
 ## Role in LiteBus
 
 ```text
-Outbox and inbox dispatch   -> IMessageTransport.PublishAsync
+Outbox and inbox dispatch   -> ITransportPublisher.PublishAsync
 Inbox ingress adapters      -> IMessageConsumer.StartAsync
 Raw transport hosts         -> IMessageConsumer + TransportConsumerHandlerInvoker
 ```
@@ -33,17 +33,17 @@ Every page in this folder is a reference contract and uses the same required sec
 
 ## Packages
 
-| Package | Layer | Role |
+| Package | Dependency role | Purpose |
 | --- | --- | --- |
-| `LiteBus.Transport.Abstractions` | 0 | Contracts, canonical headers, ack model |
-| `LiteBus.Transport` | 2 | Circuit breaker, tracing, header mapper, invoker |
-| `LiteBus.Transport.Amqp` | 2 | RabbitMQ and LavinMQ adapter |
-| `LiteBus.Transport.Kafka` | 2 | Kafka adapter |
-| `LiteBus.Transport.AwsSqs` | 2 | AWS SQS adapter |
-| `LiteBus.Transport.AzureServiceBus` | 2 | Azure Service Bus adapter |
-| `LiteBus.Transport.InMemory` | 2 | In-process channel adapter |
-| `LiteBus.Transport.Extensions.OpenTelemetry` | 5 | `AddLiteBusTransportMetrics()` |
-| `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | 5 | `AddLiteBusAmqpMetrics()` alias |
+| `LiteBus.Transport.Abstractions` | Platform contracts | Contracts, canonical headers, ack model |
+| `LiteBus.Transport` | Core implementation | Circuit breaker, tracing, header mapper, invoker |
+| `LiteBus.Transport.Amqp` | Technology adapter | RabbitMQ and LavinMQ adapter |
+| `LiteBus.Transport.Kafka` | Technology adapter | Kafka adapter |
+| `LiteBus.Transport.AwsSqs` | Technology adapter | AWS SQS adapter |
+| `LiteBus.Transport.AzureServiceBus` | Technology adapter | Azure Service Bus adapter |
+| `LiteBus.Transport.InMemory` | Technology adapter | In-process channel adapter |
+| `LiteBus.Transport.Extensions.OpenTelemetry` | Host adapter | `AddLiteBusTransportMetrics()` |
+| `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | Host adapter | `AddLiteBusAmqpMetrics()` alias |
 
 ## Capability Index
 
@@ -92,7 +92,7 @@ Broker tag values in v6: `amqp`, `kafka`, `sqs`, `azure_service_bus`, `inmemory`
 | Topic | Location |
 | --- | --- |
 | Transport platform overview | [Architecture.md](../../architecture/README.md) |
-| Package inventory and layering | [Dependency-Graph.md](../../architecture/dependency-graph.md) |
+| Package inventory and dependency roles | [Dependency-Graph.md](../../architecture/dependency-graph.md) |
 | AMQP transport guide | [Amqp-Transport.md](../../integrations/amqp.md) |
 | Kafka transport guide | [Kafka-Transport.md](../../integrations/kafka.md) |
 | AWS SQS transport guide | [Aws-Sqs-Transport.md](../../integrations/aws-sqs.md) |

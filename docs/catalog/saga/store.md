@@ -11,7 +11,7 @@
 
 Operational APIs `QueryAsync` and `PurgeAsync` accept `SagaQueryFilter` and `SagaPurgeFilter` for retention jobs and support tooling. Value objects `SagaSaveItem<TState>`, `SagaCompleteItem`, `SagaInstance<TState>`, and `SagaInstanceSummary` model store inputs and query results.
 
-Custom stores implement `ISagaStore` and register through module configuration, replacing the default in-memory implementation.
+Custom stores implement `ISagaStore` and expose an `ISagaStorageModule` selected explicitly through `SagaModuleBuilder.RegisterStorage`.
 
 ## Public Surface
 
@@ -120,7 +120,7 @@ No store-level OpenTelemetry instruments in v6.
 
 #### `LiteBusV6CompositionSmokeTests.AddLiteBusV6_ShouldPersistSagaStateAcrossCorrelatedCommands`
 
-- **Use case**: Default in-memory store satisfies contract through composition.
+- **Use case**: Explicit in-memory store satisfies the contract through composition.
 - **Test kind**: Composition
 - **Description**: `ISagaStore.LoadAsync` after two correlated dispatches.
 - **Behavior**: Two sequential saves via hook.

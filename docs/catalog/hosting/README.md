@@ -1,6 +1,6 @@
 # Hosting Capability Catalog
 
-LiteBus hosting capabilities define how modules become running workloads. Runtime modules register service dependencies and host manifest entries during composition. Layer-5 hosting adapters map the manifest to Generic Host lifecycles, ASP.NET Core endpoints, and OpenTelemetry registration.
+LiteBus hosting capabilities define how modules become running workloads. Runtime modules register service dependencies and host manifest entries during composition. Host adapters map the manifest to Generic Host lifecycles, ASP.NET Core endpoints, and OpenTelemetry registration.
 
 The axis is intentionally split into small packages. Composition (`AddLiteBus`) stays separate from host bridges, management HTTP endpoints, health checks, and telemetry registration.
 
@@ -23,14 +23,13 @@ Manifest entry contracts:
 
 Startup tasks run first. Background loops start only after startup tasks complete. Any startup task failure fails host startup.
 
-## Capabilities (17)
+## Capabilities (16)
 
 | ID | Name | Maturity | Package(s) |
 | --- | --- | --- | --- |
 | [hosting.add-lite-bus-microsoft-di](add-lite-bus-microsoft-di.md) | AddLiteBus for Microsoft DI | GA | `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` |
 | [hosting.add-lite-bus-autofac](add-lite-bus-autofac.md) | AddLiteBus for Autofac | GA | `LiteBus.Runtime.Extensions.Autofac` |
 | [hosting.module-registry](module-registry.md) | Module registry and build order | GA | `LiteBus.Runtime` |
-| [hosting.shared-contract-builder](shared-contract-builder.md) | Shared contract builder on `ILiteBusBuilder` | GA | `LiteBus.Runtime` |
 | [hosting.host-manifest](host-manifest.md) | LiteBus host manifest snapshot | GA | `LiteBus.Runtime.Abstractions` |
 | [hosting.startup-tasks](startup-tasks.md) | One-shot startup tasks | GA | `LiteBus.Runtime.Abstractions` |
 | [hosting.background-services](background-services.md) | Long-running background services | GA | `LiteBus.Runtime.Abstractions` |
@@ -47,8 +46,8 @@ Startup tasks run first. Background loops start only after startup tasks complet
 
 ## Package Boundaries
 
-- Layer 0-4 packages register manifest entries, they do not reference host frameworks directly.
-- Layer-5 packages bridge the manifest to `IHostedService`, ASP.NET endpoints, or OpenTelemetry builders.
+- Platform, mediation, durable, core, technology, and feature roles register manifest entries without referencing host frameworks directly.
+- Host-adapter packages bridge the manifest to `IHostedService`, ASP.NET endpoints, or OpenTelemetry builders.
 - Apps remain responsible for authentication, authorization policy, rate limiting, and exporter setup.
 
 ## Test Sources

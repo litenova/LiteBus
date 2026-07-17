@@ -32,7 +32,7 @@ Contract lookup at accept/enqueue always uses `message.GetType()`, not only the 
 ### Registration
 
 - **`inbox.Contracts.Register<T>(name, version)`** or **`outbox.Contracts.Register<T>(name, version)`** inside the matching module builder.
-- **`builder.Contracts.RegisterFromAssembly(...)`** on shared contract builder or axis module builder.
+- **`messaging.Contracts.RegisterFromAssembly(...)`** inside `AddMessaging`, or the equivalent `Contracts` surface on an axis module builder.
 - **`[MessageContract]`** on message types plus either explicit register or assembly scan (LB1017 enforces attributed types are registered).
 
 Register before first accept/enqueue of each message type. Closed generic shapes each need their own registration entry.
@@ -54,7 +54,7 @@ Register before first accept/enqueue of each message type. Closed generic shapes
 | Package | Role |
 | --- | --- |
 | `LiteBus.Messaging.Abstractions` | `IMessageContractRegistry`, `[MessageContract]` |
-| `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | Module builder `Contracts` surface |
+| `LiteBus.Messaging`, `LiteBus.Inbox`, `LiteBus.Outbox` | Module builder `Contracts` surfaces |
 | `LiteBus.Analyzers` | LB1007, LB1017 contract coverage |
 
 ## Requires

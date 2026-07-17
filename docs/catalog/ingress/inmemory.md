@@ -14,7 +14,8 @@ This is the **reference matrix** for cross-broker ingress behavior (idempotency,
 ## Public Surface
 
 ```csharp
-inbox.UseInMemoryIngress(ingress =>
+bus.AddInMemoryTransport();
+bus.AddInbox(inbox => inbox.UseInMemoryIngress(ingress =>
 {
     ingress.UseOptions(new InMemoryInboxIngressOptions
     {
@@ -22,7 +23,7 @@ inbox.UseInMemoryIngress(ingress =>
         PrefetchCount = 10,
         RequeueOnFailure = true
     });
-});
+}));
 ```
 
 | Builder API | Role |
@@ -37,7 +38,7 @@ inbox.UseInMemoryIngress(ingress =>
 | Capability | InMemory ingress | AMQP ingress |
 | --- | --- | --- |
 | Destination required | `Destination` required | `QueueName` required |
-| Connection required | no | yes |
+| Root transport required | `AddInMemoryTransport()` | `AddAmqpTransport(...)` |
 | Prefetch setting | yes | yes |
 | `RequeueOnFailure` toggle | yes (default true) | yes (default true) |
 | `TrustApplicationHeaders` exposure on broker options | no | yes |
@@ -47,7 +48,7 @@ inbox.UseInMemoryIngress(ingress =>
 ## Packages
 
 - `LiteBus.Inbox.Ingress.InMemory`
-- `LiteBus.Transport.InMemory` (transitive when bootstrapped)
+- `LiteBus.Transport.InMemory` (explicit root transport)
 
 ## Requires
 

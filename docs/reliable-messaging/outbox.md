@@ -14,7 +14,7 @@ If your command handler must enqueue events in the **same database transaction**
 | `IOutboxProcessor` | `PipelinedOutboxProcessor` | Lease due messages, dispatch, record retry or dead-letter state |
 | `OutboxProcessorOptions` | options instance | Batch size, lease duration, retry policy |
 
-Storage and dispatch register inside `AddOutboxModule` through `Use*` extensions.
+Storage and dispatch register inside `AddOutbox` through `Use*` extensions.
 
 ## Contract
 
@@ -42,12 +42,12 @@ Register each stored message type in `IMessageContractRegistry` with a stable na
 
 ## Registration (Nested Builder Only)
 
-Register contracts, storage, dispatch, and the processor inside one `AddOutboxModule` call:
+Register contracts, storage, dispatch, and the processor inside one `AddOutbox` call:
 
 ```csharp
 services.AddLiteBus(builder =>
 {
-    builder.Modules.AddOutboxModule(outbox =>
+    builder.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<OrderSubmittedIntegrationEvent>(
             name: "orders.events.order-submitted",
@@ -71,10 +71,10 @@ Inbox and outbox use asymmetric naming on purpose. Inbox **acceptance** (`Accept
 | Extension | Package | Behavior |
 | --- | --- | --- |
 | `UseInProcessDispatch()` | `LiteBus.Outbox.Dispatch.InProcess` | Deserialize and `IEventMediator.PublishAsync` |
-| `UseAmqpDispatch(..., connectionOptions)` | `LiteBus.Outbox.Dispatch.Amqp` | Publish through AMQP with contract headers |
-| `UseAzureServiceBusDispatch(..., transportOptions)` | `LiteBus.Outbox.Dispatch.AzureServiceBus` | Publish through Azure Service Bus |
-| `UseAwsSqsDispatch(..., transportOptions)` | `LiteBus.Outbox.Dispatch.AwsSqs` | Publish through Amazon SQS |
-| `UseKafkaDispatch(..., transportOptions)` | `LiteBus.Outbox.Dispatch.Kafka` | Publish through Kafka |
+| `UseAmqpDispatch(...)` | `LiteBus.Outbox.Dispatch.Amqp` | Publish through the root AMQP transport with contract headers |
+| `UseAzureServiceBusDispatch(...)` | `LiteBus.Outbox.Dispatch.AzureServiceBus` | Publish through the root Azure Service Bus transport |
+| `UseAwsSqsDispatch(...)` | `LiteBus.Outbox.Dispatch.AwsSqs` | Publish through the root Amazon SQS transport |
+| `UseKafkaDispatch(...)` | `LiteBus.Outbox.Dispatch.Kafka` | Publish through the root Kafka transport |
 | `UseInMemoryDispatch(...)` | `LiteBus.Outbox.Dispatch.InMemory` | Publish through in-memory transport (tests, local pipelines) |
 
 Register exactly one dispatcher per outbox module.
@@ -94,7 +94,12 @@ Process-local store for unit tests and local development. Thread-safe within one
 ### PostgreSQL Store
 
 ```csharp
-builder.Modules.AddOutboxModule(outbox =>
+builder.AddAmqpTransport(new AmqpConnectionOptions
+{
+    Uri = new Uri(configuration.GetConnectionString("Amqp")!)
+});
+
+builder.AddOutbox(outbox =>
 {
     outbox.Contracts.Register<OrderSubmittedIntegrationEvent>(
         "orders.events.order-submitted",
@@ -106,11 +111,7 @@ builder.Modules.AddOutboxModule(outbox =>
         pg.EnsureSchemaCreationOnStartup(); // development only
     });
 
-    outbox.UseAmqpDispatch(
-        o => o.DefaultDestination = "orders.events", new AmqpConnectionOptions
-        {
-            Uri = new Uri(configuration.GetConnectionString("Amqp"!)
-        }));
+    outbox.UseAmqpDispatch(o => o.DefaultDestination = "orders.events");
 
     outbox.EnableOutboxProcessor();
 });

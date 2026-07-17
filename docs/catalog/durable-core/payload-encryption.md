@@ -22,12 +22,12 @@ Register protection on each durable axis that shares the encrypted store:
 ```csharp
 var encryptor = new ApplicationPayloadEncryptor(keyProvider);
 
-registry.AddInboxModule(inbox =>
+registry.AddInbox(inbox =>
 {
     inbox.UsePayloadEncryption(encryptor);
 });
 
-registry.AddOutboxModule(outbox =>
+registry.AddOutbox(outbox =>
 {
     outbox.UsePayloadEncryption(encryptor);
 });
@@ -73,11 +73,11 @@ Repeated decrypt failures after a deployment usually identify missing keys, mism
 
 | Package | Role |
 | --- | --- |
-| `LiteBus.Messaging.Abstractions` | `IPayloadEncryptor` contract |
-| `LiteBus.Inbox.Abstractions` | Inbox protector contract and builder surface |
-| `LiteBus.Outbox.Abstractions` | Outbox protector contract and builder surface |
-| `LiteBus.Inbox` | Inbox encryption and decryption integration |
-| `LiteBus.Outbox` | Outbox encryption and decryption integration |
+| `LiteBus.DurableMessaging.Abstractions` | Shared `IPayloadEncryptor` contract |
+| `LiteBus.Inbox.Abstractions` | Inbox protector contract |
+| `LiteBus.Outbox.Abstractions` | Outbox protector contract |
+| `LiteBus.Inbox` | Inbox builder surface and encryption/decryption integration |
+| `LiteBus.Outbox` | Outbox builder surface and encryption/decryption integration |
 | Application | Algorithm, key provider, key identifiers, rotation, and audit policy |
 
 ## Invariants

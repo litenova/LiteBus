@@ -9,7 +9,7 @@
 
 Inbox and outbox processors adapt their envelopes to `IProcessorEnvelope` and invoke every registered `IProcessorEnvelopeHook` in dependency-injection registration order. The contract supports asynchronous state loading, synchronous ambient-scope attachment, post-dispatch persistence, and cleanup when processing cannot finish.
 
-Saga uses this seam to load and persist correlated state. Inbox and outbox packages reference `LiteBus.Orchestration.Abstractions`; they do not reference saga types.
+Saga uses this seam to load and persist correlated state. Inbox and outbox packages reference `LiteBus.DurableMessaging.Abstractions`; they do not reference saga types.
 
 ## Hook Lifecycle
 
@@ -41,8 +41,8 @@ Inbox defaults to `DeadLetter`. In-process outbox dispatch also defaults to `Dea
 
 | Surface | Package | Role |
 | --- | --- | --- |
-| `IProcessorEnvelopeHook` | `LiteBus.Orchestration.Abstractions` | Axis-neutral lifecycle contract |
-| `IProcessorEnvelope` | `LiteBus.Orchestration.Abstractions` | Read-only message ID, contract, trace, and tenant metadata |
+| `IProcessorEnvelopeHook` | `LiteBus.DurableMessaging.Abstractions` | Axis-neutral lifecycle contract |
+| `IProcessorEnvelope` | `LiteBus.DurableMessaging.Abstractions` | Read-only message ID, contract, trace, and tenant metadata |
 | `ProcessorHookFailurePolicy` | `LiteBus.Messaging.Abstractions` | Post-dispatch failure policy |
 | `InboxProcessorOptions.HookFailurePolicy` | `LiteBus.Inbox.Abstractions` | Inbox policy selection |
 | `OutboxProcessorOptions.HookFailurePolicy` | `LiteBus.Outbox.Abstractions` | Outbox policy selection |
@@ -54,7 +54,7 @@ Register hook implementations through `IModuleConfiguration.DependencyRegistry`.
 Saga registration remains on the inbox builder:
 
 ```csharp
-registry.AddInboxModule(inbox =>
+registry.AddInbox(inbox =>
 {
     inbox.EnableSaga(saga =>
     {
@@ -69,7 +69,7 @@ registry.AddInboxModule(inbox =>
 
 | Package | Role |
 | --- | --- |
-| `LiteBus.Orchestration.Abstractions` | Hook and envelope contracts |
+| `LiteBus.DurableMessaging.Abstractions` | Hook and envelope contracts |
 | `LiteBus.Inbox`, `LiteBus.Outbox` | Hook runners, envelope adapters, and failure-policy integration |
 | `LiteBus.Saga` | Saga hook and execution context |
 | `LiteBus.Saga.InboxIntegration` | Inbox builder and command mediation attachment |

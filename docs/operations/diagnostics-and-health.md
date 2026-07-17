@@ -18,8 +18,8 @@ LiteBus registers framework-neutral diagnostic probes through the module manifes
 ```csharp
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddMessaging(_ => { });
+    builder.AddInbox(inbox =>
     {
         inbox.UsePostgreSqlStorage(pg => pg.UseConnectionString(connectionString));
         inbox.AddDiagnosticCheck<PostgreSqlInboxSchemaProbe>("inbox-schema");

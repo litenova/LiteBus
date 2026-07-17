@@ -48,8 +48,8 @@ Register built-in dispatchers through nested `Use*` extensions:
 
 | Path | In-process | External broker |
 | --- | --- | --- |
-| Inbox | `UseInProcessDispatch()`: `LiteBus.Inbox.Dispatch.InProcess` | `UseAmqpDispatch(..., connectionOptions)`: `LiteBus.Inbox.Dispatch.Amqp`; `UseInMemoryDispatch(...)`: `LiteBus.Inbox.Dispatch.InMemory` |
-| Outbox | `UseInProcessDispatch()`: `LiteBus.Outbox.Dispatch.InProcess` | `UseAmqpDispatch(..., connectionOptions)`: `LiteBus.Outbox.Dispatch.Amqp`; `UseInMemoryDispatch(...)`: `LiteBus.Outbox.Dispatch.InMemory` |
+| Inbox | `UseInProcessDispatch()`: `LiteBus.Inbox.Dispatch.InProcess` | Root `AddAmqpTransport(...)` plus `UseAmqpDispatch(...)`: `LiteBus.Inbox.Dispatch.Amqp`; root `AddInMemoryTransport()` plus `UseInMemoryDispatch(...)`: `LiteBus.Inbox.Dispatch.InMemory` |
+| Outbox | `UseInProcessDispatch()`: `LiteBus.Outbox.Dispatch.InProcess` | Root `AddAmqpTransport(...)` plus `UseAmqpDispatch(...)`: `LiteBus.Outbox.Dispatch.Amqp`; root `AddInMemoryTransport()` plus `UseInMemoryDispatch(...)`: `LiteBus.Outbox.Dispatch.InMemory` |
 
 Throw when dispatch fails; the processor records retry or dead-letter state from the exception.
 
@@ -58,7 +58,7 @@ Throw when dispatch fails; the processor records retry or dead-letter state from
 Register store roles and dispatchers in DI, then reference them from custom module code or replace built-in registrations:
 
 ```csharp
-builder.Modules.AddInboxModule(inbox =>
+builder.AddInbox(inbox =>
 {
     inbox.Contracts.Register<MyCommand>("my.command", 1);
     // custom store modules register IInboxStore / IInboxLeaseStore / IInboxStateWriter

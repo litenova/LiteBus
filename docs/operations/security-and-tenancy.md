@@ -19,13 +19,13 @@ Enterprise unit tests demonstrate round-trip encryption and tenant lease scoping
 ### Payload Encryption
 
 ```csharp
-builder.Modules.AddInboxModule(inbox =>
+builder.AddInbox(inbox =>
 {
     inbox.UsePayloadEncryption(new AesPayloadEncryptor(key));
     // storage + dispatch...
 });
 
-builder.Modules.AddOutboxModule(outbox =>
+builder.AddOutbox(outbox =>
 {
     outbox.UsePayloadEncryption(new AesPayloadEncryptor(key));
 });

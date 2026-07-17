@@ -3,13 +3,13 @@
 - **ID**: `dispatch.transport-core`
 - **Name**: Shared transport dispatchers
 - **Maturity**: GA
-- **Summary**: Broker-neutral `TransportInboxDispatcher` and `TransportOutboxDispatcher` publish leased envelopes through `IMessageTransport` with shared options and optional tenant routing.
+- **Summary**: Broker-neutral `TransportInboxDispatcher` and `TransportOutboxDispatcher` publish leased envelopes through `ITransportPublisher` with shared options and optional tenant routing.
 
 ## What It Does
 
-`LiteBus.Inbox.Dispatch` and `LiteBus.Outbox.Dispatch` host the shared transport dispatch implementation. Each dispatcher resolves the contract from the envelope, optionally decrypts the payload, optionally validates deserialization, resolves a transport route, builds publish headers, and calls `IMessageTransport.PublishAsync`.
+`LiteBus.Inbox.Dispatch` and `LiteBus.Outbox.Dispatch` host the shared transport dispatch implementation. Each dispatcher resolves the contract from the envelope, optionally decrypts the payload, optionally validates deserialization, resolves a transport route, builds publish headers, and calls `ITransportPublisher.PublishAsync`.
 
-`TransportInboxDispatchModule` and `TransportOutboxDispatchModule` register the dispatcher and optionally build a transport child module supplied by broker-specific `Use*Dispatch` extensions. Transport outbox modules expose `DefaultHookFailurePolicy = CompleteDespiteHookFailure`.
+`TransportInboxDispatchModule` and `TransportOutboxDispatchModule` register the dispatcher and require a matching root transport module. Broker-specific `Use*Dispatch` extensions contribute only feature bridge wiring. Transport outbox modules expose `DefaultHookFailurePolicy = CompleteDespiteHookFailure`.
 
 Route resolution order:
 
@@ -24,7 +24,7 @@ Route resolution order:
 | --- | --- |
 | `LiteBus.Inbox.Dispatch` | Inbox transport dispatcher and module |
 | `LiteBus.Outbox.Dispatch` | Outbox transport dispatcher and module |
-| `LiteBus.Transport.Abstractions` | `IMessageTransport`, `TransportPublishRequest` |
+| `LiteBus.Transport.Abstractions` | `ITransportPublisher`, `TransportPublishRequest` |
 | `LiteBus.Transport` | Tracing, shared header helpers |
 | `LiteBus.Messaging` | Payload protection, serializer integration |
 
@@ -32,14 +32,14 @@ Route resolution order:
 
 - `runtime.contract-registry` (contract name/version to CLR type)
 - `runtime.message-serialization`
-- Matching `transport.*` broker module (registered by broker dispatch extension)
+- Matching root `transport.*` broker module registered through `Add*Transport(...)`
 - `dispatch.registration`
 
 ## Invariants
 
 - Stored payload bytes are published as-is after optional unprotect; deserialization is for validation only when `ValidatePayloadBeforeDispatch` is true.
 - `MessageId` on the transport request is the envelope GUID string.
-- One transport module per process; broker dispatch extensions register transport with the dispatcher module.
+- One explicitly selected root transport module is shared by dispatch and ingress.
 - Dispatch throws on transport failure; the processor owns retry and dead-letter state.
 
 ## Non-Goals
@@ -51,14 +51,14 @@ Route resolution order:
 ## Public Surface
 
 ```csharp
-outbox.UseKafkaDispatch(
+bus.AddKafkaTransport(new KafkaTransportOptions { BootstrapServers = "localhost:9092" });
+bus.AddOutbox(outbox => outbox.UseKafkaDispatch(
     options =>
     {
         options.DefaultDestination = "orders.events";
         options.ValidatePayloadBeforeDispatch = true;
         options.ResolveRoute = envelope => envelope.Topic ?? envelope.ContractName;
-    },
-    new KafkaTransportOptions { BootstrapServers = "localhost:9092" });
+    }));
 ```
 
 ### `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)`
@@ -67,7 +67,7 @@ outbox.UseKafkaDispatch(
 | --- | --- |
 | Package | `LiteBus.Inbox.Dispatch` |
 | Implements | `IInboxDispatcher.DispatchAsync` |
-| Flow | Resolve contract to unprotect payload to optional deserialize validation to resolve route to start publish activity to `IMessageTransport.PublishAsync` |
+| Flow | Resolve contract to unprotect payload to optional deserialize validation to resolve route to start publish activity to `ITransportPublisher.PublishAsync` |
 
 Throws when contract resolution, validation, or transport publish fails. Does not catch transport exceptions.
 
@@ -85,9 +85,7 @@ Throws when contract resolution, validation, or transport publish fails. Does no
 | --- | --- |
 | Package | `LiteBus.Inbox.Dispatch` |
 | Registers | `TransportInboxDispatcherOptions` singleton, `IInboxDispatcher` to `TransportInboxDispatcher` |
-| Guards | Throws when `IInboxDispatcher` or `IMessageTransport` already missing or duplicate |
-
-Builds optional `_transportModule` first (broker child).
+| Dependencies | Requires the matching root transport module; duplicate dispatcher registration fails during composition |
 
 ### `TransportOutboxDispatchModule.Build(IModuleConfiguration)`
 

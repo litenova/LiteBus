@@ -17,16 +17,16 @@ The successful hook path has three phases: `BeforeDispatchAsync`, optional synch
 
 | Surface | Package | Role |
 | --- | --- | --- |
-| `IProcessorEnvelopeHook.BeforeDispatchAsync(...)` | `LiteBus.Orchestration.Abstractions` | Runs after lease and before dispatcher call |
-| `IProcessorEnvelopeHook.PrepareDispatchScope(...)` | `LiteBus.Orchestration.Abstractions` | Optional synchronous ambient-scope phase before dispatch |
-| `IProcessorEnvelopeHook.AfterDispatchAsync(...)` | `LiteBus.Orchestration.Abstractions` | Runs after dispatch and before terminal persistence |
-| `IProcessorEnvelopeHook.AbandonDispatchScope(...)` | `LiteBus.Orchestration.Abstractions` | Releases state after canceled or failed processing |
-| `IProcessorEnvelope` | `LiteBus.Orchestration.Abstractions` | Read-only hook envelope metadata |
+| `IProcessorEnvelopeHook.BeforeDispatchAsync(...)` | `LiteBus.DurableMessaging.Abstractions` | Runs after lease and before dispatcher call |
+| `IProcessorEnvelopeHook.PrepareDispatchScope(...)` | `LiteBus.DurableMessaging.Abstractions` | Optional synchronous ambient-scope phase before dispatch |
+| `IProcessorEnvelopeHook.AfterDispatchAsync(...)` | `LiteBus.DurableMessaging.Abstractions` | Runs after dispatch and before terminal persistence |
+| `IProcessorEnvelopeHook.AbandonDispatchScope(...)` | `LiteBus.DurableMessaging.Abstractions` | Releases state after canceled or failed processing |
+| `IProcessorEnvelope` | `LiteBus.DurableMessaging.Abstractions` | Read-only hook envelope metadata |
 | Hook registration through `DependencyRegistry` | `LiteBus.Runtime.Abstractions` | Invocation order follows DI registration order |
 
 ## Packages
 
-- `LiteBus.Orchestration.Abstractions`
+- `LiteBus.DurableMessaging.Abstractions`
 
 ## Requires
 
@@ -89,7 +89,7 @@ No dedicated meters or activity sources on `IProcessorEnvelopeHook` itself.
 
 - **Use case**: Hook phases integrate with PostgreSQL saga storage and real inbox processor.
 - **Test kind**: Integration
-- **Description**: Full `AddLiteBus` composition with `EnableSaga()` and `UsePostgreSqlSagaStorage`.
+- **Description**: Full `AddLiteBus` composition with `EnableSaga()` and `UsePostgreSqlStorage`.
 - **Behavior**: Single correlated inbox command processed.
 - **Expected outcome**: Saga instance loaded from PostgreSQL with expected state.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.

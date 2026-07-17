@@ -1,7 +1,7 @@
 # PostgreSQL Shared Infrastructure
 
 - **ID**: `storage.postgresql.shared-infra`
-- **Package**: `LiteBus.Storage.PostgreSql` (layer 3)
+- **Package**: `LiteBus.Storage.PostgreSql` (technology adapter)
 - **Summary**: Shared primitives used by PostgreSQL inbox and outbox adapters for schema lifecycle, identifier safety, locking, work signaling, and transactional participation.
 
 ## Main Contracts and Methods

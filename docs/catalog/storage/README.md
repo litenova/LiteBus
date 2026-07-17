@@ -1,11 +1,11 @@
 # Storage Axis Capability Catalog
 
-The storage axis covers durable persistence for inbox and outbox flows. It spans layer 3 shared PostgreSQL infrastructure and layer 4 adapter packages that implement storage roles for each axis.
+The storage axis covers durable persistence for inbox and outbox flows. Technology-adapter packages own shared PostgreSQL and EF Core primitives, while feature bridges implement storage roles for each durable axis.
 
 ## Axis Role
 
-- **Layer 3**: shared storage infrastructure (`LiteBus.Storage.PostgreSql`, plus EF Core shared utilities outside this catalog).
-- **Layer 4**: axis adapters (`LiteBus.Inbox.Storage.*`, `LiteBus.Outbox.Storage.*`).
+- **Technology adapters**: shared storage infrastructure (`LiteBus.Storage.PostgreSql`, plus EF Core shared utilities outside this catalog).
+- **Feature bridges**: axis adapters (`LiteBus.Inbox.Storage.*`, `LiteBus.Outbox.Storage.*`).
 - **Primary responsibility**: accept and enqueue writes, processor leasing, state transitions, dead-letter replay, retention cleanup, diagnostics counts, and schema lifecycle for PostgreSQL adapters.
 
 ## Store Role Taxonomy
@@ -24,11 +24,11 @@ The storage axis covers durable persistence for inbox and outbox flows. It spans
 
 ## Package Table
 
-| Package | Layer | Role in storage axis |
+| Package | Dependency role | Role in storage axis |
 | --- | --- | --- |
-| `LiteBus.Storage.PostgreSql` | 3 | Shared SQL utilities, schema lock/version helpers, work signal, ambient transaction provider contract |
-| `LiteBus.Inbox.Storage.PostgreSql` | 4 | PostgreSQL inbox adapter, schema scripts, transactional inbox participant |
-| `LiteBus.Outbox.Storage.PostgreSql` | 4 | PostgreSQL outbox adapter, schema scripts, transactional outbox participant |
+| `LiteBus.Storage.PostgreSql` | Technology adapter | Shared SQL utilities, schema lock/version helpers, work signal, ambient transaction provider contract |
+| `LiteBus.Inbox.Storage.PostgreSql` | Feature bridge | PostgreSQL inbox adapter, schema scripts, transactional inbox participant |
+| `LiteBus.Outbox.Storage.PostgreSql` | Feature bridge | PostgreSQL outbox adapter, schema scripts, transactional outbox participant |
 
 ## Capability Index
 
@@ -36,7 +36,7 @@ The storage axis covers durable persistence for inbox and outbox flows. It spans
 | --- | --- |
 | [storage.inbox.adapter.postgresql](storage.inbox.adapter.postgresql.md) | Full PostgreSQL inbox adapter surface |
 | [storage.outbox.adapter.postgresql](storage.outbox.adapter.postgresql.md) | Full PostgreSQL outbox adapter surface |
-| [storage.postgresql.shared-infra](storage.postgresql.shared-infra.md) | Shared layer 3 primitives |
+| [storage.postgresql.shared-infra](storage.postgresql.shared-infra.md) | Shared PostgreSQL technology primitives |
 | [storage.postgresql.schema-management](storage.postgresql.schema-management.md) | Ensure, validate, and drift checks |
 | [storage.postgresql.work-signal](storage.postgresql.work-signal.md) | LISTEN/NOTIFY wake-up path |
 | [storage.composite.processing-store](storage.composite.processing-store.md) | Composite lease/state role contracts |
@@ -50,7 +50,7 @@ The storage axis covers durable persistence for inbox and outbox flows. It spans
 ## Test Projects
 
 - `LiteBus.Storage.UnitTests`
-  - role contracts, PostgreSQL utility tests, transactional participant behavior, module registration guards.
+  - role contracts, PostgreSQL utility tests, transactional participant behavior, and module dependency validation.
 - `LiteBus.Storage.IntegrationTests`
   - `PostgreSql/` suite for inbox/outbox store contracts, schema scripts, schema drift, work signal, end-to-end processor behavior, and transactional write integration.
 

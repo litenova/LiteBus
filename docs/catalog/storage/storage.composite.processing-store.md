@@ -50,7 +50,7 @@ Acceptance methods (`AddAsync`, `AddBatchAsync`) remain on append interfaces and
 
 ### `LiteBus.Storage.UnitTests`
 
-- `Modules/AxisAdapterModuleRegistrationGuardTests`: validates role registration guards.
+- Module dependency tests validate that storage cannot build without its parent durable module.
 - EF and InMemory module tests in same project verify one-instance role mapping per axis adapter.
 
 ## Related Docs

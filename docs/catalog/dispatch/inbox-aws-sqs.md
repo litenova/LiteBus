@@ -43,18 +43,19 @@ Remote workers typically consume via SQS inbox ingress or custom consumers that 
 ```csharp
 services.AddLiteBus(litebus =>
 {
-    litebus.AddInboxModule(inbox =>
+    litebus.AddAwsSqsTransport(new AwsSqsTransportOptions
+    {
+        Region = "us-east-1",
+        LongPollWaitTimeSeconds = 20
+    });
+
+    litebus.AddInbox(inbox =>
     {
         inbox.EnableInboxProcessor();
         inbox.UseAwsSqsDispatch(
             options =>
             {
                 options.DefaultDestination = "https://sqs.us-east-1.amazonaws.com/111122223333/orders";
-            },
-            new AwsSqsTransportOptions
-            {
-                Region = "us-east-1",
-                LongPollWaitTimeSeconds = 20
             });
     });
 });
@@ -62,7 +63,7 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `InboxModuleBuilder.UseAwsSqsDispatch(Action<TransportInboxDispatcherOptions>, AwsSqsTransportOptions)` | Registers inbox transport dispatcher with SQS transport |
+| `InboxModuleBuilder.UseAwsSqsDispatch(Action<TransportInboxDispatcherOptions>)` | Registers inbox transport dispatcher that requires the root SQS transport |
 | `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | Shared dispatch publish path |
 
 `AwsSqsTransportOptions`:

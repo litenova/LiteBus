@@ -36,7 +36,7 @@ Query and purge roles are exposed through manager APIs backed by the same store 
 | `UseDataSource(NpgsqlDataSource)` | `LiteBus.Storage.PostgreSql` | Shared connection pool across axes |
 | `EnsureSchemaCreationOnStartup()` | PostgreSQL storage modules | Dev-only schema bootstrap via startup task |
 
-Register storage inside **`AddInboxModule(...)`** / **`AddOutboxModule(...)`** builders only. Calling the same storage extension twice on one builder throws **`LiteBusConfigurationException`**.
+Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only. Calling the same storage extension twice on one builder throws **`LiteBusConfigurationException`**.
 
 ### Configuration
 
@@ -76,7 +76,7 @@ Register storage inside **`AddInboxModule(...)`** / **`AddOutboxModule(...)`** b
 
 ## Requires
 
-- Storage registered inside `AddInboxModule` / `AddOutboxModule` builder
+- Storage registered inside `AddInbox` / `AddOutbox` builder
 - Contract registration before writes
 - One data source per database when sharing PostgreSQL between axes
 
@@ -98,7 +98,7 @@ Register storage inside **`AddInboxModule(...)`** / **`AddOutboxModule(...)`** b
 ### Schema Diagnostic Probes
 
 - **Contract**: **`IDiagnosticCheck`** registered through storage modules
-- **Kind**: Framework-neutral diagnostic probe (layer 0 runtime)
+- **Kind**: Framework-neutral diagnostic probe (platform contract)
 - **When run**: Host startup and manual diagnostic runner invocations
 - **Signal**: Healthy when required tables and columns exist; degraded or unhealthy on drift
 - **Registration**: `configuration.RegisterDiagnosticCheck(typeof(...), name)` inside storage module **`Build()`**

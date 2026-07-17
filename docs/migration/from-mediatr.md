@@ -29,9 +29,10 @@ LiteBus:
 ```csharp
 services.AddLiteBus(builder =>
 {
-    builder.Modules.AddCommandModule(c => c.RegisterFromAssembly(typeof(PlaceOrderHandler).Assembly));
-    builder.Modules.AddEventModule(e => e.RegisterFromAssembly(typeof(PlaceOrderHandler).Assembly));
-    builder.Contracts.Register<OrderPlaced>("orders.events.placed", 1);
+    builder.AddMessaging(messaging =>
+        messaging.Contracts.Register<OrderPlaced>("orders.events.placed", 1));
+    builder.AddCommands(c => c.RegisterFromAssembly(typeof(PlaceOrderHandler).Assembly));
+    builder.AddEvents(e => e.RegisterFromAssembly(typeof(PlaceOrderHandler).Assembly));
 });
 ```
 

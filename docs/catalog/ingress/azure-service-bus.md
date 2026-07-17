@@ -7,7 +7,7 @@
 
 ## Purpose and Scope
 
-`UseAzureServiceBusIngress` registers `AzureServiceBusInboxIngressModule`. The module maps `AzureServiceBusInboxIngressOptions` into shared transport ingress options, bootstraps `AzureServiceBusTransportModule` when no consumer exists, and registers the shared handler and consumer loop.
+`UseAzureServiceBusIngress` registers `AzureServiceBusInboxIngressModule`. The module maps `AzureServiceBusInboxIngressOptions` into shared transport ingress options, requires a root `AzureServiceBusTransportModule`, and registers the shared handler and consumer loop.
 
 Failed store writes can abandon messages for retry when `RequeueOnFailure` is true (Service Bus retry semantics via transport adapter).
 
@@ -22,22 +22,22 @@ Service Bus ingress is Beta because ingress flow is stable but matrix depth is n
 ## Public Surface
 
 ```csharp
-inbox.UseAzureServiceBusIngress(ingress =>
+bus.AddAzureServiceBusTransport(serviceBusOptions);
+bus.AddInbox(inbox => inbox.UseAzureServiceBusIngress(ingress =>
 {
     ingress.UseOptions(new AzureServiceBusInboxIngressOptions
     {
         Destination = "commands-inbox",
         PrefetchCount = 10,
-        Connection = serviceBusOptions,
         RequeueOnFailure = true
     });
-});
+}));
 ```
 
 | Builder API | Role |
 | --- | --- |
 | `InboxModuleBuilder.UseAzureServiceBusIngress(Action<AzureServiceBusInboxIngressModuleBuilder>)` | Registration extension |
-| `AzureServiceBusInboxIngressModuleBuilder.UseOptions(AzureServiceBusInboxIngressOptions)` | Queue or topic path and connection |
+| `AzureServiceBusInboxIngressModuleBuilder.UseOptions(AzureServiceBusInboxIngressOptions)` | Queue or topic path and ingress behavior |
 | `AzureServiceBusInboxIngressModuleBuilder.DisableIngressConsumer()` | Handler without processor loop |
 | `AzureServiceBusInboxIngressModule` | Child module |
 
@@ -46,7 +46,7 @@ inbox.UseAzureServiceBusIngress(ingress =>
 | Capability | Azure Service Bus ingress | AMQP ingress |
 | --- | --- | --- |
 | Destination required | `Destination` required | `QueueName` required |
-| Connection required | `Connection` required | `Connection` required |
+| Root transport required | `AddAzureServiceBusTransport(...)` | `AddAmqpTransport(...)` |
 | Prefetch setting | yes | yes |
 | `RequeueOnFailure` toggle | yes (default true) | yes (default true) |
 | `TrustApplicationHeaders` exposure on broker options | no | yes |
@@ -56,7 +56,7 @@ inbox.UseAzureServiceBusIngress(ingress =>
 ## Packages
 
 - `LiteBus.Inbox.Ingress.AzureServiceBus`
-- `LiteBus.Transport.AzureServiceBus` (transitive when bootstrapped)
+- `LiteBus.Transport.AzureServiceBus` (explicit root transport)
 
 ## Requires
 
@@ -67,7 +67,7 @@ inbox.UseAzureServiceBusIngress(ingress =>
 
 ## Invariants
 
-- `Destination` and `Connection` are required at compose time.
+- `Destination` and root `AddAzureServiceBusTransport(...)` are required at compose time.
 - LiteBus contract headers are required on the wire payload.
 - Beta tier per v6 feature index; treat broker edge cases as application-tested.
 - Identity and idempotency default to broker-scoped values (`RequireStableIdentity=true`, `TrustApplicationHeaders=false`).
@@ -93,7 +93,7 @@ Meter `LiteBus.Inbox` via `AddLiteBusInboxMetrics()`.
 | Signal | Broker tag | Registration |
 | --- | --- | --- |
 | `process {destination}` activity | `servicebus` | `AddLiteBusTransportInstrumentation()` |
-| `litebus.transport.circuit_breaker.open` | `azure_service_bus` | Transport metrics when ingress bootstraps adapter |
+| `litebus.transport.circuit_breaker.open` | `azure_service_bus` | Transport metrics from the root adapter |
 | `litebus.transport.circuit_breaker.failure_count` | `azure_service_bus` | same |
 
 ### Structured Logs

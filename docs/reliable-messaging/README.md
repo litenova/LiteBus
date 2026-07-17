@@ -25,7 +25,7 @@ Commands with results (`ICommand<TResult>`) cannot be stored in the inbox; analy
 
 The inbox stores registered message types and replays them through `PipelinedInboxProcessor` and `IInboxDispatcher`. See [Inbox](inbox.md).
 
-| Layer | Package examples | Role |
+| Concern | Package examples | Role |
 | --- | --- | --- |
 | Core | `LiteBus.Inbox` | `IInbox`, `IInboxProcessor`, contracts |
 | Storage | `LiteBus.Inbox.Storage.PostgreSql`, `*.InMemory`, `*.EntityFrameworkCore` | Store roles |
@@ -36,7 +36,7 @@ The inbox stores registered message types and replays them through `PipelinedInb
 
 The outbox stores a message after a state change commits, then `PipelinedOutboxProcessor` publishes through `IOutboxDispatcher`. See [Outbox](outbox.md).
 
-| Layer | Package examples | Role |
+| Concern | Package examples | Role |
 | --- | --- | --- |
 | Core | `LiteBus.Outbox` | `IOutbox`, `IOutboxProcessor` |
 | Storage | `LiteBus.Outbox.Storage.PostgreSql`, `*.InMemory`, `*.EntityFrameworkCore` | Store roles |
@@ -65,13 +65,13 @@ Processor pipelines are not atomic with external side effects by design. Combine
 
 ## Durable Contracts
 
-Every durable message needs a stable contract name and version. Register explicitly on module builders, share through `ILiteBusBuilder.Contracts`, or use `[MessageContract]` with analyzer enforcement for production code.
+Every durable message needs a stable contract name and version. Register it on the matching message or durable module builder, or use `[MessageContract]` with analyzer enforcement for production code.
 
 ## Composition Checklist
 
 A working durable path needs:
 
-1. `AddInboxModule` / `AddOutboxModule` with contracts
+1. `AddInbox` / `AddOutbox` with contracts
 2. `Use*Storage` inside the same builder
 3. `UseInProcessDispatch`, `UseAmqpDispatch`, or `UseInMemoryDispatch` on the matching module builder
 4. `EnableInboxProcessor` / `EnableOutboxProcessor` when the generic host should run loops

@@ -8,7 +8,7 @@ This page is the **concrete inventory** for LiteBus public API shapes: named typ
 - Reviewers checking whether a new API matches an existing pattern
 - Agents and maintainers aligning legacy surfaces during feature work
 
-**Prerequisites:** [Architecture](README.md) (layer model), [Dependency graph](dependency-graph.md) (package inventory).
+**Prerequisites:** [Architecture](README.md) (dependency role model), [Dependency graph](dependency-graph.md) (package inventory).
 
 ## Model Taxonomy (with Examples)
 
@@ -50,7 +50,7 @@ Durable writer vocabulary is **message-centric** on both axes. Do not use `Paylo
 
 ```mermaid
 flowchart LR
-  subgraph writerAPI [Writer API layer CQRS]
+  subgraph writerAPI [Writer API boundary CQRS]
     InboxAccept["IInbox.AcceptAsync"]
     OutboxEnqueue["IOutbox.EnqueueAsync"]
     TMessage["InboxAcceptItem of TMessage"]
@@ -72,7 +72,7 @@ flowchart LR
   Envelope --> Filter
 ```
 
-| Layer | Inbox | Outbox |
+| API shape | Inbox | Outbox |
 | --- | --- | --- |
 | Typed item | `InboxAcceptItem<TMessage>` with `Message` | `OutboxEnqueueItem<TEvent>` with `Message` (renamed from `Event`) |
 | Untyped batch item | `InboxAcceptItem` | `OutboxEnqueueItem` with `MessageType` (renamed from `EventType`) |
@@ -230,12 +230,12 @@ Track broader roadmap items in [Roadmap](../roadmap/README.md).
 
 ## What This Does Not Cover
 
-- Layer dependency rules (see [Dependency graph](dependency-graph.md))
+- Dependency role rules (see [Dependency graph](dependency-graph.md))
 - Module registration and hosted-service manifest (see [Hosted services](hosted-services.md))
 - Mediation pipeline behavior (see [The handler pipeline](../concepts/handler-pipeline.md))
 
 ## Next
 
-- [Architecture](README.md): storage accept/process paths and system layers
+- [Architecture](README.md): storage accept/process paths and dependency roles
 - [Inbox](../reliable-messaging/inbox.md) / [Outbox](../reliable-messaging/outbox.md): feature guides for durable messaging
 - [Migration guide v6](../migration/v6.md): greenfield API break summary

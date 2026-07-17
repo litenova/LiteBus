@@ -92,8 +92,8 @@ public class CommandIntegrationTests
         // Configure LiteBus with all relevant handlers
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-            registry.AddCommandModule(module =>
+            registry.AddMessaging(_ => { });
+            registry.AddCommands(module =>
             {
                 module.Register<CreateProductCommandValidator>(); // Pre-handler
                 module.Register<CreateProductCommandHandler>();   // Main handler
@@ -176,8 +176,8 @@ public class OpenGenericHandlerIntegrationTests
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-            registry.AddCommandModule(module =>
+            registry.AddMessaging(_ => { });
+            registry.AddCommands(module =>
             {
                 // Register the open generic
                 module.Register(typeof(LoggingPreHandler<>));
@@ -234,8 +234,8 @@ public class AppWebApplicationFactory : WebApplicationFactory<Program>, IDisposa
 
             services.AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ => { });
-                registry.AddCommandModule(module => module.Register<SignUpUserCommandHandler>());
+                registry.AddMessaging(_ => { });
+                registry.AddCommands(module => module.Register<SignUpUserCommandHandler>());
             });
 
             EnsureDatabaseCreated(services);
@@ -261,9 +261,9 @@ Inbox and outbox tests follow the same pattern: register the core module, InMemo
 ```csharp
 services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddCommandModule(c => c.Register<ProcessPaymentCommandHandler>());
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(c => c.Register<ProcessPaymentCommandHandler>());
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
         inbox.UseInMemoryStorage();
@@ -283,9 +283,9 @@ await processor.ProcessPendingAsync(CancellationToken.None);
 ```csharp
 services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddEventModule(e => e.Register<OrderSubmittedEventHandler>());
-    builder.Modules.AddOutboxModule(outbox =>
+    builder.AddMessaging(_ => { });
+    builder.AddEvents(e => e.Register<OrderSubmittedEventHandler>());
+    builder.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<OrderSubmitted>("orders.order-submitted", 1);
         outbox.UseInMemoryStorage();

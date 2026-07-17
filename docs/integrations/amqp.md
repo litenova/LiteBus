@@ -8,7 +8,7 @@
 
 | Package | Role |
 | --- | --- |
-| `LiteBus.Transport.Amqp` | `IMessageTransport`, `AmqpConsumer`, `AmqpConnectionOptions` |
+| `LiteBus.Transport.Amqp` | `ITransportPublisher`, `AmqpConsumer`, `AmqpConnectionOptions` |
 | `LiteBus.Inbox.Dispatch.Amqp` | Outbound command dispatch from inbox processor |
 | `LiteBus.Outbox.Dispatch.Amqp` | Outbound event publish from outbox processor |
 | `LiteBus.Inbox.Ingress.Amqp` | Broker intake into `IInbox.AcceptAsync` |
@@ -26,16 +26,17 @@ var connection = new AmqpConnectionOptions
     Password = "guest"
 };
 
-builder.Modules.AddMessageModule(_ => { });
-builder.Modules.AddCommandModule(c => c.RegisterFromAssembly(typeof(ShipOrderCommandHandler).Assembly));
+builder.AddMessaging(_ => { });
+builder.AddCommands(c => c.RegisterFromAssembly(typeof(ShipOrderCommandHandler).Assembly));
+builder.AddAmqpTransport(connection);
 
-builder.Modules.AddInboxModule(inbox =>
+builder.AddInbox(inbox =>
 {
     inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
     inbox.UsePostgreSqlStorage(connectionString);
     inbox.UseInProcessDispatch();
 
-    inbox.UseAmqpDispatch(transport => transport.DefaultDestination = "orders.commands", connection);
+    inbox.UseAmqpDispatch(transport => transport.DefaultDestination = "orders.commands");
 
     inbox.UseAmqpIngress(ingress =>
     {
@@ -43,7 +44,6 @@ builder.Modules.AddInboxModule(inbox =>
         {
             QueueName = "orders.commands",
             PrefetchCount = 10,
-            Connection = connection,
             RequeueOnFailure = true
         });
     });
@@ -52,7 +52,7 @@ builder.Modules.AddInboxModule(inbox =>
 });
 ```
 
-`UseAmqpDispatch` and `UseAmqpIngress` register `AmqpTransportModule` when `IMessageConsumer` is not already present. Register a different transport module first only when you intentionally replace the broker adapter.
+`AddAmqpTransport` owns the broker connection at the root. Dispatch and ingress require that module and share its publisher and consumer.
 
 ## Wire Headers
 

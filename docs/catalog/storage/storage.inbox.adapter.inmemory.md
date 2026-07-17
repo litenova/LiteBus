@@ -56,15 +56,15 @@ inbox.UseInMemoryStorage(o => o.UseTimeProvider(timeProvider));
 
 ## Packages
 
-| Package | Layer |
+| Package | Dependency role |
 | --- | --- |
-| `LiteBus.Inbox.Storage.InMemory` | 4 |
+| `LiteBus.Inbox.Storage.InMemory` | Feature bridge |
 
 No external NuGet dependencies beyond inbox abstractions.
 
 ## Requires
 
-- `AddInboxModule` with dispatch for processor tests
+- `AddInbox` with dispatch for processor tests
 
 ## Invariants
 

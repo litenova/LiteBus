@@ -47,7 +47,7 @@ LiteBus keeps domain-specific names instead of one generic "store" verb:
 
 | Term | Definition |
 | --- | --- |
-| `ILiteBusBuilder` | Fluent entry for shared `Contracts` and `Modules` during `AddLiteBus`. |
+| `ILiteBusBuilder` | Package-neutral `Modules` entry during `AddLiteBus`; installed packages add normal `Add*` feature extensions. |
 | `Use*` extension | Nested registration on `InboxModuleBuilder` / `OutboxModuleBuilder` (storage, dispatch, ingress). Each maps to one NuGet package. See [Dependency Graph](../architecture/dependency-graph.md). |
 | Manifest | `LiteBusHostManifest` listing `IStartupTask`, `IBackgroundService`, and `IDiagnosticCheck` types. See [Hosted services](../architecture/hosted-services.md). |
 | `UseInProcessDispatch` | Nested inbox builder extension registering `LiteBus.Inbox.Dispatch.InProcess`; replays leased envelopes through `ICommandMediator`. See [Inbox](../reliable-messaging/inbox.md). |

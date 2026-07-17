@@ -7,29 +7,30 @@
 
 ## What It Does
 
-Dispatch adapters register as child modules of `InboxModule` or `OutboxModule`. `InboxModuleBuilder.RegisterDispatcher` and `OutboxModuleBuilder.RegisterDispatcher` accept an `IInboxDispatcherModule` or `IOutboxDispatcherModule` implementation. Each broker-specific `Use*Dispatch` extension constructs the matching dispatcher module (and often a transport child module) and passes it to `RegisterDispatcher`.
+Dispatch adapters register as child modules of `InboxModule` or `OutboxModule`. `InboxModuleBuilder.RegisterDispatcher` and `OutboxModuleBuilder.RegisterDispatcher` accept an `IInboxDispatcherModule` or `IOutboxDispatcherModule` implementation. Each broker-specific `Use*Dispatch` extension constructs the matching dispatcher module, which requires a transport registered once at the root.
 
-Calling more than one dispatcher registration method on the same builder throws `LiteBusConfigurationException` at compose time. The shared transport modules also guard against duplicate `IInboxDispatcher` or `IOutboxDispatcher` registrations in the dependency registry.
+Calling more than one dispatcher registration method on the same builder throws `LiteBusConfigurationException` at compose time. Module graph validation ensures required parents and transports exist before any dispatcher module builds.
 
 ## Packages
 
 | Package | Role |
 | --- | --- |
-| `LiteBus.Inbox.Abstractions` | `IInboxDispatcherModule`, builder surface |
-| `LiteBus.Outbox.Abstractions` | `IOutboxDispatcherModule`, builder surface |
+| `LiteBus.Inbox.Abstractions` | `IInboxDispatcherModule` contract |
+| `LiteBus.Outbox.Abstractions` | `IOutboxDispatcherModule` contract |
+| `LiteBus.Inbox`, `LiteBus.Outbox` | Concrete module builder surfaces |
 | `LiteBus.Inbox.Dispatch.*` / `LiteBus.Outbox.Dispatch.*` | Concrete dispatcher modules |
 
 ## Requires
 
 - `durable-core.inbox` or `durable-core.outbox` (parent module must be registered)
 - For in-process dispatch: `mediator.commands` (inbox) or `mediator.events` (outbox)
-- For transport dispatch: matching `transport.*` broker module registered by the dispatch extension
+- For transport dispatch: matching `transport.*` broker module registered at the root
 
 ## Invariants
 
 - Exactly one `IInboxDispatcher` and one `IOutboxDispatcher` per respective module configuration scope.
 - Dispatcher sub-modules declare `IRequires<InboxModule>` or `IRequires<OutboxModule>` for topological ordering.
-- Transport dispatch modules require `IMessageTransport` to be registered before the dispatcher (usually via the same `Use*Dispatch` call).
+- Transport dispatch modules declare the matching root transport module as a graph dependency.
 
 ## Non-Goals
 
@@ -42,18 +43,18 @@ Calling more than one dispatcher registration method on the same builder throws 
 ```csharp
 services.AddLiteBus(litebus =>
 {
-    litebus.AddInboxModule(inbox =>
+    litebus.AddKafkaTransport(new KafkaTransportOptions { BootstrapServers = "localhost:9092" });
+
+    litebus.AddInbox(inbox =>
     {
         inbox.EnableInboxProcessor();
         inbox.UseInProcessDispatch();
     });
 
-    litebus.AddOutboxModule(outbox =>
+    litebus.AddOutbox(outbox =>
     {
         outbox.EnableOutboxProcessor();
-        outbox.UseKafkaDispatch(
-            options => options.DefaultDestination = "events",
-            new KafkaTransportOptions { BootstrapServers = "localhost:9092" });
+        outbox.UseKafkaDispatch(options => options.DefaultDestination = "events");
     });
 });
 ```
@@ -62,7 +63,7 @@ services.AddLiteBus(litebus =>
 
 | | |
 | --- | --- |
-| Package | `LiteBus.Inbox.Abstractions` |
+| Package | `LiteBus.Inbox` |
 | Returns | `InboxModuleBuilder` for chaining |
 | Role | Low-level registration; stores the dispatcher child module for `InboxModule.Build()` |
 
@@ -72,7 +73,7 @@ Throws `LiteBusConfigurationException` when a second dispatcher module is regist
 
 | | |
 | --- | --- |
-| Package | `LiteBus.Outbox.Abstractions` |
+| Package | `LiteBus.Outbox` |
 | Returns | `OutboxModuleBuilder` for chaining |
 | Role | Low-level registration; stores the dispatcher child module for `OutboxModule.Build()` |
 
@@ -82,7 +83,7 @@ Throws `LiteBusConfigurationException` when a second dispatcher module is regist
 | --- | --- |
 | Package | `LiteBus.Inbox.Dispatch.InProcess` |
 | Registers | `CommandInboxDispatchModule` to `CommandInboxDispatcher` as `IInboxDispatcher` |
-| Requires | `AddCommandModule` and contract registration for handled command types |
+| Requires | `AddCommands` and contract registration for handled command types |
 
 ### `OutboxModuleBuilder.UseInProcessDispatch()`
 
@@ -90,21 +91,21 @@ Throws `LiteBusConfigurationException` when a second dispatcher module is regist
 | --- | --- |
 | Package | `LiteBus.Outbox.Dispatch.InProcess` |
 | Registers | `EventOutboxDispatchModule` to `EventOutboxDispatcher` as `IOutboxDispatcher` |
-| Requires | `AddEventModule` and contract registration for published event types |
+| Requires | `AddEvents` and contract registration for published event types |
 
 ### Broker `Use*Dispatch` Extensions (Inbox and Outbox)
 
-| Extension | Package | Transport child |
+| Extension | Package | Required root transport |
 | --- | --- | --- |
-| `UseAmqpDispatch(configure, AmqpConnectionOptions)` | `*.Dispatch.Amqp` | `AmqpTransportModule` |
-| `UseAzureServiceBusDispatch(configure, AzureServiceBusTransportOptions)` | `*.Dispatch.AzureServiceBus` | `AzureServiceBusTransportModule` |
-| `UseAwsSqsDispatch(configure, AwsSqsTransportOptions)` | `*.Dispatch.AwsSqs` | `AwsSqsTransportModule` |
-| `UseKafkaDispatch(configure, KafkaTransportOptions)` | `*.Dispatch.Kafka` | `KafkaTransportModule` |
-| `UseInMemoryDispatch(configure?)` | `*.Dispatch.InMemory` | `InMemoryTransportModule` |
+| `UseAmqpDispatch(configure)` | `*.Dispatch.Amqp` | `AddAmqpTransport(...)` |
+| `UseAzureServiceBusDispatch(configure)` | `*.Dispatch.AzureServiceBus` | `AddAzureServiceBusTransport(...)` |
+| `UseAwsSqsDispatch(configure)` | `*.Dispatch.AwsSqs` | `AddAwsSqsTransport(...)` |
+| `UseKafkaDispatch(configure)` | `*.Dispatch.Kafka` | `AddKafkaTransport(...)` |
+| `UseInMemoryDispatch(configure?)` | `*.Dispatch.InMemory` | `AddInMemoryTransport()` |
 
 Each extension builds `TransportInboxDispatcherOptions` or `TransportOutboxDispatcherOptions`, wraps `TransportInboxDispatchModule` or `TransportOutboxDispatchModule`, and calls `RegisterDispatcher`.
 
-Registration runs inside `AddInboxModule(...)` or `AddOutboxModule(...)` alongside storage and processor enablement. v6 removed flat top-level dispatcher registrars; compose through the parent module builder only.
+Registration runs inside `AddInbox(...)` or `AddOutbox(...)` alongside storage and processor enablement. v6 removed flat top-level dispatcher registrars; compose through the parent module builder only.
 
 ## Observability
 

@@ -3,11 +3,11 @@
 - **ID**: `saga.in-memory-store`
 - **Name**: In-memory saga store
 - **Maturity**: Extension
-- **Summary**: Thread-safe default saga store for unit tests and local development.
+- **Summary**: Thread-safe explicit saga store for unit tests and local development.
 
 ## What It Does
 
-`InMemorySagaStore` implements `ISagaStore` using a concurrent dictionary keyed by a typed tenant, saga definition, and correlation value. The typed key prevents delimiter collisions when identifiers contain colons. State serializes through `IMessageSerializer` to JSON in memory. It registers automatically when `EnableSaga()` runs unless another module sets `SagaStoreRegisteredMarker`, for example PostgreSQL registration.
+`InMemorySagaStore` implements `ISagaStore` using a concurrent dictionary keyed by a typed tenant, saga definition, and correlation value. The typed key prevents delimiter collisions when identifiers contain colons. State serializes through `IMessageSerializer` to JSON in memory. Select it explicitly with `SagaModuleBuilder.UseInMemoryStorage()`.
 
 The store enforces the same optimistic concurrency rules as PostgreSQL. A new row requires expected version 0. Updates and completion require an exact version match, and completed rows reject further writes. Completion uses `ConcurrentDictionary.TryUpdate`, so two callers cannot complete one version successfully. The injected `TimeProvider` supplies creation and update timestamps used by query ordering and retention purge.
 
@@ -15,10 +15,10 @@ The store enforces the same optimistic concurrency rules as PostgreSQL. A new ro
 
 | Surface | Package | Role |
 | --- | --- | --- |
-| `InMemorySagaStore` | `LiteBus.Saga` | Default in-process `ISagaStore` implementation |
+| `InMemorySagaStore` | `LiteBus.Saga` | In-process `ISagaStore` implementation |
 | `LoadAsync`, `SaveAsync`, `CompleteAsync` | `LiteBus.Saga` | Correlation-keyed load/save/complete with optimistic version checks |
 | `QueryAsync`, `PurgeAsync` | `LiteBus.Saga` | Operational inspection and retention operations |
-| `SagaModule` default registration | `LiteBus.Saga` | Registers `InMemorySagaStore` when no custom store marker exists |
+| `SagaModuleBuilder.UseInMemoryStorage()` | `LiteBus.Saga` | Selects `InMemorySagaStore` for the saga composition |
 
 ## Packages
 
@@ -27,7 +27,7 @@ The store enforces the same optimistic concurrency rules as PostgreSQL. A new ro
 ## Requires
 
 - `saga.store` (implements contract)
-- `saga.inbox-integration` (default registration path)
+- `saga.inbox-integration` (nested composition path)
 
 ## Invariants
 
@@ -35,7 +35,7 @@ The store enforces the same optimistic concurrency rules as PostgreSQL. A new ro
 - Same storage key algorithm as PostgreSQL store via `SagaCorrelationKey`.
 - Query returns most recently updated rows first and rejects `Take` values less than 1.
 - `CompletedBefore` compares the recorded completion update time, not the current clock at query time.
-- Replaced when `UsePostgreSqlSagaStorage` registers a custom store marker.
+- Cannot be combined with another storage selection in one saga composition.
 
 ## Non-Goals
 
@@ -81,7 +81,7 @@ None.
 
 #### `LiteBusV6CompositionSmokeTests.AddLiteBusV6_ShouldPersistSagaStateAcrossCorrelatedCommands`
 
-- **Use case**: Sample composition uses default in-memory store for correlated workflow.
+- **Use case**: Sample composition explicitly selects the in-memory store for a correlated workflow.
 - **Test kind**: Composition
 - **Description**: `AddLiteBusV6` without PostgreSQL saga storage.
 - **Behavior**: Two saves through hook.
@@ -101,7 +101,7 @@ None.
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| Store replaced after `UsePostgreSqlSagaStorage` marker | Yes | Integration tests use PostgreSQL directly | Unit | Low |
+| Duplicate in-memory and PostgreSQL selection fails composition | Yes | Covered by saga composition tests | Unit | Low |
 
 ### Out-of-Scope Use Cases
 

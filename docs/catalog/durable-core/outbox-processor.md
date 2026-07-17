@@ -33,7 +33,7 @@ Typical deployment: application enqueues domain events via `IOutbox`; processor 
 
 - **`EnableOutboxProcessor(host => ...)`** registers manifest background service.
 - **`UseProcessorOptions(OutboxProcessorOptions)`** configures batch, lease, retry, and hook policy.
-- **`Use*Storage()`** and exactly one **`Use*Dispatch()`** required before enabling processor.
+- **`Use*Storage()`** and exactly one **`Use*Dispatch()`** are required in the same outbox builder; callback order is irrelevant.
 - Transport dispatch adapters may expose **`ValidatePayloadBeforeDispatch`** on dispatcher options (pre-dispatch deserialization gate).
 
 ### Configuration

@@ -3,25 +3,26 @@
 - **ID**: `saga.inbox-integration`
 - **Name**: Inbox saga integration
 - **Maturity**: Extension
-- **Summary**: Registers saga modules, processor hook, default store, and command scope support on the inbox module builder.
+- **Summary**: Registers saga modules, processor hook, explicit storage, and command scope support on the inbox module builder.
 
 ## What It Does
 
-`InboxModuleBuilder.EnableSaga(configure?)` is the single entry point for inbox-hosted saga. It registers `SagaModule` (hook, execution context, state registry, default in-memory store unless overridden) and `SagaInboxCommandScopeModule` (command pre-handler for scope re-attach).
+`InboxModuleBuilder.EnableSaga(configure)` is the single entry point for inbox-hosted saga. It registers `SagaModule` (hook, execution context, state registry, and selected store) and `SagaInboxCommandScopeModule` (command pre-handler for scope re-attach).
 
-Saga integrates as a child module of inbox configuration, preserving layer rules: saga core does not reference inbox abstractions on public surfaces; the integration package bridges builders.
+Saga integrates as a child module of inbox configuration, preserving dependency role rules: saga core does not reference inbox abstractions on public surfaces; the integration package bridges builders.
 
-There is no top-level `AddSagaModule(...)` API in v6. Composition path is `AddInboxModule(inbox => inbox.EnableSaga(...))`.
+There is no top-level `AddSagaModule(...)` API in v6. Composition uses `AddInbox(inbox => inbox.EnableSaga(...))`.
 
-Optional PostgreSQL storage replaces the default store via `UsePostgreSqlSagaStorage()` (see `saga.postgresql-storage`).
+The callback must select exactly one store through `UseInMemoryStorage()` or `UsePostgreSqlStorage(...)` (see `saga.postgresql-storage`).
 
 ## Public Surface
 
 | Surface | Package | Role |
 | --- | --- | --- |
 | `InboxModuleBuilder.EnableSaga(Action<SagaModuleBuilder>?)` | `LiteBus.Saga.InboxIntegration` | Main saga registration entry point on inbox builder |
-| `InboxModuleBuilder.UsePostgreSqlSagaStorage(...)` | `LiteBus.Saga.Storage.PostgreSql` | Replaces default in-memory `ISagaStore` |
-| `SagaModule` | `LiteBus.Saga` | Registers hook, context, registry, default store |
+| `SagaModuleBuilder.UseInMemoryStorage()` | `LiteBus.Saga` | Explicit process-local store selection |
+| `SagaModuleBuilder.UsePostgreSqlStorage(...)` | `LiteBus.Saga.Storage.PostgreSql` | Explicit durable store selection |
+| `SagaModule` | `LiteBus.Saga` | Registers hook, context, registry, and selected store |
 | `SagaInboxCommandScopeModule` | `LiteBus.Saga.InboxIntegration` | Registers command pre-handler for scope re-attach |
 
 ## Packages
@@ -39,7 +40,7 @@ Optional PostgreSQL storage replaces the default store via `UsePostgreSqlSagaSto
 ## Invariants
 
 - `EnableSaga()` must be called on the inbox module builder; there is no top-level registry shortcut.
-- Default `ISagaStore` is `InMemorySagaStore` until `UsePostgreSqlSagaStorage` sets `SagaStoreRegisteredMarker`.
+- Missing storage and duplicate storage selections fail composition.
 - Inbox processor options (`BatchSize`, `LeaseDuration`, `DispatcherConcurrency`, and similar) apply unchanged.
 
 ## Non-Goals
@@ -72,7 +73,7 @@ Uses inbox processor observability; no separate manifest entry or meter for `Ena
 
 - **Use case**: `EnableSaga` with PostgreSQL storage persists state after inbox dispatch.
 - **Test kind**: Integration
-- **Description**: Full `AddLiteBus` with inbox PostgreSQL storage, in-process dispatch, `EnableSaga`, and `UsePostgreSqlSagaStorage`.
+- **Description**: Full `AddLiteBus` with inbox PostgreSQL storage, in-process dispatch, `EnableSaga`, and `UsePostgreSqlStorage`.
 - **Behavior**: Correlated accept and processor pass.
 - **Expected outcome**: Saga instance loaded from PostgreSQL store.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
@@ -117,7 +118,7 @@ Uses inbox processor observability; no separate manifest entry or meter for `Ena
 
 - **Use case**: Sample `EnableSaga` configuration persists in-memory saga state.
 - **Test kind**: Composition
-- **Description**: Sample v6 host with default in-memory saga store.
+- **Description**: Sample v6 host with explicitly selected in-memory saga store.
 - **Behavior**: Two correlated commands processed.
 - **Expected outcome**: `Step == 2`.
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/Runtime/Composition/`.
@@ -126,9 +127,9 @@ Uses inbox processor observability; no separate manifest entry or meter for `Ena
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| `EnableSaga()` without PostgreSQL registers default in-memory store explicitly | Yes | Composition uses sample wiring; no isolated assert on store type | Unit | Low |
+| `EnableSaga(...)` with `UseInMemoryStorage()` registers the process-local store | Yes | Composition uses sample wiring | Unit | Low |
 | Calling `EnableSaga()` twice throws or replaces registration | Yes | Not tested | Unit | Low |
-| `EnableSaga()` without configure callback uses empty registry | Yes | Implicit in tests with callback only | Unit | Low |
+| `EnableSaga(...)` without a store fails composition | Yes | Covered by saga composition tests | Unit | Low |
 
 ### Out-of-Scope Use Cases
 

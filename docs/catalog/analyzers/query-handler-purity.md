@@ -19,7 +19,7 @@ It reports when a dependency type in constructor parameters, method parameters, 
 - `ICommandMediator`, `IEventMediator`, `IQueryMediator`
 - `IInbox`, `ITransactionalInbox<T>`, `IInboxStore`, `ITransactionalInboxStore`
 - `IOutbox`, `IOutboxStore`, `ITransactionalOutboxStore`
-- `IMessageTransport`
+- `ITransportPublisher`
 
 The analyzer reports each impure dependency metadata type once per handler.
 
@@ -85,4 +85,4 @@ Source: `tests/LiteBus.Analyzers.UnitTests/QueryHandlerImpurityAnalyzerTests.cs`
 | `QueryHandlerWithTransactionalInbox_ProducesDiagnostic` | `IInboxStore` dependency reports `LB1003` |
 | `StreamQueryHandlerWithCommandMediator_ProducesDiagnostic` | Stream query handlers are covered |
 | `QueryHandlerWithImpureField_ProducesDiagnostic` | Field dependency on `IEventMediator` reports `LB1003` |
-| `QueryHandlerWithMessageTransport_ProducesDiagnostic` | `IMessageTransport` dependency reports `LB1003` |
+| `QueryHandlerWithMessageTransport_ProducesDiagnostic` | `ITransportPublisher` dependency reports `LB1003` |

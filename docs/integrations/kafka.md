@@ -8,7 +8,7 @@
 
 | Package | Role |
 | --- | --- |
-| `LiteBus.Transport.Kafka` | `IMessageTransport`, `KafkaConsumer`, connection options |
+| `LiteBus.Transport.Kafka` | `ITransportPublisher`, `KafkaConsumer`, connection options |
 | `LiteBus.Inbox.Dispatch.Kafka` | Outbound command dispatch from inbox processor |
 | `LiteBus.Outbox.Dispatch.Kafka` | Outbound event publish from outbox processor |
 | `LiteBus.Inbox.Ingress.Kafka` | Broker intake into `IInbox.AcceptAsync` |
@@ -18,16 +18,17 @@ Add inbox/outbox core and storage packages as usual. See [Dependency graph](../a
 ## Registration
 
 ```csharp
-builder.Modules.AddInboxModule(inbox =>
+var kafkaOptions = new KafkaTransportOptions { BootstrapServers = "localhost:9092" };
+
+builder.AddKafkaTransport(kafkaOptions);
+builder.AddMessaging(_ => { });
+builder.AddInbox(inbox =>
 {
     inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
     inbox.UsePostgreSqlStorage(pg => pg.UseConnectionString(connectionString));
     inbox.UseInProcessDispatch();
 
-    inbox.UseKafkaDispatch(kafka => kafka.UseOptions(new KafkaTransportOptions
-    {
-        BootstrapServers = "localhost:9092"
-    }));
+    inbox.UseKafkaDispatch(kafka => kafka.DefaultDestination = "orders.commands");
 
     inbox.UseKafkaIngress(ingress =>
     {
@@ -35,7 +36,6 @@ builder.Modules.AddInboxModule(inbox =>
         {
             Destination = "orders.commands",
             PrefetchCount = 10,
-            Connection = new KafkaTransportOptions { BootstrapServers = "localhost:9092" },
             RequeueOnFailure = true
         });
     });

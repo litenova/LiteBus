@@ -3,7 +3,7 @@
 - **ID**: `storage.outbox.adapter.efcore`
 - **Name**: Outbox EF Core adapter
 - **Maturity**: GA
-- **Summary**: Entity Framework Core outbox store on a shared `DbContext`, with transactional enqueue via typed writer, existing context, or SaveChanges interceptor.
+- **Summary**: Entity Framework Core outbox store with factory-created operation contexts and transactional enqueue through a typed writer, existing context, or SaveChanges interceptor.
 
 ## What It Does
 
@@ -13,7 +13,7 @@
 outbox.UseEntityFrameworkCoreStorage(o => o.UseDbContext<AppDbContext>());
 ```
 
-Default auto-commit singleton calls `SaveChanges` inside the store unless caller uses transactional patterns documented in [Outbox EF Core storage](../../integrations/outbox-ef-core-storage.md) and `storage.transactional.writes`.
+Default auto-commit operations create and dispose a context through `IDbContextFactory<TContext>`. Caller-owned transactional patterns are documented in [Outbox EF Core storage](../../integrations/outbox-ef-core-storage.md) and `storage.transactional.writes`.
 
 Supports PostgreSQL, SQL Server, MySQL, SQLite, and in-memory EF providers for leasing.
 
@@ -33,7 +33,7 @@ Supports PostgreSQL, SQL Server, MySQL, SQLite, and in-memory EF providers for l
 
 | Method | Typical caller |
 | --- | --- |
-| `IOutboxStore.EnqueueAsync` | Auto-commit singleton (calls `SaveChanges`) |
+| `IOutboxStore.EnqueueAsync` | Auto-commit operation context (calls `SaveChanges`) |
 | `ITransactionalOutbox<TContext>.EnqueueAsync` | Command handlers in EF transaction |
 | `EfCoreOutboxStore.UseExistingDbContext` | Manual staging on caller context |
 | `IOutboxLeaseStore.LeasePendingAsync` | Outbox processor |
@@ -55,7 +55,7 @@ outbox.UseEntityFrameworkCoreStorage(o =>
 | Option surface | Purpose |
 | --- | --- |
 | `EntityFrameworkCoreOutboxStoreOptions` | Schema, table, lease duration |
-| `UseDbContext<TContext>()` | Store factory |
+| `UseDbContext<TContext>()` | Selects the application-registered `IDbContextFactory<TContext>` |
 | `EnableSaveChangesInterceptor()` / `EnforceTransactionalSetup()` | Transactional enqueue |
 | `GetModelBuilderConfiguration()` | Application-owned EF model |
 
@@ -66,14 +66,15 @@ outbox.UseEntityFrameworkCoreStorage(o =>
 
 ## Packages
 
-| Package | Layer |
+| Package | Dependency role |
 | --- | --- |
-| `LiteBus.Outbox.Storage.EntityFrameworkCore` | 4 |
-| `LiteBus.Storage.EntityFrameworkCore` | 3 (transitive) |
+| `LiteBus.Outbox.Storage.EntityFrameworkCore` | Feature bridge |
+| `LiteBus.Storage.EntityFrameworkCore` | Technology adapter (transitive) |
 
 ## Requires
 
 - `IOutboxDbContext` on application `DbContext`
+- `AddDbContextFactory<TContext>(...)` in application composition
 - Application-owned EF migrations
 - Outbox dispatch before processor
 

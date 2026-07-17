@@ -54,9 +54,9 @@ outbox.UseInMemoryStorage();
 
 ## Packages
 
-| Package | Layer |
+| Package | Dependency role |
 | --- | --- |
-| `LiteBus.Outbox.Storage.InMemory` | 4 |
+| `LiteBus.Outbox.Storage.InMemory` | Feature bridge |
 
 ## Requires
 

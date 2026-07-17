@@ -41,7 +41,13 @@ Registers shared `TransportOutboxDispatcher` with Azure Service Bus transport. O
 ```csharp
 services.AddLiteBus(litebus =>
 {
-    litebus.AddOutboxModule(outbox =>
+    litebus.AddAzureServiceBusTransport(new AzureServiceBusTransportOptions
+    {
+        ConnectionString = "<namespace-connection-string>",
+        ClientId = "billing-outbox"
+    });
+
+    litebus.AddOutbox(outbox =>
     {
         outbox.EnableOutboxProcessor();
         outbox.UseAzureServiceBusDispatch(
@@ -49,11 +55,6 @@ services.AddLiteBus(litebus =>
             {
                 options.DefaultDestination = "events";
                 options.ResolveRoute = envelope => envelope.Topic ?? envelope.ContractName;
-            },
-            new AzureServiceBusTransportOptions
-            {
-                ConnectionString = "<namespace-connection-string>",
-                ClientId = "billing-outbox"
             });
     });
 });
@@ -61,7 +62,7 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `OutboxModuleBuilder.UseAzureServiceBusDispatch(Action<TransportOutboxDispatcherOptions>, AzureServiceBusTransportOptions)` | Registers outbox transport dispatcher and Azure Service Bus transport module |
+| `OutboxModuleBuilder.UseAzureServiceBusDispatch(Action<TransportOutboxDispatcherOptions>)` | Registers outbox transport dispatcher that requires the root Azure Service Bus transport |
 | `TransportOutboxDispatchModule.DefaultHookFailurePolicy` | Defaults to `CompleteDespiteHookFailure` |
 | `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | Publishes outbox envelope with canonical headers |
 

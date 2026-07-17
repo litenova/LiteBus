@@ -35,8 +35,8 @@
 
 ### Registration
 
-- Not registered directly; consumed by layer-4 inbox/outbox EF storage modules.
-- Provider detection runs at store construction from the application's `DbContext` options.
+- Not registered directly; consumed by inbox/outbox EF storage feature bridges.
+- Provider detection runs against an operation context created by the application's `IDbContextFactory<TContext>`.
 
 ### Configuration
 
@@ -53,9 +53,9 @@
 
 ## Packages
 
-| Package | Layer |
+| Package | Dependency role |
 | --- | --- |
-| `LiteBus.Storage.EntityFrameworkCore` | 3 (shared storage infrastructure) |
+| `LiteBus.Storage.EntityFrameworkCore` | Technology adapter |
 
 ## Requires
 

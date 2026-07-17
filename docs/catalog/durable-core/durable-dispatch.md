@@ -9,7 +9,7 @@ Turn leased inbox and outbox envelopes into side effects through in-process medi
 
 ## What It Does
 
-Processors call `IInboxDispatcher.DispatchAsync` or `IOutboxDispatcher.DispatchAsync` inside per-message DI scopes. In-process inbox dispatch deserializes and requires `ICommand`, then `ICommandMediator.SendAsync`. In-process outbox dispatch calls `IEventMediator.PublishAsync`. Transport dispatchers publish through `IMessageTransport` with contract headers and optional tenant routing. Exactly one dispatcher registers per durable module; startup fails if processor enabled without dispatcher.
+Processors call `IInboxDispatcher.DispatchAsync` or `IOutboxDispatcher.DispatchAsync` inside per-message DI scopes. In-process inbox dispatch deserializes and requires `ICommand`, then `ICommandMediator.SendAsync`. In-process outbox dispatch calls `IEventMediator.PublishAsync`. Transport dispatchers publish through `ITransportPublisher` with contract headers and optional tenant routing. Exactly one dispatcher registers per durable module; startup fails if processor enabled without dispatcher.
 
 ## Public Surface
 
@@ -31,13 +31,13 @@ Requires command or event module registration and handler discovery for handled 
 
 | Extension | Package | Maturity |
 | --- | --- | --- |
-| `UseAmqpDispatch(configure, AmqpConnectionOptions)` | `LiteBus.Inbox.Dispatch.Amqp`, `LiteBus.Outbox.Dispatch.Amqp` | GA |
-| `UseKafkaDispatch(configure, KafkaTransportOptions)` | `*.Dispatch.Kafka` | Beta |
-| `UseAwsSqsDispatch(configure, AwsSqsTransportOptions)` | `*.Dispatch.AwsSqs` | Beta |
-| `UseAzureServiceBusDispatch(configure, AzureServiceBusTransportOptions)` | `*.Dispatch.AzureServiceBus` | Beta |
+| `UseAmqpDispatch(configure)` | `LiteBus.Inbox.Dispatch.Amqp`, `LiteBus.Outbox.Dispatch.Amqp` | GA |
+| `UseKafkaDispatch(configure)` | `*.Dispatch.Kafka` | Beta |
+| `UseAwsSqsDispatch(configure)` | `*.Dispatch.AwsSqs` | Beta |
+| `UseAzureServiceBusDispatch(configure)` | `*.Dispatch.AzureServiceBus` | Beta |
 | `UseInMemoryDispatch(configure?)` | `*.Dispatch.InMemory` | Tests and samples |
 
-Each extension registers a transport child module when **`IMessageTransport`** is not already present, builds **`TransportInboxDispatcherOptions`** or **`TransportOutboxDispatcherOptions`**, and calls **`RegisterDispatcher`**. Second dispatcher registration on the same builder throws **`LiteBusConfigurationException`**.
+Register the matching `Add*Transport(...)` once at the root. Each dispatch extension builds **`TransportInboxDispatcherOptions`** or **`TransportOutboxDispatcherOptions`**, registers a dispatcher child that requires the root transport module, and calls **`RegisterDispatcher`**. Second dispatcher registration on the same builder throws **`LiteBusConfigurationException`**.
 
 ### Transport Configuration
 
@@ -185,7 +185,7 @@ Each extension registers a transport child module when **`IMessageTransport`** i
 
 #### `TransportInboxDispatcherTests.DispatchAsync_ShouldPublishEnvelopeThroughTransport`
 
-- **Use case**: When transport inbox dispatch runs, the leased envelope publishes through **`IMessageTransport`**
+- **Use case**: When transport inbox dispatch runs, the leased envelope publishes through **`ITransportPublisher`**
 - **Test kind**: Unit
 - **Description**: Transport inbox dispatcher with test transport
 - **Behavior**: **`DispatchAsync`** on transport path

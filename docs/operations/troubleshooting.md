@@ -95,9 +95,10 @@ Fix: set explicit priorities, or switch event execution to `Sequential`. See [Ha
 
 Thrown when the generic host builds `InboxProcessorBackgroundService` or `OutboxProcessorBackgroundService` and DI cannot resolve required dependencies. Common causes:
 
-- `EnableInboxProcessor()` or `EnableOutboxProcessor()` is set but no `IInboxDispatcher` or `IOutboxDispatcher` is registered (`UseInProcessDispatch`, `UseInProcessDispatch`, or `UseAmqpDispatch`).
+- `EnableInboxProcessor()` or `EnableOutboxProcessor()` is set but no `IInboxDispatcher` or `IOutboxDispatcher` is registered (`UseInProcessDispatch` or a broker-specific `Use*Dispatch`).
 - Storage is missing (`UsePostgreSqlStorage`, `UseInMemoryStorage`, etc. inside the module builder).
 - The core module was not registered.
+- A broker dispatch or ingress adapter is present without its matching root `Add*Transport(...)` registration.
 
 Fix: register core module, storage, and dispatch before enabling processor background services. For PostgreSQL with `EnsureSchemaCreationOnStartup`, schema initialization runs before processor background services start. See [Hosted services](../architecture/hosted-services.md) and [Reliable Messaging](../reliable-messaging/README.md).
 

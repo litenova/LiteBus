@@ -2,7 +2,7 @@
 
 LiteBus saga support is an Extension tier feature. It adds correlated state persistence around inbox command dispatch through `IProcessorEnvelopeHook` and `ISagaContext`.
 
-Saga registration is composed from the inbox axis. There is no public top-level `AddSagaModule(...)` API in v6. Register saga through `registry.AddInboxModule(inbox => inbox.EnableSaga(...))`.
+Saga registration is composed from the inbox axis. There is no public top-level `AddSagaModule(...)` API in v6. Register saga through `builder.AddInbox(inbox => inbox.EnableSaga(...))` and select exactly one store in the saga callback.
 
 ## Lifecycle
 
@@ -20,26 +20,29 @@ Accept correlated inbox command
 
 ## Package Map
 
-| Package | Layer | Why it exists |
+| Package | Role | Why it exists |
 | --- | --- | --- |
-| `LiteBus.Orchestration.Abstractions` | 1 | Hook contract (`IProcessorEnvelopeHook`, `IProcessorEnvelope`) shared by inbox and outbox processors |
-| `LiteBus.Saga.Abstractions` | 1 | Saga contracts (`ISagaStore`, `ISagaContext`, `SagaCorrelation`, query and purge filters) |
-| `LiteBus.Saga` | 2 | Core saga runtime (`SagaProcessorHook`, message-keyed `SagaExecutionContext`, `SagaStateTypeRegistry`, `InMemorySagaStore`) |
-| `LiteBus.Saga.InboxIntegration` | 4 | Inbox builder entry point (`EnableSaga`) and command pre-handler module |
-| `LiteBus.Saga.Storage.PostgreSql` | 4 | PostgreSQL `ISagaStore`, schema scripts, startup initializer |
+| `LiteBus.DurableMessaging.Abstractions` | Durable contracts | Hook contract (`IProcessorEnvelopeHook`, `IProcessorEnvelope`) shared by inbox and outbox processors |
+| `LiteBus.Saga.Abstractions` | Durable contracts | Saga contracts (`ISagaStore`, `ISagaContext`, `SagaCorrelation`, query and purge filters) |
+| `LiteBus.Saga` | Core implementation | Saga runtime, nested builder, and explicit in-memory storage module |
+| `LiteBus.Saga.InboxIntegration` | Feature bridge | Inbox builder entry point (`EnableSaga`) and command pre-handler module |
+| `LiteBus.Saga.Storage.PostgreSql` | Feature bridge | PostgreSQL `ISagaStore`, schema scripts, startup initializer |
 
 ## Typical Composition Recipe
 
 ```csharp
-services.AddLiteBus(registry =>
+services.AddLiteBus(builder =>
 {
-    registry.AddInboxModule(inbox =>
+    builder.AddMessaging(_ => { });
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<AdvanceOrderSagaCommand>("orders.saga.advance");
         inbox.UseInProcessDispatch();
-        inbox.EnableSaga(saga => saga.MapState<OrderSagaState>("orders.saga.advance"));
-        // Optional durable store:
-        // inbox.UsePostgreSqlSagaStorage(pg => pg.UseDataSource(dataSource));
+        inbox.EnableSaga(saga =>
+        {
+            saga.MapState<OrderSagaState>("orders.saga.advance");
+            saga.UseInMemoryStorage();
+        });
     });
 });
 ```

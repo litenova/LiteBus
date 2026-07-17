@@ -54,9 +54,9 @@ No dedicated telemetry. Contract conflicts throw contract-specific exceptions.
 - **Test kind**: Unit
 - **Expected outcome**: attributed type can self-register on lookup
 
-#### `LiteBusBuilderTests.AddLiteBus_WithSharedContracts_ShouldRegisterContractsInResolvedRegistry`
+#### `LiteBusBuilderTests.AddLiteBus_WithMessagingContracts_ShouldRegisterContractsInResolvedRegistry`
 - **Test kind**: Unit
-- **Expected outcome**: deferred shared contracts are applied
+- **Expected outcome**: messaging-builder contract registrations are applied
 
 ### Untested Use Cases
 

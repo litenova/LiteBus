@@ -7,29 +7,29 @@
 
 ## What It Does
 
-`UseAmqpIngress` registers `AmqpInboxIngressModule` as an inbox child. The module maps `AmqpInboxIngressOptions` to `TransportInboxIngressOptions`, bootstraps `AmqpTransportModule` when no consumer exists, registers `TransportInboxIngressHandler` and optional `TransportInboxIngressConsumer`, and registers `AmqpInboxIngressHandler` for AMQP-shaped manual accept.
+`UseAmqpIngress` registers `AmqpInboxIngressModule` as an inbox child. The module maps `AmqpInboxIngressOptions` to `TransportInboxIngressOptions`, requires a root `AmqpTransportModule`, registers `TransportInboxIngressHandler` and optional `TransportInboxIngressConsumer`, and registers `AmqpInboxIngressHandler` for AMQP-shaped manual accept.
 
 RabbitMQ message ids map to broker-scoped identity and idempotency by default. Queue declaration, prefetch, durable queue, requeue, trusted headers, and batch accept are configurable on the AMQP options type.
 
 ## Public Surface
 
 ```csharp
-inbox.UseAmqpIngress(ingress =>
+bus.AddAmqpTransport(connection);
+bus.AddInbox(inbox => inbox.UseAmqpIngress(ingress =>
 {
     ingress.UseOptions(new AmqpInboxIngressOptions
     {
         QueueName = "commands.inbox",
         PrefetchCount = 10,
-        Connection = connection,
         RequeueOnFailure = true
     });
-});
+}));
 ```
 
 | Builder API | Role |
 | --- | --- |
 | `InboxModuleBuilder.UseAmqpIngress(Action<AmqpInboxIngressModuleBuilder>)` | Registration extension |
-| `AmqpInboxIngressModuleBuilder.UseOptions(AmqpInboxIngressOptions)` | Queue and connection settings |
+| `AmqpInboxIngressModuleBuilder.UseOptions(AmqpInboxIngressOptions)` | Queue and ingress behavior settings |
 | `AmqpInboxIngressModuleBuilder.DisableIngressConsumer()` | Handler without subscription loop |
 | `AmqpInboxIngressModuleBuilder.HostOptions` | `TransportInboxIngressHostOptions` |
 | `AmqpInboxIngressHandler` | Manual or test accept wrapper |
@@ -46,7 +46,7 @@ AMQP ingress is the current reference adapter for ingress capability depth:
 ## Packages
 
 - `LiteBus.Inbox.Ingress.Amqp`
-- `LiteBus.Transport.Amqp` (transitive when bootstrapped)
+- `LiteBus.Transport.Amqp` (explicit root transport)
 
 ## Requires
 
@@ -59,6 +59,7 @@ AMQP ingress is the current reference adapter for ingress capability depth:
 ## Invariants
 
 - `QueueName` is required; compose fails when empty.
+- `AddAmqpTransport(...)` is required at the root composition boundary.
 - Publishers must send `litebus-contract-name` and `litebus-contract-version` headers.
 - At-least-once intake when ack follows successful accept; not exactly-once handler effects.
 
@@ -102,7 +103,7 @@ EventId 3002 (loop restart), 3003 (batch flush failed), 3004 (ack failed after a
 | Test method | Project |
 | --- | --- |
 | `UseAmqpIngress_WithTransportModule_ShouldRegisterIngressHandler` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
-| `UseAmqpIngress_WithConnectionOptions_ShouldBootstrapAmqpTransport` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
+| `UseAmqpIngress_WithRootTransport_ShouldResolveConsumer` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
 | `AcceptAsync_ShouldDeserializeAndWriteToInboxWithMappedHeaders` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
 | `PublishThroughRabbitMq_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | `PublishThroughLavinMq_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |

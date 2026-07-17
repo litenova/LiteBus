@@ -430,7 +430,7 @@ AMQP coverage spans two projects: low-level wire protocol in `LiteBus.Transport.
 
 ## Hosting and Composition Integration Tests
 
-These projects validate framework bridges (layer 5) without replacing broker or storage matrices. v6 composition smoke is a **unit** test in `LiteBus.Runtime.UnitTests/Runtime/Composition/LiteBusV6CompositionSmokeTests.cs`.
+These projects validate host adapters without replacing broker or storage matrices. v6 composition smoke is a **unit** test in `LiteBus.Runtime.UnitTests/Runtime/Composition/LiteBusV6CompositionSmokeTests.cs`.
 
 ### `LiteBus.Extensions.IntegrationTests`: Health Checks (`HealthChecks/`)
 

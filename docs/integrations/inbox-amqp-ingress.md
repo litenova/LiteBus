@@ -17,10 +17,15 @@ RabbitMQ and LavinMQ both speak AMQP 0.9.1 through `LiteBus.Transport.Amqp`.
 ```csharp
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddCommandModule(commands =>
+    builder.AddAmqpTransport(new AmqpConnectionOptions
+    {
+        Uri = new Uri(configuration.GetConnectionString("Amqp")!)
+    });
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(commands =>
         commands.RegisterFromAssembly(typeof(Program).Assembly));
 
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
         inbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
@@ -29,11 +34,7 @@ builder.Services.AddLiteBus(builder =>
         {
             ingress.UseOptions(new AmqpInboxIngressOptions
             {
-                QueueName = "commands.inbox",
-                Connection = new AmqpConnectionOptions
-                {
-                    Uri = new Uri(configuration.GetConnectionString("Amqp")!)
-                }
+                QueueName = "commands.inbox"
             });
         });
         inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(1));
@@ -41,7 +42,7 @@ builder.Services.AddLiteBus(builder =>
 });
 ```
 
-Ingress bootstraps `AmqpTransportModule` from `AmqpInboxIngressOptions.Connection` when `IMessageConsumer` is not already registered. Register a transport module explicitly when dispatch and ingress must share a preconfigured consumer.
+Ingress requires the root `AmqpTransportModule` registered by `AddAmqpTransport`. Broker connection settings do not belong to ingress options.
 
 ## Headers
 

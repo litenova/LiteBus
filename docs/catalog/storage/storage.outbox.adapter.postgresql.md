@@ -1,8 +1,8 @@
 # Outbox PostgreSQL Adapter
 
 - **ID**: `storage.outbox.adapter.postgresql`
-- **Package**: `LiteBus.Outbox.Storage.PostgreSql` (layer 4)
-- **Shared dependency**: `LiteBus.Storage.PostgreSql` (layer 3)
+- **Package**: `LiteBus.Outbox.Storage.PostgreSql` (feature bridge)
+- **Shared dependency**: `LiteBus.Storage.PostgreSql` (technology adapter)
 - **Summary**: A single `PostgreSqlOutboxStore` instance implements outbox append, processing, and operations store roles on PostgreSQL.
 
 ## Interface Methods

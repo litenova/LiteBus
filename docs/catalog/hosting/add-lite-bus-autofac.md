@@ -9,7 +9,7 @@
 
 ## What It Does
 
-`ContainerBuilder.AddLiteBus(...)` is the Autofac composition entry point. Like the Microsoft DI adapter, it supports `Action<IModuleRegistry>` and `Action<ILiteBusBuilder>` overloads. It builds module order, executes module `Build(...)`, publishes `LiteBusHostManifest`, and wires diagnostic/background hosting bridges for Autofac.
+`ContainerBuilder.AddLiteBus(...)` is the Autofac composition entry point. Like the Microsoft DI adapter, it supports an advanced `Action<IModuleRegistry>` overload and a normal `Action<ILiteBusBuilder>` overload. It builds module order, executes module `Build(...)`, publishes `LiteBusHostManifest`, and wires diagnostic/background hosting bridges for Autofac.
 
 The adapter also registers an `IServiceProvider` wrapper so factory registrations can resolve dependencies during composition.
 
@@ -26,11 +26,12 @@ The adapter also registers an `IServiceProvider` wrapper so factory registration
 - Applies `RegisterDiagnosticChecks(...)` from `LiteBus.Runtime.Extensions.Autofac.Hosting`.
 - Applies `RegisterBackgroundServices(...)` from `LiteBus.Runtime.Extensions.Autofac.Hosting`.
 - Registers `IServiceProvider` adapter backed by Autofac `ILifetimeScope`.
+- Registers one Autofac-backed `IMessageDispatchScopeFactory` for mediation and durable processor scopes.
 
 ### Configuration
 
-- `Action<IModuleRegistry>` for module-only setup.
-- `Action<ILiteBusBuilder>` for shared contract + module setup.
+- `Action<IModuleRegistry>` for advanced module setup.
+- `Action<ILiteBusBuilder>` for package-owned `Add*` feature extensions.
 
 ## Packages
 
@@ -47,7 +48,7 @@ The adapter also registers an `IServiceProvider` wrapper so factory registration
 
 - Duplicate module registration throws configuration exception.
 - Manifest output is created once and registered as singleton in the Autofac container.
-- Shared contracts on `ILiteBusBuilder.Contracts` are applied during message-module build.
+- Each dispatch opens and disposes a child lifetime scope.
 
 ## Non-Goals
 

@@ -3,7 +3,7 @@
 - **ID**: `transport.amqp`
 - **Name**: AMQP transport
 - **Maturity**: GA
-- **Summary**: RabbitMQ and LavinMQ adapter that implements `IMessageTransport` and `IMessageConsumer` with explicit manual acknowledgement semantics.
+- **Summary**: RabbitMQ and LavinMQ adapter that implements `ITransportPublisher` and `IMessageConsumer` with explicit manual acknowledgement semantics.
 
 ## What It Does
 
@@ -68,7 +68,7 @@ AMQP registration includes a transport connectivity diagnostic check and shared 
 
 ## Invariants
 
-- AMQP is exclusive per process; second transport module registration throws `TransportAlreadyRegisteredException`.
+- AMQP is exclusive per process; adding a second broker module fails standard duplicate-service composition validation.
 - `TransportMessage` ack delegates map directly to `basic.ack` and `basic.nack`.
 - Circuit breaker and metrics register once per module configuration using broker tag `amqp`.
 

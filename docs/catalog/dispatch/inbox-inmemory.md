@@ -9,7 +9,7 @@
 
 ## What It Does
 
-`UseInMemoryDispatch` registers `TransportInboxDispatchModule` with `InMemoryTransportModule`. Messages flow through `System.Threading.Channels` to a logical destination name. Used heavily in integration tests to simulate remote dispatch and pair with InMemory ingress on another module instance.
+`AddInMemoryTransport()` registers `InMemoryTransportModule` at the root, and `UseInMemoryDispatch` registers `TransportInboxDispatchModule` as its inbox feature bridge. Messages flow through `System.Threading.Channels` to a logical destination name. This path is used heavily in integration tests to simulate remote dispatch and pair with InMemory ingress.
 
 ## Packages
 
@@ -41,7 +41,9 @@
 ```csharp
 services.AddLiteBus(litebus =>
 {
-    litebus.AddInboxModule(inbox =>
+    litebus.AddInMemoryTransport();
+
+    litebus.AddInbox(inbox =>
     {
         inbox.EnableInboxProcessor();
         inbox.UseInMemoryDispatch(options =>
@@ -54,7 +56,7 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `InboxModuleBuilder.UseInMemoryDispatch(Action<TransportInboxDispatcherOptions>? configure = null)` | Registers inbox transport dispatcher with in-memory transport |
+| `InboxModuleBuilder.UseInMemoryDispatch(Action<TransportInboxDispatcherOptions>? configure = null)` | Registers inbox transport dispatcher that requires the root in-memory transport |
 | `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | Shared publish logic over in-process channel transport |
 
 ## Observability

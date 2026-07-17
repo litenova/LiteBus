@@ -7,7 +7,7 @@
 
 ## What It Does
 
-`InboxModuleBuilder.UseAmqpDispatch(...)` wires `TransportInboxDispatchModule` and an `AmqpTransportModule` in one call. The inbox processor keeps the durable lease and retry behavior, but the dispatch step publishes to AMQP instead of calling local command handlers.
+`AddAmqpTransport(...)` registers the horizontal AMQP infrastructure once at the root. `InboxModuleBuilder.UseAmqpDispatch(...)` wires only `TransportInboxDispatchModule`, which requires that root module. The inbox processor keeps the durable lease and retry behavior, but the dispatch step publishes to AMQP instead of calling local command handlers.
 
 Common deployment shape is a producer service with inbox storage and processor enabled, plus a separate worker service that consumes the queue and accepts into its own inbox. Because the processor acknowledges completion only after store persist, this path is at-least-once.
 
@@ -16,7 +16,16 @@ Common deployment shape is a producer service with inbox storage and processor e
 ```csharp
 services.AddLiteBus(litebus =>
 {
-    litebus.AddInboxModule(inbox =>
+    litebus.AddAmqpTransport(new AmqpConnectionOptions
+    {
+        HostName = "localhost",
+        Port = 5672,
+        VirtualHost = "/",
+        UserName = "guest",
+        Password = "guest"
+    });
+
+    litebus.AddInbox(inbox =>
     {
         inbox.EnableInboxProcessor();
         inbox.UseAmqpDispatch(
@@ -26,14 +35,6 @@ services.AddLiteBus(litebus =>
                 options.ResolveRoute = envelope => envelope.ContractName;
                 options.Persistent = true;
                 options.Mandatory = true;
-            },
-            new AmqpConnectionOptions
-            {
-                HostName = "localhost",
-                Port = 5672,
-                VirtualHost = "/",
-                UserName = "guest",
-                Password = "guest"
             });
     });
 });
@@ -41,8 +42,8 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `InboxModuleBuilder.UseAmqpDispatch(Action<TransportInboxDispatcherOptions>, AmqpConnectionOptions)` | Registers transport inbox dispatcher and AMQP transport module |
-| `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | Resolves route, maps headers, publishes through `IMessageTransport` |
+| `InboxModuleBuilder.UseAmqpDispatch(Action<TransportInboxDispatcherOptions>)` | Registers transport inbox dispatcher that requires the root AMQP transport |
+| `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | Resolves route, maps headers, publishes through `ITransportPublisher` |
 
 `TransportInboxDispatcherOptions`:
 
@@ -87,7 +88,7 @@ services.AddLiteBus(litebus =>
 ## Invariants
 
 - Only one `IInboxDispatcher` can be registered in an inbox module builder scope.
-- `TransportInboxDispatchModule` throws at compose time when no `IMessageTransport` is registered.
+- `TransportInboxDispatchModule` throws at compose time when no `ITransportPublisher` is registered.
 - Route resolution order is tenant strategy, then `ResolveRoute`, then `ContractName`.
 - Processor semantics remain at-least-once, AMQP publish success alone does not mark completion.
 

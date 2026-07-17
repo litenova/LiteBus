@@ -4,7 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-No changes beyond the v6.0.0 release contents below.
+### Added
+
+- Role-based project and package dependency policy enforced by `ArchitectureDependencyPolicyTests`.
+- Root `Add*Transport` composition extensions for AMQP, Kafka, AWS SQS, Azure Service Bus, and in-memory transports.
+- Container-specific dispatch-scope lifecycle coverage for Autofac.
+
+### Changed
+
+- `ILiteBusBuilder` moved to `LiteBus.Runtime.Abstractions` and now exposes only `Modules`; feature packages provide
+  `AddMessaging`, `AddCommands`, `AddQueries`, `AddEvents`, `AddInbox`, and `AddOutbox`.
+- `LiteBus.Orchestration.Abstractions` became `LiteBus.DurableMessaging.Abstractions`, which owns shared durable
+  metadata, retry, lease, processor, and hook contracts.
+- Inbox and outbox implementation services and module builders moved from abstractions into their core packages.
+- Microsoft DI and Autofac adapters now own dispatch-scope creation. Missing scope composition fails, while root
+  provider dispatch requires explicit `RootMessageDispatchScopeFactory` registration.
+- EF Core inbox and outbox stores use adapter-owned `IDbContextFactory<TContext>` operation contexts.
+- Saga storage is selected exactly once inside `EnableSaga(...)`; in-memory storage is no longer an implicit fallback.
+- Module dependency validation uses composite ownership and `IRequires<TModule>` without registration markers or
+  dependency-registry scans during `Build()`.
+- Outbox processor option precedence is independent of configuration call order.
+
+### Breaking changes
+
+- `IMessageTransport` was renamed to `ITransportPublisher`.
+- `IRegistrableCommandConstruct`, `IRegistrableQueryConstruct`, and `IRegistrableEventConstruct` were removed.
+- `OutboxEnvelope.AsPublished` now requires the publication timestamp.
+- Broker dispatch and ingress adapters require one matching root transport module; broker connection settings were
+  removed from ingress options and dispatch overloads.
 
 ## v6.0.0
 

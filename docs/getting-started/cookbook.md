@@ -137,8 +137,8 @@ If the open generic handlers are in the same assembly you're scanning, `Register
 ```csharp
 builder.Services.AddLiteBus(registry =>
 {
-    registry.AddMessageModule(_ => { });
-    registry.AddCommandModule(module =>
+    registry.AddMessaging(_ => { });
+    registry.AddCommands(module =>
     {
         // Discovers both open generic and concrete handlers
         module.RegisterFromAssembly(typeof(Program).Assembly);
@@ -151,8 +151,8 @@ If they're in a **different assembly** (e.g., a shared infrastructure library), 
 ```csharp
 builder.Services.AddLiteBus(registry =>
 {
-    registry.AddMessageModule(_ => { });
-    registry.AddCommandModule(module =>
+    registry.AddMessaging(_ => { });
+    registry.AddCommands(module =>
     {
         // From external library
         module.Register(typeof(CommandLoggingPreHandler<>));
@@ -226,8 +226,8 @@ If the open generic validator is in the same assembly you're scanning, `Register
 ```csharp
 builder.Services.AddLiteBus(registry =>
 {
-    registry.AddMessageModule(_ => { });
-    registry.AddCommandModule(module =>
+    registry.AddMessaging(_ => { });
+    registry.AddCommands(module =>
     {
         module.RegisterFromAssembly(typeof(Program).Assembly); // picks up FluentValidationPreHandler<> too
     });
@@ -242,8 +242,8 @@ If the handler is in a **different assembly**, register it explicitly:
 ```csharp
 builder.Services.AddLiteBus(registry =>
 {
-    registry.AddMessageModule(_ => { });
-    registry.AddCommandModule(module =>
+    registry.AddMessaging(_ => { });
+    registry.AddCommands(module =>
     {
         module.Register(typeof(FluentValidationPreHandler<>)); // from external library
         module.RegisterFromAssembly(typeof(Program).Assembly);
@@ -309,7 +309,7 @@ public class EnrichResultPostHandler(IDemoService demoService)
 
 **Problem**: A payment workflow must survive process restarts. Commands accepted at the API should run later with at-least-once delivery through in-process handlers.
 
-**Solution**: Register storage, `UseInProcessDispatch`, and `EnableInboxProcessor` inside `AddInboxModule`. Accept commands with `IInbox.AcceptAsync`.
+**Solution**: Register storage, `UseInProcessDispatch`, and `EnableInboxProcessor` inside `AddInbox`. Accept commands with `IInbox.AcceptAsync`.
 
 ### 2. Wire Modules
 
@@ -318,10 +318,10 @@ var dataSource = NpgsqlDataSource.Create(connectionString);
 
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddCommandModule(c => c.RegisterFromAssembly(typeof(ProcessPaymentCommand).Assembly));
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(c => c.RegisterFromAssembly(typeof(ProcessPaymentCommand).Assembly));
 
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
         inbox.UseProcessorOptions(new InboxProcessorOptions { BatchSize = 50 });
@@ -353,15 +353,16 @@ var receipt = await inbox.AcceptAsync(
 ```csharp
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddOutboxModule(outbox =>
+    builder.AddAmqpTransport(new AmqpConnectionOptions
+    {
+        Uri = new Uri(configuration.GetConnectionString("Amqp")!)
+    });
+
+    builder.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<OrderSubmitted>("orders.order-submitted", 1);
         outbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
-        outbox.UseAmqpDispatch(
-            o => o.DefaultDestination = "orders.order-submitted", new AmqpConnectionOptions
-            {
-                Uri = new Uri(configuration.GetConnectionString("Amqp"!)
-            }));
+        outbox.UseAmqpDispatch(o => o.DefaultDestination = "orders.order-submitted");
         outbox.EnableOutboxProcessor();
     });
 });
@@ -386,10 +387,14 @@ await outbox.EnqueueAsync(
 ```csharp
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddCommandModule(c => c.RegisterFromAssembly(typeof(ProcessPaymentCommand).Assembly));
+    builder.AddAmqpTransport(new AmqpConnectionOptions
+    {
+        Uri = new Uri(configuration.GetConnectionString("Amqp")!)
+    });
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(c => c.RegisterFromAssembly(typeof(ProcessPaymentCommand).Assembly));
 
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
         inbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
@@ -398,8 +403,7 @@ builder.Services.AddLiteBus(builder =>
         {
             ingress.UseOptions(new AmqpInboxIngressOptions
             {
-                QueueName = "commands.inbox",
-                Connection = { Uri = new Uri(configuration.GetConnectionString("Amqp")!) }
+                QueueName = "commands.inbox"
             });
         });
         inbox.EnableInboxProcessor();
@@ -422,7 +426,7 @@ var dataSource = NpgsqlDataSource.Create(configuration.GetConnectionString("Orde
 services.AddSingleton(dataSource);
 services.AddScoped<IPostgreSqlTransactionProvider, OrderUnitOfWork>();
 
-builder.Modules.AddOutboxModule(outbox =>
+builder.AddOutbox(outbox =>
 {
     outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
     outbox.UsePostgreSqlStorage(pg =>
@@ -455,10 +459,10 @@ await unitOfWork.CommitAsync(cancellationToken);
 ```csharp
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddEventModule(e => e.RegisterFromAssembly(typeof(OrderSubmittedHandler).Assembly));
+    builder.AddMessaging(_ => { });
+    builder.AddEvents(e => e.RegisterFromAssembly(typeof(OrderSubmittedHandler).Assembly));
 
-    builder.Modules.AddOutboxModule(outbox =>
+    builder.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<OrderSubmitted>("orders.order-submitted", 1);
         outbox.UseEntityFrameworkCoreStorage(ef => ef.UseDbContext<AppDbContext>());
@@ -475,16 +479,16 @@ builder.Services.AddLiteBus(builder =>
 ```csharp
 services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddCommandModule(c => c.Register<ProcessPaymentCommandHandler>());
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(c => c.Register<ProcessPaymentCommandHandler>());
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
         inbox.UseInMemoryStorage();
         inbox.UseInProcessDispatch();
     });
 
-    builder.Modules.AddOutboxModule(outbox =>
+    builder.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<OrderSubmitted>("orders.order-submitted", 1);
         outbox.UseInMemoryStorage();
@@ -500,16 +504,16 @@ services.AddLiteBus(builder =>
 ```csharp
 builder.Services.AddLiteBus(builder =>
 {
-    var amqp = new AmqpTransportModule(new AmqpConnectionOptions
+    builder.AddAmqpTransport(new AmqpConnectionOptions
     {
         Uri = new Uri(configuration.GetConnectionString("Amqp")!)
     });
 
-    builder.Modules.AddMessageModule(_ => { });
-    builder.Modules.AddCommandModule(c => c.RegisterFromAssembly(typeof(ProcessPaymentCommandHandler).Assembly));
-    builder.Modules.AddEventModule(e => e.RegisterFromAssembly(typeof(PaymentProcessedEventHandler).Assembly));
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(c => c.RegisterFromAssembly(typeof(ProcessPaymentCommandHandler).Assembly));
+    builder.AddEvents(e => e.RegisterFromAssembly(typeof(PaymentProcessedEventHandler).Assembly));
 
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
         inbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
@@ -518,11 +522,11 @@ builder.Services.AddLiteBus(builder =>
         inbox.EnableInboxProcessor();
     });
 
-    builder.Modules.AddOutboxModule(outbox =>
+    builder.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<PaymentProcessed>("payments.payment-processed", 1);
         outbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
-        outbox.UseAmqpDispatch(o => o.DefaultDestination = "payments.events", amqp);
+        outbox.UseAmqpDispatch(o => o.DefaultDestination = "payments.events");
         outbox.EnableOutboxProcessor();
     });
 });

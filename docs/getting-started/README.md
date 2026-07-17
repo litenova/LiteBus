@@ -38,9 +38,9 @@ You do not need all three LiteBus. Install only the message types your applicati
 
 ## Register the Modules
 
-Call `AddLiteBus` once, register `AddMessageModule` first, then add the command, query, and event modules you installed. The semantic module extensions enforce this declaration order. During composition, the module registry also validates each `IRequires<TModule>` dependency and builds dependencies before their dependents. Semantic modules do not register the messaging core automatically.
+Call `AddLiteBus` once, add messaging, then add the command, query, and event features you installed. During composition, the module registry validates each `IRequires<TModule>` dependency across the completed graph and builds dependencies before their dependents. Callback order does not change dependency resolution, and semantic modules do not register the messaging core automatically.
 
-Use `RegisterFromAssembly` on command, query, and event module builders to discover handlers in each assembly. Call it once per assembly on the semantic module that owns those handlers. Optional `RegisterFromAssembly` on `AddMessageModule` is for contract registration and cross-cutting handlers only; when both message and semantic modules scan the same assembly, handler dependency injection is owned by the semantic module with scoped lifetime.
+Use `RegisterFromAssembly` on command, query, and event module builders to discover handlers in each assembly. Call it once per assembly on the semantic module that owns those handlers. Optional `RegisterFromAssembly` on `AddMessaging` is for contract registration and cross-cutting handlers only; when both messaging and semantic modules scan the same assembly, handler dependency injection is owned by the semantic module with scoped lifetime.
 
 `RegisterFromAssembly` scans an assembly once at startup and records every handler, pre-handler, post-handler, and error-handler it finds. This is the only reflection-heavy step; after it, mediation reads cached metadata. Point it at each assembly that contains handlers.
 
@@ -51,17 +51,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ =>
+    builder.AddMessaging(_ =>
     {
     });
 
-    builder.Modules.AddCommandModule(module =>
+    builder.AddCommands(module =>
         module.RegisterFromAssembly(typeof(Program).Assembly));
 
-    builder.Modules.AddQueryModule(module =>
+    builder.AddQueries(module =>
         module.RegisterFromAssembly(typeof(Program).Assembly));
 
-    builder.Modules.AddEventModule(module =>
+    builder.AddEvents(module =>
         module.RegisterFromAssembly(typeof(Program).Assembly));
 });
 ```
@@ -73,11 +73,11 @@ var builder = new ContainerBuilder();
 
 builder.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ =>
+    builder.AddMessaging(_ =>
     {
     });
 
-    builder.Modules.AddCommandModule(module =>
+    builder.AddCommands(module =>
         module.RegisterFromAssembly(typeof(Program).Assembly));
 });
 
@@ -240,16 +240,16 @@ If no handler is registered for an event, `PublishAsync` completes without error
 
 ## Durable Inbox and Outbox Quickstart
 
-When commands or integration events must survive process failure, register nested storage and dispatch inside `AddInboxModule` / `AddOutboxModule`:
+When commands or integration events must survive process failure, register nested storage and dispatch inside `AddInbox` / `AddOutbox`:
 
 ```csharp
 builder.Services.AddLiteBus(builder =>
 {
-    builder.Modules.AddMessageModule(_ =>
+    builder.AddMessaging(_ =>
     {
     });
 
-    builder.Modules.AddInboxModule(inbox =>
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
         inbox.UseInMemoryStorage();
@@ -257,7 +257,7 @@ builder.Services.AddLiteBus(builder =>
         inbox.EnableInboxProcessor();
     });
 
-    builder.Modules.AddOutboxModule(outbox =>
+    builder.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<OrderPlaced>("orders.events.placed", 1);
         outbox.UseInMemoryStorage();

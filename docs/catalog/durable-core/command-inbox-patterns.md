@@ -9,7 +9,7 @@ Store commands for deferred execution through the inbox instead of synchronous `
 
 ## What It Does
 
-Commands (`ICommand` without result) are accepted into inbox storage and later dispatched through `IInboxDispatcher`. In-process dispatch deserializes and calls `ICommandMediator.SendAsync`. Transport dispatch publishes leased envelopes to a broker for remote execution. v5 `[StoreInInbox]`, `ICommandInbox`, and hosted command-inbox processor packages are removed; applications register `AddInboxModule`, storage, dispatch, and `EnableInboxProcessor`.
+Commands (`ICommand` without result) are accepted into inbox storage and later dispatched through `IInboxDispatcher`. In-process dispatch deserializes and calls `ICommandMediator.SendAsync`. Transport dispatch publishes leased envelopes to a broker for remote execution. v5 `[StoreInInbox]`, `ICommandInbox`, and hosted command-inbox processor packages are removed; applications register `AddInbox`, storage, dispatch, and `EnableInboxProcessor`.
 
 ## Public Surface
 
@@ -31,7 +31,7 @@ v6 replaces v5 implicit attribute-driven storage with explicit accept calls.
 
 ### Registration
 
-- **`AddInboxModule()`** with **`Use*Storage()`**, **`UseInProcessDispatch()`** or transport dispatch, and **`EnableInboxProcessor()`**.
+- **`AddInbox()`** with **`Use*Storage()`**, **`UseInProcessDispatch()`** or transport dispatch, and **`EnableInboxProcessor()`**.
 - **`Contracts.Register<TCommand>(name, version)`** for each stored command type.
 - Command handler registered in message registry (same as synchronous send path).
 

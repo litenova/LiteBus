@@ -9,7 +9,7 @@
 
 ## What It Does
 
-`IServiceCollection.AddLiteBus(...)` is the Microsoft DI entry point for LiteBus composition. It accepts either `Action<IModuleRegistry>` or `Action<ILiteBusBuilder>`. Both overloads build module order, execute module `Build(...)`, register `LiteBusHostManifest`, and wire diagnostic checks and background hosting registrations.
+`IServiceCollection.AddLiteBus(...)` is the Microsoft DI entry point for LiteBus composition. It accepts an advanced `Action<IModuleRegistry>` overload or a normal `Action<ILiteBusBuilder>` overload. Both build module order, execute module `Build(...)`, register `LiteBusHostManifest`, and wire diagnostic checks and background hosting registrations.
 
 This capability is composition only. It does not own ASP.NET routes, health checks, or exporters.
 
@@ -25,11 +25,12 @@ This capability is composition only. It does not own ASP.NET routes, health chec
 - Registers `LiteBusHostManifest` as singleton.
 - Applies `RegisterDiagnosticChecks(...)` from `LiteBus.Runtime.Extensions.Microsoft.Hosting`.
 - Applies `RegisterBackgroundServices(...)` from `LiteBus.Runtime.Extensions.Microsoft.Hosting`.
+- Registers one Microsoft DI-backed `IMessageDispatchScopeFactory` for mediation and durable processor scopes.
 
 ### Configuration
 
-- `Action<IModuleRegistry>` for module-only setup.
-- `Action<ILiteBusBuilder>` for shared contracts plus modules.
+- `Action<IModuleRegistry>` for advanced module setup.
+- `Action<ILiteBusBuilder>` for package-owned `Add*` feature extensions.
 
 ## Packages
 
@@ -46,7 +47,7 @@ This capability is composition only. It does not own ASP.NET routes, health chec
 
 - Module build order is frozen after `BuildOrder()`.
 - `LiteBusHostManifest` reflects startup tasks, background services, and diagnostic checks collected during composition.
-- Shared contracts configured on `ILiteBusBuilder.Contracts` are replayed when message modules build.
+- Each dispatch opens and disposes an `IServiceScope`.
 
 ## Non-Goals
 
@@ -66,20 +67,20 @@ No direct telemetry is emitted by `AddLiteBus`. Operational visibility comes fro
 
 ### Covered Use Cases
 
-#### `LiteBusBuilderTests.AddLiteBus_WithSharedContracts_ShouldRegisterContractsInResolvedRegistry`
+#### `LiteBusBuilderTests.AddLiteBus_WithMessagingContracts_ShouldRegisterContractsInResolvedRegistry`
 
-- **Use case**: shared contract registrations on the builder become available in resolved contract registry
+- **Use case**: messaging contract registrations become available in the resolved contract registry
 - **Test kind**: Unit
-- **Description**: configures `services.AddLiteBus(builder => ...)` with shared contracts and message module
+- **Description**: configures `services.AddLiteBus(builder => ...)` with contracts through `AddMessaging`
 - **Behavior**: resolves `IMessageContractRegistry` and looks up configured contract
 - **Expected outcome**: contract name and version map to expected message type
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/LiteBusBuilderTests.cs`
 
-#### `LiteBusBuilderTests.AddLiteBus_WithSharedAndModuleContracts_ShouldApplyBothWithoutConflict`
+#### `LiteBusBuilderTests.AddLiteBus_WithMultipleMessagingContracts_ShouldApplyAllRegistrations`
 
-- **Use case**: shared and module-local contracts coexist in one composition
+- **Use case**: multiple messaging contracts coexist in one composition
 - **Test kind**: Unit
-- **Description**: registers one shared contract and one module contract in a single builder callback
+- **Description**: registers two contracts in a single messaging builder callback
 - **Behavior**: resolves registry and queries both contracts
 - **Expected outcome**: both lookups succeed with expected types
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/LiteBusBuilderTests.cs`

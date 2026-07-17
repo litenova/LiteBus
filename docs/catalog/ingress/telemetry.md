@@ -78,7 +78,7 @@ After recording, the consumer logs EventId 3004 (`AckFailedAfterAccept`) and req
 | Signal | Role |
 | --- | --- |
 | `process {destination}` activity | Per delivery in the consumer invoker; not an ingress meter |
-| `litebus.transport.circuit_breaker.*` | Breaker state when ingress bootstraps transport |
+| `litebus.transport.circuit_breaker.*` | Breaker state from the explicitly registered root transport |
 
 ### Registration Checklist
 

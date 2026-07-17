@@ -17,13 +17,13 @@ Ingress extensions register a background consumer that maps `TransportMessage` t
 
 | Extension | Package | Maturity |
 | --- | --- | --- |
-| `UseAmqpIngress(configure, AmqpConnectionOptions)` | `LiteBus.Inbox.Ingress.Amqp` | GA |
+| `UseAmqpIngress(configure)` | `LiteBus.Inbox.Ingress.Amqp` | GA |
 | `UseInMemoryIngress(configure?)` | `LiteBus.Inbox.Ingress.InMemory` | Extension (tests and local development) |
-| `UseKafkaIngress(configure, KafkaTransportOptions)` | `LiteBus.Inbox.Ingress.Kafka` | Beta |
-| `UseAwsSqsIngress(configure, AwsSqsTransportOptions)` | `LiteBus.Inbox.Ingress.AwsSqs` | Beta |
-| `UseAzureServiceBusIngress(configure, AzureServiceBusTransportOptions)` | `LiteBus.Inbox.Ingress.AzureServiceBus` | Beta |
+| `UseKafkaIngress(configure)` | `LiteBus.Inbox.Ingress.Kafka` | Beta |
+| `UseAwsSqsIngress(configure)` | `LiteBus.Inbox.Ingress.AwsSqs` | Beta |
+| `UseAzureServiceBusIngress(configure)` | `LiteBus.Inbox.Ingress.AzureServiceBus` | Beta |
 
-Register inside **`AddInboxModule(...)`** after storage. Each extension registers a transport consumer child module when not already present and adds an ingress background service to the host manifest.
+Register the matching `Add*Transport(...)` once at the root, then register ingress inside **`AddInbox(...)`**. Each ingress extension adds its feature child and background service to the host manifest; it does not own broker connectivity.
 
 ### Core Types
 
@@ -67,11 +67,12 @@ Register inside **`AddInboxModule(...)`** after storage. Each extension register
 | --- | --- |
 | `LiteBus.Inbox.Ingress` | Shared handler, consumer, mapper, telemetry |
 | `LiteBus.Inbox.Ingress.*` | Broker modules |
-| `LiteBus.Transport.*` | `IMessageConsumer` implementations |
+| `LiteBus.Transport.*` | Explicit root `IMessageConsumer` implementations |
 
 ## Requires
 
 - Inbox module with storage registered
+- Matching root transport registered through `Add*Transport(...)`
 - `IInbox` singleton store (auto-commit path)
 - Contract registration for ingested message types
 
@@ -112,7 +113,7 @@ Register inside **`AddInboxModule(...)`** after storage. Each extension register
 
 | Instrument | Tag | When relevant |
 | --- | --- | --- |
-| `litebus.transport.circuit_breaker.open` | `litebus.transport.broker` | Ingress bootstraps transport; breaker blocks connection open |
+| `litebus.transport.circuit_breaker.open` | `litebus.transport.broker` | Root transport breaker blocks connection open |
 | `litebus.transport.circuit_breaker.failure_count` | `litebus.transport.broker` | Rising failures before open |
 
 Consumer handler failures do not increment the breaker; ack/requeue policy applies instead.

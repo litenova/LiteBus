@@ -1,6 +1,6 @@
 # Runtime Capability Catalog
 
-LiteBus runtime capabilities define the compose-time module graph and the in-process messaging engine used by mediator, durable, transport, and hosting axes. This axis sits in layers 0 through 2 and stays container-neutral and host-neutral by design.
+LiteBus runtime capabilities define the compose-time module graph and the in-process messaging engine used by mediator, durable, transport, and hosting axes. Runtime and messaging stay container-neutral and host-neutral by design.
 
 ## Axis Scope
 
@@ -12,12 +12,12 @@ LiteBus runtime capabilities define the compose-time module graph and the in-pro
 
 ## Packages
 
-| Package | Layer | Role |
+| Package | Dependency role | Purpose |
 | --- | --- | --- |
-| `LiteBus.Runtime.Abstractions` | 0 | Module, registry, dependency, and runtime exception contracts |
-| `LiteBus.Runtime` | 2 | Default module registry, module configuration, dependency registry, builder |
-| `LiteBus.Messaging.Abstractions` | 1 | Messaging contracts, descriptors, mediation requests, durable metadata value objects |
-| `LiteBus.Messaging` | 2 | Message module, mediator engine, registries, serializer, metadata mapper |
+| `LiteBus.Runtime.Abstractions` | Platform contracts | Module, registry, dependency, dispatch-scope, and runtime exception contracts |
+| `LiteBus.Runtime` | Core implementation | Default module registry, module configuration, dependency registry, and advanced builder |
+| `LiteBus.Messaging.Abstractions` | Mediation contracts | Messaging contracts, descriptors, and mediation requests |
+| `LiteBus.Messaging` | Core implementation | Message module, mediator engine, registries, serializer, and metadata mapper |
 
 ## Capabilities (18)
 
@@ -28,7 +28,7 @@ LiteBus runtime capabilities define the compose-time module graph and the in-pro
 | [runtime.module-dependencies](module-dependencies.md) | Module dependency ordering | GA | `LiteBus.Runtime`, `LiteBus.Runtime.Abstractions` |
 | [runtime.module-configuration](module-configuration.md) | Module configuration and shared context | GA | `LiteBus.Runtime` |
 | [runtime.composite-modules](composite-modules.md) | Composite parent and child modules | GA | `LiteBus.Runtime`, `LiteBus.Runtime.Abstractions` |
-| [runtime.litebus-builder](litebus-builder.md) | Composition builder surface | GA | `LiteBus.Runtime` |
+| [runtime.litebus-builder](litebus-builder.md) | Composition builder surface | GA | `LiteBus.Runtime.Abstractions`, `LiteBus.Runtime` |
 | [runtime.dependency-registry](dependency-registry.md) | Container-neutral dependency registry | GA | `LiteBus.Runtime` |
 | [runtime.message-module](message-module.md) | Foundational messaging module | GA | `LiteBus.Messaging` |
 | [runtime.message-registry](message-registry.md) | Message and handler type registry | GA | `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions` |
@@ -37,7 +37,7 @@ LiteBus runtime capabilities define the compose-time module graph and the in-pro
 | [runtime.mediation-strategies](mediation-strategies.md) | Pluggable mediation strategies | GA | `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions` |
 | [runtime.handler-descriptors](handler-descriptors.md) | Handler descriptor model | GA | `LiteBus.Messaging.Abstractions` |
 | [runtime.message-resolution](message-resolution.md) | Message resolve strategies | GA | `LiteBus.Messaging` |
-| [runtime.dispatch-scopes](dispatch-scopes.md) | Per-mediation DI scopes | GA | `LiteBus.Messaging` |
+| [runtime.dispatch-scopes](dispatch-scopes.md) | Per-mediation DI scopes | GA | `LiteBus.Runtime.Abstractions`, runtime DI adapters, `LiteBus.Messaging` |
 | [runtime.message-serialization](message-serialization.md) | Message serialization | GA | `LiteBus.Messaging` |
 | [runtime.payload-protection](payload-protection.md) | Payload encryption hook | GA | `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions` |
 | [runtime.trace-metadata](trace-metadata.md) | Trace metadata and propagation | GA | `LiteBus.Messaging.Abstractions`, `LiteBus.Messaging` |

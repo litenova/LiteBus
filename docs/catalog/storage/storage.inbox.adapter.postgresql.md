@@ -1,8 +1,8 @@
 # Inbox PostgreSQL Adapter
 
 - **ID**: `storage.inbox.adapter.postgresql`
-- **Package**: `LiteBus.Inbox.Storage.PostgreSql` (layer 4)
-- **Shared dependency**: `LiteBus.Storage.PostgreSql` (layer 3)
+- **Package**: `LiteBus.Inbox.Storage.PostgreSql` (feature bridge)
+- **Shared dependency**: `LiteBus.Storage.PostgreSql` (technology adapter)
 - **Summary**: A single `PostgreSqlInboxStore` instance implements inbox append, processing, and operations store roles on PostgreSQL.
 
 ## Interface Methods

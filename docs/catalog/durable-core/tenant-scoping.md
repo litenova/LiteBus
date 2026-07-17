@@ -94,7 +94,7 @@ For example, `GET /litebus/inbox/messages?tenantId=tenant-a&status=Pending` retu
 
 | Package | Tenant Surface |
 | --- | --- |
-| `LiteBus.Messaging.Abstractions` | `TenantScope`, `DurableTenantId`, and durable metadata |
+| `LiteBus.DurableMessaging.Abstractions` | `TenantScope`, `DurableTenantId`, and durable metadata |
 | `LiteBus.Inbox.Abstractions` | Accept metadata, receipts, lease requests, and manager filters |
 | `LiteBus.Outbox.Abstractions` | Enqueue metadata, receipts, lease requests, and manager filters |
 | `LiteBus.Saga.Abstractions` | Tenant-scoped saga correlation, query, and purge filters |

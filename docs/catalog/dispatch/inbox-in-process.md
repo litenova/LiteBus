@@ -24,7 +24,7 @@ This is the default inbox dispatch path for monolithic services: accept into sto
 ## Requires
 
 - `durable-core.inbox`
-- `mediator.commands` (`AddCommandModule` before or with inbox)
+- `mediator.commands` (`AddCommands` before or with inbox)
 - `runtime.contract-registry`
 - `dispatch.registration`
 
@@ -46,8 +46,8 @@ This is the default inbox dispatch path for monolithic services: accept into sto
 ```csharp
 services.AddLiteBus(litebus =>
 {
-    litebus.AddCommandModule(commands => { /* handlers */ });
-    litebus.AddInboxModule(inbox =>
+    litebus.AddCommands(commands => { /* handlers */ });
+    litebus.AddInbox(inbox =>
     {
         inbox.EnableInboxProcessor();
         inbox.UseInProcessDispatch();

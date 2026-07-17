@@ -9,7 +9,7 @@
 
 Transport adapters implement:
 
-- `IMessageTransport` for outbound publish via `TransportPublishRequest`
+- `ITransportPublisher` for outbound publish via `TransportPublishRequest`
 - `IMessageConsumer` for inbound consume loops via `TransportConsumerOptions` and `TransportMessage` handlers
 
 These abstractions isolate dispatch and ingress from broker SDK APIs.
@@ -20,7 +20,7 @@ These abstractions isolate dispatch and ingress from broker SDK APIs.
 
 | Type | Member | Role |
 | --- | --- | --- |
-| `IMessageTransport` | `PublishAsync(TransportPublishRequest, CancellationToken)` | Publish one message |
+| `ITransportPublisher` | `PublishAsync(TransportPublishRequest, CancellationToken)` | Publish one message |
 | `IMessageConsumer` | `StartAsync(TransportConsumerOptions, handler, CancellationToken)` | Start consume loop |
 | `IMessageConsumer` | `StopAsync(CancellationToken)` | Request stop |
 | `IMessageConsumer` | `WaitUntilStoppedAsync(CancellationToken)` | Await full shutdown |

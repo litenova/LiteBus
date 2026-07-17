@@ -32,7 +32,7 @@ Duplicate delivery is expected at every boundary after the initial durable write
 
 ### Registration
 
-- Writers and processors register through **`AddMessageModule`** then **`AddInboxModule`** / **`AddOutboxModule`** with storage and exactly one dispatcher each.
+- Writers and processors register through **`AddMessaging`** then **`AddInbox`** / **`AddOutbox`** with storage and exactly one dispatcher each.
 - Ingress registers through inbox module **`Use*Ingress`** adapters when external intake is required.
 
 ### Configuration

@@ -11,7 +11,7 @@ Saga is **not** a full workflow engine. There is no built-in scheduler, timeout 
 - A processor hook (`SagaProcessorHook`) that loads saga state before dispatch and saves or completes it after successful dispatch.
 - Handler access through injected `ISagaContext` (`GetState`, `SetState`, `Complete`).
 - State keyed by `SagaCorrelation` (`CorrelationId`, `SagaDefinitionId`, optional `TenantId`).
-- Default in-memory store for development; optional PostgreSQL persistence for production.
+- Explicit in-memory store for development or PostgreSQL persistence for production.
 - Per-dispatch scope on the singleton `SagaExecutionContext`, safe for the processor's before/dispatch/after flow; optimistic concurrency when `DispatcherConcurrency` is greater than one.
 
 ## What It Is Not
@@ -31,16 +31,18 @@ Saga is **not** a full workflow engine. There is no built-in scheduler, timeout 
 | --- | --- |
 | `LiteBus.Saga` | Core saga store, processor hook, state registry |
 | `LiteBus.Saga.InboxIntegration` | `EnableSaga()` on `InboxModuleBuilder` |
-| `LiteBus.Saga.Storage.PostgreSql` | Optional PostgreSQL `ISagaStore` (production) |
+| `LiteBus.Saga.Storage.PostgreSql` | PostgreSQL `ISagaStore` selection for production |
 
-Reference inbox, command module, and storage packages as usual. See [Dependency Graph](../architecture/dependency-graph.md) for layer rules.
+Reference inbox, command module, and storage packages as usual. See [Dependency Graph](../architecture/dependency-graph.md) for role rules.
 
 ## Registration
 
 Enable saga on the inbox module builder. Map saga definition identifiers and contracts:
 
 ```csharp
-builder.Modules.AddInboxModule(inbox =>
+builder.AddMessaging(_ => { });
+builder.AddCommands(commands => commands.RegisterFromAssembly(typeof(AdvanceOrderSagaCommand).Assembly));
+builder.AddInbox(inbox =>
 {
     inbox.Contracts.Register<AdvanceOrderSagaCommand>("orders.saga.advance", 1);
     inbox.Contracts.Register<CompleteOrderSagaCommand>("orders.saga.complete", 1);
@@ -48,21 +50,22 @@ builder.Modules.AddInboxModule(inbox =>
     inbox.UseInProcessDispatch();
     inbox.EnableInboxProcessor();
 
-    inbox.EnableSaga(registry =>
+    inbox.EnableSaga(saga =>
     {
-        registry.DefineState<OrderSagaState>("order-workflow");
-        registry.MapContract("orders.saga.advance", "order-workflow");
-        registry.MapContract("orders.saga.complete", "order-workflow");
-    });
+        saga.DefineState<OrderSagaState>("order-workflow");
+        saga.MapContract("orders.saga.advance", "order-workflow");
+        saga.MapContract("orders.saga.complete", "order-workflow");
+        saga.UseInMemoryStorage();
 
-    // Production: PostgreSQL saga storage (requires LiteBus.Saga.Storage.PostgreSql).
-    // inbox.UsePostgreSqlSagaStorage(pg => pg.UseConnectionString(connectionString));
+        // Production: replace UseInMemoryStorage with the PostgreSQL selection.
+        // saga.UsePostgreSqlStorage(pg => pg.UseConnectionString(connectionString));
+    });
 });
 ```
 
 Single-contract workflows may use `MapState<TState>(contractName)`, which registers the definition identifier and state type with the same name.
 
-Register command handlers normally through `AddCommandModule`. Saga handlers are standard `ICommandHandler<TCommand>` implementations.
+Register command handlers normally through `AddCommands`. Saga handlers are standard `ICommandHandler<TCommand>` implementations.
 
 ## Handler Pattern
 
@@ -150,8 +153,9 @@ PostgreSQL schema version **1** includes the tenant-scoped primary key (`correla
 | --- | --- | --- |
 | `SagaModuleBuilder.DefineState<TState>(id)` | `LiteBus.Saga` | Registers saga definition identifier and CLR state type |
 | `SagaModuleBuilder.MapContract(name, id)` | `LiteBus.Saga` | Maps message contract to saga definition |
-| `InboxModuleBuilder.EnableSaga(...)` | `LiteBus.Saga.InboxIntegration` | Registers hook and default in-memory store |
-| `InboxModuleBuilder.UsePostgreSqlSagaStorage(...)` | `LiteBus.Saga.Storage.PostgreSql` | Replaces default store |
+| `InboxModuleBuilder.EnableSaga(...)` | `LiteBus.Saga.InboxIntegration` | Registers the nested saga composition |
+| `SagaModuleBuilder.UseInMemoryStorage()` | `LiteBus.Saga` | Explicit test and local storage selection |
+| `SagaModuleBuilder.UsePostgreSqlStorage(...)` | `LiteBus.Saga.Storage.PostgreSql` | Explicit durable storage selection |
 | `PostgreSqlSagaStoreOptions` | `LiteBus.Saga.Storage.PostgreSql` | `SchemaName`, `TableName`, schema startup flags |
 
 Inbox processor options (`BatchSize`, `LeaseDuration`, and similar) apply unchanged. See [Inbox](inbox.md).
@@ -161,7 +165,7 @@ Inbox processor options (`BatchSize`, `LeaseDuration`, and similar) apply unchan
 | Area | v6 scope |
 | --- | --- |
 | Trigger | Inbox command dispatch only |
-| Storage | InMemory (default), PostgreSQL (shipped), custom `ISagaStore` |
+| Storage | Exactly one explicit selection: InMemory, PostgreSQL, or a custom `ISagaStorageModule` |
 | Handler API | `ISagaContext` injection only |
 | Orchestration | Application-owned multi-step logic in handlers |
 | Outbox / events | Not integrated with saga hook |

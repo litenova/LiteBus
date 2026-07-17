@@ -7,7 +7,7 @@
 
 ## What It Does
 
-`UseAmqpDispatch(configure, connectionOptions)` on `OutboxModuleBuilder` registers `TransportOutboxDispatchModule` with `AmqpTransportModule`. After domain logic enqueues events to outbox storage, the processor publishes to the configured exchange when rows are leased.
+`AddAmqpTransport(...)` registers `AmqpTransportModule` once at the root. `UseAmqpDispatch(configure)` on `OutboxModuleBuilder` registers `TransportOutboxDispatchModule` as a feature bridge to that transport. After domain logic enqueues events to outbox storage, the processor publishes to the configured exchange when rows are leased.
 
 Route resolution prefers envelope `Topic`, then custom resolver, then contract name. Headers carry contract identity and trace context for downstream ingress.
 
@@ -41,7 +41,15 @@ Route resolution prefers envelope `Topic`, then custom resolver, then contract n
 ```csharp
 services.AddLiteBus(litebus =>
 {
-    litebus.AddOutboxModule(outbox =>
+    litebus.AddAmqpTransport(new AmqpConnectionOptions
+    {
+        HostName = "localhost",
+        Port = 5672,
+        UserName = "guest",
+        Password = "guest"
+    });
+
+    litebus.AddOutbox(outbox =>
     {
         outbox.EnableOutboxProcessor();
         outbox.UseAmqpDispatch(
@@ -50,13 +58,6 @@ services.AddLiteBus(litebus =>
                 options.DefaultDestination = "events.exchange";
                 options.ResolveRoute = envelope => envelope.Topic ?? envelope.ContractName;
                 options.Persistent = true;
-            },
-            new AmqpConnectionOptions
-            {
-                HostName = "localhost",
-                Port = 5672,
-                UserName = "guest",
-                Password = "guest"
             });
     });
 });
@@ -64,7 +65,7 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `OutboxModuleBuilder.UseAmqpDispatch(Action<TransportOutboxDispatcherOptions>, AmqpConnectionOptions)` | Registers outbox transport dispatcher and AMQP transport |
+| `OutboxModuleBuilder.UseAmqpDispatch(Action<TransportOutboxDispatcherOptions>)` | Registers outbox transport dispatcher that requires the root AMQP transport |
 | `TransportOutboxDispatchModule.DefaultHookFailurePolicy` | Defaults to `CompleteDespiteHookFailure` |
 | `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | Publishes outbox envelope to broker with canonical headers |
 

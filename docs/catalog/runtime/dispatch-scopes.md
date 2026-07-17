@@ -7,7 +7,7 @@
 
 ## What It Does
 
-`MessageModule` registers `IMessageDispatchScopeFactory` that chooses scoped-provider mode when `IServiceScopeFactory` exists, or root-provider fallback otherwise. `MessageMediator` creates one dispatch scope per call and retains it through async completion.
+The Microsoft DI and Autofac adapters each register one container-specific `IMessageDispatchScopeFactory`. `MessageModule` requires that contract and does not inspect a container or silently fall back to the root provider. `MessageMediator` creates one dispatch scope per call and retains it through async completion. Manual hosts may explicitly register `RootMessageDispatchScopeFactory` when root-provider resolution is intentional.
 
 ## Public Surface
 
@@ -15,13 +15,16 @@
 | --- | --- |
 | `IMessageDispatchScopeFactory.CreateScope()` | Creates one dispatch scope |
 | `IMessageDispatchScope.ServiceProvider` | Service provider for handler resolution |
-| `MessageDispatchScopeFactory` | Scoped-provider implementation |
-| `RootMessageDispatchScopeFactory` | Root-provider fallback |
+| Microsoft DI dispatch-scope factory | Opens an `IServiceScope` per dispatch |
+| Autofac dispatch-scope factory | Opens an `ILifetimeScope` per dispatch |
+| `RootMessageDispatchScopeFactory` | Explicit root-provider opt-in |
 
 ## Packages
 
-- `LiteBus.Messaging`
-- `LiteBus.Messaging.Abstractions`
+- `LiteBus.Runtime.Abstractions` for contracts
+- `LiteBus.Runtime` for explicit root-provider implementation
+- `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` or `LiteBus.Runtime.Extensions.Autofac` for container implementations
+- `LiteBus.Messaging` for the consumer
 
 ## Requires
 
@@ -32,7 +35,8 @@
 
 - One dispatch scope per mediation operation.
 - Scoped provider is disposed on scope dispose.
-- Root fallback does not dispose root container.
+- Missing scope-factory composition fails before the container is used.
+- Explicit root dispatch does not dispose the root container.
 
 ## Non-Goals
 
@@ -58,7 +62,7 @@ No dedicated scope metric.
 
 | Use case | Priority | Notes |
 | --- | --- | --- |
-| End-to-end root-fallback path without `IServiceScopeFactory` | Medium | Fallback is source-verified; explicit end-to-end test is limited |
+| Manual-host root opt-in across a complete mediator pipeline | Medium | The explicit factory is unit-covered; host-specific composition remains application-owned |
 
 ### Out-of-Scope Use Cases
 

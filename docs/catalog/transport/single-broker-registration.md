@@ -3,11 +3,13 @@
 - **ID**: `transport.single-broker-registration`
 - **Name**: Single broker registration
 - **Maturity**: GA
-- **Summary**: Compose-time guard that blocks registering a second transport adapter in the same module configuration.
+- **Summary**: Root composition and dependency-registry validation that allow one transport adapter in a host.
 
 ## What It Does
 
-Every transport module calls `TransportModuleRegistration.EnsureTransportNotRegistered(...)` during `Build`. The guard scans dependency registrations for existing `IMessageTransport`. If present, it throws `TransportAlreadyRegisteredException`.
+Applications register their shared broker once through `AddAmqpTransport`, `AddKafkaTransport`, `AddAwsSqsTransport`, `AddAzureServiceBusTransport`, or `AddInMemoryTransport`. Inbox dispatch, outbox dispatch, and ingress modules depend on that root module through the validated module graph.
+
+If advanced registry code adds a second broker module, the dependency registry rejects its duplicate singleton services with `LiteBusConfigurationException`. Transport modules do not scan registrations or store context markers during `Build()`.
 
 This rule keeps publisher and consumer runtime behavior aligned to one broker SDK graph and one breaker identity in a process.
 
@@ -15,14 +17,17 @@ This rule keeps publisher and consumer runtime behavior aligned to one broker SD
 
 | API | Role |
 | --- | --- |
-| `TransportModuleRegistration.EnsureTransportNotRegistered(IModuleConfiguration, string)` | Duplicate registration guard |
-| `TransportAlreadyRegisteredException` | Guard failure exception |
-| `TransportAlreadyRegisteredException.ModuleName` | Module that attempted duplicate registration |
+| `ILiteBusBuilder.AddAmqpTransport(...)` | Registers the shared AMQP root transport |
+| `ILiteBusBuilder.AddKafkaTransport(...)` | Registers the shared Kafka root transport |
+| `ILiteBusBuilder.AddAwsSqsTransport(...)` | Registers the shared AWS SQS root transport |
+| `ILiteBusBuilder.AddAzureServiceBusTransport(...)` | Registers the shared Azure Service Bus root transport |
+| `ILiteBusBuilder.AddInMemoryTransport(...)` | Registers the shared in-memory root transport |
+| `LiteBusConfigurationException` | Reports duplicate service or module composition |
 
 ## Packages
 
-- `LiteBus.Transport` (guard and exception)
-- `LiteBus.Transport.*` modules (call sites)
+- `LiteBus.Transport.*` (root registration extensions and adapters)
+- `LiteBus.Runtime` (module graph and dependency uniqueness validation)
 
 ## Requires
 
@@ -31,8 +36,8 @@ This rule keeps publisher and consumer runtime behavior aligned to one broker SD
 
 ## Invariants
 
-- Exactly one `IMessageTransport` implementation per process.
-- Error message states duplicate module cannot replace active transport registration.
+- Exactly one `ITransportPublisher` implementation per process.
+- A duplicate broker module fails composition through the standard duplicate-service validation.
 - Metric registration stays single-tagged because only one adapter survives compose.
 
 ## Non-Goals
@@ -61,8 +66,7 @@ This rule keeps publisher and consumer runtime behavior aligned to one broker SD
 
 ### Untested
 
-- Explicit assertion of `TransportAlreadyRegisteredException.ModuleName` and message text.
-- Duplicate registration path where consumer is present but `IMessageTransport` registration is partial.
+- Duplicate registration path where an externally implemented transport module registers only part of the publisher and consumer service set.
 
 ### Out-of-Scope
 

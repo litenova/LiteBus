@@ -5,7 +5,7 @@ Two AMQP patterns cover most command flows:
 | Direction | Package | Role |
 | --- | --- | --- |
 | Ingress (consume into inbox) | `LiteBus.Inbox.Ingress.Amqp` | Broker queue to `IInbox.AcceptAsync` |
-| Dispatch (publish leased inbox) | `LiteBus.Inbox.Dispatch.Amqp` | `PipelinedInboxProcessor` to broker (registers `LiteBus.Transport.Amqp` internally) |
+| Dispatch (publish leased inbox) | `LiteBus.Inbox.Dispatch.Amqp` | `PipelinedInboxProcessor` to the explicitly registered root AMQP transport |
 
 ## Local Development Without a Broker
 
