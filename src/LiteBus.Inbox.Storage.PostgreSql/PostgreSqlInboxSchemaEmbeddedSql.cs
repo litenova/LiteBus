@@ -24,4 +24,9 @@ internal static class PostgreSqlInboxSchemaEmbeddedSql
     ///     Embedded resource path for the version 2 payload type migration.
     /// </summary>
     internal const string V2PayloadText = "inbox/v2/payload_text.sql";
+
+    /// <summary>
+    ///     Embedded resource path for the lease fencing migration.
+    /// </summary>
+    internal const string V3LeaseFencing = "inbox/v3/lease_fencing.sql";
 }

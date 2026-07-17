@@ -86,6 +86,9 @@ public static class OutboxEntityFrameworkCoreModelExtensions
         entity.Property(message => message.LeaseOwner)
             .HasColumnName("lease_owner");
 
+        entity.Property(message => message.LeaseGeneration)
+            .HasColumnName("lease_generation");
+
         entity.Property(message => message.LeaseExpiresAt)
             .HasColumnName("lease_expires_at");
 

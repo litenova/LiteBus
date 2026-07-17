@@ -301,4 +301,10 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
     {
         return envelope.Id;
     }
+
+    /// <inheritdoc />
+    public long GetLeaseGeneration(InboxEnvelope envelope)
+    {
+        return envelope.LeaseGeneration;
+    }
 }

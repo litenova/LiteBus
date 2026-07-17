@@ -82,16 +82,23 @@ public sealed class PostgreSqlInboxStorePersistResultTests : IClassFixture<Postg
             BatchSize = 1,
             LeaseOwner = "worker-a",
             Now = now.AddSeconds(1),
-            LeaseDuration = TimeSpan.FromSeconds(10)
+            LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.LeasePendingAsync(new InboxLeaseRequest
+        await PostgreSqlDatabaseTimeTestSupport.ExpireLeaseAsync(
+            _fixture.DataSource,
+            options.SchemaName,
+            options.TableName,
+            messageId).ConfigureAwait(false);
+
+        var secondLease = await store.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 1,
             LeaseOwner = "worker-b",
             Now = now.AddMinutes(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
+        secondLease.Should().ContainSingle();
 
         var result = await store.PersistAsync([firstLease[0].AsCompleted()]).ConfigureAwait(false);
 

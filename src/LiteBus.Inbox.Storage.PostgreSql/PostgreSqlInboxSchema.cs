@@ -42,10 +42,10 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 ///         version describes payload shape; table schema version describes columns and indexes managed by LiteBus.
 ///     </para>
 ///     <para>
-///         Schema version 1 includes the full inbox column set, required indexes, and an optional insert notify trigger
-///         for
-///         LISTEN/NOTIFY wake-up. Existing databases are not upgraded; recreate tables or apply
-///         <see cref="GetCreateScript(PostgreSqlInboxStoreOptions?)" /> through your migration pipeline.
+///         Schema version 3 adds lease fencing after the version 2 payload text migration. Existing databases are not
+///         upgraded automatically. Apply the ordered files exposed by <see cref="SqlFiles" />, then call
+///         <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlInboxStoreOptions?, CancellationToken)" /> to record and
+///         validate the current version.
 ///     </para>
 /// </remarks>
 public static class PostgreSqlInboxSchema
@@ -53,7 +53,7 @@ public static class PostgreSqlInboxSchema
     /// <summary>
     ///     Gets the inbox table schema version implemented by this package release.
     /// </summary>
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 3;
 
     /// <summary>
     ///     Gets the canonical SQL files shipped with the inbox PostgreSQL package.
@@ -67,7 +67,7 @@ public static class PostgreSqlInboxSchema
     public static IReadOnlyList<PostgreSqlSchemaSqlFile> SqlFiles => PostgreSqlInboxSchemaScripts.SqlFiles;
 
     /// <summary>
-    ///     Returns the SQL script that creates the inbox schema version 1 table, indexes, metadata table, and notify trigger.
+    ///     Returns the SQL script that creates the current inbox table, indexes, metadata table, and notify trigger.
     /// </summary>
     /// <param name="options">The schema and table options. Defaults create <c>public.litebus_inbox_messages</c>.</param>
     /// <returns>The canonical create script for <see cref="CurrentSchemaVersion" />.</returns>

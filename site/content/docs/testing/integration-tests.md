@@ -471,8 +471,10 @@ Abstract test classes define **store behavior contracts** inherited by InMemory 
 
 | Suite | Covers (high level) |
 |-------|---------------------|
-| `InboxStoreContractTests` | Idempotency, leasing, lease renewal ownership, attempt counts, dead-letter, retention, diagnostics query, purge |
-| `OutboxStoreContractTests` | Enqueue, lease, lease renewal ownership, publish marking, retry visibility, dead-letter |
+| `InboxStoreContractTests` | Idempotency, leasing, renewal owner and generation guards, stale terminal-write fencing, attempt counts, dead-letter, retention, diagnostics query, purge |
+| `OutboxStoreContractTests` | Enqueue, lease, renewal owner and generation guards, stale terminal-write fencing, publish marking, retry visibility, dead-letter |
+
+Direct PostgreSQL and EF Core PostgreSQL suites also pass a caller timestamp ten years ahead of database time. The tests verify that future-visible rows remain hidden and that lease expiry uses the database clock.
 | `InboxRetentionStoreContractTests` / `OutboxRetentionStoreContractTests` | Retention-specific roles |
 
 When adding a custom inbox or outbox store, reference `LiteBus.Storage.Testing` and inherit these suites in your test project before writing provider-specific tests.

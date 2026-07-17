@@ -24,6 +24,7 @@ public sealed class ProcessorLeaseHeartbeatTests
             new LeaseHeartbeatContext(
                 Guid.NewGuid(),
                 "worker",
+                1,
                 store,
                 TimeSpan.FromMinutes(1),
                 TimeSpan.Zero,
@@ -53,6 +54,7 @@ public sealed class ProcessorLeaseHeartbeatTests
             new LeaseHeartbeatContext(
                 Guid.NewGuid(),
                 "worker",
+                1,
                 store,
                 TimeSpan.FromMinutes(1),
                 TimeSpan.FromSeconds(15),

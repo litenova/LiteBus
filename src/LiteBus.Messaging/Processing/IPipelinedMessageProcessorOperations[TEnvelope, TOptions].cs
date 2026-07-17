@@ -126,4 +126,11 @@ internal interface IPipelinedMessageProcessorOperations<TEnvelope, in TOptions>
     /// <param name="envelope">The leased message.</param>
     /// <returns>The message identifier used for lease renewal.</returns>
     Guid GetMessageId(TEnvelope envelope);
+
+    /// <summary>
+    ///     Gets the fencing generation assigned during lease acquisition.
+    /// </summary>
+    /// <param name="envelope">The leased message.</param>
+    /// <returns>The lease generation required for renewal and terminal persistence.</returns>
+    long GetLeaseGeneration(TEnvelope envelope);
 }

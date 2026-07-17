@@ -9,6 +9,7 @@ namespace LiteBus.Messaging.Processing;
 /// </summary>
 /// <param name="MessageId">The identifier of the leased message.</param>
 /// <param name="LeaseOwner">The worker name that currently owns the lease.</param>
+/// <param name="LeaseGeneration">The fencing generation returned by lease acquisition.</param>
 /// <param name="LeaseStore">The lease store used to extend ownership.</param>
 /// <param name="LeaseDuration">The duration applied on each renewal from the current UTC time.</param>
 /// <param name="HeartbeatInterval">The delay between renewal attempts after the initial renewal.</param>
@@ -19,6 +20,7 @@ namespace LiteBus.Messaging.Processing;
 internal sealed record LeaseHeartbeatContext(
     Guid MessageId,
     string LeaseOwner,
+    long LeaseGeneration,
     ILeaseRenewable LeaseStore,
     TimeSpan LeaseDuration,
     TimeSpan HeartbeatInterval,

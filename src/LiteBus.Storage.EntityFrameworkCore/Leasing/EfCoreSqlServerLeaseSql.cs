@@ -36,6 +36,7 @@ internal static class EfCoreSqlServerLeaseSql
                    [status] = {3},
                    [lease_owner] = {5},
                    [lease_expires_at] = {6},
+                   [lease_generation] = [__ALIAS__].[lease_generation] + 1,
                    [attempt_count] = [__ALIAS__].[attempt_count] + 1,
                    [last_attempted_at] = {2}
                OUTPUT
@@ -71,7 +72,8 @@ internal static class EfCoreSqlServerLeaseSql
                INSERTED.[correlation_id],
                INSERTED.[causation_id],
                INSERTED.[tenant_id],
-               INSERTED.[trace_context]
+               INSERTED.[trace_context],
+               INSERTED.[lease_generation]
                """;
     }
 
@@ -97,7 +99,8 @@ internal static class EfCoreSqlServerLeaseSql
                INSERTED.[correlation_id],
                INSERTED.[causation_id],
                INSERTED.[tenant_id],
-               INSERTED.[trace_context]
+               INSERTED.[trace_context],
+               INSERTED.[lease_generation]
                """;
     }
 }

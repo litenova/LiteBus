@@ -12,7 +12,7 @@ Saga is **not** a full workflow engine. There is no built-in scheduler, timeout 
 - Handler access through injected `ISagaContext` (`GetState`, `SetState`, `Complete`).
 - State keyed by `SagaCorrelation` (`CorrelationId`, `SagaDefinitionId`, optional `TenantId`).
 - Explicit in-memory store for development or PostgreSQL persistence for production.
-- Per-dispatch scope on the singleton `SagaExecutionContext`, safe for the processor's before/dispatch/after flow; optimistic concurrency when `DispatcherConcurrency` is greater than one.
+- Per-dispatch scope on the singleton `SagaExecutionContext`, with an in-process correlation gate and durable optimistic concurrency across hosts.
 
 ## What It Is Not
 
@@ -120,10 +120,12 @@ Messages without correlation dispatch normally but skip saga scope (`ISagaContex
 | Handler succeeds, `SetState` called | State persisted with optimistic concurrency (`SagaConcurrencyException` on conflict) |
 | Dirty-state `SagaConcurrencyException` after dispatch | Hook propagates the conflict without reloading or replacing the concurrent state; inbox failure policy handles the message |
 | Completion-only `SagaConcurrencyException` after dispatch | Hook reloads and retries against the current version up to three attempts; an already completed saga is treated as success |
-| At-least-once redelivery | Handlers must be **idempotent**; always read current state with `GetState` before mutating |
+| At-least-once redelivery | The store records the last applied message ID, but handlers and external side effects must remain **idempotent** across crashes |
 | Completed saga | Further correlated messages dispatch without active saga scope |
 
-`SagaExecutionContext` registers as a singleton. Each active scope is keyed by the durable message ID, and an instance `AsyncLocal` attaches that scope to the current dispatch flow. `SagaProcessorHook.PrepareDispatchScope` runs synchronously after `BeforeDispatchAsync` so the dispatcher inherits the attached scope. `SagaInboxCommandScopePreHandler` attaches the same message-keyed scope before in-process command handlers. Two messages for the same saga correlation keep independent in-memory snapshots until optimistic persistence resolves their version conflict. Failed dispatches call `AbandonDispatchScope` and remove their entries from the singleton context.
+`SagaExecutionContext` registers as a singleton. Each active scope is keyed by the durable message ID, and an instance `AsyncLocal` attaches that scope to the current dispatch flow. `SagaProcessorHook.PrepareDispatchScope` runs synchronously after `BeforeDispatchAsync` so the dispatcher inherits the attached scope. `SagaInboxCommandScopePreHandler` attaches the same message-keyed scope before in-process command handlers. The hook serializes active dispatches for the same tenant, definition, and correlation inside one process. PostgreSQL optimistic concurrency remains the cross-process fence. Failed dispatches call `AbandonDispatchScope` and remove their entries from the singleton context.
+
+Correlation serialization is not message ordering. Inbox acquisition is FIFO-like by `created_at`, but equal timestamps, retries, and multiple workers prevent a strict FIFO guarantee. Enqueue a causally dependent saga step only after its prerequisite is durable, or make the handler reject and retry an early step safely.
 
 ## Durability Model
 
@@ -145,7 +147,7 @@ Inbox and saga rows are **not** committed in one database transaction unless the
 | `SagaCompleteItem.From(...)` | Completion with version check (no phantom rows) |
 | `SagaQueryFilter` / `SagaPurgeFilter` | Operational query and retention on `ISagaStore` |
 
-PostgreSQL schema version **1** includes the tenant-scoped primary key (`correlation_id`, `saga_type`, `tenant_id`), required indexes, and shared schema version metadata through `PostgreSqlSchemaManager` (same bootstrap rail as inbox and outbox). `EnsureSchemaCreationOnStartup` defaults to `true`.
+PostgreSQL saga schema version **2** adds `last_applied_message_id` to the tenant-scoped row identified by (`correlation_id`, `saga_type`, `tenant_id`). Apply the v2 SQL file to an existing v6 table before startup. Schema bootstrap uses `PostgreSqlSchemaManager`, the same validation rail as inbox and outbox.
 
 ## Options Reference
 

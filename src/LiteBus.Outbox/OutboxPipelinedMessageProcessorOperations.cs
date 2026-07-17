@@ -299,4 +299,10 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
     {
         return envelope.Id;
     }
+
+    /// <inheritdoc />
+    public long GetLeaseGeneration(OutboxEnvelope envelope)
+    {
+        return envelope.LeaseGeneration;
+    }
 }

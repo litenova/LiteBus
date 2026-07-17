@@ -64,14 +64,14 @@ Ingress logs `ingress.ack_failed_after_accept` when ack fails after successful a
 
 ## Schema v1 Greenfield
 
-PostgreSQL inbox/outbox/saga tables use schema version **1** only. No in-place upgrade from LiteBus v5 tables. See [Migration Guide v6](../migration/v6.md).
+PostgreSQL inbox and outbox tables use schema version **3**; saga uses version **2**. Ordered migrations cover older v6 tables. No automatic upgrade exists for LiteBus v5 tables. See [Migration Guide v6](../migration/v6.md).
 
 ## Comparison Table
 
 | Concern | In-process mediator | Durable inbox/outbox |
 | --- | --- | --- |
 | Crash safety | None | Store + processor |
-| Ordering | Handler pipeline order | Store FIFO by created_at within partition/queue |
+| Ordering | Handler pipeline order | FIFO-like by `created_at`; no strict order for ties, retries, or multiple workers |
 | Duplicates | None | Possible; idempotency required |
 | Cross-service | Single process | Storage + optional broker |
 

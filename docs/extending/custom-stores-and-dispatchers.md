@@ -72,6 +72,8 @@ builder.AddInbox(inbox =>
 - **Idempotent append.** Repeated idempotency key returns the existing row.
 - **Atomic lease.** Two workers must never hold the same row at once.
 - **Reclaimable expiry.** Expired leases become claimable again.
+- **Generation fence.** Every acquisition increments a monotonic generation. Renewal and terminal persistence require owner plus generation.
+- **Authoritative clock.** Relational implementations calculate eligibility and expiry from database time, not the caller's wall clock.
 - **Terminal persist.** `PersistAsync` returns explicit outcomes when lease is lost (see `PersistResult`).
 
 ## Next

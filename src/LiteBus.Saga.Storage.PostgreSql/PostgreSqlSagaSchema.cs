@@ -34,9 +34,10 @@ namespace LiteBus.Saga.Storage.PostgreSql;
 ///         </item>
 ///     </list>
 ///     <para>
-///         Schema version 1 includes the full saga column set, tenant-scoped primary key, required indexes, and shared
-///         schema version metadata. Existing databases are not upgraded; recreate tables or apply
-///         <see cref="GetCreateScript(PostgreSqlSagaStoreOptions?)" /> through your migration pipeline.
+///         Schema version 2 adds the applied message identifier used for duplicate dispatch suppression. Existing
+///         databases are not upgraded automatically. Apply the ordered files exposed by <see cref="SqlFiles" />, then
+///         call <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlSagaStoreOptions?, CancellationToken)" /> to record and
+///         validate the current version.
 ///     </para>
 /// </remarks>
 public static class PostgreSqlSagaSchema
@@ -44,7 +45,7 @@ public static class PostgreSqlSagaSchema
     /// <summary>
     ///     Gets the saga table schema version implemented by this package release.
     /// </summary>
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     /// <summary>
     ///     Gets the canonical SQL files shipped with the saga PostgreSQL package.
@@ -58,7 +59,7 @@ public static class PostgreSqlSagaSchema
     public static IReadOnlyList<PostgreSqlSchemaSqlFile> SqlFiles => PostgreSqlSagaSchemaScripts.SqlFiles;
 
     /// <summary>
-    ///     Returns the SQL script that creates the saga schema version 1 table, indexes, and metadata table.
+    ///     Returns the SQL script that creates the current saga table, indexes, and metadata table.
     /// </summary>
     /// <param name="options">The schema and table options. Defaults create <c>public.litebus_saga_instances</c>.</param>
     /// <returns>The canonical create script for <see cref="CurrentSchemaVersion" />.</returns>

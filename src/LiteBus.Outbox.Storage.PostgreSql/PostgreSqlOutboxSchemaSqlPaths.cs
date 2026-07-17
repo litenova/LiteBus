@@ -21,7 +21,7 @@ public static class PostgreSqlOutboxSchemaSqlPaths
     public const string V1Create = Root + "outbox/v1/create.sql";
 
     /// <summary>
-    ///     Ensures outbox indexes exist for schema version 1.
+    ///     Ensures the current outbox indexes exist.
     /// </summary>
     public const string V1EnsureIndexes = Root + "outbox/v1/ensure_indexes.sql";
 
@@ -29,4 +29,9 @@ public static class PostgreSqlOutboxSchemaSqlPaths
     ///     Converts the payload column from JSONB to text for opaque ciphertext support.
     /// </summary>
     public const string V2PayloadText = Root + "outbox/v2/payload_text.sql";
+
+    /// <summary>
+    ///     Adds the lease generation used to reject stale renewals and terminal writes.
+    /// </summary>
+    public const string V3LeaseFencing = Root + "outbox/v3/lease_fencing.sql";
 }

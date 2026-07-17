@@ -264,6 +264,7 @@ public sealed class EfCoreInboxStore :
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.LeaseDuration, TimeSpan.Zero);
 
         return ExecuteAsync(async (context, token) =>
         {
@@ -272,19 +273,26 @@ public sealed class EfCoreInboxStore :
                 throw new InvalidOperationException("Lease renewal requires a DbContext-backed inbox database context.");
             }
 
+            var provider = EfCoreProviderResolver.Resolve(dbContext, _options.LeaseProvider);
+            var expiresAt = provider == EfCoreStorageProvider.InMemory
+                ? request.RequestedExpiresAt
+                : (await EfCoreDatabaseClock.GetUtcNowAsync(dbContext, provider, token).ConfigureAwait(false))
+                    .Add(request.LeaseDuration);
+
             var renewalQuery = dbContext.Set<InboxMessageEntity>()
                 .Where(message =>
                     message.Id == request.MessageId &&
                     message.Status == InboxStatus.Processing &&
-                    message.LeaseOwner == request.LeaseOwner);
+                    message.LeaseOwner == request.LeaseOwner &&
+                    message.LeaseGeneration == request.LeaseGeneration);
 
             return await EfCoreDurableStoreOperations.ExecuteUpdateOrTrackAsync(
                 dbContext,
                 () => renewalQuery.ExecuteUpdateAsync(
-                    setters => setters.SetProperty(message => message.LeaseExpiresAt, request.ExpiresAt),
+                    setters => setters.SetProperty(message => message.LeaseExpiresAt, expiresAt),
                     token),
                 renewalQuery,
-                entity => entity.LeaseExpiresAt = request.ExpiresAt,
+                entity => entity.LeaseExpiresAt = expiresAt,
                 token).ConfigureAwait(false);
         }, cancellationToken);
     }
@@ -305,17 +313,20 @@ public sealed class EfCoreInboxStore :
 
             var provider = EfCoreProviderResolver.Resolve(dbContext, _options.LeaseProvider);
 
-            if (provider == EfCoreStorageProvider.Sqlite)
-            {
-                return await LeasePendingSqliteAsync(dbContext, context, request, token).ConfigureAwait(false);
-            }
-
             if (provider == EfCoreStorageProvider.InMemory)
             {
                 return await LeasePendingInMemoryAsync(context, request, token).ConfigureAwait(false);
             }
 
-            return await LeasePendingRelationalAsync(dbContext, provider, request, token).ConfigureAwait(false);
+            var databaseNow = await EfCoreDatabaseClock.GetUtcNowAsync(dbContext, provider, token).ConfigureAwait(false);
+            var databaseRequest = request with { Now = databaseNow };
+
+            if (provider == EfCoreStorageProvider.Sqlite)
+            {
+                return await LeasePendingSqliteAsync(dbContext, context, databaseRequest, token).ConfigureAwait(false);
+            }
+
+            return await LeasePendingRelationalAsync(dbContext, provider, databaseRequest, token).ConfigureAwait(false);
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -669,7 +680,8 @@ public sealed class EfCoreInboxStore :
                 .Where(message =>
                     message.Id == envelope.Id &&
                     message.Status == InboxStatus.Processing &&
-                    message.LeaseOwner == envelope.LeaseOwner)
+                    message.LeaseOwner == envelope.LeaseOwner &&
+                    message.LeaseGeneration == envelope.LeaseGeneration)
                 .ExecuteUpdateAsync(
                     setters => setters
                         .SetProperty(message => message.Status, InboxStatus.Completed)
@@ -759,7 +771,8 @@ public sealed class EfCoreInboxStore :
                 .Where(message =>
                     message.Id == envelope.Id &&
                     message.Status == InboxStatus.Processing &&
-                    message.LeaseOwner == envelope.LeaseOwner)
+                    message.LeaseOwner == envelope.LeaseOwner &&
+                    message.LeaseGeneration == envelope.LeaseGeneration)
                 .ExecuteUpdateAsync(
                     setters => setters
                         .SetProperty(message => message.Status, InboxStatus.Failed)
@@ -847,7 +860,8 @@ public sealed class EfCoreInboxStore :
                 .Where(message =>
                     message.Id == envelope.Id &&
                     message.Status == InboxStatus.Processing &&
-                    message.LeaseOwner == envelope.LeaseOwner)
+                    message.LeaseOwner == envelope.LeaseOwner &&
+                    message.LeaseGeneration == envelope.LeaseGeneration)
                 .ExecuteUpdateAsync(
                     setters => setters
                         .SetProperty(message => message.Status, InboxStatus.DeadLettered)
@@ -913,7 +927,8 @@ public sealed class EfCoreInboxStore :
     private static bool CanApplyInFlightTerminalState(InboxMessageEntity entity, InboxEnvelope envelope)
     {
         return entity.Status == InboxStatus.Processing &&
-               string.Equals(entity.LeaseOwner, envelope.LeaseOwner, StringComparison.Ordinal);
+               string.Equals(entity.LeaseOwner, envelope.LeaseOwner, StringComparison.Ordinal) &&
+               entity.LeaseGeneration == envelope.LeaseGeneration;
     }
 
     /// <summary>
@@ -1318,6 +1333,7 @@ public sealed class EfCoreInboxStore :
             Status = entity.Status,
             IdempotencyKey = entity.IdempotencyKey,
             LeaseOwner = entity.LeaseOwner,
+            LeaseGeneration = entity.LeaseGeneration,
             LeaseExpiresAt = entity.LeaseExpiresAt,
             LastError = entity.LastError,
             CorrelationId = entity.CorrelationId,
@@ -1347,6 +1363,7 @@ public sealed class EfCoreInboxStore :
             Status = (InboxStatus) row.Status,
             IdempotencyKey = row.IdempotencyKey,
             LeaseOwner = row.LeaseOwner,
+            LeaseGeneration = row.LeaseGeneration,
             LeaseExpiresAt = row.LeaseExpiresAt,
             LastError = row.LastError,
             CorrelationId = row.CorrelationId,
@@ -1375,6 +1392,7 @@ public sealed class EfCoreInboxStore :
             Status = envelope.Status,
             IdempotencyKey = envelope.IdempotencyKey,
             LeaseOwner = envelope.LeaseOwner,
+            LeaseGeneration = envelope.LeaseGeneration,
             LeaseExpiresAt = envelope.LeaseExpiresAt,
             LastError = envelope.LastError,
             CorrelationId = envelope.CorrelationId,
@@ -1398,6 +1416,7 @@ public sealed class EfCoreInboxStore :
         entity.Status = envelope.Status;
         entity.VisibleAfter = envelope.VisibleAfter;
         entity.AttemptCount = envelope.AttemptCount;
+        entity.LeaseGeneration = envelope.LeaseGeneration;
 
         entity.LeaseOwner = envelope.Status is InboxStatus.Completed or InboxStatus.Failed or InboxStatus.DeadLettered
             ? null
@@ -1621,6 +1640,12 @@ public sealed class EfCoreInboxStore :
         /// </summary>
         [Column("lease_owner")]
         public string? LeaseOwner { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the lease fencing generation column.
+        /// </summary>
+        [Column("lease_generation")]
+        public long LeaseGeneration { get; set; }
 
         /// <summary>
         ///     Gets or sets the lease expiration column.

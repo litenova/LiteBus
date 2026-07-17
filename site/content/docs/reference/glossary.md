@@ -57,8 +57,8 @@ LiteBus keeps domain-specific names instead of one generic "store" verb:
 
 | Term | Definition |
 | --- | --- |
-| Schema version 1 | Canonical inbox/outbox/saga table shape for new v6 deployments. `PostgreSqlInboxSchema.CurrentSchemaVersion` and outbox/saga equivalents are **1**. No in-place upgrade from LiteBus v5 table shapes. |
-| Create script | `GetCreateScript()` renders v1 DDL for migration-owned pipelines. See [PostgreSQL schema management](../integrations/postgresql-schema-management.md). |
+| Schema version | Physical table contract recorded per component. Inbox and outbox are version **3**; saga is version **2**. Ordered migrations cover older v6 tables, not v5 shapes. |
+| Create script | `GetCreateScript()` renders current-version DDL for a new table. See [PostgreSQL schema management](../integrations/postgresql-schema-management.md). |
 | `EnsureAsync` / `ValidateAsync` | Opt-in host bootstrap or validate-only startup for PostgreSQL stores. |
 
 ## Delivery Semantics

@@ -53,7 +53,7 @@ InMemory stores honor `InboxProcessorOptions.LeaseDuration` and `OutboxProcessor
 
 ## PostgreSQL Integration Tests
 
-PostgreSQL storage integration tests use Testcontainers with `postgres:16-alpine`. v6 schema is version **1** only (create + validate; no upgrade scripts).
+PostgreSQL storage integration tests use Testcontainers with `postgres:16-alpine`. They validate current-version creation, column and type drift, lease fencing, and migration-owned schema contracts.
 
 ### Example Registration
 

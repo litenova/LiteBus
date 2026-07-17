@@ -37,7 +37,7 @@ On-call reference for LiteBus v6 durable messaging. Assumes PostgreSQL storage a
 await schemaManager.ValidateAsync(cancellationToken);
 ```
 
-Failure indicates drift from schema v1. Greenfield policy: export data, drop legacy tables, run `EnsureAsync`. See [Migration Guide v6](../migration/v6.md) and [PostgreSQL schema management](../integrations/postgresql-schema-management.md).
+Failure indicates drift from the current component schema. Apply the ordered v6 migration files for an older v6 table, or replace a pre-v6 table after exporting required data. Then run `EnsureAsync`. See [Migration Guide v6](../migration/v6.md) and [PostgreSQL schema management](../integrations/postgresql-schema-management.md).
 
 ## Processor Drain Sequence (Deployments)
 

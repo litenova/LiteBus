@@ -9,7 +9,7 @@ Processors claim work with time-bounded leases, renew leases during long handler
 
 ## What It Does
 
-Lease stores atomically claim due rows with `lease_owner` and `lease_expires_at`. Heartbeat renewal starts as soon as each envelope is leased, including while it waits for a worker slot, and continues through terminal persistence. On failure, processors persist `Failed` with retry visibility computed from `RetryOptions`. When `AttemptCount` reaches `MaxAttempts`, rows move to `DeadLettered`. Operators requeue via `IInboxManager` / `IOutboxManager`. Lease loss during dispatch persists retryable failure instead of leaving row stuck in processing.
+Lease stores atomically claim due rows with `lease_owner`, `lease_generation`, and `lease_expires_at`. Each claim increments the generation. Heartbeat renewal starts as soon as each envelope is leased, including while it waits for a worker slot, and continues through terminal persistence. PostgreSQL and relational EF Core stores calculate visibility and expiry from the database clock. On failure, processors persist `Failed` with retry visibility computed from `RetryOptions`. When `AttemptCount` reaches `MaxAttempts`, rows move to `DeadLettered`. Operators requeue via `IInboxManager` / `IOutboxManager`. Lease loss during dispatch persists retryable failure instead of leaving row stuck in processing.
 
 ## Public Surface
 
@@ -18,13 +18,13 @@ Lease stores atomically claim due rows with `lease_owner` and `lease_expires_at`
 - **`ProcessorOptions`**: Shared base for inbox/outbox processor options including lease and retry settings.
 - **`RetryOptions`**: `MaxAttempts`, initial delay, backoff strategy, multiplier, and jitter.
 - **`IInboxLeaseStore` / `IOutboxLeaseStore`**: Atomic claim of due pending or failed-visible rows.
-- **`LeaseRenewalRequest`**: Heartbeat input carrying envelope id, lease owner, and extension duration.
+- **`LeaseRenewalRequest`**: Heartbeat input carrying envelope id, lease owner, fencing generation, extension duration, and an in-memory expiry fallback.
 - **`IInboxManager` / `IOutboxManager`**: Operator requeue and dead-letter query APIs.
 - **`RequeueResult`**: Reports requested vs successfully requeued counts for partial requeue scenarios.
 
 ### Invocation
 
-- **`LeasePendingAsync`**: Claim batch with new `lease_owner`, increment attempt count, set `lease_expires_at`.
+- **`LeasePendingAsync`**: Claim a batch with a new `lease_owner`, increment `lease_generation` and attempt count, and set `lease_expires_at`.
 - **Heartbeat renewal**: Extend `lease_expires_at` while dispatch runs; failure cancels dispatch and schedules retry.
 - **Failure persist**: Set `Failed` with `visible_after` from backoff calculation.
 - **Dead letter persist**: Transition to `DeadLettered` when attempts exhausted.
@@ -45,7 +45,7 @@ Lease stores atomically claim due rows with `lease_owner` and `lease_expires_at`
 
 ### Extension Points
 
-- Custom storage must implement atomic lease, renewal, conditional persist on `lease_owner`, and requeue roles.
+- Custom storage must implement atomic lease, renewal, conditional persist on `lease_owner` plus `lease_generation`, and requeue roles.
 - Hook failure policy can force dead letter before max attempts (see processor-hooks capability).
 - Ingress poison handling is separate from processor dead letter (see ingress ack-policy capability).
 
@@ -60,13 +60,14 @@ Lease stores atomically claim due rows with `lease_owner` and `lease_expires_at`
 ## Requires
 
 - `LeaseDuration > 0` for meaningful recovery
-- Store support for conditional terminal persist on `lease_owner`
+- Store support for conditional renewal and terminal persist on `lease_owner` plus `lease_generation`
 - Operator runbook for dead-letter inspection and requeue
 
 ## Invariants
 
 - Another worker may lease the same row after lease expiry
-- Terminal persist uses `lease_owner` match to avoid overwriting newer attempts (PostgreSQL, EF)
+- Terminal persist uses `lease_owner` and `lease_generation` to reject an older attempt, including when one configured owner reacquires the row
+- PostgreSQL and relational EF Core stores use database time for lease eligibility, expiry, and renewal
 - `Retry.MaxAttempts` counts dispatch attempts on leased envelope
 - Requeue only moves rows from dead-letter state (partial requeue reported in `RequeueResult`)
 - Heartbeat failure during dispatch to retryable failed outcome, not indefinite processing
@@ -122,7 +123,7 @@ Lease and retry outcomes surface through processor counters on meters `LiteBus.I
 
 - **Kind**: Queue depth gauge by status + runbook queries
 - **When used**: `Processing`/`Publishing` rows with expired `lease_expires_at` should become reclaimable
-- **Operational note**: Persistent stuck counts suggest store reclaim bug or clock skew
+- **Operational note**: Persistent stuck counts suggest a store reclaim bug or database clock issue. Caller clock skew does not change relational lease eligibility.
 
 ## Deep Docs
 
@@ -287,6 +288,24 @@ Lease and retry outcomes surface through processor counters on meters `LiteBus.I
 - **Behavior**: Stale publishing row after lease expiry
 - **Expected outcome**: Message republished successfully
 - **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
+
+#### `PostgreSqlInboxStoreTests.LeasePendingAsync_WhenCallerClockIsSkewed_ShouldUseDatabaseClock`
+
+- **Use case**: A caller supplies a timestamp ten years ahead of the database clock
+- **Test kind**: Integration
+- **Description**: Direct PostgreSQL lease selection and expiry calculation
+- **Behavior**: One future-visible row and one ready row are leased with the skewed request
+- **Expected outcome**: Only the ready row is leased and its expiry is based on database time
+- **Remarks**: The EF Core PostgreSQL inbox and both outbox stores run the same contract assertion
+
+#### `InboxStoreContractTests.LeasePendingAsync_WhenLeaseExpires_ShouldReclaimProcessingCommand`
+
+- **Use case**: One configured owner reacquires its row after lease expiry
+- **Test kind**: Contract
+- **Description**: Generation fencing after reclaim
+- **Behavior**: The stale and current envelopes attempt terminal persistence
+- **Expected outcome**: Only the current generation persists terminal state
+- **Remarks**: The outbox contract suite runs the equivalent assertion
 
 ### Untested Use Cases
 

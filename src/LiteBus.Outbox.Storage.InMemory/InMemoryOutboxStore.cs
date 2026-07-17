@@ -222,17 +222,19 @@ public sealed class InMemoryOutboxStore :
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.LeaseDuration, TimeSpan.Zero);
 
         lock (_sync)
         {
             if (!_envelopes.TryGetValue(request.MessageId, out var envelope) ||
                 envelope.Status != OutboxStatus.Publishing ||
-                !string.Equals(envelope.LeaseOwner, request.LeaseOwner, StringComparison.Ordinal))
+                !string.Equals(envelope.LeaseOwner, request.LeaseOwner, StringComparison.Ordinal) ||
+                envelope.LeaseGeneration != request.LeaseGeneration)
             {
                 return Task.FromResult(false);
             }
 
-            _envelopes[request.MessageId] = envelope with { LeaseExpiresAt = request.ExpiresAt };
+            _envelopes[request.MessageId] = envelope with { LeaseExpiresAt = request.RequestedExpiresAt };
             return Task.FromResult(true);
         }
     }
@@ -674,7 +676,8 @@ public sealed class InMemoryOutboxStore :
         if (envelope.Status is OutboxStatus.Published or OutboxStatus.Failed or OutboxStatus.DeadLettered)
         {
             if (existing.Status != OutboxStatus.Publishing ||
-                !string.Equals(existing.LeaseOwner, envelope.LeaseOwner, StringComparison.Ordinal))
+                !string.Equals(existing.LeaseOwner, envelope.LeaseOwner, StringComparison.Ordinal) ||
+                existing.LeaseGeneration != envelope.LeaseGeneration)
             {
                 return false;
             }

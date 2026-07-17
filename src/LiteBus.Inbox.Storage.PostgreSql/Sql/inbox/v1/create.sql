@@ -74,7 +74,13 @@ CREATE TABLE IF NOT EXISTS {{QualifiedTableName}}
     NULL,
     error_type
     text
+    NULL,
+    lease_generation
+    bigint
+    NOT
     NULL
+    DEFAULT
+    0
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS {{IdempotencyIndexName}}

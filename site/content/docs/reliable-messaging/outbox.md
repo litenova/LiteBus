@@ -117,7 +117,7 @@ builder.AddOutbox(outbox =>
 });
 ```
 
-Schema is version **1** only. Drop legacy outbox tables and recreate with v1 DDL when adopting v6. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md).
+PostgreSQL outbox schema version **3** stores opaque payload text and adds `lease_generation`. Apply the v2 and v3 SQL files to an existing v6 table before startup. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md).
 
 Pass the same `NpgsqlDataSource` instance to inbox and outbox when both use one database. See [Transactional messaging writes](transactional-writes.md).
 

@@ -138,7 +138,7 @@ Cleanup services call `IInboxRetentionStore.DeleteCompletedOlderThanAsync` and `
 | Inbox | Completion time when recorded, otherwise acceptance time | `COALESCE(completed_at, created_at)` |
 | Outbox | Publication time when recorded, otherwise enqueue time | `COALESCE(published_at, created_at)` |
 
-Schema version 1 includes `completed_at`, `published_at`, and operational history columns such as `last_attempted_at` and `dead_lettered_at`. Retention deletes rows based on when work finished, not when it was first accepted. A message accepted long ago but completed recently stays until the cutoff passes its completion time.
+Current inbox and outbox schemas include `completed_at`, `published_at`, and operational history columns such as `last_attempted_at` and `dead_lettered_at`. Retention deletes rows based on when work finished, not when it was first accepted. A message accepted long ago but completed recently stays until the cutoff passes its completion time.
 
 ### OpenTelemetry Metric Catalog
 
@@ -292,6 +292,8 @@ Register exactly one dispatcher per durable path. Processor background services 
 ## Processor Pipeline
 
 Inbox and outbox use `PipelinedInboxProcessor` and `PipelinedOutboxProcessor` exclusively. Each pass leases a batch, fans envelopes to `DispatcherConcurrency` workers, renews leases on a heartbeat interval, and persists terminal outcomes immediately.
+
+Each acquisition increments `lease_generation`. Renewal and terminal persistence require both the current owner and generation, so an earlier attempt cannot complete after expiry and reacquisition, even when the configured owner label is unchanged. Direct PostgreSQL and relational EF Core stores use database time for lease eligibility and expiry; in-memory stores use the supplied `TimeProvider` for deterministic tests.
 
 ### Pass Abort vs Per-Message Persistence
 

@@ -226,7 +226,7 @@ The `LiteBusInboxSaveChangesInterceptor` path does not dedupe at accept time. A 
 
 ## Alignment with PostgreSQL `CurrentSchemaVersion`
 
-`PostgreSqlInboxSchema.CurrentSchemaVersion` is **1**. Version 1 includes nullable `trace_context`. Pass `EfCoreStorageProvider.PostgreSql` to `GetModelBuilderConfiguration()` so the fluent model maps `trace_context` as optional `jsonb` on PostgreSQL. `EfCoreInboxStore` reads and writes `trace_context` when accept metadata supplies trace context.
+`PostgreSqlInboxSchema.CurrentSchemaVersion` is **3**. The EF model includes `lease_generation` for fencing, opaque payload text, and nullable `trace_context`. Pass `EfCoreStorageProvider.PostgreSql` to `GetModelBuilderConfiguration()` so the fluent model maps `trace_context` as optional `jsonb` on PostgreSQL. Add the new column in your application-owned EF migration before running the v6 store.
 
 If you created migrations before this column existed, add it in a new migration (same shape as `add_trace_context_column.sql`):
 

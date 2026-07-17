@@ -24,6 +24,17 @@ All notable changes to this project will be documented in this file.
 - Module dependency validation uses composite ownership and `IRequires<TModule>` without registration markers or
   dependency-registry scans during `Build()`.
 - Outbox processor option precedence is independent of configuration call order.
+- PostgreSQL inbox and outbox schemas are version 3; saga schema is version 2. Validation checks required column
+  types as well as columns, indexes, and metadata.
+
+### Fixed
+
+- Closed generic handler registrations retain independent descriptors instead of colliding on one open generic
+  definition.
+- Inbox and outbox leases use a monotonic generation fence. Renewal and terminal persistence reject stale generations,
+  including when the same configured owner reacquires an expired row.
+- Direct PostgreSQL and relational EF Core leasing use the database clock for eligibility, expiry, and renewal so an
+  application clock offset cannot claim future-visible work or extend a lease incorrectly.
 
 ### Breaking changes
 
@@ -32,11 +43,15 @@ All notable changes to this project will be documented in this file.
 - `OutboxEnvelope.AsPublished` now requires the publication timestamp.
 - Broker dispatch and ingress adapters require one matching root transport module; broker connection settings were
   removed from ingress options and dispatch overloads.
+- `LeaseRenewalRequest` now carries `LeaseGeneration`, `LeaseDuration`, and `RequestedExpiresAt` so relational stores
+  can calculate expiry from their database clock while in-memory stores retain deterministic clock control.
+- Existing v6 PostgreSQL tables must apply the ordered payload-text, lease-fencing, and saga duplicate-suppression SQL
+  files before validation records inbox/outbox version 3 and saga version 2.
 
 ## v6.0.0
 
 Greenfield release for durable messaging on **.NET 10** (`net10.0` only). Adopt v6 as a fresh integration: nested module builders, `AcceptAsync` /
-`EnqueueAsync`, pipelined processors only, and PostgreSQL **schema version 1** with no in-place upgrade from LiteBus v5
+`EnqueueAsync`, pipelined processors only, and current PostgreSQL schemas with no automatic upgrade from LiteBus v5
 table shapes. Historical v4/v5 upgrade steps remain in [Migration Guide v4](docs/migration/v4.md)
 and [Migration Guide v5](docs/migration/v5.md) only.
 
@@ -61,9 +76,8 @@ and [Migration Guide v5](docs/migration/v5.md) only.
   instance (no `Clear()` or `MessageRegistryAccessor`).
 - Manifest hosting: `IStartupTask`, `IBackgroundService`, `IDiagnosticCheck` via `IModuleConfiguration`; generic host
   bridges in `LiteBus.Runtime.Extensions.*.Hosting`.
-- PostgreSQL storage at schema **v1** (`PostgreSqlInboxSchema.CurrentSchemaVersion = 1`): full inbox/outbox/saga column
-  set, indexes, optional LISTEN/NOTIFY trigger; `GetCreateScript`, `EnsureAsync`, `ValidateAsync` (no upgrade scripts
-  from v5).
+- PostgreSQL storage with current-version create scripts, ordered v6 migration files, indexes, an optional
+  LISTEN/NOTIFY trigger, and `GetCreateScript`, `EnsureAsync`, and `ValidateAsync`. No automatic upgrade exists from v5.
 - EF Core and InMemory inbox/outbox storage; `LiteBus.Storage.Testing` contract harnesses.
 - Transport platform: `LiteBus.Transport.Amqp`, Kafka, `LiteBus.Transport.AwsSqs`, Azure Service Bus, InMemory; inbox/outbox dispatch and
   AMQP ingress packages.

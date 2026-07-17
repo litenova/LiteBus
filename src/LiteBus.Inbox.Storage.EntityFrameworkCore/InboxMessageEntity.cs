@@ -64,6 +64,11 @@ public sealed class InboxMessageEntity
     public string? LeaseOwner { get; set; }
 
     /// <summary>
+    ///     Gets or sets the monotonic lease fencing generation.
+    /// </summary>
+    public long LeaseGeneration { get; set; }
+
+    /// <summary>
     ///     Gets or sets the optional UTC timestamp when the processing lease expires.
     /// </summary>
     public DateTimeOffset? LeaseExpiresAt { get; set; }

@@ -108,74 +108,80 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
     [Fact]
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimAndPublishMessage()
     {
-        var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
         var recorder = new EventRecorder();
 
-         var provider = BuildProvider(_fixture, options, recorder, clock);
-         await using (provider.ConfigureAwait(false))
-         {
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var leaseStore = provider.GetRequiredService<IOutboxLeaseStore>();
-        var messageId = Guid.NewGuid();
-        var orderId = Guid.NewGuid();
-
-        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
-            new OrderSubmittedIntegrationEvent { OrderId = orderId },
-            messageId)).ConfigureAwait(false);
-
-        await leaseStore.LeasePendingAsync(new OutboxLeaseRequest
+        var provider = BuildProvider(_fixture, options, recorder);
+        await using (provider.ConfigureAwait(false))
         {
-            BatchSize = 1,
-            LeaseOwner = "stale-publisher",
-            Now = PostgreSqlTestInfrastructure.BaseTime,
-            LeaseDuration = TimeSpan.FromSeconds(20)
-        }).ConfigureAwait(false);
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var leaseStore = provider.GetRequiredService<IOutboxLeaseStore>();
+            var messageId = Guid.NewGuid();
+            var orderId = Guid.NewGuid();
 
-        clock.Advance(TimeSpan.FromMinutes(1));
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
+                new OrderSubmittedIntegrationEvent { OrderId = orderId },
+                messageId)).ConfigureAwait(false);
 
-        recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
+            await leaseStore.LeasePendingAsync(new OutboxLeaseRequest
+            {
+                BatchSize = 1,
+                LeaseOwner = "stale-publisher",
+                Now = PostgreSqlTestInfrastructure.BaseTime,
+                LeaseDuration = TimeSpan.FromMinutes(1)
+            }).ConfigureAwait(false);
 
-        var row = await PostgreSqlTableReaders.ReadOutboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
-        row!.Status.Should().Be(OutboxStatus.Published);
-        row.AttemptCount.Should().Be(2);
+            await PostgreSqlDatabaseTimeTestSupport.ExpireLeaseAsync(
+                _fixture.DataSource,
+                options.SchemaName,
+                options.TableName,
+                messageId).ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+            recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
+
+            var row = await PostgreSqlTableReaders.ReadOutboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
+            row!.Status.Should().Be(OutboxStatus.Published);
+            row.AttemptCount.Should().Be(2);
         }
     }
 
     [Fact]
     public async Task AddAsync_WithVisibleAfter_ShouldDeferPublishingUntilDue()
     {
-        var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
         var recorder = new EventRecorder();
-        var visibleAfter = PostgreSqlTestInfrastructure.BaseTime.AddHours(1);
+        var visibleAfter = DateTimeOffset.UtcNow.AddHours(1);
 
-         var provider = BuildProvider(_fixture, options, recorder, clock);
-         await using (provider.ConfigureAwait(false))
-         {
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var messageId = Guid.NewGuid();
+        var provider = BuildProvider(_fixture, options, recorder);
+        await using (provider.ConfigureAwait(false))
+        {
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.From(
-            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            OutboxEnqueueMetadata.Immediate with
-            {
-                Identity = new MessageIdentity.Supplied(messageId),
-                Visibility = new MessageVisibility.At(visibleAfter)
-            })).ConfigureAwait(false);
+            await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.From(
+                new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                OutboxEnqueueMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId),
+                    Visibility = new MessageVisibility.At(visibleAfter)
+                })).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
-        recorder.Events.Should().BeEmpty();
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+            recorder.Events.Should().BeEmpty();
 
-        clock.Advance(TimeSpan.FromHours(1));
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await PostgreSqlDatabaseTimeTestSupport.MakeVisibleAsync(
+                _fixture.DataSource,
+                options.SchemaName,
+                options.TableName,
+                messageId).ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        recorder.Events.Should().ContainSingle();
+            recorder.Events.Should().ContainSingle();
         }
     }
 

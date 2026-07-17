@@ -11,7 +11,7 @@
 
 `UsePostgreSqlStorage(configure)` on `SagaModuleBuilder` selects `PostgreSqlSagaModule` and can wire `NpgsqlDataSource` or connection string helpers through `PostgreSqlSagaModuleBuilder`.
 
-Schema version **1** creates new tables with the applied-message column. The package also ships an additive SQL migration for tables created by older LiteBus releases. Apply `src/LiteBus.Saga.Storage.PostgreSql/Sql/saga/v2/add_last_applied_message_id.sql` before enabling the v6 store against an existing table. `EnsureSchemaCreationOnStartup` defaults to `true` via `PostgreSqlSagaStoreOptions`. Schema bootstrap shares the `PostgreSqlSchemaManager` rail with inbox and outbox when co-located in one database.
+Schema version **2** creates new tables with the applied-message column. The package also ships an additive SQL migration for earlier v6 tables. Apply `src/LiteBus.Saga.Storage.PostgreSql/Sql/saga/v2/add_last_applied_message_id.sql` before enabling the store against an existing table. Schema bootstrap shares the `PostgreSqlSchemaManager` validation rail with inbox and outbox when co-located in one database.
 
 ## Public Surface
 

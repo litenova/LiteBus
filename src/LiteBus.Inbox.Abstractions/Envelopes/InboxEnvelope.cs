@@ -31,7 +31,7 @@ public sealed record InboxEnvelope
     public required int ContractVersion { get; init; }
 
     /// <summary>
-    ///     Gets the serialized message payload. The default PostgreSQL store writes this value to a `jsonb` column.
+    ///     Gets the serialized message payload. Relational stores persist this value as opaque text.
     /// </summary>
     public required string Payload { get; init; }
 
@@ -69,6 +69,11 @@ public sealed record InboxEnvelope
     ///     Gets the optional processing lease owner that currently holds the message.
     /// </summary>
     public string? LeaseOwner { get; init; }
+
+    /// <summary>
+    ///     Gets the monotonic fencing generation assigned by the most recent lease acquisition.
+    /// </summary>
+    public long LeaseGeneration { get; init; }
 
     /// <summary>
     ///     Gets the optional UTC timestamp when the processing lease expires.
@@ -118,6 +123,7 @@ public sealed record InboxEnvelope
         {
             Status = InboxStatus.Processing,
             LeaseOwner = leaseOwner,
+            LeaseGeneration = checked(LeaseGeneration + 1),
             LeaseExpiresAt = leaseExpiresAt,
             AttemptCount = AttemptCount + 1
         };

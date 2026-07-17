@@ -113,7 +113,12 @@ internal static class ProcessorLeaseHeartbeat
         var expiresAt = context.Clock.GetUtcNow().Add(context.LeaseDuration);
 
         var renewed = await context.LeaseStore.RenewLeaseAsync(
-                new LeaseRenewalRequest(context.MessageId, context.LeaseOwner, expiresAt),
+                new LeaseRenewalRequest(
+                    context.MessageId,
+                    context.LeaseOwner,
+                    context.LeaseGeneration,
+                    context.LeaseDuration,
+                    expiresAt),
                 CancellationToken.None)
             .ConfigureAwait(false);
 

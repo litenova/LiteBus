@@ -10,9 +10,9 @@ namespace LiteBus.Storage.Testing;
 public abstract class InboxStoreContractTests
 {
     /// <summary>
-    ///     Gets a fixed UTC timestamp used as the baseline for lease and visibility assertions.
+    ///     Gets the UTC timestamp used as the baseline for lease and visibility assertions.
     /// </summary>
-    protected static DateTimeOffset BaseTime { get; } = new(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);
+    protected static DateTimeOffset BaseTime { get; } = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
 
     /// <summary>
     ///     Creates a fresh store instance for one test.
@@ -353,27 +353,14 @@ public abstract class InboxStoreContractTests
 
         await roles.StateWriter.PersistAsync([leased[0].AsFailed("transient failure", visibleAfter)]);
 
-        var hidden = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
-        {
-            BatchSize = 1,
-            LeaseOwner = "worker-2",
-            Now = now.AddMinutes(1),
-            LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        var stored = await roles.MessageQuery.QueryAsync(
+            new InboxMessageFilter { MessageId = commandId },
+            new InboxMessagePageRequest { PageSize = 1 });
 
-        hidden.Should().BeEmpty();
-
-        var visible = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
-        {
-            BatchSize = 1,
-            LeaseOwner = "worker-2",
-            Now = visibleAfter,
-            LeaseDuration = TimeSpan.FromMinutes(1)
-        });
-
-        visible.Should().ContainSingle();
-        visible[0].Status.Should().Be(InboxStatus.Processing);
-        visible[0].LastError.Should().Be("transient failure");
+        stored.Items.Should().ContainSingle();
+        stored.Items[0].Status.Should().Be(InboxStatus.Failed);
+        stored.Items[0].VisibleAfter.Should().Be(visibleAfter);
+        stored.Items[0].LastError.Should().Be("transient failure");
     }
 
     /// <summary>
@@ -385,6 +372,7 @@ public abstract class InboxStoreContractTests
         var roles = CreateStore();
         var commandId = Guid.NewGuid();
         var now = BaseTime;
+        var visibleAfter = DateTimeOffset.UtcNow.AddMilliseconds(500);
 
         await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
 
@@ -396,23 +384,15 @@ public abstract class InboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
-        await roles.StateWriter.PersistAsync([firstLease[0].AsFailed("retry me", now.AddMinutes(5))]);
+        await roles.StateWriter.PersistAsync([firstLease[0].AsFailed("retry me", visibleAfter)]);
 
-        var hidden = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
-        {
-            BatchSize = 1,
-            LeaseOwner = "worker-2",
-            Now = now.AddMinutes(1),
-            LeaseDuration = TimeSpan.FromMinutes(1)
-        });
-
-        hidden.Should().BeEmpty();
+        await WaitUntilVisibleAsync(visibleAfter).ConfigureAwait(false);
 
         var visible = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 1,
             LeaseOwner = "worker-2",
-            Now = now.AddMinutes(6),
+            Now = DateTimeOffset.UtcNow,
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
@@ -463,6 +443,7 @@ public abstract class InboxStoreContractTests
         var roles = CreateStore();
         var commandId = Guid.NewGuid();
         var now = BaseTime;
+        var visibleAfter = DateTimeOffset.UtcNow.AddMilliseconds(500);
 
         await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
 
@@ -478,13 +459,15 @@ public abstract class InboxStoreContractTests
         firstLease[0].AttemptCount.Should().Be(1);
         firstLease[0].LeaseExpiresAt.Should().NotBeNull();
 
-        await roles.StateWriter.PersistAsync([firstLease[0].AsFailed("retry", now.AddMinutes(5))]);
+        await roles.StateWriter.PersistAsync([firstLease[0].AsFailed("retry", visibleAfter)]);
+
+        await WaitUntilVisibleAsync(visibleAfter).ConfigureAwait(false);
 
         var secondLease = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 1,
             LeaseOwner = "worker-2",
-            Now = now.AddMinutes(6),
+            Now = DateTimeOffset.UtcNow,
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
@@ -555,29 +538,40 @@ public abstract class InboxStoreContractTests
         var roles = CreateStore();
         var commandId = Guid.NewGuid();
         var now = BaseTime;
+        var leaseDuration = TimeSpan.FromMilliseconds(200);
 
         await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
 
-        await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        var staleLease = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 1,
-            LeaseOwner = "stale-worker",
+            LeaseOwner = "worker",
             Now = now,
-            LeaseDuration = TimeSpan.FromSeconds(30)
+            LeaseDuration = leaseDuration
         });
+
+        staleLease.Should().ContainSingle();
+        await Task.Delay(leaseDuration.Add(TimeSpan.FromMilliseconds(250))).ConfigureAwait(false);
 
         var reclaimed = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 1,
-            LeaseOwner = "fresh-worker",
-            Now = now.AddMinutes(1),
+            LeaseOwner = "worker",
+            Now = DateTimeOffset.UtcNow,
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
         reclaimed.Should().ContainSingle();
         reclaimed[0].Id.Should().Be(commandId);
-        reclaimed[0].LeaseOwner.Should().Be("fresh-worker");
+        reclaimed[0].LeaseOwner.Should().Be("worker");
         reclaimed[0].AttemptCount.Should().Be(2);
+        reclaimed[0].LeaseGeneration.Should().Be(staleLease[0].LeaseGeneration + 1);
+
+        var stalePersist = await roles.StateWriter.PersistAsync([staleLease[0].AsCompleted()]);
+        stalePersist.AppliedCount.Should().Be(0);
+
+        var currentPersist = await roles.StateWriter.PersistAsync([reclaimed[0].AsCompleted()]);
+        currentPersist.AppliedCount.Should().Be(1);
     }
 
     /// <summary>
@@ -601,12 +595,30 @@ public abstract class InboxStoreContractTests
 
         leased.Should().ContainSingle();
         var renewed = await roles.LeaseStore.RenewLeaseAsync(
-            new LeaseRenewalRequest(commandId, "worker-a", now.AddMinutes(2)));
+            new LeaseRenewalRequest(
+                commandId,
+                "worker-a",
+                leased[0].LeaseGeneration,
+                TimeSpan.FromMinutes(1),
+                now.AddMinutes(2)));
         var rejected = await roles.LeaseStore.RenewLeaseAsync(
-            new LeaseRenewalRequest(commandId, "worker-b", now.AddMinutes(3)));
+            new LeaseRenewalRequest(
+                commandId,
+                "worker-b",
+                leased[0].LeaseGeneration,
+                TimeSpan.FromMinutes(2),
+                now.AddMinutes(3)));
+        var staleGeneration = await roles.LeaseStore.RenewLeaseAsync(
+            new LeaseRenewalRequest(
+                commandId,
+                "worker-a",
+                leased[0].LeaseGeneration - 1,
+                TimeSpan.FromMinutes(3),
+                now.AddMinutes(4)));
 
         renewed.Should().BeTrue();
         rejected.Should().BeFalse();
+        staleGeneration.Should().BeFalse();
     }
 
     /// <summary>
@@ -933,6 +945,52 @@ public abstract class InboxStoreContractTests
             Status = InboxStatus.Pending,
             IdempotencyKey = $"ship:{commandId:N}"
         };
+    }
+
+    /// <summary>
+    ///     Waits until a database clock has passed a visibility timestamp with a scheduling margin.
+    /// </summary>
+    /// <param name="visibleAfter">The timestamp that must be in the past before the method returns.</param>
+    /// <returns>A task that represents the asynchronous wait.</returns>
+    private static async Task WaitUntilVisibleAsync(DateTimeOffset visibleAfter)
+    {
+        var delay = visibleAfter - DateTimeOffset.UtcNow + TimeSpan.FromMilliseconds(250);
+        if (delay > TimeSpan.Zero)
+        {
+            await Task.Delay(delay).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Verifies that a relational store uses its database clock instead of a skewed caller timestamp.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    protected async Task AssertDatabaseClockIgnoresCallerSkewAsync()
+    {
+        var roles = CreateStore();
+        var futureId = Guid.NewGuid();
+        var readyId = Guid.NewGuid();
+        var visibleAfter = DateTimeOffset.UtcNow.AddHours(1);
+        var skewedNow = DateTimeOffset.UtcNow.AddYears(10);
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(futureId, BaseTime) with
+        {
+            VisibleAfter = visibleAfter
+        }).ConfigureAwait(false);
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(readyId, BaseTime.AddSeconds(1))).ConfigureAwait(false);
+
+        var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "skewed-worker",
+            Now = skewedNow,
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle();
+        leased[0].Id.Should().Be(readyId);
+        leased[0].LeaseExpiresAt.Should().NotBeNull();
+        leased[0].LeaseExpiresAt.Should().BeBefore(skewedNow.AddYears(-1));
     }
 
     /// <summary>

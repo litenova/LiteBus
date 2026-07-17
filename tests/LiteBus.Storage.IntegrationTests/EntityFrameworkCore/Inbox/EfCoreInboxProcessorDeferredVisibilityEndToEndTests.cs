@@ -22,37 +22,49 @@ public sealed class EfCoreInboxProcessorDeferredVisibilityEndToEndTests : LiteBu
     [Fact]
     public async Task ScheduleAsync_WithVisibleAfter_ShouldDeferProcessingUntilDue()
     {
-        var clock = new ManualTimeProvider(EfCoreInboxE2eSupport.BaseTime);
         var storeOptions = EfCoreInboxE2eSupport.CreateStoreOptions(TableName);
         var recorder = new CommandRecorder();
-        var visibleAfter = EfCoreInboxE2eSupport.BaseTime.AddMinutes(30);
+        var visibleAfter = DateTimeOffset.UtcNow.AddHours(1);
 
         await EfCoreInboxE2eSupport.EnsureInboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
-         var provider = EfCoreInboxE2eSupport.BuildProvider<DeferredVisibilityInboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new InboxE2eComposition             {                 Recorder = recorder,                 Clock = clock,                 LeaseOwner = "efcore-inbox-deferred-visibility"             });
-         await using (provider.ConfigureAwait(true))
-         {
-
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-
-        var orderId = Guid.NewGuid();
-
-        await scheduler.AcceptAsync(InboxAcceptItem<ShipOrderCommand>.From(new ShipOrderCommand {
-            OrderId = orderId,
-            IdempotencyKey = $"ship:{orderId}"
-        }, InboxAcceptMetadata.Immediate with
+        var provider = EfCoreInboxE2eSupport.BuildProvider<DeferredVisibilityInboxDbContext>(
+            _fixture.ConnectionString,
+            storeOptions,
+            new InboxE2eComposition
+            {
+                Recorder = recorder,
+                LeaseOwner = "efcore-inbox-deferred-visibility"
+            });
+        await using (provider.ConfigureAwait(false))
         {
-            Visibility = new MessageVisibility.At(visibleAfter)
-        })).ConfigureAwait(false);
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
-        recorder.Commands.Should().BeEmpty();
+            var orderId = Guid.NewGuid();
 
-        clock.Advance(TimeSpan.FromMinutes(30));
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            var receipt = await scheduler.AcceptAsync(InboxAcceptItem<ShipOrderCommand>.From(
+                new ShipOrderCommand
+                {
+                    OrderId = orderId,
+                    IdempotencyKey = $"ship:{orderId}"
+                },
+                InboxAcceptMetadata.Immediate with
+                {
+                    Visibility = new MessageVisibility.At(visibleAfter)
+                })).ConfigureAwait(false);
 
-        recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+            recorder.Commands.Should().BeEmpty();
+
+            await PostgreSqlDatabaseTimeTestSupport.MakeVisibleAsync(
+                _fixture.ConnectionString,
+                storeOptions.SchemaName,
+                storeOptions.TableName,
+                receipt.Id).ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+            recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
         }
     }
 

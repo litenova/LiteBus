@@ -98,7 +98,7 @@ The writer persists through `IInboxStore`. The processor leases through `IInboxL
 
 ### Schema v1 (Greenfield)
 
-PostgreSQL and EF Core ship **schema version 1** with the full column set baked into the initial create. There is no upgrade path from LiteBus v5 tables. Drop legacy inbox tables and apply v1 DDL (migration-owned or `EnsureAsync` in development).
+PostgreSQL inbox schema version **3** stores opaque payload text and adds `lease_generation`. Apply the v2 and v3 SQL files to an existing v6 table before startup. EF Core applications own the equivalent migration. Tables from v5 or earlier require replacement or an application-owned data migration.
 
 ### Transactional Writes (Domain + Inbox)
 

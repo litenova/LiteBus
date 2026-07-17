@@ -84,7 +84,7 @@ inbox.UsePostgreSqlStorage(postgres =>
 });
 ```
 
-v6 ships **schema version 1** only. There is no multi-version upgrade loop. Production deployments should use migration-owned DDL and call `ValidateAsync` in deploy checks. Development may use `EnsureSchemaCreationOnStartup()`. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md).
+Inbox and outbox schema version 3 and saga schema version 2 use migration-owned upgrade files. `EnsureAsync` creates missing current-version tables but rejects older shapes; it does not run migrations. Production deployments should apply DDL and call `ValidateAsync` in deploy checks. Development may use `EnsureSchemaCreationOnStartup()` for new databases. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md).
 
 Disable host schema work with `postgres.DisableSchemaInitialization()` when DDL is fully migration-owned.
 

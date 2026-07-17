@@ -162,6 +162,39 @@ internal static class PostgreSqlSchemaInspector
     }
 
     /// <summary>
+    ///     Returns the database type name for each column defined on the table.
+    /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="table">The table reference to inspect.</param>
+    /// <param name="cancellationToken">A token used to cancel the lookup.</param>
+    /// <returns>The database type names keyed by column name.</returns>
+    internal static async Task<IReadOnlyDictionary<string, string>> GetColumnDataTypesAsync(
+        NpgsqlConnection connection,
+        PostgreSqlTableReference table,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+
+        var sql = PostgreSqlSqlScriptLoader.Load(Assembly, PostgreSqlSchemaEmbeddedSql.InspectorListColumns);
+
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.Parameters.AddWithValue("schemaName", table.SchemaName);
+        command.Parameters.AddWithValue("tableName", table.TableName);
+
+        var dataTypes = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            dataTypes[reader.GetString(0)] = reader.GetString(1);
+        }
+
+        return dataTypes;
+    }
+
+    /// <summary>
     ///     Returns the highest schema version inferred from the columns present on the table.
     /// </summary>
     /// <param name="columns">The column names present on the table.</param>
@@ -217,6 +250,38 @@ internal static class PostgreSqlSchemaInspector
         }
 
         missingColumns = missing;
+    }
+
+    /// <summary>
+    ///     Finds required columns whose database type does not match the current schema contract.
+    /// </summary>
+    /// <param name="actualDataTypes">The actual database type names keyed by column name.</param>
+    /// <param name="requiredDataTypes">The required database type names keyed by column name.</param>
+    /// <returns>Descriptions of each missing or mismatched required column type.</returns>
+    internal static IReadOnlyList<string> GetColumnDataTypeMismatches(
+        IReadOnlyDictionary<string, string> actualDataTypes,
+        IReadOnlyDictionary<string, string> requiredDataTypes)
+    {
+        ArgumentNullException.ThrowIfNull(actualDataTypes);
+        ArgumentNullException.ThrowIfNull(requiredDataTypes);
+
+        List<string> mismatches = [];
+
+        foreach (var required in requiredDataTypes)
+        {
+            if (!actualDataTypes.TryGetValue(required.Key, out var actual))
+            {
+                mismatches.Add($"{required.Key} is missing");
+                continue;
+            }
+
+            if (!string.Equals(actual, required.Value, StringComparison.Ordinal))
+            {
+                mismatches.Add($"{required.Key} expected {required.Value} but found {actual}");
+            }
+        }
+
+        return mismatches;
     }
 
     /// <summary>

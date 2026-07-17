@@ -244,6 +244,7 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
         return new LeaseHeartbeatContext(
             _operations.GetMessageId(envelope),
             _leaseOwner,
+            _operations.GetLeaseGeneration(envelope),
             _leaseStore,
             _options.LeaseDuration,
             _options.LeaseHeartbeatInterval,

@@ -21,42 +21,51 @@ public sealed class EfCoreOutboxProcessorLeaseExpiryEndToEndTests : LiteBusTestB
     [Fact]
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimAndPublishMessage()
     {
-        var clock = new ManualTimeProvider(EfCoreOutboxE2eSupport.BaseTime);
         var storeOptions = EfCoreOutboxE2eSupport.CreateStoreOptions(TableName);
         var recorder = new EventRecorder();
 
         await EfCoreOutboxE2eSupport.EnsureOutboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
-         var provider = EfCoreOutboxE2eSupport.BuildProvider<LeaseExpiryOutboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new OutboxE2eComposition             {                 Recorder = recorder,                 Clock = clock,                 LeaseOwner = "efcore-outbox-lease-expiry"             });
-         await using (provider.ConfigureAwait(true))
-         {
-
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var leaseStore = provider.GetRequiredService<IOutboxLeaseStore>();
-        var messageId = Guid.NewGuid();
-        var orderId = Guid.NewGuid();
-
-        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
-            new OrderSubmittedIntegrationEvent { OrderId = orderId },
-            messageId)).ConfigureAwait(false);
-
-        await leaseStore.LeasePendingAsync(new OutboxLeaseRequest
+        var provider = EfCoreOutboxE2eSupport.BuildProvider<LeaseExpiryOutboxDbContext>(
+            _fixture.ConnectionString,
+            storeOptions,
+            new OutboxE2eComposition
+            {
+                Recorder = recorder,
+                LeaseOwner = "efcore-outbox-lease-expiry"
+            });
+        await using (provider.ConfigureAwait(false))
         {
-            BatchSize = 1,
-            LeaseOwner = "stale-publisher",
-            Now = EfCoreOutboxE2eSupport.BaseTime,
-            LeaseDuration = TimeSpan.FromSeconds(20)
-        }).ConfigureAwait(false);
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var leaseStore = provider.GetRequiredService<IOutboxLeaseStore>();
+            var messageId = Guid.NewGuid();
+            var orderId = Guid.NewGuid();
 
-        clock.Advance(TimeSpan.FromMinutes(1));
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
+                new OrderSubmittedIntegrationEvent { OrderId = orderId },
+                messageId)).ConfigureAwait(false);
 
-        recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
+            await leaseStore.LeasePendingAsync(new OutboxLeaseRequest
+            {
+                BatchSize = 1,
+                LeaseOwner = "stale-publisher",
+                Now = EfCoreOutboxE2eSupport.BaseTime,
+                LeaseDuration = TimeSpan.FromMinutes(1)
+            }).ConfigureAwait(false);
 
-        var row = await EfCoreOutboxTableReaders.ReadOutboxAsync(_fixture.ConnectionString, storeOptions, messageId).ConfigureAwait(false);
-        row!.Status.Should().Be(OutboxStatus.Published);
-        row.AttemptCount.Should().Be(2);
+            await PostgreSqlDatabaseTimeTestSupport.ExpireLeaseAsync(
+                _fixture.ConnectionString,
+                storeOptions.SchemaName,
+                storeOptions.TableName,
+                messageId).ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+            recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
+
+            var row = await EfCoreOutboxTableReaders.ReadOutboxAsync(_fixture.ConnectionString, storeOptions, messageId).ConfigureAwait(false);
+            row!.Status.Should().Be(OutboxStatus.Published);
+            row.AttemptCount.Should().Be(2);
         }
     }
 

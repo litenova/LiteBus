@@ -182,5 +182,5 @@ Schedule after **v6.0 Core GA** tag. Do not block GA on this refactor: runtime b
 
 - [Roadmap](README.md): future work index
 - [Custom stores and dispatchers](../extending/custom-stores-and-dispatchers.md): adapter author guide
-- [PostgreSQL schema management](../integrations/postgresql-schema-management.md): schema v1 invariants
+- [PostgreSQL schema management](../integrations/postgresql-schema-management.md): current schema invariants
 - [Integration Tests](../testing/integration-tests.md): storage regression suites

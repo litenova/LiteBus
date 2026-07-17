@@ -54,7 +54,7 @@ Inbox and outbox storage use stable contract names and integer versions, not ass
 
 Status: Accepted
 
-PostgreSQL inbox/outbox/saga schemas reset to version **1** with the full final column set in the initial create. No in-place upgrade from LiteBus v5 table shapes. Deployments drop legacy tables and apply v1 DDL.
+PostgreSQL new-install scripts contain the current shape. Existing v6 tables use ordered additive migrations: inbox and outbox are version **3**, and saga is version **2**. LiteBus does not migrate v5 table shapes automatically.
 
 ## ADR-0010: Pipelined Processors Only
 

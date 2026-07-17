@@ -104,76 +104,82 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
     [Fact]
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimAndCompleteCommand()
     {
-        var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         var recorder = new CommandRecorder();
 
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
-         var provider = BuildProvider(_fixture, options, recorder, clock);
-         await using (provider.ConfigureAwait(false))
-         {
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-        var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
-
-        var orderId = Guid.NewGuid();
-
-        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand
+        var provider = BuildProvider(_fixture, options, recorder);
+        await using (provider.ConfigureAwait(false))
         {
-            OrderId = orderId,
-            IdempotencyKey = "lease-expiry"
-        }).ConfigureAwait(false);
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
+            var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
 
-        await leaseStore.LeasePendingAsync(new InboxLeaseRequest
-        {
-            BatchSize = 1,
-            LeaseOwner = "stale-worker",
-            Now = PostgreSqlTestInfrastructure.BaseTime,
-            LeaseDuration = TimeSpan.FromSeconds(30)
-        }).ConfigureAwait(false);
+            var orderId = Guid.NewGuid();
 
-        clock.Advance(TimeSpan.FromMinutes(1));
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            var receipt = await scheduler.AcceptAsync(new ShipOrderCommand
+            {
+                OrderId = orderId,
+                IdempotencyKey = "lease-expiry"
+            }).ConfigureAwait(false);
 
-        recorder.Commands.Should().ContainSingle();
-        var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, receipt.Id).ConfigureAwait(false);
-        row!.Status.Should().Be(InboxStatus.Completed);
-        row.AttemptCount.Should().Be(2);
+            await leaseStore.LeasePendingAsync(new InboxLeaseRequest
+            {
+                BatchSize = 1,
+                LeaseOwner = "stale-worker",
+                Now = PostgreSqlTestInfrastructure.BaseTime,
+                LeaseDuration = TimeSpan.FromMinutes(1)
+            }).ConfigureAwait(false);
+
+            await PostgreSqlDatabaseTimeTestSupport.ExpireLeaseAsync(
+                _fixture.DataSource,
+                options.SchemaName,
+                options.TableName,
+                receipt.Id).ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+            recorder.Commands.Should().ContainSingle();
+            var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, receipt.Id).ConfigureAwait(false);
+            row!.Status.Should().Be(InboxStatus.Completed);
+            row.AttemptCount.Should().Be(2);
         }
     }
 
     [Fact]
     public async Task ScheduleAsync_WithVisibleAfter_ShouldDeferProcessingUntilDue()
     {
-        var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         var recorder = new CommandRecorder();
-        var visibleAfter = PostgreSqlTestInfrastructure.BaseTime.AddMinutes(30);
+        var visibleAfter = DateTimeOffset.UtcNow.AddHours(1);
 
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
-         var provider = BuildProvider(_fixture, options, recorder, clock);
-         await using (provider.ConfigureAwait(false))
-         {
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
+        var provider = BuildProvider(_fixture, options, recorder);
+        await using (provider.ConfigureAwait(false))
+        {
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var orderId = Guid.NewGuid();
+            var orderId = Guid.NewGuid();
 
-        await scheduler.AcceptAsync(InboxAcceptItem<ShipOrderCommand>.ScheduledAt(
-            new ShipOrderCommand
-            {
-                OrderId = orderId,
-                IdempotencyKey = $"ship:{orderId}"
-            },
-            visibleAfter)).ConfigureAwait(false);
+            var receipt = await scheduler.AcceptAsync(InboxAcceptItem<ShipOrderCommand>.ScheduledAt(
+                new ShipOrderCommand
+                {
+                    OrderId = orderId,
+                    IdempotencyKey = $"ship:{orderId}"
+                },
+                visibleAfter)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
-        recorder.Commands.Should().BeEmpty();
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+            recorder.Commands.Should().BeEmpty();
 
-        clock.Advance(TimeSpan.FromMinutes(30));
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await PostgreSqlDatabaseTimeTestSupport.MakeVisibleAsync(
+                _fixture.DataSource,
+                options.SchemaName,
+                options.TableName,
+                receipt.Id).ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
+            recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
         }
     }
 

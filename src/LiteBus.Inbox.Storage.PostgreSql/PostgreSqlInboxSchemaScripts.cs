@@ -47,12 +47,37 @@ internal static class PostgreSqlInboxSchemaScripts
     ];
 
     /// <summary>
+    ///     The column names introduced by inbox schema version 2.
+    /// </summary>
+    /// <remarks>
+    ///     Version 2 changes the payload column type and therefore introduces no column names.
+    /// </remarks>
+    internal static readonly IReadOnlyList<string> Version2Columns = [];
+
+    /// <summary>
+    ///     The column names introduced by inbox schema version 3.
+    /// </summary>
+    internal static readonly IReadOnlyList<string> Version3Columns = ["lease_generation"];
+
+    /// <summary>
     ///     The ordered column groups introduced by each inbox schema version.
     /// </summary>
     internal static readonly IReadOnlyList<IReadOnlyList<string>> VersionColumnSets =
     [
-        Version1Columns
+        Version1Columns,
+        Version2Columns,
+        Version3Columns
     ];
+
+    /// <summary>
+    ///     The database column types required by the current inbox schema.
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, string> RequiredColumnDataTypes =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["payload"] = "text",
+            ["lease_generation"] = "bigint"
+        };
 
     /// <summary>
     ///     Gets the canonical SQL files shipped with the inbox PostgreSQL package.
@@ -61,13 +86,16 @@ internal static class PostgreSqlInboxSchemaScripts
     [
         new(
             PostgreSqlInboxSchemaSqlPaths.V1Create,
-            "Creates the version 1 inbox table, indexes, and optional insert notify trigger."),
+            "Creates the current inbox table, indexes, and optional insert notify trigger for a new installation."),
         new(
             PostgreSqlInboxSchemaSqlPaths.V1EnsureIndexes,
-            "Ensures inbox indexes exist for schema version 1."),
+            "Ensures the current inbox indexes exist."),
         new(
             PostgreSqlInboxSchemaSqlPaths.V2PayloadText,
-            "Converts the payload column to text for opaque ciphertext support.")
+            "Converts the payload column to text for opaque ciphertext support."),
+        new(
+            PostgreSqlInboxSchemaSqlPaths.V3LeaseFencing,
+            "Adds the monotonic lease generation used for fencing.")
     ];
 
     /// <summary>
@@ -78,8 +106,9 @@ internal static class PostgreSqlInboxSchemaScripts
         Component = PostgreSqlSchemaComponents.Inbox,
         CurrentSchemaVersion = PostgreSqlInboxSchema.CurrentSchemaVersion,
         VersionColumnSets = VersionColumnSets,
+        RequiredColumnDataTypes = RequiredColumnDataTypes,
         SqlFiles = SqlFiles,
-        BuildVersion1CreateScript = BuildVersion1CreateScript,
+        BuildBaselineCreateScript = BuildBaselineCreateScript,
         BuildEnsureIndexesScript = BuildEnsureIndexesScript,
         BuildCreateScript = BuildCreateScript,
         CreateLockKey = CreateLockKey,
@@ -87,7 +116,7 @@ internal static class PostgreSqlInboxSchemaScripts
     };
 
     /// <summary>
-    ///     Builds the full create script for inbox schema version 1, including metadata DDL.
+    ///     Builds the full create script for the current inbox schema, including metadata DDL.
     /// </summary>
     /// <param name="options">The store table and metadata options.</param>
     /// <returns>The rendered create SQL batch.</returns>
@@ -97,17 +126,17 @@ internal static class PostgreSqlInboxSchemaScripts
 
         var builder = new StringBuilder();
         builder.AppendLine(PostgreSqlSchemaVersionStore.GetMetadataCreateScript(options));
-        builder.AppendLine(BuildVersion1CreateScript(options));
+        builder.AppendLine(BuildBaselineCreateScript(options));
         builder.AppendLine(BuildEnsureIndexesScript(options));
         return builder.ToString().TrimEnd();
     }
 
     /// <summary>
-    ///     Builds the version 1 inbox create script with rendered identifier placeholders.
+    ///     Builds the baseline inbox create script with rendered identifier placeholders.
     /// </summary>
     /// <param name="options">The store table and metadata options.</param>
-    /// <returns>The rendered version 1 create SQL batch.</returns>
-    internal static string BuildVersion1CreateScript(IPostgreSqlStoreTableOptions options)
+    /// <returns>The rendered current-version create SQL batch.</returns>
+    internal static string BuildBaselineCreateScript(IPostgreSqlStoreTableOptions options)
     {
         return PostgreSqlSqlScriptLoader.LoadAndRender(
             Assembly,
@@ -116,7 +145,7 @@ internal static class PostgreSqlInboxSchemaScripts
     }
 
     /// <summary>
-    ///     Builds the script that ensures inbox indexes exist for schema version 1.
+    ///     Builds the script that ensures the current inbox indexes exist.
     /// </summary>
     /// <param name="options">The store table and metadata options.</param>
     /// <returns>The rendered index ensure SQL batch.</returns>
@@ -129,7 +158,7 @@ internal static class PostgreSqlInboxSchemaScripts
     }
 
     /// <summary>
-    ///     Returns the index names required for inbox schema version 1.
+    ///     Returns the index names required for the current inbox schema.
     /// </summary>
     /// <param name="options">The store table and metadata options.</param>
     /// <returns>The required index names for validation.</returns>

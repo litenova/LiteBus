@@ -9,9 +9,9 @@ namespace LiteBus.Storage.Testing;
 public abstract class OutboxStoreContractTests
 {
     /// <summary>
-    ///     Gets the UTC timestamp used as a stable clock for lease and visibility assertions.
+    ///     Gets the UTC timestamp used as the baseline for lease and visibility assertions.
     /// </summary>
-    protected virtual DateTimeOffset BaseTime { get; } = new(2026, 5, 29, 12, 0, 0, TimeSpan.Zero);
+    protected virtual DateTimeOffset BaseTime { get; } = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
 
     /// <summary>
     ///     Creates a store that implements the writer, lease, and state roles for one test run.
@@ -29,6 +29,7 @@ public abstract class OutboxStoreContractTests
         var store = CreateStore();
         var messageId = Guid.NewGuid();
         var now = BaseTime;
+        var visibleAfter = DateTimeOffset.UtcNow.AddMilliseconds(500);
 
         await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
 
@@ -45,23 +46,15 @@ public abstract class OutboxStoreContractTests
         leased[0].Status.Should().Be(OutboxStatus.Publishing);
         leased[0].AttemptCount.Should().Be(1);
 
-        await store.StateWriter.PersistAsync([leased[0].AsFailed("publisher unavailable", now.AddMinutes(5))]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsFailed("publisher unavailable", visibleAfter)]).ConfigureAwait(false);
 
-        var hidden = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
-        {
-            BatchSize = 5,
-            LeaseOwner = "publisher-2",
-            Now = now.AddMinutes(1),
-            LeaseDuration = TimeSpan.FromMinutes(1)
-        }).ConfigureAwait(false);
-
-        hidden.Should().BeEmpty();
+        await WaitUntilVisibleAsync(visibleAfter).ConfigureAwait(false);
 
         var visible = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
             BatchSize = 5,
             LeaseOwner = "publisher-2",
-            Now = now.AddMinutes(6),
+            Now = DateTimeOffset.UtcNow,
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
@@ -293,17 +286,14 @@ public abstract class OutboxStoreContractTests
 
         await store.StateWriter.PersistAsync([leased[0].AsFailed("broker down", visibleAfter)]).ConfigureAwait(false);
 
-        var visible = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
-        {
-            BatchSize = 1,
-            LeaseOwner = "publisher-2",
-            Now = visibleAfter,
-            LeaseDuration = TimeSpan.FromMinutes(1)
-        }).ConfigureAwait(false);
+        var stored = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { MessageId = messageId },
+            new OutboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
 
-        visible.Should().ContainSingle();
-        visible[0].Status.Should().Be(OutboxStatus.Publishing);
-        visible[0].LastError.Should().Be("broker down");
+        stored.Items.Should().ContainSingle();
+        stored.Items[0].Status.Should().Be(OutboxStatus.Failed);
+        stored.Items[0].VisibleAfter.Should().Be(visibleAfter);
+        stored.Items[0].LastError.Should().Be("broker down");
     }
 
     /// <summary>
@@ -350,28 +340,39 @@ public abstract class OutboxStoreContractTests
         var store = CreateStore();
         var messageId = Guid.NewGuid();
         var now = BaseTime;
+        var leaseDuration = TimeSpan.FromMilliseconds(200);
 
         await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
 
-        await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        var staleLease = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
             BatchSize = 1,
-            LeaseOwner = "stale-publisher",
+            LeaseOwner = "publisher",
             Now = now,
-            LeaseDuration = TimeSpan.FromSeconds(20)
+            LeaseDuration = leaseDuration
         }).ConfigureAwait(false);
+
+        staleLease.Should().ContainSingle();
+        await Task.Delay(leaseDuration.Add(TimeSpan.FromMilliseconds(250))).ConfigureAwait(false);
 
         var reclaimed = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
             BatchSize = 1,
-            LeaseOwner = "fresh-publisher",
-            Now = now.AddMinutes(1),
+            LeaseOwner = "publisher",
+            Now = DateTimeOffset.UtcNow,
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
         reclaimed.Should().ContainSingle();
-        reclaimed[0].LeaseOwner.Should().Be("fresh-publisher");
+        reclaimed[0].LeaseOwner.Should().Be("publisher");
         reclaimed[0].AttemptCount.Should().Be(2);
+        reclaimed[0].LeaseGeneration.Should().Be(staleLease[0].LeaseGeneration + 1);
+
+        var stalePersist = await store.StateWriter.PersistAsync([staleLease[0].AsPublished(DateTimeOffset.UtcNow)]).ConfigureAwait(false);
+        stalePersist.AppliedCount.Should().Be(0);
+
+        var currentPersist = await store.StateWriter.PersistAsync([reclaimed[0].AsPublished(DateTimeOffset.UtcNow)]).ConfigureAwait(false);
+        currentPersist.AppliedCount.Should().Be(1);
     }
 
     /// <summary>
@@ -395,12 +396,30 @@ public abstract class OutboxStoreContractTests
 
         leased.Should().ContainSingle();
         var renewed = await store.Lease.RenewLeaseAsync(
-            new LeaseRenewalRequest(messageId, "publisher-a", now.AddMinutes(2)));
+            new LeaseRenewalRequest(
+                messageId,
+                "publisher-a",
+                leased[0].LeaseGeneration,
+                TimeSpan.FromMinutes(1),
+                now.AddMinutes(2)));
         var rejected = await store.Lease.RenewLeaseAsync(
-            new LeaseRenewalRequest(messageId, "publisher-b", now.AddMinutes(3)));
+            new LeaseRenewalRequest(
+                messageId,
+                "publisher-b",
+                leased[0].LeaseGeneration,
+                TimeSpan.FromMinutes(2),
+                now.AddMinutes(3)));
+        var staleGeneration = await store.Lease.RenewLeaseAsync(
+            new LeaseRenewalRequest(
+                messageId,
+                "publisher-a",
+                leased[0].LeaseGeneration - 1,
+                TimeSpan.FromMinutes(3),
+                now.AddMinutes(4)));
 
         renewed.Should().BeTrue();
         rejected.Should().BeFalse();
+        staleGeneration.Should().BeFalse();
     }
 
     /// <summary>
@@ -574,6 +593,52 @@ public abstract class OutboxStoreContractTests
             Status = OutboxStatus.Pending,
             AttemptCount = 0
         };
+    }
+
+    /// <summary>
+    ///     Waits until a database clock has passed a visibility timestamp with a scheduling margin.
+    /// </summary>
+    /// <param name="visibleAfter">The timestamp that must be in the past before the method returns.</param>
+    /// <returns>A task that represents the asynchronous wait.</returns>
+    private static async Task WaitUntilVisibleAsync(DateTimeOffset visibleAfter)
+    {
+        var delay = visibleAfter - DateTimeOffset.UtcNow + TimeSpan.FromMilliseconds(250);
+        if (delay > TimeSpan.Zero)
+        {
+            await Task.Delay(delay).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Verifies that a relational store uses its database clock instead of a skewed caller timestamp.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    protected async Task AssertDatabaseClockIgnoresCallerSkewAsync()
+    {
+        var store = CreateStore();
+        var futureId = Guid.NewGuid();
+        var readyId = Guid.NewGuid();
+        var visibleAfter = DateTimeOffset.UtcNow.AddHours(1);
+        var skewedNow = DateTimeOffset.UtcNow.AddYears(10);
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(futureId, BaseTime) with
+        {
+            VisibleAfter = visibleAfter
+        }).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(readyId, BaseTime.AddSeconds(1))).ConfigureAwait(false);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "skewed-publisher",
+            Now = skewedNow,
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle();
+        leased[0].Id.Should().Be(readyId);
+        leased[0].LeaseExpiresAt.Should().NotBeNull();
+        leased[0].LeaseExpiresAt.Should().BeBefore(skewedNow.AddYears(-1));
     }
 
     /// <summary>

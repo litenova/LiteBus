@@ -145,7 +145,7 @@ The `LiteBusOutboxSaveChangesInterceptor` path does not dedupe at enqueue time. 
 
 ## Alignment with PostgreSQL `CurrentSchemaVersion`
 
-`PostgreSqlOutboxSchema.CurrentSchemaVersion` is **1**. Version 1 includes nullable `trace_context`. Pass `EfCoreStorageProvider.PostgreSql` to `GetModelBuilderConfiguration()` so the fluent model maps `trace_context` as optional `jsonb`. `EfCoreOutboxStore` reads and writes `trace_context` when enqueue metadata supplies trace context.
+`PostgreSqlOutboxSchema.CurrentSchemaVersion` is **3**. The EF model includes `lease_generation` for fencing, opaque payload text, and nullable `trace_context`. Pass `EfCoreStorageProvider.PostgreSql` to `GetModelBuilderConfiguration()` so the fluent model maps `trace_context` as optional `jsonb`. Add the new column in your application-owned EF migration before running the v6 store.
 
 Add the column in your migration when upgrading from an older table that predates LiteBus v1 DDL:
 

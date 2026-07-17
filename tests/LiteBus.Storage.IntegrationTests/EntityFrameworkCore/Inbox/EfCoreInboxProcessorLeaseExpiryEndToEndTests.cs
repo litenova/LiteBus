@@ -21,42 +21,52 @@ public sealed class EfCoreInboxProcessorLeaseExpiryEndToEndTests : LiteBusTestBa
     [Fact]
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimAndCompleteCommand()
     {
-        var clock = new ManualTimeProvider(EfCoreInboxE2eSupport.BaseTime);
         var storeOptions = EfCoreInboxE2eSupport.CreateStoreOptions(TableName);
         var recorder = new CommandRecorder();
 
         await EfCoreInboxE2eSupport.EnsureInboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
-         var provider = EfCoreInboxE2eSupport.BuildProvider<LeaseExpiryInboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new InboxE2eComposition             {                 Recorder = recorder,                 Clock = clock,                 LeaseOwner = "efcore-inbox-lease-expiry"             });
-         await using (provider.ConfigureAwait(true))
-         {
-
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-        var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
-
-        var orderId = Guid.NewGuid();
-
-        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand {
-            OrderId = orderId,
-            IdempotencyKey = "lease-expiry"
-        }).ConfigureAwait(false);
-
-        await leaseStore.LeasePendingAsync(new InboxLeaseRequest
+        var provider = EfCoreInboxE2eSupport.BuildProvider<LeaseExpiryInboxDbContext>(
+            _fixture.ConnectionString,
+            storeOptions,
+            new InboxE2eComposition
+            {
+                Recorder = recorder,
+                LeaseOwner = "efcore-inbox-lease-expiry"
+            });
+        await using (provider.ConfigureAwait(false))
         {
-            BatchSize = 1,
-            LeaseOwner = "stale-worker",
-            Now = EfCoreInboxE2eSupport.BaseTime,
-            LeaseDuration = TimeSpan.FromSeconds(30)
-        }).ConfigureAwait(false);
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
+            var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
 
-        clock.Advance(TimeSpan.FromMinutes(1));
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            var orderId = Guid.NewGuid();
 
-        recorder.Commands.Should().ContainSingle();
-        var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, receipt.Id).ConfigureAwait(false);
-        row!.Status.Should().Be(InboxStatus.Completed);
-        row.AttemptCount.Should().Be(2);
+            var receipt = await scheduler.AcceptAsync(new ShipOrderCommand
+            {
+                OrderId = orderId,
+                IdempotencyKey = "lease-expiry"
+            }).ConfigureAwait(false);
+
+            await leaseStore.LeasePendingAsync(new InboxLeaseRequest
+            {
+                BatchSize = 1,
+                LeaseOwner = "stale-worker",
+                Now = EfCoreInboxE2eSupport.BaseTime,
+                LeaseDuration = TimeSpan.FromMinutes(1)
+            }).ConfigureAwait(false);
+
+            await PostgreSqlDatabaseTimeTestSupport.ExpireLeaseAsync(
+                _fixture.ConnectionString,
+                storeOptions.SchemaName,
+                storeOptions.TableName,
+                receipt.Id).ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+            recorder.Commands.Should().ContainSingle();
+            var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, receipt.Id).ConfigureAwait(false);
+            row!.Status.Should().Be(InboxStatus.Completed);
+            row.AttemptCount.Should().Be(2);
         }
     }
 

@@ -22,36 +22,45 @@ public sealed class EfCoreOutboxProcessorDeferredVisibilityEndToEndTests : LiteB
     [Fact]
     public async Task AddAsync_WithVisibleAfter_ShouldDeferPublishingUntilDue()
     {
-        var clock = new ManualTimeProvider(EfCoreOutboxE2eSupport.BaseTime);
         var storeOptions = EfCoreOutboxE2eSupport.CreateStoreOptions(TableName);
         var recorder = new EventRecorder();
-        var visibleAfter = EfCoreOutboxE2eSupport.BaseTime.AddHours(1);
+        var visibleAfter = DateTimeOffset.UtcNow.AddHours(1);
 
         await EfCoreOutboxE2eSupport.EnsureOutboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
-         var provider = EfCoreOutboxE2eSupport.BuildProvider<DeferredVisibilityOutboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new OutboxE2eComposition             {                 Recorder = recorder,                 Clock = clock,                 LeaseOwner = "efcore-outbox-deferred-visibility"             });
-         await using (provider.ConfigureAwait(true))
-         {
-
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var messageId = Guid.NewGuid();
-
-        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.From(
-            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            OutboxEnqueueMetadata.Immediate with
+        var provider = EfCoreOutboxE2eSupport.BuildProvider<DeferredVisibilityOutboxDbContext>(
+            _fixture.ConnectionString,
+            storeOptions,
+            new OutboxE2eComposition
             {
-                Identity = new MessageIdentity.Supplied(messageId),
-                Visibility = new MessageVisibility.At(visibleAfter)
-            })).ConfigureAwait(false);
+                Recorder = recorder,
+                LeaseOwner = "efcore-outbox-deferred-visibility"
+            });
+        await using (provider.ConfigureAwait(false))
+        {
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var messageId = Guid.NewGuid();
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
-        recorder.Events.Should().BeEmpty();
+            await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.From(
+                new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                OutboxEnqueueMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId),
+                    Visibility = new MessageVisibility.At(visibleAfter)
+                })).ConfigureAwait(false);
 
-        clock.Advance(TimeSpan.FromHours(1));
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+            recorder.Events.Should().BeEmpty();
 
-        recorder.Events.Should().ContainSingle();
+            await PostgreSqlDatabaseTimeTestSupport.MakeVisibleAsync(
+                _fixture.ConnectionString,
+                storeOptions.SchemaName,
+                storeOptions.TableName,
+                messageId).ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+            recorder.Events.Should().ContainSingle();
         }
     }
 

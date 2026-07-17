@@ -138,7 +138,7 @@ builder.AddInbox(inbox =>
 });
 ```
 
-Schema is version **1** only. There is no upgrade path from older LiteBus schemas; drop and recreate tables when adopting v6.
+Inbox and outbox use PostgreSQL schema version **3**; saga uses version **2**. Apply the ordered migration files for an existing v6 table. Tables from v5 or earlier require replacement or an application-owned data migration.
 
 ## Health and Operations
 

@@ -30,6 +30,7 @@ public sealed class InboxEntityFrameworkCoreModelTests
             "status",
             "idempotency_key",
             "lease_owner",
+            "lease_generation",
             "lease_expires_at",
             "last_error",
             "correlation_id",

@@ -25,4 +25,9 @@ internal static class PostgreSqlOutboxSchemaEmbeddedSql
     ///     Embedded resource path for the version 2 payload type migration.
     /// </summary>
     internal const string V2PayloadText = "outbox/v2/payload_text.sql";
+
+    /// <summary>
+    ///     Embedded resource path for the lease fencing migration.
+    /// </summary>
+    internal const string V3LeaseFencing = "outbox/v3/lease_fencing.sql";
 }

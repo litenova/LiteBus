@@ -26,18 +26,33 @@ internal static class PostgreSqlSagaSchemaScripts
         "state_json",
         "optimistic_lock_version",
         "is_completed",
-        "last_applied_message_id",
         "created_at",
         "updated_at"
     ];
+
+    /// <summary>
+    ///     The column names introduced by saga schema version 2.
+    /// </summary>
+    internal static readonly IReadOnlyList<string> Version2Columns = ["last_applied_message_id"];
 
     /// <summary>
     ///     The ordered column groups introduced by each saga schema version.
     /// </summary>
     internal static readonly IReadOnlyList<IReadOnlyList<string>> VersionColumnSets =
     [
-        Version1Columns
+        Version1Columns,
+        Version2Columns
     ];
+
+    /// <summary>
+    ///     The database column types required by the current saga schema.
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, string> RequiredColumnDataTypes =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["state_json"] = "jsonb",
+            ["last_applied_message_id"] = "uuid"
+        };
 
     /// <summary>
     ///     Gets the canonical SQL files shipped with the saga PostgreSQL package.
@@ -49,7 +64,7 @@ internal static class PostgreSqlSagaSchemaScripts
             "Creates the version 1 saga instances table with tenant-scoped primary key."),
         new(
             PostgreSqlSagaSchemaSqlPaths.V1EnsureIndexes,
-            "Ensures saga indexes exist for schema version 1."),
+            "Ensures the current saga indexes exist."),
         new(
             PostgreSqlSagaSchemaSqlPaths.V2AddLastAppliedMessageId,
             "Adds the applied message identifier required for duplicate saga dispatch suppression.")
@@ -63,8 +78,9 @@ internal static class PostgreSqlSagaSchemaScripts
         Component = PostgreSqlSchemaComponents.Saga,
         CurrentSchemaVersion = PostgreSqlSagaSchema.CurrentSchemaVersion,
         VersionColumnSets = VersionColumnSets,
+        RequiredColumnDataTypes = RequiredColumnDataTypes,
         SqlFiles = SqlFiles,
-        BuildVersion1CreateScript = BuildVersion1CreateScript,
+        BuildBaselineCreateScript = BuildBaselineCreateScript,
         BuildEnsureIndexesScript = BuildEnsureIndexesScript,
         BuildCreateScript = BuildCreateScript,
         CreateLockKey = CreateLockKey,
@@ -72,7 +88,7 @@ internal static class PostgreSqlSagaSchemaScripts
     };
 
     /// <summary>
-    ///     Builds the full create script for saga schema version 1, including metadata DDL.
+    ///     Builds the full create script for the current saga schema, including metadata DDL.
     /// </summary>
     /// <param name="options">The store table and metadata options.</param>
     /// <returns>The rendered create SQL batch.</returns>
@@ -82,7 +98,7 @@ internal static class PostgreSqlSagaSchemaScripts
 
         var builder = new StringBuilder();
         builder.AppendLine(PostgreSqlSchemaVersionStore.GetMetadataCreateScript(options));
-        builder.AppendLine(BuildVersion1CreateScript(options));
+        builder.AppendLine(BuildBaselineCreateScript(options));
         builder.AppendLine(BuildEnsureIndexesScript(options));
         return builder.ToString().TrimEnd();
     }
@@ -99,11 +115,11 @@ internal static class PostgreSqlSagaSchemaScripts
     }
 
     /// <summary>
-    ///     Builds the version 1 saga create script with rendered identifier placeholders.
+    ///     Builds the baseline saga create script with rendered identifier placeholders.
     /// </summary>
     /// <param name="options">The store table and metadata options.</param>
-    /// <returns>The rendered version 1 create SQL batch.</returns>
-    internal static string BuildVersion1CreateScript(IPostgreSqlStoreTableOptions options)
+    /// <returns>The rendered current-version create SQL batch.</returns>
+    internal static string BuildBaselineCreateScript(IPostgreSqlStoreTableOptions options)
     {
         return PostgreSqlSqlScriptLoader.LoadAndRender(
             Assembly,
@@ -112,7 +128,7 @@ internal static class PostgreSqlSagaSchemaScripts
     }
 
     /// <summary>
-    ///     Builds the script that ensures saga indexes exist for schema version 1.
+    ///     Builds the script that ensures the current saga indexes exist.
     /// </summary>
     /// <param name="options">The store table and metadata options.</param>
     /// <returns>The rendered index ensure SQL batch.</returns>
@@ -125,7 +141,7 @@ internal static class PostgreSqlSagaSchemaScripts
     }
 
     /// <summary>
-    ///     Returns the index names required for saga schema version 1.
+    ///     Returns the index names required for the current saga schema.
     /// </summary>
     /// <param name="options">The store table and metadata options.</param>
     /// <returns>The required index names for validation.</returns>

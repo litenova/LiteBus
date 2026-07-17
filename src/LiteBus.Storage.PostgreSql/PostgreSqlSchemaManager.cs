@@ -8,7 +8,7 @@ using Npgsql;
 namespace LiteBus.Storage.PostgreSql;
 
 /// <summary>
-///     Creates and validates LiteBus PostgreSQL store schemas at schema version 1.
+///     Creates and validates LiteBus PostgreSQL store schemas at each component's current version.
 /// </summary>
 internal static class PostgreSqlSchemaManager
 {
@@ -179,11 +179,12 @@ internal static class PostgreSqlSchemaManager
         {
             context.Logger.Log(
                 PostgreSqlSchemaLogLevel.Information,
-                $"Creating {definition.Component} schema version 1 for '{context.StoreTable.QualifiedName}'.");
+                $"Creating {definition.Component} schema version {definition.CurrentSchemaVersion} for " +
+                $"'{context.StoreTable.QualifiedName}'.");
 
             await PostgreSqlSchemaExecutor.ExecuteScriptAsync(
                     context.Connection,
-                    definition.BuildVersion1CreateScript(context.Options),
+                    definition.BuildBaselineCreateScript(context.Options),
                     context.Logger,
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -216,6 +217,8 @@ internal static class PostgreSqlSchemaManager
             context.Logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
             throw exception;
         }
+
+        await ValidateRequiredColumnDataTypesAsync(context, cancellationToken).ConfigureAwait(false);
 
         await PostgreSqlSchemaExecutor.ExecuteScriptAsync(
                 context.Connection,
@@ -288,6 +291,8 @@ internal static class PostgreSqlSchemaManager
             context.Logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
             throw exception;
         }
+
+        await ValidateRequiredColumnDataTypesAsync(context, cancellationToken).ConfigureAwait(false);
 
         var recordedVersion = await PostgreSqlSchemaVersionStore.GetVersionAsync(context, cancellationToken)
             .ConfigureAwait(false);
@@ -412,7 +417,7 @@ internal static class PostgreSqlSchemaManager
 
         if (recordedVersion >= definition.CurrentSchemaVersion)
         {
-            return true;
+            return await HasRequiredColumnDataTypesAsync(context, cancellationToken).ConfigureAwait(false);
         }
 
         if (!await PostgreSqlSchemaInspector.TableExistsAsync(
@@ -430,9 +435,70 @@ internal static class PostgreSqlSchemaManager
                 cancellationToken)
             .ConfigureAwait(false);
 
-        return PostgreSqlSchemaInspector.InferVersionFromColumns(
-                   columns,
-                   definition.VersionColumnSets) >=
-               definition.CurrentSchemaVersion;
+        var hasExpectedColumns = PostgreSqlSchemaInspector.InferVersionFromColumns(
+            columns,
+            definition.VersionColumnSets) >= definition.CurrentSchemaVersion;
+
+        return hasExpectedColumns &&
+               await HasRequiredColumnDataTypesAsync(context, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Validates database types that are part of the current component schema contract.
+    /// </summary>
+    /// <param name="context">The schema operation context.</param>
+    /// <param name="cancellationToken">A token used to cancel the lookup.</param>
+    /// <returns>A task that completes when the required column types match.</returns>
+    private static async Task ValidateRequiredColumnDataTypesAsync(
+        PostgreSqlSchemaOperationContext context,
+        CancellationToken cancellationToken)
+    {
+        var definition = context.Definition ?? throw new InvalidOperationException("Column type validation requires a component schema definition.");
+        var actualDataTypes = await PostgreSqlSchemaInspector.GetColumnDataTypesAsync(
+                context.Connection,
+                context.StoreTable,
+                cancellationToken)
+            .ConfigureAwait(false);
+        var mismatches = PostgreSqlSchemaInspector.GetColumnDataTypeMismatches(
+            actualDataTypes,
+            definition.RequiredColumnDataTypes);
+
+        if (mismatches.Count == 0)
+        {
+            return;
+        }
+
+        var exception = new PostgreSqlSchemaDriftException(
+            definition.Component,
+            context.StoreTable.SchemaName,
+            context.StoreTable.TableName,
+            definition.CurrentSchemaVersion,
+            null,
+            $"Column type mismatches: {string.Join(", ", mismatches)}.");
+
+        context.Logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
+        throw exception;
+    }
+
+    /// <summary>
+    ///     Returns whether database types that are part of the current component schema contract match.
+    /// </summary>
+    /// <param name="context">The schema operation context.</param>
+    /// <param name="cancellationToken">A token used to cancel the lookup.</param>
+    /// <returns><see langword="true" /> when every required type matches; otherwise, <see langword="false" />.</returns>
+    private static async Task<bool> HasRequiredColumnDataTypesAsync(
+        PostgreSqlSchemaOperationContext context,
+        CancellationToken cancellationToken)
+    {
+        var definition = context.Definition ?? throw new InvalidOperationException("Column type validation requires a component schema definition.");
+        var actualDataTypes = await PostgreSqlSchemaInspector.GetColumnDataTypesAsync(
+                context.Connection,
+                context.StoreTable,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return PostgreSqlSchemaInspector.GetColumnDataTypeMismatches(
+            actualDataTypes,
+            definition.RequiredColumnDataTypes).Count == 0;
     }
 }

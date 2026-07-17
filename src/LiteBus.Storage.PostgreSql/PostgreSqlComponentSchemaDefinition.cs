@@ -24,14 +24,19 @@ internal sealed class PostgreSqlComponentSchemaDefinition
     public required IReadOnlyList<IReadOnlyList<string>> VersionColumnSets { get; init; }
 
     /// <summary>
+    ///     Gets the database types required for columns whose type is part of the current schema contract.
+    /// </summary>
+    public required IReadOnlyDictionary<string, string> RequiredColumnDataTypes { get; init; }
+
+    /// <summary>
     ///     Gets the canonical SQL files shipped with the component package.
     /// </summary>
     public required IReadOnlyList<PostgreSqlSchemaSqlFile> SqlFiles { get; init; }
 
     /// <summary>
-    ///     Gets the function that builds the version 1 create script.
+    ///     Gets the function that builds the baseline create script containing the current new-install shape.
     /// </summary>
-    public required Func<IPostgreSqlStoreTableOptions, string> BuildVersion1CreateScript { get; init; }
+    public required Func<IPostgreSqlStoreTableOptions, string> BuildBaselineCreateScript { get; init; }
 
     /// <summary>
     ///     Gets the function that ensures indexes exist for the current schema version.
@@ -39,7 +44,7 @@ internal sealed class PostgreSqlComponentSchemaDefinition
     public required Func<IPostgreSqlStoreTableOptions, string> BuildEnsureIndexesScript { get; init; }
 
     /// <summary>
-    ///     Gets the function that builds the full create script for schema version 1.
+    ///     Gets the function that builds the baseline create script containing the current new-install shape.
     /// </summary>
     public required Func<IPostgreSqlStoreTableOptions, string> BuildCreateScript { get; init; }
 

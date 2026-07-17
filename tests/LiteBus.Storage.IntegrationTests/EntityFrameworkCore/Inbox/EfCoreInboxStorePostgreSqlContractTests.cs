@@ -22,6 +22,16 @@ public sealed class EfCoreInboxStorePostgreSqlContractTests : InboxStoreContract
         _fixture = fixture;
     }
 
+    /// <summary>
+    ///     Verifies that Entity Framework PostgreSQL leasing ignores a skewed caller clock.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public Task LeasePendingAsync_WhenCallerClockIsSkewed_ShouldUseDatabaseClock()
+    {
+        return AssertDatabaseClockIgnoresCallerSkewAsync();
+    }
+
     /// <inheritdoc />
     protected override InboxStoreRoles CreateStore()
     {

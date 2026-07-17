@@ -45,48 +45,49 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions).ConfigureAwait(false);
         await PostgreSqlSagaSchema.EnsureAsync(_fixture.DataSource, sagaOptions).ConfigureAwait(false);
 
-         var provider = BuildSagaProvider(_fixture, inboxOptions, sagaOptions);
-         await using (provider.ConfigureAwait(false))
-         {
-        var inbox = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-        var sagaStore = provider.GetRequiredService<ISagaStore>();
+        var provider = BuildSagaProvider(_fixture, inboxOptions, sagaOptions);
+        await using (provider.ConfigureAwait(false))
+        {
+            var inbox = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
+            var sagaStore = provider.GetRequiredService<ISagaStore>();
 
-        await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
-            new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.ReserveInventory },
-            InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated(correlationId) })).ConfigureAwait(false);
+            await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
+                new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.ReserveInventory },
+                InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated(correlationId) })).ConfigureAwait(false);
 
-        await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
-            new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.CapturePayment },
-            InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated(correlationId) })).ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
+                new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.CapturePayment },
+                InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated(correlationId) })).ConfigureAwait(false);
 
-        var correlation = CreateCorrelation(correlationId);
-        var instance = await sagaStore.LoadAsync<OrderWorkflowSagaState>(correlation).ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        instance.Should().NotBeNull();
-        instance!.State.Step.Should().Be(2);
-        instance.State.InventoryReserved.Should().BeTrue();
-        instance.State.PaymentCaptured.Should().BeTrue();
-        instance.IsCompleted.Should().BeFalse();
-        instance.Version.Should().Be(2);
+            var correlation = CreateCorrelation(correlationId);
+            var instance = await sagaStore.LoadAsync<OrderWorkflowSagaState>(correlation).ConfigureAwait(false);
 
-        var sagaRow = await PostgreSqlTableReaders.ReadSagaAsync(
-            _fixture.DataSource,
-            sagaOptions,
-            correlationId,
-            WorkflowContractName).ConfigureAwait(false);
+            instance.Should().NotBeNull();
+            instance!.State.Step.Should().Be(2);
+            instance.State.InventoryReserved.Should().BeTrue();
+            instance.State.PaymentCaptured.Should().BeTrue();
+            instance.IsCompleted.Should().BeFalse();
+            instance.Version.Should().Be(2);
 
-        sagaRow.Should().NotBeNull();
-        sagaRow!.OptimisticLockVersion.Should().Be(2);
-        sagaRow.IsCompleted.Should().BeFalse();
-        sagaRow.StateJson.Should().Contain("\"step\": 2");
-        sagaRow.StateJson.Should().Contain("\"paymentCaptured\": true");
+            var sagaRow = await PostgreSqlTableReaders.ReadSagaAsync(
+                _fixture.DataSource,
+                sagaOptions,
+                correlationId,
+                WorkflowContractName).ConfigureAwait(false);
 
-        var sagaRowCount = await PostgreSqlTableReaders.CountSagaRowsAsync(_fixture.DataSource, sagaOptions).ConfigureAwait(false);
-        sagaRowCount.Should().Be(1);
+            sagaRow.Should().NotBeNull();
+            sagaRow!.OptimisticLockVersion.Should().Be(2);
+            sagaRow.IsCompleted.Should().BeFalse();
+            sagaRow.StateJson.Should().Contain("\"step\": 2");
+            sagaRow.StateJson.Should().Contain("\"paymentCaptured\": true");
+
+            var sagaRowCount = await PostgreSqlTableReaders.CountSagaRowsAsync(_fixture.DataSource, sagaOptions).ConfigureAwait(false);
+            sagaRowCount.Should().Be(1);
         }
     }
 

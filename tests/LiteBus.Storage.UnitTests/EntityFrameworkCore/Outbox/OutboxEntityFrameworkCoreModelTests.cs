@@ -30,6 +30,7 @@ public sealed class OutboxEntityFrameworkCoreModelTests
             "status",
             "attempt_count",
             "lease_owner",
+            "lease_generation",
             "lease_expires_at",
             "last_error",
             "correlation_id",

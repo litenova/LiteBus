@@ -31,8 +31,8 @@ Query and purge roles are exposed through manager APIs backed by the same store 
 | Extension | Package | Backend |
 | --- | --- | --- |
 | `UseInMemoryStorage()` | `LiteBus.Inbox.Storage.InMemory`, `LiteBus.Outbox.Storage.InMemory` | Process-local, single-worker |
-| `UsePostgreSqlStorage(configure)` | `LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.Storage.PostgreSql` | PostgreSQL schema v1 |
-| `UseEntityFrameworkCoreStorage(configure)` | `LiteBus.Inbox.Storage.EntityFrameworkCore`, `LiteBus.Outbox.Storage.EntityFrameworkCore` | EF Core model v1 |
+| `UsePostgreSqlStorage(configure)` | `LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.Storage.PostgreSql` | PostgreSQL schema v3 |
+| `UseEntityFrameworkCoreStorage(configure)` | `LiteBus.Inbox.Storage.EntityFrameworkCore`, `LiteBus.Outbox.Storage.EntityFrameworkCore` | Application-owned EF migrations |
 | `UseDataSource(NpgsqlDataSource)` | `LiteBus.Storage.PostgreSql` | Shared connection pool across axes |
 | `EnsureSchemaCreationOnStartup()` | PostgreSQL storage modules | Dev-only schema bootstrap via startup task |
 
@@ -85,7 +85,7 @@ Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only
 - Default table: `litebus_inbox_messages` / outbox equivalent with PK `message_id`
 - In-memory store uses process-wide lock; not for multi-worker production simulation
 - Custom stores implement roles; use envelope factories for serialization
-- Schema version 1 only for PostgreSQL/EF greenfield
+- Inbox and outbox PostgreSQL schema version 3, with ordered v2 and v3 migration files
 
 ## Non-Goals
 
@@ -110,7 +110,7 @@ Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only
 - **Kind**: Management query (no dedicated meter)
 - **When called**: Operator tooling and management endpoints
 - **Returns**: **`StoreSchemaInfo`** with version and table metadata
-- **Operational note**: Use before deploy to confirm schema v1 presence
+- **Operational note**: Use before deploy to confirm the current schema version, column types, and indexes
 
 ### Queue Depth Gauges
 

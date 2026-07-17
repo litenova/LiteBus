@@ -21,7 +21,7 @@ public static class PostgreSqlSagaSchemaSqlPaths
     public const string V1Create = Root + "saga/v1/create.sql";
 
     /// <summary>
-    ///     Ensures saga indexes exist for schema version 1.
+    ///     Ensures the current saga indexes exist.
     /// </summary>
     public const string V1EnsureIndexes = Root + "saga/v1/ensure_indexes.sql";
 
