@@ -1,4 +1,12 @@
+# Release - tag-triggered validation and publication for v6
+#
+# Emulator-backed transport categories are mandatory and reject skipped tests. TransportLiveAzure remains an opt-in
+# credential-backed category and is excluded from this release job.
 name: Release
+
+permissions:
+  contents: write
+  packages: write
 
 on:
   push:
@@ -19,48 +27,141 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Set Version Variable
+      - name: Validate Documentation
+        shell: pwsh
+        run: ./scripts/Test-Documentation.ps1
+
+      - name: Validate Release Tag and Changelog
         id: version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "Using tag version: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Release tag '${tag}' is not a supported semantic version tag."
+            exit 1
+          fi
+
+          if ! grep -Fxq "## ${tag}" Changelog.md; then
+            echo "::error::Changelog.md does not contain an exact '## ${tag}' release heading."
+            exit 1
+          fi
+
+          version="${tag#v}"
+          echo "Using tag version: ${version}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
       - name: Restore
         run: dotnet restore LiteBus.slnx
 
       - name: Decode Strong Name Key
-        run: echo "${{ secrets.STRONG_NAME_KEY }}" | base64 --decode > LiteBus.snk
+        env:
+          STRONG_NAME_KEY: ${{ secrets.STRONG_NAME_KEY }}
+        run: |
+          if [ -z "${STRONG_NAME_KEY}" ]; then
+            echo "::error::STRONG_NAME_KEY is required for release builds."
+            exit 1
+          fi
+          echo "${STRONG_NAME_KEY}" | base64 --decode > LiteBus.snk
 
       - name: Build
         run: dotnet build LiteBus.slnx --configuration Release --no-restore /p:Version=${{ steps.version.outputs.version }} /p:ContinuousIntegrationBuild=true
 
-      - name: Docker Info
-        run: docker info
+      - name: Verify Benchmark Discovery
+        run: dotnet run --project benchmarks/LiteBus.Processor.Benchmarks --configuration Release --no-build -- --list flat
 
-      - name: Test
-        run: dotnet test LiteBus.slnx --no-restore --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
+      - name: Fail on [Fact(Skip = ...)] in test projects
+        run: bash .github/scripts/verify-no-fact-skips.sh "${{ github.workspace }}"
+
+      - name: Require Docker for integration suites
+        run: |
+          if ! docker info >/dev/null 2>&1; then
+            echo "::error::Docker is required for release integration tests."
+            exit 1
+          fi
+          echo "Docker is available."
+
+      - name: Unit Tests
+        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName!~IntegrationTests"
+
+      - name: Transport Fast Integration Tests
+        run: dotnet test tests/LiteBus.Durable.IntegrationTests --no-build --configuration Release --verbosity normal --filter "Category=TransportFast"
+
+      - name: Transport Docker Integration Tests
+        env:
+          LITEBUS_CI_STRICT_TRANSPORT: 'true'
+        run: |
+          trx_dir="${RUNNER_TEMP}/transport-docker"
+          mkdir -p "${trx_dir}"
+          dotnet test tests/LiteBus.Durable.IntegrationTests \
+            --no-build --configuration Release --verbosity normal \
+            --filter "Category=TransportDocker" \
+            --logger "trx;LogFileName=${trx_dir}/durable-transport-docker.trx"
+          bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/durable-transport-docker.trx"
+          dotnet test tests/LiteBus.Transport.IntegrationTests \
+            --no-build --configuration Release --verbosity normal \
+            --filter "Category=TransportDocker" \
+            --logger "trx;LogFileName=${trx_dir}/transport-wire-docker.trx"
+          bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-wire-docker.trx"
+
+      - name: Transport Azure Integration Tests
+        env:
+          LITEBUS_CI_STRICT_TRANSPORT: 'true'
+        run: |
+          trx_dir="${RUNNER_TEMP}/transport-azure"
+          mkdir -p "${trx_dir}"
+          dotnet test tests/LiteBus.Durable.IntegrationTests \
+            --no-build --configuration Release --verbosity normal \
+            --filter "Category=TransportAzure" \
+            --logger "trx;LogFileName=${trx_dir}/transport-azure.trx"
+          bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-azure.trx"
+
+      - name: Integration Tests
+        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure"
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v6
         with:
-          files: ./tests/**/coverage.opencover.xml
-          flags: unittests
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
 
-      - name: Pack
-        run: dotnet pack --configuration Release /p:Version=${{ steps.version.outputs.version }} --no-build --output ./artifacts
+      - name: Pack Packages
+        shell: pwsh
+        run: ./scripts/Pack-Packages.ps1 -OutputDirectory artifacts -Configuration Release -Version ${{ steps.version.outputs.version }} -NoBuild -NoRestore
+
+      - name: Validate Packages
+        shell: pwsh
+        run: ./scripts/Test-Packages.ps1 -PackageDirectory artifacts -ExpectedVersion ${{ steps.version.outputs.version }}
+
+      - name: Generate Release Notes
+        run: bash .github/scripts/generate-release-notes.sh
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7
         with:
           name: nuget-packages
-          path: ./artifacts/*.nupkg
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
 
       - name: Publish to NuGet
-        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          for package in ./artifacts/*.nupkg; do
+            dotnet nuget push "${package}" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json
+          done
 
       - name: Publish to GitHub Packages
-        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --skip-duplicate
+        run: |
+          for package in ./artifacts/*.nupkg; do
+            dotnet nuget push "${package}" --api-key "${{ secrets.GITHUB_TOKEN }}" --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+          done
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            ./artifacts/*.nupkg \
+            ./artifacts/*.snupkg \
+            --verify-tag \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file release-notes.md

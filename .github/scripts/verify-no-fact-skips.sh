@@ -21,7 +21,7 @@ if [[ "${GITHUB_HEAD_REF:-}" =~ ^[Qq]uarantine$ ]] || [[ "${GITHUB_REF:-}" == "r
   exit 0
 fi
 
-matches="$(grep -R --include='*.cs' -n '\[Fact(Skip' tests 2>/dev/null || true)"
+matches="$(grep -R --exclude-dir='bin' --exclude-dir='obj' --include='*.cs' -n '\[Fact(Skip' tests 2>/dev/null || true)"
 
 if [[ -n "${matches}" ]]; then
   echo "::error::Found [Fact(Skip = ...)] in test projects. Remove skips or merge via quarantine branch until GA sign-off."

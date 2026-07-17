@@ -13,8 +13,16 @@ if [[ ! -f "${trx_file}" ]]; then
   exit 1
 fi
 
-skipped="$(grep -oE 'skipped="[0-9]+"' "${trx_file}" | head -1 | grep -oE '[0-9]+' || true)"
-skipped="${skipped:-0}"
+counter_skipped="$(grep -oE 'skipped="[0-9]+"' "${trx_file}" | head -1 | grep -oE '[0-9]+' || true)"
+counter_skipped="${counter_skipped:-0}"
+not_executed="$(grep -c 'outcome="NotExecuted"' "${trx_file}" || true)"
+not_executed="${not_executed:-0}"
+
+if [[ "${not_executed}" -gt "${counter_skipped}" ]]; then
+  skipped="${not_executed}"
+else
+  skipped="${counter_skipped}"
+fi
 
 if [[ "${skipped}" -gt 0 ]]; then
   echo "::error::Found ${skipped} skipped test(s) in ${trx_file}. Broker transport jobs must not pass with skipped tests when LITEBUS_CI_STRICT_TRANSPORT is enabled."
