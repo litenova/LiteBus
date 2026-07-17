@@ -51,7 +51,7 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task Send_Command_WithSwallowingErrorHandler_ShouldRethrowByDefault()
+    public async Task Send_Command_WithObservingErrorHandler_ShouldRethrowByDefault()
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
@@ -59,7 +59,7 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
             registry.AddCommandModule(builder =>
             {
                 builder.Register<FailingCommandHandler>();
-                builder.Register<SwallowingCommandErrorHandler>();
+                builder.Register<ObservingCommandErrorHandler>();
             });
         }).BuildServiceProvider();
 
@@ -90,6 +90,31 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
     }
 
     [Fact]
+    public async Task Send_Command_WithErrorHandler_ShouldPassTypedContextAndExplicitCancellationToken()
+    {
+        using var cts = new CancellationTokenSource();
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
+        {
+            registry.AddMessageModule(_ => { });
+            registry.AddCommandModule(builder =>
+            {
+                builder.Register<FailingCommandHandler>();
+                builder.Register<TokenObservingCommandErrorHandler>();
+            });
+        }).BuildServiceProvider();
+
+        var command = new FailingCommand();
+        var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
+
+        var act = () => commandMediator.SendAsync(command, cancellationToken: cts.Token);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
+        TokenObservingCommandErrorHandler.ReceivedMessage.Should().BeSameAs(command);
+        TokenObservingCommandErrorHandler.ReceivedException.Should().BeOfType<InvalidOperationException>();
+        TokenObservingCommandErrorHandler.ReceivedToken.Should().Be(cts.Token);
+    }
+
+    [Fact]
     public async Task Send_CommandWithResult_WhenErrorHandlerDoesNotSetOutcome_ShouldNotReturnDefaultResult()
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
@@ -98,7 +123,7 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
             registry.AddCommandModule(builder =>
             {
                 builder.Register<FailingResultCommandHandler>();
-                builder.Register<SwallowingCommandErrorHandler>();
+                builder.Register<ObservingCommandErrorHandler>();
             });
         }).BuildServiceProvider();
 
@@ -214,12 +239,10 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
             => throw new InvalidOperationException("handler failed");
     }
 
-    private sealed class SwallowingCommandErrorHandler : ICommandErrorHandler
+    private sealed class ObservingCommandErrorHandler : ICommandErrorHandler
     {
         public Task HandleErrorAsync(
-            ICommand message,
-            object? messageResult,
-            Exception exception,
+            MessageErrorContext<ICommand, object> context,
             CancellationToken cancellationToken = default)
             => Task.CompletedTask;
     }
@@ -227,22 +250,33 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
     private sealed class HandledOutcomeCommandErrorHandler : ICommandErrorHandler
     {
         public Task HandleErrorAsync(
-            ICommand message,
-            object? messageResult,
-            Exception exception,
+            MessageErrorContext<ICommand, object> context,
             CancellationToken cancellationToken = default)
         {
-            if (exception is InvalidOperationException)
+            if (context.Exception is InvalidOperationException)
             {
-                // Typed handlers mutate context through the non-generic path in production handlers.
+                context.Outcome = MessageErrorOutcome.Handled;
             }
 
             return Task.CompletedTask;
         }
+    }
 
-        object IMessageErrorHandler.HandleError(MessageErrorContext context)
+    private sealed class TokenObservingCommandErrorHandler : ICommandErrorHandler<FailingCommand>
+    {
+        public static ICommand? ReceivedMessage { get; private set; }
+
+        public static Exception? ReceivedException { get; private set; }
+
+        public static CancellationToken ReceivedToken { get; private set; }
+
+        public Task HandleErrorAsync(
+            MessageErrorContext<FailingCommand, object> context,
+            CancellationToken cancellationToken = default)
         {
-            context.Outcome = MessageErrorOutcome.Handled;
+            ReceivedMessage = context.Message;
+            ReceivedException = context.Exception;
+            ReceivedToken = cancellationToken;
             return Task.CompletedTask;
         }
     }
@@ -258,13 +292,8 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
     private sealed class TypedHandledResultCommandErrorHandler : ICommandErrorHandler<FailingResultCommand, string>
     {
         public Task HandleErrorAsync(
-            FailingResultCommand message,
-            string? messageResult,
-            Exception exception,
+            MessageErrorContext<FailingResultCommand, string> context,
             CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
-
-        object IMessageErrorHandler.HandleError(MessageErrorContext context)
         {
             context.Outcome = MessageErrorOutcome.Handled;
             context.HandledResult = "fallback";
@@ -285,9 +314,7 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
         public static bool WasInvoked { get; private set; }
 
         public Task HandleErrorAsync(
-            ICommand message,
-            object? messageResult,
-            Exception exception,
+            MessageErrorContext<ICommand, object> context,
             CancellationToken cancellationToken = default)
         {
             WasInvoked = true;

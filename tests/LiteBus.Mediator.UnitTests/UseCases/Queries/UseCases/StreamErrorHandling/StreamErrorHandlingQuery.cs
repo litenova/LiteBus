@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
-using LiteBus.Testing;
 
 namespace LiteBus.Mediator.UnitTests.UseCases.Queries.UseCases.StreamErrorHandling;
 
@@ -57,26 +56,12 @@ public sealed class StreamErrorHandlingQueryErrorHandler : IQueryErrorHandler<St
 {
     /// <inheritdoc />
     public Task HandleErrorAsync(
-        StreamErrorHandlingQuery message,
-        object? messageResult,
-        Exception exception,
+        MessageErrorContext<StreamErrorHandlingQuery, object> context,
         CancellationToken cancellationToken = default)
     {
-        message.ExecutedTypes.Add(GetType());
-        message.ObservedErrorHandlerMessageResult = messageResult;
+        context.Message.ExecutedTypes.Add(GetType());
+        context.Message.ObservedErrorHandlerMessageResult = context.MessageResult;
+        context.Outcome = MessageErrorOutcome.Handled;
         return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    object IMessageErrorHandler.HandleError(MessageErrorContext context)
-    {
-        var typed = context.AsTyped<StreamErrorHandlingQuery, object?>();
-        var task = HandleErrorAsync(
-            typed.Message,
-            typed.MessageResult,
-            typed.Exception,
-            AmbientExecutionContext.Current.CancellationToken);
-
-        return LegacyErrorHandlerSupport.MarkHandled(context, task);
     }
 }

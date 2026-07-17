@@ -39,6 +39,7 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | `IAsyncMessageHandler<TMessage>` / `IAsyncMessageHandler<TMessage, TResult>` | Main handler contracts |
 | `IAsyncMessagePostHandler<TMessage>` / `IAsyncMessagePostHandler<TMessage, TResult>` | Post stage contracts |
 | `IAsyncMessageErrorHandler<TMessage, TResult>` | Error stage contract |
+| `MessageErrorContext<TMessage, TResult>` | Typed error data and shared recovery outcome |
 | `SingleAsyncHandlerMediationStrategy<TMessage, TResult>` | Single main handler orchestration |
 | `SingleStreamHandlerMediationStrategy<TMessage, TResult>` | Stream query orchestration |
 | `AsyncBroadcastMediationStrategy<TMessage>` | Event broadcast orchestration |
@@ -59,7 +60,8 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 
 - Single-handler strategies resolve exactly one main handler.
 - Post-handler result override uses `executionContext.MessageResult`.
-- Recoverable exceptions route to error handlers; cancellation and abort follow dedicated semantics.
+- Recoverable exceptions route to error handlers with the caller's explicit cancellation token.
+- Error handlers suppress the original exception only by setting their shared context outcome to `Handled`.
 - Event broadcast may execute handlers concurrently based on event execution settings.
 
 ## Non-Goals
@@ -87,6 +89,9 @@ Operational alternatives:
 | `mediating_event_with_exception_in_main_handler_goes_through_error_handlers` | `LiteBus.Mediator.UnitTests` |
 | `mediating_a_command_that_is_aborted_in_pre_handler_goes_through_correct_handlers` | `LiteBus.Mediator.UnitTests` |
 | `Send_CommandWithResult_PostHandlerOverridesResult` | `LiteBus.Mediator.UnitTests` |
+| `Send_Command_WithErrorHandler_ShouldPassTypedContextAndExplicitCancellationToken` | `LiteBus.Mediator.UnitTests` |
+| `Send_Command_WithObservingErrorHandler_ShouldRethrowByDefault` | `LiteBus.Mediator.UnitTests` |
+| `Send_CommandWithResult_WhenErrorHandlerSetsHandledResult_ShouldReturnFallbackResult` | `LiteBus.Mediator.UnitTests` |
 
 ### Untested
 

@@ -1,6 +1,5 @@
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Testing;
 
 namespace LiteBus.Mediator.UnitTests.UseCases.Commands.UseCases.ProblematicCommand;
 
@@ -10,23 +9,13 @@ namespace LiteBus.Mediator.UnitTests.UseCases.Commands.UseCases.ProblematicComma
 public sealed class ProblematicCommandErrorHandler2 : ICommandErrorHandler<ProblematicCommand>
 {
     /// <inheritdoc />
-    public Task HandleErrorAsync(ProblematicCommand message, object? messageResult, Exception exception, CancellationToken cancellationToken = default)
+    public Task HandleErrorAsync(
+        MessageErrorContext<ProblematicCommand, object> context,
+        CancellationToken cancellationToken = default)
     {
-        message.ExecutedTypes.Add(GetType());
+        context.Message.ExecutedTypes.Add(GetType());
 
+        context.Outcome = MessageErrorOutcome.Handled;
         return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    object IMessageErrorHandler.HandleError(MessageErrorContext context)
-    {
-        var typed = context.AsTyped<ProblematicCommand, object?>();
-        var task = HandleErrorAsync(
-            typed.Message,
-            typed.MessageResult,
-            typed.Exception,
-            AmbientExecutionContext.Current.CancellationToken);
-
-        return LegacyErrorHandlerSupport.MarkHandled(context, task);
     }
 }

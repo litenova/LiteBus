@@ -129,7 +129,7 @@ public sealed class PublishProductCreated : ICommandPostHandler<CreateProductCom
 
 ### Error-Handlers
 
-An error-handler runs when any stage throws. Implement `ICommandErrorHandler<TCommand>`; the method receives the command, the partial result if any, and the exception. If no error-handler is registered for the command, LiteBus rethrows the original exception to the caller with its stack trace intact. An error-handler that does not rethrow swallows the exception, so rethrow unless you intend to recover.
+An error-handler runs when any stage throws. Implement `ICommandErrorHandler<TCommand>`; its typed context contains the command, the partial result if any, the exception, and the shared recovery outcome. The caller's cancellation token is passed explicitly. The original exception is rethrown with its stack trace intact unless a handler sets `Outcome` to `MessageErrorOutcome.Handled`.
 
 ```csharp
 public sealed class LogPaymentFailure : ICommandErrorHandler<ProcessPaymentCommand>
@@ -138,13 +138,17 @@ public sealed class LogPaymentFailure : ICommandErrorHandler<ProcessPaymentComma
 
     public LogPaymentFailure(ILogger<LogPaymentFailure> logger) => _logger = logger;
 
-    public Task HandleErrorAsync(ProcessPaymentCommand command, object? result, Exception exception, CancellationToken cancellationToken = default)
+    public Task HandleErrorAsync(
+        MessageErrorContext<ProcessPaymentCommand, object> context,
+        CancellationToken cancellationToken = default)
     {
-        _logger.LogError(exception, "Payment failed for order {OrderId}", command.OrderId);
-        throw exception; // rethrow: this handler observes, it does not recover
+        _logger.LogError(context.Exception, "Payment failed for order {OrderId}", context.Message.OrderId);
+        return Task.CompletedTask; // Outcome remains Unhandled, so LiteBus rethrows the original exception
     }
 }
 ```
+
+To recover, set `context.Outcome = MessageErrorOutcome.Handled`. A result-bearing command handler must also set `context.HandledResult` to the fallback value the caller should receive.
 
 The exact ordering of these stages, including global versus specific handlers and how `Abort` short-circuits the pipeline, is on [The Handler Pipeline](handler-pipeline.md).
 

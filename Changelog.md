@@ -18,6 +18,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Error handlers now receive `MessageErrorContext<TMessage, TResult>` plus the caller's explicit cancellation token.
+  The typed context shares handled outcome and fallback result state with the mediation pipeline.
 - `ILiteBusBuilder` moved to `LiteBus.Runtime.Abstractions` and now exposes only `Modules`; feature packages provide
   `AddMessaging`, `AddCommands`, `AddQueries`, `AddEvents`, `AddInbox`, and `AddOutbox`.
 - `LiteBus.Orchestration.Abstractions` became `LiteBus.DurableMessaging.Abstractions`, which owns shared durable
@@ -41,6 +43,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Typed error handlers can suppress a recoverable exception and return a fallback result without reimplementing an
+  untyped synchronous interface. The runtime no longer discards their explicit cancellation token.
 - Event parallel fault-mode documentation now matches runtime behavior: already-started sibling tasks settle before
   either one failure or an aggregate is surfaced, and sibling cancellation is never implied.
 - The shared Generic Host orchestrator now runs as a supervised `BackgroundService`. An unexpected LiteBus background
@@ -62,6 +66,8 @@ All notable changes to this project will be documented in this file.
 
 ### Breaking changes
 
+- `IMessageErrorHandler.HandleError` and scalar `HandleErrorAsync` overloads were replaced by typed-context asynchronous
+  methods. The obsolete `IMessageErrorHandler<TMessage, TResult>` marker and `LegacyErrorHandlerSupport` were removed.
 - `IMessageTransport` was renamed to `ITransportPublisher`.
 - `IRegistrableCommandConstruct`, `IRegistrableQueryConstruct`, and `IRegistrableEventConstruct` were removed.
 - `OutboxEnvelope.AsPublished` now requires the publication timestamp.

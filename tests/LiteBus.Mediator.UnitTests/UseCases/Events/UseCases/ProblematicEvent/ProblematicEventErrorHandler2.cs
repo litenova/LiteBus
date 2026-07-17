@@ -1,6 +1,5 @@
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Testing;
 
 namespace LiteBus.Mediator.UnitTests.UseCases.Events.UseCases.ProblematicEvent;
 
@@ -10,23 +9,13 @@ namespace LiteBus.Mediator.UnitTests.UseCases.Events.UseCases.ProblematicEvent;
 public sealed class ProblematicEventErrorHandler2 : IEventErrorHandler<ProblematicEvent>
 {
     /// <inheritdoc />
-    public Task HandleErrorAsync(ProblematicEvent message, object? messageResult, Exception exception, CancellationToken cancellationToken = default)
+    public Task HandleErrorAsync(
+        MessageErrorContext<ProblematicEvent, object> context,
+        CancellationToken cancellationToken = default)
     {
-        message.ExecutedTypes.Add(GetType());
+        context.Message.ExecutedTypes.Add(GetType());
 
+        context.Outcome = MessageErrorOutcome.Handled;
         return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    object IMessageErrorHandler.HandleError(MessageErrorContext context)
-    {
-        var typed = context.AsTyped<ProblematicEvent, object?>();
-        var task = HandleErrorAsync(
-            typed.Message,
-            typed.MessageResult,
-            typed.Exception,
-            AmbientExecutionContext.Current.CancellationToken);
-
-        return LegacyErrorHandlerSupport.MarkHandled(context, task);
     }
 }

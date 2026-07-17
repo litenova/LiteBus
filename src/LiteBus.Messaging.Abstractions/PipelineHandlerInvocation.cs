@@ -76,11 +76,7 @@ internal static class PipelineHandlerInvocation
     {
         ArgumentNullException.ThrowIfNull(handler);
         ArgumentNullException.ThrowIfNull(context);
-        _ = cancellationToken;
-
-        var outcome = handler.HandleError(context);
-
-        return outcome as Task ?? Task.CompletedTask;
+        return handler.HandleErrorAsync(context, cancellationToken);
     }
 
     /// <summary>

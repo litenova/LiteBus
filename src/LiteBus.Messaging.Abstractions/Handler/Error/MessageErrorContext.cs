@@ -5,7 +5,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// <summary>
 ///     Carries the message, optional result, and exception observed when an error handler runs.
 /// </summary>
-public sealed record MessageErrorContext
+public sealed class MessageErrorContext
 {
     /// <summary>
     ///     Gets the message that was being processed when the error occurred.
@@ -42,13 +42,10 @@ public sealed record MessageErrorContext
     /// </summary>
     /// <typeparam name="TMessage">The message type expected by the handler.</typeparam>
     /// <typeparam name="TMessageResult">The result type expected by the handler.</typeparam>
-    /// <returns>A typed error context that shares the same underlying values.</returns>
+    /// <returns>A typed error context that shares this context's outcome and handled-result state.</returns>
     public MessageErrorContext<TMessage, TMessageResult> AsTyped<TMessage, TMessageResult>()
         where TMessage : notnull
     {
-        return new MessageErrorContext<TMessage, TMessageResult>(
-            (TMessage)Message,
-            Exception,
-            MessageResult is TMessageResult typedResult ? typedResult : default);
+        return new MessageErrorContext<TMessage, TMessageResult>(this);
     }
 }

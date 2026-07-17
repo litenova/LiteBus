@@ -74,20 +74,23 @@ If no main handler matches, event publish still runs global and message-specific
 
 ## Error Propagation
 
-When any stage throws an exception other than an abort, the main flow stops and error-handlers run. The rule for what happens next is simple:
+When any stage throws a recoverable exception, the main flow stops and error-handlers run. Each handler receives a typed `MessageErrorContext<TMessage, TResult>` backed by the pipeline's shared outcome state, plus the caller's cancellation token.
 
-- If at least one error-handler is registered for the message (direct or indirect), the error-handlers run. If none of them rethrows, the exception is considered handled and mediation completes. For result-returning commands and queries, the caller then receives whatever result was produced before the failure, which may be `null`.
 - If no error-handler is registered, LiteBus rethrows the original exception with its stack trace preserved through `ExceptionDispatchInfo`.
+- If error-handlers run but leave `context.Outcome` as `Unhandled`, LiteBus also rethrows the original exception.
+- A handler recovers explicitly by setting `context.Outcome` to `Handled`. For result-returning commands and queries, it sets `context.HandledResult` to the fallback value returned to the caller.
 
-This means an error-handler that observes a failure must rethrow, or it silently swallows the exception:
+An observing handler records the failure and leaves the default outcome unchanged:
 
 ```csharp
 public sealed class AuditFailure : ICommandErrorHandler<ProcessPaymentCommand>
 {
-    public Task HandleErrorAsync(ProcessPaymentCommand command, object? result, Exception exception, CancellationToken ct = default)
+    public Task HandleErrorAsync(
+        MessageErrorContext<ProcessPaymentCommand, object> context,
+        CancellationToken cancellationToken = default)
     {
         // record the failure...
-        throw exception; // rethrow, or the caller sees success
+        return Task.CompletedTask; // the original exception still propagates
     }
 }
 ```

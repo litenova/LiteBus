@@ -9,9 +9,10 @@ namespace LiteBus.Commands.Abstractions;
 /// <typeparam name="TCommand">The specific command type this error handler targets.</typeparam>
 /// <typeparam name="TCommandResult">The result type produced by the command handler.</typeparam>
 /// <remarks>
-///     Typed command error handlers can set <see cref="MessageErrorContext.Outcome" /> and
-///     <see cref="MessageErrorContext.HandledResult" /> to suppress recoverable exceptions and return a fallback result.
+///     Typed command error handlers can set <see cref="MessageErrorContext{TCommand,TCommandResult}.Outcome" /> and
+///     <see cref="MessageErrorContext{TCommand,TCommandResult}.HandledResult" /> to suppress recoverable exceptions and
+///     return a fallback result.
 /// </remarks>
-public interface ICommandErrorHandler<in TCommand, TCommandResult>
+public interface ICommandErrorHandler<TCommand, TCommandResult>
     : IAsyncMessageErrorHandler<TCommand, TCommandResult>
     where TCommand : ICommand<TCommandResult>;

@@ -221,15 +221,11 @@ Legacy to v6.0 mapping for application upgrades. Shipping libraries use v6 names
 - Keep module-builder configuration on `*Options` types registered at compose time. Do not thread those options through accept or enqueue calls.
 - When a feature needs both mediation and durable persistence, call `ICommandMediator.SendAsync` with `*Settings` separately from `ITransactionalOutbox.EnqueueAsync` with `OutboxEnqueueItem`; do not merge the two concerns into one type.
 
-## Remaining API Alignment
+## Error Handler Context
 
-The following surface is tracked for a future release:
+Error handlers use `HandleErrorAsync(MessageErrorContext<TMessage, TResult>, CancellationToken)`. The typed context shares `Outcome` and `HandledResult` with the mediation pipeline, so observing a failure leaves it unhandled while recovery is an explicit state transition. Cancellation is always the token supplied to the mediation call; error handlers do not depend on ambient token lookup.
 
-| Surface | Target direction |
-| --- | --- |
-| `IAsyncMessageErrorHandler<TMessage>.HandleErrorAsync(...)` parallel parameters | `HandleErrorAsync(MessageErrorContext<TMessage, object?>, CancellationToken)` |
-
-Shipped in v6: `ILeaseRenewable.RenewLeaseAsync(LeaseRenewalRequest, ...)` on inbox and outbox lease stores; `IMessageErrorHandler.HandleError(MessageErrorContext)` on the synchronous error-handler path; `ISagaStore.SaveAsync(SagaSaveItem<TState>, ...)`, `SagaCompleteItem`, `SagaSaveItem.From`, `SagaCorrelation.SagaDefinitionId`, and tenant-scoped saga primary keys. See [Saga](../reliable-messaging/saga.md) and [Changelog](../../Changelog.md).
+Other aligned v6 surfaces include `ILeaseRenewable.RenewLeaseAsync(LeaseRenewalRequest, ...)` on inbox and outbox lease stores; `ISagaStore.SaveAsync(SagaSaveItem<TState>, ...)`, `SagaCompleteItem`, `SagaSaveItem.From`, `SagaCorrelation.SagaDefinitionId`, and tenant-scoped saga primary keys. See [Saga](../reliable-messaging/saga.md) and [Changelog](../../Changelog.md).
 
 Track broader roadmap items in [Roadmap](../roadmap/README.md).
 

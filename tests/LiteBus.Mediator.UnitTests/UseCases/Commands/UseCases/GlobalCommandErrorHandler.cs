@@ -1,6 +1,5 @@
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Testing;
 
 namespace LiteBus.Mediator.UnitTests.UseCases.Commands.UseCases;
 
@@ -10,26 +9,16 @@ namespace LiteBus.Mediator.UnitTests.UseCases.Commands.UseCases;
 public class GlobalCommandErrorHandler : ICommandErrorHandler
 {
     /// <inheritdoc />
-    public Task HandleErrorAsync(ICommand message, object? messageResult, Exception exception, CancellationToken cancellationToken = default)
+    public Task HandleErrorAsync(
+        MessageErrorContext<ICommand, object> context,
+        CancellationToken cancellationToken = default)
     {
-        if (message is IAuditableCommand auditableCommand)
+        if (context.Message is IAuditableCommand auditableCommand)
         {
             auditableCommand.ExecutedTypes.Add(GetType());
         }
 
+        context.Outcome = MessageErrorOutcome.Handled;
         return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    object IMessageErrorHandler.HandleError(MessageErrorContext context)
-    {
-        var typed = context.AsTyped<ICommand, object?>();
-        var task = HandleErrorAsync(
-            typed.Message,
-            typed.MessageResult,
-            typed.Exception,
-            AmbientExecutionContext.Current.CancellationToken);
-
-        return LegacyErrorHandlerSupport.MarkHandled(context, task);
     }
 }
