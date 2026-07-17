@@ -206,6 +206,12 @@ public sealed class KafkaConsumer : IMessageConsumer
         Func<TransportMessage, CancellationToken, Task> handler,
         CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Destination);
+
+        var boundedHandler = TransportConsumerHandlerInvoker.CreateBoundedHandler(
+            handler,
+            options.MaxInFlightMessages);
+
         try
         {
             _consumer.Subscribe(options.Destination);
@@ -268,7 +274,7 @@ public sealed class KafkaConsumer : IMessageConsumer
                     ackHandlers,
                     _seekBackoff.IsRedelivery(offset));
 
-                await TransportConsumerHandlerInvoker.InvokeAsync(transportMessage, handler, cancellationToken).ConfigureAwait(false);
+                await boundedHandler(transportMessage, cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

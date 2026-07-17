@@ -15,6 +15,7 @@ public sealed record AmqpConsumerOptions
     /// <summary>
     ///     Gets the maximum number of unacknowledged deliveries prefetched by the broker.
     /// </summary>
+    /// <value>Use zero for RabbitMQ's unlimited native prefetch window.</value>
     public ushort PrefetchCount { get; init; } = 1;
 
     /// <summary>

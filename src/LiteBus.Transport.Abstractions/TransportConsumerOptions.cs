@@ -6,6 +6,11 @@ namespace LiteBus.Transport.Abstractions;
 public sealed record TransportConsumerOptions
 {
     /// <summary>
+    ///     Gets the default maximum number of handler callbacks that may execute concurrently.
+    /// </summary>
+    public const int DefaultMaxInFlightMessages = 32;
+
+    /// <summary>
     ///     Gets the destination address to consume from such as an AMQP queue name.
     /// </summary>
     public required string Destination { get; init; }
@@ -16,14 +21,33 @@ public sealed record TransportConsumerOptions
     public string? SubscriptionName { get; init; }
 
     /// <summary>
-    ///     Gets the maximum number of unacknowledged deliveries the broker should push to the consumer.
+    ///     Gets the maximum number of unacknowledged deliveries prefetched by brokers that support native prefetch.
     /// </summary>
-    public ushort PrefetchCount { get; init; }
+    /// <remarks>
+    ///     RabbitMQ and Azure Service Bus use this setting. SQS receive batching and callback concurrency use
+    ///     <see cref="ReceiveBatchSize" /> and <see cref="MaxConcurrentCalls" /> instead.
+    /// </remarks>
+    public int PrefetchCount { get; init; }
 
     /// <summary>
-    ///     Gets the maximum number of handler callbacks that may execute concurrently when the broker supports a separate limit.
+    ///     Gets the number of messages requested by transports that receive a broker batch, such as Amazon SQS.
     /// </summary>
-    public ushort? MaxConcurrentMessages { get; init; }
+    public int ReceiveBatchSize { get; init; } = 1;
+
+    /// <summary>
+    ///     Gets the optional broker callback concurrency for transports that expose a native callback limit.
+    /// </summary>
+    /// <remarks>
+    ///     Azure Service Bus uses this setting for <c>MaxConcurrentCalls</c>. It does not replace the provider-neutral
+    ///     <see cref="MaxInFlightMessages" /> admission limit.
+    /// </remarks>
+    public int? MaxConcurrentCalls { get; init; }
+
+    /// <summary>
+    ///     Gets the maximum number of delivery handlers that LiteBus may execute concurrently for this subscription.
+    /// </summary>
+    /// <value>Default is <see cref="DefaultMaxInFlightMessages" />.</value>
+    public int MaxInFlightMessages { get; init; } = DefaultMaxInFlightMessages;
 
     /// <summary>
     ///     Gets a value indicating whether the consumer should declare the destination before subscribing.

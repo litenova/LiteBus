@@ -63,7 +63,7 @@ Processor leasing belongs to the inbox and outbox domains. It does not depend on
 
 ## Ingress Trust Boundary
 
-Transport ingress reads `TransportHeaders.TenantId`, whose canonical wire name is `tenant-id`, only when `TransportInboxIngressOptions.TrustApplicationHeaders` is `true`. An untrusted binding ignores the header and accepts the message as unscoped.
+Transport ingress reads `TransportHeaders.TenantId`, whose canonical wire name is `tenant-id`, only when `TransportInboxIngressOptions.Safety.TrustApplicationHeaders` is `true`. An untrusted binding ignores the header and accepts the message as unscoped.
 
 Enable trusted application headers only after the broker binding authenticates the producer and the authorization callback approves the delivery. LiteBus does not derive a tenant from `HttpContext`, claims, or broker credentials.
 

@@ -44,7 +44,12 @@ builder.AddInbox(inbox =>
         {
             QueueName = "orders.commands",
             PrefetchCount = 10,
-            RequeueOnFailure = true
+            RequeueOnFailure = true,
+            Safety = new TransportInboxIngressSafetyOptions
+            {
+                MaxInFlightMessages = 8,
+                BatchSize = 10
+            }
         });
     });
 

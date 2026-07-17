@@ -37,8 +37,12 @@ builder.AddInbox(inbox =>
         ingress.UseOptions(new AwsSqsInboxIngressOptions
         {
             Destination = queueUrl,
-            PrefetchCount = 10,
-            RequeueOnFailure = true
+            ReceiveBatchSize = 10,
+            RequeueOnFailure = true,
+            Safety = new TransportInboxIngressSafetyOptions
+            {
+                MaxInFlightMessages = 1
+            }
         });
     });
 });
@@ -55,6 +59,10 @@ builder.AddInbox(inbox =>
 | | `RequeueBackoffMultiplier` | 2.0 | Uses `ApproximateReceiveCount` when present |
 | | `PollBackoffInitial` / `PollBackoffMax` | 500 ms / 30 s | Full-batch failure poll delay |
 | `AwsSqsInboxIngressOptions` | `RequeueOnFailure` | `true` | Change visibility vs delete on failure |
+| | `ReceiveBatchSize` | 1 | Messages requested per receive call; valid range is 1 through 10 |
+| | `Safety.MaxInFlightMessages` | 32 | Concurrent LiteBus handler cap |
+
+`ReceiveBatchSize` maps directly to `ReceiveMessageRequest.MaxNumberOfMessages`. Module composition rejects values outside the [AWS SDK for .NET v4 range of 1 through 10](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/SQS/TReceiveMessageRequest.html) instead of silently clamping them.
 
 ## Wire Encoding
 

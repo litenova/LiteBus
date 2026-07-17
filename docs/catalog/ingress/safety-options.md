@@ -1,53 +1,68 @@
 # Ingress Safety and Authorization Options
 
 - **ID**: `ingress.safety-options`
-- **Name**: Ingress Safety and Authorization Options
+- **Name**: Ingress safety and authorization options
 - **Maturity**: GA
-- **Summary**: Configures body limits, identity requirements, trusted headers, requeue behavior, and optional delivery authorization on `TransportInboxIngressOptions`.
+- **Summary**: Configures provider-neutral body, identity, authorization, admission, and batch limits for every ingress adapter.
 
 ## Purpose and Scope
 
-`TransportInboxIngressOptions` is the shared safety record registered by every ingress adapter. Broker-specific option types expose `TransportInboxIngressSafetyOptions`, then map it into the shared record at module build time. The handler and consumer read these options for size checks, mapping policy, requeue defaults, destination subscription settings, and optional edge authorization.
+Every broker-specific ingress record exposes one `TransportInboxIngressSafetyOptions` value through its `Safety` property. The adapter preserves that record when it creates `TransportInboxIngressOptions`. Broker destinations and native receive controls remain on their adapter records because those settings do not share semantics.
+
+For example, an SQS service can request 10 messages per receive call while keeping LiteBus handler admission at one:
+
+```csharp
+ingress.UseOptions(new AwsSqsInboxIngressOptions
+{
+    Destination = queueUrl,
+    ReceiveBatchSize = 10,
+    Safety = new TransportInboxIngressSafetyOptions
+    {
+        MaxInFlightMessages = 1,
+        MaxMessageBytes = 1024 * 1024
+    }
+});
+```
 
 ## Option Model
 
 | Type / member | Default | Role |
 | --- | --- | --- |
-| `TransportInboxIngressOptions.Destination` | (required) | Queue, topic, or channel name |
-| `TransportInboxIngressOptions.PrefetchCount` | 0 | Unacknowledged prefetch / batch size hint |
-| `TransportInboxIngressOptions.MaxConcurrentMessages` | null | Optional handler concurrency limit for transports with a separate setting |
+| `TransportInboxIngressOptions.Destination` | required | Queue, topic, or channel name |
+| `TransportInboxIngressOptions.PrefetchCount` | 0 | Native RabbitMQ or Azure Service Bus prefetch only |
+| `TransportInboxIngressOptions.ReceiveBatchSize` | 1 | SQS messages requested per receive call only |
+| `TransportInboxIngressOptions.MaxConcurrentCalls` | null | Native Azure Service Bus callback concurrency only |
 | `TransportInboxIngressOptions.SubscriptionName` | null | Named subscription when a destination is a topic |
-| `TransportInboxIngressOptions.DeclareDestination` | false | Declare queue or topic before subscribe (AMQP) |
-| `TransportInboxIngressOptions.DurableDestination` | false | Survive broker restart when declaring (AMQP) |
-| `TransportInboxIngressOptions.RequeueOnFailure` | true | Requeue on transient accept failures |
-| `TransportInboxIngressOptions.MaxMessageBytes` | 4 MiB (`DefaultMaxMessageBytes`) | Reject oversized bodies before deserialize |
-| `TransportInboxIngressOptions.RequireStableIdentity` | true | Fail when broker delivery id is missing |
-| `TransportInboxIngressOptions.TrustApplicationHeaders` | false | Honor app idempotency, tenant, and message id headers |
-| `TransportInboxIngressOptions.AuthorizeDeliveryAsync` | null | Host callback before accept |
-| `TransportInboxIngressOptions.EnableBatchAccept` | false | Enable buffered batch accepts |
-| `TransportInboxIngressOptions.BatchMaxWait` | 200 ms | Partial batch flush delay |
-| `TransportInboxIngressOptions.Safety` | default safety record | Shared provider-neutral safety settings |
+| `TransportInboxIngressOptions.DeclareDestination` | false | Declare an AMQP queue before subscribing |
+| `TransportInboxIngressOptions.DurableDestination` | false | Make a declared AMQP queue durable |
+| `TransportInboxIngressOptions.RequeueOnFailure` | true | Requeue transient accept failures |
+| `TransportInboxIngressOptions.Safety` | default safety record | Provider-neutral ingress safety settings |
+| `Safety.MaxMessageBytes` | 4 MiB | Reject oversized bodies before deserialize; zero disables the limit |
+| `Safety.RequireStableIdentity` | true | Fail when broker delivery id is missing |
+| `Safety.TrustApplicationHeaders` | false | Honor application idempotency, tenant, and message id headers |
+| `Safety.AuthorizeDeliveryAsync` | null | Host callback before deserialize and accept |
+| `Safety.MaxInFlightMessages` | 32 | Cap concurrent LiteBus delivery handlers |
+| `Safety.EnableBatchAccept` | false | Enable buffered inbox batch accepts |
+| `Safety.BatchSize` | 10 | Deliveries stored in one inbox batch |
+| `Safety.BatchMaxWait` | 200 ms | Partial batch flush delay |
 
-`TransportInboxIngressSafetyOptions` defaults to a 4 MiB body limit, requires a stable broker identity, rejects application-header overrides, and leaves batch acceptance disabled. Set `EnableBatchAccept` only with a positive `PrefetchCount`; the ingress handler rejects an invalid combination during module construction.
+Each ingress module calls `Safety.Validate()` during composition. Negative message limits or wait durations, zero batch sizes, and zero maximum-in-flight values fail before the host starts. AWS also rejects `ReceiveBatchSize` outside 1 through 10. Azure rejects negative prefetch and non-positive `MaxConcurrentCalls`.
 
 ## Broker Option Parity
 
-| Broker options type | Exposes trust headers | Exposes batch options | Exposes declare or durable destination |
+| Broker options type | Shared `Safety` | Native receive control | Destination declaration |
 | --- | --- | --- | --- |
-| `AmqpInboxIngressOptions` | yes | yes | yes |
-| `KafkaInboxIngressOptions` | no | no | no |
-| `AwsSqsInboxIngressOptions` | no | no | no |
-| `AzureServiceBusInboxIngressOptions` | no | no | no |
-| `InMemoryInboxIngressOptions` | no | no | no |
+| `AmqpInboxIngressOptions` | yes | `PrefetchCount` | queue declare and durable flags |
+| `KafkaInboxIngressOptions` | yes | none; the consume loop reads one record at a time | no |
+| `AwsSqsInboxIngressOptions` | yes | `ReceiveBatchSize` | no |
+| `AzureServiceBusInboxIngressOptions` | yes | `PrefetchCount`, `MaxConcurrentCalls` | no |
+| `InMemoryInboxIngressOptions` | yes | none; capacity belongs to the transport module | no |
 
 ## Public Surface
 
-- `TransportInboxIngressOptions` (shared options record)
-- `AmqpInboxIngressOptions`
-- `KafkaInboxIngressOptions`
-- `AwsSqsInboxIngressOptions`
-- `AzureServiceBusInboxIngressOptions`
-- `InMemoryInboxIngressOptions`
+- `TransportInboxIngressOptions`, the runtime bridge record
+- `TransportInboxIngressSafetyOptions`, the provider-neutral safety record
+- One broker-specific ingress options record in each adapter package
 
 ## Packages
 
@@ -60,61 +75,43 @@
 
 ## Invariants
 
-- `AuthorizeDeliveryAsync` exceptions follow the same requeue and discard path as store failures.
-- `MaxMessageBytes` check runs before deserialization.
-- `TrustApplicationHeaders` must stay false unless the broker binding authenticates upstream publishers.
-- `RequireStableIdentity=true` and broker message ids produce deterministic duplicate absorption across retries.
+- `Safety.AuthorizeDeliveryAsync` exceptions follow the same requeue and discard path as store failures.
+- `Safety.MaxMessageBytes` is checked before deserialization.
+- `Safety.TrustApplicationHeaders` stays false unless the broker binding authenticates upstream publishers.
+- `Safety.RequireStableIdentity=true` and broker message ids provide deterministic duplicate absorption across retries.
+- `Safety.MaxInFlightMessages` is independent from broker prefetch, receive batch size, and native callback concurrency.
 
 ## Non-Goals
 
-- Authentication or authorization framework (host supplies `AuthorizeDeliveryAsync`).
-- Per-tenant broker bindings (application concern).
-- Store retention or dead-letter tuning (inbox storage axis).
+- Authentication framework integration. The host supplies `AuthorizeDeliveryAsync`.
+- Per-tenant broker bindings.
+- Store retention or dead-letter tuning.
 
 ## Observability
 
-No per-option metrics. Safety enforcement surfaces through exceptions and consumer behavior:
-
 | Option violation | Observable signal |
 | --- | --- |
-| `MaxMessageBytes` exceeded | Exception before store; consumer discard or requeue per `ingress.ack-policy` |
-| `RequireStableIdentity` with missing broker id | `InboxIngressException` from mapper; discard when non-requeue exception |
-| `AuthorizeDeliveryAsync` rejection | Same ack policy path as store failure (no dedicated counter) |
-| `RequeueOnFailure = false` | Poison messages discarded; broker queue drains |
-
-Oversized or unauthorized deliveries appear in unstructured or structured consumer logs when the consumer handles the failure. No `litebus.inbox.*` instruments at the ingress edge.
+| `Safety.MaxMessageBytes` exceeded | Exception before store; consumer discards or requeues per `ingress.ack-policy` |
+| Missing broker id when stable identity is required | `InboxIngressException` from the mapper |
+| `Safety.AuthorizeDeliveryAsync` rejection | The same ack policy path as a store failure |
+| Invalid numeric bound | Composition exception before background services start |
 
 ## Test Coverage
-
-### Covered
 
 | Test method | Project |
 | --- | --- |
 | `AcceptAsync_WhenBodyExceedsMaxMessageBytes_ShouldThrow` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `AcceptAsync_WithAuthorizationCallback_ShouldAuthorizeBeforeStoreWrite` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `HandleDeliveryAsync_WhenAuthorizationRejects_ShouldDiscardWithoutAccept` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
-| `ToInboxAcceptMetadata_ShouldMapOptionalHeadersWhenTrusted` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
-| `ToInboxAcceptMetadata_WhenBrokerIdMissingAndRequired_ShouldThrow` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
-| `HandleDeliveryAsync_WhenTransientFailureAndRequeueEnabled_ShouldReturnToQueue` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
-| `ShouldRequeue_WhenRequeueOnFailureFalse_ShouldReturnFalseForTransientFailure` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
-| `RequeueEnabled_WithTransientStoreFailure_ShouldEventuallyAccept` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`, `Ingress/AzureServiceBus/`, `Ingress/AwsSqs/`, `Ingress/InMemory/`) |
-| `RequeueDisabled_WithPoisonMessage_ShouldDrainQueue` | `LiteBus.Durable.IntegrationTests` (`Ingress/AwsSqs/`, `Ingress/InMemory/`) |
-| `OutboxToInbox_ShouldPublishProcessAndDispatchCommand` | `LiteBus.Storage.IntegrationTests (`PostgreSql/`)` (uses `TrustApplicationHeaders = true`) |
+| `InboxIngressOptions_ShouldPreserveSafetyAndNativeConsumerSettings` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
+| `AwsSqsIngress_WithInvalidReceiveBatchSize_ShouldRejectComposition` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
+| `AzureServiceBusIngress_WithInvalidMaxConcurrentCalls_ShouldRejectComposition` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
+| `InMemoryIngress_WithInvalidMaxInFlightMessages_ShouldRejectComposition` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
 
-### Untested
-
-- `DeclareDestination` and `DurableDestination` AMQP queue declaration flags.
-- `MaxMessageBytes = 0` (disabled) behavior.
-- Beta broker builders exposing `TrustApplicationHeaders`, `EnableBatchAccept`, or `MaxMessageBytes` (not on Kafka, Azure, or AWS option types today).
-- Runtime assertions for trusted-header override behavior on live brokers other than AMQP.
-
-### Out-of-Scope
-
-- Authentication or authorization framework (host supplies `AuthorizeDeliveryAsync`).
-- Per-tenant broker bindings.
-- Store retention or dead-letter tuning (storage axis).
+Live broker authorization rejection coverage remains limited to AMQP. Shared mapping and composition propagation are covered for all five ingress builders.
 
 ## Deep Docs
 
-- [Inbox: Ingress options table](../../reliable-messaging/inbox.md)
-- [Inbox AMQP ingress](../../integrations/inbox-amqp-ingress.md)
+- [Inbox ingress options](../../reliable-messaging/inbox.md)
+- [Batch accept](batch-accept.md)
+- [Publish and consume contracts](../transport/publish-consume-contracts.md)

@@ -50,13 +50,13 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     private readonly TransportInboxIngressOptions _options;
 
     /// <summary>
-    ///     Limits buffered deliveries to <see cref="TransportInboxIngressOptions.PrefetchCount" /> while a flush is in
-    ///     progress.
+    ///     Limits buffered deliveries to <see cref="TransportInboxIngressSafetyOptions.BatchSize" /> while a flush is
+    ///     in progress.
     /// </summary>
     private SemaphoreSlim? _batchAdmission;
 
     /// <summary>
-    ///     The timer that flushes partial batches after <see cref="TransportInboxIngressOptions.BatchMaxWait" />.
+    ///     The timer that flushes partial batches after <see cref="TransportInboxIngressSafetyOptions.BatchMaxWait" />.
     /// </summary>
     private Timer? _batchFlushTimer;
 
@@ -90,9 +90,11 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
         _hostOptions = hostOptions;
         _logger = logger ?? NullLogger<TransportInboxIngressConsumer>.Instance;
 
-        if (options.EnableBatchAccept)
+        options.Safety.Validate();
+
+        if (options.Safety.EnableBatchAccept)
         {
-            var capacity = options.PrefetchCount > 0 ? options.PrefetchCount : 1;
+            var capacity = options.Safety.BatchSize;
             _batchAdmission = new SemaphoreSlim(capacity, capacity);
         }
     }
@@ -133,7 +135,9 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
             Destination = _options.Destination,
             SubscriptionName = _options.SubscriptionName,
             PrefetchCount = _options.PrefetchCount,
-            MaxConcurrentMessages = _options.MaxConcurrentMessages,
+            ReceiveBatchSize = _options.ReceiveBatchSize,
+            MaxConcurrentCalls = _options.MaxConcurrentCalls,
+            MaxInFlightMessages = _options.Safety.MaxInFlightMessages,
             DeclareDestination = _options.DeclareDestination,
             DurableDestination = _options.DurableDestination
         };
@@ -201,7 +205,7 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     /// <returns>A task that completes when the delivery has been acknowledged.</returns>
     private async Task HandleDeliveryAsync(TransportMessage message, CancellationToken cancellationToken)
     {
-        if (_options.EnableBatchAccept)
+        if (_options.Safety.EnableBatchAccept)
         {
             await HandleDeliveryWithBatchBufferAsync(message, cancellationToken).ConfigureAwait(false);
             return;
@@ -227,7 +231,7 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
         {
             lock (_batchSync)
             {
-                var shouldScheduleFlush = _batchBuffer.Count == 0 && _options.BatchMaxWait > TimeSpan.Zero;
+                var shouldScheduleFlush = _batchBuffer.Count == 0 && _options.Safety.BatchMaxWait > TimeSpan.Zero;
                 _batchBuffer.Add(message);
 
                 if (_batchBuffer.Count >= GetBatchBufferCapacity())
@@ -269,7 +273,7 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
         _batchFlushTimer = new Timer(
             static state => ((TransportInboxIngressConsumer) state!).StartBatchFlush(),
             this,
-            _options.BatchMaxWait,
+            _options.Safety.BatchMaxWait,
             Timeout.InfiniteTimeSpan);
     }
 
@@ -435,7 +439,8 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     /// <remarks>
     ///     When acknowledgement fails after a successful store accept, the delivery is returned to the queue so broker
     ///     redelivery is absorbed idempotently by the existing inbox row when
-    ///     <see cref="TransportInboxIngressOptions.RequireStableIdentity" /> supplies broker-scoped identity and idempotency.
+    ///     <see cref="TransportInboxIngressSafetyOptions.RequireStableIdentity" /> supplies broker-scoped identity and
+    ///     idempotency.
     /// </remarks>
     private async Task AcknowledgeDeliveryAsync(TransportMessage message, CancellationToken cancellationToken)
     {
@@ -515,10 +520,10 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     /// <summary>
     ///     Gets the maximum number of deliveries that may wait in the batch buffer.
     /// </summary>
-    /// <returns>The batch buffer capacity derived from prefetch settings.</returns>
+    /// <returns>The configured provider-neutral batch size.</returns>
     private int GetBatchBufferCapacity()
     {
-        return _options.PrefetchCount > 0 ? _options.PrefetchCount : 1;
+        return _options.Safety.BatchSize;
     }
 
     /// <summary>

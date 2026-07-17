@@ -16,11 +16,6 @@ public sealed record KafkaInboxIngressOptions
     public string Destination { get; init; } = string.Empty;
 
     /// <summary>
-    ///     Gets the maximum number of records prefetched per consume loop iteration.
-    /// </summary>
-    public ushort PrefetchCount { get; init; }
-
-    /// <summary>
     ///     Gets a value indicating whether failed store writes should leave offsets uncommitted for retry.
     /// </summary>
     public bool RequeueOnFailure { get; init; } = true;

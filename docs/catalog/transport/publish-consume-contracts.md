@@ -45,10 +45,23 @@ These abstractions isolate dispatch and ingress from broker SDK APIs.
 | Property | Type | Purpose |
 | --- | --- | --- |
 | `Destination` | `string` | Queue, topic, or destination name |
-| `PrefetchCount` | `ushort` | In-flight delivery limit |
+| `SubscriptionName` | `string?` | Named subscription for topic-based brokers |
+| `MaxInFlightMessages` | `int` | Provider-neutral cap on concurrent LiteBus handler calls, default 32 |
+| `PrefetchCount` | `int` | Native RabbitMQ or Azure Service Bus prefetch, default 0 |
+| `ReceiveBatchSize` | `int` | Messages requested per SQS receive call, default 1 and valid from 1 through 10 |
+| `MaxConcurrentCalls` | `int?` | Native Azure Service Bus callback concurrency |
 | `DeclareDestination` | `bool` | Declare destination before consume |
 | `DurableDestination` | `bool` | Durable destination declaration |
 | `DestinationArguments` | `IReadOnlyDictionary<string, object?>?` | Broker-specific destination args |
+
+`MaxInFlightMessages` has one meaning across every adapter: no more than that number of LiteBus delivery handlers execute concurrently for one subscription. Native broker controls remain separate because they regulate different resources. RabbitMQ prefetch limits unacknowledged deliveries, Azure prefetch fills a local cache while `MaxConcurrentCalls` controls processor callbacks, and SQS `ReceiveBatchSize` sets `ReceiveMessageRequest.MaxNumberOfMessages`.
+
+The limits match the current provider contracts:
+
+- [RabbitMQ consumer prefetch](https://www.rabbitmq.com/docs/consumer-prefetch) applies to unacknowledged deliveries and treats zero as unlimited.
+- [Azure Service Bus processor options](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusprocessoroptions?view=azure-dotnet) define prefetch and callback concurrency as separate properties.
+- [AWS SDK for .NET v4 `ReceiveMessageRequest`](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/SQS/TReceiveMessageRequest.html) permits 1 through 10 messages per receive call and defaults to 1.
+- [Confluent.Kafka .NET consumer guidance](https://docs.confluent.io/kafka-clients/dotnet/current/overview.html) describes one-record-at-a-time `Consume` calls over the client's background fetch queue, so LiteBus does not expose a false Kafka prefetch knob.
 
 ## Packages
 
@@ -88,6 +101,8 @@ These abstractions isolate dispatch and ingress from broker SDK APIs.
 | `PublishThroughKafka_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/Kafka/`) |
 | `PublishThroughSqs_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/AwsSqs/`) |
 | `PublishThroughServiceBus_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/AzureServiceBus/`) |
+| `CreateBoundedHandler_WithThreeConcurrentCalls_ShouldAdmitConfiguredMaximum` | `LiteBus.Transport.UnitTests` |
+| `InboxIngressOptions_ShouldPreserveSafetyAndNativeConsumerSettings` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
 
 ### Untested
 

@@ -129,17 +129,22 @@ Without a registered dispatcher, module build fails when the processor is enable
 
 Broker ingress extensions consume messages into `IInbox.AcceptAsync`: `UseAmqpIngress`, `UseAzureServiceBusIngress`, `UseAwsSqsIngress`, `UseKafkaIngress`, and `UseInMemoryIngress`. Register the matching `Add*Transport(...)` extension once at the root; ingress does not own broker connectivity.
 
-`TransportInboxIngressOptions` controls ingress safety defaults:
+Each broker ingress options record exposes a provider-neutral `Safety` value:
 
 | Option | Default | Role |
 | --- | --- | --- |
-| `RequireStableIdentity` | `true` | Reject deliveries without a broker message id unless explicitly disabled |
-| `TrustApplicationHeaders` | `false` | Ignore `litebus-idempotency-key` and `tenant-id` unless the broker binding is authenticated |
-| `MaxMessageBytes` | 4 MiB | Reject oversized bodies before deserialization (`0` disables the limit) |
-| `EnableBatchAccept` | `false` | Buffer deliveries for batch flush; each delivery is still accepted and acknowledged individually |
-| `AuthorizeDeliveryAsync` | `null` | Optional host callback to reject deliveries before accept |
+| `Safety.RequireStableIdentity` | `true` | Reject deliveries without a broker message id unless explicitly disabled |
+| `Safety.TrustApplicationHeaders` | `false` | Ignore `litebus-idempotency-key` and `tenant-id` unless the broker binding is authenticated |
+| `Safety.MaxMessageBytes` | 4 MiB | Reject oversized bodies before deserialization; zero disables the limit |
+| `Safety.AuthorizeDeliveryAsync` | `null` | Optional host callback to reject deliveries before accept |
+| `Safety.MaxInFlightMessages` | 32 | Cap concurrent LiteBus handler calls independently from broker receive settings |
+| `Safety.EnableBatchAccept` | `false` | Buffer deliveries for batch flush; each delivery is still acknowledged individually |
+| `Safety.BatchSize` | 10 | Deliveries accepted in one inbox store batch |
+| `Safety.BatchMaxWait` | 200 ms | Flush a partial batch under low traffic |
 
-By default, ingress maps the broker delivery id to `MessageIdentity.Supplied` and a broker-scoped `Idempotency.Keyed` value (`ingress:{destination}:{brokerMessageId}`) so broker redelivery after a successful store accept does not create duplicate inbox rows. Set `TrustApplicationHeaders` to `true` only when upstream publishers are trusted to supply application idempotency and tenant headers.
+By default, ingress maps the broker delivery id to `MessageIdentity.Supplied` and a broker-scoped `Idempotency.Keyed` value (`ingress:{destination}:{brokerMessageId}`) so broker redelivery after a successful store accept does not create duplicate inbox rows. Set `Safety.TrustApplicationHeaders` to `true` only when upstream publishers are trusted to supply application idempotency and tenant headers.
+
+Receive tuning is explicit per adapter. AMQP and Azure expose native `PrefetchCount`; SQS exposes `ReceiveBatchSize`; Azure exposes `MaxConcurrentCalls`; Kafka and in-memory ingress expose no receive knob they cannot honor. All five adapters use `Safety.MaxInFlightMessages` for the common LiteBus work cap.
 
 Ingress honors `litebus-visible-after` (absolute ISO-8601) and `litebus-visible-after-delay` (relative `TimeSpan` or tick count). Relative delay takes precedence when both headers are present.
 

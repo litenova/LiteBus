@@ -34,6 +34,7 @@ builder.AddInbox(inbox =>
         {
             Destination = "orders-ingress",
             PrefetchCount = 10,
+            MaxConcurrentCalls = 4,
             RequeueOnFailure = true
         });
     });
@@ -48,6 +49,11 @@ builder.AddInbox(inbox =>
 | | `ConsumerErrorRetryInterval` | 5 s | Processor restart backoff initial |
 | | `ConsumerErrorRetryMaxInterval` | 60 s | Processor restart backoff cap |
 | `AzureServiceBusInboxIngressOptions` | `RequeueOnFailure` | `true` | Abandon vs complete on failure |
+| | `PrefetchCount` | 0 | Messages eagerly cached by the Azure client |
+| | `MaxConcurrentCalls` | SDK default 1 | Azure processor callback concurrency |
+| | `Safety.MaxInFlightMessages` | 32 | Final LiteBus handler admission cap |
+
+Azure defines `PrefetchCount` and `MaxConcurrentCalls` as separate processor settings. Keep the prefetch cache large enough to feed the requested callback concurrency, then use `Safety.MaxInFlightMessages` when LiteBus work needs a lower bound. See [Microsoft's Service Bus prefetch guidance](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-prefetch).
 
 ## Guarantees and Non-Guarantees
 

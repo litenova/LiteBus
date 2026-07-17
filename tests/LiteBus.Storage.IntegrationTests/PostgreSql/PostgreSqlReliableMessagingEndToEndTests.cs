@@ -455,7 +455,10 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                         QueueName = ingressQueue,
                         PrefetchCount = 1,
                         RequeueOnFailure = true,
-                        TrustApplicationHeaders = true
+                        Safety = new TransportInboxIngressSafetyOptions
+                        {
+                            TrustApplicationHeaders = true
+                        }
                     });
                 });
             });
@@ -517,7 +520,10 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                         QueueName = ingressQueue,
                         PrefetchCount = 1,
                         RequeueOnFailure = true,
-                        TrustApplicationHeaders = true
+                        Safety = new TransportInboxIngressSafetyOptions
+                        {
+                            TrustApplicationHeaders = true
+                        }
                     });
                 });
             });

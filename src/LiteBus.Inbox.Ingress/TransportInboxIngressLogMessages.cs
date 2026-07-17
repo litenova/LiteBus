@@ -46,7 +46,8 @@ internal static class TransportInboxIngressLogMessages
     }
 
     /// <summary>
-    ///     Logs that a timed batch flush failed after <see cref="TransportInboxIngressOptions.BatchMaxWait" /> elapsed.
+    ///     Logs that a timed batch flush failed after <see cref="TransportInboxIngressSafetyOptions.BatchMaxWait" />
+    ///     elapsed.
     /// </summary>
     /// <param name="logger">The logger receiving the event.</param>
     /// <param name="exception">The exception thrown while flushing the partial batch.</param>

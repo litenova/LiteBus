@@ -410,7 +410,7 @@ AMQP coverage spans two projects: low-level wire protocol in `LiteBus.Transport.
 |------------|-----------|
 | `AmqpInboxIngressEndToEndTests` | RabbitMQ and LavinMQ to accept to process to dispatch |
 | `AmqpInboxIngressFailureTests` | Unknown contract, invalid JSON, store full to nack without requeue |
-| `AmqpInboxIngressBatchIntegrationTests` | Batch accept at prefetch threshold and `BatchMaxWait` |
+| `AmqpInboxIngressBatchIntegrationTests` | Batch accept at `Safety.BatchSize` and `Safety.BatchMaxWait` |
 | `AmqpIngressRequeueBehaviorIntegrationTests` | Requeue enabled (transient store failure via `FlakyInbox`) |
 
 ### `LiteBus.Durable.IntegrationTests`: AMQP Inbox Dispatch (`Dispatch/Inbox/AMQP/`)

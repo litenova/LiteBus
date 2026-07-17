@@ -6,9 +6,10 @@ namespace LiteBus.Inbox.Ingress.Amqp;
 /// <remarks>
 ///     <para>
 ///         AMQP ingress maps RabbitMQ message identifiers to broker-scoped inbox identity and idempotency through
-///         <see cref="TransportInboxIngressOptions.RequireStableIdentity" /> and
-///         <see cref="TrustApplicationHeaders" /> on the shared transport ingress options registered by this module.
-///         When <see cref="TrustApplicationHeaders" /> is <see langword="false" /> (the default), the broker delivery id
+///         <see cref="TransportInboxIngressSafetyOptions.RequireStableIdentity" /> and
+///         <see cref="TransportInboxIngressSafetyOptions.TrustApplicationHeaders" /> on <see cref="Safety" />. When
+///         <see cref="TransportInboxIngressSafetyOptions.TrustApplicationHeaders" /> is <see langword="false" /> (the
+///         default), the broker delivery id
 ///         drives deduplication even when publishers attach LiteBus application headers.
 ///     </para>
 ///     <para>
@@ -48,28 +49,4 @@ public sealed record AmqpInboxIngressOptions
     /// </summary>
     public bool RequeueOnFailure { get; init; } = true;
 
-    /// <summary>
-    ///     Gets a value indicating whether LiteBus application headers may override broker-scoped idempotency and tenant.
-    /// </summary>
-    public bool TrustApplicationHeaders { get; init; }
-
-    /// <summary>
-    ///     Gets a value indicating whether the consumer should buffer deliveries and call batch inbox accept.
-    /// </summary>
-    /// <value>
-    ///     Default is <see langword="false" />. When <see langword="true" />, the consumer flushes buffered deliveries
-    ///     after reaching <see cref="PrefetchCount" />, when <see cref="BatchMaxWait" /> elapses, or when the ingress loop
-    ///     stops.
-    /// </value>
-    public bool EnableBatchAccept { get; init; }
-
-    /// <summary>
-    ///     Gets the maximum time buffered deliveries may wait before a partial batch is flushed.
-    /// </summary>
-    /// <value>
-    ///     Default is 200 milliseconds. Applies only when <see cref="EnableBatchAccept" /> is <see langword="true" />.
-    ///     Low-traffic queues still accept within this delay even when fewer than <see cref="PrefetchCount" /> messages
-    ///     arrive.
-    /// </value>
-    public TimeSpan BatchMaxWait { get; init; } = TimeSpan.FromMilliseconds(200);
 }

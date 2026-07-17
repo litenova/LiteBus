@@ -49,18 +49,16 @@ public sealed class AwsSqsInboxIngressModule :
                 $"{nameof(AwsSqsInboxIngressOptions.Destination)} must be configured before registering AWS SQS inbox ingress.");
         }
 
+        options.Safety.Validate();
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.ReceiveBatchSize, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.ReceiveBatchSize, 10);
 
         var ingressOptions = new TransportInboxIngressOptions
         {
             Destination = options.Destination,
-            PrefetchCount = options.PrefetchCount,
+            ReceiveBatchSize = options.ReceiveBatchSize,
             RequeueOnFailure = options.RequeueOnFailure,
-            Safety = options.Safety,
-            MaxMessageBytes = options.Safety.MaxMessageBytes,
-            RequireStableIdentity = options.Safety.RequireStableIdentity,
-            TrustApplicationHeaders = options.Safety.TrustApplicationHeaders,
-            EnableBatchAccept = options.Safety.EnableBatchAccept,
-            BatchMaxWait = options.Safety.BatchMaxWait
+            Safety = options.Safety
         };
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(TransportInboxIngressOptions), ingressOptions));

@@ -3,27 +3,43 @@
 - **ID**: `ingress.batch-accept`
 - **Name**: Batch inbox accept buffering
 - **Maturity**: GA
-- **Summary**: Buffers transport deliveries and flushes them through `IInbox.AcceptBatchAsync` to reduce store round trips while preserving per-delivery broker acknowledgement.
+- **Summary**: Buffers transport deliveries for `IInbox.AcceptBatchAsync` while keeping broker settlement per delivery.
 
 ## Purpose and Scope
 
-When `TransportInboxIngressOptions.EnableBatchAccept` is true, `TransportInboxIngressConsumer` buffers deliveries up to `PrefetchCount` (or 1 when prefetch is zero). It flushes when the buffer is full, when `BatchMaxWait` elapses on the first buffered message, or when the consumer loop stops.
+When `TransportInboxIngressSafetyOptions.EnableBatchAccept` is true, `TransportInboxIngressConsumer` buffers `BatchSize` deliveries. It flushes when the buffer reaches that size, when `BatchMaxWait` elapses after the first buffered delivery, or when the consumer stops.
 
-On batch accept failure the consumer falls back to per-message accept so poison deliveries can be isolated. After a successful batch accept, each delivery is acknowledged individually. Batch admission uses a semaphore sized to the buffer capacity so prefetch limits remain enforced during flush.
+`BatchSize` is independent from native broker controls. For example, AMQP can prefetch 50 unacknowledged deliveries while each inbox store call accepts 10 rows:
+
+```csharp
+ingress.UseOptions(new AmqpInboxIngressOptions
+{
+    QueueName = "orders.commands",
+    PrefetchCount = 50,
+    Safety = new TransportInboxIngressSafetyOptions
+    {
+        EnableBatchAccept = true,
+        BatchSize = 10,
+        BatchMaxWait = TimeSpan.FromMilliseconds(200)
+    }
+});
+```
+
+On batch accept failure, the consumer falls back to per-message accept so one poison delivery does not reject unrelated messages. After a successful store call, each broker delivery is acknowledged separately. A semaphore bounded by `BatchSize` prevents another buffer from growing while the current batch flushes.
 
 ## Flush and Fallback Flow
 
 ```mermaid
 flowchart TD
-  M[Delivery arrives] --> B[Add to buffer]
-  B --> T{Threshold met?}
+  M[Delivery arrives] --> B[Add to bounded buffer]
+  B --> T{BatchSize reached?}
   T -- yes --> F[Flush via AcceptBatchAsync]
   T -- no --> W{BatchMaxWait elapsed?}
   W -- yes --> F
   W -- no --> K[Keep buffering]
-  F --> S{Batch accept success?}
-  S -- yes --> A[Ack each delivery]
-  S -- no --> P[Per-message fallback]
+  F --> S{Store accepted batch?}
+  S -- yes --> A[Acknowledge each delivery]
+  S -- no --> P[Fall back to per-message accept]
   P --> A
 ```
 
@@ -31,86 +47,52 @@ flowchart TD
 
 | Property | Default | Role |
 | --- | --- | --- |
-| `TransportInboxIngressOptions.EnableBatchAccept` | false | Turn on delivery buffering |
-| `TransportInboxIngressOptions.BatchMaxWait` | 200 ms | Flush partial batches on low traffic |
-| `TransportInboxIngressOptions.PrefetchCount` | broker-specific | Buffer capacity and flush threshold |
+| `Safety.EnableBatchAccept` | false | Turn on delivery buffering |
+| `Safety.BatchSize` | 10 | Buffer capacity and store flush threshold |
+| `Safety.BatchMaxWait` | 200 ms | Flush a partial batch under low traffic |
+| `Safety.MaxInFlightMessages` | 32 | Limit concurrent LiteBus handler work outside the batch buffer |
 
-Exposed on `TransportInboxIngressOptions` and `AmqpInboxIngressOptions`. Not exposed on Kafka, Azure, or AWS ingress option types (defaults remain false unless `TransportInboxIngressOptions` is customized elsewhere).
-
-Consumer behavior: buffer until full prefetch, `BatchMaxWait` elapses on first buffered message, or loop stops; then `TransportInboxIngressHandler.AcceptBatchAsync`.
-
-## Broker Parity
-
-| Broker adapter | Builder exposes batch knobs | Current status |
-| --- | --- | --- |
-| AMQP | yes (`EnableBatchAccept`, `BatchMaxWait`) | Full documented ingress path |
-| Kafka | no | Shared consumer supports batching, builder does not expose it |
-| AWS SQS | no | Shared consumer supports batching, builder does not expose it |
-| Azure Service Bus | no | Shared consumer supports batching, builder does not expose it |
-| InMemory | no | Shared consumer supports batching, builder does not expose it |
-
-AMQP is the only broker page with end-to-end batch acceptance tests today.
+Every ingress adapter exposes the same `Safety` record. AMQP prefetch, SQS receive size, and Azure callback concurrency do not change the inbox batch threshold.
 
 ## Packages
 
 - `LiteBus.Inbox.Ingress`
-- `LiteBus.Inbox.Ingress.Amqp` (builder exposure)
+- The selected `LiteBus.Inbox.Ingress.*` adapter
 
 ## Requires
 
 - `ingress.transport-consumer`
 - `ingress.transport-handler`
-- `durable-core.inbox.accept-batch` (store support for `AcceptBatchAsync`)
+- A store that implements `IInbox.AcceptBatchAsync`
 
 ## Invariants
 
-- Batch flush on shutdown runs in `finally` so buffered messages are not lost silently.
-- Timer flush failures are logged; they do not crash the host.
+- Shutdown flushes a partial buffer before the transport consumer stops.
 - Broker acknowledgement remains per delivery after batch store success.
-- Batch failure does not stop ingress loop, it degrades to per-message accept for that flush.
-
-## Non-Goals
-
-- Cross-broker batching.
-- Atomic broker ack for the whole batch (each message acks separately).
-- Batching at dispatch or processor stages.
+- A failed batch store call falls back to per-message acceptance.
+- `BatchSize` must be greater than zero and fails at module composition when invalid.
 
 ## Observability
 
 | Signal | When emitted |
 | --- | --- |
-| EventId 3003, Error, `BatchFlushFailed` | Timed partial-batch flush throws after `BatchMaxWait` |
-| EventId 3006, Warning, `BatchAcceptFallback` | Batch accept fails and consumer switches to per-message fallback |
-| Per-delivery `ingress.ack_failed_after_accept` | After batch store success, individual broker ack still runs per message |
-
-No batch-specific counters. Batch flush reduces store round trips; inbox queue depth and processor metrics reflect accepted rows after flush. Failed batch accept falls back to per-message accept in the consumer (logged through standard discard/requeue paths).
+| EventId 3003, Error, `BatchFlushFailed` | A timed partial-batch flush throws |
+| EventId 3006, Warning, `BatchAcceptFallback` | Batch accept fails and per-message fallback begins |
+| `ingress.ack_failed_after_accept` | One broker acknowledgement fails after store acceptance |
 
 ## Test Coverage
-
-### Covered
 
 | Test method | Project |
 | --- | --- |
 | `BatchAccept_WhenBufferFull_ShouldBlockUntilFlushCompletes` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `BatchAccept_WhenOneDeliveryFails_ShouldAcknowledgeSuccessfulDeliveriesOnly` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `BatchAccept_ShouldFlushPartialBatchAfterBatchMaxWait` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
-| `AcceptBatchAsync_WithSingleMessage_ShouldWriteEnvelopeToInboxStore` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
-| `EnableBatchAccept_AtPrefetchThreshold_ShouldFlushAllMessages` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
-| `EnableBatchAccept_BeforePrefetchThreshold_ShouldFlushAfterBatchMaxWait` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
+| `EnableBatchAccept_AtBatchSize_ShouldFlushAllMessages` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
+| `EnableBatchAccept_BeforeBatchSize_ShouldFlushAfterBatchMaxWait` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 
-### Untested
-
-- Batch accept on Kafka, Azure Service Bus, or AWS SQS ingress (options not exposed on beta builders).
-- Shutdown flush of a partial buffer in an integration test.
-- Batch flush timer failure logging (`BatchFlushFailed`) under fault injection.
-- Batch fallback log path (`BatchAcceptFallback`, EventId 3006) under live broker fault injection.
-
-### Out-of-Scope
-
-- Cross-broker batching.
-- Atomic broker ack for the whole batch.
-- Batching at dispatch or processor stages.
+Live Kafka, Azure Service Bus, and SQS batch acceptance is not covered by provider integration suites. Their builders use the same tested safety record and shared consumer.
 
 ## Deep Docs
 
-- [Inbox: EnableBatchAccept](../../reliable-messaging/inbox.md)
+- [Ingress safety options](safety-options.md)
+- [Inbox](../../reliable-messaging/inbox.md)

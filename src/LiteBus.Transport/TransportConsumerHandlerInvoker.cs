@@ -14,6 +14,67 @@ namespace LiteBus.Transport;
 public static class TransportConsumerHandlerInvoker
 {
     /// <summary>
+    ///     Creates a handler that limits concurrent invocations before applying transport settlement behavior.
+    /// </summary>
+    /// <param name="handler">The consumer handler to invoke.</param>
+    /// <param name="maxInFlightMessages">The maximum number of handler invocations admitted concurrently.</param>
+    /// <returns>A handler with subscription-scoped admission control.</returns>
+    public static Func<TransportMessage, CancellationToken, Task> CreateBoundedHandler(
+        Func<TransportMessage, CancellationToken, Task> handler,
+        int maxInFlightMessages)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxInFlightMessages, 1);
+
+        var admission = new SemaphoreSlim(maxInFlightMessages, maxInFlightMessages);
+
+        return async (message, cancellationToken) =>
+        {
+            await admission.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+            try
+            {
+                await InvokeAsync(message, handler, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                admission.Release();
+            }
+        };
+    }
+
+    /// <summary>
+    ///     Creates an outcome-reporting handler that limits concurrent invocations before transport settlement.
+    /// </summary>
+    /// <param name="handler">The consumer handler to invoke.</param>
+    /// <param name="maxInFlightMessages">The maximum number of handler invocations admitted concurrently.</param>
+    /// <returns>An outcome-reporting handler with subscription-scoped admission control.</returns>
+    public static Func<TransportMessage, CancellationToken, Task<TransportConsumerInvocationOutcome>>
+        CreateBoundedOutcomeHandler(
+            Func<TransportMessage, CancellationToken, Task> handler,
+            int maxInFlightMessages)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxInFlightMessages, 1);
+
+        var admission = new SemaphoreSlim(maxInFlightMessages, maxInFlightMessages);
+
+        return async (message, cancellationToken) =>
+        {
+            await admission.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+            try
+            {
+                return await InvokeWithOutcomeAsync(message, handler, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                admission.Release();
+            }
+        };
+    }
+
+    /// <summary>
     ///     Invokes the handler and returns the message to the queue when processing fails unexpectedly.
     /// </summary>
     /// <param name="message">The transport delivery passed to the handler.</param>

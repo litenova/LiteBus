@@ -52,8 +52,8 @@ flowchart LR
 
 | Broker | Maturity | Why this tier | Main current gaps |
 | --- | --- | --- | --- |
-| AMQP | GA | Most complete option surface and deepest ingress matrix coverage | Requeue-off poison drain still untested on RabbitMQ/LavinMQ |
-| Kafka | Beta | End-to-end and failure paths exist, but option parity is intentionally smaller | No dedicated requeue-off matrix, no dedicated duplicate MessageId matrix, no explicit ack-failed metric assertion |
+| AMQP | GA | Deepest live-broker ingress matrix and native queue declaration controls | Requeue-off poison drain still untested on RabbitMQ/LavinMQ |
+| Kafka | Beta | End-to-end and failure paths exist | No dedicated requeue-off matrix, no dedicated duplicate MessageId matrix, no explicit ack-failed metric assertion |
 | AWS SQS | Beta | Strong ingress matrix, including requeue on/off and idempotency paths | Ack-failed metric assertion and FIFO-specific semantics are not covered |
 | Azure Service Bus | Beta | End-to-end and failure coverage on emulator, plus requeue-enabled path | No duplicate MessageId matrix, no requeue-off matrix, limited header edge-case matrix |
 | InMemory | GA (test adapter) | Fast deterministic matrix for shared ingress semantics | Not a cross-process transport, no broker-native edge semantics |
@@ -63,8 +63,9 @@ flowchart LR
 | Behavior | AMQP | Kafka | AWS SQS | Azure Service Bus | InMemory |
 | --- | --- | --- | --- | --- | --- |
 | Default `RequeueOnFailure` | true | true | true | true | true |
-| Exposes `TrustApplicationHeaders` on broker options | yes | no | no | no | no |
-| Exposes batch accept options on broker options | yes | no | no | no | no |
+| Exposes shared `Safety` options | yes | yes | yes | yes | yes |
+| Exposes batch accept through `Safety` | yes | yes | yes | yes | yes |
+| Native receive control | AMQP prefetch | none | receive batch size | prefetch and callback concurrency | none |
 | Broker declaration options on ingress options | yes | no | no | no | no |
 | Cross-broker identity and idempotency defaults | broker-scoped | broker-scoped | broker-scoped | broker-scoped | broker-scoped |
 

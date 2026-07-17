@@ -159,7 +159,13 @@ public sealed class SqsConsumer : IMessageConsumer
         Func<TransportMessage, CancellationToken, Task> handler,
         CancellationToken cancellationToken)
     {
-        var maxMessages = options.PrefetchCount > 0 ? Math.Min(options.PrefetchCount, (ushort) 10) : (ushort) 1;
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Destination);
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.ReceiveBatchSize, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.ReceiveBatchSize, 10);
+
+        var boundedHandler = TransportConsumerHandlerInvoker.CreateBoundedOutcomeHandler(
+            handler,
+            options.MaxInFlightMessages);
 
         try
         {
@@ -168,7 +174,7 @@ public sealed class SqsConsumer : IMessageConsumer
                 var receiveRequest = new ReceiveMessageRequest
                 {
                     QueueUrl = options.Destination,
-                    MaxNumberOfMessages = maxMessages,
+                    MaxNumberOfMessages = options.ReceiveBatchSize,
                     WaitTimeSeconds = _options.LongPollWaitTimeSeconds,
                     VisibilityTimeout = _options.VisibilityTimeoutSeconds,
                     MessageAttributeNames = ["All"],
@@ -223,9 +229,8 @@ public sealed class SqsConsumer : IMessageConsumer
                         options.Destination,
                         ackHandlers);
 
-                    var outcome = await TransportConsumerHandlerInvoker.InvokeWithOutcomeAsync(
+                    var outcome = await boundedHandler(
                             transportMessage,
-                            handler,
                             cancellationToken)
                         .ConfigureAwait(false);
 

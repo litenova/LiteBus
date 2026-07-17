@@ -100,7 +100,6 @@ public sealed class InMemoryIngressIdempotencyIntegrationTests : LiteBusTestBase
                         ingress.UseOptions(new InMemoryInboxIngressOptions
                         {
                             Destination = ingressDestination,
-                            PrefetchCount = 1
                         });
                     });
                 });

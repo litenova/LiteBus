@@ -30,8 +30,12 @@ bus.AddInbox(inbox => inbox.UseAzureServiceBusIngress(ingress =>
         Destination = "commands-inbox",
         SubscriptionName = "orders-worker",
         PrefetchCount = 10,
-        MaxConcurrentMessages = 4,
-        RequeueOnFailure = true
+        MaxConcurrentCalls = 4,
+        RequeueOnFailure = true,
+        Safety = new TransportInboxIngressSafetyOptions
+        {
+            MaxInFlightMessages = 4
+        }
     });
 }));
 ```
@@ -51,10 +55,9 @@ bus.AddInbox(inbox => inbox.UseAzureServiceBusIngress(ingress =>
 | Root transport required | `AddAzureServiceBusTransport(...)` | `AddAmqpTransport(...)` |
 | Prefetch setting | yes | yes |
 | Named topic subscription | yes | no |
-| Separate handler concurrency limit | yes (`MaxConcurrentMessages`) | no |
+| Separate native handler concurrency | yes (`MaxConcurrentCalls`) | no |
 | `RequeueOnFailure` toggle | yes (default true) | yes (default true) |
-| `TrustApplicationHeaders` exposure on broker options | no | yes |
-| Batch accept knobs on broker options | no | yes |
+| Shared `Safety` settings | yes | yes |
 | Declare destination knobs | no | yes |
 
 ## Packages
@@ -73,10 +76,10 @@ bus.AddInbox(inbox => inbox.UseAzureServiceBusIngress(ingress =>
 
 - `Destination` and root `AddAzureServiceBusTransport(...)` are required at compose time.
 - `SubscriptionName` is required when `Destination` is a topic.
-- `MaxConcurrentMessages` controls callback concurrency independently from `PrefetchCount`.
+- `PrefetchCount` fills the Azure client cache, while `MaxConcurrentCalls` controls Azure processor callbacks. `Safety.MaxInFlightMessages` applies the final LiteBus handler cap.
 - LiteBus contract headers are required on the wire payload.
 - Beta tier per v6 feature index; treat broker edge cases as application-tested.
-- Identity and idempotency default to broker-scoped values (`RequireStableIdentity=true`, `TrustApplicationHeaders=false`).
+- Identity and idempotency default to broker-scoped values (`Safety.RequireStableIdentity=true`, `Safety.TrustApplicationHeaders=false`).
 
 ## Non-Goals
 
@@ -113,7 +116,7 @@ Service Bus ingress uses shared mapper defaults:
 | Setting | Default | Result |
 | --- | --- | --- |
 | `RequireStableIdentity` | true | Missing broker id fails closed |
-| `TrustApplicationHeaders` | false | App idempotency and tenant headers are ignored |
+| `Safety.TrustApplicationHeaders` | false | App idempotency and tenant headers are ignored |
 | Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | Stable duplicate absorption when delivery id is stable |
 
 ## Test Coverage

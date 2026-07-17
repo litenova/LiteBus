@@ -35,7 +35,6 @@ builder.AddInbox(inbox =>
         ingress.UseOptions(new KafkaInboxIngressOptions
         {
             Destination = "orders.commands",
-            PrefetchCount = 10,
             RequeueOnFailure = true
         });
     });
@@ -53,8 +52,10 @@ builder.AddInbox(inbox =>
 | | `SeekFailureBackoffInitial` | 250 ms | Delay before re-read after seek |
 | | `SeekFailureBackoffMax` | 30 s | Cap on seek backoff |
 | | `SeekFailureBackoffMultiplier` | 2.0 | Per-offset failure multiplier |
-| `TransportConsumerOptions` | `PrefetchCount` | adapter default | Max in-flight deliveries |
 | `KafkaInboxIngressOptions` | `RequeueOnFailure` | `true` | Seek back on transient accept failure |
+| | `Safety.MaxInFlightMessages` | 32 | Provider-neutral LiteBus handler cap |
+
+LiteBus does not expose a Kafka `PrefetchCount` setting. The [Confluent.Kafka .NET consume loop](https://docs.confluent.io/kafka-clients/dotnet/current/overview.html) returns records one at a time from the client's background fetch queue. Kafka fetch tuning remains in `KafkaTransportOptions` or the underlying client configuration when a supported option is added.
 
 ## Guarantees and Non-Guarantees
 

@@ -7,7 +7,7 @@
 
 ## Purpose and Scope
 
-`UseAwsSqsIngress` registers `AwsSqsInboxIngressModule`. The module maps `AwsSqsInboxIngressOptions` (queue URL destination, prefetch batch size, requeue) into shared transport ingress options, requires a root `AwsSqsTransportModule`, and registers the shared handler and consumer.
+`UseAwsSqsIngress` registers `AwsSqsInboxIngressModule`. The module maps the queue URL, `ReceiveBatchSize`, requeue policy, and shared safety record into transport ingress options. A root `AwsSqsTransportModule` supplies the SQS client.
 
 SQS visibility timeout and delete-on-ack semantics are implemented in the transport consumer; ingress applies shared accept-then-ack ordering on top.
 
@@ -27,8 +27,12 @@ bus.AddInbox(inbox => inbox.UseAwsSqsIngress(ingress =>
     ingress.UseOptions(new AwsSqsInboxIngressOptions
     {
         Destination = queueUrl,
-        PrefetchCount = 10,
-        RequeueOnFailure = true
+        ReceiveBatchSize = 10,
+        RequeueOnFailure = true,
+        Safety = new TransportInboxIngressSafetyOptions
+        {
+            MaxInFlightMessages = 1
+        }
     });
 }));
 ```
@@ -46,10 +50,9 @@ bus.AddInbox(inbox => inbox.UseAwsSqsIngress(ingress =>
 | --- | --- | --- |
 | Destination required | `Destination` (queue URL) required | `QueueName` required |
 | Root transport required | `AddAwsSqsTransport(...)` | `AddAmqpTransport(...)` |
-| Prefetch setting | yes | yes |
+| Native receive control | `ReceiveBatchSize`, 1 through 10 | `PrefetchCount`, 0 through 65535 |
 | `RequeueOnFailure` toggle | yes (default true) | yes (default true) |
-| `TrustApplicationHeaders` exposure on broker options | no | yes |
-| Batch accept knobs on broker options | no | yes |
+| Shared `Safety` settings | yes | yes |
 | Declare destination knobs | no | yes |
 
 ## Packages
@@ -69,7 +72,8 @@ bus.AddInbox(inbox => inbox.UseAwsSqsIngress(ingress =>
 - `Destination` (queue URL) and root `AddAwsSqsTransport(...)` are required at compose time.
 - Standard LiteBus wire headers required for contract resolution.
 - Beta tier per v6 feature index.
-- Identity and idempotency default to broker-scoped values (`RequireStableIdentity=true`, `TrustApplicationHeaders=false`).
+- `ReceiveBatchSize` is validated from 1 through 10 at composition, matching the AWS SDK for .NET v4 `ReceiveMessageRequest` contract.
+- Identity and idempotency default to broker-scoped values (`Safety.RequireStableIdentity=true`, `Safety.TrustApplicationHeaders=false`).
 
 ## Non-Goals
 
@@ -108,7 +112,7 @@ SQS ingress uses shared mapper defaults:
 | Setting | Default | Result |
 | --- | --- | --- |
 | `RequireStableIdentity` | true | Missing broker id fails closed |
-| `TrustApplicationHeaders` | false | App idempotency and tenant headers are ignored |
+| `Safety.TrustApplicationHeaders` | false | App idempotency and tenant headers are ignored |
 | Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | Duplicate SQS deliveries map to same inbox dedup key when id is stable |
 
 ## Test Coverage
@@ -133,7 +137,7 @@ SQS ingress uses shared mapper defaults:
 
 - SQS FIFO ordering and deduplication semantics.
 - Delete-on-ack failure with `ingress.ack_failed_after_accept` metric assertion.
-- High `PrefetchCount` receive batch sizing under LocalStack load.
+- `ReceiveBatchSize = 10` under sustained LocalStack load.
 - Broker-suite assertion for missing contract version and wrong CLR shape (covered in InMemory suite).
 
 ### Out-of-Scope

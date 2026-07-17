@@ -222,7 +222,6 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
                         ingress.UseOptions(new InMemoryInboxIngressOptions
                         {
                             Destination = ingressDestination,
-                            PrefetchCount = 1
                         });
                     });
                 });

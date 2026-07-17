@@ -13,7 +13,10 @@ public sealed class TransportInboxIngressHandlerTests
 {
     private static readonly TransportInboxIngressOptions PermissiveOptions = new()
     {
-        RequireStableIdentity = false
+        Safety = new TransportInboxIngressSafetyOptions
+        {
+            RequireStableIdentity = false
+        }
     };
 
     /// <summary>
@@ -84,7 +87,10 @@ public sealed class TransportInboxIngressHandlerTests
             new SystemTextJsonMessageSerializer(),
             new TransportInboxIngressOptions
             {
-                RequireStableIdentity = true
+                Safety = new TransportInboxIngressSafetyOptions
+                {
+                    RequireStableIdentity = true
+                }
             });
 
         const string brokerMessageId = "broker-msg-1001";
@@ -132,8 +138,11 @@ public sealed class TransportInboxIngressHandlerTests
             new SystemTextJsonMessageSerializer(),
             new TransportInboxIngressOptions
             {
-                MaxMessageBytes = 4,
-                RequireStableIdentity = false
+                Safety = new TransportInboxIngressSafetyOptions
+                {
+                    MaxMessageBytes = 4,
+                    RequireStableIdentity = false
+                }
             });
 
         var transportMessage = new TransportMessage
@@ -177,13 +186,16 @@ public sealed class TransportInboxIngressHandlerTests
             new SystemTextJsonMessageSerializer(),
             new TransportInboxIngressOptions
             {
-                RequireStableIdentity = false,
-                AuthorizeDeliveryAsync = (message, cancellationToken) =>
+                Safety = new TransportInboxIngressSafetyOptions
                 {
-                    callbackCount++;
-                    authorizedMessage = message;
-                    authorizedToken = cancellationToken;
-                    return Task.CompletedTask;
+                    RequireStableIdentity = false,
+                    AuthorizeDeliveryAsync = (message, cancellationToken) =>
+                    {
+                        callbackCount++;
+                        authorizedMessage = message;
+                        authorizedToken = cancellationToken;
+                        return Task.CompletedTask;
+                    }
                 }
             });
         var messageId = Guid.NewGuid();

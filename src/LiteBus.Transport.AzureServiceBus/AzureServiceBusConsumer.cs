@@ -235,15 +235,31 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
         Func<TransportMessage, CancellationToken, Task> handler,
         CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Destination);
+        ArgumentOutOfRangeException.ThrowIfNegative(options.PrefetchCount);
+
+        if (options.MaxConcurrentCalls is { } maxConcurrentCalls)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(maxConcurrentCalls, 1);
+        }
+
         var sessionStopped = CreateStoppedTaskSource();
         var sessionError = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var boundedHandler = TransportConsumerHandlerInvoker.CreateBoundedHandler(
+            handler,
+            options.MaxInFlightMessages);
 
         var processorOptions = new ServiceBusProcessorOptions
-            {
-                AutoCompleteMessages = false,
-                MaxConcurrentCalls = options.MaxConcurrentMessages ?? (options.PrefetchCount > 0 ? options.PrefetchCount : 1),
-                ReceiveMode = ServiceBusReceiveMode.PeekLock
-            };
+        {
+            AutoCompleteMessages = false,
+            PrefetchCount = options.PrefetchCount,
+            ReceiveMode = ServiceBusReceiveMode.PeekLock
+        };
+
+        if (options.MaxConcurrentCalls is { } configuredMaxConcurrentCalls)
+        {
+            processorOptions.MaxConcurrentCalls = configuredMaxConcurrentCalls;
+        }
 
         var processor = string.IsNullOrWhiteSpace(options.SubscriptionName)
             ? _client.CreateProcessor(options.Destination, processorOptions)
@@ -266,7 +282,7 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
                     options.Destination,
                     ackHandlers);
 
-                await TransportConsumerHandlerInvoker.InvokeAsync(transportMessage, handler, cancellationToken)
+                await boundedHandler(transportMessage, cancellationToken)
                     .ConfigureAwait(false);
             };
 

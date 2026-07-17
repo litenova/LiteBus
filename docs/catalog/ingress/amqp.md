@@ -9,7 +9,7 @@
 
 `UseAmqpIngress` registers `AmqpInboxIngressModule` as an inbox child. The module maps `AmqpInboxIngressOptions` to `TransportInboxIngressOptions`, requires a root `AmqpTransportModule`, registers `TransportInboxIngressHandler` and optional `TransportInboxIngressConsumer`, and registers `AmqpInboxIngressHandler` for AMQP-shaped manual accept.
 
-RabbitMQ message ids map to broker-scoped identity and idempotency by default. Queue declaration, prefetch, durable queue, requeue, trusted headers, and batch accept are configurable on the AMQP options type.
+RabbitMQ message ids map to broker-scoped identity and idempotency by default. Queue declaration, native prefetch, and requeue behavior stay on `AmqpInboxIngressOptions`; trust, authorization, maximum-in-flight work, and batch acceptance use its shared `Safety` record.
 
 ## Public Surface
 
@@ -21,7 +21,13 @@ bus.AddInbox(inbox => inbox.UseAmqpIngress(ingress =>
     {
         QueueName = "commands.inbox",
         PrefetchCount = 10,
-        RequeueOnFailure = true
+        RequeueOnFailure = true,
+        Safety = new TransportInboxIngressSafetyOptions
+        {
+            MaxInFlightMessages = 8,
+            EnableBatchAccept = true,
+            BatchSize = 5
+        }
     });
 }));
 ```
@@ -39,7 +45,7 @@ bus.AddInbox(inbox => inbox.UseAmqpIngress(ingress =>
 
 AMQP ingress is the current reference adapter for ingress capability depth:
 
-- Full broker option exposure (`TrustApplicationHeaders`, destination declaration, batch accept).
+- Native AMQP prefetch and destination declaration plus the shared ingress `Safety` record.
 - Full unit coverage for AMQP handler mapping surfaces.
 - Broadest broker integration matrix across happy path, failure paths, and batch acceptance.
 
@@ -107,8 +113,8 @@ EventId 3002 (loop restart), 3003 (batch flush failed), 3004 (ack failed after a
 | `AcceptAsync_ShouldDeserializeAndWriteToInboxWithMappedHeaders` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
 | `PublishThroughRabbitMq_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | `PublishThroughLavinMq_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
-| `EnableBatchAccept_AtPrefetchThreshold_ShouldFlushAllMessages` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
-| `EnableBatchAccept_BeforePrefetchThreshold_ShouldFlushAfterBatchMaxWait` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
+| `EnableBatchAccept_AtBatchSize_ShouldFlushAllMessages` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
+| `EnableBatchAccept_BeforeBatchSize_ShouldFlushAfterBatchMaxWait` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | `UnknownContract_ShouldNackWithoutRequeueAndSkipStore` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | `InvalidJson_ShouldNackWithoutRequeueAndSkipStore` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | `StoreFull_ShouldNackWithoutRequeueWhenCapacityExceeded` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |

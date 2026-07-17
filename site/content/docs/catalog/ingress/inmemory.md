@@ -20,8 +20,11 @@ bus.AddInbox(inbox => inbox.UseInMemoryIngress(ingress =>
     ingress.UseOptions(new InMemoryInboxIngressOptions
     {
         Destination = "commands.inbox",
-        PrefetchCount = 10,
-        RequeueOnFailure = true
+        RequeueOnFailure = true,
+        Safety = new TransportInboxIngressSafetyOptions
+        {
+            MaxInFlightMessages = 4
+        }
     });
 }));
 ```
@@ -39,10 +42,9 @@ bus.AddInbox(inbox => inbox.UseInMemoryIngress(ingress =>
 | --- | --- | --- |
 | Destination required | `Destination` required | `QueueName` required |
 | Root transport required | `AddInMemoryTransport()` | `AddAmqpTransport(...)` |
-| Prefetch setting | yes | yes |
+| Native receive control | none | `PrefetchCount` |
 | `RequeueOnFailure` toggle | yes (default true) | yes (default true) |
-| `TrustApplicationHeaders` exposure on broker options | no | yes |
-| Batch accept knobs on broker options | no | yes |
+| Shared `Safety` settings | yes | yes |
 | Declare destination knobs | no | yes |
 
 ## Packages
@@ -88,7 +90,7 @@ InMemory ingress uses the same mapping defaults as broker adapters:
 | Setting | Default | Result |
 | --- | --- | --- |
 | `RequireStableIdentity` | true | Missing message id fails closed |
-| `TrustApplicationHeaders` | false | App idempotency and tenant headers are ignored |
+| `Safety.TrustApplicationHeaders` | false | App idempotency and tenant headers are ignored |
 | Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | Duplicate redelivery maps to same dedup key |
 
 ## Test Coverage

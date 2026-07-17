@@ -43,6 +43,8 @@ All notable changes to this project will be documented in this file.
 - Transport publishers resolve circuit breakers by destination. Ingress recovery no longer shares publisher
   failure state, and half-open recovery admits one probe after a monotonic break duration. Opaque operation permits
   prevent late completions from resetting a newer circuit generation.
+- Transport consumers now separate provider-neutral `MaxInFlightMessages` from RabbitMQ and Azure prefetch, SQS
+  `ReceiveBatchSize`, and Azure `MaxConcurrentCalls`. Every ingress adapter carries the same nested `Safety` record.
 
 ### Fixed
 
@@ -68,6 +70,9 @@ All notable changes to this project will be documented in this file.
   target-typed lists, parenthesized or cast expressions, and collection spreads.
 - Open transport circuits no longer extend their deadline when retry loops report another rejection. A failed
   destination cannot block healthy publisher destinations or ingress consumption.
+- Azure Service Bus no longer treats prefetch as callback concurrency, SQS no longer silently clamps an overloaded
+  prefetch field, and Kafka and in-memory ingress no longer advertise prefetch settings they ignore. Invalid safety,
+  SQS receive, and Azure concurrency bounds now fail during module composition.
 
 ### Breaking changes
 
@@ -88,6 +93,10 @@ All notable changes to this project will be documented in this file.
   `ITransportCircuitBreaker`. Custom publisher constructors now receive the registry, and the broad
   `TransportPublishFailurePolicy` classification API was removed. Circuit adapters call `AcquirePermit()` and pass
   the returned `TransportCircuitBreakerPermit` to `RecordSuccess` or `RecordFailure`.
+- `TransportConsumerOptions.MaxConcurrentMessages` was renamed to `MaxConcurrentCalls`; `ReceiveBatchSize` and
+  `MaxInFlightMessages` were added. `AwsSqsInboxIngressOptions.PrefetchCount` became `ReceiveBatchSize`; Kafka and
+  in-memory ingress removed `PrefetchCount`. Provider-neutral ingress properties now live under each adapter's
+  `Safety` record, including AMQP trust and batch settings.
 - `IInboxStore` and `IOutboxStore` append methods return `InboxAppendResult` and `OutboxAppendResult`. The redundant
   typed `IOutbox.EnqueueBatchAsync<TEvent>` overload is removed; use the non-generic item batch overload.
 - EF application migrations must add `IX_LiteBus_Inbox_CreatedAt` and `IX_LiteBus_Outbox_CreatedAt`. Existing SQLite

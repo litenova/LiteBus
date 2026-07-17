@@ -37,19 +37,23 @@ Register the matching `Add*Transport(...)` once at the root, then register ingre
 | Option | Default | Role |
 | --- | --- | --- |
 | `Destination` | (required) | Broker address the consumer subscribes to |
-| `PrefetchCount` | Broker-specific | Max unacknowledged deliveries |
-| `RequireStableIdentity` | `true` | Reject deliveries without broker message id |
-| `TrustApplicationHeaders` | `false` | Honor app idempotency, identity, and tenant headers |
-| `MaxMessageBytes` | 4 MiB | Reject oversized bodies before accept |
-| `EnableBatchAccept` | `false` | Buffer deliveries for **`AcceptBatchAsync`** flush |
-| `BatchMaxWait` | 200 ms | Partial batch flush delay when batch accept enabled |
+| `PrefetchCount` | 0 | Native RabbitMQ or Azure Service Bus prefetch |
+| `ReceiveBatchSize` | 1 | Native SQS receive request size |
+| `MaxConcurrentCalls` | null | Native Azure Service Bus callback concurrency |
+| `Safety.RequireStableIdentity` | `true` | Reject deliveries without broker message id |
+| `Safety.TrustApplicationHeaders` | `false` | Honor app idempotency, identity, and tenant headers |
+| `Safety.MaxMessageBytes` | 4 MiB | Reject oversized bodies before accept |
+| `Safety.MaxInFlightMessages` | 32 | Cap concurrent LiteBus handler work |
+| `Safety.EnableBatchAccept` | `false` | Buffer deliveries for **`AcceptBatchAsync`** flush |
+| `Safety.BatchSize` | 10 | Deliveries per inbox store batch |
+| `Safety.BatchMaxWait` | 200 ms | Partial batch flush delay when batch accept enabled |
 | `RequeueOnFailure` | `true` (broker-specific) | Transient accept failure requeue |
-| `AuthorizeDeliveryAsync` | `null` | Host callback before accept |
+| `Safety.AuthorizeDeliveryAsync` | `null` | Host callback before accept |
 
 ### Runtime Path
 
 1. Consumer receives **`TransportMessage`**
-2. Optional **`AuthorizeDeliveryAsync`** runs
+2. Optional **`Safety.AuthorizeDeliveryAsync`** runs
 3. Mapper builds **`InboxAcceptItem`** with broker-scoped identity and idempotency (see idempotency capability)
 4. **`IInbox.AcceptAsync`** or **`AcceptBatchAsync`** writes to singleton store (not transactional writer)
 5. On success, broker **`AcceptAsync`** acknowledges delivery
@@ -279,11 +283,11 @@ Consumer handler failures do not increment the breaker; ack/requeue policy appli
 - **Expected outcome**: No store row
 - **Remarks**: `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`)
 
-#### `AmqpInboxIngressBatchIntegrationTests.EnableBatchAccept_AtPrefetchThreshold_ShouldFlushAllMessages`
+#### `AmqpInboxIngressBatchIntegrationTests.EnableBatchAccept_AtBatchSize_ShouldFlushAllMessages`
 
-- **Use case**: When batch accept is enabled and prefetch threshold is reached, all buffered messages flush to the store
+- **Use case**: When batch accept is enabled and `Safety.BatchSize` is reached, all buffered messages flush to the store
 - **Test kind**: Integration
-- **Description**: Batch ingress at prefetch threshold
+- **Description**: Batch ingress at the provider-neutral store batch size
 - **Behavior**: **`EnableBatchAccept`** with multiple deliveries
 - **Expected outcome**: All messages accepted in batch flush
 - **Remarks**: `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`)

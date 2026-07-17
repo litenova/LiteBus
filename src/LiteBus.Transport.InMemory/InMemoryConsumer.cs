@@ -56,6 +56,7 @@ public sealed class InMemoryConsumer : IMessageConsumer
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(handler);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Destination);
 
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -69,7 +70,11 @@ public sealed class InMemoryConsumer : IMessageConsumer
             _stoppedTcs = CreateStoppedTaskSource();
             _consumeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             var endpoint = _broker.GetOrCreateEndpoint(options.Destination);
-            _consumeTask = RunConsumeLoopAsync(endpoint, handler, _consumeCts.Token);
+            _consumeTask = RunConsumeLoopAsync(
+                endpoint,
+                handler,
+                options.MaxInFlightMessages,
+                _consumeCts.Token);
         }
         finally
         {
@@ -139,14 +144,19 @@ public sealed class InMemoryConsumer : IMessageConsumer
     /// </summary>
     /// <param name="endpoint">The destination endpoint supplying deliveries.</param>
     /// <param name="handler">The handler invoked for each delivery.</param>
+    /// <param name="maxInFlightMessages">The maximum number of handler invocations admitted concurrently.</param>
     /// <param name="cancellationToken">The token used to cancel the consume loop.</param>
     /// <returns>A task that completes when the consume loop stops.</returns>
     private async Task RunConsumeLoopAsync(
         InMemoryDestinationEndpoint endpoint,
         Func<TransportMessage, CancellationToken, Task> handler,
+        int maxInFlightMessages,
         CancellationToken cancellationToken)
     {
         var reader = endpoint.Reader;
+        var boundedHandler = TransportConsumerHandlerInvoker.CreateBoundedHandler(
+            handler,
+            maxInFlightMessages);
 
         try
         {
@@ -156,8 +166,7 @@ public sealed class InMemoryConsumer : IMessageConsumer
                 {
                     var transportMessage = CreateTransportMessage(endpoint, delivery);
 
-                    await TransportConsumerHandlerInvoker.InvokeAsync(transportMessage, handler, cancellationToken)
-                        .ConfigureAwait(false);
+                    await boundedHandler(transportMessage, cancellationToken).ConfigureAwait(false);
                 }
             }
         }

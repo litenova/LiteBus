@@ -7,7 +7,7 @@
 
 ## Purpose and Scope
 
-`TransportInboxIngressConsumer` implements `IBackgroundService`. It starts `IMessageConsumer` with destination, prefetch, and declare settings from `TransportInboxIngressOptions`, invokes the handler for each delivery, then acknowledges successful accepts through `TransportMessage.AcceptAsync`.
+`TransportInboxIngressConsumer` implements `IBackgroundService`. It starts `IMessageConsumer` with the destination, provider-neutral maximum-in-flight limit, and adapter-native receive settings from `TransportInboxIngressOptions`. The transport admission wrapper caps concurrent LiteBus handlers before the ingress handler accepts and acknowledges each delivery.
 
 On accept failure it applies `IngressAckPolicy`: requeue through `ReturnToQueueAsync` when policy allows, otherwise discard through `DiscardAsync`. When store accept succeeds but broker ack fails, it records telemetry, logs, and requeues so idempotent redelivery absorbs into the existing inbox row.
 
@@ -44,7 +44,7 @@ flowchart TD
 
 When `EnableBatchAccept=true`, the consumer:
 
-- Buffers messages up to prefetch capacity.
+- Buffers messages up to `Safety.BatchSize`.
 - Flushes on threshold, timer (`BatchMaxWait`), or shutdown.
 - Falls back to per-message accept on batch failure (`BatchAcceptFallback`, EventId 3006).
 - Acknowledges each message separately after successful batch accept.
@@ -65,7 +65,8 @@ When `EnableBatchAccept=true`, the consumer:
 - Ack follows successful inbox accept (accept-then-ack ordering).
 - Ack failure after accept requeues; duplicate rows are prevented by broker-scoped idempotency when stable delivery ids exist.
 - Consumer loop exits immediately when `TransportInboxIngressHostOptions.Enabled` is false.
-- Partial batch buffers flush on stop, timer, or prefetch threshold when batch accept is enabled.
+- Partial batch buffers flush on stop, timer, or `Safety.BatchSize` when batch accept is enabled.
+- `Safety.MaxInFlightMessages` limits LiteBus callback work independently from AMQP or Azure prefetch, SQS receive size, and Azure processor concurrency.
 - Consumer restart loop treats transport faults as retryable host-loop failures and logs EventId 3002.
 
 ## Non-Goals
@@ -116,8 +117,9 @@ Consumer adapters use broker SDK recovery and the supervised restart loop. AMQP 
 | `BatchAccept_WhenBufferFull_ShouldBlockUntilFlushCompletes` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `BatchAccept_WhenOneDeliveryFails_ShouldAcknowledgeSuccessfulDeliveriesOnly` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `BatchAccept_ShouldFlushPartialBatchAfterBatchMaxWait` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
-| `EnableBatchAccept_AtPrefetchThreshold_ShouldFlushAllMessages` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
-| `EnableBatchAccept_BeforePrefetchThreshold_ShouldFlushAfterBatchMaxWait` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
+| `EnableBatchAccept_AtBatchSize_ShouldFlushAllMessages` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
+| `EnableBatchAccept_BeforeBatchSize_ShouldFlushAfterBatchMaxWait` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
+| `CreateBoundedHandler_WithThreeConcurrentCalls_ShouldAdmitConfiguredMaximum` | `LiteBus.Transport.UnitTests` |
 | `UnknownContract_ShouldNackWithoutRequeueAndSkipStore` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | `InvalidJson_ShouldNackWithoutRequeueAndSkipStore` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | `StoreFull_ShouldNackWithoutRequeueWhenCapacityExceeded` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |

@@ -16,11 +16,6 @@ public sealed record InMemoryInboxIngressOptions
     public string Destination { get; init; } = string.Empty;
 
     /// <summary>
-    ///     Gets the maximum number of unacknowledged deliveries buffered by the channel.
-    /// </summary>
-    public ushort PrefetchCount { get; init; }
-
-    /// <summary>
     ///     Gets a value indicating whether failed store writes should re-enqueue deliveries.
     /// </summary>
     public bool RequeueOnFailure { get; init; } = true;

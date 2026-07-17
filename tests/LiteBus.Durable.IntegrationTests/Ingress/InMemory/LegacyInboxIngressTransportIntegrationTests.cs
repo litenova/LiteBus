@@ -62,7 +62,6 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
         services.AddSingleton(new TransportInboxIngressOptions
         {
             Destination = ingressDestination,
-            PrefetchCount = 1,
             RequeueOnFailure = true
         });
 

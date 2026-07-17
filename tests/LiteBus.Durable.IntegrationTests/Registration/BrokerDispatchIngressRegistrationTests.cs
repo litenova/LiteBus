@@ -137,6 +137,142 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
     }
 
     /// <summary>
+    ///     Verifies every broker builder preserves shared safety settings while mapping only its native consumer knobs.
+    /// </summary>
+    /// <param name="transportModule">The root transport module required by ingress.</param>
+    /// <param name="configure">The inbox module configuration action.</param>
+    /// <param name="assertOptions">The adapter-specific runtime mapping assertion.</param>
+    [Theory]
+    [MemberData(nameof(InboxIngressOptionConfigurations))]
+    public void InboxIngressOptions_ShouldPreserveSafetyAndNativeConsumerSettings(
+        IModule transportModule,
+        Action<InboxModuleBuilder> configure,
+        Action<TransportInboxIngressOptions> assertOptions)
+    {
+        var provider = new ServiceCollection()
+            .AddLiteBus(registry =>
+            {
+                registry.Register(transportModule);
+                registry.AddMessageModule(_ =>
+                {
+                });
+
+                registry.AddInboxModule(inbox =>
+                {
+                    inbox.UseInMemoryStorage();
+                    configure(inbox);
+                });
+            })
+            .BuildServiceProvider();
+
+        assertOptions(provider.GetRequiredService<TransportInboxIngressOptions>());
+    }
+
+    /// <summary>
+    ///     Verifies an SQS receive batch outside the documented 1 through 10 range fails during module composition.
+    /// </summary>
+    [Fact]
+    public void AwsSqsIngress_WithInvalidReceiveBatchSize_ShouldRejectComposition()
+    {
+        var act = () => new ServiceCollection()
+            .AddLiteBus(registry =>
+            {
+                registry.Register(new AwsSqsTransportModule(new AwsSqsTransportOptions
+                {
+                    ServiceUrl = "http://localhost:4566"
+                }));
+                registry.AddMessageModule(_ =>
+                {
+                });
+                registry.AddInboxModule(inbox =>
+                {
+                    inbox.UseInMemoryStorage();
+                    inbox.UseAwsSqsIngress(ingress =>
+                    {
+                        ingress.DisableIngressConsumer();
+                        ingress.UseOptions(new AwsSqsInboxIngressOptions
+                        {
+                            Destination = "http://localhost:4566/000000000000/commands",
+                            ReceiveBatchSize = 11
+                        });
+                    });
+                });
+            });
+
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    /// <summary>
+    ///     Verifies a non-positive Azure callback limit fails during module composition.
+    /// </summary>
+    [Fact]
+    public void AzureServiceBusIngress_WithInvalidMaxConcurrentCalls_ShouldRejectComposition()
+    {
+        var act = () => new ServiceCollection()
+            .AddLiteBus(registry =>
+            {
+                registry.Register(new AzureServiceBusTransportModule(new AzureServiceBusTransportOptions
+                {
+                    ConnectionString = "Endpoint=sb://example/;SharedAccessKeyName=a;SharedAccessKey=b"
+                }));
+                registry.AddMessageModule(_ =>
+                {
+                });
+                registry.AddInboxModule(inbox =>
+                {
+                    inbox.UseInMemoryStorage();
+                    inbox.UseAzureServiceBusIngress(ingress =>
+                    {
+                        ingress.DisableIngressConsumer();
+                        ingress.UseOptions(new AzureServiceBusInboxIngressOptions
+                        {
+                            Destination = "commands",
+                            MaxConcurrentCalls = 0
+                        });
+                    });
+                });
+            });
+
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    /// <summary>
+    ///     Verifies a non-positive provider-neutral admission limit fails during module composition.
+    /// </summary>
+    [Fact]
+    public void InMemoryIngress_WithInvalidMaxInFlightMessages_ShouldRejectComposition()
+    {
+        var act = () => new ServiceCollection()
+            .AddLiteBus(registry =>
+            {
+                registry.Register(new InMemoryTransportModule());
+                registry.AddMessageModule(_ =>
+                {
+                });
+                registry.AddInboxModule(inbox =>
+                {
+                    inbox.UseInMemoryStorage();
+                    inbox.UseInMemoryIngress(ingress =>
+                    {
+                        ingress.DisableIngressConsumer();
+                        ingress.UseOptions(new InMemoryInboxIngressOptions
+                        {
+                            Destination = "commands",
+                            Safety = new TransportInboxIngressSafetyOptions
+                            {
+                                MaxInFlightMessages = 0
+                            }
+                        });
+                    });
+                });
+            });
+
+        act.Should()
+            .Throw<LiteBus.Runtime.Abstractions.Exceptions.LiteBusConfigurationException>()
+            .WithMessage("*MaxInFlightMessages*");
+    }
+
+    /// <summary>
     ///     Verifies ingress and dispatch share an in-memory transport registered at the root.
     /// </summary>
     [Fact]
@@ -343,5 +479,143 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
             });
         }));
         return data;
+    }
+
+    /// <summary>
+    ///     Gets broker ingress configurations with explicit native and provider-neutral consumer settings.
+    /// </summary>
+    /// <returns>The broker ingress option mapping cases.</returns>
+    public static TheoryData<IModule, Action<InboxModuleBuilder>, Action<TransportInboxIngressOptions>>
+        InboxIngressOptionConfigurations()
+    {
+        var data = new TheoryData<IModule, Action<InboxModuleBuilder>, Action<TransportInboxIngressOptions>>();
+
+        var inMemorySafety = CreateSafetyOptions();
+        data.Add(
+            new InMemoryTransportModule(),
+            inbox => inbox.UseInMemoryIngress(ingress =>
+            {
+                ingress.DisableIngressConsumer();
+                ingress.UseOptions(new InMemoryInboxIngressOptions
+                {
+                    Destination = "commands",
+                    Safety = inMemorySafety
+                });
+            }),
+            options =>
+            {
+                options.Safety.Should().BeSameAs(inMemorySafety);
+                options.PrefetchCount.Should().Be(0);
+                options.ReceiveBatchSize.Should().Be(1);
+                options.MaxConcurrentCalls.Should().BeNull();
+            });
+
+        var amqpSafety = CreateSafetyOptions();
+        data.Add(
+            new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }),
+            inbox => inbox.UseAmqpIngress(ingress =>
+            {
+                ingress.DisableIngressConsumer();
+                ingress.UseOptions(new AmqpInboxIngressOptions
+                {
+                    QueueName = "commands",
+                    PrefetchCount = 12,
+                    Safety = amqpSafety
+                });
+            }),
+            options =>
+            {
+                options.Safety.Should().BeSameAs(amqpSafety);
+                options.PrefetchCount.Should().Be(12);
+                options.ReceiveBatchSize.Should().Be(1);
+                options.MaxConcurrentCalls.Should().BeNull();
+            });
+
+        var azureSafety = CreateSafetyOptions();
+        data.Add(
+            new AzureServiceBusTransportModule(new AzureServiceBusTransportOptions
+            {
+                ConnectionString = "Endpoint=sb://example/;SharedAccessKeyName=a;SharedAccessKey=b"
+            }),
+            inbox => inbox.UseAzureServiceBusIngress(ingress =>
+            {
+                ingress.DisableIngressConsumer();
+                ingress.UseOptions(new AzureServiceBusInboxIngressOptions
+                {
+                    Destination = "commands",
+                    PrefetchCount = 13,
+                    MaxConcurrentCalls = 4,
+                    Safety = azureSafety
+                });
+            }),
+            options =>
+            {
+                options.Safety.Should().BeSameAs(azureSafety);
+                options.PrefetchCount.Should().Be(13);
+                options.ReceiveBatchSize.Should().Be(1);
+                options.MaxConcurrentCalls.Should().Be(4);
+            });
+
+        var awsSafety = CreateSafetyOptions();
+        data.Add(
+            new AwsSqsTransportModule(new AwsSqsTransportOptions { ServiceUrl = "http://localhost:4566" }),
+            inbox => inbox.UseAwsSqsIngress(ingress =>
+            {
+                ingress.DisableIngressConsumer();
+                ingress.UseOptions(new AwsSqsInboxIngressOptions
+                {
+                    Destination = "http://localhost:4566/000000000000/commands",
+                    ReceiveBatchSize = 9,
+                    Safety = awsSafety
+                });
+            }),
+            options =>
+            {
+                options.Safety.Should().BeSameAs(awsSafety);
+                options.PrefetchCount.Should().Be(0);
+                options.ReceiveBatchSize.Should().Be(9);
+                options.MaxConcurrentCalls.Should().BeNull();
+            });
+
+        var kafkaSafety = CreateSafetyOptions();
+        data.Add(
+            new KafkaTransportModule(new KafkaTransportOptions { BootstrapServers = "localhost:9092" }),
+            inbox => inbox.UseKafkaIngress(ingress =>
+            {
+                ingress.DisableIngressConsumer();
+                ingress.UseOptions(new KafkaInboxIngressOptions
+                {
+                    Destination = "commands",
+                    Safety = kafkaSafety
+                });
+            }),
+            options =>
+            {
+                options.Safety.Should().BeSameAs(kafkaSafety);
+                options.PrefetchCount.Should().Be(0);
+                options.ReceiveBatchSize.Should().Be(1);
+                options.MaxConcurrentCalls.Should().BeNull();
+            });
+
+        return data;
+    }
+
+    /// <summary>
+    ///     Creates non-default provider-neutral safety settings for propagation assertions.
+    /// </summary>
+    /// <returns>The shared safety settings.</returns>
+    private static TransportInboxIngressSafetyOptions CreateSafetyOptions()
+    {
+        return new TransportInboxIngressSafetyOptions
+        {
+            MaxMessageBytes = 1024,
+            RequireStableIdentity = false,
+            TrustApplicationHeaders = true,
+            AuthorizeDeliveryAsync = static (_, _) => Task.CompletedTask,
+            MaxInFlightMessages = 7,
+            EnableBatchAccept = true,
+            BatchSize = 3,
+            BatchMaxWait = TimeSpan.FromMilliseconds(450)
+        };
     }
 }

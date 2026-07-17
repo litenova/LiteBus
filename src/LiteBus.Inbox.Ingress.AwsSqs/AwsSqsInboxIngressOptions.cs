@@ -18,7 +18,7 @@ public sealed record AwsSqsInboxIngressOptions
     /// <summary>
     ///     Gets the maximum number of messages requested per receive call.
     /// </summary>
-    public ushort PrefetchCount { get; init; }
+    public int ReceiveBatchSize { get; init; } = 1;
 
     /// <summary>
     ///     Gets a value indicating whether failed store writes should return messages for retry.

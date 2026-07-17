@@ -49,18 +49,13 @@ public sealed class KafkaInboxIngressModule :
                 $"{nameof(KafkaInboxIngressOptions.Destination)} must be configured before registering Kafka inbox ingress.");
         }
 
+        options.Safety.Validate();
 
         var ingressOptions = new TransportInboxIngressOptions
         {
             Destination = options.Destination,
-            PrefetchCount = options.PrefetchCount,
             RequeueOnFailure = options.RequeueOnFailure,
-            Safety = options.Safety,
-            MaxMessageBytes = options.Safety.MaxMessageBytes,
-            RequireStableIdentity = options.Safety.RequireStableIdentity,
-            TrustApplicationHeaders = options.Safety.TrustApplicationHeaders,
-            EnableBatchAccept = options.Safety.EnableBatchAccept,
-            BatchMaxWait = options.Safety.BatchMaxWait
+            Safety = options.Safety
         };
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(TransportInboxIngressOptions), ingressOptions));

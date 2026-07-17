@@ -31,7 +31,7 @@ Writers persist optional idempotency keys with envelopes. On duplicate `(tenant_
 
 ### Ingress Defaults
 
-- When **`TransportInboxIngressOptions.RequireStableIdentity`** is true (default), ingress maps broker delivery id to **`MessageIdentity.Supplied`** and **`Idempotency.Keyed($"ingress:{destination}:{brokerMessageId}")`** unless **`TrustApplicationHeaders`** allows **`litebus-idempotency-key`** override.
+- When **`TransportInboxIngressOptions.Safety.RequireStableIdentity`** is true (default), ingress maps broker delivery id to **`MessageIdentity.Supplied`** and **`Idempotency.Keyed($"ingress:{destination}:{brokerMessageId}")`** unless **`Safety.TrustApplicationHeaders`** allows a **`litebus-idempotency-key`** override.
 - Missing broker id with **`RequireStableIdentity`** throws before store write.
 
 ### Store and Transactional Behavior

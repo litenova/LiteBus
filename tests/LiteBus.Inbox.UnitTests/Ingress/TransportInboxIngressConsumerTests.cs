@@ -125,11 +125,14 @@ public sealed class TransportInboxIngressConsumerTests
             options: new TransportInboxIngressOptions
             {
                 RequeueOnFailure = true,
-                RequireStableIdentity = false,
-                AuthorizeDeliveryAsync = (_, _) =>
+                Safety = new TransportInboxIngressSafetyOptions
                 {
-                    authorizationCount++;
-                    return Task.FromException(new InboxIngressException("delivery rejected"));
+                    RequireStableIdentity = false,
+                    AuthorizeDeliveryAsync = (_, _) =>
+                    {
+                        authorizationCount++;
+                        return Task.FromException(new InboxIngressException("delivery rejected"));
+                    }
                 }
             });
 
@@ -206,9 +209,12 @@ public sealed class TransportInboxIngressConsumerTests
             inbox: inbox,
             options: new TransportInboxIngressOptions
             {
-                PrefetchCount = 2,
-                EnableBatchAccept = true,
-                BatchMaxWait = TimeSpan.FromSeconds(30)
+                Safety = new TransportInboxIngressSafetyOptions
+                {
+                    BatchSize = 2,
+                    EnableBatchAccept = true,
+                    BatchMaxWait = TimeSpan.FromSeconds(30)
+                }
             });
 
         var first = InvokeHandleDeliveryAsync(
@@ -263,9 +269,12 @@ public sealed class TransportInboxIngressConsumerTests
             true,
             options: new TransportInboxIngressOptions
             {
-                PrefetchCount = 2,
-                EnableBatchAccept = true,
-                RequireStableIdentity = false
+                Safety = new TransportInboxIngressSafetyOptions
+                {
+                    BatchSize = 2,
+                    EnableBatchAccept = true,
+                    RequireStableIdentity = false
+                }
             });
 
         var failing = CreateValidMessage(
@@ -297,7 +306,7 @@ public sealed class TransportInboxIngressConsumerTests
     }
 
     /// <summary>
-    ///     Verifies partial batches flush after BatchMaxWait even when prefetch count is not reached.
+    ///     Verifies partial batches flush after BatchMaxWait even when the batch size is not reached.
     /// </summary>
     /// <returns>A task that completes when the batch flush assertion succeeds.</returns>
     [Fact]
@@ -311,9 +320,12 @@ public sealed class TransportInboxIngressConsumerTests
             inbox: inbox,
             options: new TransportInboxIngressOptions
             {
-                PrefetchCount = 10,
-                EnableBatchAccept = true,
-                BatchMaxWait = batchWait
+                Safety = new TransportInboxIngressSafetyOptions
+                {
+                    BatchSize = 10,
+                    EnableBatchAccept = true,
+                    BatchMaxWait = batchWait
+                }
             });
 
         await InvokeHandleDeliveryAsync(consumer, CreateValidMessage(
@@ -392,7 +404,10 @@ public sealed class TransportInboxIngressConsumerTests
         options ??= new TransportInboxIngressOptions
         {
             RequeueOnFailure = requeueOnFailure,
-            RequireStableIdentity = false
+            Safety = new TransportInboxIngressSafetyOptions
+            {
+                RequireStableIdentity = false
+            }
         };
 
         var handler = new TransportInboxIngressHandler(

@@ -62,18 +62,10 @@ public sealed class TransportInboxIngressHandler
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
 
-        ArgumentOutOfRangeException.ThrowIfNegative(options.MaxMessageBytes);
-        ArgumentOutOfRangeException.ThrowIfNegative(options.BatchMaxWait.Ticks);
-
-        if (options.EnableBatchAccept && options.PrefetchCount == 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                "PrefetchCount must be greater than zero when batch acceptance is enabled.");
-        }
+        options.Safety.Validate();
         _mappingOptions = new TransportInboxIngressMappingOptions(
-            _options.RequireStableIdentity,
-            _options.TrustApplicationHeaders);
+            _options.Safety.RequireStableIdentity,
+            _options.Safety.TrustApplicationHeaders);
     }
 
     /// <summary>
@@ -136,13 +128,13 @@ public sealed class TransportInboxIngressHandler
         TransportMessage message,
         CancellationToken cancellationToken)
     {
-        if (_options.MaxMessageBytes > 0 && message.Body.Length > _options.MaxMessageBytes)
+        if (_options.Safety.MaxMessageBytes > 0 && message.Body.Length > _options.Safety.MaxMessageBytes)
         {
             throw new InboxIngressException(
-                $"Ingress rejected a delivery body of {message.Body.Length} bytes because it exceeds MaxMessageBytes ({_options.MaxMessageBytes}).");
+                $"Ingress rejected a delivery body of {message.Body.Length} bytes because it exceeds MaxMessageBytes ({_options.Safety.MaxMessageBytes}).");
         }
 
-        if (_options.AuthorizeDeliveryAsync is { } authorize)
+        if (_options.Safety.AuthorizeDeliveryAsync is { } authorize)
         {
             await authorize(message, cancellationToken).ConfigureAwait(false);
         }

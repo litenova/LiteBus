@@ -7,15 +7,15 @@
 
 ## Purpose and Scope
 
-`UseKafkaIngress` registers `KafkaInboxIngressModule`. The module maps `KafkaInboxIngressOptions` (topic destination, prefetch, requeue) into `TransportInboxIngressOptions` and registers the shared handler and consumer. A root `KafkaTransportModule` is required.
+`UseKafkaIngress` registers `KafkaInboxIngressModule`. The module maps the topic destination, requeue policy, and shared safety record into `TransportInboxIngressOptions`. A root `KafkaTransportModule` is required.
 
-Kafka consumer offsets commit after successful accept and ack path in the transport adapter. Beta tier: fewer ingress tuning knobs are exposed on `KafkaInboxIngressOptions` than on AMQP (no `TrustApplicationHeaders`, batch accept, or declare flags on the broker builder).
+Kafka consumer offsets commit after the successful accept and acknowledgement path. The Confluent.Kafka consume loop returns one record per call, so `KafkaInboxIngressOptions` does not expose a prefetch field that the adapter cannot honor. Provider-neutral limits remain available through `Safety`.
 
 ## Beta Rationale
 
 Kafka ingress is marked Beta because the core intake path is stable, but parity coverage is still narrower than AMQP in two areas:
 
-- Option surface parity (builder exposes fewer ingress controls).
+- Kafka-specific offset and group behavior requires more live-provider coverage.
 - Matrix depth parity (header edge-case and requeue-off matrices are intentionally incomplete in broker Docker tests).
 
 ## Public Surface
@@ -28,7 +28,6 @@ inbox.UseKafkaIngress(ingress =>
     ingress.UseOptions(new KafkaInboxIngressOptions
     {
         Destination = "orders.commands",
-        PrefetchCount = 10,
         RequeueOnFailure = true
     });
 });
@@ -37,7 +36,7 @@ inbox.UseKafkaIngress(ingress =>
 | Builder API | Role |
 | --- | --- |
 | `InboxModuleBuilder.UseKafkaIngress(Action<KafkaInboxIngressModuleBuilder>)` | Registration extension |
-| `KafkaInboxIngressModuleBuilder.UseOptions(KafkaInboxIngressOptions)` | Topic, prefetch, and failure behavior |
+| `KafkaInboxIngressModuleBuilder.UseOptions(KafkaInboxIngressOptions)` | Topic, failure behavior, and shared safety settings |
 | `KafkaInboxIngressModuleBuilder.ConfigureHost(Action<TransportInboxIngressHostOptions>)` | Retry and enablement |
 | `KafkaInboxIngressModuleBuilder.DisableIngressConsumer()` | Handler without consumer loop |
 | `KafkaInboxIngressModule` | Child module |
@@ -48,10 +47,9 @@ inbox.UseKafkaIngress(ingress =>
 | --- | --- | --- |
 | Destination required | `Destination` required | `QueueName` required |
 | Root transport required | `AddKafkaTransport(...)` | `AddAmqpTransport(...)` |
-| Prefetch setting | yes | yes |
+| Native receive control | none | `PrefetchCount` |
 | `RequeueOnFailure` toggle | yes (default true) | yes (default true) |
-| `TrustApplicationHeaders` exposure on broker options | no | yes |
-| Batch accept knobs on broker options | no | yes |
+| Shared `Safety` settings | yes | yes |
 | Declare destination knobs | no | yes |
 
 ## Packages
@@ -71,7 +69,7 @@ inbox.UseKafkaIngress(ingress =>
 - `Destination` (topic) and a root Kafka transport are required at compose time.
 - Consumer group and offset semantics follow `KafkaTransportOptions` (transport axis).
 - Idempotency uses broker record identifiers mapped through shared header mapping when present.
-- Identity and idempotency default to broker-scoped values (`RequireStableIdentity=true`, `TrustApplicationHeaders=false`).
+- Identity and idempotency default to broker-scoped values (`Safety.RequireStableIdentity=true`, `Safety.TrustApplicationHeaders=false`).
 
 ## Non-Goals
 
@@ -107,10 +105,10 @@ Kafka ingress inherits shared mapper defaults:
 | Setting | Default | Result |
 | --- | --- | --- |
 | `RequireStableIdentity` | true | Missing broker delivery id fails closed |
-| `TrustApplicationHeaders` | false | Broker id drives identity and idempotency key |
+| `Safety.TrustApplicationHeaders` | false | Broker id drives identity and idempotency key |
 | Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | Duplicate redelivery can absorb into existing inbox row |
 
-`KafkaInboxIngressOptions` does not expose trusted-header toggles directly, which is part of the current Beta surface.
+`KafkaInboxIngressOptions.Safety` exposes the same trust, authorization, admission, and batch settings as the other ingress adapters.
 
 ## Test Coverage
 

@@ -14,18 +14,18 @@ using LiteBus.Inbox;
 namespace LiteBus.Durable.IntegrationTests.Ingress.Amqp;
 
 /// <summary>
-///     Verifies AMQP batch ingress acceptance at prefetch threshold and
-///     <see cref="AmqpInboxIngressOptions.BatchMaxWait" />.
+///     Verifies AMQP batch ingress acceptance at the configured batch size and
+///     <see cref="TransportInboxIngressSafetyOptions.BatchMaxWait" />.
 /// </summary>
 [Trait("Category", TransportTestTraits.Docker)]
 public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
 {
     /// <summary>
-    ///     Verifies batch ingress flushes when prefetch threshold is reached.
+    ///     Verifies batch ingress flushes when the configured batch size is reached.
     /// </summary>
     /// <returns>A task that completes when all messages are stored.</returns>
     [Fact]
-    public async Task EnableBatchAccept_AtPrefetchThreshold_ShouldFlushAllMessages()
+    public async Task EnableBatchAccept_AtBatchSize_ShouldFlushAllMessages()
     {
         var fixture = new RabbitMqBrokerFixture();
         await fixture.InitializeAsync().ConfigureAwait(false);
@@ -57,11 +57,11 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
     }
 
     /// <summary>
-    ///     Verifies partial batches flush after <see cref="AmqpInboxIngressOptions.BatchMaxWait" /> elapses.
+    ///     Verifies partial batches flush after <see cref="TransportInboxIngressSafetyOptions.BatchMaxWait" /> elapses.
     /// </summary>
     /// <returns>A task that completes when the partial batch is stored.</returns>
     [Fact]
-    public async Task EnableBatchAccept_BeforePrefetchThreshold_ShouldFlushAfterBatchMaxWait()
+    public async Task EnableBatchAccept_BeforeBatchSize_ShouldFlushAfterBatchMaxWait()
     {
         var fixture = new RabbitMqBrokerFixture();
         await fixture.InitializeAsync().ConfigureAwait(false);
@@ -128,8 +128,12 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
                         {
                             QueueName = queueName,
                             PrefetchCount = prefetch,
-                            EnableBatchAccept = true,
-                            BatchMaxWait = batchMaxWait
+                            Safety = new TransportInboxIngressSafetyOptions
+                            {
+                                EnableBatchAccept = true,
+                                BatchSize = prefetch,
+                                BatchMaxWait = batchMaxWait
+                            }
                         });
                     });
                 });

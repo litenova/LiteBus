@@ -136,7 +136,7 @@ public sealed class AwsSqsInboxIngressEndToEndIntegrationTests : LiteBusTestBase
                     ingress.UseOptions(new AwsSqsInboxIngressOptions
                         {
                             Destination = ingressQueueUrl,
-                            PrefetchCount = 1,
+                            ReceiveBatchSize = 1
                         });
                     });
                 });

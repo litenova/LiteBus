@@ -45,6 +45,7 @@ public sealed class AmqpInboxIngressModule :
                 $"{nameof(AmqpInboxIngressOptions.QueueName)} must be configured before registering AMQP inbox ingress.");
         }
 
+        options.Safety.Validate();
 
         var ingressOptions = new TransportInboxIngressOptions
         {
@@ -53,11 +54,6 @@ public sealed class AmqpInboxIngressModule :
             DeclareDestination = options.DeclareQueue,
             DurableDestination = options.DurableQueue,
             RequeueOnFailure = options.RequeueOnFailure,
-            TrustApplicationHeaders = options.TrustApplicationHeaders,
-            EnableBatchAccept = options.EnableBatchAccept,
-            BatchMaxWait = options.BatchMaxWait,
-            MaxMessageBytes = options.Safety.MaxMessageBytes,
-            RequireStableIdentity = options.Safety.RequireStableIdentity,
             Safety = options.Safety
         };
 

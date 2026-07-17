@@ -23,12 +23,12 @@ public sealed record AzureServiceBusInboxIngressOptions
     /// <summary>
     ///     Gets the maximum number of unacknowledged deliveries prefetched by the processor.
     /// </summary>
-    public ushort PrefetchCount { get; init; }
+    public int PrefetchCount { get; init; }
 
     /// <summary>
     ///     Gets the maximum number of Azure Service Bus callbacks that may execute concurrently.
     /// </summary>
-    public ushort? MaxConcurrentMessages { get; init; }
+    public int? MaxConcurrentCalls { get; init; }
 
     /// <summary>
     ///     Gets a value indicating whether failed store writes should be abandoned for retry.

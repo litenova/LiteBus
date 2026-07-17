@@ -153,8 +153,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
 
             var consumerOptions = new TransportConsumerOptions
             {
-                Destination = ingressTopic,
-                PrefetchCount = 1
+                Destination = ingressTopic
             };
 
             await consumer.StartAsync(
@@ -298,7 +297,6 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
                         ingress.UseOptions(new KafkaInboxIngressOptions
                         {
                             Destination = ingressTopic,
-                            PrefetchCount = 1,
                             RequeueOnFailure = true
                         });
                     });

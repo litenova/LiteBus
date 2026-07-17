@@ -91,12 +91,9 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
                     .ConfigureAwait(false);
             }
 
-            if (options.PrefetchCount > 0)
-            {
-                await _consumerChannel
-                    .BasicQosAsync(0, options.PrefetchCount, false, cancellationToken)
-                    .ConfigureAwait(false);
-            }
+            await _consumerChannel
+                .BasicQosAsync(0, options.PrefetchCount, false, cancellationToken)
+                .ConfigureAwait(false);
 
             var consumer = new AsyncEventingBasicConsumer(_consumerChannel);
 
@@ -218,12 +215,19 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(handler);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Destination);
+        ArgumentOutOfRangeException.ThrowIfNegative(options.PrefetchCount);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.PrefetchCount, ushort.MaxValue);
+
+        var boundedHandler = TransportConsumerHandlerInvoker.CreateBoundedHandler(
+            handler,
+            options.MaxInFlightMessages);
 
         return StartAsync(
             new AmqpConsumerOptions
             {
                 QueueName = options.Destination,
-                PrefetchCount = options.PrefetchCount,
+                PrefetchCount = (ushort) options.PrefetchCount,
                 DeclareQueue = options.DeclareDestination,
                 DurableQueue = options.DurableDestination,
                 Exclusive = options.Exclusive,
@@ -233,7 +237,7 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
             (message, token) =>
             {
                 var transportMessage = ToTransportMessage(message);
-                return TransportConsumerHandlerInvoker.InvokeAsync(transportMessage, handler, token);
+                return boundedHandler(transportMessage, token);
             },
             cancellationToken);
     }

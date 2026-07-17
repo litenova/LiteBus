@@ -155,8 +155,7 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
 
                         ingress.UseOptions(new KafkaInboxIngressOptions
                         {
-                            Destination = ingressTopic,
-                            PrefetchCount = 1,
+                            Destination = ingressTopic
                         });
                     });
                 });

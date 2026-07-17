@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Inbox.Ingress;
@@ -12,13 +9,16 @@ namespace LiteBus.Inbox.Ingress;
 ///     <para>
 ///         Ingress defaults to broker-scoped identity and idempotency derived from the transport delivery id
 ///         (<c>litebus-message-id</c> header or <see cref="TransportMessage.MessageId" />). When
-///         <see cref="RequireStableIdentity" /> is <see langword="true" /> (the default), missing broker delivery ids fail
+///         <see cref="TransportInboxIngressSafetyOptions.RequireStableIdentity" /> is <see langword="true" /> (the
+///         default), missing broker delivery ids fail
 ///         closed so redelivery after a successful store accept can resolve the existing inbox row instead of creating a
-///         duplicate. Set <see cref="RequireStableIdentity" /> to <see langword="false" /> only when generated identity
+///         duplicate. Set <see cref="TransportInboxIngressSafetyOptions.RequireStableIdentity" /> to
+///         <see langword="false" /> only when generated identity
 ///         is acceptable and duplicate rows on broker redelivery can be tolerated.
 ///     </para>
 ///     <para>
-///         Set <see cref="TrustApplicationHeaders" /> to <see langword="true" /> only when the broker binding is
+///         Set <see cref="TransportInboxIngressSafetyOptions.TrustApplicationHeaders" /> to <see langword="true" />
+///         only when the broker binding is
 ///         authenticated and upstream publishers are trusted. When trusted, <c>litebus-message-id</c> may supply identity,
 ///         <c>litebus-idempotency-key</c> overrides broker-scoped deduplication, and <c>tenant-id</c> scopes the
 ///         accepted envelope. When <see langword="false" /> (the default), identity and idempotency always derive from the
@@ -30,7 +30,8 @@ namespace LiteBus.Inbox.Ingress;
 ///         inbox row created on the first attempt.
 ///     </para>
 ///     <para>
-///         Use <see cref="AuthorizeDeliveryAsync" /> to reject deliveries before deserialization when the host enforces
+///         Use <see cref="TransportInboxIngressSafetyOptions.AuthorizeDeliveryAsync" /> to reject deliveries before
+///         deserialization when the host enforces
 ///         tenant, contract, or size policy at the edge.
 ///     </para>
 /// </remarks>
@@ -52,14 +53,19 @@ public sealed record TransportInboxIngressOptions
     public string? SubscriptionName { get; init; }
 
     /// <summary>
-    ///     Gets the maximum number of unacknowledged deliveries prefetched by the broker.
+    ///     Gets the maximum number of unacknowledged deliveries prefetched by brokers that support native prefetch.
     /// </summary>
-    public ushort PrefetchCount { get; init; }
+    public int PrefetchCount { get; init; }
 
     /// <summary>
-    ///     Gets the optional handler concurrency limit when a transport separates concurrency from prefetch.
+    ///     Gets the number of messages requested per receive call by transports that receive a broker batch.
     /// </summary>
-    public ushort? MaxConcurrentMessages { get; init; }
+    public int ReceiveBatchSize { get; init; } = 1;
+
+    /// <summary>
+    ///     Gets the optional native callback concurrency for transports that expose a separate handler limit.
+    /// </summary>
+    public int? MaxConcurrentCalls { get; init; }
 
     /// <summary>
     ///     Gets a value indicating whether the consumer should declare the destination before subscribing.
@@ -77,56 +83,7 @@ public sealed record TransportInboxIngressOptions
     public bool RequeueOnFailure { get; init; } = true;
 
     /// <summary>
-    ///     Gets a value indicating whether the consumer should buffer deliveries and call batch inbox accept.
-    /// </summary>
-    /// <value>
-    ///     Default is <see langword="false" />. When <see langword="true" />, the consumer flushes buffered deliveries
-    ///     after reaching <see cref="PrefetchCount" />, when <see cref="BatchMaxWait" /> elapses, or when the ingress loop
-    ///     stops.
-    /// </value>
-    public bool EnableBatchAccept { get; init; }
-
-    /// <summary>
-    ///     Gets the maximum time buffered deliveries may wait before a partial batch is flushed.
-    /// </summary>
-    /// <value>
-    ///     Default is 200 milliseconds. Applies only when <see cref="EnableBatchAccept" /> is <see langword="true" />.
-    ///     Low-traffic queues still accept within this delay even when fewer than <see cref="PrefetchCount" /> messages
-    ///     arrive.
-    /// </value>
-    public TimeSpan BatchMaxWait { get; init; } = TimeSpan.FromMilliseconds(200);
-
-    /// <summary>
-    ///     Gets the maximum delivery body size accepted by ingress. Zero disables the limit.
-    /// </summary>
-    /// <value>Default is <see cref="DefaultMaxMessageBytes" /> (4 MiB).</value>
-    public int MaxMessageBytes { get; init; } = DefaultMaxMessageBytes;
-
-    /// <summary>
-    ///     Gets a value indicating whether ingress requires a stable broker delivery id for identity and idempotency.
-    /// </summary>
-    /// <value>Default is <see langword="true" />. When <see langword="false" />, missing broker ids fall back to generated identity.</value>
-    public bool RequireStableIdentity { get; init; } = true;
-
-    /// <summary>
-    ///     Gets a value indicating whether LiteBus application headers may override broker-scoped idempotency and tenant.
-    /// </summary>
-    /// <value>
-    ///     Default is <see langword="false" />. Enable only on authenticated broker bindings where upstream publishers
-    ///     are trusted.
-    /// </value>
-    public bool TrustApplicationHeaders { get; init; }
-
-    /// <summary>
     ///     Gets the provider-neutral ingress safety settings used by broker adapters.
     /// </summary>
     public TransportInboxIngressSafetyOptions Safety { get; init; } = new();
-
-    /// <summary>
-    ///     Gets an optional callback invoked before inbox accept to authorize or reject a delivery.
-    /// </summary>
-    /// <value>
-    ///     When supplied, a thrown exception follows the same requeue and discard policy as store accept failures.
-    /// </value>
-    public Func<TransportMessage, CancellationToken, Task>? AuthorizeDeliveryAsync { get; init; }
 }

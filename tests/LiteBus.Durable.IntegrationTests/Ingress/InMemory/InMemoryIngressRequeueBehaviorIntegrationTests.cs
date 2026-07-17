@@ -115,7 +115,6 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
                     ingress.UseOptions(new InMemoryInboxIngressOptions
                     {
                         Destination = ingressDestination,
-                        PrefetchCount = 1,
                         RequeueOnFailure = requeueOnFailure
                     });
                 });
