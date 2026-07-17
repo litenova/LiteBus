@@ -4,14 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-Nothing yet.
+No changes beyond the v6.0.0 release contents below.
 
 ## v6.0.0
 
 Greenfield release for durable messaging on **.NET 10** (`net10.0` only). Adopt v6 as a fresh integration: nested module builders, `AcceptAsync` /
 `EnqueueAsync`, pipelined processors only, and PostgreSQL **schema version 1** with no in-place upgrade from LiteBus v5
-table shapes. Historical v4/v5 upgrade steps remain in [Migration Guide v4](docs/Migration-Guide-v4.md)
-and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
+table shapes. Historical v4/v5 upgrade steps remain in [Migration Guide v4](docs/migration/v4.md)
+and [Migration Guide v5](docs/migration/v5.md) only.
 
 ### Added
 
@@ -23,7 +23,7 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
   ambient participation.
 - Writer item/metadata model: `InboxAcceptItem`, `InboxAcceptMetadata`, `OutboxEnqueueItem`, `OutboxEnqueueMetadata`,
   and shared durable value objects in `LiteBus.Messaging.Abstractions.DurableMessaging`.
-- [Transactional messaging writes](docs/Transactional-Messaging-Writes.md) scenario guide.
+- [Transactional messaging writes](docs/reliable-messaging/transactional-writes.md) scenario guide.
 - `LiteBus.Testing` package with `Test*` mediators, inbox/outbox test doubles, and assertion helpers.
 - `ICompositeModule` and nested `InboxModuleBuilder` / `OutboxModuleBuilder` with `UsePostgreSqlStorage`,
   `UseEntityFrameworkCoreStorage`, `UseInMemoryStorage`, `UseInProcessDispatch`, `UseAmqpDispatch`,
@@ -45,12 +45,14 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
 - Transactional outbox: `LiteBusOutboxSaveChangesInterceptor`, `ITransactionalOutbox<TContext>`, aligned PostgreSQL
   connection and EF `UseExistingDbContext` participation APIs.
 - `LiteBus.Analyzers` rules LB1001, LB1003, LB1004, LB1005, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1013,
-  LB1014 (processor without dispatcher), LB1015–LB1016 (transactional EF/interceptor and DbContext), LB1017 (explicit
-  contract registration for attributed types). See [Analyzers](docs/Analyzers.md).
+  LB1014 (processor without dispatcher), LB1015-LB1016 (transactional EF/interceptor and DbContext), LB1017 (explicit
+  contract registration for attributed types). See [Analyzers](docs/reference/analyzers.md).
 - Saga inbox integration (`inbox.EnableSaga()`), payload encryption hooks, tenant lease filters, management and health
   extensions.
-- Docs corpus under `docs/` with [Home](docs/Home.md), [Migration Guide v6](docs/Migration-Guide-v6.md),
-  [v6 feature index](docs/v6-Feature-Index.md), and [Capability catalog](docs/Capability-Catalog.md).
+- Failure-mode coverage for real worker process termination, Generic Host drain during active dispatch, broker-backed
+  shutdown persistence policy, and per-message scoped `DbContext` isolation.
+- Repository-owned docs corpus under `docs/` with [Documentation Index](docs/README.md), [Migration Guide v6](docs/migration/v6.md),
+  [v6 feature index](docs/reference/feature-index-v6.md), and [Capability catalog](docs/reference/capability-catalog.md).
 
 ### Breaking changes
 
@@ -67,9 +69,11 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
 - **Store roles:** `IInboxTerminalStateStore`, retention, and diagnostics interfaces replace monolithic state stores.
 - **Registry:** process-wide `MessageRegistry` and `Clear()` removed; one registry per module configuration.
 - **Removed APIs:** `IEventPublisher`, `IIdempotentCommand`, v5 `ICommandScheduler` / `AddCommandInboxModule` aliases,
-  `ISagaHandler<TCommand,TState>` (use `ISagaContext` in command handlers). See [Saga](docs/Saga.md).
+  `ISagaHandler<TCommand,TState>` (use `ISagaContext` in command handlers). See [Saga](docs/reliable-messaging/saga.md).
 - **Registration:** flat storage/dispatch/ingress registrars removed; compose inside `AddInboxModule` /
   `AddOutboxModule` only.
+- **Composition packages:** removed `LiteBus.Extensions.All`. Use the per-module Microsoft DI packages or the
+  `LiteBus.Extensions.Microsoft.DependencyInjection` aggregate package.
 
 ### Changed
 
@@ -86,10 +90,10 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
 - Analyzer LB1004 targets `IInbox.AcceptAsync`, `AcceptBatchAsync`, `ITransactionalInbox`, and `InboxAcceptItem` rather
   than scheduler APIs.
 - Saga: per-dispatch `AsyncLocal` scope, `SagaDefinitionId` and tenant-scoped primary keys, versioned `SagaCompleteItem`,
-  hook save/complete semantics, concurrency retry in `SagaProcessorHook`, `ISagaStore.QueryAsync` / `PurgeAsync`, removed
-  `ISaga<TState>`.
-- **v6.0 API renames (complete in shipping libraries):** see [Migration Guide v6](docs/Migration-Guide-v6.md) for the
-  legacy → v6 inventory.
+  dirty-conflict propagation and completion-only retry in `SagaProcessorHook`, `ISagaStore.QueryAsync` / `PurgeAsync`,
+  removed `ISaga<TState>`.
+- **v6.0 API renames (complete in shipping libraries):** see [Migration Guide v6](docs/migration/v6.md) for the
+  legacy-to-v6 inventory.
 
 ### Fixed
 
@@ -97,13 +101,18 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
 - EF inbox/outbox modules register one singleton store for writer, lease, and state roles.
 - PostgreSQL advisory lock keys use independent stable hashes.
 - EF in-memory/SQLite leasing filters pending rows before `Take`.
+- Thread-safe outbox dispatcher recording for deterministic background processor tests.
+- Saga dirty-state conflicts no longer reload and persist stale handler snapshots after a concurrent version advance.
+- Transport CI result isolation and skipped-test detection for current VSTest TRX output; live Azure tests use a
+  separate opt-in category.
 
 ### Docs
 
-- Purged wiki-dump corruption from `docs/*.md`; canonical docs start at line 1 with a single `#` title.
-- Rewrote `docs/_Sidebar.md` with relative links; production tiers documented on [Home](docs/Home.md).
-- README points to `docs/Home.md`; wiki documented as legacy mirror.
-- Added `docs/internal/Test-Coverage-Matrix.md` for GA coverage tracking.
+- Imported the documentation into the main repository and removed the GitHub wiki submodule.
+- Added [Documentation Index](docs/README.md) as the canonical manual entry point.
+- Added a compile-checked application sample covering command, query, event, inbox, and outbox composition.
+- Added repository checks for relative links, plain ASCII typography, trailing whitespace, and writing-rule phrases.
+- Added release checks for benchmark discovery, package metadata, symbol packages, and changelog-derived release notes.
 
 ## v5.0.0
 
@@ -179,7 +188,7 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
 - Updated command inbox docs for explicit scheduling semantics, storage metadata, retry, dead-letter, and idempotency
   guidance.
 - Added durable outbox docs for writer, processor, dispatcher, PostgreSQL storage, and transaction boundaries.
-- Added [PostgreSQL Schema Management](docs/PostgreSQL-Schema-Management.md) covering migration-owned DDL, explicit
+- Added [PostgreSQL Schema Management](docs/integrations/postgresql-schema-management.md) covering migration-owned DDL, explicit
   bootstrap, opt-in host bootstrap, multi-instance safety, and future upgrade paths.
 - Added architecture, dependency graph, and v5 migration docs.
 - Added a cookbook recipe for PostgreSQL inbox and outbox registration with processor hosting.
@@ -197,7 +206,7 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
 - v5 ships durable storage for **PostgreSQL only** (`LiteBus.Inbox.Storage.PostgreSql`,
   `LiteBus.Outbox.Storage.PostgreSql`). Entity Framework Core and SQL Server store packages shipped in **v6**
   (`LiteBus.Inbox.Storage.EntityFrameworkCore`, `LiteBus.Outbox.Storage.EntityFrameworkCore`); dedicated SQL Server
-  Npgsql-style packages remain on the [Roadmap](docs/Roadmap.md).
+  Npgsql-style packages remain on the [Roadmap](docs/roadmap/README.md).
 
 ## v4.4.0
 
@@ -269,7 +278,7 @@ and [Migration Guide v5](docs/Migration-Guide-v5.md) only.
 This is a major release with a fundamental architectural redesign to decouple the library from specific Dependency
 Injection (DI) containers, introduce a durable Command Inbox, and provide advanced control over event mediation.
 
-### 🚀 Features
+### Features
 
 - **Dependency Injection Abstraction (`LiteBus.Runtime`):** The entire library has been refactored to be DI-agnostic,
   introducing a new runtime layer. This decouples the core logic from any specific DI container and allows for
@@ -278,25 +287,25 @@ Injection (DI) containers, introduce a durable Command Inbox, and provide advanc
   its companions.
 - **Durable Command Inbox:** Introduced the v4 command inbox feature for deferred command execution. This API was
   replaced in v5 by the explicit `ICommandScheduler` and inbox processor contracts.
-- **Advanced Event Mediation:** Overhauled event mediation with powerful new controls:
+- **Advanced Event Mediation:** Overhauled event mediation with explicit priority, concurrency, and filtering controls:
 - The new `[HandlerPriority]` attribute replaces `[HandlerOrder]` for defining execution priority.
 - Added configurable concurrency for both priority groups (`PriorityGroupsConcurrencyMode`) and handlers within the same
   group (`HandlersWithinSamePriorityConcurrencyMode`).
 - Enhanced `HandlerPredicate` that receives a full `IHandlerDescriptor` for advanced filtering logic based on handler
   type, priority, tags, and message type.
 
-### ✨ Improvements
+### Improvements
 
 - **Simplified Module Registration:** The `AddCommandModule`, `AddEventModule`, and `AddQueryModule` extensions now
   automatically register the core `MessageModule`, reducing boilerplate configuration.
-- **Robust Message Registry:** The internal `MessageRegistry` has been re-engineered for improved performance and
+- **Registration-Independent Message Registry:** The internal `MessageRegistry` has been re-engineered for improved performance and
   correctness, ensuring handlers are correctly associated with messages regardless of registration order.
 - **API Clarity:** Renamed several properties for better intent, such as `Order` to `Priority` on descriptors and
   `Handlers` to `MainHandlers` on `IMessageDependencies`.
 - **Testability:** Added `IMessageRegistry.Clear()` to allow resetting the registry state, which is useful in test
   environments.
 
-### 💥 Breaking Changes
+### Breaking Changes
 
 - **Project Structure & NuGet Packages:** The project structure and package names have been completely refactored. You
   must update your `.csproj` files to reference the new packages (e.g.,
@@ -361,7 +370,7 @@ Injection (DI) containers, introduce a durable Command Inbox, and provide advanc
 ## v2.0.0
 
 - **Breaking Change**: Removed nullable annotations from mediator interfaces. Nullability should now be expressed in
-  message contracts instead. See [Migration Guide](https://github.com/litenova/LiteBus/wiki/Migration-Guide) for
+  message contracts instead. See [Migration Guides](docs/migration/README.md) for
   details.
 
 ## v1.1.0
@@ -374,7 +383,7 @@ Injection (DI) containers, introduce a durable Command Inbox, and provide advanc
 - Added: Source Link support for improved debugging
 - Added: Automated release workflow with GitVersion integration
 - Added: Handler tags for contextual scenario handling
-- Changed: Updated repository structure for modern .NET practices
+- Changed: Updated repository structure for the supported .NET project layout
 - Improved: Code documentation and examples
 - Fixed: Various minor issues from previous versions
 
