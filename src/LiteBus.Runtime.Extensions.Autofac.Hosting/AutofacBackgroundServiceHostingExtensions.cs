@@ -68,7 +68,10 @@ public static class AutofacBackgroundServiceHostingExtensions
                     resolvedBackgroundServices.Add((IBackgroundService) context.Resolve(implementationType));
                 }
 
-                return new LiteBusHostOrchestrator(resolvedStartupTasks, resolvedBackgroundServices);
+                return new LiteBusHostOrchestrator(
+                    resolvedStartupTasks,
+                    resolvedBackgroundServices,
+                    context.ResolveOptional<IHostApplicationLifetime>());
             })
             .As<IHostedService>()
             .SingleInstance();

@@ -118,6 +118,14 @@ Implement `IDiagnosticCheck` in application code for schema validation, broker c
 
 Startup tasks run sequentially inside the LiteBus host orchestrator before any background service loop starts. When a startup task throws, host startup fails closed: the orchestrator does not start background services and the exception propagates from `IHostedService.StartAsync`.
 
+The orchestrator derives from the .NET Generic Host `BackgroundService` contract and supervises every LiteBus loop. If
+one loop throws unexpectedly, it requests `IHostApplicationLifetime.StopApplication()` immediately and rethrows the
+failure for the host to observe. Normal shutdown cancellation is suppressed. Keep the Generic Host default
+`BackgroundServiceExceptionBehavior.StopHost`; configuring `Ignore` weakens fail-closed supervision for hosted
+services outside the LiteBus orchestrator.
+
+See the [.NET 10 `HostOptions.BackgroundServiceExceptionBehavior` contract](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.hosting.hostoptions.backgroundserviceexceptionbehavior?view=net-10.0) for the host-level policy.
+
 ```csharp
 builder.Services.AddLiteBusManagement(options => options.FailHealthWhenNoProbes = false);
 builder.Services.AddHealthChecks().AddLiteBus(options => options.FailHealthWhenNoProbes = false);

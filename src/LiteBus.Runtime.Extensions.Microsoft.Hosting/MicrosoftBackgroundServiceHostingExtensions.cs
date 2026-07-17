@@ -70,7 +70,10 @@ public static class MicrosoftBackgroundServiceHostingExtensions
                     .Register(implementationType, backgroundService);
             }
 
-            return new LiteBusHostOrchestrator(resolvedStartupTasks, resolvedBackgroundServices);
+            return new LiteBusHostOrchestrator(
+                resolvedStartupTasks,
+                resolvedBackgroundServices,
+                serviceProvider.GetService<IHostApplicationLifetime>());
         }));
     }
 }

@@ -5,13 +5,13 @@
 - **ID**: `hosting.generic-host-orchestrator`
 - **Name**: Generic host orchestrator
 - **Maturity**: GA
-- **Summary**: Single `IHostedService` that runs startup tasks first, then background loops until shutdown.
+- **Summary**: Supervised `BackgroundService` that runs startup tasks first, then background loops until shutdown.
 
 ## What It Does
 
-`LiteBusHostOrchestrator` is an internal `IHostedService` used by both Microsoft DI and Autofac hosting bridges. On `StartAsync` it executes startup tasks sequentially. If startup succeeds, it starts background loops concurrently. On `StopAsync` it cancels loops and waits for completion.
+`LiteBusHostOrchestrator` is an internal .NET Generic Host `BackgroundService` used by both Microsoft DI and Autofac hosting bridges. On `StartAsync` it executes startup tasks sequentially. If startup succeeds, it starts background loops concurrently. The base host contract cancels loops and waits for completion during shutdown.
 
-Canceled loops during shutdown are treated as expected and suppressed.
+Canceled loops during shutdown are treated as expected and suppressed. An unexpected loop fault calls `IHostApplicationLifetime.StopApplication()` immediately and remains faulted so the Generic Host can observe and log it.
 
 ## Public Surface
 
@@ -24,6 +24,7 @@ Canceled loops during shutdown are treated as expected and suppressed.
 
 - Startup failure aborts host startup.
 - Background loops run concurrently with shared cancellation token.
+- Unexpected background loop failure stops the application instead of leaving the host partially active.
 
 ## Packages
 
@@ -40,15 +41,16 @@ Canceled loops during shutdown are treated as expected and suppressed.
 - Startup tasks always finish before background loops start.
 - If no background services are registered, startup still completes successfully.
 - Host stop requests linked cancellation for running loops.
+- Every unexpected loop fault is fault-bearing and triggers fail-closed host shutdown.
 
 ## Non-Goals
 
-- Per-loop crash isolation and restart strategy.
+- Per-loop restart strategy after an unexpected fault.
 - Supervising non-LiteBus hosted services.
 
 ## Observability
 
-No dedicated orchestrator telemetry is emitted. Failures surface through host startup/stop exceptions and loop-specific axis metrics.
+No dedicated orchestrator telemetry is emitted. Failures surface through Generic Host background-service logging and loop-specific axis metrics.
 
 ## Test Coverage
 
@@ -81,11 +83,29 @@ No dedicated orchestrator telemetry is emitted. Failures surface through host st
 - **Expected outcome**: underlying loop execution count increases
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/AutofacBackgroundServiceHostingExtensionsTests.cs`
 
+#### `MicrosoftBackgroundServiceHostingExtensionsTests.RegisterBackgroundServices_WhenBackgroundServiceFaults_ShouldStopApplication`
+
+- **Use case**: fail-closed Microsoft Generic Host supervision
+- **Test kind**: Unit
+- **Description**: one LiteBus loop faults while another remains active
+- **Behavior**: observes the host lifetime stop signal
+- **Expected outcome**: application shutdown is requested once
+- **Remarks**: `tests/LiteBus.Runtime.UnitTests/MicrosoftBackgroundServiceHostingExtensionsTests.cs`
+
+#### `AutofacBackgroundServiceHostingExtensionsTests.RegisterBackgroundServices_WhenBackgroundServiceFaults_ShouldStopApplication`
+
+- **Use case**: fail-closed Autofac Generic Host supervision
+- **Test kind**: Unit
+- **Description**: one LiteBus loop faults while another remains active
+- **Behavior**: observes the host lifetime stop signal
+- **Expected outcome**: application shutdown is requested once
+- **Remarks**: `tests/LiteBus.Runtime.UnitTests/AutofacBackgroundServiceHostingExtensionsTests.cs`
+
 ### Untested Use Cases
 
 | Gap | Priority | Notes |
 | --- | --- | --- |
-| Multiple failing background loops and aggregate exception behavior | Medium | Current tests validate startup ordering and basic execution. |
+| Multiple simultaneous loop faults and aggregate exception logging | Low | Each fault requests shutdown; tests cover the first-fault host signal. |
 
 ### Out-of-Scope Use Cases
 

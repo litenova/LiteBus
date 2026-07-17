@@ -29,6 +29,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- The shared Generic Host orchestrator now runs as a supervised `BackgroundService`. An unexpected LiteBus background
+  loop fault requests application shutdown immediately instead of leaving the host alive without that workload.
 - Closed generic handler registrations retain independent descriptors instead of colliding on one open generic
   definition.
 - Inbox and outbox leases use a monotonic generation fence. Renewal and terminal persistence reject stale generations,

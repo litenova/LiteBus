@@ -152,12 +152,47 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
         }
     }
 
+    [Fact]
+    public async Task RegisterBackgroundServices_WhenBackgroundServiceFaults_ShouldStopApplication()
+    {
+        var services = new ServiceCollection();
+        using var lifetime = new RecordingHostApplicationLifetime();
+        services.AddSingleton<IHostApplicationLifetime>(lifetime);
+        services.RegisterBackgroundServices(
+            [],
+            [typeof(FaultingBackgroundService), typeof(RecordingBackgroundService)]);
+
+        var provider = services.BuildServiceProvider();
+        await using (provider.ConfigureAwait(false))
+        {
+            var hostedService = provider.GetServices<IHostedService>().Single();
+            var stopRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var registration = lifetime.ApplicationStopping.Register(() => stopRequested.TrySetResult());
+
+            await hostedService.StartAsync(CancellationToken.None).ConfigureAwait(false);
+            await stopRequested.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+            lifetime.StopApplicationCallCount.Should().Be(1);
+        }
+    }
+
     private sealed class FailingStartupTask : IStartupTask
     {
         /// <inheritdoc />
         public Task RunAsync(CancellationToken cancellationToken)
         {
             throw new InvalidOperationException("Startup task failed for test.");
+        }
+    }
+
+    private sealed class FaultingBackgroundService : IBackgroundService
+    {
+        /// <inheritdoc />
+        public async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("Background service failed for test.");
         }
     }
 

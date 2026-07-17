@@ -66,6 +66,41 @@ public sealed class AutofacBackgroundServiceHostingExtensionsTests
         }
     }
 
+    [Fact]
+    public async Task RegisterBackgroundServices_WhenBackgroundServiceFaults_ShouldStopApplication()
+    {
+        var builder = new ContainerBuilder();
+        using var lifetime = new RecordingHostApplicationLifetime();
+        builder.RegisterInstance(lifetime).As<IHostApplicationLifetime>();
+        builder.RegisterBackgroundServices(
+            [],
+            [typeof(FaultingBackgroundService), typeof(RecordingBackgroundService)]);
+
+        var container = builder.Build();
+        await using (container.ConfigureAwait(false))
+        {
+            var hostedService = container.Resolve<IEnumerable<IHostedService>>().Single();
+            var stopRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var registration = lifetime.ApplicationStopping.Register(() => stopRequested.TrySetResult());
+
+            await hostedService.StartAsync(CancellationToken.None).ConfigureAwait(false);
+            await stopRequested.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+            lifetime.StopApplicationCallCount.Should().Be(1);
+        }
+    }
+
+    private sealed class FaultingBackgroundService : IBackgroundService
+    {
+        /// <inheritdoc />
+        public async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("Background service failed for test.");
+        }
+    }
+
     private sealed class RecordingBackgroundService : IBackgroundService
     {
         public int ExecuteCount { get; private set; }

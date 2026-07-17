@@ -29,9 +29,12 @@ public interface IMessageConsumer : IAsyncDisposable
     Task StopAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     Waits until the active consume loop stops because of shutdown, cancellation, or channel failure.
+    ///     Waits until the active consume loop stops because of shutdown, cancellation, or channel failure and
+    ///     propagates an unexpected terminal failure.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the wait.</param>
-    /// <returns>A task that completes when the consumer is no longer active.</returns>
+    /// <returns>
+    ///     A task that completes when the consumer is no longer active or faults with the terminal consumer failure.
+    /// </returns>
     Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default);
 }
