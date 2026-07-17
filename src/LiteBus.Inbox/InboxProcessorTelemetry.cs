@@ -10,7 +10,7 @@ namespace LiteBus.Inbox;
 /// </summary>
 /// <remarks>
 ///     Pass-level counter instrument names are stable and documented in
-///     <c>docs/Architecture.md</c> as internal-only until promoted to
+///     <c>docs/architecture/README.md</c> as internal-only until promoted to
 ///     <see cref="LiteBusInboxTelemetry" /> public constants.
 /// </remarks>
 internal static class InboxProcessorTelemetry

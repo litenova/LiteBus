@@ -87,7 +87,7 @@ internal sealed class MessageMediator : IMessageMediator
         where TMessage : notnull
     {
         // Create a new execution context for the current scope.
-        var executionContext = new ExecutionContext(cancellationToken, request.Tags, request.Items);
+        var executionContext = new ExecutionContext(request.Tags, request.Items, cancellationToken);
 
         // Retain ambient and dispatch scopes until asynchronous mediation results complete.
         var executionScope = AmbientExecutionContext.CreateScope(executionContext);

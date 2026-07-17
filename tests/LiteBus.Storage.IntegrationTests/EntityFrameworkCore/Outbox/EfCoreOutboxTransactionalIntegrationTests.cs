@@ -139,12 +139,14 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
 
         var qualifiedOrdersTable = PostgreSqlIdentifier.Qualify(storeOptions.SchemaName, ordersTableName);
 
+#pragma warning disable EF1002 // PostgreSqlIdentifier validates and quotes the generated schema and table identifiers.
         await context.Database.ExecuteSqlRawAsync(
             $"""
              CREATE TABLE IF NOT EXISTS {qualifiedOrdersTable} (
                  order_id uuid NOT NULL PRIMARY KEY,
                  amount numeric NOT NULL);
              """).ConfigureAwait(false);
+#pragma warning restore EF1002
 
 
         return (storeOptions, ordersTableName);

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
+using System.Threading;
 using LiteBus.Inbox.Abstractions;
 
 namespace LiteBus.Inbox;
@@ -8,7 +9,7 @@ namespace LiteBus.Inbox;
 /// <summary>
 ///     Registers observable OpenTelemetry gauges for inbox queue depth and processor state.
 /// </summary>
-internal sealed class InboxObservableMetrics
+internal sealed class InboxObservableMetrics : IDisposable
 {
     /// <summary>
     ///     The duration cached queue counts remain valid before the next store query.
@@ -27,9 +28,19 @@ internal sealed class InboxObservableMetrics
     private readonly object _cacheLock = new();
 
     /// <summary>
+    ///     The meter retained for the lifetime of this metrics registrar.
+    /// </summary>
+    private readonly Meter _meter;
+
+    /// <summary>
     ///     The service provider used to resolve inbox diagnostics dependencies at observation time.
     /// </summary>
     private readonly IServiceProvider _serviceProvider;
+
+    /// <summary>
+    ///     Tracks whether the meter has been disposed.
+    /// </summary>
+    private int _disposeState;
 
     /// <summary>
     ///     The most recently observed queue counts grouped by status.
@@ -50,18 +61,29 @@ internal sealed class InboxObservableMetrics
         ArgumentNullException.ThrowIfNull(serviceProvider);
         _serviceProvider = serviceProvider;
 
-        var meter = new Meter(LiteBusInboxTelemetry.MeterName);
+        _meter = new Meter(LiteBusInboxTelemetry.MeterName);
 
-        meter.CreateObservableGauge(
+        _meter.CreateObservableGauge(
             LiteBusInboxTelemetry.QueueDepthInstrumentName,
             ObserveQueueDepth,
             "{message}",
             "Number of inbox messages grouped by status.");
 
-        meter.CreateObservableGauge(
+        _meter.CreateObservableGauge(
             LiteBusInboxTelemetry.ProcessorStateInstrumentName,
             ObserveProcessorState,
             description: "Inbox processor state where 0 is Running, 1 is Paused, and 2 is Draining.");
+    }
+
+    /// <summary>
+    ///     Disposes the meter and unregisters its observable instruments.
+    /// </summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) == 0)
+        {
+            _meter.Dispose();
+        }
     }
 
     /// <summary>
@@ -93,7 +115,7 @@ internal sealed class InboxObservableMetrics
             yield break;
         }
 
-        yield return new Measurement<int>((int) control.State);
+        yield return new Measurement<int>((int)control.State);
     }
 
     /// <summary>

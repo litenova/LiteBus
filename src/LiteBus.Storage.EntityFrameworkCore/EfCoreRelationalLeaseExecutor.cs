@@ -268,7 +268,7 @@ internal static class EfCoreRelationalLeaseExecutor
         DateTimeOffset leaseExpiresAt,
         string? tenantId,
         DateTimeOffset staleCutoff,
-        IReadOnlyList<Guid> candidateIds)
+        List<Guid> candidateIds)
     {
         var parameters = new object[9 + candidateIds.Count];
         parameters[0] = pendingStatus;
@@ -294,7 +294,7 @@ internal static class EfCoreRelationalLeaseExecutor
     /// </summary>
     /// <param name="candidateIds">The candidate identifiers.</param>
     /// <returns>The parameter array.</returns>
-    private static object[] BuildInParameters(IReadOnlyList<Guid> candidateIds)
+    private static object[] BuildInParameters(List<Guid> candidateIds)
     {
         var parameters = new object[candidateIds.Count];
 

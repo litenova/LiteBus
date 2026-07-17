@@ -28,7 +28,7 @@ public sealed class ProcessorLeaseHeartbeatTests
                 TimeSpan.FromMinutes(1),
                 TimeSpan.Zero,
                 new ManualTimeProvider(BaseTime),
-                "Lease renewal failed."),
+                "test"),
             _ =>
             {
                 executed = true;
@@ -57,7 +57,7 @@ public sealed class ProcessorLeaseHeartbeatTests
                 TimeSpan.FromMinutes(1),
                 TimeSpan.FromSeconds(15),
                 new ManualTimeProvider(BaseTime),
-                "Lease renewal failed."),
+                "test"),
             token =>
             {
                 token.ThrowIfCancellationRequested();

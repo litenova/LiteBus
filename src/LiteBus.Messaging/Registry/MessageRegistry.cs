@@ -179,7 +179,7 @@ internal sealed class MessageRegistry : IMessageRegistry
     ///     and linking them to existing message descriptors.
     /// </summary>
     /// <param name="newDescriptors">The handler descriptors to process.</param>
-    private void ProcessHandlerDescriptors(IList<IHandlerDescriptor> newDescriptors)
+    private void ProcessHandlerDescriptors(List<IHandlerDescriptor> newDescriptors)
     {
         var committedDescriptors = new List<IHandlerDescriptor>(newDescriptors.Count);
 
@@ -236,7 +236,7 @@ internal sealed class MessageRegistry : IMessageRegistry
     ///     that can be processed by those handlers.
     /// </summary>
     /// <param name="newDescriptors">The new handler descriptors to link.</param>
-    private void LinkHandlersToCommittedMessages(IList<IHandlerDescriptor> newDescriptors)
+    private void LinkHandlersToCommittedMessages(List<IHandlerDescriptor> newDescriptors)
     {
         if (newDescriptors.Count == 0 || _committedMessages.Count == 0)
         {

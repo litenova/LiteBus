@@ -24,6 +24,11 @@ public static class InboxExecutionContextKeys
     public const string IsInboxExecution = "__LiteBus.Inbox.IsInboxExecution";
 
     /// <summary>
+    ///     Stores the durable message identifier for the inbox envelope currently being dispatched.
+    /// </summary>
+    public const string MessageId = "__LiteBus.Inbox.MessageId";
+
+    /// <summary>
     ///     Stores the durable contract name for the inbox envelope currently being dispatched.
     /// </summary>
     public const string ContractName = "__LiteBus.Inbox.ContractName";

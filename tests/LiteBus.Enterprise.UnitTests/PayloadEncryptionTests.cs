@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using AwesomeAssertions;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Events.Abstractions;
@@ -99,6 +101,44 @@ public sealed class PayloadEncryptionTests
     }
 
     /// <summary>
+    ///     Verifies an application key ring can decrypt rows written before and after active-key rotation.
+    /// </summary>
+    [Fact]
+    public async Task Inbox_WithRotatedKeyRing_ShouldDispatchHistoricalAndCurrentCiphertext()
+    {
+        var store = new InMemoryInboxStore();
+        var protector = new KeyRingInboxPayloadProtector("key-v1", "historical-secret");
+        var registry = new MessageContractRegistry();
+        registry.Register<TestCommand>("test-command");
+        var serializer = new SystemTextJsonMessageSerializer();
+        var inbox = new Inbox.Inbox(
+            store,
+            new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector));
+
+        await inbox.AcceptAsync(InboxAcceptItem<TestCommand>.From(
+            new TestCommand { Value = "written-with-v1" })).ConfigureAwait(false);
+
+        protector.AddKeyAndActivate("key-v2", "current-secret");
+
+        await inbox.AcceptAsync(InboxAcceptItem<TestCommand>.From(
+            new TestCommand { Value = "written-with-v2" })).ConfigureAwait(false);
+
+        var historical = store.GetAll().Single(envelope => envelope.Payload.StartsWith("key-v1:", StringComparison.Ordinal));
+        var current = store.GetAll().Single(envelope => envelope.Payload.StartsWith("key-v2:", StringComparison.Ordinal));
+        var dispatcher = new CommandInboxDispatcher(
+            new CapturingCommandMediator(),
+            registry,
+            serializer,
+            protector);
+
+        await dispatcher.DispatchAsync(historical).ConfigureAwait(false);
+        CapturingCommandMediator.LastValue.Should().Be("written-with-v1");
+
+        await dispatcher.DispatchAsync(current).ConfigureAwait(false);
+        CapturingCommandMediator.LastValue.Should().Be("written-with-v2");
+    }
+
+    /// <summary>
     ///     Prefix-based test encryptor.
     /// </summary>
     private sealed class PrefixPayloadEncryptor : IInboxPayloadProtector
@@ -127,6 +167,92 @@ public sealed class PayloadEncryptionTests
         public Task<string> DecryptAsync(string ciphertext, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(ciphertext[_prefix.Length..]);
+        }
+    }
+
+    /// <summary>
+    ///     Test protector that writes with one active key and retains prior keys for reads.
+    /// </summary>
+    private sealed class KeyRingInboxPayloadProtector : IInboxPayloadProtector
+    {
+        /// <summary>
+        ///     Keys indexed by the identifier stored with each ciphertext.
+        /// </summary>
+        private readonly Dictionary<string, string> _keys = [];
+
+        /// <summary>
+        ///     The key identifier used for new writes.
+        /// </summary>
+        private string _activeKeyId;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="KeyRingInboxPayloadProtector" /> class.
+        /// </summary>
+        /// <param name="keyId">The initial active key identifier.</param>
+        /// <param name="keyMaterial">The initial test key material.</param>
+        public KeyRingInboxPayloadProtector(string keyId, string keyMaterial)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(keyId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(keyMaterial);
+
+            _activeKeyId = keyId;
+            _keys.Add(keyId, keyMaterial);
+        }
+
+        /// <summary>
+        ///     Adds a readable key and makes it active for subsequent writes.
+        /// </summary>
+        /// <param name="keyId">The new key identifier.</param>
+        /// <param name="keyMaterial">The new test key material.</param>
+        public void AddKeyAndActivate(string keyId, string keyMaterial)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(keyId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(keyMaterial);
+
+            _keys.Add(keyId, keyMaterial);
+            _activeKeyId = keyId;
+        }
+
+        /// <inheritdoc />
+        public Task<string> EncryptAsync(string plaintext, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(plaintext);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var keyMaterial = _keys[_activeKeyId];
+            var protectedBytes = Encoding.UTF8.GetBytes($"{keyMaterial}|{plaintext}");
+            return Task.FromResult($"{_activeKeyId}:{Convert.ToBase64String(protectedBytes)}");
+        }
+
+        /// <inheritdoc />
+        public Task<string> DecryptAsync(string ciphertext, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(ciphertext);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var separatorIndex = ciphertext.IndexOf(':', StringComparison.Ordinal);
+
+            if (separatorIndex <= 0)
+            {
+                throw new CryptographicException("Ciphertext does not contain a key identifier.");
+            }
+
+            var keyId = ciphertext[..separatorIndex];
+
+            if (!_keys.TryGetValue(keyId, out var keyMaterial))
+            {
+                throw new CryptographicException($"No decryption key is registered for '{keyId}'.");
+            }
+
+            var protectedText = Encoding.UTF8.GetString(Convert.FromBase64String(ciphertext[(separatorIndex + 1)..]));
+            var keyPrefix = $"{keyMaterial}|";
+
+            if (!protectedText.StartsWith(keyPrefix, StringComparison.Ordinal))
+            {
+                throw new CryptographicException($"Ciphertext key material does not match '{keyId}'.");
+            }
+
+            return Task.FromResult(protectedText[keyPrefix.Length..]);
         }
     }
 

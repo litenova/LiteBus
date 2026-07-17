@@ -13,7 +13,7 @@ namespace LiteBus.Messaging.Processing;
 /// <param name="LeaseDuration">The duration applied on each renewal from the current UTC time.</param>
 /// <param name="HeartbeatInterval">The delay between renewal attempts after the initial renewal.</param>
 /// <param name="Clock">The time provider used to compute renewal expirations.</param>
-/// <param name="LeaseRenewalFailedMessage">The warning log template used when renewal fails.</param>
+/// <param name="ProcessorName">The semantic processor name used in lease diagnostics.</param>
 /// <param name="OnLeaseLost">An optional callback invoked when lease renewal fails.</param>
 /// <param name="Logger">The optional logger used for lease-lost diagnostics.</param>
 internal sealed record LeaseHeartbeatContext(
@@ -23,6 +23,6 @@ internal sealed record LeaseHeartbeatContext(
     TimeSpan LeaseDuration,
     TimeSpan HeartbeatInterval,
     TimeProvider Clock,
-    string LeaseRenewalFailedMessage,
+    string ProcessorName,
     Action? OnLeaseLost = null,
     ILogger? Logger = null);

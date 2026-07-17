@@ -953,8 +953,8 @@ public sealed class EfCoreInboxStore :
     /// </summary>
     /// <param name="action">The action that uses the context.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    private Task ExecuteAsync(
+    /// <returns>A task that returns <see langword="true" /> after the operation completes.</returns>
+    private Task<bool> ExecuteAsync(
         Func<IInboxDbContext, CancellationToken, Task> action,
         CancellationToken cancellationToken)
     {
@@ -1201,8 +1201,8 @@ public sealed class EfCoreInboxStore :
     /// </summary>
     /// <param name="context">The inbox database context.</param>
     /// <param name="cancellationToken">A token that cancels the save operation.</param>
-    /// <returns>A task that represents the asynchronous save operation.</returns>
-    private static Task SaveChangesAsync(IInboxDbContext context, CancellationToken cancellationToken)
+    /// <returns>The number of state entries written to the database.</returns>
+    private static Task<int> SaveChangesAsync(IInboxDbContext context, CancellationToken cancellationToken)
     {
         if (context is not DbContext dbContext)
         {
@@ -1455,7 +1455,7 @@ public sealed class EfCoreInboxStore :
     /// <param name="envelopes">The ordered envelopes including one optional lookahead row.</param>
     /// <param name="pageSize">The requested page size.</param>
     /// <returns>The page returned to callers.</returns>
-    private static InboxMessagePage BuildPage(IReadOnlyList<InboxEnvelope> envelopes, int pageSize)
+    private static InboxMessagePage BuildPage(List<InboxEnvelope> envelopes, int pageSize)
     {
         var hasMore = envelopes.Count > pageSize;
         var items = hasMore ? envelopes.Take(pageSize).ToList() : envelopes;

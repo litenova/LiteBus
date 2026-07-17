@@ -36,18 +36,32 @@ internal static class InboxProcessorHookRunner
     /// </summary>
     /// <param name="hooks">The registered orchestration hooks.</param>
     /// <param name="envelope">The leased inbox envelope.</param>
-    /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>A task that completes before dispatch begins.</returns>
-    internal static async Task RunPrepareDispatchScopeAsync(
+    internal static void RunPrepareDispatchScope(
         IReadOnlyList<IProcessorEnvelopeHook> hooks,
-        InboxEnvelope envelope,
-        CancellationToken cancellationToken)
+        InboxEnvelope envelope)
     {
         var context = new InboxProcessorEnvelopeAdapter(envelope);
 
         foreach (var hook in hooks)
         {
-            await hook.PrepareDispatchScopeAsync(context, cancellationToken).ConfigureAwait(false);
+            hook.PrepareDispatchScope(context);
+        }
+    }
+
+    /// <summary>
+    ///     Releases hook-owned dispatch state after dispatch or after-dispatch processing stops on a failure.
+    /// </summary>
+    /// <param name="hooks">The registered orchestration hooks.</param>
+    /// <param name="envelope">The leased inbox envelope.</param>
+    internal static void RunAbandonDispatchScopes(
+        IReadOnlyList<IProcessorEnvelopeHook> hooks,
+        InboxEnvelope envelope)
+    {
+        var context = new InboxProcessorEnvelopeAdapter(envelope);
+
+        foreach (var hook in hooks)
+        {
+            hook.AbandonDispatchScope(context);
         }
     }
 

@@ -18,14 +18,9 @@ internal interface IPipelinedMessageProcessorOperations<TEnvelope, in TOptions>
     where TOptions : ProcessorOptions
 {
     /// <summary>
-    ///     Gets the warning log template used when lease renewal fails.
+    ///     Gets the semantic processor name used in shared diagnostics.
     /// </summary>
-    string LeaseRenewalFailedMessage { get; }
-
-    /// <summary>
-    ///     Gets the debug log template used after a batch is leased.
-    /// </summary>
-    string LeasedBatchDebugMessage { get; }
+    string ProcessorName { get; }
 
     /// <summary>
     ///     Starts the OpenTelemetry activity for one processor pass.

@@ -117,17 +117,19 @@ internal static class InboxProcessorEnvelopeHandler
             parentContext);
 
         messageActivity?.SetTag("litebus.message_id", envelope.Id);
+        var dispatchCompleted = false;
 
         try
         {
             await InboxProcessorHookRunner.RunBeforeDispatchAsync(hooks, envelope, cancellationToken).ConfigureAwait(false);
-            await InboxProcessorHookRunner.RunPrepareDispatchScopeAsync(hooks, envelope, cancellationToken)
-                .ConfigureAwait(false);
+            InboxProcessorHookRunner.RunPrepareDispatchScope(hooks, envelope);
             var stopwatch = Stopwatch.StartNew();
             await dispatcher.DispatchAsync(envelope, cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
             InboxProcessorTelemetry.RecordDispatchDuration(stopwatch.Elapsed);
-            return envelope.AsCompleted();
+            var completed = envelope.AsCompleted();
+            dispatchCompleted = true;
+            return completed;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -139,11 +141,11 @@ internal static class InboxProcessorEnvelopeHandler
         {
             var error = MessageProcessorDiagnostics.FormatError(exception);
 
-            logger.LogWarning(
-                exception,
-                "Inbox dispatch failed for message {MessageId} on attempt {AttemptCount}.",
+            InboxProcessorLogMessages.DispatchFailed(
+                logger,
                 envelope.Id,
-                envelope.AttemptCount);
+                envelope.AttemptCount,
+                exception);
 
             if (envelope.AttemptCount >= options.Retry.MaxAttempts)
             {
@@ -152,6 +154,13 @@ internal static class InboxProcessorEnvelopeHandler
 
             var visibleAfter = clock.GetUtcNow().Add(options.Retry.CalculateDelay(envelope.AttemptCount));
             return envelope.AsFailed(error, visibleAfter);
+        }
+        finally
+        {
+            if (!dispatchCompleted)
+            {
+                InboxProcessorHookRunner.RunAbandonDispatchScopes(hooks, envelope);
+            }
         }
     }
 

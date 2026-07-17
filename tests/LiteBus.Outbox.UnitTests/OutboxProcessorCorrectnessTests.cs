@@ -31,6 +31,36 @@ public sealed class OutboxProcessorCorrectnessTests
     }
 
     [Fact]
+    public async Task ProcessAsync_when_dispatch_fails_should_abandon_hook_scope()
+    {
+        var hook = new TrackingDispatchScopeHook();
+        var envelope = new OutboxEnvelope
+        {
+            Id = Guid.NewGuid(),
+            ContractName = "orders.events.submitted",
+            ContractVersion = 1,
+            Payload = "{}",
+            CreatedAt = BaseTime,
+            AttemptCount = 1,
+            Status = OutboxStatus.Publishing
+        };
+
+        var updated = await OutboxProcessorEnvelopeHandler.DispatchAsync(
+            envelope,
+            new CountingOutboxDispatcher(() => throw new InvalidOperationException("dispatch failed")),
+            new OutboxProcessorOptions { Retry = new RetryOptions { UseJitter = false } },
+            TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+            [hook],
+            CancellationToken.None).ConfigureAwait(false);
+
+        updated.Should().NotBeNull();
+        updated!.Status.Should().Be(OutboxStatus.Failed);
+        hook.PrepareCount.Should().Be(1);
+        hook.AbandonCount.Should().Be(1);
+    }
+
+    [Fact]
     public async Task PipelinedProcessor_when_lease_renewal_fails_should_cancel_dispatch()
     {
         var clock = new ManualTimeProvider(BaseTime);
@@ -144,6 +174,7 @@ public sealed class OutboxProcessorCorrectnessTests
         var store = new InMemoryOutboxStore();
         var dispatchCount = 0;
         var dispatcher = new CountingOutboxDispatcher(() => Interlocked.Increment(ref dispatchCount));
+        var hook = new ThrowingAfterDispatchHook();
 
         var processor = new PipelinedOutboxProcessor(
             store,
@@ -158,7 +189,7 @@ public sealed class OutboxProcessorCorrectnessTests
                 Retry = new RetryOptions { UseJitter = false }
             },
             TimeProvider.System,
-            [new ThrowingAfterDispatchHook()]);
+            [hook]);
 
         var messageId = Guid.NewGuid();
 
@@ -178,6 +209,7 @@ public sealed class OutboxProcessorCorrectnessTests
         dispatchCount.Should().Be(1);
         result.DeadLetteredCount.Should().Be(1);
         store.Get(messageId).Status.Should().Be(OutboxStatus.DeadLettered);
+        hook.AbandonCount.Should().Be(1);
     }
 
     [Fact]
@@ -419,14 +451,48 @@ public sealed class OutboxProcessorCorrectnessTests
 
     private sealed class ThrowingAfterDispatchHook : IProcessorEnvelopeHook
     {
+        public int AbandonCount { get; private set; }
+
         public Task BeforeDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
 
+        public void AbandonDispatchScope(IProcessorEnvelope envelope)
+        {
+            AbandonCount++;
+        }
+
         public Task AfterDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException("AfterDispatch failed.");
+        }
+    }
+
+    private sealed class TrackingDispatchScopeHook : IProcessorEnvelopeHook
+    {
+        public int AbandonCount { get; private set; }
+
+        public int PrepareCount { get; private set; }
+
+        public Task BeforeDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public void PrepareDispatchScope(IProcessorEnvelope envelope)
+        {
+            PrepareCount++;
+        }
+
+        public void AbandonDispatchScope(IProcessorEnvelope envelope)
+        {
+            AbandonCount++;
+        }
+
+        public Task AfterDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
         }
     }
 
@@ -529,7 +595,7 @@ public sealed class OutboxProcessorCorrectnessTests
                 PersistedStatuses.Add(envelope.Status);
             }
 
-            return await Inner.PersistAsync(envelopes, cancellationToken);
+            return await Inner.PersistAsync(envelopes, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -563,7 +629,7 @@ public sealed class OutboxProcessorCorrectnessTests
             CancellationToken cancellationToken = default)
         {
             LastPersistToken = cancellationToken;
-            return await Inner.PersistAsync(envelopes, cancellationToken);
+            return await Inner.PersistAsync(envelopes, cancellationToken).ConfigureAwait(false);
         }
     }
 }

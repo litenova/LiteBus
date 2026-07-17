@@ -28,7 +28,7 @@ internal static class ProcessorLeaseHeartbeat
         ArgumentNullException.ThrowIfNull(context.LeaseStore);
         ArgumentNullException.ThrowIfNull(context.Clock);
         ArgumentNullException.ThrowIfNull(operation);
-        ArgumentException.ThrowIfNullOrEmpty(context.LeaseRenewalFailedMessage);
+        ArgumentException.ThrowIfNullOrEmpty(context.ProcessorName);
 
         if (context.HeartbeatInterval <= TimeSpan.Zero)
         {
@@ -100,10 +100,14 @@ internal static class ProcessorLeaseHeartbeat
             return true;
         }
 
-        context.Logger?.LogWarning(
-            context.LeaseRenewalFailedMessage,
-            context.MessageId,
-            context.LeaseOwner);
+        if (context.Logger is not null)
+        {
+            MessageProcessorLogMessages.LeaseRenewalFailed(
+                context.Logger,
+                context.ProcessorName,
+                context.MessageId,
+                context.LeaseOwner);
+        }
 
         context.OnLeaseLost?.Invoke();
         await operationCts.CancelAsync().ConfigureAwait(false);

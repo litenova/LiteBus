@@ -92,12 +92,7 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
     }
 
     /// <inheritdoc />
-    public string LeaseRenewalFailedMessage { get; } =
-        "Outbox lease renewal failed for message {MessageId} owned by {LeaseOwner}; canceling dispatch.";
-
-    /// <inheritdoc />
-    public string LeasedBatchDebugMessage { get; } =
-        "Leased {LeasedCount} outbox message(s) as owner {LeaseOwner}.";
+    public string ProcessorName { get; } = "outbox";
 
     /// <inheritdoc />
     public Activity? StartPassActivity()
@@ -161,7 +156,8 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
                 cancellationToken).ConfigureAwait(false);
         }
 
-        using var scope = _dispatchScopeFactory.CreateScope();
+        var scope = _dispatchScopeFactory.CreateScope();
+        await using var configuredScope = scope.ConfigureAwait(false);
         var dispatcher = scope.ServiceProvider.GetService(typeof(IOutboxDispatcher)) as IOutboxDispatcher ?? _dispatcher;
 
         return await OutboxProcessorEnvelopeHandler.DispatchAsync(
@@ -192,9 +188,7 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
         {
             OutboxProcessorTelemetry.RecordPersistSkipped();
 
-            logger.LogWarning(
-                "Outbox lease-loss persist skipped for message {MessageId} because the active lease was lost.",
-                sourceEnvelope.Id);
+            OutboxProcessorLogMessages.LeaseLossPersistSkipped(logger, sourceEnvelope.Id);
 
             return;
         }
@@ -216,22 +210,21 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
         if (updated.Status == OutboxStatus.Published)
         {
             OutboxEnvelope terminal;
+            var afterDispatchHooksCompleted = false;
 
             try
             {
                 await OutboxProcessorHookRunner.RunAfterDispatchAsync(_hooks, sourceEnvelope, cancellationToken)
                     .ConfigureAwait(false);
 
+                afterDispatchHooksCompleted = true;
                 terminal = updated;
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 if (options.HookFailurePolicy == ProcessorHookFailurePolicy.CompleteDespiteHookFailure)
                 {
-                    logger.LogWarning(
-                        exception,
-                        "Outbox AfterDispatch hook failed for message {MessageId}; completing dispatch despite hook failure.",
-                        updated.Id);
+                    OutboxProcessorLogMessages.AfterDispatchCompleted(logger, updated.Id, exception);
 
                     terminal = updated;
                 }
@@ -239,12 +232,16 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
                 {
                     var error = MessageProcessorDiagnostics.FormatError(exception);
 
-                    logger.LogWarning(
-                        exception,
-                        "Outbox AfterDispatch hook failed for message {MessageId}; moving to dead letter.",
-                        updated.Id);
+                    OutboxProcessorLogMessages.AfterDispatchDeadLettered(logger, updated.Id, exception);
 
                     terminal = sourceEnvelope.AsDeadLettered(error);
+                }
+            }
+            finally
+            {
+                if (!afterDispatchHooksCompleted)
+                {
+                    OutboxProcessorHookRunner.RunAbandonDispatchScopes(_hooks, sourceEnvelope);
                 }
             }
 
@@ -254,9 +251,7 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
             {
                 OutboxProcessorTelemetry.RecordPersistSkipped();
 
-                logger.LogWarning(
-                    "Outbox terminal persist skipped for message {MessageId} because the active lease was lost.",
-                    updated.Id);
+                OutboxProcessorLogMessages.TerminalPersistSkipped(logger, updated.Id);
 
                 return;
             }
@@ -279,9 +274,7 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
         {
             OutboxProcessorTelemetry.RecordPersistSkipped();
 
-            logger.LogWarning(
-                "Outbox terminal persist skipped for message {MessageId} because the active lease was lost.",
-                updated.Id);
+            OutboxProcessorLogMessages.TerminalPersistSkipped(logger, updated.Id);
 
             return;
         }

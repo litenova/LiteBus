@@ -603,9 +603,9 @@ public abstract class InboxStoreContractTests
 
         var firstBatchTask = roles.LeaseStore.LeasePendingAsync(request with { LeaseOwner = "worker-a" });
         var secondBatchTask = roles.LeaseStore.LeasePendingAsync(request with { LeaseOwner = "worker-b" });
-        await Task.WhenAll(firstBatchTask, secondBatchTask);
-        var firstBatch = await firstBatchTask;
-        var secondBatch = await secondBatchTask;
+        await Task.WhenAll(firstBatchTask, secondBatchTask).ConfigureAwait(false);
+        var firstBatch = await firstBatchTask.ConfigureAwait(false);
+        var secondBatch = await secondBatchTask.ConfigureAwait(false);
 
         var leasedIds = firstBatch.Select(command => command.Id)
             .Concat(secondBatch.Select(command => command.Id))

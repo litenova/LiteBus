@@ -588,7 +588,7 @@ public sealed class InMemoryOutboxStore :
     /// <param name="ordered">The ordered envelopes including one optional lookahead row.</param>
     /// <param name="pageSize">The requested page size.</param>
     /// <returns>The page returned to callers.</returns>
-    private static OutboxMessagePage BuildPage(IReadOnlyList<OutboxEnvelope> ordered, int pageSize)
+    private static OutboxMessagePage BuildPage(List<OutboxEnvelope> ordered, int pageSize)
     {
         var hasMore = ordered.Count > pageSize;
         var items = hasMore ? ordered.Take(pageSize).ToList() : ordered;

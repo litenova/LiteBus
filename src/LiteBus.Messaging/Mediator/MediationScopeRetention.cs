@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
+using System.Reflection;
 using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Mediator;
@@ -10,6 +10,12 @@ namespace LiteBus.Messaging.Mediator;
 /// </summary>
 internal static class MediationScopeRetention
 {
+    /// <summary>
+    ///     The generic task wrapper method closed for the result type returned by mediation.
+    /// </summary>
+    private static readonly MethodInfo RetainGenericTaskMethod = typeof(MediationScopeRetention)
+        .GetMethod(nameof(RetainGenericTaskAsync), BindingFlags.NonPublic | BindingFlags.Static)!;
+
     /// <summary>
     ///     Retains the supplied scope until the mediation result completes or is disposed.
     /// </summary>
@@ -21,13 +27,7 @@ internal static class MediationScopeRetention
     {
         if (result is Task task)
         {
-            _ = task.ContinueWith(
-                _ => resourceScope.Dispose(),
-                CancellationToken.None,
-                TaskContinuationOptions.ExecuteSynchronously,
-                TaskScheduler.Default);
-
-            return result;
+            return (TResult)RetainTask(task, resourceScope);
         }
 
         var asyncEnumerableType = GetAsyncEnumerableElementType(result);
@@ -42,6 +42,81 @@ internal static class MediationScopeRetention
 
         resourceScope.Dispose();
         return result;
+    }
+
+    /// <summary>
+    ///     Wraps a task so asynchronous scope disposal completes before the returned task completes.
+    /// </summary>
+    /// <param name="task">The mediation task.</param>
+    /// <param name="resourceScope">The resources retained for the mediation operation.</param>
+    /// <returns>A task with the same result shape and retained resource lifetime.</returns>
+    private static object RetainTask(Task task, MediationResourceScope resourceScope)
+    {
+        var resultType = GetTaskResultType(task.GetType());
+
+        if (resultType is null)
+        {
+            return RetainTaskAsync(task, resourceScope);
+        }
+
+        return RetainGenericTaskMethod
+            .MakeGenericMethod(resultType)
+            .Invoke(null, [task, resourceScope])!;
+    }
+
+    /// <summary>
+    ///     Gets the result type carried by a task implementation.
+    /// </summary>
+    /// <param name="taskType">The runtime task type.</param>
+    /// <returns>The task result type, or <see langword="null" /> for a non-generic task.</returns>
+    private static Type? GetTaskResultType(Type taskType)
+    {
+        for (var candidate = taskType; candidate is not null; candidate = candidate.BaseType)
+        {
+            if (candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(Task<>))
+            {
+                return candidate.GenericTypeArguments[0];
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Awaits a non-generic mediation task and then disposes retained resources.
+    /// </summary>
+    /// <param name="task">The mediation task.</param>
+    /// <param name="resourceScope">The retained mediation resources.</param>
+    /// <returns>A task that includes resource disposal.</returns>
+    private static async Task RetainTaskAsync(Task task, MediationResourceScope resourceScope)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        finally
+        {
+            await resourceScope.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Awaits a generic mediation task and then disposes retained resources.
+    /// </summary>
+    /// <typeparam name="T">The mediation task result type.</typeparam>
+    /// <param name="task">The mediation task.</param>
+    /// <param name="resourceScope">The retained mediation resources.</param>
+    /// <returns>A task that carries the result and includes resource disposal.</returns>
+    private static async Task<T> RetainGenericTaskAsync<T>(Task task, MediationResourceScope resourceScope)
+    {
+        try
+        {
+            return await ((Task<T>)task).ConfigureAwait(false);
+        }
+        finally
+        {
+            await resourceScope.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -138,7 +213,17 @@ internal static class MediationScopeRetention
             /// <inheritdoc />
             public async ValueTask<bool> MoveNextAsync()
             {
-                var hasNext = await _source.MoveNextAsync().ConfigureAwait(false);
+                bool hasNext;
+
+                try
+                {
+                    hasNext = await _source.MoveNextAsync().ConfigureAwait(false);
+                }
+                catch
+                {
+                    await DisposeScopeAsync().ConfigureAwait(false);
+                    throw;
+                }
 
                 if (!hasNext)
                 {
@@ -151,8 +236,14 @@ internal static class MediationScopeRetention
             /// <inheritdoc />
             public async ValueTask DisposeAsync()
             {
-                await _source.DisposeAsync().ConfigureAwait(false);
-                await DisposeScopeAsync().ConfigureAwait(false);
+                try
+                {
+                    await _source.DisposeAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    await DisposeScopeAsync().ConfigureAwait(false);
+                }
             }
 
             /// <summary>
@@ -167,8 +258,7 @@ internal static class MediationScopeRetention
                 }
 
                 _resourceScopeDisposed = true;
-                _resourceScope.Dispose();
-                return ValueTask.CompletedTask;
+                return _resourceScope.DisposeAsync();
             }
         }
     }

@@ -11,7 +11,7 @@ namespace LiteBus.Mediator.UnitTests.UseCases.Messaging;
 public sealed class MediateAsyncTests
 {
     [Fact]
-    public async Task MediateAsync_WhenStrategyReturnsTask_ShouldReturnSameTaskInstance()
+    public async Task MediateAsync_WhenStrategyReturnsTask_ShouldReturnScopeRetainedTask()
     {
         var registry = new MessageRegistry();
         registry.Register(typeof(MediateAsyncProbeHandler));
@@ -29,7 +29,8 @@ public sealed class MediateAsyncTests
 
         var result = await mediator.MediateAsync(new MediateAsyncProbeCommand(), request).ConfigureAwait(false);
 
-        result.Should().BeSameAs(MediateAsyncProbeHandler.CompletedTask);
+        result.Should().NotBeSameAs(MediateAsyncProbeHandler.CompletedTask);
+        result.IsCompletedSuccessfully.Should().BeTrue();
     }
 
     private sealed record MediateAsyncProbeCommand : ICommand;

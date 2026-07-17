@@ -83,20 +83,22 @@ internal static class OutboxProcessorEnvelopeHandler
             parentContext);
 
         messageActivity?.SetTag("litebus.message_id", envelope.Id);
+        var dispatchCompleted = false;
 
         try
         {
             await OutboxProcessorHookRunner.RunBeforeDispatchAsync(hooks, envelope, cancellationToken)
                 .ConfigureAwait(false);
 
-            await OutboxProcessorHookRunner.RunPrepareDispatchScopeAsync(hooks, envelope, cancellationToken)
-                .ConfigureAwait(false);
+            OutboxProcessorHookRunner.RunPrepareDispatchScope(hooks, envelope);
 
             var stopwatch = Stopwatch.StartNew();
             await dispatcher.DispatchAsync(envelope, cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
             OutboxProcessorTelemetry.RecordDispatchDuration(stopwatch.Elapsed);
-            return envelope.AsPublished() with { PublishedAt = clock.GetUtcNow() };
+            var published = envelope.AsPublished() with { PublishedAt = clock.GetUtcNow() };
+            dispatchCompleted = true;
+            return published;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -106,11 +108,11 @@ internal static class OutboxProcessorEnvelopeHandler
         {
             var error = MessageProcessorDiagnostics.FormatError(exception);
 
-            logger.LogWarning(
-                exception,
-                "Outbox dispatch failed for message {MessageId} on attempt {AttemptCount}.",
+            OutboxProcessorLogMessages.DispatchFailed(
+                logger,
                 envelope.Id,
-                envelope.AttemptCount);
+                envelope.AttemptCount,
+                exception);
 
             if (envelope.AttemptCount >= options.Retry.MaxAttempts)
             {
@@ -119,6 +121,13 @@ internal static class OutboxProcessorEnvelopeHandler
 
             var visibleAfter = clock.GetUtcNow().Add(options.Retry.CalculateDelay(envelope.AttemptCount));
             return envelope.AsFailed(error, visibleAfter);
+        }
+        finally
+        {
+            if (!dispatchCompleted)
+            {
+                OutboxProcessorHookRunner.RunAbandonDispatchScopes(hooks, envelope);
+            }
         }
     }
 

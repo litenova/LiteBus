@@ -75,7 +75,7 @@ internal static class InboxProcessorFactory
     /// </summary>
     /// <param name="services">The service provider.</param>
     /// <returns>The registered hooks in registration order.</returns>
-    private static IReadOnlyList<IProcessorEnvelopeHook> ResolveHooks(IServiceProvider services)
+    private static IProcessorEnvelopeHook[] ResolveHooks(IServiceProvider services)
     {
         if (services.GetService(typeof(IEnumerable<IProcessorEnvelopeHook>)) is IEnumerable<IProcessorEnvelopeHook> hooks)
         {

@@ -46,7 +46,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
     /// <summary>
     ///     Holds pending envelopes keyed by the <see cref="DbContext" /> that will flush them.
     /// </summary>
-    private static readonly ConditionalWeakTable<DbContext, List<OutboxEnvelope>> PendingEnvelopesByContext = new();
+    private readonly ConditionalWeakTable<DbContext, List<OutboxEnvelope>> _pendingEnvelopesByContext = new();
 
     /// <summary>
     ///     Adds an outbox envelope to the pending list flushed by the next <c>SaveChanges</c> call on
@@ -59,7 +59,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(envelope);
 
-        var pending = PendingEnvelopesByContext.GetValue(context, static _ => []);
+        var pending = _pendingEnvelopesByContext.GetValue(context, static _ => []);
         pending.Add(envelope);
     }
 
@@ -77,7 +77,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
         ArgumentNullException.ThrowIfNull(envelope);
         existing = default!;
 
-        if (!PendingEnvelopesByContext.TryGetValue(context, out var pending) || pending.Count == 0)
+        if (!_pendingEnvelopesByContext.TryGetValue(context, out var pending) || pending.Count == 0)
         {
             return false;
         }
@@ -128,21 +128,21 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
     ///     Writes pending envelopes to the outbox set tracked by the current context.
     /// </summary>
     /// <param name="context">The context currently saving changes.</param>
-    private static void FlushPendingEnvelopes(DbContext? context)
+    private void FlushPendingEnvelopes(DbContext? context)
     {
         if (context is null)
         {
             return;
         }
 
-        if (!PendingEnvelopesByContext.TryGetValue(context, out var pending) || pending.Count == 0)
+        if (!_pendingEnvelopesByContext.TryGetValue(context, out var pending) || pending.Count == 0)
         {
             return;
         }
 
         var envelopes = PrepareEnvelopesForFlush(pending);
 
-        PendingEnvelopesByContext.Remove(context);
+        _pendingEnvelopesByContext.Remove(context);
 
         if (context is not IOutboxDbContext outboxDbContext)
         {

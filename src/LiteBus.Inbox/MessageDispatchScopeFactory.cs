@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions.Processing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -56,7 +57,25 @@ internal sealed class MessageDispatchScopeFactory : IMessageDispatchScopeFactory
         /// <inheritdoc />
         public void Dispose()
         {
+            if (_scope is IAsyncDisposable asyncDisposable)
+            {
+                asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                return;
+            }
+
             _scope.Dispose();
+        }
+
+        /// <inheritdoc />
+        public ValueTask DisposeAsync()
+        {
+            if (_scope is IAsyncDisposable asyncDisposable)
+            {
+                return asyncDisposable.DisposeAsync();
+            }
+
+            _scope.Dispose();
+            return ValueTask.CompletedTask;
         }
     }
 }

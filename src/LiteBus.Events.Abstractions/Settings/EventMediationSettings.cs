@@ -21,7 +21,7 @@ public sealed class EventMediationSettings
     ///     <see langword="true" /> to throw an exception when no handlers are found; otherwise, <see langword="false" />.
     ///     The default is <see langword="false" />.
     /// </value>
-    public bool ThrowIfNoHandlerFound { get; init; } = false;
+    public bool ThrowIfNoHandlerFound { get; init; }
 
     /// <summary>
     ///     Gets a value indicating whether unregistered plain event types are registered in the message registry at publish time.
@@ -30,7 +30,7 @@ public sealed class EventMediationSettings
     ///     <see langword="true" /> to register plain event types on first publish; otherwise, <see langword="false" />.
     ///     The default is <see langword="false" />. This setting is independent of <see cref="ThrowIfNoHandlerFound" />.
     /// </value>
-    public bool AutoRegisterUnregisteredMessageTypes { get; init; } = false;
+    public bool AutoRegisterUnregisteredMessageTypes { get; init; }
 
     /// <summary>
     ///     Gets or initializes the event routing configuration that determines which handlers should execute.

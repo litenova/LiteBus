@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
@@ -148,12 +149,12 @@ internal static class OutboxTestInfrastructure
         /// <summary>
         ///     Gets the envelopes passed to <see cref="DispatchAsync" />.
         /// </summary>
-        private readonly List<OutboxEnvelope> _dispatchedEnvelopes = [];
+        private readonly ConcurrentQueue<OutboxEnvelope> _dispatchedEnvelopes = new();
 
         /// <summary>
         ///     Gets the deserialized message instances produced during dispatch.
         /// </summary>
-        private readonly List<object> _dispatchedMessages = [];
+        private readonly ConcurrentQueue<object> _dispatchedMessages = new();
 
         /// <summary>
         ///     Gets the serializer used to hydrate stored payloads.
@@ -176,25 +177,25 @@ internal static class OutboxTestInfrastructure
         /// <summary>
         ///     Gets the envelopes passed to dispatch in invocation order.
         /// </summary>
-        public IReadOnlyList<OutboxEnvelope> DispatchedEnvelopes => _dispatchedEnvelopes;
+        public IReadOnlyList<OutboxEnvelope> DispatchedEnvelopes => _dispatchedEnvelopes.ToArray();
 
         /// <summary>
         ///     Gets the deserialized messages produced during dispatch in invocation order.
         /// </summary>
-        public IReadOnlyList<object> DispatchedMessages => _dispatchedMessages;
+        public IReadOnlyList<object> DispatchedMessages => _dispatchedMessages.ToArray();
 
         /// <inheritdoc />
         public async Task DispatchAsync(OutboxEnvelope message, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(message);
 
-            _dispatchedEnvelopes.Add(message);
+            _dispatchedEnvelopes.Enqueue(message);
 
             var messageType = _contractRegistry.GetMessageType(message.ContractName, message.ContractVersion);
 
             var deserialized = await _messageSerializer.DeserializeAsync(messageType, message.Payload, cancellationToken).ConfigureAwait(false);
 
-            _dispatchedMessages.Add(deserialized);
+            _dispatchedMessages.Enqueue(deserialized);
         }
     }
 

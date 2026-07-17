@@ -41,8 +41,8 @@ internal static class OutboxProcessorPassRecorder
             result.FailedCount,
             result.DeadLetteredCount);
 
-        logger.LogInformation(
-            "Outbox pass completed in {ElapsedMilliseconds} ms. Leased={LeasedCount}, Published={PublishedCount}, Failed={FailedCount}, DeadLettered={DeadLetteredCount}.",
+        OutboxProcessorLogMessages.PassCompleted(
+            logger,
             result.ElapsedTime.TotalMilliseconds,
             result.LeasedCount,
             result.SucceededCount,
@@ -81,8 +81,8 @@ internal static class OutboxProcessorPassRecorder
             result.FailedCount,
             result.DeadLetteredCount);
 
-        logger.LogInformation(
-            "Outbox pass completed in {ElapsedMilliseconds} ms. Leased={LeasedCount}, Published={PublishedCount}, Failed={FailedCount}, DeadLettered={DeadLetteredCount}.",
+        OutboxProcessorLogMessages.PassCompleted(
+            logger,
             result.ElapsedTime.TotalMilliseconds,
             result.LeasedCount,
             result.SucceededCount,

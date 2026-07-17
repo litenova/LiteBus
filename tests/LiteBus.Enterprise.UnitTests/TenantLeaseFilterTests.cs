@@ -3,7 +3,6 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
-using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Enterprise.UnitTests;
 
@@ -63,17 +62,6 @@ public sealed class TenantLeaseFilterTests
     }
 
     /// <summary>
-    ///     Verifies <see cref="ITenantRoutingStrategy.ResolveLeaseFilter" /> can scope processors.
-    /// </summary>
-    [Fact]
-    public void TenantRoutingStrategy_ResolveLeaseFilter_ReturnsConfiguredTenant()
-    {
-        var strategy = new FixedTenantRoutingStrategy("tenant-x");
-        strategy.ResolveLeaseFilter("tenant-x").Should().Be("tenant-x");
-        strategy.ResolveDestination("tenant-x", "orders", "orders-topic").Should().Be("tenant-x.orders");
-    }
-
-    /// <summary>
     ///     Creates one pending inbox envelope for a tenant.
     /// </summary>
     /// <param name="tenantId">The tenant identifier.</param>
@@ -111,37 +99,5 @@ public sealed class TenantLeaseFilterTests
             AttemptCount = 0,
             TenantId = tenantId
         };
-    }
-
-    /// <summary>
-    ///     Routes all traffic for one tenant to a deterministic destination.
-    /// </summary>
-    private sealed class FixedTenantRoutingStrategy : ITenantRoutingStrategy
-    {
-        /// <summary>
-        ///     The tenant identifier served by this strategy.
-        /// </summary>
-        private readonly string _tenantId;
-
-        /// <summary>
-        ///     Initializes a new instance of the <see cref="FixedTenantRoutingStrategy" /> class.
-        /// </summary>
-        /// <param name="tenantId">The tenant identifier served by this strategy.</param>
-        public FixedTenantRoutingStrategy(string tenantId)
-        {
-            _tenantId = tenantId;
-        }
-
-        /// <inheritdoc />
-        public string ResolveDestination(string? tenantId, string contractName, string? topic)
-        {
-            return $"{tenantId}.{contractName}";
-        }
-
-        /// <inheritdoc />
-        public string ResolveLeaseFilter(string? tenantId)
-        {
-            return _tenantId;
-        }
     }
 }

@@ -41,8 +41,8 @@ internal static class InboxProcessorPassRecorder
             result.FailedCount,
             result.DeadLetteredCount);
 
-        logger.LogInformation(
-            "Inbox pass completed in {ElapsedMilliseconds} ms. Leased={LeasedCount}, Succeeded={SucceededCount}, Failed={FailedCount}, DeadLettered={DeadLetteredCount}.",
+        InboxProcessorLogMessages.PassCompleted(
+            logger,
             result.ElapsedTime.TotalMilliseconds,
             result.LeasedCount,
             result.SucceededCount,
@@ -81,8 +81,8 @@ internal static class InboxProcessorPassRecorder
             result.FailedCount,
             result.DeadLetteredCount);
 
-        logger.LogInformation(
-            "Inbox pass completed in {ElapsedMilliseconds} ms. Leased={LeasedCount}, Succeeded={SucceededCount}, Failed={FailedCount}, DeadLettered={DeadLetteredCount}.",
+        InboxProcessorLogMessages.PassCompleted(
+            logger,
             result.ElapsedTime.TotalMilliseconds,
             result.LeasedCount,
             result.SucceededCount,

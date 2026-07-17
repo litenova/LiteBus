@@ -512,14 +512,15 @@ public sealed class InboxTests : LiteBusTestBase
 
         var orderId = Guid.NewGuid();
 
-        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+        {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        });
+        }).ConfigureAwait(false);
 
-        var act = async () => await processor.ProcessPendingAsync();
+        var act = async () => await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        await act.Should().NotThrowAsync();
+        await act.Should().NotThrowAsync().ConfigureAwait(false);
 
         recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
 

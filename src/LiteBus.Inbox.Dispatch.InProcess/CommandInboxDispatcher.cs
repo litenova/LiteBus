@@ -87,6 +87,7 @@ public sealed class CommandInboxDispatcher : IInboxDispatcher
 
         var mediationSettings = new CommandMediationSettings();
         mediationSettings.Items[InboxExecutionContextKeys.IsInboxExecution] = true;
+        mediationSettings.Items[InboxExecutionContextKeys.MessageId] = envelope.Id;
         mediationSettings.Items[InboxExecutionContextKeys.ContractName] = envelope.ContractName;
 
         MessageProcessorDiagnostics.ApplyTraceMetadata(

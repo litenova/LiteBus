@@ -1,11 +1,12 @@
 using System;
+using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions.Processing;
 
 /// <summary>
 ///     A dependency injection scope created for one message dispatch operation.
 /// </summary>
-public interface IMessageDispatchScope : IDisposable
+public interface IMessageDispatchScope : IDisposable, IAsyncDisposable
 {
     /// <summary>
     ///     Gets the scoped service provider used to resolve handlers and dispatch dependencies.

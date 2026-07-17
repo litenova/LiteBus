@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
@@ -31,11 +32,11 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
 
         var mediationTask = mediator.Mediate(new DelayedScopedCommand(), request);
 
-        await Task.Delay(25).ConfigureAwait(true);
+        await Task.Delay(25).ConfigureAwait(false);
         DelayedScopedHandler.ActiveMarker.Should().NotBeNull();
         DelayedScopedHandler.ActiveMarker.Disposed.Should().BeFalse();
 
-        await mediationTask.ConfigureAwait(true);
+        await mediationTask.ConfigureAwait(false);
 
         DelayedScopedHandler.ActiveMarker.Disposed.Should().BeTrue();
     }
@@ -65,18 +66,18 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
 
         var stream = mediator.Mediate(new StreamingScopedCommand(), request);
 
-         var enumerator = stream.GetAsyncEnumerator();
-         await using (enumerator.ConfigureAwait(false))
-         {
-        (await enumerator.MoveNextAsync().ConfigureAwait(true)).Should().BeTrue();
-        StreamingScopedHandler.ActiveMarker.Should().NotBeNull();
-        StreamingScopedHandler.ActiveMarker.Disposed.Should().BeFalse();
+        var enumerator = stream.GetAsyncEnumerator();
+        await using (enumerator.ConfigureAwait(false))
+        {
+            (await enumerator.MoveNextAsync().ConfigureAwait(false)).Should().BeTrue();
+            StreamingScopedHandler.ActiveMarker.Should().NotBeNull();
+            StreamingScopedHandler.ActiveMarker.Disposed.Should().BeFalse();
 
-        (await enumerator.MoveNextAsync().ConfigureAwait(true)).Should().BeTrue();
-        StreamingScopedHandler.ActiveMarker.Disposed.Should().BeFalse();
+            (await enumerator.MoveNextAsync().ConfigureAwait(false)).Should().BeTrue();
+            StreamingScopedHandler.ActiveMarker.Disposed.Should().BeFalse();
 
-        (await enumerator.MoveNextAsync().ConfigureAwait(true)).Should().BeFalse();
-        StreamingScopedHandler.ActiveMarker.Disposed.Should().BeTrue();
+            (await enumerator.MoveNextAsync().ConfigureAwait(false)).Should().BeFalse();
+            StreamingScopedHandler.ActiveMarker.Disposed.Should().BeTrue();
         }
     }
 
@@ -114,13 +115,14 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
 
     private sealed record StreamingScopedCommand : ICommand;
 
-    private sealed class ScopedLifetimeMarker : IDisposable
+    private sealed class ScopedLifetimeMarker : IAsyncDisposable
     {
         public bool Disposed { get; private set; }
 
-        public void Dispose()
+        public ValueTask DisposeAsync()
         {
             Disposed = true;
+            return ValueTask.CompletedTask;
         }
     }
 
@@ -156,7 +158,7 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
 
         public async IAsyncEnumerable<int> StreamAsync(
             StreamingScopedCommand command,
-            CancellationToken cancellationToken = default)
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             ActiveMarker = _marker;
             yield return 1;

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -574,6 +575,7 @@ public sealed class PostgreSqlOutboxStore :
             }
 
             valueClauses.Append(
+                CultureInfo.InvariantCulture,
                 $"(@message_id_{index}, @contract_name_{index}, @contract_version_{index}, @payload_{index}, " +
                 $"@topic_{index}, @created_at_{index}, @visible_after_{index}, @status_{index}, @attempt_count_{index}, " +
                 $"@lease_owner_{index}, @lease_expires_at_{index}, @last_error_{index}, @correlation_id_{index}, " +

@@ -92,12 +92,7 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
     }
 
     /// <inheritdoc />
-    public string LeaseRenewalFailedMessage { get; } =
-        "Inbox lease renewal failed for message {MessageId} owned by {LeaseOwner}; canceling dispatch.";
-
-    /// <inheritdoc />
-    public string LeasedBatchDebugMessage { get; } =
-        "Leased {LeasedCount} inbox envelope(s) as owner {LeaseOwner}.";
+    public string ProcessorName { get; } = "inbox";
 
     /// <inheritdoc />
     public Activity? StartPassActivity()
@@ -161,7 +156,8 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
                 cancellationToken).ConfigureAwait(false);
         }
 
-        using var scope = _dispatchScopeFactory.CreateScope();
+        var scope = _dispatchScopeFactory.CreateScope();
+        await using var configuredScope = scope.ConfigureAwait(false);
         var dispatcher = scope.ServiceProvider.GetService(typeof(IInboxDispatcher)) as IInboxDispatcher ?? _dispatcher;
 
         return await InboxProcessorEnvelopeHandler.ProcessAsync(
@@ -192,9 +188,7 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
         {
             InboxProcessorTelemetry.RecordPersistSkipped();
 
-            logger.LogWarning(
-                "Inbox lease-loss persist skipped for message {MessageId} because the active lease was lost.",
-                sourceEnvelope.Id);
+            InboxProcessorLogMessages.LeaseLossPersistSkipped(logger, sourceEnvelope.Id);
 
             return;
         }
@@ -216,12 +210,14 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
         if (updated.Status == InboxStatus.Completed)
         {
             InboxEnvelope terminal;
+            var afterDispatchHooksCompleted = false;
 
             try
             {
                 await InboxProcessorHookRunner.RunAfterDispatchAsync(_hooks, sourceEnvelope, cancellationToken)
                     .ConfigureAwait(false);
 
+                afterDispatchHooksCompleted = true;
                 terminal = updated;
             }
 
@@ -230,10 +226,7 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
             {
                 if (options.HookFailurePolicy == ProcessorHookFailurePolicy.CompleteDespiteHookFailure)
                 {
-                    logger.LogWarning(
-                        exception,
-                        "Inbox AfterDispatch hook failed for message {MessageId}; completing dispatch despite hook failure.",
-                        updated.Id);
+                    InboxProcessorLogMessages.AfterDispatchCompleted(logger, updated.Id, exception);
 
                     terminal = updated;
                 }
@@ -241,12 +234,16 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
                 {
                     var error = MessageProcessorDiagnostics.FormatError(exception);
 
-                    logger.LogWarning(
-                        exception,
-                        "Inbox AfterDispatch hook failed for message {MessageId}; moving to dead letter.",
-                        updated.Id);
+                    InboxProcessorLogMessages.AfterDispatchDeadLettered(logger, updated.Id, exception);
 
                     terminal = sourceEnvelope.AsDeadLettered(error);
+                }
+            }
+            finally
+            {
+                if (!afterDispatchHooksCompleted)
+                {
+                    InboxProcessorHookRunner.RunAbandonDispatchScopes(_hooks, sourceEnvelope);
                 }
             }
 
@@ -256,9 +253,7 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
             {
                 InboxProcessorTelemetry.RecordPersistSkipped();
 
-                logger.LogWarning(
-                    "Inbox terminal persist skipped for message {MessageId} because the active lease was lost.",
-                    updated.Id);
+                InboxProcessorLogMessages.TerminalPersistSkipped(logger, updated.Id);
 
                 return;
             }
@@ -281,9 +276,7 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
         {
             InboxProcessorTelemetry.RecordPersistSkipped();
 
-            logger.LogWarning(
-                "Inbox terminal persist skipped for message {MessageId} because the active lease was lost.",
-                updated.Id);
+            InboxProcessorLogMessages.TerminalPersistSkipped(logger, updated.Id);
 
             return;
         }

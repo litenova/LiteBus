@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Messaging.Mediator;
@@ -46,7 +47,7 @@ internal sealed class RootMessageDispatchScopeFactory : IMessageDispatchScopeFac
         public RootMessageDispatchScope(IServiceProvider serviceProvider)
         {
             ArgumentNullException.ThrowIfNull(serviceProvider);
-        _serviceProvider = serviceProvider;
+            _serviceProvider = serviceProvider;
         }
 
         /// <inheritdoc />
@@ -55,6 +56,12 @@ internal sealed class RootMessageDispatchScopeFactory : IMessageDispatchScopeFac
         /// <inheritdoc />
         public void Dispose()
         {
+        }
+
+        /// <inheritdoc />
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
         }
     }
 }

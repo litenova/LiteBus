@@ -30,7 +30,13 @@ internal static class PipelineHandlerInvocation
         object message,
         CancellationToken cancellationToken)
     {
-        return InvokeAsyncPipelineMethod(handler, "PreHandleAsync", message, cancellationToken, () => handler.PreHandle(message));
+        return InvokeAsyncPipelineMethod(
+            handler,
+            "PreHandleAsync",
+            message,
+            () => handler.PreHandle(message),
+            [],
+            cancellationToken);
     }
 
     /// <summary>
@@ -51,9 +57,9 @@ internal static class PipelineHandlerInvocation
             handler,
             "PostHandleAsync",
             message,
-            cancellationToken,
             () => handler.PostHandle(message, messageResult),
-            messageResult);
+            [messageResult],
+            cancellationToken);
     }
 
     /// <summary>
@@ -78,17 +84,17 @@ internal static class PipelineHandlerInvocation
     /// <param name="handler">The handler instance.</param>
     /// <param name="asyncMethodName">The asynchronous method name to invoke when available.</param>
     /// <param name="message">The message argument for the handler method.</param>
-    /// <param name="cancellationToken">The cancellation token passed to the asynchronous method.</param>
     /// <param name="fallback">The fallback invocation used when no asynchronous method is found.</param>
     /// <param name="additionalArguments">Additional arguments appended before the cancellation token.</param>
+    /// <param name="cancellationToken">The cancellation token passed to the asynchronous method.</param>
     /// <returns>A task representing the handler invocation.</returns>
     private static Task InvokeAsyncPipelineMethod(
         object handler,
         string asyncMethodName,
         object message,
-        CancellationToken cancellationToken,
         Func<object> fallback,
-        params object?[] additionalArguments)
+        object?[] additionalArguments,
+        CancellationToken cancellationToken)
     {
         var method = AsyncPipelineMethods.GetOrAdd(
             (handler.GetType(), asyncMethodName),

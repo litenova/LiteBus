@@ -93,8 +93,9 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
         var leasedEnvelopes = await _operations.LeasePendingAsync(_leaseOwner, _options, now, cancellationToken)
             .ConfigureAwait(false);
 
-        _logger.LogDebug(
-            _operations.LeasedBatchDebugMessage,
+        MessageProcessorLogMessages.LeasedBatch(
+            _logger,
+            _operations.ProcessorName,
             leasedEnvelopes.Count,
             _leaseOwner);
 
@@ -185,7 +186,7 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
                         _options.LeaseDuration,
                         _options.LeaseHeartbeatInterval,
                         _clock,
-                        _operations.LeaseRenewalFailedMessage,
+                        _operations.ProcessorName,
                         _operations.RecordLeaseLost,
                         _logger),
                     token => _operations.DispatchEnvelopeAsync(envelope, _options, token),
@@ -230,10 +231,10 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
             catch (Exception exception)
             {
                 // One envelope persistence failure must not abort the entire processor pass.
-                _logger.LogError(
-                    exception,
-                    "Terminal persistence failed for message {MessageId}. Continuing the pass with remaining envelopes.",
-                    _operations.GetMessageId(envelope));
+                MessageProcessorLogMessages.TerminalPersistenceFailed(
+                    _logger,
+                    _operations.GetMessageId(envelope),
+                    exception);
 
                 _operations.RecordPersistFailed();
             }
