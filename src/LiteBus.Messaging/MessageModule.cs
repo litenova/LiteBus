@@ -1,11 +1,10 @@
 using System;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Messaging.Mediator;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
-using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging;
 
@@ -34,6 +33,14 @@ public sealed class MessageModule : IModule
     /// <inheritdoc />
     public void Build(IModuleConfiguration configuration)
     {
+        if (!configuration.DependencyRegistry.Any(static descriptor =>
+                descriptor.DependencyType == typeof(IMessageDispatchScopeFactory)))
+        {
+            throw new LiteBusConfigurationException(
+                "Message dispatch requires an IMessageDispatchScopeFactory. " +
+                "Use a supported container adapter or explicitly register RootMessageDispatchScopeFactory in a custom host.");
+        }
+
         // Create or get the message registry shared by all messaging-related modules in this configuration.
         var messageRegistry = configuration.GetOrCreateContext<IMessageRegistry>(() => new MessageRegistry());
         var messageContractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
@@ -94,39 +101,11 @@ public sealed class MessageModule : IModule
             typeof(TimeProvider),
             timeProvider ?? TimeProvider.System));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IMessageDispatchScopeFactory),
-            ResolveMessageDispatchScopeFactory,
-            InstanceLifetime.Singleton));
-
         // Register message mediator as transient.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageMediator),
             typeof(MessageMediator)));
 
-        if (configuration.TryGetContext<MessageContractBuilder>(out var sharedContracts)
-            && sharedContracts is { HasRegistrations: true })
-        {
-            sharedContracts.ApplyTo(messageContractRegistry);
-        }
-    }
-
-    /// <summary>
-    ///     Resolves <see cref="IMessageDispatchScopeFactory" /> from the host container.
-    /// </summary>
-    /// <param name="services">The root service provider built by the host.</param>
-    /// <returns>
-    ///     A scope factory backed by <see cref="IServiceScopeFactory" /> when available; otherwise a root-provider
-    ///     adapter for scopeless hosts.
-    /// </returns>
-    private static object ResolveMessageDispatchScopeFactory(IServiceProvider services)
-    {
-        if (services.GetService(typeof(IServiceScopeFactory)) is IServiceScopeFactory scopeFactory)
-        {
-            return new MessageDispatchScopeFactory(scopeFactory);
-        }
-
-        return new RootMessageDispatchScopeFactory(services);
     }
 
     /// <summary>

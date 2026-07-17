@@ -13,4 +13,4 @@ namespace LiteBus.Events.Abstractions;
 ///     execute asynchronously and can perform operations such as updating projections, notifying external
 ///     systems, or triggering additional workflows.
 /// </remarks>
-public interface IEventHandler<in TEvent> : IRegistrableEventConstruct, IAsyncMessageHandler<TEvent> where TEvent : notnull;
+public interface IEventHandler<in TEvent> : IAsyncMessageHandler<TEvent> where TEvent : notnull;

@@ -1,23 +1,27 @@
 using System;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Runtime.Abstractions;
 
-namespace LiteBus.Messaging.Mediator;
+namespace LiteBus.Runtime.Dependencies;
 
 /// <summary>
-///     Creates dispatch scopes that resolve handlers from the root provider when the host has no scope factory.
+///     Creates dispatch scopes that resolve dependencies from an explicitly supplied root provider.
 /// </summary>
-internal sealed class RootMessageDispatchScopeFactory : IMessageDispatchScopeFactory
+/// <remarks>
+///     Custom hosts use this implementation only when they intentionally accept scopeless dispatch.
+///     Container adapters register scope-producing implementations instead.
+/// </remarks>
+public sealed class RootMessageDispatchScopeFactory : IMessageDispatchScopeFactory
 {
     /// <summary>
-    ///     Gets the root service provider used when scoped host scopes are unavailable.
+    ///     The root service provider retained for the lifetime of this factory.
     /// </summary>
     private readonly IServiceProvider _rootServiceProvider;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="RootMessageDispatchScopeFactory" /> class.
     /// </summary>
-    /// <param name="rootServiceProvider">The root service provider supplied by the host container.</param>
+    /// <param name="rootServiceProvider">The root provider used for every dispatch.</param>
     public RootMessageDispatchScopeFactory(IServiceProvider rootServiceProvider)
     {
         ArgumentNullException.ThrowIfNull(rootServiceProvider);
@@ -31,19 +35,19 @@ internal sealed class RootMessageDispatchScopeFactory : IMessageDispatchScopeFac
     }
 
     /// <summary>
-    ///     Adapts the root provider to <see cref="IMessageDispatchScope" /> without disposing the host container.
+    ///     Exposes the root provider without taking ownership of it.
     /// </summary>
     private sealed class RootMessageDispatchScope : IMessageDispatchScope
     {
         /// <summary>
-        ///     Gets the root service provider used for handler resolution.
+        ///     The provider exposed for dispatch resolution.
         /// </summary>
         private readonly IServiceProvider _serviceProvider;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="RootMessageDispatchScope" /> class.
         /// </summary>
-        /// <param name="serviceProvider">The root service provider.</param>
+        /// <param name="serviceProvider">The provider exposed by this scope.</param>
         public RootMessageDispatchScope(IServiceProvider serviceProvider)
         {
             ArgumentNullException.ThrowIfNull(serviceProvider);

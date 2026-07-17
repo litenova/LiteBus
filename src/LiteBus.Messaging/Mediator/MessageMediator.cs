@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Runtime.Abstractions;
 using ExecutionContext = LiteBus.Messaging.Contexts.Execution.ExecutionContext;
 
 namespace LiteBus.Messaging.Mediator;

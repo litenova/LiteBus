@@ -1,5 +1,4 @@
 using System;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Runtime.Composition;
@@ -42,6 +41,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configureRegistry);
 
         var dependencyRegistryAdapter = new MicrosoftDependencyRegistryAdapter(services);
+        RegisterDispatchScopeFactory(dependencyRegistryAdapter);
         var moduleRegistry = new ModuleRegistry();
 
         configureRegistry(moduleRegistry);
@@ -61,12 +61,11 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    ///     Adds LiteBus to the service collection with shared contract and module configuration.
+    ///     Adds LiteBus to the service collection through the package-neutral composition builder.
     /// </summary>
     /// <param name="services">The service collection to add LiteBus to.</param>
     /// <param name="configure">
-    ///     Action to configure shared contracts and LiteBus modules through <see cref="ILiteBusBuilder" />
-    ///     .
+    ///     Action that invokes feature-specific extensions on <see cref="ILiteBusBuilder" />.
     /// </param>
     /// <returns>The service collection for method chaining.</returns>
     /// <exception cref="ArgumentNullException">
@@ -76,9 +75,9 @@ public static class ServiceCollectionExtensions
     ///     <code>
     /// services.AddLiteBus(builder =>
     /// {
-    ///     builder.Contracts.Register&lt;OrderCreated&gt;("order-created", 1);
-    ///     builder.Modules.AddMessageModule(messaging => messaging.RegisterFromAssembly(assembly));
-    ///     builder.Modules.AddCommandModule(commands => commands.RegisterFromAssembly(assembly));
+    ///     builder.AddMessaging(messaging =>
+    ///         messaging.Contracts.Register&lt;OrderCreated&gt;("order-created", 1));
+    ///     builder.AddCommands(commands => commands.RegisterFromAssembly(assembly));
     /// });
     /// </code>
     /// </example>
@@ -90,14 +89,13 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configure);
 
         var dependencyRegistryAdapter = new MicrosoftDependencyRegistryAdapter(services);
+        RegisterDispatchScopeFactory(dependencyRegistryAdapter);
         var moduleRegistry = new ModuleRegistry();
-        var sharedContracts = new MessageContractBuilder();
-        var builder = new LiteBusBuilder(moduleRegistry, sharedContracts);
+        var builder = new LiteBusBuilder(moduleRegistry);
 
         configure(builder);
 
         var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
-        moduleConfiguration.SetContext(sharedContracts);
 
         foreach (var moduleDescriptor in moduleRegistry.BuildOrder())
         {
@@ -119,5 +117,17 @@ public static class ServiceCollectionExtensions
     private static void RegisterHostManifest(IServiceCollection services, ModuleConfiguration moduleConfiguration)
     {
         services.AddSingleton(LiteBusHostManifest.FromConfiguration(moduleConfiguration));
+    }
+
+    /// <summary>
+    ///     Registers the Microsoft dependency injection dispatch-scope adapter before module validation.
+    /// </summary>
+    /// <param name="dependencyRegistry">The registry receiving the adapter descriptor.</param>
+    private static void RegisterDispatchScopeFactory(MicrosoftDependencyRegistryAdapter dependencyRegistry)
+    {
+        dependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IMessageDispatchScopeFactory),
+            typeof(MicrosoftMessageDispatchScopeFactory),
+            InstanceLifetime.Singleton));
     }
 }

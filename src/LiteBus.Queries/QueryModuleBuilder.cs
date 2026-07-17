@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
@@ -12,6 +13,24 @@ namespace LiteBus.Queries;
 /// </summary>
 public sealed class QueryModuleBuilder
 {
+    /// <summary>
+    ///     Query handler contracts accepted by query-specific discovery.
+    /// </summary>
+    private static readonly HashSet<Type> HandlerContracts =
+    [
+        typeof(IQueryHandler<,>),
+        typeof(IQueryPreHandler),
+        typeof(IQueryPreHandler<>),
+        typeof(IQueryPostHandler),
+        typeof(IQueryPostHandler<>),
+        typeof(IQueryPostHandler<,>),
+        typeof(IQueryErrorHandler),
+        typeof(IQueryErrorHandler<>),
+        typeof(IQueryErrorHandler<,>),
+        typeof(IStreamQueryHandler<,>),
+        typeof(IStreamQueryPostHandler<,>)
+    ];
+
     /// <summary>
     ///     Gets the message registry to which query types are registered.
     /// </summary>
@@ -37,22 +56,23 @@ public sealed class QueryModuleBuilder
     /// <summary>
     ///     Registers a query type for the message registry.
     /// </summary>
-    /// <typeparam name="T">The type of query to register, which must implement <see cref="IRegistrableQueryConstruct" />.</typeparam>
+    /// <typeparam name="T">The query or query handler type to register.</typeparam>
     /// <returns>The current <see cref="QueryModuleBuilder" /> instance for method chaining.</returns>
-    public QueryModuleBuilder Register<T>() where T : IRegistrableQueryConstruct
+    public QueryModuleBuilder Register<T>()
     {
-        _messageRegistry.Register(typeof(T));
-        return this;
+        return Register(typeof(T));
     }
 
     /// <summary>
     ///     Registers a query type for the message registry.
     /// </summary>
-    /// <param name="type">The type of query to register, which must implement <see cref="IRegistrableQueryConstruct" />.</param>
+    /// <param name="type">The query or query handler type to register.</param>
     /// <returns>The current <see cref="QueryModuleBuilder" /> instance for method chaining.</returns>
     public QueryModuleBuilder Register(Type type)
     {
-        if (!type.IsAssignableTo(typeof(IRegistrableQueryConstruct)))
+        ArgumentNullException.ThrowIfNull(type);
+
+        if (!IsQueryConstruct(type))
         {
             throw new LiteBusNotSupportedException($"The given type '{type.Name}' is not a query construct and cannot be registered.");
         }
@@ -62,8 +82,7 @@ public sealed class QueryModuleBuilder
     }
 
     /// <summary>
-    ///     Registers all concrete query constructs from the specified assembly that implement
-    ///     <see cref="IRegistrableQueryConstruct" />.
+    ///     Registers all concrete query and query handler types from the specified assembly.
     /// </summary>
     /// <param name="assembly">The assembly from which to register query types.</param>
     /// <returns>The current <see cref="QueryModuleBuilder" /> instance for method chaining.</returns>
@@ -73,11 +92,30 @@ public sealed class QueryModuleBuilder
         ArgumentNullException.ThrowIfNull(assembly);
 
         foreach (var registrableQueryConstruct in assembly.GetTypes()
-                     .Where(t => t is { IsClass: true, IsAbstract: false } && t.IsAssignableTo(typeof(IRegistrableQueryConstruct))))
+                     .Where(static type => type is { IsClass: true, IsAbstract: false } && IsQueryConstruct(type)))
         {
             _messageRegistry.Register(registrableQueryConstruct);
         }
 
         return this;
+    }
+
+    /// <summary>
+    ///     Determines whether a type is a query message or implements a query handler contract.
+    /// </summary>
+    /// <param name="type">The candidate type.</param>
+    /// <returns><see langword="true" /> when the type belongs to the query axis; otherwise, <see langword="false" />.</returns>
+    internal static bool IsQueryConstruct(Type type)
+    {
+        if (typeof(IQuery).IsAssignableFrom(type))
+        {
+            return true;
+        }
+
+        return type.GetInterfaces().Any(static contract =>
+        {
+            var contractDefinition = contract.IsGenericType ? contract.GetGenericTypeDefinition() : contract;
+            return HandlerContracts.Contains(contractDefinition);
+        });
     }
 }

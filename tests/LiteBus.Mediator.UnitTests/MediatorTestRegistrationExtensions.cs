@@ -18,8 +18,8 @@ namespace LiteBus.Mediator.UnitTests;
 ///     After merging command, event, and query tests into one assembly, full-assembly scans register
 ///     duplicate global handlers from other axes (for example
 ///     <c>GlobalEventPreHandler</c> and <c>FakeGlobalEventPreHandler</c>).
-///     Use these helpers to register only types under each axis test namespace prefix, mirroring the
-///     same <see cref="IRegistrableCommandConstruct" /> filter logic as each module builder.
+    ///     Use these helpers to register only types under each axis test namespace prefix. Each module builder validates
+    ///     the matching message and handler contracts.
 ///     See also inline types in messaging open-generic tests that avoid cross-axis contamination.
 /// </remarks>
 internal static class MediatorTestRegistrationExtensions
@@ -63,7 +63,7 @@ internal static class MediatorTestRegistrationExtensions
             builder,
             anchor.Assembly,
             CommandsNamespacePrefix,
-            typeof(IRegistrableCommandConstruct),
+            CommandModuleBuilder.IsCommandConstruct,
             builder.Register);
 
         return builder;
@@ -93,7 +93,7 @@ internal static class MediatorTestRegistrationExtensions
             builder,
             anchor.Assembly,
             EventsNamespacePrefix,
-            typeof(IRegistrableEventConstruct),
+            EventModuleBuilder.IsEventConstruct,
             builder.Register);
 
         return builder;
@@ -123,7 +123,7 @@ internal static class MediatorTestRegistrationExtensions
             builder,
             anchor.Assembly,
             QueriesNamespacePrefix,
-            typeof(IRegistrableQueryConstruct),
+            QueryModuleBuilder.IsQueryConstruct,
             builder.Register);
 
         return builder;
@@ -136,13 +136,13 @@ internal static class MediatorTestRegistrationExtensions
     /// <param name="builder">The module builder instance (unused except for generic inference).</param>
     /// <param name="assembly">The assembly to scan.</param>
     /// <param name="namespacePrefix">The required namespace prefix for registrable types.</param>
-    /// <param name="constructMarker">The axis registrable construct marker interface.</param>
+    /// <param name="isRegistrable">The semantic-axis predicate used to recognize registrable types.</param>
     /// <param name="register">The builder registration delegate.</param>
     private static void RegisterFilteredConstructs<TBuilder>(
         TBuilder builder,
         Assembly assembly,
         string namespacePrefix,
-        Type constructMarker,
+        Func<Type, bool> isRegistrable,
         Func<Type, TBuilder> register)
     {
         _ = builder;
@@ -150,7 +150,7 @@ internal static class MediatorTestRegistrationExtensions
         foreach (var registrableConstruct in assembly.GetTypes()
                      .Where(t => t is { IsClass: true, IsAbstract: false }
                                  && t.Namespace?.StartsWith(namespacePrefix, StringComparison.Ordinal) == true
-                                 && t.IsAssignableTo(constructMarker)))
+                                 && isRegistrable(t)))
         {
             register(registrableConstruct);
         }

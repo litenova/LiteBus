@@ -92,7 +92,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
             throw new LiteBusConfigurationException(
                 $"Module '{moduleType.FullName ?? moduleType.Name}' is already registered. " +
                 "Remove the duplicate registration or consolidate configuration into a single module instance. " +
-                "For MessageModule, call AddMessageModule() once before semantic modules such as AddCommandModule().");
+                "Type-based module identity permits one module instance of each concrete type.");
         }
 
         stagedModules.Add(module);

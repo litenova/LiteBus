@@ -128,7 +128,7 @@ internal static class AnalyzerTest
             typeof(MessageContractAttribute).Assembly.Location));
 
         test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(
-            typeof(IMessageTransport).Assembly.Location));
+            typeof(ITransportPublisher).Assembly.Location));
 
         return test;
     }

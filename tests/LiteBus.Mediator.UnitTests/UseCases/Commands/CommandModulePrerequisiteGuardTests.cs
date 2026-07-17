@@ -1,20 +1,21 @@
 using LiteBus.Commands;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Mediator.UnitTests.UseCases.Commands;
 
 /// <summary>
-///     Verifies configure-time prerequisites for <see cref="CommandModule" /> registration.
+///     Verifies graph prerequisites for <see cref="CommandModule" /> registration.
 /// </summary>
 public sealed class CommandModulePrerequisiteGuardTests
 {
     /// <summary>
-    ///     Verifies that <see cref="ModuleRegistryExtensions.AddCommandModule" /> requires <see cref="Messaging.MessageModule" />.
+    ///     Verifies that the completed graph requires <see cref="Messaging.MessageModule" />.
     /// </summary>
     [Fact]
-    public void AddCommandModule_WithoutMessageModule_ShouldThrowLiteBusConfigurationException()
+    public void AddCommandModule_WithoutMessageModule_ShouldFailModuleGraphValidation()
     {
         var act = () =>
         {
@@ -28,6 +29,28 @@ public sealed class CommandModulePrerequisiteGuardTests
 
         act.Should()
             .Throw<LiteBusConfigurationException>()
-            .WithMessage("*AddMessageModule()*");
+            .WithMessage("*requires 'MessageModule'*");
+    }
+
+    /// <summary>
+    ///     Verifies that command and messaging declaration order does not affect the completed graph.
+    /// </summary>
+    [Fact]
+    public void AddCommandModule_BeforeMessageModule_ShouldSucceed()
+    {
+        var act = () =>
+        {
+            _ = new ServiceCollection().AddLiteBus(registry =>
+            {
+                registry.AddCommandModule(_ =>
+                {
+                });
+                registry.AddMessageModule(_ =>
+                {
+                });
+            });
+        };
+
+        act.Should().NotThrow();
     }
 }

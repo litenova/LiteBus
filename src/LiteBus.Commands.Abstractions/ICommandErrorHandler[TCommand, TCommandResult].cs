@@ -13,5 +13,5 @@ namespace LiteBus.Commands.Abstractions;
 ///     <see cref="MessageErrorContext.HandledResult" /> to suppress recoverable exceptions and return a fallback result.
 /// </remarks>
 public interface ICommandErrorHandler<in TCommand, TCommandResult>
-    : IRegistrableCommandConstruct, IAsyncMessageErrorHandler<TCommand, TCommandResult>
+    : IAsyncMessageErrorHandler<TCommand, TCommandResult>
     where TCommand : ICommand<TCommandResult>;

@@ -12,4 +12,4 @@ namespace LiteBus.Events.Abstractions;
 ///     that apply only to the specified event type. Multiple type-specific pre-handlers can be
 ///     registered for each event type and will execute in sequence before the actual event handlers.
 /// </remarks>
-public interface IEventPreHandler<in TEvent> : IRegistrableEventConstruct, IAsyncMessagePreHandler<TEvent> where TEvent : notnull;
+public interface IEventPreHandler<in TEvent> : IAsyncMessagePreHandler<TEvent> where TEvent : notnull;

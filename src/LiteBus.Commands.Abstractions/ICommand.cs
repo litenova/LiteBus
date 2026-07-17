@@ -8,4 +8,4 @@ namespace LiteBus.Commands.Abstractions;
 ///     Commands follow the Command-Query Responsibility Segregation (CQRS) pattern and typically represent
 ///     a single, atomic operation that modifies state. Commands should be processed exactly once by a single handler.
 /// </remarks>
-public interface ICommand : IRegistrableCommandConstruct;
+public interface ICommand;

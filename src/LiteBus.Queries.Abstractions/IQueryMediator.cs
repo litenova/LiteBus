@@ -16,7 +16,7 @@ namespace LiteBus.Queries.Abstractions;
 ///     modifying the system state. The query mediator helps maintain separation between
 ///     the query issuers and the query handlers.
 /// </remarks>
-public interface IQueryMediator : IRegistrableQueryConstruct
+public interface IQueryMediator
 {
     /// <summary>
     ///     Asynchronously executes a query and returns the result.

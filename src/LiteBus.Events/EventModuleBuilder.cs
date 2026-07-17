@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using LiteBus.Events.Abstractions;
@@ -12,6 +13,20 @@ namespace LiteBus.Events;
 /// </summary>
 public sealed class EventModuleBuilder
 {
+    /// <summary>
+    ///     Event handler contracts accepted by event-specific discovery.
+    /// </summary>
+    private static readonly HashSet<Type> HandlerContracts =
+    [
+        typeof(IEventHandler<>),
+        typeof(IEventPreHandler),
+        typeof(IEventPreHandler<>),
+        typeof(IEventPostHandler),
+        typeof(IEventPostHandler<>),
+        typeof(IEventErrorHandler),
+        typeof(IEventErrorHandler<>)
+    ];
+
     /// <summary>
     ///     Gets the message registry to which event types are registered.
     /// </summary>
@@ -37,22 +52,23 @@ public sealed class EventModuleBuilder
     /// <summary>
     ///     Registers an event type for the message registry.
     /// </summary>
-    /// <typeparam name="T">The type of event to register, which must implement <see cref="IRegistrableEventConstruct" />.</typeparam>
+    /// <typeparam name="T">The event or event handler type to register.</typeparam>
     /// <returns>The current <see cref="EventModuleBuilder" /> instance for method chaining.</returns>
-    public EventModuleBuilder Register<T>() where T : IRegistrableEventConstruct
+    public EventModuleBuilder Register<T>()
     {
-        _messageRegistry.Register(typeof(T));
-        return this;
+        return Register(typeof(T));
     }
 
     /// <summary>
     ///     Registers an event type for the message registry.
     /// </summary>
-    /// <param name="type">The type of event to register, which must implement <see cref="IRegistrableEventConstruct" />.</param>
+    /// <param name="type">The event or event handler type to register.</param>
     /// <returns>The current <see cref="EventModuleBuilder" /> instance for method chaining.</returns>
     public EventModuleBuilder Register(Type type)
     {
-        if (!type.IsAssignableTo(typeof(IRegistrableEventConstruct)))
+        ArgumentNullException.ThrowIfNull(type);
+
+        if (!IsEventConstruct(type))
         {
             throw new LiteBusNotSupportedException($"The given type '{type.Name}' is not an event construct and cannot be registered.");
         }
@@ -62,8 +78,7 @@ public sealed class EventModuleBuilder
     }
 
     /// <summary>
-    ///     Registers all concrete event constructs from the specified assembly that implement
-    ///     <see cref="IRegistrableEventConstruct" />.
+    ///     Registers all concrete event and event handler types from the specified assembly.
     /// </summary>
     /// <param name="assembly">The assembly from which to register event types.</param>
     /// <returns>The current <see cref="EventModuleBuilder" /> instance for method chaining.</returns>
@@ -73,11 +88,30 @@ public sealed class EventModuleBuilder
         ArgumentNullException.ThrowIfNull(assembly);
 
         foreach (var registrableEventConstruct in assembly.GetTypes()
-                     .Where(t => t is { IsClass: true, IsAbstract: false } && t.IsAssignableTo(typeof(IRegistrableEventConstruct))))
+                     .Where(static type => type is { IsClass: true, IsAbstract: false } && IsEventConstruct(type)))
         {
             _messageRegistry.Register(registrableEventConstruct);
         }
 
         return this;
+    }
+
+    /// <summary>
+    ///     Determines whether a type is an event message or implements an event handler contract.
+    /// </summary>
+    /// <param name="type">The candidate type.</param>
+    /// <returns><see langword="true" /> when the type belongs to the event axis; otherwise, <see langword="false" />.</returns>
+    internal static bool IsEventConstruct(Type type)
+    {
+        if (typeof(IEvent).IsAssignableFrom(type))
+        {
+            return true;
+        }
+
+        return type.GetInterfaces().Any(static contract =>
+        {
+            var contractDefinition = contract.IsGenericType ? contract.GetGenericTypeDefinition() : contract;
+            return HandlerContracts.Contains(contractDefinition);
+        });
     }
 }

@@ -31,6 +31,6 @@ public sealed class MessageModuleRegistrationGuardTests
 
         act.Should()
             .Throw<LiteBusConfigurationException>()
-            .WithMessage("*MessageModule is already registered*");
+            .WithMessage("*MessageModule*already registered*");
     }
 }

@@ -23,7 +23,7 @@ internal static class LiteBusSymbols
         "LiteBus.Outbox.Abstractions.IOutbox",
         "LiteBus.Outbox.Abstractions.IOutboxStore",
         "LiteBus.Outbox.Abstractions.ITransactionalOutboxStore",
-        "LiteBus.Transport.Abstractions.IMessageTransport"
+        "LiteBus.Transport.Abstractions.ITransportPublisher"
     ];
 
     /// <summary>

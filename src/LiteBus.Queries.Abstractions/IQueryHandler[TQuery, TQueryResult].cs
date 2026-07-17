@@ -15,4 +15,4 @@ namespace LiteBus.Queries.Abstractions;
 ///     one handler within the application. Query handlers should be side-effect free and should not
 ///     modify the system state.
 /// </remarks>
-public interface IQueryHandler<in TQuery, TQueryResult> : IRegistrableQueryConstruct, IAsyncMessageHandler<TQuery, TQueryResult> where TQuery : IQuery<TQueryResult>;
+public interface IQueryHandler<in TQuery, TQueryResult> : IAsyncMessageHandler<TQuery, TQueryResult> where TQuery : IQuery<TQueryResult>;

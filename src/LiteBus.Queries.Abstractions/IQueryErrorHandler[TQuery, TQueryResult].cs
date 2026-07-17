@@ -13,5 +13,5 @@ namespace LiteBus.Queries.Abstractions;
 ///     <see cref="MessageErrorContext.HandledResult" /> to suppress recoverable exceptions and return a fallback result.
 /// </remarks>
 public interface IQueryErrorHandler<in TQuery, TQueryResult>
-    : IRegistrableQueryConstruct, IAsyncMessageErrorHandler<TQuery, TQueryResult>
+    : IAsyncMessageErrorHandler<TQuery, TQueryResult>
     where TQuery : IQuery<TQueryResult>;

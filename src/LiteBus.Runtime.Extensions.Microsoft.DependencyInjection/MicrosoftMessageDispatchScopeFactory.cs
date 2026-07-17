@@ -1,25 +1,25 @@
 using System;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Runtime.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace LiteBus.Messaging.Mediator;
+namespace LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 
 /// <summary>
-///     Creates dependency injection scopes for in-process message mediation.
+///     Creates dispatch scopes through Microsoft dependency injection.
 /// </summary>
-internal sealed class MessageDispatchScopeFactory : IMessageDispatchScopeFactory
+internal sealed class MicrosoftMessageDispatchScopeFactory : IMessageDispatchScopeFactory
 {
     /// <summary>
-    ///     Gets the underlying scope factory supplied by the host container.
+    ///     The Microsoft dependency injection scope factory.
     /// </summary>
     private readonly IServiceScopeFactory _scopeFactory;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="MessageDispatchScopeFactory" /> class.
+    ///     Initializes a new instance of the <see cref="MicrosoftMessageDispatchScopeFactory" /> class.
     /// </summary>
-    /// <param name="scopeFactory">The scope factory supplied by the host container.</param>
-    public MessageDispatchScopeFactory(IServiceScopeFactory scopeFactory)
+    /// <param name="scopeFactory">The host scope factory.</param>
+    public MicrosoftMessageDispatchScopeFactory(IServiceScopeFactory scopeFactory)
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
         _scopeFactory = scopeFactory;
@@ -28,24 +28,24 @@ internal sealed class MessageDispatchScopeFactory : IMessageDispatchScopeFactory
     /// <inheritdoc />
     public IMessageDispatchScope CreateScope()
     {
-        return new ServiceProviderMessageDispatchScope(_scopeFactory.CreateScope());
+        return new MicrosoftMessageDispatchScope(_scopeFactory.CreateScope());
     }
 
     /// <summary>
-    ///     Adapts a host <see cref="IServiceScope" /> to <see cref="IMessageDispatchScope" />.
+    ///     Adapts a Microsoft dependency injection scope to the LiteBus contract.
     /// </summary>
-    private sealed class ServiceProviderMessageDispatchScope : IMessageDispatchScope
+    private sealed class MicrosoftMessageDispatchScope : IMessageDispatchScope
     {
         /// <summary>
-        ///     Gets the underlying host scope disposed with this adapter.
+        ///     The host scope owned by this adapter.
         /// </summary>
         private readonly IServiceScope _scope;
 
         /// <summary>
-        ///     Initializes a new instance of the <see cref="ServiceProviderMessageDispatchScope" /> class.
+        ///     Initializes a new instance of the <see cref="MicrosoftMessageDispatchScope" /> class.
         /// </summary>
-        /// <param name="scope">The host scope created for one mediation operation.</param>
-        public ServiceProviderMessageDispatchScope(IServiceScope scope)
+        /// <param name="scope">The host scope created for one dispatch.</param>
+        public MicrosoftMessageDispatchScope(IServiceScope scope)
         {
             ArgumentNullException.ThrowIfNull(scope);
             _scope = scope;

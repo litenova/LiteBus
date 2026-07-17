@@ -10,4 +10,4 @@ namespace LiteBus.Events.Abstractions;
 ///     occurred.
 ///     Events are typically used to decouple components and enable asynchronous processing across system boundaries.
 /// </remarks>
-public interface IEvent : IRegistrableEventConstruct;
+public interface IEvent;

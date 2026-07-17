@@ -6,7 +6,7 @@ namespace LiteBus.Testing;
 /// <summary>
 ///     Returns configured results for queries sent through <see cref="IQueryMediator" />.
 /// </summary>
-public sealed class TestQueryMediator : IQueryMediator, IRegistrableQueryConstruct
+public sealed class TestQueryMediator : IQueryMediator
 {
     /// <summary>
     ///     Gets queries recorded by <see cref="QueryAsync" /> overloads.

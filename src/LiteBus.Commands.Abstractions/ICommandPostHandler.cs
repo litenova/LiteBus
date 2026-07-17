@@ -11,4 +11,4 @@ namespace LiteBus.Commands.Abstractions;
 ///     Multiple post-handlers can be registered in the application and they will all execute after each command is
 ///     handled.
 /// </remarks>
-public interface ICommandPostHandler : IRegistrableCommandConstruct, IAsyncMessagePostHandler<ICommand>;
+public interface ICommandPostHandler : IAsyncMessagePostHandler<ICommand>;

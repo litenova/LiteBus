@@ -4,6 +4,7 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.MediationStrategies;
 using LiteBus.Messaging.Mediator;
 using LiteBus.Messaging.Registry;
+using LiteBus.Runtime.Dependencies;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Mediator.UnitTests.UseCases.Messaging;

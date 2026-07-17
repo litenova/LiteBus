@@ -1,6 +1,5 @@
 using System;
 using Autofac;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Runtime.Composition;
@@ -48,6 +47,7 @@ public static class ContainerBuilderExtensions
         RegisterServiceProviderAdapter(builder);
 
         var dependencyRegistryAdapter = new AutofacDependencyRegistryAdapter(builder);
+        RegisterDispatchScopeFactory(dependencyRegistryAdapter);
         var moduleRegistry = new ModuleRegistry();
 
         configureRegistry(moduleRegistry);
@@ -67,12 +67,11 @@ public static class ContainerBuilderExtensions
     }
 
     /// <summary>
-    ///     Adds LiteBus to the Autofac container builder with shared contract and module configuration.
+    ///     Adds LiteBus to the Autofac container builder through the package-neutral composition builder.
     /// </summary>
     /// <param name="builder">The Autofac container builder to add LiteBus to.</param>
     /// <param name="configure">
-    ///     Action to configure shared contracts and LiteBus modules through <see cref="ILiteBusBuilder" />
-    ///     .
+    ///     Action that invokes feature-specific extensions on <see cref="ILiteBusBuilder" />.
     /// </param>
     /// <returns>The container builder for method chaining.</returns>
     /// <exception cref="ArgumentNullException">
@@ -86,14 +85,13 @@ public static class ContainerBuilderExtensions
         RegisterServiceProviderAdapter(builder);
 
         var dependencyRegistryAdapter = new AutofacDependencyRegistryAdapter(builder);
+        RegisterDispatchScopeFactory(dependencyRegistryAdapter);
         var moduleRegistry = new ModuleRegistry();
-        var sharedContracts = new MessageContractBuilder();
-        var liteBusBuilder = new LiteBusBuilder(moduleRegistry, sharedContracts);
+        var liteBusBuilder = new LiteBusBuilder(moduleRegistry);
 
         configure(liteBusBuilder);
 
         var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
-        moduleConfiguration.SetContext(sharedContracts);
 
         foreach (var moduleDescriptor in moduleRegistry.BuildOrder())
         {
@@ -129,5 +127,17 @@ public static class ContainerBuilderExtensions
         builder.Register(c => (IServiceProvider) new AutofacServiceProviderAdapter(c.Resolve<ILifetimeScope>()))
             .As<IServiceProvider>()
             .InstancePerLifetimeScope();
+    }
+
+    /// <summary>
+    ///     Registers the Autofac dispatch-scope adapter before module validation.
+    /// </summary>
+    /// <param name="dependencyRegistry">The registry receiving the adapter descriptor.</param>
+    private static void RegisterDispatchScopeFactory(AutofacDependencyRegistryAdapter dependencyRegistry)
+    {
+        dependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IMessageDispatchScopeFactory),
+            typeof(AutofacMessageDispatchScopeFactory),
+            InstanceLifetime.Singleton));
     }
 }

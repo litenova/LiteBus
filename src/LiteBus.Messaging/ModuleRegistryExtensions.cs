@@ -1,6 +1,5 @@
 using System;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging;
 
@@ -9,6 +8,23 @@ namespace LiteBus.Messaging;
 /// </summary>
 public static class ModuleRegistryExtensions
 {
+    /// <summary>
+    ///     Adds the messaging core and configures message contracts, serialization, and handlers.
+    /// </summary>
+    /// <param name="builder">The package-neutral LiteBus builder.</param>
+    /// <param name="builderAction">The messaging configuration callback.</param>
+    /// <returns>The current LiteBus builder.</returns>
+    public static ILiteBusBuilder AddMessaging(
+        this ILiteBusBuilder builder,
+        Action<MessageModuleBuilder> builderAction)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(builderAction);
+
+        builder.Modules.AddMessageModule(builderAction);
+        return builder;
+    }
+
     /// <summary>
     ///     Registers a message module with the specified configuration.
     /// </summary>
@@ -19,8 +35,8 @@ public static class ModuleRegistryExtensions
     ///     Thrown when <paramref name="moduleRegistry" /> or <paramref name="builderAction" /> is <see langword="null" />.
     /// </exception>
     /// <remarks>
-    ///     The message module provides core messaging infrastructure and should typically be registered
-    ///     before other LiteBus modules (commands, events, queries) that depend on its services.
+    ///     The message module provides core messaging infrastructure. Dependent modules declare that relationship through
+    ///     <see cref="IRequires{TModule}" />, so callback order does not affect graph validation.
     /// </remarks>
     /// <example>
     ///     <code>
@@ -39,14 +55,6 @@ public static class ModuleRegistryExtensions
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
-
-        if (moduleRegistry.IsModuleRegistered<MessageModule>())
-        {
-            throw new LiteBusConfigurationException(
-                "MessageModule is already registered. Call AddMessageModule() exactly once, before AddCommandModule(), " +
-                "AddEventModule(), or AddQueryModule(). Registration order matters: semantic modules require an explicit " +
-                "AddMessageModule() call and do not register the messaging core automatically.");
-        }
 
         moduleRegistry.Register(new MessageModule(builderAction));
         return moduleRegistry;

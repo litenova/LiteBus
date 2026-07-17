@@ -12,4 +12,4 @@ namespace LiteBus.Commands.Abstractions;
 ///     They can be used for command-specific logging, notification, or other cross-cutting concerns that apply
 ///     only to the specified command type. Multiple type-specific post-handlers can be registered for each command type.
 /// </remarks>
-public interface ICommandPostHandler<in TCommand> : IRegistrableCommandConstruct, IAsyncMessagePostHandler<TCommand> where TCommand : ICommand;
+public interface ICommandPostHandler<in TCommand> : IAsyncMessagePostHandler<TCommand> where TCommand : ICommand;

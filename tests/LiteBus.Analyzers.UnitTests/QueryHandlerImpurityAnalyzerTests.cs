@@ -135,7 +135,7 @@ public sealed class QueryHandlerImpurityAnalyzerTests
     }
 
     /// <summary>
-    ///     Verifies that a query handler depending on <c>IMessageTransport</c> produces LB1003.
+    ///     Verifies that a query handler depending on <c>ITransportPublisher</c> produces LB1003.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
     [Fact]
@@ -210,7 +210,7 @@ public sealed class QueryHandlerImpurityAnalyzerTests
     }
 
     /// <summary>
-    ///     Verifies that a query handler depending on <c>IMessageTransport</c> produces LB1003.
+    ///     Verifies that a query handler depending on <c>ITransportPublisher</c> produces LB1003.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
     [Fact]
@@ -226,7 +226,7 @@ public sealed class QueryHandlerImpurityAnalyzerTests
 
                               public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
                               {
-                                  public GetUserQueryHandler(IMessageTransport {|#0:transport|})
+                                  public GetUserQueryHandler(ITransportPublisher {|#0:transport|})
                                   {
                                   }
 
@@ -240,6 +240,6 @@ public sealed class QueryHandlerImpurityAnalyzerTests
             DiagnosticDescriptors.QueryHandlerImpurity,
             0,
             "GetUserQueryHandler",
-            "LiteBus.Transport.Abstractions.IMessageTransport");
+            "LiteBus.Transport.Abstractions.ITransportPublisher");
     }
 }

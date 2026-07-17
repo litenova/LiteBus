@@ -2,6 +2,7 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Mediator;
 using LiteBus.Messaging.Registry;
+using LiteBus.Runtime.Dependencies;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 

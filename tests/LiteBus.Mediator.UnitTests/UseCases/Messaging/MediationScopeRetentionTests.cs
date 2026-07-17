@@ -1,10 +1,12 @@
 using System.Runtime.CompilerServices;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.MediationStrategies;
 using LiteBus.Messaging.Mediator;
 using LiteBus.Messaging.Registry;
+using LiteBus.Runtime.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -20,13 +22,16 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
 
         var services = new ServiceCollection()
             .AddScoped<ScopedLifetimeMarker>()
-            .AddScoped<DelayedScopedHandler>()
-            .BuildServiceProvider();
+            .AddScoped<DelayedScopedHandler>();
+
+        services.AddLiteBus(registry => registry.AddMessageModule(_ => { }));
+
+        using var provider = services.BuildServiceProvider();
 
         var mediator = new MessageMediator(
             registry,
             registry,
-            new MessageDispatchScopeFactory(services.GetRequiredService<IServiceScopeFactory>()));
+            provider.GetRequiredService<IMessageDispatchScopeFactory>());
 
         var request = CreateDelayedRequest();
 
@@ -49,13 +54,16 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
 
         var services = new ServiceCollection()
             .AddScoped<ScopedLifetimeMarker>()
-            .AddScoped<StreamingScopedHandler>()
-            .BuildServiceProvider();
+            .AddScoped<StreamingScopedHandler>();
+
+        services.AddLiteBus(registry => registry.AddMessageModule(_ => { }));
+
+        using var provider = services.BuildServiceProvider();
 
         var mediator = new MessageMediator(
             registry,
             registry,
-            new MessageDispatchScopeFactory(services.GetRequiredService<IServiceScopeFactory>()));
+            provider.GetRequiredService<IMessageDispatchScopeFactory>());
 
         var request = new MessageMediationRequest<StreamingScopedCommand, IAsyncEnumerable<int>>
         {

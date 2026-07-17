@@ -8,17 +8,14 @@ namespace LiteBus.Runtime.UnitTests;
 public sealed class LiteBusBuilderTests
 {
     [Fact]
-    public void AddLiteBus_WithSharedContracts_ShouldRegisterContractsInResolvedRegistry()
+    public void AddLiteBus_WithMessagingContracts_ShouldRegisterContractsInResolvedRegistry()
     {
         var services = new ServiceCollection();
 
         services.AddLiteBus(builder =>
         {
-            builder.Contracts.Register<SharedContractMessage>("shared.contract", 2);
-
-            builder.Modules.AddMessageModule(_ =>
-            {
-            });
+            builder.AddMessaging(messaging =>
+                messaging.Contracts.Register<SharedContractMessage>("shared.contract", 2));
         });
 
         using var provider = services.BuildServiceProvider();
@@ -28,16 +25,17 @@ public sealed class LiteBusBuilderTests
     }
 
     [Fact]
-    public void AddLiteBus_WithSharedAndModuleContracts_ShouldApplyBothWithoutConflict()
+    public void AddLiteBus_WithMultipleMessagingContracts_ShouldApplyAllRegistrations()
     {
         var services = new ServiceCollection();
 
         services.AddLiteBus(builder =>
         {
-            builder.Contracts.Register<SharedContractMessage>("shared.contract", 2);
-
-            builder.Modules.AddMessageModule(messaging =>
-                messaging.Contracts.Register<ModuleContractMessage>("module.contract"));
+            builder.AddMessaging(messaging =>
+            {
+                messaging.Contracts.Register<SharedContractMessage>("shared.contract", 2);
+                messaging.Contracts.Register<ModuleContractMessage>("module.contract");
+            });
         });
 
         using var provider = services.BuildServiceProvider();

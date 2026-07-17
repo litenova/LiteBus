@@ -1,20 +1,21 @@
 using LiteBus.Events;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Mediator.UnitTests.UseCases.Events;
 
 /// <summary>
-///     Verifies configure-time prerequisites for <see cref="EventModule" /> registration.
+///     Verifies graph prerequisites for <see cref="EventModule" /> registration.
 /// </summary>
 public sealed class EventModulePrerequisiteGuardTests
 {
     /// <summary>
-    ///     Verifies that <see cref="ModuleRegistryExtensions.AddEventModule" /> requires <see cref="Messaging.MessageModule" />.
+    ///     Verifies that the completed graph requires <see cref="Messaging.MessageModule" />.
     /// </summary>
     [Fact]
-    public void AddEventModule_WithoutMessageModule_ShouldThrowLiteBusConfigurationException()
+    public void AddEventModule_WithoutMessageModule_ShouldFailModuleGraphValidation()
     {
         var act = () =>
         {
@@ -28,6 +29,28 @@ public sealed class EventModulePrerequisiteGuardTests
 
         act.Should()
             .Throw<LiteBusConfigurationException>()
-            .WithMessage("*AddMessageModule()*");
+            .WithMessage("*requires 'MessageModule'*");
+    }
+
+    /// <summary>
+    ///     Verifies that event and messaging declaration order does not affect the completed graph.
+    /// </summary>
+    [Fact]
+    public void AddEventModule_BeforeMessageModule_ShouldSucceed()
+    {
+        var act = () =>
+        {
+            _ = new ServiceCollection().AddLiteBus(registry =>
+            {
+                registry.AddEventModule(_ =>
+                {
+                });
+                registry.AddMessageModule(_ =>
+                {
+                });
+            });
+        };
+
+        act.Should().NotThrow();
     }
 }

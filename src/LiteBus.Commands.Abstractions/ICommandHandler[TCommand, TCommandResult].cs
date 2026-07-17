@@ -14,4 +14,4 @@ namespace LiteBus.Commands.Abstractions;
 ///     the expected result. Each command of type <typeparamref name="TCommand" /> should have exactly
 ///     one handler within the application.
 /// </remarks>
-public interface ICommandHandler<in TCommand, TCommandResult> : IRegistrableCommandConstruct, IAsyncMessageHandler<TCommand, TCommandResult> where TCommand : ICommand<TCommandResult>;
+public interface ICommandHandler<in TCommand, TCommandResult> : IAsyncMessageHandler<TCommand, TCommandResult> where TCommand : ICommand<TCommandResult>;
