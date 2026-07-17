@@ -6,6 +6,11 @@ namespace LiteBus.Inbox.Ingress.Kafka;
 public sealed record KafkaInboxIngressOptions
 {
     /// <summary>
+    ///     Gets the provider-neutral ingress safety settings.
+    /// </summary>
+    public TransportInboxIngressSafetyOptions Safety { get; init; } = new();
+
+    /// <summary>
     ///     Gets the topic name the ingress consumer subscribes to.
     /// </summary>
     public string Destination { get; init; } = string.Empty;

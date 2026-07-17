@@ -19,6 +19,11 @@ namespace LiteBus.Inbox.Ingress.Amqp;
 public sealed record AmqpInboxIngressOptions
 {
     /// <summary>
+    ///     Gets the provider-neutral ingress safety settings.
+    /// </summary>
+    public TransportInboxIngressSafetyOptions Safety { get; init; } = new();
+
+    /// <summary>
     ///     Gets the queue name the ingress consumer subscribes to.
     /// </summary>
     public string QueueName { get; init; } = string.Empty;

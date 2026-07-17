@@ -7,7 +7,7 @@
 
 ## Purpose and Scope
 
-`UseAzureServiceBusIngress` registers `AzureServiceBusInboxIngressModule`. The module maps `AzureServiceBusInboxIngressOptions` into shared transport ingress options, requires a root `AzureServiceBusTransportModule`, and registers the shared handler and consumer loop.
+`UseAzureServiceBusIngress` registers `AzureServiceBusInboxIngressModule`. The module maps `AzureServiceBusInboxIngressOptions` into shared transport ingress options, requires a root `AzureServiceBusTransportModule`, and registers the shared handler and consumer loop. Queue destinations use `Destination`; topic destinations also set `SubscriptionName`.
 
 Failed store writes can abandon messages for retry when `RequeueOnFailure` is true (Service Bus retry semantics via transport adapter).
 
@@ -28,7 +28,9 @@ bus.AddInbox(inbox => inbox.UseAzureServiceBusIngress(ingress =>
     ingress.UseOptions(new AzureServiceBusInboxIngressOptions
     {
         Destination = "commands-inbox",
+        SubscriptionName = "orders-worker",
         PrefetchCount = 10,
+        MaxConcurrentMessages = 4,
         RequeueOnFailure = true
     });
 }));
@@ -48,6 +50,8 @@ bus.AddInbox(inbox => inbox.UseAzureServiceBusIngress(ingress =>
 | Destination required | `Destination` required | `QueueName` required |
 | Root transport required | `AddAzureServiceBusTransport(...)` | `AddAmqpTransport(...)` |
 | Prefetch setting | yes | yes |
+| Named topic subscription | yes | no |
+| Separate handler concurrency limit | yes (`MaxConcurrentMessages`) | no |
 | `RequeueOnFailure` toggle | yes (default true) | yes (default true) |
 | `TrustApplicationHeaders` exposure on broker options | no | yes |
 | Batch accept knobs on broker options | no | yes |
@@ -68,6 +72,8 @@ bus.AddInbox(inbox => inbox.UseAzureServiceBusIngress(ingress =>
 ## Invariants
 
 - `Destination` and root `AddAzureServiceBusTransport(...)` are required at compose time.
+- `SubscriptionName` is required when `Destination` is a topic.
+- `MaxConcurrentMessages` controls callback concurrency independently from `PrefetchCount`.
 - LiteBus contract headers are required on the wire payload.
 - Beta tier per v6 feature index; treat broker edge cases as application-tested.
 - Identity and idempotency default to broker-scoped values (`RequireStableIdentity=true`, `TrustApplicationHeaders=false`).

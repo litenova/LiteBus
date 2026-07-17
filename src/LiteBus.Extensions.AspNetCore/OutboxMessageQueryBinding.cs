@@ -104,9 +104,17 @@ public sealed class OutboxMessageQueryBinding
     /// <summary>
     ///     Converts the bound pagination values to an <see cref="OutboxMessagePageRequest" />.
     /// </summary>
+    /// <param name="maxPageSize">The largest page size accepted by the management endpoint.</param>
     /// <returns>The page request used by outbox store queries.</returns>
-    public OutboxMessagePageRequest ToPageRequest()
+    public OutboxMessagePageRequest ToPageRequest(int maxPageSize)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPageSize);
+
+        if (PageSize <= 0 || PageSize > maxPageSize)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxPageSize), PageSize, $"PageSize must be between 1 and {maxPageSize}.");
+        }
+
         return new OutboxMessagePageRequest
         {
             PageSize = PageSize,

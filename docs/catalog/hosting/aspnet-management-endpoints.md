@@ -34,6 +34,9 @@ Hosts that map through `IEndpointRouteBuilder` can call `AddLiteBusManagementEnd
 | `LiteBusManagementOptions.AuthorizationPolicy` | Applies a named ASP.NET Core authorization policy |
 | `LiteBusManagementOptions.FailHealthWhenNoProbes` | Controls the empty-manifest health result |
 | `LiteBusManagementOptions.DefaultDrainTimeout` | Supplies the processor drain timeout when the query omits one |
+| `LiteBusManagementOptions.MaxPageSize` | Caps one query page at 100 rows by default |
+| `LiteBusManagementOptions.MaxBulkMessageIds` | Caps one requeue or purge identifier list at 1,000 by default |
+| `LiteBusManagementOptions.MaxDrainTimeout` | Caps a requested drain timeout at five minutes by default |
 
 ## Routes
 
@@ -58,7 +61,7 @@ The table uses the default `litebus` prefix. Outbox routes mirror inbox routes w
 
 ## Authorization and Safety
 
-Management routes require an authenticated caller by default. When `AuthorizationPolicy` contains a policy name, every route requires that policy. Set `AllowAnonymousManagement` only for a host whose network boundary already limits access, such as an isolated local test host.
+Management routes require an authenticated caller by default. When `AuthorizationPolicy` contains a policy name, every route requires that policy. Set `AllowAnonymousManagement` only for a host whose network boundary already limits access, such as an isolated local test host. Query, bulk identifier, and drain limits are validated before manager calls so operator traffic cannot request unbounded store work.
 
 Unrestricted purge requests require a JSON body with `confirm` set to `true`. Narrowed purge requests can omit confirmation because their query predicates limit the target set. Manager safety exceptions become HTTP 400 responses; unexpected manager failures become HTTP 500 problem responses.
 
@@ -88,7 +91,9 @@ Management routes do not define a separate meter. Use `LiteBus.Inbox` and `LiteB
 - Inbox and outbox route groups remain independent.
 - Storage adapters remain behind manager interfaces.
 - Destructive operations retain confirmation and authorization guards.
-- Drain timeout query values must be positive; missing or non-positive values use `DefaultDrainTimeout`.
+- Drain timeout query values must be positive; missing or non-positive values use `DefaultDrainTimeout`, and values above `MaxDrainTimeout` are rejected.
+- Query page sizes cannot exceed `MaxPageSize`.
+- Requeue and purge identifier lists cannot exceed `MaxBulkMessageIds`.
 - Route prefix trimming never creates consecutive slashes.
 
 ## Non-Goals

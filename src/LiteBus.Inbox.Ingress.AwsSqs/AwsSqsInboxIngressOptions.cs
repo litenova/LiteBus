@@ -6,6 +6,11 @@ namespace LiteBus.Inbox.Ingress.AwsSqs;
 public sealed record AwsSqsInboxIngressOptions
 {
     /// <summary>
+    ///     Gets the provider-neutral ingress safety settings.
+    /// </summary>
+    public TransportInboxIngressSafetyOptions Safety { get; init; } = new();
+
+    /// <summary>
     ///     Gets the queue URL the ingress consumer polls.
     /// </summary>
     public string Destination { get; init; } = string.Empty;

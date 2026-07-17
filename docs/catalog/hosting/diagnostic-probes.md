@@ -11,7 +11,7 @@
 
 `IDiagnosticCheck` gives LiteBus a host-neutral readiness probe abstraction. Modules register probes with `IModuleConfiguration.RegisterDiagnosticCheck(Type, string)`, and adapters execute them through `DiagnosticCheckRunner`.
 
-`DiagnosticCheckRunner.RunAsync(...)` aggregates status and handles zero-probe policy (`failHealthWhenNoProbes`).
+`DiagnosticCheckRunner.RunAsync(...)` aggregates status and handles zero-probe policy (`failHealthWhenNoProbes`). Probes run concurrently with a bounded semaphore, and each probe has a timeout. A missing registration, timeout, or probe exception becomes an unhealthy outcome for that probe while sibling probes continue.
 
 ## Public Surface
 
@@ -21,6 +21,7 @@
 - `DiagnosticResult`
 - `DiagnosticCheckDescriptor`
 - `DiagnosticCheckRunner.RunAsync(...)`
+- `DiagnosticCheckRunOptions`
 
 ### Registration
 
@@ -42,6 +43,7 @@
 - Descriptor name is the operator-facing probe name.
 - Descriptor implementation type must resolve to `IDiagnosticCheck` from DI.
 - Duplicate probe type registrations are deduplicated by implementation type.
+- `MaxParallelism` and `Timeout` are positive. Probe cancellation is requested when a timeout expires.
 
 ## Non-Goals
 
@@ -93,7 +95,7 @@ When no probes are registered and fail-on-empty is true, runner returns degraded
 
 | Gap | Priority | Notes |
 | --- | --- | --- |
-| Parallel long-running probe execution behavior | Low | Current runner executes probes sequentially. |
+| Parallel long-running probe execution behavior | Covered | `DiagnosticCheckRunnerTests` verifies timeout cancellation and sibling-safe failure mapping. |
 
 ### Out-of-Scope Use Cases
 

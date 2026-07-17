@@ -11,9 +11,19 @@ public sealed record TransportConsumerOptions
     public required string Destination { get; init; }
 
     /// <summary>
+    ///     Gets the optional subscription name used when the destination is a topic with named subscriptions.
+    /// </summary>
+    public string? SubscriptionName { get; init; }
+
+    /// <summary>
     ///     Gets the maximum number of unacknowledged deliveries the broker should push to the consumer.
     /// </summary>
     public ushort PrefetchCount { get; init; }
+
+    /// <summary>
+    ///     Gets the maximum number of handler callbacks that may execute concurrently when the broker supports a separate limit.
+    /// </summary>
+    public ushort? MaxConcurrentMessages { get; init; }
 
     /// <summary>
     ///     Gets a value indicating whether the consumer should declare the destination before subscribing.

@@ -46,4 +46,22 @@ public sealed class LiteBusManagementOptions
     /// </summary>
     /// <value>The default drain timeout. The default is 30 seconds.</value>
     public TimeSpan DefaultDrainTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    ///     Gets or sets the maximum number of rows returned by one management query page.
+    /// </summary>
+    /// <value>The default is 100.</value>
+    public int MaxPageSize { get; set; } = 100;
+
+    /// <summary>
+    ///     Gets or sets the maximum number of message identifiers accepted by one bulk request.
+    /// </summary>
+    /// <value>The default is 1,000.</value>
+    public int MaxBulkMessageIds { get; set; } = 1000;
+
+    /// <summary>
+    ///     Gets or sets the maximum timeout accepted by processor drain endpoints.
+    /// </summary>
+    /// <value>The default is five minutes.</value>
+    public TimeSpan MaxDrainTimeout { get; set; } = TimeSpan.FromMinutes(5);
 }

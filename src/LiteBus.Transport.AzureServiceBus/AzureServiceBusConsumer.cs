@@ -238,14 +238,16 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
         var sessionStopped = CreateStoppedTaskSource();
         var sessionError = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var processor = _client.CreateProcessor(
-            options.Destination,
-            new ServiceBusProcessorOptions
+        var processorOptions = new ServiceBusProcessorOptions
             {
                 AutoCompleteMessages = false,
-                MaxConcurrentCalls = options.PrefetchCount > 0 ? options.PrefetchCount : 1,
+                MaxConcurrentCalls = options.MaxConcurrentMessages ?? (options.PrefetchCount > 0 ? options.PrefetchCount : 1),
                 ReceiveMode = ServiceBusReceiveMode.PeekLock
-            });
+            };
+
+        var processor = string.IsNullOrWhiteSpace(options.SubscriptionName)
+            ? _client.CreateProcessor(options.Destination, processorOptions)
+            : _client.CreateProcessor(options.Destination, options.SubscriptionName, processorOptions);
 
         try
         {

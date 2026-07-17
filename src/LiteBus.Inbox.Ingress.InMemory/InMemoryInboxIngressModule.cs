@@ -52,7 +52,13 @@ public sealed class InMemoryInboxIngressModule :
         {
             Destination = options.Destination,
             PrefetchCount = options.PrefetchCount,
-            RequeueOnFailure = options.RequeueOnFailure
+            RequeueOnFailure = options.RequeueOnFailure,
+            Safety = options.Safety,
+            MaxMessageBytes = options.Safety.MaxMessageBytes,
+            RequireStableIdentity = options.Safety.RequireStableIdentity,
+            TrustApplicationHeaders = options.Safety.TrustApplicationHeaders,
+            EnableBatchAccept = options.Safety.EnableBatchAccept,
+            BatchMaxWait = options.Safety.BatchMaxWait
         };
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(TransportInboxIngressOptions), ingressOptions));

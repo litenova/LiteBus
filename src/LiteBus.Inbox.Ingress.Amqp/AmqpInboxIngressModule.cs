@@ -55,7 +55,10 @@ public sealed class AmqpInboxIngressModule :
             RequeueOnFailure = options.RequeueOnFailure,
             TrustApplicationHeaders = options.TrustApplicationHeaders,
             EnableBatchAccept = options.EnableBatchAccept,
-            BatchMaxWait = options.BatchMaxWait
+            BatchMaxWait = options.BatchMaxWait,
+            MaxMessageBytes = options.Safety.MaxMessageBytes,
+            RequireStableIdentity = options.Safety.RequireStableIdentity,
+            Safety = options.Safety
         };
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(AmqpInboxIngressOptions), options));

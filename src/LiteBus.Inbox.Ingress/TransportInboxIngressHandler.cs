@@ -61,6 +61,16 @@ public sealed class TransportInboxIngressHandler
         _messageSerializer = messageSerializer;
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
+
+        ArgumentOutOfRangeException.ThrowIfNegative(options.MaxMessageBytes);
+        ArgumentOutOfRangeException.ThrowIfNegative(options.BatchMaxWait.Ticks);
+
+        if (options.EnableBatchAccept && options.PrefetchCount == 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "PrefetchCount must be greater than zero when batch acceptance is enabled.");
+        }
         _mappingOptions = new TransportInboxIngressMappingOptions(
             _options.RequireStableIdentity,
             _options.TrustApplicationHeaders);

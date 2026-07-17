@@ -98,6 +98,12 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
         _hostOptions = hostOptions;
         _circuitBreaker = circuitBreaker;
         _logger = logger ?? NullLogger<TransportInboxIngressConsumer>.Instance;
+
+        if (options.EnableBatchAccept)
+        {
+            var capacity = options.PrefetchCount > 0 ? options.PrefetchCount : 1;
+            _batchAdmission = new SemaphoreSlim(capacity, capacity);
+        }
     }
 
     /// <summary>
@@ -134,7 +140,9 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
         var consumerOptions = new TransportConsumerOptions
         {
             Destination = _options.Destination,
+            SubscriptionName = _options.SubscriptionName,
             PrefetchCount = _options.PrefetchCount,
+            MaxConcurrentMessages = _options.MaxConcurrentMessages,
             DeclareDestination = _options.DeclareDestination,
             DurableDestination = _options.DurableDestination
         };
@@ -295,7 +303,10 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
                 return;
             }
 
-            _activeBatchFlushTask = OnBatchFlushTimerElapsedAsync();
+            var flushTask = OnBatchFlushTimerElapsedAsync();
+            _activeBatchFlushTask = _activeBatchFlushTask is null
+                ? flushTask
+                : Task.WhenAll(_activeBatchFlushTask, flushTask);
         }
     }
 
@@ -315,6 +326,14 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
         if (activeTask is not null)
         {
             await activeTask.ConfigureAwait(false);
+
+            lock (_batchSync)
+            {
+                if (ReferenceEquals(_activeBatchFlushTask, activeTask))
+                {
+                    _activeBatchFlushTask = null;
+                }
+            }
         }
     }
 
@@ -471,10 +490,9 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
         List<TransportMessage> messages,
         CancellationToken cancellationToken)
     {
-        _circuitBreaker?.ThrowIfOpen();
-
         try
         {
+            _circuitBreaker?.ThrowIfOpen();
             await _handler.AcceptBatchAsync(messages, cancellationToken).ConfigureAwait(false);
         }
 

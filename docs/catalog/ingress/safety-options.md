@@ -7,7 +7,7 @@
 
 ## Purpose and Scope
 
-`TransportInboxIngressOptions` is the shared safety record registered by every ingress adapter. Broker-specific option types map a subset of fields into this record at module build time. The handler and consumer read these options for size checks, mapping policy, requeue defaults, destination subscription settings, and optional edge authorization.
+`TransportInboxIngressOptions` is the shared safety record registered by every ingress adapter. Broker-specific option types expose `TransportInboxIngressSafetyOptions`, then map it into the shared record at module build time. The handler and consumer read these options for size checks, mapping policy, requeue defaults, destination subscription settings, and optional edge authorization.
 
 ## Option Model
 
@@ -15,6 +15,8 @@
 | --- | --- | --- |
 | `TransportInboxIngressOptions.Destination` | (required) | Queue, topic, or channel name |
 | `TransportInboxIngressOptions.PrefetchCount` | 0 | Unacknowledged prefetch / batch size hint |
+| `TransportInboxIngressOptions.MaxConcurrentMessages` | null | Optional handler concurrency limit for transports with a separate setting |
+| `TransportInboxIngressOptions.SubscriptionName` | null | Named subscription when a destination is a topic |
 | `TransportInboxIngressOptions.DeclareDestination` | false | Declare queue or topic before subscribe (AMQP) |
 | `TransportInboxIngressOptions.DurableDestination` | false | Survive broker restart when declaring (AMQP) |
 | `TransportInboxIngressOptions.RequeueOnFailure` | true | Requeue on transient accept failures |
@@ -24,6 +26,9 @@
 | `TransportInboxIngressOptions.AuthorizeDeliveryAsync` | null | Host callback before accept |
 | `TransportInboxIngressOptions.EnableBatchAccept` | false | Enable buffered batch accepts |
 | `TransportInboxIngressOptions.BatchMaxWait` | 200 ms | Partial batch flush delay |
+| `TransportInboxIngressOptions.Safety` | default safety record | Shared provider-neutral safety settings |
+
+`TransportInboxIngressSafetyOptions` defaults to a 4 MiB body limit, requires a stable broker identity, rejects application-header overrides, and leaves batch acceptance disabled. Set `EnableBatchAccept` only with a positive `PrefetchCount`; the ingress handler rejects an invalid combination during module construction.
 
 ## Broker Option Parity
 

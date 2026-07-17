@@ -6,6 +6,11 @@ namespace LiteBus.Inbox.Ingress.InMemory;
 public sealed record InMemoryInboxIngressOptions
 {
     /// <summary>
+    ///     Gets the provider-neutral ingress safety settings.
+    /// </summary>
+    public TransportInboxIngressSafetyOptions Safety { get; init; } = new();
+
+    /// <summary>
     ///     Gets the logical queue name the ingress consumer subscribes to.
     /// </summary>
     public string Destination { get; init; } = string.Empty;

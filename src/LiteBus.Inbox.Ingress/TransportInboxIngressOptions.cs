@@ -39,7 +39,7 @@ public sealed record TransportInboxIngressOptions
     /// <summary>
     ///     Gets the default maximum ingress body size in bytes (4 MiB).
     /// </summary>
-    public const int DefaultMaxMessageBytes = 4 * 1024 * 1024;
+    public const int DefaultMaxMessageBytes = TransportInboxIngressSafetyOptions.DefaultMaxMessageBytes;
 
     /// <summary>
     ///     Gets the destination address the ingress consumer subscribes to.
@@ -47,9 +47,19 @@ public sealed record TransportInboxIngressOptions
     public string Destination { get; init; } = string.Empty;
 
     /// <summary>
+    ///     Gets the optional subscription name for topic-based broker destinations.
+    /// </summary>
+    public string? SubscriptionName { get; init; }
+
+    /// <summary>
     ///     Gets the maximum number of unacknowledged deliveries prefetched by the broker.
     /// </summary>
     public ushort PrefetchCount { get; init; }
+
+    /// <summary>
+    ///     Gets the optional handler concurrency limit when a transport separates concurrency from prefetch.
+    /// </summary>
+    public ushort? MaxConcurrentMessages { get; init; }
 
     /// <summary>
     ///     Gets a value indicating whether the consumer should declare the destination before subscribing.
@@ -106,6 +116,11 @@ public sealed record TransportInboxIngressOptions
     ///     are trusted.
     /// </value>
     public bool TrustApplicationHeaders { get; init; }
+
+    /// <summary>
+    ///     Gets the provider-neutral ingress safety settings used by broker adapters.
+    /// </summary>
+    public TransportInboxIngressSafetyOptions Safety { get; init; } = new();
 
     /// <summary>
     ///     Gets an optional callback invoked before inbox accept to authorize or reject a delivery.
