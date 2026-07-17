@@ -50,7 +50,7 @@ public sealed class ValidateOrderPreHandler : ICommandPreHandler<PlaceOrderComma
 - Default priority is `0` when attribute is absent.
 - Lower priority executes first in sequential group mode.
 - Parallel group mode removes strict cross-priority completion ordering.
-- `AggregateAll` collects failures across parallel tasks, `PropagateFirst` exits on first fault.
+- Both fault modes wait for already-started parallel tasks. `AggregateAll` combines every failure, while `PropagateFirst` surfaces one failure.
 
 ## Non-Goals
 
@@ -76,6 +76,8 @@ Operational alternatives:
 | `mediating_event_with_sequential_priority_groups_sequential_handlers_maintains_strict_order` | `LiteBus.Mediator.UnitTests` |
 | `mediating_event_with_sequential_priority_groups_parallel_handlers_executes_same_priority_concurrently` | `LiteBus.Mediator.UnitTests` |
 | `mediating_event_with_parallel_priority_groups_executes_all_handlers_concurrently` | `LiteBus.Mediator.UnitTests` |
+| `PropagateFirst_waits_for_started_siblings_before_surfacing_one_failure` | `LiteBus.Mediator.UnitTests` |
+| `AggregateAll_waits_for_started_siblings_and_surfaces_every_failure` | `LiteBus.Mediator.UnitTests` |
 | `Send_CommandWithMultiplePostHandlers_LastWriteWins` | `LiteBus.Mediator.UnitTests` |
 
 ### Untested

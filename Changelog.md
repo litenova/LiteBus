@@ -41,6 +41,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Event parallel fault-mode documentation now matches runtime behavior: already-started sibling tasks settle before
+  either one failure or an aggregate is surfaced, and sibling cancellation is never implied.
 - The shared Generic Host orchestrator now runs as a supervised `BackgroundService`. An unexpected LiteBus background
   loop fault requests application shutdown immediately instead of leaving the host alive without that workload.
 - Closed generic handler registrations retain independent descriptors instead of colliding on one open generic

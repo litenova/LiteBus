@@ -129,13 +129,14 @@ Use the table below when choosing `EventExecutionSettings` for a publish call. D
 | Priority groups | Handlers in same group | Parallel fault mode | Execution shape | Ordering guarantee | Failure behavior |
 | --- | --- | --- | --- | --- | --- |
 | Sequential | Sequential | n/a | Strict pipeline | Full handler order preserved | First fault stops the stage |
-| Sequential | Parallel | PropagateFirst | Phased fan-out | Groups run in priority order; within-group order not guaranteed | First handler fault cancels sibling tasks in the group |
+| Sequential | Parallel | PropagateFirst | Phased fan-out | Groups run in priority order; within-group order not guaranteed | One fault is reported after already-started siblings in the group settle |
 | Sequential | Parallel | AggregateAll | Phased fan-out | Groups run in priority order; within-group order not guaranteed | All handlers in the group run; failures aggregate into one exception |
 | Parallel | Sequential | n/a | Concurrent groups | Priority order not guaranteed across groups | First fault stops the stage |
 | Parallel | Parallel | PropagateFirst | Maximum concurrency | No order guarantees | One fault is reported after already-started siblings settle |
 | Parallel | Parallel | AggregateAll | Maximum concurrency | No order guarantees | All parallel tasks run; failures aggregate |
 
 `ParallelFaultMode` applies only when handlers execute with `ConcurrencyMode.Parallel` at the priority-group level, within the same priority group, or both. Sequential stages always stop at the first unhandled fault regardless of fault mode.
+Neither parallel fault mode cancels sibling work. Cancellation remains cooperative through the token supplied to `PublishAsync`.
 
 ### Routing: Selecting Handlers
 
