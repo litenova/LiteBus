@@ -20,7 +20,7 @@ Roles describe dependency direction and package purpose. They are not numeric la
 | Consumer tooling | `LiteBus.Analyzers`, `LiteBus.Testing` | Any role needed by the tool | Analyzer or test-support packages |
 | Aggregate | `LiteBus` | Contract and core implementation roles | BCL only |
 
-`ArchitectureDependencyPolicyTests` parses every project under `src/`. It fails when a project has no role, a project reference points in a forbidden direction, or a direct package reference is not approved for that role. Update the matrix and the test together when introducing a new architectural role or SDK family.
+`ArchitectureDependencyPolicyTests` parses every project under `src/`. It fails when a project has no role, a project reference points in a forbidden direction, a storage, dispatch, or ingress adapter crosses concerns, or a direct or transitive package reference is not approved for that role. Technology-family checks walk the complete project-reference closure, so a broker SDK cannot enter an adapter through a shared project. Update the matrix and the test together when introducing a new architectural role or SDK family.
 
 Only the `LiteBus` aggregate meta-package bundles core mediators and durable messaging. Storage, dispatch, ingress, broker transports, and OpenTelemetry remain opt-in.
 
@@ -62,6 +62,14 @@ Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactor
 | `LiteBus.Runtime` | Module registry, dependency descriptors, and advanced module composition | `Runtime.Abstractions` | none |
 | `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | Microsoft DI adapter; defines `AddLiteBus` in namespace `LiteBus.Extensions.Microsoft.DependencyInjection` | `Runtime`, `Runtime.Extensions.Microsoft.Hosting` | `Microsoft.Extensions.DependencyInjection.Abstractions` |
 | `LiteBus.Runtime.Extensions.Autofac` | Autofac adapter | `Runtime`, `Runtime.Extensions.Autofac.Hosting` | `Autofac` |
+| `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection` | Microsoft DI mediator registration | `Messaging`, runtime DI adapter | Microsoft DI |
+| `LiteBus.Messaging.Extensions.Autofac` | Autofac mediator registration | `Messaging`, runtime Autofac adapter | Autofac |
+| `LiteBus.Commands.Extensions.Microsoft.DependencyInjection` | Microsoft DI command registration | `Commands`, runtime DI adapter | Microsoft DI |
+| `LiteBus.Commands.Extensions.Autofac` | Autofac command registration | `Commands`, runtime Autofac adapter | Autofac |
+| `LiteBus.Queries.Extensions.Microsoft.DependencyInjection` | Microsoft DI query registration | `Queries`, runtime DI adapter | Microsoft DI |
+| `LiteBus.Queries.Extensions.Autofac` | Autofac query registration | `Queries`, runtime Autofac adapter | Autofac |
+| `LiteBus.Events.Extensions.Microsoft.DependencyInjection` | Microsoft DI event registration | `Events`, runtime DI adapter | Microsoft DI |
+| `LiteBus.Events.Extensions.Autofac` | Autofac event registration | `Events`, runtime Autofac adapter | Autofac |
 | `LiteBus.Extensions.Microsoft.DependencyInjection` | Convenience meta-package for every semantic mediator Microsoft DI extension (no source files; does not define `AddLiteBus`) | `Commands`, `Events`, `Queries`, `Messaging` mediator `*.Extensions.Microsoft.DependencyInjection` packages | none |
 | `LiteBus.Extensions.Diagnostics.HealthChecks` | ASP.NET Core `IHealthCheck` adapter for manifest diagnostics | `Runtime.Abstractions` | `Microsoft.Extensions.Diagnostics.HealthChecks` |
 | `LiteBus.Extensions.AspNetCore` | Management HTTP endpoints (`/litebus/*`) | `Inbox.Abstractions`, `Outbox.Abstractions`, `Runtime.Abstractions` | ASP.NET Core |
@@ -116,6 +124,7 @@ Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactor
 | `LiteBus.Transport.Extensions.OpenTelemetry` | Register transport tracing and circuit breaker metrics | `Transport` | `OpenTelemetry` |
 | `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | Register AMQP circuit breaker metrics | `Transport.Amqp` | `OpenTelemetry` |
 | `LiteBus.Storage.PostgreSql` | Shared PG quoting, schema version, advisory locks | none | `Npgsql` |
+| `LiteBus.Storage.EntityFrameworkCore` | Shared EF Core options, transactions, and provider helpers | `DurableMessaging.Abstractions`, `Messaging.Abstractions` | EF Core |
 | `LiteBus.Analyzers` | Roslyn analyzers for handler and contract rules | Roslyn only | `Microsoft.CodeAnalysis.CSharp` |
 | `LiteBus.*.Extensions.Microsoft.DependencyInjection` | Module registration for Microsoft DI | Module package, Microsoft DI runtime adapter | Microsoft DI |
 | `LiteBus.Runtime.Extensions.Hosting` | Shared host orchestrator and manual background-service wrapper | `Runtime.Abstractions`, Microsoft hosting abstractions | none |
@@ -124,6 +133,7 @@ Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactor
 | `LiteBus.*.Extensions.Autofac` | Module registration for Autofac | Module package, Autofac runtime adapter | Autofac |
 | `LiteBus` | Aggregate meta-package (core modules; storage/dispatch remain opt-in) | Commands, Queries, Events, Messaging, Inbox, Outbox, abstractions | none |
 | `LiteBus.Testing` | Published test harness: `Test*` mediators and stores, `InboxOutboxTestHost`, processor pass helpers | `Commands`, `Events`, `Queries`, `Inbox`, `Outbox`, `Messaging`, `Runtime.Abstractions`, `Runtime.Extensions.Microsoft.Hosting`, `Extensions.Microsoft.DependencyInjection`, in-memory storage packages | `AwesomeAssertions`, `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Hosting.Abstractions`, `Newtonsoft.Json` |
+| `LiteBus.Storage.Testing` | Published xUnit store conformance bases for custom adapter authors | `Inbox.Abstractions`, `Outbox.Abstractions` | `AwesomeAssertions`, `xunit` |
 
 ## Dependency Rules
 
@@ -132,9 +142,9 @@ Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactor
 | Contract roles | Other allowed contract roles | Core implementations, SDKs, and host frameworks |
 | `Transport.Abstractions` | none | Any LiteBus project reference |
 | `Inbox` / `Outbox` core | Abstractions, Messaging, Runtime.Abstractions | Commands, Events, Npgsql, EF, RabbitMQ, any Dispatch/Ingress |
-| `*.Storage.*` | Parent axis core, abstractions, store SDK, shared storage technology | Dispatch, ingress, semantic mediators |
-| `*.Dispatch.*` | Abstractions, axis core (`Inbox` / `Outbox` for `IRequires` ordering), `Messaging` when payload protection or trace helpers are required, `Transport.Abstractions` for transport dispatch | Storage, Ingress, broker SDKs |
-| `*.Ingress.*` | Inbox core and abstractions, shared ingress, and the matching root transport package | Storage, dispatch, unrelated broker SDKs |
+| `*.Storage.*` | Parent axis core, abstractions, store SDK, shared storage technology | Dispatch, ingress, semantic mediators, and unrelated adapter concerns |
+| `*.Dispatch.*` | Abstractions, axis core (`Inbox` / `Outbox` for `IRequires` ordering), `Messaging` when payload protection or trace helpers are required, `Transport.Abstractions` for transport dispatch | Storage, Ingress, broker SDKs, and unrelated adapter concerns |
+| `*.Ingress.*` | Inbox core and abstractions, shared ingress, and the matching root transport package | Storage, dispatch, unrelated broker SDKs, and unrelated adapter concerns |
 | `LiteBus.Transport` | `Transport.Abstractions` | Inbox, Outbox, broker SDKs |
 | `LiteBus.Transport.Amqp` | `Transport.Abstractions`, `Transport` | Inbox, Outbox abstractions |
 | `*.Extensions.OpenTelemetry` | Matching core package (`Inbox`, `Outbox`, or `Transport`) | Storage, dispatch, ingress |

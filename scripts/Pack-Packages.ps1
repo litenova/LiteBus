@@ -21,8 +21,10 @@ else {
 
 New-Item -ItemType Directory -Force -Path $resolvedOutputDirectory | Out-Null
 
-$projects = Get-ChildItem -LiteralPath $sourceRoot -Recurse -Filter "*.csproj" -File |
-    Sort-Object FullName
+$projects = @(
+    Get-ChildItem -LiteralPath $sourceRoot -Recurse -Filter "*.csproj" -File
+    Get-Item -LiteralPath (Join-Path $repositoryRoot "tests/LiteBus.Storage.Testing/LiteBus.Storage.Testing.csproj")
+) | Sort-Object FullName
 
 if ($projects.Count -eq 0) {
     throw "No source projects were found under '$sourceRoot'."

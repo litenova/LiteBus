@@ -49,7 +49,7 @@ Column layouts mirror PostgreSQL v1 scripts (snake_case columns, filtered idempo
 | --- | --- |
 | `EntityFrameworkCoreInboxStoreOptions.SchemaName` / `TableName` | Must match fluent configuration |
 | `EntityFrameworkCoreOutboxStoreOptions.SchemaName` / `TableName` | Must match fluent configuration |
-| Provider hint on `GetModelBuilderConfiguration` | PostgreSQL `jsonb` for payload and trace columns |
+| Provider hint on `GetModelBuilderConfiguration` | PostgreSQL `TEXT` for payload and nullable `jsonb` for trace context |
 
 ### Extension Points
 

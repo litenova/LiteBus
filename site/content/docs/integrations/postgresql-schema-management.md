@@ -366,7 +366,7 @@ LiteBus ships EF Core inbox and outbox stores for applications that already use 
 | Column mapping | Canonical `.sql` files | `GetModelBuilderConfiguration()` on `InboxMessageEntity` / `OutboxMessageEntity` |
 | Table schema version | Inbox **1** / outbox **1** | Align EF migrations with PostgreSQL v1 columns when sharing a database with Npgsql stores |
 
-The built-in EF fluent configuration maps the same snake_case column names as the PostgreSQL scripts. Pass `EfCoreStorageProvider.PostgreSql` to `GetModelBuilderConfiguration()` when you want `payload` and optional `trace_context` mapped as `jsonb` on PostgreSQL; other providers use their own JSON column types (see [Inbox Entity Framework Core Storage](inbox-ef-core-storage.md)).
+The built-in EF fluent configuration maps the same snake_case column names as the PostgreSQL scripts. Pass `EfCoreStorageProvider.PostgreSql` to `GetModelBuilderConfiguration()` to map opaque `payload` text and optional `trace_context` as `jsonb` on PostgreSQL. Other providers keep payload text and select their trace metadata type (see [Inbox Entity Framework Core Storage](inbox-ef-core-storage.md)).
 
 When using EF Core storage, pass the same `SchemaName` and `TableName` to `EntityFrameworkCoreInboxStoreOptions` / `EntityFrameworkCoreOutboxStoreOptions` and to `GetModelBuilderConfiguration()` so lease SQL and migrations target the same table.
 

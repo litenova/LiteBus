@@ -44,7 +44,7 @@
 | --- | --- |
 | EF provider package | Determines lease SQL and column types (Npgsql, SQL Server, Pomelo) |
 | Store options `SchemaName` / `TableName` | Must match fluent model configuration |
-| Provider hint on model extensions | Selects text storage for payload and trace context columns |
+| Provider hint on model extensions | Selects text storage for payload and provider-specific storage for trace context |
 
 ### Extension Points
 

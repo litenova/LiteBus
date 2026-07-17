@@ -1,4 +1,5 @@
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Storage.Testing;
 
@@ -371,6 +372,35 @@ public abstract class OutboxStoreContractTests
         reclaimed.Should().ContainSingle();
         reclaimed[0].LeaseOwner.Should().Be("fresh-publisher");
         reclaimed[0].AttemptCount.Should().Be(2);
+    }
+
+    /// <summary>
+    ///     Verifies that only the active outbox lease owner can renew a lease.
+    /// </summary>
+    [Fact]
+    public async Task RenewLeaseAsync_ShouldRequireActiveLeaseOwner()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var messageId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-a",
+            Now = now,
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        leased.Should().ContainSingle();
+        var renewed = await store.Lease.RenewLeaseAsync(
+            new LeaseRenewalRequest(messageId, "publisher-a", now.AddMinutes(2)));
+        var rejected = await store.Lease.RenewLeaseAsync(
+            new LeaseRenewalRequest(messageId, "publisher-b", now.AddMinutes(3)));
+
+        renewed.Should().BeTrue();
+        rejected.Should().BeFalse();
     }
 
     /// <summary>

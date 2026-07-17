@@ -18,6 +18,8 @@ This behavior applies to raw `IMessageConsumer` hosts. Inbox ingress modules use
 
 Consumer adapters retain the active consume task until `WaitUntilStoppedAsync` returns. Unexpected loop faults therefore reach the host supervision boundary instead of being reported only as a clean stop. Shutdown cancellation remains a normal completion path.
 
+AMQP consumers copy the broker delivery body before invoking application code. RabbitMQ delivery buffers are owned by the client callback and must not be retained after the callback returns.
+
 ## Public Surface
 
 | API | Role |

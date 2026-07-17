@@ -50,7 +50,17 @@ jobs:
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
       - name: Restore
-        run: dotnet restore LiteBus.slnx
+        run: dotnet restore LiteBus.slnx --locked-mode
+
+      - name: Audit NuGet Dependencies
+        shell: bash
+        run: |
+          audit_output="$(dotnet list LiteBus.slnx package --vulnerable --include-transitive)"
+          printf '%s\n' "${audit_output}"
+          if grep -qi "has the following vulnerable packages" <<< "${audit_output}"; then
+            echo "::error::NuGet vulnerability audit found a vulnerable package."
+            exit 1
+          fi
 
       - name: Decode Strong Name Key
         env:
@@ -116,6 +126,10 @@ jobs:
 
       - name: Integration Tests
         run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --filter "FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure"
+
+      - name: Enforce Merged Coverage Gate
+        shell: pwsh
+        run: ./scripts/Test-CoverageThreshold.ps1 -Root . -Threshold 90
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v6

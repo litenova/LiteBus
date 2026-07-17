@@ -13,7 +13,7 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | ID | Severity | Category | Summary |
 | --- | --- | --- | --- |
 | LB1001 | Error | Handlers | Duplicate `ICommandHandler<TCommand>` for the same command type |
-| LB1002 |: |: | *(Reserved; not implemented.)* Planned symmetry with LB1001/LB1010: duplicate `IEventHandler<TEvent>` for the same event type |
+| LB1002 | Reserved | Handlers | Not implemented. Event multicast is supported, so duplicate event handlers are not reported by this rule. |
 | LB1003 | Warning | Handlers | Query or stream query handler depends on command, event, inbox, or outbox APIs |
 | LB1004 | Error | Inbox | `ICommand<TResult>` passed to `IInbox.AcceptAsync`, `AcceptBatchAsync`, or `ITransactionalInbox.AcceptAsync` |
 | LB1005 | Error | Handlers | Open generic handler exposes unsupported generic arity |
@@ -44,9 +44,9 @@ The inbox replays stored commands later and discards handler results. Only resul
 
 LB1009 reports query types without `IQueryHandler<TQuery, TResult>` and stream query types without `IStreamQueryHandler<TQuery, TResult>`. Stream queries implementing `IStreamQuery<TResult>` are not checked against query handlers. LB1010 applies the same duplicate detection to both handler kinds. Message type discovery for LB1008, LB1009, and LB1010, and handler registration scanning, include eligible referenced assemblies (same filter as handler registration scanning).
 
-### Reserved Duplicate-Event Slot (LB1002)
+### Reserved Event Handler Slot (LB1002)
 
-LB1002 is intentionally unused in the shipped analyzer set. LB1001 and LB1010 already detect duplicate command and query handlers within a compilation; LB1012 warns when the same handler simple name appears in multiple assemblies. A future LB1002 rule would close the event-handler gap by reporting multiple `IEventHandler<TEvent>` registrations for one event type in the same compilation. Until that analyzer ships, duplicate event handlers are a runtime `MultipleHandlerFoundException` risk only.
+LB1002 is intentionally unused in the shipped analyzer set. Event mediation supports multiple handlers for one event type, so the command and query duplicate rules do not have an event equivalent. LB1012 still warns when the same handler simple name appears in multiple assemblies.
 
 ## Suppression
 

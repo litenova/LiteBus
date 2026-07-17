@@ -2,7 +2,7 @@
 
 This page covers testing durable messaging in LiteBus v6: InMemory storage for fast unit tests, shared store contract harnesses, Testcontainers for PostgreSQL and AMQP integration tests, and the durable transport integration matrix.
 
-For a full inventory of integration test projects, fixtures, scenarios, and CI filters, see [Integration Tests](integration-tests.md).
+For a full inventory of integration test projects, fixtures, scenarios, and CI filters, see [Integration Tests](integration-tests.md). Pull request and release workflows merge all collected Cobertura reports and require at least 90 percent line coverage after the integration test batch.
 ## InMemory Storage
 
 The InMemory storage packages implement all store roles in one thread-safe class. They use `TimeProvider` for lease expiry simulation.
@@ -49,7 +49,7 @@ InMemory stores honor `InboxProcessorOptions.LeaseDuration` and `OutboxProcessor
 
 ## Shared Store Contract Tests
 
-`LiteBus.Storage.Testing` (`tests/LiteBus.Storage.Testing/`, `IsTestProject=false`) defines abstract `InboxStoreContractTests` and `OutboxStoreContractTests` suites.
+`LiteBus.Storage.Testing` is a packable test-support package. It defines abstract `InboxStoreContractTests` and `OutboxStoreContractTests` suites that custom adapter authors can inherit in their own xUnit projects. The source project remains under `tests/LiteBus.Storage.Testing/` so the same suites run against LiteBus providers in this repository.
 
 ## PostgreSQL Integration Tests
 

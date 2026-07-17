@@ -18,6 +18,16 @@ public sealed class ArchitectureDependencyPolicyTests
         var projects = projectFiles.ToDictionary(
             path => Path.GetFileNameWithoutExtension(path)!,
             StringComparer.Ordinal);
+        var projectReferences = projectFiles.ToDictionary(
+            path => Path.GetFileNameWithoutExtension(path)!,
+            path => ReadIncludes(XDocument.Load(path), "ProjectReference")
+                .Select(GetProjectName)
+                .ToArray(),
+            StringComparer.Ordinal);
+        var projectPackages = projectFiles.ToDictionary(
+            path => Path.GetFileNameWithoutExtension(path)!,
+            path => ReadIncludes(XDocument.Load(path), "PackageReference").ToArray(),
+            StringComparer.Ordinal);
         var violations = new List<string>();
 
         foreach (var projectFile in projectFiles.OrderBy(path => path, StringComparer.Ordinal))
@@ -62,7 +72,7 @@ public sealed class ArchitectureDependencyPolicyTests
                 }
             }
 
-            var packages = ReadIncludes(document, "PackageReference").ToArray();
+            var packages = projectPackages[projectName];
 
             foreach (var package in packages)
             {
@@ -74,14 +84,12 @@ public sealed class ArchitectureDependencyPolicyTests
 
             if (sourceRole is ProjectRole.TechnologyAdapter or ProjectRole.FeatureBridge)
             {
-                var technologyFamilies = packages
-                    .Select(GetTechnologyFamily)
-                    .Where(family => family is not null)
-                    .Cast<string>()
-                    .Distinct(StringComparer.Ordinal)
-                    .ToArray();
+                var technologyFamilies = GetTransitiveTechnologyFamilies(
+                    projectName,
+                    projectReferences,
+                    projectPackages);
 
-                if (technologyFamilies.Length > 1)
+                if (technologyFamilies.Count > 1)
                 {
                     violations.Add(
                         $"{projectName} ({sourceRole}) references multiple technology SDK families: " +
@@ -251,6 +259,14 @@ public sealed class ArchitectureDependencyPolicyTests
     /// <returns><see langword="true" /> when the feature-axis reference is allowed.</returns>
     private static bool IsFeatureBridgeReferenceAllowed(string projectName, string referencedProject)
     {
+        var sourceConcern = GetFeatureConcern(projectName);
+        var targetConcern = GetFeatureConcern(referencedProject);
+
+        if (sourceConcern is not null && targetConcern is not null && sourceConcern != targetConcern)
+        {
+            return false;
+        }
+
         if (projectName.StartsWith("LiteBus.Inbox.", StringComparison.Ordinal))
         {
             return !referencedProject.StartsWith("LiteBus.Outbox", StringComparison.Ordinal) &&
@@ -279,6 +295,72 @@ public sealed class ArchitectureDependencyPolicyTests
         }
 
         return true;
+    }
+
+    /// <summary>
+    ///     Gets the durable feature concern encoded in a project name.
+    /// </summary>
+    /// <param name="projectName">The project name.</param>
+    /// <returns>The concern name, or <see langword="null" /> for projects outside the adapter axes.</returns>
+    private static string? GetFeatureConcern(string projectName)
+    {
+        if (projectName.Contains(".Storage.", StringComparison.Ordinal))
+        {
+            return "Storage";
+        }
+
+        if (projectName.Contains(".Dispatch.", StringComparison.Ordinal))
+        {
+            return "Dispatch";
+        }
+
+        if (projectName.Contains(".Ingress.", StringComparison.Ordinal))
+        {
+            return "Ingress";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Collects technology SDK families from a project and every referenced project.
+    /// </summary>
+    /// <param name="projectName">The project whose dependency closure is inspected.</param>
+    /// <param name="projectReferences">The project reference graph.</param>
+    /// <param name="projectPackages">The direct package references by project.</param>
+    /// <returns>The distinct technology SDK families in the transitive closure.</returns>
+    private static IReadOnlySet<string> GetTransitiveTechnologyFamilies(
+        string projectName,
+        IReadOnlyDictionary<string, string[]> projectReferences,
+        IReadOnlyDictionary<string, string[]> projectPackages)
+    {
+        var families = new HashSet<string>(StringComparer.Ordinal);
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        var pending = new Stack<string>();
+        pending.Push(projectName);
+
+        while (pending.TryPop(out var currentProject))
+        {
+            if (!visited.Add(currentProject))
+            {
+                continue;
+            }
+
+            foreach (var package in projectPackages[currentProject])
+            {
+                if (GetTechnologyFamily(package) is { } family)
+                {
+                    families.Add(family);
+                }
+            }
+
+            foreach (var referencedProject in projectReferences[currentProject])
+            {
+                pending.Push(referencedProject);
+            }
+        }
+
+        return families;
     }
 
     /// <summary>

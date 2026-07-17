@@ -25,10 +25,11 @@ On-call reference for LiteBus v6 durable messaging. Assumes PostgreSQL storage a
 
 ## Dead-Letter Replay
 
-1. Query dead-letter rows via management API or SQL (`status = DeadLettered`).
-2. Fix handler or downstream dependency.
-3. Application-specific replay: insert new accept with new idempotency key or use store maintenance to move row back to pending (custom script; not shipped in core).
-4. Monitor attempt_count and last_error during replay.
+1. Query dead-letter rows via the management API or SQL (`status = DeadLettered`).
+2. Fix the handler or downstream dependency.
+3. Use `POST /litebus/inbox/messages/requeue-dead-letters` or the matching outbox route. The endpoint pages through the store manager and applies the configured operator policy.
+4. Use a new idempotency key only when the application intends to create a new message. Do not edit durable rows directly.
+5. Monitor attempt_count and last_error during replay.
 
 ## Schema Validate
 

@@ -8,6 +8,9 @@
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+        <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+        <NuGetAudit>true</NuGetAudit>
+        <NuGetAuditMode>all</NuGetAuditMode>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <SignAssembly Condition="Exists('$(MSBuildThisFileDirectory)..\LiteBus.snk')">true</SignAssembly>
         <AssemblyOriginatorKeyFile Condition="Exists('$(MSBuildThisFileDirectory)..\LiteBus.snk')">$(MSBuildThisFileDirectory)..\LiteBus.snk</AssemblyOriginatorKeyFile>

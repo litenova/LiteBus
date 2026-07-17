@@ -1,5 +1,6 @@
 using System.Text.Json;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Storage.Testing;
 
@@ -577,6 +578,35 @@ public abstract class InboxStoreContractTests
         reclaimed[0].Id.Should().Be(commandId);
         reclaimed[0].LeaseOwner.Should().Be("fresh-worker");
         reclaimed[0].AttemptCount.Should().Be(2);
+    }
+
+    /// <summary>
+    ///     Verifies that only the active inbox lease owner can renew a lease.
+    /// </summary>
+    [Fact]
+    public async Task RenewLeaseAsync_ShouldRequireActiveLeaseOwner()
+    {
+        var roles = CreateStore();
+        var now = BaseTime;
+        var commandId = Guid.NewGuid();
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+        var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "worker-a",
+            Now = now,
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        });
+
+        leased.Should().ContainSingle();
+        var renewed = await roles.LeaseStore.RenewLeaseAsync(
+            new LeaseRenewalRequest(commandId, "worker-a", now.AddMinutes(2)));
+        var rejected = await roles.LeaseStore.RenewLeaseAsync(
+            new LeaseRenewalRequest(commandId, "worker-b", now.AddMinutes(3)));
+
+        renewed.Should().BeTrue();
+        rejected.Should().BeFalse();
     }
 
     /// <summary>

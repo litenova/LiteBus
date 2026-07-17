@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using LiteBus.Storage.EntityFrameworkCore.Exceptions;
 
 namespace LiteBus.Storage.EntityFrameworkCore;
 
@@ -26,7 +27,15 @@ public static class EfCoreRelationalModelColumnTypes
     /// <returns>The provider-specific column type.</returns>
     public static string GetTraceContextColumnType(EfCoreStorageProvider provider)
     {
-        return GetPayloadColumnType(provider);
+        return provider switch
+        {
+            EfCoreStorageProvider.PostgreSql => "jsonb",
+            EfCoreStorageProvider.SqlServer => "nvarchar(max)",
+            EfCoreStorageProvider.MySql => "json",
+            EfCoreStorageProvider.Sqlite => "TEXT",
+            EfCoreStorageProvider.InMemory => "TEXT",
+            _ => throw new EfCoreStorageNotSupportedException($"Trace context column types are not defined for provider '{provider}'.")
+        };
     }
 
     /// <summary>

@@ -1,0 +1,192 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "litebus.commands": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands.Abstractions": "[1.0.0, )",
+          "LiteBus.Messaging": "[1.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.commands.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.commands.extensions.microsoft.dependencyinjection": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands": "[1.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[1.0.0, )"
+        }
+      },
+      "litebus.durablemessaging.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[1.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.events": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Events.Abstractions": "[1.0.0, )",
+          "LiteBus.Messaging": "[1.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[1.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.events.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.events.extensions.microsoft.dependencyinjection": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Events": "[1.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[1.0.0, )"
+        }
+      },
+      "litebus.inbox": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.DurableMessaging.Abstractions": "[1.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[1.0.0, )",
+          "LiteBus.Messaging": "[1.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.inbox.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.DurableMessaging.Abstractions": "[1.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[1.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.inbox.dispatch.inprocess": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands": "[1.0.0, )",
+          "LiteBus.Commands.Abstractions": "[1.0.0, )",
+          "LiteBus.Inbox": "[1.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[1.0.0, )",
+          "LiteBus.Messaging": "[1.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.inbox.storage.inmemory": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Inbox": "[1.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[1.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.messaging": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.DurableMessaging.Abstractions": "[1.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[1.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.messaging.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.outbox": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.DurableMessaging.Abstractions": "[1.0.0, )",
+          "LiteBus.Messaging": "[1.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[1.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.outbox.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.DurableMessaging.Abstractions": "[1.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[1.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.outbox.dispatch.inprocess": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Events": "[1.0.0, )",
+          "LiteBus.Events.Abstractions": "[1.0.0, )",
+          "LiteBus.Messaging": "[1.0.0, )",
+          "LiteBus.Outbox": "[1.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[1.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.outbox.storage.inmemory": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Outbox": "[1.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[1.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.queries": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging": "[1.0.0, )",
+          "LiteBus.Queries.Abstractions": "[1.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.queries.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.queries.extensions.microsoft.dependencyinjection": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Queries": "[1.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[1.0.0, )"
+        }
+      },
+      "litebus.runtime": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.runtime.abstractions": {
+        "type": "Project"
+      },
+      "litebus.runtime.extensions.hosting": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.runtime.extensions.microsoft.dependencyinjection": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime": "[1.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.Hosting": "[1.0.0, )"
+        }
+      },
+      "litebus.runtime.extensions.microsoft.hosting": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Extensions.Hosting": "[1.0.0, )"
+        }
+      }
+    }
+  }
+}

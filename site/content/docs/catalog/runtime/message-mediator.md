@@ -51,9 +51,9 @@ No dedicated mediator meter in runtime core.
 - **Test kind**: Unit
 - **Expected outcome**: unresolved descriptor path throws expected exception
 
-#### `MediateAsyncTests.MediateAsync_WhenStrategyReturnsTask_ShouldReturnSameTaskInstance`
+#### `MediateAsyncTests.MediateAsync_WhenStrategyReturnsTask_ShouldReturnScopeRetainedTask`
 - **Test kind**: Unit
-- **Expected outcome**: strategy task is returned correctly
+- **Expected outcome**: the returned task completes after the retained dispatch scope is released
 
 #### `MediationScopeRetentionTests.Mediate_delayed_task_retains_dispatch_scope_until_task_completes`
 - **Test kind**: Unit

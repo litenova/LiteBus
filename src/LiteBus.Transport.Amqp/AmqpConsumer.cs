@@ -272,8 +272,15 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     /// <summary>
     ///     Marks the current consume session as stopped.
     /// </summary>
-    private void SignalStopped()
+    /// <param name="exception">The broker failure that stopped the session, when one was supplied.</param>
+    private void SignalStopped(Exception? exception = null)
     {
+        if (exception is not null)
+        {
+            _stoppedTcs.TrySetException(exception);
+            return;
+        }
+
         _stoppedTcs.TrySetResult();
     }
 
@@ -285,7 +292,7 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     /// <returns>A completed task.</returns>
     private Task OnChannelShutdownAsync(object? sender, ShutdownEventArgs args)
     {
-        SignalStopped();
+        SignalStopped(args.Exception);
         return Task.CompletedTask;
     }
 
@@ -299,7 +306,7 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     {
         return new AmqpReceivedMessage
         {
-            Body = delivery.Body,
+            Body = delivery.Body.ToArray(),
             Headers = CopyHeaders(delivery.BasicProperties.Headers),
             DeliveryTag = delivery.DeliveryTag,
             Exchange = delivery.Exchange,

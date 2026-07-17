@@ -18,6 +18,9 @@
         <NoWarn>$(NoWarn);CS1591</NoWarn>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+        <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+        <NuGetAudit>true</NuGetAudit>
+        <NuGetAuditMode>all</NuGetAuditMode>
         <!-- For Signing -->
         <SignAssembly Condition="Exists('$(MSBuildThisFileDirectory)..\LiteBus.snk')">true</SignAssembly>
         <AssemblyOriginatorKeyFile Condition="Exists('$(MSBuildThisFileDirectory)..\LiteBus.snk')">$(MSBuildThisFileDirectory)..\LiteBus.snk</AssemblyOriginatorKeyFile>

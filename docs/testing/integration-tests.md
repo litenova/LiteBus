@@ -81,7 +81,7 @@ Supporting libraries (not test executors):
 | Library | Role |
 |---------|------|
 | `LiteBus.Transport.IntegrationTesting` | Shared broker fixtures, xUnit traits, `DockerTestGate`, `FlakyInbox`, polling helpers, Kafka/AWS/Azure fixture hosts |
-| `LiteBus.Storage.Testing` (`tests/`) | Abstract `InboxStoreContractTests`, `OutboxStoreContractTests`, retention contract suites (not a vstest executor; `IsTestProject=false`) |
+| `LiteBus.Storage.Testing` (`tests/`, also published as a package) | Abstract `InboxStoreContractTests`, `OutboxStoreContractTests`, retention contract suites, lease renewal ownership checks (not a vstest executor; `IsTestProject=false`) |
 | `LiteBus.Testing` | `AddInboxStoreRoles`, `LiteBusTestBase`, manual `MessageRegistry` isolation |
 
 ## Shared Infrastructure Patterns
@@ -465,17 +465,17 @@ Proves public `ActivitySourceName`, `MeterName`, and instrument constants are su
 
 ## Shared Store Contract Tests
 
-**Library:** `tests/LiteBus.Storage.Testing/`
+**Library:** `LiteBus.Storage.Testing` NuGet package (`tests/LiteBus.Storage.Testing/` in this repository)
 
 Abstract test classes define **store behavior contracts** inherited by InMemory unit tests, PostgreSQL integration tests, and EF Core integration tests. One implementation, many backends.
 
 | Suite | Covers (high level) |
 |-------|---------------------|
-| `InboxStoreContractTests` | Idempotency, leasing, attempt counts, dead-letter, retention, diagnostics query, purge |
-| `OutboxStoreContractTests` | Enqueue, lease, publish marking, retry visibility, dead-letter |
+| `InboxStoreContractTests` | Idempotency, leasing, lease renewal ownership, attempt counts, dead-letter, retention, diagnostics query, purge |
+| `OutboxStoreContractTests` | Enqueue, lease, lease renewal ownership, publish marking, retry visibility, dead-letter |
 | `InboxRetentionStoreContractTests` / `OutboxRetentionStoreContractTests` | Retention-specific roles |
 
-When adding a custom inbox or outbox store, inherit these suites in your test project before writing broker-specific tests.
+When adding a custom inbox or outbox store, reference `LiteBus.Storage.Testing` and inherit these suites in your test project before writing provider-specific tests.
 
 ---
 
@@ -487,7 +487,7 @@ When adding a custom inbox or outbox store, inherit these suites in your test pr
 dotnet test LiteBus.slnx
 ```
 
-If Docker is not running, PostgreSQL and AMQP integration tests **fail** during fixture setup. Durable transport Docker/Azure categories **skip** individual tests where `[SkippableFact]` is used.
+If Docker is not running, PostgreSQL and AMQP integration tests fail during fixture setup. Durable transport Docker and Azure categories skip individual tests where `[SkippableFact]` is used. CI runs `docker info` before these suites and treats unavailable Docker as a failed prerequisite, so local skip behavior does not hide a CI environment error.
 
 ### Unit Tests Only
 

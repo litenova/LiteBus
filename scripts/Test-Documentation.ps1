@@ -94,6 +94,16 @@ function Test-ExactPathCase {
     return $true
 }
 
+$dependencyGraphPath = Join-Path $documentationRoot 'architecture/dependency-graph.md'
+$dependencyGraphContent = [IO.File]::ReadAllText($dependencyGraphPath)
+$sourceProjects = Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'src') -Filter '*.csproj' -File -Recurse
+
+foreach ($project in $sourceProjects) {
+    if ($dependencyGraphContent.IndexOf($project.BaseName, [StringComparison]::Ordinal) -lt 0) {
+        Add-Violation -Path $dependencyGraphPath -Line 1 -Message "Package inventory is missing shipping project '$($project.BaseName)'."
+    }
+}
+
 foreach ($file in $documentationFiles) {
     $content = [IO.File]::ReadAllText($file.FullName)
     $lines = [regex]::Split($content, '\r?\n')
