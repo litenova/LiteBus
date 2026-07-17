@@ -66,6 +66,8 @@ All notable changes to this project will be documented in this file.
 
 ### Breaking changes
 
+- `IMessageMediator.MediateAsync<TMessage, TResult>` was removed because task-returning strategies produced a nested
+  `Task<Task>` API. Call `Mediate<TMessage, Task>` or `Mediate<TMessage, Task<TResult>>` and await its returned task.
 - `IMessageErrorHandler.HandleError` and scalar `HandleErrorAsync` overloads were replaced by typed-context asynchronous
   methods. The obsolete `IMessageErrorHandler<TMessage, TResult>` marker and `LegacyErrorHandlerSupport` were removed.
 - `IMessageTransport` was renamed to `ITransportPublisher`.

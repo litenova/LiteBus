@@ -1,6 +1,5 @@
 using System;
 using System.Threading;
-using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using ExecutionContext = LiteBus.Messaging.Contexts.Execution.ExecutionContext;
@@ -142,37 +141,4 @@ internal sealed class MessageMediator : IMessageMediator
         }
     }
 
-    /// <inheritdoc />
-    public Task<TMessageResult> MediateAsync<TMessage, TMessageResult>(
-        TMessage message,
-        MessageMediationRequest<TMessage, TMessageResult> request,
-        CancellationToken cancellationToken = default)
-        where TMessage : notnull
-    {
-        var result = Mediate(message, request, cancellationToken);
-
-        if (result is Task<TMessageResult> typedTask)
-        {
-            return typedTask;
-        }
-
-        if (result is Task task)
-        {
-            return CompleteTaskAsResult<TMessageResult>(task);
-        }
-
-        return Task.FromResult(result);
-    }
-
-    /// <summary>
-    ///     Converts a completed non-generic <see cref="Task" /> into <see cref="Task{TMessageResult}" />.
-    /// </summary>
-    /// <typeparam name="TMessageResult">The expected async mediation result type.</typeparam>
-    /// <param name="task">The completed task returned from synchronous mediation.</param>
-    /// <returns>A task that completes with the mediation result.</returns>
-    private static async Task<TMessageResult> CompleteTaskAsResult<TMessageResult>(Task task)
-    {
-        await task.ConfigureAwait(false);
-        return (TMessageResult)(object)task;
-    }
 }

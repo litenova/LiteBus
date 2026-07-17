@@ -14,7 +14,6 @@
 | API | Role |
 | --- | --- |
 | `IMessageMediator.Mediate<TMessage,TResult>(...)` | Main mediation entry |
-| `IMessageMediator.MediateAsync<TMessage,TResult>(...)` | Async wrapper |
 | `MessageMediationRequest<TMessage,TResult>` | Resolve strategy, mediation strategy, tags, predicate, items |
 
 ## Packages
@@ -50,10 +49,6 @@ No dedicated mediator meter in runtime core.
 #### `MessageMediatorTests.Mediate_WhenDescriptorCannotBeResolvedAfterOnTheSpotRegistration_ShouldThrowMessageDescriptorNotFoundException`
 - **Test kind**: Unit
 - **Expected outcome**: unresolved descriptor path throws expected exception
-
-#### `MediateAsyncTests.MediateAsync_WhenStrategyReturnsTask_ShouldReturnScopeRetainedTask`
-- **Test kind**: Unit
-- **Expected outcome**: the returned task completes after the retained dispatch scope is released
 
 #### `MediationScopeRetentionTests.Mediate_delayed_task_retains_dispatch_scope_until_task_completes`
 - **Test kind**: Unit

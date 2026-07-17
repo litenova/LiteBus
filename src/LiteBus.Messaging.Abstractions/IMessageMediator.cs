@@ -1,5 +1,4 @@
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -33,22 +32,4 @@ public interface IMessageMediator
         CancellationToken cancellationToken = default)
         where TMessage : notnull;
 
-    /// <summary>
-    ///     Asynchronously mediates a message by routing it to the appropriate handler and executing the message handling pipeline.
-    /// </summary>
-    /// <typeparam name="TMessage">The type of the message to be mediated.</typeparam>
-    /// <typeparam name="TMessageResult">The type of result expected from the mediation process.</typeparam>
-    /// <param name="message">The message to mediate.</param>
-    /// <param name="request">Configuration that controls the mediation behavior.</param>
-    /// <param name="cancellationToken">The token used to cancel the mediation process.</param>
-    /// <returns>A task that completes with the mediation result.</returns>
-    /// <remarks>
-    ///     Prefer this method over <see cref="Mediate{TMessage, TMessageResult}" /> when the mediation strategy returns
-    ///     <see cref="Task" /> or <see cref="Task{TResult}" /> so callers can await completion without blocking.
-    /// </remarks>
-    Task<TMessageResult> MediateAsync<TMessage, TMessageResult>(
-        TMessage message,
-        MessageMediationRequest<TMessage, TMessageResult> request,
-        CancellationToken cancellationToken = default)
-        where TMessage : notnull;
 }

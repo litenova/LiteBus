@@ -98,14 +98,6 @@ public sealed class EventMediatorRequestTests
             return (TMessageResult)(object)Task.CompletedTask;
         }
 
-        public Task<TMessageResult> MediateAsync<TMessage, TMessageResult>(
-            TMessage message,
-            MessageMediationRequest<TMessage, TMessageResult> request,
-            CancellationToken cancellationToken = default)
-            where TMessage : notnull
-        {
-            throw new NotSupportedException();
-        }
     }
 
     private sealed class TestEvent : IEvent;
