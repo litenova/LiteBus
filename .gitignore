@@ -58,6 +58,10 @@ build2.txt
 BenchmarkDotNet.Artifacts/
 release-notes.md
 
+# Fumadocs site dependencies and build output
+site/node_modules/
+site/.next/
+
 # Local tooling caches
 .fuse/
 

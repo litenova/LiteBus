@@ -1,0 +1,22 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+    "---Learn---",
+    "getting-started",
+    "concepts",
+    "reliable-messaging",
+    "integrations",
+    "operations",
+    "---Build---",
+    "reference",
+    "architecture",
+    "testing",
+    "extending",
+    "migration",
+    "catalog",
+    "contributing",
+    "roadmap",
+    "reviews"
+  ]
+}

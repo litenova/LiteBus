@@ -1,0 +1,56 @@
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+:root {
+  --color-fd-primary: 244 180 0;
+}
+
+body {
+  background: #fbfcfe;
+}
+
+.litebus-hero {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 5rem 1.5rem 4rem;
+}
+
+.litebus-hero img {
+  width: min(30rem, 100%);
+  height: auto;
+}
+
+.litebus-hero h1 {
+  max-width: 48rem;
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  letter-spacing: -0.06em;
+  line-height: 0.98;
+}
+
+.litebus-hero p {
+  max-width: 42rem;
+  color: var(--color-fd-muted-foreground);
+  font-size: 1.2rem;
+}
+
+.litebus-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.litebus-actions a {
+  border-radius: 0.6rem;
+  padding: 0.7rem 1rem;
+  background: #18222c;
+  color: white;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.litebus-actions a.secondary {
+  background: #f4b400;
+  color: #18222c;
+}
