@@ -37,3 +37,29 @@ dotnet_diagnostic.IDE0161.severity = error
 dotnet_diagnostic.IDE0300.severity = warning
 dotnet_diagnostic.IDE0290.severity = none
 dotnet_diagnostic.IDE0007.severity = none
+
+# LiteBus public terminology intentionally uses registry, event-handler, queue-target, and concise context access names.
+[LiteBus.Runtime.Abstractions/Dependencies/IDependencyRegistry.cs]
+dotnet_diagnostic.CA1710.severity = none
+
+[LiteBus.Runtime.Abstractions/Modules/IModuleRegistry.cs]
+dotnet_diagnostic.CA1716.severity = none
+
+[LiteBus.Messaging.Abstractions/IHandleContextData.cs]
+dotnet_diagnostic.CA1716.severity = none
+
+[LiteBus.Events.Abstractions/IEventHandler*.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+[LiteBus.Events.Abstractions/IEventMediator.cs]
+dotnet_diagnostic.CA1716.severity = none
+
+[LiteBus.Outbox.Abstractions/PublicationTarget.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+# Static factories live on the immutable record passed to writer APIs by design.
+[LiteBus.Outbox.Abstractions/OutboxEnqueueItem*.cs]
+dotnet_diagnostic.CA1000.severity = none
+
+[LiteBus.Saga.Abstractions/SagaSaveItem*.cs]
+dotnet_diagnostic.CA1000.severity = none

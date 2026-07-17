@@ -14,7 +14,7 @@ $settings = if ($EnforceThreshold) { "coverlet.runsettings" } else { "coverlet.m
 
 $testArgs = @(
     "test", "LiteBus.slnx",
-    "--collect:`"XPlat Code Coverage`"",
+    "--collect:XPlat Code Coverage",
     "--results-directory", $ResultsDirectory,
     "--settings", $settings,
     "--verbosity", "minimal"
@@ -52,7 +52,16 @@ dotnet reportgenerator `
     "-reports:$reports" `
     "-targetdir:$reportDir" `
     "-reporttypes:TextSummary;HtmlSummary"
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+}
+
+$summaryPath = Join-Path $reportDir "Summary.txt"
+if (-not (Test-Path -LiteralPath $summaryPath)) {
+    Write-Error "Coverage summary was not generated at '$summaryPath'."
+    exit 1
+}
 
 Write-Host ""
 Write-Host "Coverage report: $reportDir"
-Get-Content (Join-Path $reportDir "Summary.txt") -ErrorAction SilentlyContinue
+Get-Content -LiteralPath $summaryPath

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <Description>Official LiteBus test harness: Test* stores, mediators, transport doubles, and processor pass helpers.</Description>
+        <Description>LiteBus test harness with stores, mediators, transport doubles, and processor pass helpers.</Description>
         <PackageTags>$(PackageTags);testing;inbox;outbox</PackageTags>
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>

@@ -9,7 +9,7 @@
           <ExcludeByFile>**/tests/**,**/samples/**,**/benchmarks/**</ExcludeByFile>
           <IncludeDirectory>../src/</IncludeDirectory>
           <SingleHit>false</SingleHit>
-          <UseSourceLink>true</UseSourceLink>
+          <UseSourceLink>false</UseSourceLink>
           <SkipAutoProps>true</SkipAutoProps>
           <Threshold>90</Threshold>
           <ThresholdType>line</ThresholdType>

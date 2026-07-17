@@ -3,12 +3,13 @@
         <AnalysisLevel>latest-recommended</AnalysisLevel>
         <AnalysisMode>Recommended</AnalysisMode>
         <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <TargetFrameworks>net10.0</TargetFrameworks>
         <LangVersion>latest</LangVersion>
         <Authors>A. Shafie</Authors>
-        <PackageTags>mediator;cqrs;ddd;commands;queries;events</PackageTags>
+        <PackageTags>litebus;mediator;messaging;cqrs</PackageTags>
         <PackageIcon>icon.png</PackageIcon>
-        <Description>LiteBus is a lightweight, flexible in-process mediator for implementing Command Query Separation (CQS) patterns in .NET applications.</Description>
+        <Description>Mediator and durable messaging contracts for explicit command, query, event, inbox, and outbox composition in .NET applications.</Description>
         <PackageProjectUrl>https://github.com/litenova/LiteBus</PackageProjectUrl>
         <RepositoryUrl>https://github.com/litenova/LiteBus</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -26,6 +27,30 @@
         <IncludeSymbols>true</IncludeSymbols>
         <SymbolPackageFormat>snupkg</SymbolPackageFormat>
         <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
+    </PropertyGroup>
+    <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').Contains('.Abstractions'))">
+        <Description>Contracts and value objects for the $(MSBuildProjectName) package.</Description>
+        <PackageTags>$(PackageTags);abstractions;contracts</PackageTags>
+    </PropertyGroup>
+    <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').Contains('.Storage.'))">
+        <Description>Storage adapter and registration APIs for the $(MSBuildProjectName) package.</Description>
+        <PackageTags>$(PackageTags);storage;durable-messaging</PackageTags>
+    </PropertyGroup>
+    <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').Contains('.Dispatch'))">
+        <Description>Outbound dispatch adapter and registration APIs for the $(MSBuildProjectName) package.</Description>
+        <PackageTags>$(PackageTags);dispatch;durable-messaging</PackageTags>
+    </PropertyGroup>
+    <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').Contains('.Ingress'))">
+        <Description>Inbox ingress adapter and registration APIs for the $(MSBuildProjectName) package.</Description>
+        <PackageTags>$(PackageTags);ingress;durable-messaging</PackageTags>
+    </PropertyGroup>
+    <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').Contains('.Transport'))">
+        <Description>Transport contracts, runtime behavior, or adapter integration for the $(MSBuildProjectName) package.</Description>
+        <PackageTags>$(PackageTags);transport;broker</PackageTags>
+    </PropertyGroup>
+    <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').Contains('.Extensions.'))">
+        <Description>Host-framework composition APIs for the $(MSBuildProjectName) package.</Description>
+        <PackageTags>$(PackageTags);extensions;composition</PackageTags>
     </PropertyGroup>
     <ItemGroup>
         <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath=""/>

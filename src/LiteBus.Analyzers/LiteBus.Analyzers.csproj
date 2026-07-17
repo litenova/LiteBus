@@ -6,6 +6,8 @@
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
         <IncludeBuildOutput>false</IncludeBuildOutput>
+        <IncludeSymbols>false</IncludeSymbols>
+        <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
         <IsPackable>true</IsPackable>
@@ -46,7 +48,7 @@
         <InternalsVisibleTo Include="LiteBus.Analyzers.UnitTests"/>
     </ItemGroup>
 
-    <Target Name="IncludeAnalyzersInPackage" DependsOnTargets="Build" BeforeTargets="_GetPackageFiles">
+    <Target Name="IncludeAnalyzersInPackage" BeforeTargets="_GetPackageFiles">
         <ItemGroup>
             <None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"/>
         </ItemGroup>

@@ -94,7 +94,7 @@ public class PipelinedInboxProcessorBenchmarks
     [Benchmark(Description = "Pipelined inbox processor pass")]
     public async Task ProcessPendingAsync()
     {
-        await _processor.ProcessPendingAsync();
+        await _processor.ProcessPendingAsync().ConfigureAwait(false);
     }
 
     /// <summary>
