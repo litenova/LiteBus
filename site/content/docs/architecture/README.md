@@ -157,8 +157,8 @@ Instrument names are stable public constants on `LiteBusInboxTelemetry`, `LiteBu
 | `LiteBus.Outbox` | `litebus.outbox.diagnostics.unavailable` | `LiteBusOutboxTelemetry.DiagnosticsUnavailableInstrumentName` | Queue depth probe failed against the backing store |
 | `LiteBus.Outbox` | `litebus.outbox.queue.depth` | `LiteBusOutboxTelemetry.QueueDepthInstrumentName` | Observable gauge; tag `litebus.outbox.status` |
 | `LiteBus.Outbox` | `litebus.outbox.processor.state` | `LiteBusOutboxTelemetry.ProcessorStateInstrumentName` | Same encoding as inbox processor state |
-| `LiteBus.Transport` | `litebus.transport.circuit_breaker.open` | `LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName` | `1` when open, `0` when closed; tag `litebus.transport.broker` |
-| `LiteBus.Transport` | `litebus.transport.circuit_breaker.failure_count` | `LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName` | Current consecutive failure count; tag `litebus.transport.broker` |
+| `LiteBus.Transport` | `litebus.transport.circuit_breaker.open` | `LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName` | `1` when any publisher circuit is open or half-open; tag `litebus.transport.broker` |
+| `LiteBus.Transport` | `litebus.transport.circuit_breaker.failure_count` | `LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName` | Current failure sum across publisher destinations; tag `litebus.transport.broker` |
 | `LiteBus.Transport.AzureServiceBus` | (reserved) | | Adapter meter identity for custom instrumentation |
 | `LiteBus.Transport.AwsSqs` | (reserved) | | Adapter meter identity for custom instrumentation |
 | `LiteBus.Transport.Kafka` | (reserved) | | Adapter meter identity for custom instrumentation |
@@ -195,7 +195,7 @@ Broker clients implement `ITransportPublisher` and `IMessageConsumer` from `Lite
 | `LiteBus.Transport.InMemory` | Technology adapter | `System.Threading.Channels` | `Destination` = logical queue name |
 | `LiteBus.Transport.Kafka` | Technology adapter | Apache Kafka (Confluent) | `Destination` = topic; `Route` = record key |
 
-Register one transport module per process. Each module registers `ITransportPublisher`, `IMessageConsumer`, and the shared `LiteBus.Transport` circuit breaker metrics.
+Register one transport module per process. Each module registers `ITransportPublisher`, `IMessageConsumer`, and destination-scoped publisher circuit breakers exposed through the shared `LiteBus.Transport` metrics.
 
 ```csharp
 services.AddLiteBus(bus =>

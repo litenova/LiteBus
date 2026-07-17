@@ -82,8 +82,8 @@ public sealed class KafkaTransportModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(ITransportCircuitBreaker),
-            static _ => new TransportCircuitBreaker(),
+            typeof(ITransportCircuitBreakerRegistry),
+            static _ => new TransportCircuitBreakerRegistry(),
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

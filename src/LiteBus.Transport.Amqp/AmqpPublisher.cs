@@ -14,9 +14,9 @@ namespace LiteBus.Transport.Amqp;
 public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncDisposable
 {
     /// <summary>
-    ///     Gets the circuit breaker shared with the connection manager when it is a <see cref="AmqpConnectionManager" />.
+    ///     Gets the registry that scopes publish resilience by exchange.
     /// </summary>
-    private readonly ITransportCircuitBreaker? _circuitBreaker;
+    private readonly ITransportCircuitBreakerRegistry _circuitBreakerRegistry;
 
     /// <summary>
     ///     Gets the connection manager used to open publish channels.
@@ -42,21 +42,22 @@ public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncD
     ///     Initializes a new instance of the <see cref="AmqpPublisher" /> class.
     /// </summary>
     /// <param name="connectionManager">The connection manager used to open publish channels.</param>
-    public AmqpPublisher(IAmqpConnectionManager connectionManager)
+    /// <param name="circuitBreakerRegistry">The registry that scopes publish resilience by exchange.</param>
+    public AmqpPublisher(
+        IAmqpConnectionManager connectionManager,
+        ITransportCircuitBreakerRegistry circuitBreakerRegistry)
     {
         ArgumentNullException.ThrowIfNull(connectionManager);
+        ArgumentNullException.ThrowIfNull(circuitBreakerRegistry);
         _connectionManager = connectionManager;
-
-        _circuitBreaker = connectionManager is AmqpConnectionManager manager
-            ? manager.TransportCircuitBreaker
-            : null;
+        _circuitBreakerRegistry = circuitBreakerRegistry;
     }
 
     /// <inheritdoc />
     /// <remarks>
-    ///     <see cref="AlreadyClosedException" /> and <see cref="BrokerUnreachableException" /> are handled explicitly
-    ///     so broker failures increment the circuit breaker. The final <see cref="Exception" /> handler records any
-    ///     other non-cancellation failure before rethrowing.
+    ///     <see cref="OperationInterruptedException" />, <see cref="PublishException" />, and
+    ///     <see cref="BrokerUnreachableException" /> are handled explicitly so broker failures increment the exchange
+    ///     circuit. Unexpected application failures are traced and rethrown without changing broker resilience state.
     /// </remarks>
     public async Task PublishAsync(AmqpPublishRequest request, CancellationToken cancellationToken = default)
     {
@@ -72,9 +73,12 @@ public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncD
             CorrelationId = request.CorrelationId
         });
 
+        var circuitBreaker = _circuitBreakerRegistry.GetPublisherCircuit(request.Exchange);
+        TransportCircuitBreakerPermit permit;
+
         try
         {
-            _circuitBreaker?.ThrowIfOpen();
+            permit = circuitBreaker.AcquirePermit();
         }
         catch (TransportCircuitBreakerOpenException exception)
         {
@@ -103,30 +107,35 @@ public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncD
                         cancellationToken)
                     .ConfigureAwait(false);
 
-                _circuitBreaker?.RecordSuccess();
+                circuitBreaker.RecordSuccess(permit);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
             }
-            catch (AlreadyClosedException exception)
+            catch (OperationInterruptedException exception)
             {
                 TransportTracing.RecordException(activity, exception);
-                _circuitBreaker?.RecordFailure();
+                circuitBreaker.RecordFailure(permit);
+                throw;
+            }
+            catch (PublishException exception)
+            {
+                TransportTracing.RecordException(activity, exception);
+                circuitBreaker.RecordFailure(permit);
                 throw;
             }
             catch (BrokerUnreachableException exception)
             {
                 TransportTracing.RecordException(activity, exception);
-                _circuitBreaker?.RecordFailure();
+                circuitBreaker.RecordFailure(permit);
                 throw;
             }
-#pragma warning disable CA1031 // Last-resort publish boundary records circuit breaker failures before rethrowing.
+#pragma warning disable CA1031 // Last-resort publish boundary traces unexpected failures before rethrowing.
             catch (Exception exception)
 #pragma warning restore CA1031
             {
                 TransportTracing.RecordException(activity, exception);
-                TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
                 throw;
             }
         }

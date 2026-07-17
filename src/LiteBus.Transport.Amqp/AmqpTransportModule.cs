@@ -39,11 +39,13 @@ public sealed class AmqpTransportModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(ITransportCircuitBreaker),
+            typeof(ITransportCircuitBreakerRegistry),
             static serviceProvider =>
             {
-                var manager = serviceProvider.GetService(typeof(IAmqpConnectionManager)) as AmqpConnectionManager;
-                return manager?.TransportCircuitBreaker ?? throw new InvalidOperationException("IAmqpConnectionManager is not registered.");
+                var options = serviceProvider.GetService(typeof(AmqpConnectionOptions)) as AmqpConnectionOptions ??
+                              throw new InvalidOperationException("AmqpConnectionOptions is not registered.");
+
+                return new TransportCircuitBreakerRegistry(options.CircuitBreaker.ToTransportOptions());
             },
             InstanceLifetime.Singleton));
 

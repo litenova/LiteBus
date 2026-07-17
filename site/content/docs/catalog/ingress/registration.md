@@ -83,8 +83,8 @@ Ingress registration does not define new instruments. The root transport module 
 
 | Kind | Name | When emitted | Registration |
 | --- | --- | --- | --- |
-| Gauge | `litebus.transport.circuit_breaker.open` | Breaker open on publish or connection paths | `AddLiteBusTransportMetrics()` or broker OpenTelemetry package |
-| Gauge | `litebus.transport.circuit_breaker.failure_count` | Consecutive broker connectivity failures | same |
+| Gauge | `litebus.transport.circuit_breaker.open` | At least one publisher circuit is open or half-open | `AddLiteBusTransportMetrics()` or broker OpenTelemetry package |
+| Gauge | `litebus.transport.circuit_breaker.failure_count` | Current failures summed across publisher circuits | same |
 | Tag | `litebus.transport.broker` | `amqp`, `kafka`, `sqs`, `azure_service_bus`, `inmemory` | on breaker gauges |
 
 Ingress-specific counter `ingress.ack_failed_after_accept` is recorded at runtime by `ingress.transport-consumer`, not at registration. See `ingress.telemetry`.

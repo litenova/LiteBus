@@ -17,6 +17,7 @@ using LiteBus.Outbox.Dispatch.Amqp;
 using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
+using LiteBus.Transport;
 using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
@@ -603,7 +604,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
          var manager = new AmqpConnectionManager(connectionOptions);
          await using (manager.ConfigureAwait(false))
          {
-        var publisher = new AmqpPublisher(manager);
+        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
 
         var headers = new Dictionary<string, object?>(StringComparer.Ordinal)
         {

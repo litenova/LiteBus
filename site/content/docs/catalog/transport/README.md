@@ -84,8 +84,8 @@ Transport circuit breaker metrics are emitted on meter `LiteBus.Transport` and t
 
 | Instrument | Public constant | Value semantics |
 | --- | --- | --- |
-| `litebus.transport.circuit_breaker.open` | `LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName` | `1` when open, `0` when closed |
-| `litebus.transport.circuit_breaker.failure_count` | `LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName` | Consecutive publish or connect failures |
+| `litebus.transport.circuit_breaker.open` | `LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName` | `1` when any publisher circuit is open or half-open; otherwise `0` |
+| `litebus.transport.circuit_breaker.failure_count` | `LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName` | Sum of current failures across destination-scoped publisher circuits |
 
 Broker tag values in v6: `amqp`, `kafka`, `sqs`, `azure_service_bus`, `inmemory`.
 

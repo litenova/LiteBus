@@ -14,7 +14,7 @@ public sealed class TransportObservableMetrics : IDisposable
     private readonly Meter _meter;
 
     /// <summary>
-    ///     The service provider used to resolve the shared circuit breaker at observation time.
+    ///     The service provider used to resolve the circuit breaker registry at observation time.
     /// </summary>
     private readonly IServiceProvider _serviceProvider;
 
@@ -37,12 +37,12 @@ public sealed class TransportObservableMetrics : IDisposable
         _meter.CreateObservableGauge(
             LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName,
             ObserveCircuitBreakerOpen,
-            description: "Whether the transport circuit breaker is open where 1 is open and 0 is closed.");
+            description: "Whether any publisher circuit is open where 1 is open and 0 is closed.");
 
         _meter.CreateObservableGauge(
             LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName,
             ObserveCircuitBreakerFailureCount,
-            description: "The current consecutive transport failure count observed by the circuit breaker.");
+            description: "The sum of current consecutive failures across publisher circuits.");
     }
 
     /// <summary>
@@ -62,15 +62,15 @@ public sealed class TransportObservableMetrics : IDisposable
     /// <returns>The circuit breaker open measurement, if a circuit breaker is registered.</returns>
     private IEnumerable<Measurement<int>> ObserveCircuitBreakerOpen()
     {
-        var circuitBreaker = ResolveCircuitBreaker();
+        var registry = ResolveCircuitBreakerRegistry();
 
-        if (circuitBreaker is null)
+        if (registry is null)
         {
             yield break;
         }
 
         yield return new Measurement<int>(
-            circuitBreaker.IsOpen ? 1 : 0,
+            registry.IsAnyOpen ? 1 : 0,
             CreateBrokerTags());
     }
 
@@ -80,15 +80,15 @@ public sealed class TransportObservableMetrics : IDisposable
     /// <returns>The circuit breaker failure count measurement, if a circuit breaker is registered.</returns>
     private IEnumerable<Measurement<long>> ObserveCircuitBreakerFailureCount()
     {
-        var circuitBreaker = ResolveCircuitBreaker();
+        var registry = ResolveCircuitBreakerRegistry();
 
-        if (circuitBreaker is null)
+        if (registry is null)
         {
             yield break;
         }
 
         yield return new Measurement<long>(
-            circuitBreaker.FailureCount,
+            registry.FailureCount,
             CreateBrokerTags());
     }
 
@@ -110,11 +110,11 @@ public sealed class TransportObservableMetrics : IDisposable
     }
 
     /// <summary>
-    ///     Resolves the circuit breaker from the service provider, when available.
+    ///     Resolves the circuit breaker registry from the service provider, when available.
     /// </summary>
-    /// <returns>The circuit breaker instance, or <see langword="null" /> when transport is not registered.</returns>
-    private ITransportCircuitBreaker? ResolveCircuitBreaker()
+    /// <returns>The circuit breaker registry, or <see langword="null" /> when transport is not registered.</returns>
+    private ITransportCircuitBreakerRegistry? ResolveCircuitBreakerRegistry()
     {
-        return _serviceProvider.GetService(typeof(ITransportCircuitBreaker)) as ITransportCircuitBreaker;
+        return _serviceProvider.GetService(typeof(ITransportCircuitBreakerRegistry)) as ITransportCircuitBreakerRegistry;
     }
 }

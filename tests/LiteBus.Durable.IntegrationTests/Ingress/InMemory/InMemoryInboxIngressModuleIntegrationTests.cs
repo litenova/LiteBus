@@ -9,9 +9,11 @@ using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
+using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.InMemory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Durable.IntegrationTests.Ingress.InMemory;
 
@@ -96,6 +98,75 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
     }
 
     /// <summary>
+    ///     Verifies a failed outbound destination cannot stop ingress or dispatch through healthy destinations in a
+    ///     running Generic Host.
+    /// </summary>
+    /// <returns>A task that completes when the isolated end-to-end flow succeeds.</returns>
+    [Fact]
+    public async Task GenericHost_WhenUnrelatedPublisherCircuitIsOpen_ShouldKeepIngressAndHealthyDispatchRunning()
+    {
+        var ingressDestination = $"litebus-inmemory-ingress-{Guid.NewGuid():N}";
+        var dispatchDestination = $"litebus-inmemory-dispatch-{Guid.NewGuid():N}";
+        var failedDestination = $"litebus-inmemory-failed-{Guid.NewGuid():N}";
+        var orderId = Guid.NewGuid();
+        var messageId = Guid.NewGuid();
+        var dispatchReceived = new TaskCompletionSource<TransportMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var builder = Host.CreateApplicationBuilder();
+        ConfigureServices(builder.Services, ingressDestination, dispatchDestination);
+
+        using var host = builder.Build();
+        var registry = host.Services.GetRequiredService<ITransportCircuitBreakerRegistry>();
+        var failedCircuit = registry.GetPublisherCircuit(failedDestination);
+
+        for (var failure = 0; failure < 5; failure++)
+        {
+            failedCircuit.RecordFailure(failedCircuit.AcquirePermit());
+        }
+
+        failedCircuit.IsOpen.Should().BeTrue();
+
+        var broker = host.Services.GetRequiredService<InMemoryTransportBroker>();
+        var dispatchConsumer = await StartReceiveOneAsync(broker, dispatchDestination, dispatchReceived).ConfigureAwait(false);
+        await using (dispatchConsumer.ConfigureAwait(false))
+        {
+            using var timeoutSource = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            await host.StartAsync(timeoutSource.Token).ConfigureAwait(false);
+
+            try
+            {
+                var externalPublisher = new InMemoryPublisher(broker, new TransportCircuitBreakerRegistry());
+                var payload = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = orderId });
+
+                await externalPublisher.PublishAsync(
+                    new TransportPublishRequest
+                    {
+                        Destination = ingressDestination,
+                        Body = payload,
+                        MessageId = messageId.ToString("D"),
+                        Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
+                    },
+                    timeoutSource.Token).ConfigureAwait(false);
+
+                var dispatched = await dispatchReceived.Task.WaitAsync(timeoutSource.Token).ConfigureAwait(false);
+                TransportMessageAssertions.ReadBody(dispatched).Should().Contain(orderId.ToString());
+
+                var store = host.Services.GetRequiredService<InMemoryInboxStore>();
+                await PollingWait.UntilAsync(
+                    () => store.Get(messageId).Status == InboxStatus.Completed,
+                    TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+
+                store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
+                registry.GetPublisherCircuit(dispatchDestination).IsOpen.Should().BeFalse();
+                failedCircuit.IsOpen.Should().BeTrue();
+            }
+            finally
+            {
+                await host.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>
     ///     Builds a LiteBus service provider configured for in-memory ingress module tests.
     /// </summary>
     /// <param name="ingressDestination">The ingress queue name.</param>
@@ -103,8 +174,28 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
     /// <returns>The configured service provider.</returns>
     private static ServiceProvider BuildProvider(string ingressDestination, string dispatchDestination)
     {
-        return new ServiceCollection()
-            .AddLiteBus(registry =>
+        var services = new ServiceCollection();
+        ConfigureServices(services, ingressDestination, dispatchDestination);
+
+        return services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateScopes = true,
+            ValidateOnBuild = true
+        });
+    }
+
+    /// <summary>
+    ///     Adds the complete in-memory ingress, processor, and dispatch composition to a service collection.
+    /// </summary>
+    /// <param name="services">The service collection receiving the LiteBus composition.</param>
+    /// <param name="ingressDestination">The ingress queue name.</param>
+    /// <param name="dispatchDestination">The dispatch queue name.</param>
+    private static void ConfigureServices(
+        IServiceCollection services,
+        string ingressDestination,
+        string dispatchDestination)
+    {
+        services.AddLiteBus(registry =>
             {
                 registry.Register(new InMemoryTransportModule());
                 registry.AddMessageModule(_ =>
@@ -135,11 +226,6 @@ public sealed class InMemoryInboxIngressModuleIntegrationTests : LiteBusTestBase
                         });
                     });
                 });
-            })
-            .BuildServiceProvider(new ServiceProviderOptions
-            {
-                ValidateScopes = true,
-                ValidateOnBuild = true
             });
     }
 

@@ -85,11 +85,12 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
 
         try
         {
-            var breaker = provider.GetRequiredService<ITransportCircuitBreaker>();
+            var breaker = provider.GetRequiredService<ITransportCircuitBreakerRegistry>()
+                .GetPublisherCircuit("http://127.0.0.1:1/000000000000/unreachable");
 
             for (var attempt = 0; attempt < 5; attempt++)
             {
-                breaker.RecordFailure();
+                breaker.RecordFailure(breaker.AcquirePermit());
             }
 
             var outbox = provider.GetRequiredService<IOutbox>();

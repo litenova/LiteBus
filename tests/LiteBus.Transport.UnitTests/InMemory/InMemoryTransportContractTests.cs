@@ -14,7 +14,7 @@ public sealed class InMemoryTransportContractTests : TransportContractTests
     {
         var broker = new InMemoryTransportBroker();
         var consumer = new InMemoryConsumer(broker);
-        var publisher = new InMemoryPublisher(broker, new TransportCircuitBreaker());
+        var publisher = new InMemoryPublisher(broker, new TransportCircuitBreakerRegistry());
         var destination = $"litebus-{scenario}-{Guid.NewGuid():N}";
 
         return ValueTask.FromResult(new TransportContractContext(

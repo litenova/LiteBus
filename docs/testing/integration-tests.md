@@ -208,7 +208,7 @@ Defined in `TransportTestMessages.cs` under `LiteBus.Transport.IntegrationTestin
 |------------|-----------|
 | `InMemoryInboxDispatchIntegrationTests` | Inbox processor publishes leased envelope to in-memory destination with headers |
 | `InMemoryOutboxDispatchIntegrationTests` | Outbox processor publishes event; full header propagation; contract-name route fallback |
-| `InMemoryInboxIngressModuleIntegrationTests` | `UseInMemoryIngress` E2E accept to process to dispatch |
+| `InMemoryInboxIngressModuleIntegrationTests` | `UseInMemoryIngress` E2E accept to process to dispatch; a running Generic Host keeps healthy ingress and dispatch active while an unrelated publisher circuit is open |
 | `InMemoryIngressFailureIntegrationTests` | Unknown contract, invalid JSON, store full (no broker write) |
 | `InMemoryIngressHeaderEdgeCaseIntegrationTests` | Missing/wrong contract headers, invalid MessageId, wrong CLR shape |
 | `InMemoryIngressIdempotencyIntegrationTests` | Duplicate MessageId to single inbox row |

@@ -1,7 +1,7 @@
 namespace LiteBus.Transport;
 
 /// <summary>
-///     Configures transport circuit breaker behavior shared by connection and publish operations.
+///     Configures one transport circuit breaker instance.
 /// </summary>
 public sealed record TransportCircuitBreakerOptions
 {

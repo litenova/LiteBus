@@ -43,12 +43,12 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     }
 
     /// <summary>
-    ///     Gets the circuit breaker shared with publishers and consumers created from this connection manager.
+    ///     Gets the circuit breaker that guards creation of the shared broker connection.
     /// </summary>
     public AmqpCircuitBreaker CircuitBreaker => _circuitBreaker;
 
     /// <summary>
-    ///     Gets the shared transport circuit breaker instance.
+    ///     Gets the transport circuit breaker that guards creation of the shared broker connection.
     /// </summary>
     public ITransportCircuitBreaker TransportCircuitBreaker => _circuitBreaker;
 
@@ -59,8 +59,6 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     /// </remarks>
     public async Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default)
     {
-        _circuitBreaker.ThrowIfOpen();
-
         if (_connection is { IsOpen: true })
         {
             return _connection;
@@ -81,37 +79,39 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
                 _connection = null;
             }
 
+            var permit = _circuitBreaker.AcquirePermit();
+
             try
             {
                 var factory = CreateConnectionFactory();
                 _connection = await factory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-                _circuitBreaker.RecordSuccess();
+                _circuitBreaker.RecordSuccess(permit);
                 return _connection;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
             }
-            catch (BrokerUnreachableException exception)
+            catch (BrokerUnreachableException)
             {
-                TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
+                _circuitBreaker.RecordFailure(permit);
                 throw;
             }
-            catch (AlreadyClosedException exception)
+            catch (AlreadyClosedException)
             {
-                TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
+                _circuitBreaker.RecordFailure(permit);
                 throw;
             }
-            catch (OperationInterruptedException exception)
+            catch (OperationInterruptedException)
             {
-                TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
+                _circuitBreaker.RecordFailure(permit);
                 throw;
             }
 #pragma warning disable CA1031 // Last-resort connection boundary records circuit breaker failures before rethrowing.
-            catch (Exception exception)
+            catch (Exception)
 #pragma warning restore CA1031
             {
-                TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
+                _circuitBreaker.RecordFailure(permit);
                 throw;
             }
         }

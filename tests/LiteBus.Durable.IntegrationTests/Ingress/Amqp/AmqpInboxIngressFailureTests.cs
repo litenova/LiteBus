@@ -7,6 +7,7 @@ using LiteBus.Inbox.Dispatch.Amqp;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Testing;
+using LiteBus.Transport;
 using LiteBus.Transport.Amqp;
 using LiteBus.Transport.IntegrationTesting;
 using Microsoft.Extensions.DependencyInjection;
@@ -205,7 +206,7 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
          var manager = new AmqpConnectionManager(connectionOptions);
          await using (manager.ConfigureAwait(false))
          {
-        var publisher = new AmqpPublisher(manager);
+        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
 
         await publisher.PublishAsync(new AmqpPublishRequest
         {

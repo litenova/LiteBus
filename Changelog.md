@@ -40,6 +40,9 @@ All notable changes to this project will be documented in this file.
   chronological index.
 - Test coverage uses one canonical collector configuration and an exact source-line union across every CI batch.
   Pull request and release jobs enforce 90 percent line coverage and treat Codecov upload failures as failures.
+- Transport publishers resolve circuit breakers by destination. Ingress recovery no longer shares publisher
+  failure state, and half-open recovery admits one probe after a monotonic break duration. Opaque operation permits
+  prevent late completions from resetting a newer circuit generation.
 
 ### Fixed
 
@@ -63,6 +66,8 @@ All notable changes to this project will be documented in this file.
   `DateTimeOffset` expressions.
 - Analyzer LB1004 now finds result-bearing commands in inbox batches expressed through local variables, arrays,
   target-typed lists, parenthesized or cast expressions, and collection spreads.
+- Open transport circuits no longer extend their deadline when retry loops report another rejection. A failed
+  destination cannot block healthy publisher destinations or ingress consumption.
 
 ### Breaking changes
 
@@ -79,6 +84,10 @@ All notable changes to this project will be documented in this file.
   can calculate expiry from their database clock while in-memory stores retain deterministic clock control.
 - Existing v6 PostgreSQL tables must apply the ordered payload-text, lease-fencing, and saga duplicate-suppression SQL
   files before validation records inbox/outbox version 3 and saga version 2.
+- Transport modules register `ITransportCircuitBreakerRegistry` instead of one process-wide
+  `ITransportCircuitBreaker`. Custom publisher constructors now receive the registry, and the broad
+  `TransportPublishFailurePolicy` classification API was removed. Circuit adapters call `AcquirePermit()` and pass
+  the returned `TransportCircuitBreakerPermit` to `RecordSuccess` or `RecordFailure`.
 - `IInboxStore` and `IOutboxStore` append methods return `InboxAppendResult` and `OutboxAppendResult`. The redundant
   typed `IOutbox.EnqueueBatchAsync<TEvent>` overload is removed; use the non-generic item batch overload.
 - EF application migrations must add `IX_LiteBus_Inbox_CreatedAt` and `IX_LiteBus_Outbox_CreatedAt`. Existing SQLite

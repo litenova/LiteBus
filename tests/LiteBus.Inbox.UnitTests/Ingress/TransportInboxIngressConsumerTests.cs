@@ -406,7 +406,6 @@ public sealed class TransportInboxIngressConsumerTests
             handler,
             options,
             new TransportInboxIngressHostOptions { Enabled = false },
-            null,
             NullLogger<TransportInboxIngressConsumer>.Instance);
     }
 

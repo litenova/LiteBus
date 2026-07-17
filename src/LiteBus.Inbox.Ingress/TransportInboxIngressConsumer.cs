@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Transport;
 using LiteBus.Transport.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -24,11 +23,6 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     ///     The lock that serializes access to the optional batch accept buffer.
     /// </summary>
     private readonly object _batchSync = new();
-
-    /// <summary>
-    ///     Gets the optional circuit breaker shared with the transport connection manager.
-    /// </summary>
-    private readonly ITransportCircuitBreaker? _circuitBreaker;
 
     /// <summary>
     ///     Gets the transport consumer used to subscribe to the ingress destination.
@@ -78,14 +72,12 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     /// <param name="handler">The handler that maps deliveries to inbox acceptance.</param>
     /// <param name="options">The ingress destination and consumer settings.</param>
     /// <param name="hostOptions">The hosting options that control whether the ingress loop is enabled.</param>
-    /// <param name="circuitBreaker">The optional circuit breaker shared with the transport connection manager.</param>
     /// <param name="logger">The optional logger for ingress restart diagnostics.</param>
     public TransportInboxIngressConsumer(
         IMessageConsumer consumer,
         TransportInboxIngressHandler handler,
         TransportInboxIngressOptions options,
         TransportInboxIngressHostOptions hostOptions,
-        ITransportCircuitBreaker? circuitBreaker = null,
         ILogger<TransportInboxIngressConsumer>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(consumer);
@@ -96,7 +88,6 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
         _options = options;
         ArgumentNullException.ThrowIfNull(hostOptions);
         _hostOptions = hostOptions;
-        _circuitBreaker = circuitBreaker;
         _logger = logger ?? NullLogger<TransportInboxIngressConsumer>.Instance;
 
         if (options.EnableBatchAccept)
@@ -151,7 +142,6 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
         {
             try
             {
-                _circuitBreaker?.ThrowIfOpen();
                 await _consumer.StartAsync(consumerOptions, HandleDeliveryAsync, stoppingToken).ConfigureAwait(false);
 
                 using var stopRegistration = stoppingToken.Register(static state =>
@@ -161,23 +151,15 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
                 }, _consumer);
 
                 await _consumer.WaitUntilStoppedAsync(stoppingToken).ConfigureAwait(false);
-                _circuitBreaker?.RecordSuccess();
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 break;
             }
 
-            catch (TransportCircuitBreakerOpenException)
-            {
-                // An open circuit is a scheduled pause, not a new downstream failure. Recording it here would
-                // continuously extend the open window and prevent the half-open probe from ever running.
-            }
-
 #pragma warning disable CA1031 // Ingress restart boundary records broker faults and retries the consumer loop.
             catch (Exception exception)
             {
-                _circuitBreaker?.RecordFailure();
                 TransportInboxIngressLogMessages.IngressRestarting(_logger, exception);
             }
 #pragma warning restore CA1031
@@ -417,8 +399,6 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     /// </remarks>
     private async Task AcceptAndAcknowledgeAsync(TransportMessage message, CancellationToken cancellationToken)
     {
-        _circuitBreaker?.ThrowIfOpen();
-
         try
         {
             await _handler.AcceptAsync(message, cancellationToken).ConfigureAwait(false);
@@ -462,13 +442,11 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
         try
         {
             await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
-            _circuitBreaker?.RecordSuccess();
         }
 
 #pragma warning disable CA1031 // Broker acknowledgement failures can originate from any transport SDK.
         catch (Exception exception)
         {
-            _circuitBreaker?.RecordFailure();
             TransportInboxIngressTelemetry.RecordAckFailedAfterAccept();
             TransportInboxIngressLogMessages.AckFailedAfterAccept(_logger, exception);
             await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
@@ -492,7 +470,6 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     {
         try
         {
-            _circuitBreaker?.ThrowIfOpen();
             await _handler.AcceptBatchAsync(messages, cancellationToken).ConfigureAwait(false);
         }
 

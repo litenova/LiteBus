@@ -87,8 +87,8 @@ Meter `LiteBus.Inbox`. Register with `AddLiteBusInboxMetrics()`.
 
 | Instrument | Broker tag | When observed |
 | --- | --- | --- |
-| `litebus.transport.circuit_breaker.open` | `amqp` | Connection or publish path breaker open |
-| `litebus.transport.circuit_breaker.failure_count` | `amqp` | Consecutive connectivity failures |
+| `litebus.transport.circuit_breaker.open` | `amqp` | At least one destination-scoped publisher circuit is open or half-open |
+| `litebus.transport.circuit_breaker.failure_count` | `amqp` | Current failures summed across publisher circuits |
 
 Legacy `litebus.amqp.circuit_breaker.*` meters removed in v6; use shared transport instruments with broker tag.
 
@@ -124,7 +124,7 @@ EventId 3002 (loop restart), 3003 (batch flush failed), 3004 (ack failed after a
 
 - LavinMQ-specific failure modes beyond the single end-to-end happy path.
 - Queue declaration with `DeclareDestination` and `DurableDestination` against a live broker.
-- AMQP circuit breaker open during ingress consume (`litebus.transport.circuit_breaker.open` with broker tag `amqp`).
+- AMQP connection breaker recovery during ingress consume.
 - `RequeueOnFailure = false` poison drain on RabbitMQ (covered for InMemory and AWS SQS ingress).
 
 ### Out-of-Scope

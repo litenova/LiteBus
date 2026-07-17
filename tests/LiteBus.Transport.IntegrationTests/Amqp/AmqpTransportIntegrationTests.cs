@@ -30,7 +30,7 @@ public abstract class AmqpTransportIntegrationTests
          var manager = new AmqpConnectionManager(ConnectionOptions);
          await using (manager.ConfigureAwait(false))
          {
-        var publisher = new AmqpPublisher(manager);
+        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
          var consumer = new AmqpConsumer(manager);
          await using (consumer.ConfigureAwait(false))
          {
@@ -76,7 +76,7 @@ public abstract class AmqpTransportIntegrationTests
          var manager = new AmqpConnectionManager(ConnectionOptions);
          await using (manager.ConfigureAwait(false))
          {
-        var publisher = new AmqpPublisher(manager);
+        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
          var consumer = new AmqpConsumer(manager);
          await using (consumer.ConfigureAwait(false))
          {
@@ -136,7 +136,7 @@ public abstract class AmqpTransportIntegrationTests
          var manager = new AmqpConnectionManager(ConnectionOptions);
          await using (manager.ConfigureAwait(false))
          {
-        var publisher = new AmqpPublisher(manager);
+        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
          var consumer = new AmqpConsumer(manager);
          await using (consumer.ConfigureAwait(false))
          {
@@ -198,7 +198,7 @@ public abstract class AmqpTransportIntegrationTests
          var manager = new AmqpConnectionManager(ConnectionOptions);
          await using (manager.ConfigureAwait(false))
          {
-        var publisher = new AmqpPublisher(manager);
+        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
          var consumer = new AmqpConsumer(manager);
          await using (consumer.ConfigureAwait(false))
          {
@@ -265,7 +265,7 @@ public abstract class AmqpTransportIntegrationTests
          var manager = new AmqpConnectionManager(ConnectionOptions);
          await using (manager.ConfigureAwait(false))
          {
-        var publisher = new AmqpPublisher(manager);
+        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
         using var cancellationSource = new CancellationTokenSource();
         cancellationSource.Cancel();
 
@@ -374,7 +374,7 @@ public abstract class AmqpTransportIntegrationTests
          var manager = new AmqpConnectionManager(ConnectionOptions);
          await using (manager.ConfigureAwait(false))
          {
-        var publisher = new AmqpPublisher(manager);
+        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
 
         var setupChannel = await manager.CreateChannelAsync().ConfigureAwait(true);
         await using (setupChannel.ConfigureAwait(true))

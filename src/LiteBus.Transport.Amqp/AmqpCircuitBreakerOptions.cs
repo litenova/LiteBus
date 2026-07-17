@@ -3,10 +3,10 @@ using System;
 namespace LiteBus.Transport.Amqp;
 
 /// <summary>
-///     Configures AMQP circuit breaker behavior shared by connection and publish operations.
+///     Configures AMQP connection and per-exchange publisher circuit breakers.
 /// </summary>
 /// <remarks>
-///     Maps to <see cref="TransportCircuitBreakerOptions" /> used by the shared transport circuit breaker.
+///     The transport module copies these values into the connection breaker and each publisher circuit.
 /// </remarks>
 public sealed record AmqpCircuitBreakerOptions
 {

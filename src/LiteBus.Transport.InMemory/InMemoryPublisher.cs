@@ -14,28 +14,29 @@ public sealed class InMemoryPublisher : ITransportPublisher
     private readonly InMemoryTransportBroker _broker;
 
     /// <summary>
-    ///     Gets the circuit breaker guarding publish operations.
+    ///     Gets the registry that scopes publish resilience by destination.
     /// </summary>
-    private readonly ITransportCircuitBreaker _circuitBreaker;
+    private readonly ITransportCircuitBreakerRegistry _circuitBreakerRegistry;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="InMemoryPublisher" /> class.
     /// </summary>
     /// <param name="broker">The shared broker receiving published deliveries.</param>
-    /// <param name="circuitBreaker">The circuit breaker guarding publish operations.</param>
-    public InMemoryPublisher(InMemoryTransportBroker broker, ITransportCircuitBreaker circuitBreaker)
+    /// <param name="circuitBreakerRegistry">The registry that scopes publish resilience by destination.</param>
+    public InMemoryPublisher(
+        InMemoryTransportBroker broker,
+        ITransportCircuitBreakerRegistry circuitBreakerRegistry)
     {
         ArgumentNullException.ThrowIfNull(broker);
-        ArgumentNullException.ThrowIfNull(circuitBreaker);
+        ArgumentNullException.ThrowIfNull(circuitBreakerRegistry);
         _broker = broker;
-        _circuitBreaker = circuitBreaker;
+        _circuitBreakerRegistry = circuitBreakerRegistry;
     }
 
     /// <inheritdoc />
     /// <remarks>
-    ///     <see cref="ChannelClosedException" /> is handled explicitly so closed destinations increment the circuit
-    ///     breaker. The final <see cref="Exception" /> handler records any other non-cancellation failure before
-    ///     rethrowing.
+    ///     <see cref="ChannelClosedException" /> is handled explicitly so closed destinations increment their circuit.
+    ///     Unexpected application failures are traced and rethrown without changing destination resilience state.
     /// </remarks>
     public async Task PublishAsync(TransportPublishRequest request, CancellationToken cancellationToken = default)
     {
@@ -50,9 +51,21 @@ public sealed class InMemoryPublisher : ITransportPublisher
             CorrelationId = request.CorrelationId
         });
 
+        var circuitBreaker = _circuitBreakerRegistry.GetPublisherCircuit(request.Destination);
+        TransportCircuitBreakerPermit permit;
+
         try
         {
-            _circuitBreaker.ThrowIfOpen();
+            permit = circuitBreaker.AcquirePermit();
+        }
+        catch (TransportCircuitBreakerOpenException exception)
+        {
+            TransportTracing.RecordException(activity, exception);
+            throw;
+        }
+
+        try
+        {
             var endpoint = _broker.GetOrCreateEndpoint(request.Destination);
 
             var delivery = new InMemoryPendingDelivery
@@ -66,29 +79,23 @@ public sealed class InMemoryPublisher : ITransportPublisher
             };
 
             await endpoint.Writer.WriteAsync(delivery, cancellationToken).ConfigureAwait(false);
-            _circuitBreaker.RecordSuccess();
+            circuitBreaker.RecordSuccess(permit);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (TransportCircuitBreakerOpenException exception)
-        {
-            TransportTracing.RecordException(activity, exception);
-            throw;
-        }
         catch (ChannelClosedException exception)
         {
             TransportTracing.RecordException(activity, exception);
-            TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
+            circuitBreaker.RecordFailure(permit);
             throw;
         }
-#pragma warning disable CA1031 // Last-resort publish boundary records circuit breaker failures before rethrowing.
+#pragma warning disable CA1031 // Last-resort publish boundary traces unexpected failures before rethrowing.
         catch (Exception exception)
 #pragma warning restore CA1031
         {
             TransportTracing.RecordException(activity, exception);
-            TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
             throw;
         }
     }

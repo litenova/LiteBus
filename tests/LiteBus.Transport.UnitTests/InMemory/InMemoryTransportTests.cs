@@ -17,7 +17,7 @@ public sealed class InMemoryTransportTests
     public async Task PublishAndConsume_ShouldDeliverMessageToConsumer()
     {
         var broker = new InMemoryTransportBroker();
-        var publisher = new InMemoryPublisher(broker, new TransportCircuitBreaker());
+        var publisher = new InMemoryPublisher(broker, new TransportCircuitBreakerRegistry());
         var consumer = new InMemoryConsumer(broker);
         TransportMessage? received = null;
 
@@ -61,7 +61,7 @@ public sealed class InMemoryTransportTests
     public async Task ReturnToQueue_ShouldRedeliverMessage()
     {
         var broker = new InMemoryTransportBroker();
-        var publisher = new InMemoryPublisher(broker, new TransportCircuitBreaker());
+        var publisher = new InMemoryPublisher(broker, new TransportCircuitBreakerRegistry());
         var consumer = new InMemoryConsumer(broker);
         var deliveryCount = 0;
 
@@ -100,7 +100,7 @@ public sealed class InMemoryTransportTests
     public async Task HandlerThrow_ShouldRequeueMessageByDefault()
     {
         var broker = new InMemoryTransportBroker();
-        var publisher = new InMemoryPublisher(broker, new TransportCircuitBreaker());
+        var publisher = new InMemoryPublisher(broker, new TransportCircuitBreakerRegistry());
         var consumer = new InMemoryConsumer(broker);
         var deliveryCount = 0;
 
@@ -132,7 +132,9 @@ public sealed class InMemoryTransportTests
     public async Task PublishAsync_WithOpenCircuit_ShouldRethrowCircuitException()
     {
         var circuitBreaker = new ThrowingCircuitBreaker(new TransportCircuitBreakerOpenException());
-        var publisher = new InMemoryPublisher(new InMemoryTransportBroker(), circuitBreaker);
+        var publisher = new InMemoryPublisher(
+            new InMemoryTransportBroker(),
+            new FixedCircuitBreakerRegistry(circuitBreaker));
 
         var act = () => publisher.PublishAsync(CreateRequest("open-circuit"));
 
@@ -148,8 +150,9 @@ public sealed class InMemoryTransportTests
     {
         var broker = new InMemoryTransportBroker();
         broker.GetOrCreateEndpoint("closed-destination").Writer.TryComplete().Should().BeTrue();
-        var circuitBreaker = new TransportCircuitBreaker();
-        var publisher = new InMemoryPublisher(broker, circuitBreaker);
+        var circuitBreakerRegistry = new TransportCircuitBreakerRegistry();
+        var circuitBreaker = circuitBreakerRegistry.GetPublisherCircuit("closed-destination");
+        var publisher = new InMemoryPublisher(broker, circuitBreakerRegistry);
 
         var act = () => publisher.PublishAsync(CreateRequest("closed-destination"));
 
@@ -158,18 +161,22 @@ public sealed class InMemoryTransportTests
     }
 
     /// <summary>
-    ///     Verifies unexpected publish failures are recorded and rethrown.
+    ///     Verifies an unexpected application failure is rethrown without poisoning broker connectivity state.
     /// </summary>
     [Fact]
-    public async Task PublishAsync_WithUnexpectedFailure_ShouldRecordAndRethrow()
+    public async Task PublishAsync_WithUnexpectedFailure_ShouldRethrowWithoutRecordingBrokerFailure()
     {
-        var circuitBreaker = new ThrowingCircuitBreaker(new InvalidOperationException("unexpected"));
-        var publisher = new InMemoryPublisher(new InMemoryTransportBroker(), circuitBreaker);
+        var circuitBreaker = new ThrowingCircuitBreaker(
+            new InvalidOperationException("unexpected"),
+            throwDuringAcquire: false);
+        var publisher = new InMemoryPublisher(
+            new InMemoryTransportBroker(),
+            new FixedCircuitBreakerRegistry(circuitBreaker));
 
         var act = () => publisher.PublishAsync(CreateRequest("unexpected-failure"));
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("unexpected").ConfigureAwait(false);
-        circuitBreaker.RecordedFailures.Should().Be(1);
+        circuitBreaker.RecordedFailures.Should().Be(0);
     }
 
     private static TransportPublishRequest CreateRequest(string destination)
@@ -200,10 +207,12 @@ public sealed class InMemoryTransportTests
     private sealed class ThrowingCircuitBreaker : ITransportCircuitBreaker
     {
         private readonly Exception _exception;
+        private readonly bool _throwDuringAcquire;
 
-        public ThrowingCircuitBreaker(Exception exception)
+        public ThrowingCircuitBreaker(Exception exception, bool throwDuringAcquire = true)
         {
             _exception = exception;
+            _throwDuringAcquire = throwDuringAcquire;
         }
 
         public bool IsOpen => _exception is TransportCircuitBreakerOpenException;
@@ -212,18 +221,46 @@ public sealed class InMemoryTransportTests
 
         public int RecordedFailures { get; private set; }
 
-        public void ThrowIfOpen()
+        public TransportCircuitBreakerPermit AcquirePermit()
         {
-            throw _exception;
+            if (_throwDuringAcquire)
+            {
+                throw _exception;
+            }
+
+            return default;
         }
 
-        public void RecordSuccess()
+        public void RecordSuccess(TransportCircuitBreakerPermit permit)
         {
+            if (!_throwDuringAcquire)
+            {
+                throw _exception;
+            }
         }
 
-        public void RecordFailure()
+        public void RecordFailure(TransportCircuitBreakerPermit permit)
         {
             RecordedFailures++;
+        }
+    }
+
+    private sealed class FixedCircuitBreakerRegistry : ITransportCircuitBreakerRegistry
+    {
+        private readonly ITransportCircuitBreaker _circuitBreaker;
+
+        public FixedCircuitBreakerRegistry(ITransportCircuitBreaker circuitBreaker)
+        {
+            _circuitBreaker = circuitBreaker;
+        }
+
+        public bool IsAnyOpen => _circuitBreaker.IsOpen;
+
+        public long FailureCount => _circuitBreaker.FailureCount;
+
+        public ITransportCircuitBreaker GetPublisherCircuit(string destination)
+        {
+            return _circuitBreaker;
         }
     }
 }

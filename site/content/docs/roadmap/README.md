@@ -56,7 +56,7 @@ RabbitMQ and LavinMQ use the same AMQP 0.9.1 implementations through alias regis
 | Package | Role |
 | --- | --- |
 | `LiteBus.Transport.Abstractions` | `ITransportPublisher`, `IMessageConsumer`, `ITenantRoutingStrategy`, transport headers, `TransportHeaderValues` |
-| `LiteBus.Transport` | Shared circuit breaker metrics, consumer handler invoker, publish failure policy |
+| `LiteBus.Transport` | Destination-scoped circuit breakers, shared metrics, and consumer handler invoker |
 | `LiteBus.Transport.Amqp` | RabbitMQ adapter |
 | `LiteBus.Transport.AzureServiceBus` | Azure Service Bus adapter |
 | `LiteBus.Transport.AwsSqs` | Amazon SQS adapter |

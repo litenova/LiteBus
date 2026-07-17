@@ -28,7 +28,7 @@ public sealed class RabbitMqTransportContractTests : TransportContractTests, ICl
     protected override ValueTask<TransportContractContext> CreateContextAsync(string scenario)
     {
         var manager = new AmqpConnectionManager(_fixture.ConnectionOptions);
-        var publisher = new AmqpPublisher(manager);
+        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
         var consumer = new AmqpConsumer(manager);
         var queueName = $"litebus-contract-{scenario}-{Guid.NewGuid():N}";
 

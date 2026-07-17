@@ -13,19 +13,22 @@ public sealed class TransportObservableMetricsTests
     [Fact]
     public void ObservableGauges_ShouldReportBreakerStateAndStopAfterDisposal()
     {
-        var breaker = new TransportCircuitBreaker(new TransportCircuitBreakerOptions
+        var registry = new TransportCircuitBreakerRegistry(new TransportCircuitBreakerOptions
         {
             FailureThreshold = 1,
             BreakDuration = TimeSpan.FromMinutes(1)
         });
-        breaker.RecordFailure();
+        var breaker = registry.GetPublisherCircuit("orders");
+        breaker.RecordFailure(breaker.AcquirePermit());
 
         var measurements = new List<MetricMeasurement>();
         using var listener = new MeterListener
         {
             InstrumentPublished = (instrument, meterListener) =>
             {
-                if (instrument.Meter.Name == LiteBusTransportTelemetry.MeterName)
+                if (instrument.Meter.Name == LiteBusTransportTelemetry.MeterName &&
+                    (instrument.Name == LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName ||
+                     instrument.Name == LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName))
                 {
                     meterListener.EnableMeasurementEvents(instrument);
                 }
@@ -38,7 +41,7 @@ public sealed class TransportObservableMetricsTests
             measurements.Add(new MetricMeasurement(instrument.Name, value, FindBroker(tags))));
         listener.Start();
 
-        var metrics = new TransportObservableMetrics(new TestServiceProvider(breaker, "amqp"));
+        var metrics = new TransportObservableMetrics(new TestServiceProvider(registry, "amqp"));
         listener.RecordObservableInstruments();
 
         measurements.Should().Contain(new MetricMeasurement(
@@ -75,19 +78,19 @@ public sealed class TransportObservableMetricsTests
     private sealed class TestServiceProvider : IServiceProvider
     {
         private readonly TransportBrokerIdentity _brokerIdentity;
-        private readonly ITransportCircuitBreaker _circuitBreaker;
+        private readonly ITransportCircuitBreakerRegistry _circuitBreakerRegistry;
 
-        public TestServiceProvider(ITransportCircuitBreaker circuitBreaker, string broker)
+        public TestServiceProvider(ITransportCircuitBreakerRegistry circuitBreakerRegistry, string broker)
         {
-            _circuitBreaker = circuitBreaker;
+            _circuitBreakerRegistry = circuitBreakerRegistry;
             _brokerIdentity = new TransportBrokerIdentity(broker);
         }
 
         public object? GetService(Type serviceType)
         {
-            if (serviceType == typeof(ITransportCircuitBreaker))
+            if (serviceType == typeof(ITransportCircuitBreakerRegistry))
             {
-                return _circuitBreaker;
+                return _circuitBreakerRegistry;
             }
 
             return serviceType == typeof(TransportBrokerIdentity) ? _brokerIdentity : null;

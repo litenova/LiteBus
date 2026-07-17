@@ -11,7 +11,7 @@
 
 On accept failure it applies `IngressAckPolicy`: requeue through `ReturnToQueueAsync` when policy allows, otherwise discard through `DiscardAsync`. When store accept succeeds but broker ack fails, it records telemetry, logs, and requeues so idempotent redelivery absorbs into the existing inbox row.
 
-The consumer restarts after transport faults using `TransportInboxIngressHostOptions.RetryPollInterval` and respects `ITransportCircuitBreaker` when registered.
+The consumer restarts after transport faults using `TransportInboxIngressHostOptions.RetryPollInterval`. Publisher circuit state is intentionally absent from this loop, so a failed outbound destination cannot pause inbound acceptance.
 
 ## Delivery Lifecycle
 
@@ -98,9 +98,9 @@ One `process {destination}` activity per delivery starts in `TransportConsumerHa
 | 3003 | Error | `TransportInboxIngressLogMessages.BatchFlushFailed` | Timed batch flush throws (`ingress.batch-accept`) |
 | 3004 | Error | `TransportInboxIngressLogMessages.AckFailedAfterAccept` | Broker ack fails after store accept |
 
-### Transport Circuit Breaker
+### Transport Recovery
 
-When `ITransportCircuitBreaker` is registered, the consumer records success and failure on connection and consume paths. Observable gauges: `litebus.transport.circuit_breaker.open`, `litebus.transport.circuit_breaker.failure_count` tagged by `litebus.transport.broker`.
+Consumer adapters use broker SDK recovery and the supervised restart loop. AMQP connection creation has a connection-specific breaker because the adapter owns one shared physical connection. Publisher breakers remain scoped by outbound destination, and ingress does not update them.
 
 ## Test Coverage
 
@@ -125,12 +125,12 @@ When `ITransportCircuitBreaker` is registered, the consumer records success and 
 | `RequeueDisabled_WithPoisonMessage_ShouldDrainQueue` | `LiteBus.Durable.IntegrationTests` (`Ingress/AwsSqs/`, `Ingress/InMemory/`) |
 | `TransientAcceptFailure_ShouldRedeliverSameOffsetWithoutRestart` | `LiteBus.Durable.IntegrationTests` (`Ingress/Kafka/`) |
 | `UseInMemoryIngress_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/InMemory/`) |
+| `GenericHost_WhenUnrelatedPublisherCircuitIsOpen_ShouldKeepIngressAndHealthyDispatchRunning` | `LiteBus.Durable.IntegrationTests` (`Ingress/InMemory/`) |
 
 Manifest registration of `TransportInboxIngressConsumer` is asserted inside end-to-end tests (`PublishThroughRabbitMq_ShouldAcceptProcessAndDispatchCommand`, `PublishThroughKafka_ShouldAcceptProcessAndDispatchCommand`, `PublishThroughServiceBus_ShouldAcceptProcessAndDispatchCommand`, `PublishThroughSqs_ShouldAcceptProcessAndDispatchCommand`, `PublishThroughRabbitMq_ShouldStoreInPostgreSqlAndDispatchCommand`).
 
 ### Untested
 
-- `ITransportCircuitBreaker` open and half-open behavior during the consumer loop.
 - Consumer restart after transport fault using `RetryPollInterval`.
 - `TransportInboxIngressHostOptions.Enabled = false` skipping the loop at runtime.
 - EventId 3005 (`DeliveryDiscardedAfterAcceptFailure`) assertion in broker integration suites.

@@ -10,9 +10,9 @@ namespace LiteBus.Transport.AzureServiceBus;
 public sealed class AzureServiceBusPublisher : ITransportPublisher, IDisposable, IAsyncDisposable
 {
     /// <summary>
-    ///     Gets the circuit breaker guarding publish operations.
+    ///     Gets the registry that scopes publish resilience by destination.
     /// </summary>
-    private readonly ITransportCircuitBreaker _circuitBreaker;
+    private readonly ITransportCircuitBreakerRegistry _circuitBreakerRegistry;
 
     /// <summary>
     ///     Gets the shared Service Bus client used to create senders.
@@ -29,13 +29,15 @@ public sealed class AzureServiceBusPublisher : ITransportPublisher, IDisposable,
     ///     Initializes a new instance of the <see cref="AzureServiceBusPublisher" /> class.
     /// </summary>
     /// <param name="client">The shared Service Bus client used to create senders.</param>
-    /// <param name="circuitBreaker">The circuit breaker guarding publish operations.</param>
-    public AzureServiceBusPublisher(ServiceBusClient client, ITransportCircuitBreaker circuitBreaker)
+    /// <param name="circuitBreakerRegistry">The registry that scopes publish resilience by destination.</param>
+    public AzureServiceBusPublisher(
+        ServiceBusClient client,
+        ITransportCircuitBreakerRegistry circuitBreakerRegistry)
     {
         ArgumentNullException.ThrowIfNull(client);
-        ArgumentNullException.ThrowIfNull(circuitBreaker);
+        ArgumentNullException.ThrowIfNull(circuitBreakerRegistry);
         _client = client;
-        _circuitBreaker = circuitBreaker;
+        _circuitBreakerRegistry = circuitBreakerRegistry;
     }
 
     /// <summary>
@@ -59,8 +61,8 @@ public sealed class AzureServiceBusPublisher : ITransportPublisher, IDisposable,
 
     /// <inheritdoc />
     /// <remarks>
-    ///     <see cref="ServiceBusException" /> is handled explicitly so broker failures increment the circuit breaker.
-    ///     The final <see cref="Exception" /> handler records any other non-cancellation failure before rethrowing.
+    ///     <see cref="ServiceBusException" /> is handled explicitly so broker failures increment the destination
+    ///     circuit. Unexpected application failures are traced and rethrown without changing broker resilience state.
     /// </remarks>
     public async Task PublishAsync(TransportPublishRequest request, CancellationToken cancellationToken = default)
     {
@@ -75,9 +77,21 @@ public sealed class AzureServiceBusPublisher : ITransportPublisher, IDisposable,
             CorrelationId = request.CorrelationId
         });
 
+        var circuitBreaker = _circuitBreakerRegistry.GetPublisherCircuit(request.Destination);
+        TransportCircuitBreakerPermit permit;
+
         try
         {
-            _circuitBreaker.ThrowIfOpen();
+            permit = circuitBreaker.AcquirePermit();
+        }
+        catch (TransportCircuitBreakerOpenException exception)
+        {
+            TransportTracing.RecordException(activity, exception);
+            throw;
+        }
+
+        try
+        {
             var sender = _senders.GetOrAdd(
                 request.Destination,
                 static (destination, client) => client.CreateSender(destination),
@@ -87,29 +101,23 @@ public sealed class AzureServiceBusPublisher : ITransportPublisher, IDisposable,
 
             await sender.SendMessageAsync(message, cancellationToken).ConfigureAwait(false);
 
-            _circuitBreaker.RecordSuccess();
+            circuitBreaker.RecordSuccess(permit);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (TransportCircuitBreakerOpenException exception)
-        {
-            TransportTracing.RecordException(activity, exception);
-            throw;
-        }
         catch (ServiceBusException exception)
         {
             TransportTracing.RecordException(activity, exception);
-            _circuitBreaker.RecordFailure();
+            circuitBreaker.RecordFailure(permit);
             throw;
         }
-#pragma warning disable CA1031 // Last-resort publish boundary records circuit breaker failures before rethrowing.
+#pragma warning disable CA1031 // Last-resort publish boundary traces unexpected failures before rethrowing.
         catch (Exception exception)
 #pragma warning restore CA1031
         {
             TransportTracing.RecordException(activity, exception);
-            TransportPublishFailurePolicy.RecordFailureIfApplicable(_circuitBreaker, exception);
             throw;
         }
     }

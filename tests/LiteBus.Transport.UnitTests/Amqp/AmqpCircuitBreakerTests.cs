@@ -23,15 +23,15 @@ public sealed class AmqpCircuitBreakerTests
         breaker.IsOpen.Should().BeFalse();
         breaker.FailureCount.Should().Be(0);
 
-        breaker.RecordFailure();
+        breaker.RecordFailure(breaker.AcquirePermit());
         breaker.IsOpen.Should().BeFalse();
         breaker.FailureCount.Should().Be(1);
 
-        breaker.RecordFailure();
+        breaker.RecordFailure(breaker.AcquirePermit());
         breaker.IsOpen.Should().BeTrue();
         breaker.FailureCount.Should().Be(2);
 
-        var act = () => breaker.ThrowIfOpen();
+        var act = () => breaker.AcquirePermit();
         act.Should().Throw<AmqpCircuitBreakerOpenException>();
     }
 
@@ -41,18 +41,39 @@ public sealed class AmqpCircuitBreakerTests
     [Fact]
     public void RecordSuccess_after_failures_ShouldCloseCircuit()
     {
-        var breaker = new AmqpCircuitBreaker(new AmqpCircuitBreakerOptions
-        {
-            FailureThreshold = 1,
-            BreakDuration = TimeSpan.FromMinutes(1)
-        });
+        var timeProvider = new ManualTimeProvider();
+        var breaker = new AmqpCircuitBreaker(
+            new AmqpCircuitBreakerOptions
+            {
+                FailureThreshold = 1,
+                BreakDuration = TimeSpan.FromMinutes(1)
+            },
+            timeProvider);
 
-        breaker.RecordFailure();
+        breaker.RecordFailure(breaker.AcquirePermit());
         breaker.IsOpen.Should().BeTrue();
 
-        breaker.RecordSuccess();
+        timeProvider.Advance(TimeSpan.FromMinutes(1));
+        breaker.RecordSuccess(breaker.AcquirePermit());
         breaker.IsOpen.Should().BeFalse();
         breaker.FailureCount.Should().Be(0);
-        breaker.ThrowIfOpen();
+        breaker.AcquirePermit();
+    }
+
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        private long _timestamp;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp()
+        {
+            return Volatile.Read(ref _timestamp);
+        }
+
+        public void Advance(TimeSpan elapsed)
+        {
+            Interlocked.Add(ref _timestamp, elapsed.Ticks);
+        }
     }
 }

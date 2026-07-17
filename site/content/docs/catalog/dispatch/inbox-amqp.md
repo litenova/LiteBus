@@ -68,7 +68,7 @@ services.AddLiteBus(litebus =>
 | `ClientProvidedName` | `null` | Connection display name in broker UI |
 | `AutomaticRecoveryEnabled` | `true` | Enables RabbitMQ client reconnect |
 | `NetworkRecoveryInterval` | `00:00:05` | Delay between reconnect attempts |
-| `CircuitBreaker` | configured object | Publish and connection breaker thresholds |
+| `CircuitBreaker` | configured object | Separate connection and per-exchange publisher breaker thresholds |
 
 ## Packages
 

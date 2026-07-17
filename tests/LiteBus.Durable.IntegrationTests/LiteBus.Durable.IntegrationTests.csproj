@@ -6,6 +6,7 @@
         <PackageReference Include="Azure.Messaging.ServiceBus"/>
         <PackageReference Include="Confluent.Kafka"/>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting"/>
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk"/>
         <PackageReference Include="Npgsql"/>

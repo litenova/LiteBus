@@ -3,12 +3,41 @@ namespace LiteBus.Transport;
 /// <summary>
 ///     Tracks consecutive transport failures and temporarily rejects new operations when a threshold is exceeded.
 /// </summary>
+/// <remarks>
+///     After the break duration, one caller is admitted as a recovery probe. Other callers remain rejected until that
+///     probe records success or failure.
+/// </remarks>
 public class TransportCircuitBreaker : ITransportCircuitBreaker
 {
+    /// <summary>
+    ///     Identifies a circuit that is accepting operations normally.
+    /// </summary>
+    private const int ClosedState = 0;
+
+    /// <summary>
+    ///     Identifies a circuit that is rejecting operations for the configured break duration.
+    /// </summary>
+    private const int OpenState = 1;
+
+    /// <summary>
+    ///     Identifies a circuit that has admitted one recovery probe and rejects sibling probes.
+    /// </summary>
+    private const int HalfOpenState = 2;
+
     /// <summary>
     ///     Gets the circuit breaker settings.
     /// </summary>
     private readonly TransportCircuitBreakerOptions _options;
+
+    /// <summary>
+    ///     Serializes circuit state transitions and half-open probe admission.
+    /// </summary>
+    private readonly object _stateSync = new();
+
+    /// <summary>
+    ///     Gets the monotonic time source used to measure break durations.
+    /// </summary>
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     ///     Gets the number of consecutive failures observed while the circuit is closed.
@@ -16,17 +45,38 @@ public class TransportCircuitBreaker : ITransportCircuitBreaker
     private int _consecutiveFailures;
 
     /// <summary>
-    ///     Gets the tick count after which the circuit closes again, or zero when the circuit is closed.
+    ///     Gets the generation used to reject outcomes from operations admitted before a state transition.
     /// </summary>
-    private long _openUntilTicks;
+    private long _generation = 1;
+
+    /// <summary>
+    ///     Gets the monotonic timestamp recorded when the circuit most recently opened.
+    /// </summary>
+    private long _openedAtTimestamp;
+
+    /// <summary>
+    ///     Gets the current closed, open, or half-open state.
+    /// </summary>
+    private int _state;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="TransportCircuitBreaker" /> class.
     /// </summary>
     /// <param name="options">The circuit breaker settings.</param>
-    public TransportCircuitBreaker(TransportCircuitBreakerOptions? options = null)
+    /// <param name="timeProvider">The monotonic time source used to measure break durations.</param>
+    public TransportCircuitBreaker(
+        TransportCircuitBreakerOptions? options = null,
+        TimeProvider? timeProvider = null)
     {
         _options = options ?? new TransportCircuitBreakerOptions();
+        _timeProvider = timeProvider ?? TimeProvider.System;
+
+        ArgumentOutOfRangeException.ThrowIfNegative(_options.FailureThreshold);
+
+        if (_options.FailureThreshold > 0)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.BreakDuration.Ticks);
+        }
     }
 
     /// <inheritdoc />
@@ -34,14 +84,10 @@ public class TransportCircuitBreaker : ITransportCircuitBreaker
     {
         get
         {
-            if (!IsEnabled())
+            lock (_stateSync)
             {
-                return false;
+                return IsEnabled() && _state != ClosedState;
             }
-
-            var openUntilTicks = Volatile.Read(ref _openUntilTicks);
-
-            return openUntilTicks != 0 && Environment.TickCount64 < openUntilTicks;
         }
     }
 
@@ -50,82 +96,105 @@ public class TransportCircuitBreaker : ITransportCircuitBreaker
     {
         get
         {
-            var failures = Volatile.Read(ref _consecutiveFailures);
-
-            if (failures > 0)
+            lock (_stateSync)
             {
-                return failures;
+                return _state == ClosedState
+                    ? _consecutiveFailures
+                    : _options.FailureThreshold;
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public TransportCircuitBreakerPermit AcquirePermit()
+    {
+        lock (_stateSync)
+        {
+            if (!IsEnabled() || _state == ClosedState)
+            {
+                return new TransportCircuitBreakerPermit(_generation, false);
             }
 
-            if (!IsEnabled())
+            if (_state == HalfOpenState)
             {
-                return 0;
+                throw new TransportCircuitBreakerOpenException();
             }
 
-            var openUntilTicks = Volatile.Read(ref _openUntilTicks);
+            if (_timeProvider.GetElapsedTime(_openedAtTimestamp) < _options.BreakDuration)
+            {
+                throw new TransportCircuitBreakerOpenException();
+            }
 
-            return openUntilTicks != 0 && Environment.TickCount64 < openUntilTicks
-                ? _options.FailureThreshold
-                : 0;
+            _state = HalfOpenState;
+            return new TransportCircuitBreakerPermit(_generation, true);
         }
     }
 
     /// <inheritdoc />
-    public void ThrowIfOpen()
+    public void RecordSuccess(TransportCircuitBreakerPermit permit)
     {
-        if (!IsEnabled())
+        lock (_stateSync)
         {
-            return;
+            if (!IsEnabled() || permit.Generation != _generation)
+            {
+                return;
+            }
+
+            if (_state == OpenState || (_state == HalfOpenState && !permit.IsRecoveryProbe))
+            {
+                return;
+            }
+
+            _consecutiveFailures = 0;
+            _state = ClosedState;
+            _openedAtTimestamp = 0;
+
+            if (permit.IsRecoveryProbe)
+            {
+                _generation++;
+            }
         }
-
-        var openUntilTicks = Volatile.Read(ref _openUntilTicks);
-
-        if (openUntilTicks == 0)
-        {
-            return;
-        }
-
-        if (Environment.TickCount64 < openUntilTicks)
-        {
-            throw new TransportCircuitBreakerOpenException();
-        }
-
-        Volatile.Write(ref _openUntilTicks, 0);
-        Interlocked.Exchange(ref _consecutiveFailures, 0);
     }
 
     /// <inheritdoc />
-    public void RecordSuccess()
+    public void RecordFailure(TransportCircuitBreakerPermit permit)
     {
-        if (!IsEnabled())
+        lock (_stateSync)
         {
-            return;
-        }
+            if (!IsEnabled() || permit.Generation != _generation || _state == OpenState)
+            {
+                return;
+            }
 
-        Interlocked.Exchange(ref _consecutiveFailures, 0);
-        Volatile.Write(ref _openUntilTicks, 0);
+            if (_state == HalfOpenState)
+            {
+                if (permit.IsRecoveryProbe)
+                {
+                    OpenCircuit();
+                }
+
+                return;
+            }
+
+            _consecutiveFailures++;
+            TransportCircuitBreakerTelemetry.RecordFailureObserved(_consecutiveFailures);
+
+            if (_consecutiveFailures >= _options.FailureThreshold)
+            {
+                OpenCircuit();
+            }
+        }
     }
 
-    /// <inheritdoc />
-    public void RecordFailure()
+    /// <summary>
+    ///     Transitions the circuit to open without extending an already-open deadline.
+    /// </summary>
+    private void OpenCircuit()
     {
-        if (!IsEnabled())
-        {
-            return;
-        }
-
-        var failures = Interlocked.Increment(ref _consecutiveFailures);
-        TransportCircuitBreakerTelemetry.RecordFailureObserved(failures);
-
-        if (failures < _options.FailureThreshold)
-        {
-            return;
-        }
-
-        Volatile.Write(
-            ref _openUntilTicks,
-            Environment.TickCount64 + (long) _options.BreakDuration.TotalMilliseconds);
-
+        _consecutiveFailures = _options.FailureThreshold;
+        _openedAtTimestamp = _timeProvider.GetTimestamp();
+        _state = OpenState;
+        _generation++;
         TransportCircuitBreakerTelemetry.RecordCircuitOpened();
     }
 
@@ -135,6 +204,6 @@ public class TransportCircuitBreaker : ITransportCircuitBreaker
     /// <returns><see langword="true" /> when failures should open the circuit; otherwise, <see langword="false" />.</returns>
     private bool IsEnabled()
     {
-        return _options.FailureThreshold > 0 && _options.BreakDuration > TimeSpan.Zero;
+        return _options.FailureThreshold > 0;
     }
 }

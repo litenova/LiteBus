@@ -1,3 +1,5 @@
+using System;
+
 namespace LiteBus.Transport.Amqp;
 
 /// <summary>
@@ -13,18 +15,29 @@ public sealed class AmqpCircuitBreaker : TransportCircuitBreaker
     /// </summary>
     /// <param name="options">The circuit breaker settings.</param>
     public AmqpCircuitBreaker(AmqpCircuitBreakerOptions? options = null)
-        : base((options ?? new AmqpCircuitBreakerOptions()).ToTransportOptions())
+        : this(options, TimeProvider.System)
     {
     }
 
     /// <summary>
-    ///     Throws when the circuit is open, translating the shared transport exception to the AMQP-specific type.
+    ///     Initializes a new instance of the <see cref="AmqpCircuitBreaker" /> class.
     /// </summary>
-    public new void ThrowIfOpen()
+    /// <param name="options">The circuit breaker settings.</param>
+    /// <param name="timeProvider">The monotonic time source used to measure break durations.</param>
+    public AmqpCircuitBreaker(AmqpCircuitBreakerOptions? options, TimeProvider timeProvider)
+        : base((options ?? new AmqpCircuitBreakerOptions()).ToTransportOptions(), timeProvider)
+    {
+    }
+
+    /// <summary>
+    ///     Acquires an operation permit, translating the shared transport exception to the AMQP-specific type.
+    /// </summary>
+    /// <returns>The permit that identifies the admitted operation.</returns>
+    public new TransportCircuitBreakerPermit AcquirePermit()
     {
         try
         {
-            base.ThrowIfOpen();
+            return base.AcquirePermit();
         }
         catch (TransportCircuitBreakerOpenException)
         {

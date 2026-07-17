@@ -6,9 +6,11 @@ namespace LiteBus.Transport;
 public interface ITransportCircuitBreaker
 {
     /// <summary>
-    ///     Gets a value indicating whether the circuit is currently open and rejecting operations.
+    ///     Gets a value indicating whether the circuit is open or has admitted a half-open recovery probe.
     /// </summary>
-    /// <value><see langword="true" /> when new operations should be rejected; otherwise, <see langword="false" />.</value>
+    /// <value>
+    ///     <see langword="true" /> when the circuit is open or half-open; otherwise, <see langword="false" />.
+    /// </value>
     bool IsOpen { get; }
 
     /// <summary>
@@ -19,17 +21,21 @@ public interface ITransportCircuitBreaker
     int FailureCount { get; }
 
     /// <summary>
-    ///     Throws <see cref="TransportCircuitBreakerOpenException" /> when the circuit is open.
+    ///     Acquires permission to start one transport operation.
     /// </summary>
-    void ThrowIfOpen();
+    /// <returns>An opaque permit that must be supplied when recording the operation outcome.</returns>
+    /// <exception cref="TransportCircuitBreakerOpenException">The circuit is open or another recovery probe is active.</exception>
+    TransportCircuitBreakerPermit AcquirePermit();
 
     /// <summary>
     ///     Records a successful transport operation and resets failure tracking.
     /// </summary>
-    void RecordSuccess();
+    /// <param name="permit">The permit that admitted the completed operation.</param>
+    void RecordSuccess(TransportCircuitBreakerPermit permit);
 
     /// <summary>
     ///     Records a failed transport operation and opens the circuit when the failure threshold is reached.
     /// </summary>
-    void RecordFailure();
+    /// <param name="permit">The permit that admitted the failed operation.</param>
+    void RecordFailure(TransportCircuitBreakerPermit permit);
 }
