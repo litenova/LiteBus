@@ -1,42 +1,41 @@
-<h1 align="center">
-  <a href="https://github.com/litenova/LiteBus">
-    <img src="assets/logo/icon.png" alt="LiteBus Logo" width="128">
-  </a>
-  <br>
-  LiteBus
-</h1>
-
-<h4 align="center">A semantic, high-performance mediator for CQS and DDD in .NET 10. Free under MIT, forever.</h4>
+# LiteBus
 
 <p align="center">
-  <a href="https://github.com/litenova/LiteBus/actions/workflows/release.yml">
-    <img src="https://github.com/litenova/LiteBus/actions/workflows/release.yml/badge.svg" alt="Build Status" />
-  </a>
-  <a href="https://codecov.io/gh/litenova/LiteBus">
-    <img src="https://codecov.io/gh/litenova/LiteBus/graph/badge.svg?token=XBNYITSV5A" alt="Code Coverage" />
-  </a>
-  <a href="https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.DependencyInjection">
-    <img src="https://img.shields.io/nuget/vpre/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.svg" alt="NuGet Version" />
-  </a>
-  <a href="docs/Home.md">
-    <img src="https://img.shields.io/badge/documentation-docs-blue.svg" alt="Documentation" />
-  </a>
+  <img src="assets/logo/icon.png" alt="LiteBus logo" width="128">
 </p>
 
-LiteBus is an in-process mediator for **.NET 10** that keeps commands, queries, and events as separate, first-class concepts so your
-application code stays self-documenting. Version 6 adds durable inbox and outbox messaging with composable storage, dispatch, and ingress packages. It runs handlers through a typed pipeline, caches handler metadata at startup,
-and depends on no DI container.
+<p align="center">
+  <a href="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml"><img src="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml/badge.svg" alt="Build and test status"></a>
+  <a href="https://codecov.io/gh/litenova/LiteBus"><img src="https://codecov.io/gh/litenova/LiteBus/graph/badge.svg?token=XBNYITSV5A" alt="Code coverage"></a>
+  <a href="https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.DependencyInjection"><img src="https://img.shields.io/nuget/vpre/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.svg" alt="NuGet version"></a>
+</p>
 
-- **Semantic by design.** `ICommand<TResult>`, `IQuery<TResult>`, and `IEvent` instead of one generic request. Events
-  can be plain POCOs.
-- **Typed pipeline per message.** Distinct pre-handlers, post-handlers, and error-handlers for each message type, plus
-  open generic handlers for cross-cutting concerns.
-- **Event concurrency you control.** Order handlers into priority groups and run each group, and the handlers within it,
-  sequentially or in parallel.
-- **Durable when needed.** An inbox stores messages for later execution and an outbox stores messages for later
-  publication, with at-least-once delivery and composable storage and dispatch packages.
+LiteBus is a mediator and durable messaging library for .NET 10. Commands, queries, and events have separate contracts and pipelines. Inbox and outbox processing use explicit storage, dispatch, and ingress adapters, so an application references an external SDK only when it selects that integration.
 
-## Install
+Version 6 is under development. Public APIs, package contents, and persisted formats may change before the `v6.0.0` tag.
+
+## Package Selection
+
+Install the package for each application concern. The package brings its abstractions and lower-layer runtime dependencies with it.
+
+| Concern | Package |
+| --- | --- |
+| Commands | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection` |
+| Queries | `LiteBus.Queries.Extensions.Microsoft.DependencyInjection` |
+| Events | `LiteBus.Events.Extensions.Microsoft.DependencyInjection` |
+| Inbox core | `LiteBus.Inbox` |
+| Outbox core | `LiteBus.Outbox` |
+| PostgreSQL storage | `LiteBus.Inbox.Storage.PostgreSql` or `LiteBus.Outbox.Storage.PostgreSql` |
+| Entity Framework Core storage | `LiteBus.Inbox.Storage.EntityFrameworkCore` or `LiteBus.Outbox.Storage.EntityFrameworkCore` |
+| In-memory storage for tests | `LiteBus.Inbox.Storage.InMemory` or `LiteBus.Outbox.Storage.InMemory` |
+| Broker transport | `LiteBus.Transport.Amqp`, `LiteBus.Transport.Kafka`, `LiteBus.Transport.AwsSqs`, or `LiteBus.Transport.AzureServiceBus` |
+| OpenTelemetry registration | `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, or `LiteBus.Transport.Extensions.OpenTelemetry` |
+
+The [Dependency Graph](docs/architecture/dependency-graph.md) lists every package, its architectural layer, and its direct references.
+
+## Quick Start
+
+Install one or more semantic mediator modules:
 
 ```bash
 dotnet add package LiteBus.Commands.Extensions.Microsoft.DependencyInjection
@@ -44,18 +43,16 @@ dotnet add package LiteBus.Queries.Extensions.Microsoft.DependencyInjection
 dotnet add package LiteBus.Events.Extensions.Microsoft.DependencyInjection
 ```
 
-The core messaging runtime is pulled in automatically. Install only the modules you use.
-
-## Quick start
-
-Define a command and its handler:
+Define a command and one handler:
 
 ```csharp
 public sealed record CreateProductCommand(string Name, decimal Price) : ICommand<Guid>;
 
 public sealed class CreateProductCommandHandler : ICommandHandler<CreateProductCommand, Guid>
 {
-    public Task<Guid> HandleAsync(CreateProductCommand command, CancellationToken cancellationToken)
+    public Task<Guid> HandleAsync(
+        CreateProductCommand command,
+        CancellationToken cancellationToken)
     {
         var productId = Guid.NewGuid();
         return Task.FromResult(productId);
@@ -63,83 +60,99 @@ public sealed class CreateProductCommandHandler : ICommandHandler<CreateProductC
 }
 ```
 
-Register the modules and send the command:
+Register the message runtime first. The semantic module extensions enforce this declaration order, while the module registry uses dependency order when it builds the graph:
 
 ```csharp
-builder.Services.AddLiteBus(registry =>
+builder.Services.AddLiteBus(liteBus =>
 {
-    var assembly = typeof(Program).Assembly;
-    registry.AddMessageModule(_ => { });
-    registry.AddCommandModule(module => module.RegisterFromAssembly(assembly));
-    registry.AddQueryModule(module => module.RegisterFromAssembly(assembly));
-    registry.AddEventModule(module => module.RegisterFromAssembly(assembly));
-});
+    var applicationAssembly = typeof(Program).Assembly;
 
-// Inject ICommandMediator, IQueryMediator, IEventMediator where you need them
-var productId = await commandMediator.SendAsync(new CreateProductCommand("Widget", 9.99m));
+    liteBus.Modules.AddMessageModule(_ => { });
+    liteBus.Modules.AddCommandModule(commands =>
+        commands.RegisterFromAssembly(applicationAssembly));
+    liteBus.Modules.AddQueryModule(queries =>
+        queries.RegisterFromAssembly(applicationAssembly));
+    liteBus.Modules.AddEventModule(events =>
+        events.RegisterFromAssembly(applicationAssembly));
+});
 ```
 
-Queries (`IQueryMediator.QueryAsync`) and events (`IEventMediator.PublishAsync`) follow the same shape.
-The [Getting Started](docs/Getting-Started.md) guide walks through all three end to end.
+Inject the mediator for the operation being performed:
 
-## Features
+```csharp
+var productId = await commandMediator.SendAsync(
+    new CreateProductCommand("Widget", 9.99m),
+    cancellationToken);
+```
 
-| Feature               | What it does                                                                                                | Docs                                                   |
-|-----------------------|-------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
-| Typed pipeline        | Pre-, post-, and error-handlers per message type, with an ambient context shared across a single mediation. | [The handler pipeline](docs/The-Handler-Pipeline.md)   |
-| Handler priority      | Order handlers within a stage, and group event handlers into execution phases.                              | [Handler priority](docs/Handler-Priority.md)           |
-| Tags and predicates   | Run a different set of handlers per call based on runtime context.                                          | [Handler filtering](docs/Handler-Filtering.md)         |
-| Polymorphic dispatch  | A handler for a base type runs for every derived message.                                                   | [Polymorphic dispatch](docs/Polymorphic-Dispatch.md)   |
-| Open generic handlers | One handler applies to every matching message; closed at startup. Ideal for logging, validation, metrics.   | [Open generic handlers](docs/Open-Generic-Handlers.md) |
-| Event concurrency     | Sequential or parallel execution across priority groups and within a group.                                 | [Event module](docs/Event-Module.md)                   |
-| Streaming queries     | Return `IAsyncEnumerable<T>` for large result sets.                                                         | [Query module](docs/Query-Module.md)                   |
-| Inbox                 | Store messages for reliable, out-of-band execution with idempotency keys.                                   | [Inbox](docs/Inbox.md)                                 |
-| Outbox                | Store messages in the same transaction as a state change, publish after commit.                             | [Outbox](docs/Outbox.md)                               |
-| InProcess dispatch    | Replay inbox/outbox envelopes through command and event mediators in the same process.                      | [Dependency graph](docs/Dependency-Graph.md)           |
-| DI-agnostic core      | First-class Microsoft DI and Autofac adapters; an adapter pattern for others.                               | [Architecture](docs/Architecture.md)                   |
+The [Getting Started](docs/getting-started/README.md) guide covers commands, queries, events, module declaration, and handler discovery.
 
-## Packages
+## Durable Messaging
 
-LiteBus ships as small packages so you reference only what you run. The full layout, including abstractions and DI
-adapters, is in the [dependency graph](docs/Dependency-Graph.md).
+An inbox stores a command before execution. An outbox stores an event before publication. Storage, dispatch, ingress, and hosted processing remain separate choices.
 
-<details>
-<summary>Full package matrix</summary>
+```csharp
+builder.Services.AddLiteBus(liteBus =>
+{
+    liteBus.Modules.AddMessageModule(_ => { });
+    liteBus.Modules.AddCommandModule(commands =>
+        commands.RegisterFromAssembly(typeof(Program).Assembly));
 
-| Category           | Package                                                                                                                                                                                                                                                                                                                                                          |
-|--------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Metapackage        | `LiteBus` (core modules only; storage and dispatch are opt-in)                                                                                                                                                                                                                                                                                                   |
-| Core modules       | `LiteBus.Commands`, `LiteBus.Queries`, `LiteBus.Events`, `LiteBus.Inbox`, `LiteBus.Outbox`, `LiteBus.Messaging`, `LiteBus.Runtime`                                                                                                                                                                                                                               |
-| InProcess dispatch | `LiteBus.Inbox.Dispatch.InProcess`, `LiteBus.Outbox.Dispatch.InProcess`                                                                                                                                                                                                                                                                                          |
-| Transport dispatch | `LiteBus.Inbox.Dispatch`, `LiteBus.Inbox.Dispatch.*`, `LiteBus.Outbox.Dispatch`, `LiteBus.Outbox.Dispatch.*` (Amqp, AzureServiceBus, AwsSqs, Kafka, InMemory)                                                                                                                                                                                                       |
-| Transport platform | `LiteBus.Transport`, `LiteBus.Transport.*`, `LiteBus.Inbox.Ingress`, `LiteBus.Inbox.Ingress.*`                                                                                                                                                                                                                                                                   |
-| Abstractions       | `LiteBus.Commands.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Transport.Abstractions`, `LiteBus.Orchestration.Abstractions`, `LiteBus.Saga.Abstractions`                                                                                                                                    |
-| PostgreSQL         | `LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.Storage.PostgreSql`                                                                                                                                                                                                                                                                                          |
-| Microsoft DI       | `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Commands.Extensions.Microsoft.DependencyInjection`, `LiteBus.Queries.Extensions.Microsoft.DependencyInjection`, `LiteBus.Events.Extensions.Microsoft.DependencyInjection`, `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` |
-| Hosted services    | `IBackgroundService` via `IModuleConfiguration.RegisterBackgroundService`; `AddLiteBus` registers them as generic host `IHostedService` through `LiteBus.Runtime.Extensions.Microsoft.Hosting` / `Autofac.Hosting`                                                                                                                                               |
-| Autofac            | `LiteBus.Commands.Extensions.Autofac`, `LiteBus.Queries.Extensions.Autofac`, `LiteBus.Events.Extensions.Autofac`, `LiteBus.Messaging.Extensions.Autofac`, `LiteBus.Runtime.Extensions.Autofac`                                                                                                                                                                   |
+    liteBus.Modules.AddInboxModule(inbox =>
+    {
+        inbox.Contracts.Register<CreateProductCommand>("catalog.create-product");
+        inbox.UseInMemoryStorage();
+        inbox.UseInProcessDispatch();
+        inbox.EnableInboxProcessor();
+    });
+});
+```
 
-</details>
+Use in-memory storage for tests and local behavior checks. Use the PostgreSQL or Entity Framework Core adapter when durable writes must participate in an application transaction. See [Inbox](docs/reliable-messaging/inbox.md), [Outbox](docs/reliable-messaging/outbox.md), and [Transactional Messaging Writes](docs/reliable-messaging/transactional-writes.md).
 
-## Coming from MediatR
+## Architecture
 
-| MediatR                     | LiteBus                                                                            |
-|-----------------------------|------------------------------------------------------------------------------------|
-| `IRequest<TResponse>`       | `ICommand<TResult>` (writes) or `IQuery<TResult>` (reads)                          |
-| `IRequest`                  | `ICommand`                                                                         |
-| `INotification`             | `IEvent`, or any POCO, no interface required                                       |
-| `IStreamRequest<TResponse>` | `IStreamQuery<TResult>` returning `IAsyncEnumerable<TResult>`                      |
-| `IPipelineBehavior<,>`      | Typed pre-, post-, and error-handlers per message type, plus open generic handlers |
+LiteBus projects follow six dependency layers. A package can reference only its own layer or a lower layer.
 
-See [LiteBus vs. MediatR](docs/LiteBus-and-MediatR-Differences.md) for the full comparison and migration notes.
+| Layer | Responsibility |
+| --- | --- |
+| 0 | Platform contracts shared across feature axes |
+| 1 | Domain abstractions for mediator, durable messaging, and saga concerns |
+| 2 | Default implementations and broker-neutral runtime behavior |
+| 3 | Shared storage infrastructure |
+| 4 | Storage, dispatch, and ingress adapters |
+| 5 | Dependency injection, hosting, ASP.NET Core, diagnostics, and telemetry composition |
+
+The project count is intentional. Inbox and outbox remain separate, each broker and store remains opt-in, and integration SDKs do not enter unrelated dependency graphs. See [Architecture](docs/architecture/README.md) for the module lifecycle and package rules.
 
 ## Documentation
 
-Canonical documentation lives in [docs/Home.md](docs/Home.md): v6 concepts, per-module guides, reliable messaging,
-internals, troubleshooting, and a glossary. The [GitHub wiki](https://github.com/litenova/LiteBus/wiki) is a legacy
-mirror.
+Repository documentation is authoritative. Start with the [Documentation Index](docs/README.md).
 
-## License
+| Subject | Reference |
+| --- | --- |
+| Compile-checked application sample | [LiteBus Sample](samples/LiteBus.Sample/README.md) |
+| Capability and package inventory | [v6 Feature Index](docs/reference/feature-index-v6.md) and [Capability Catalog](docs/reference/capability-catalog.md) |
+| Module and dependency model | [Architecture](docs/architecture/README.md) and [Dependency Graph](docs/architecture/dependency-graph.md) |
+| Handler behavior | [Handler Pipeline](docs/concepts/handler-pipeline.md) and [Execution Context](docs/concepts/execution-context.md) |
+| Reliable messaging | [Reliable Messaging Semantics](docs/reliable-messaging/semantics.md) |
+| Operations | [Production Runbook](docs/operations/runbook.md) and [Diagnostics and Health](docs/operations/diagnostics-and-health.md) |
+| Testing | [Testing](docs/testing/README.md) and [Integration Tests](docs/testing/integration-tests.md) |
+| Upgrade work | [Migration Guide v6](docs/migration/v6.md) |
 
-LiteBus is free and licensed under the [MIT License](LICENSE), and always will be. Contributions are welcome;
-see [Contributing](docs/Contributing.md).
+## Build and Test
+
+```bash
+dotnet restore LiteBus.slnx
+dotnet build LiteBus.slnx --configuration Release --no-restore
+dotnet test LiteBus.slnx --configuration Release --no-build
+pwsh ./scripts/Test-Documentation.ps1
+```
+
+Docker is required for the PostgreSQL, AMQP, Kafka, AWS SQS emulator, Azure Service Bus emulator, and relational integration suites. The [Integration Tests](docs/testing/integration-tests.md) guide lists the CI categories and local commands.
+
+## Contributing
+
+Read [Contributing](docs/contributing/README.md) before changing public APIs, package references, module dependencies, or persisted envelope behavior.
+
+LiteBus is licensed under the [MIT License](LICENSE).

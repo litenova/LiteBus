@@ -1,0 +1,92 @@
+# AMQP Transport
+
+**Production tier: GA**
+
+`LiteBus.Transport.Amqp` wraps RabbitMQ.Client for publish and consume. Inbox and outbox adapters compose it independently; installing AMQP transport does not pull Kafka or AWS SDKs.
+
+## Packages to Install
+
+| Package | Role |
+| --- | --- |
+| `LiteBus.Transport.Amqp` | `IMessageTransport`, `AmqpConsumer`, `AmqpConnectionOptions` |
+| `LiteBus.Inbox.Dispatch.Amqp` | Outbound command dispatch from inbox processor |
+| `LiteBus.Outbox.Dispatch.Amqp` | Outbound event publish from outbox processor |
+| `LiteBus.Inbox.Ingress.Amqp` | Broker intake into `IInbox.AcceptAsync` |
+| `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | Optional `AddLiteBusAmqpMetrics()` registration |
+
+Add inbox/outbox core and storage packages as usual. See [Dependency graph](../architecture/dependency-graph.md).
+
+## Registration
+
+```csharp
+var connection = new AmqpConnectionOptions
+{
+    HostName = "localhost",
+    UserName = "guest",
+    Password = "guest"
+};
+
+builder.Modules.AddMessageModule(_ => { });
+builder.Modules.AddCommandModule(c => c.RegisterFromAssembly(typeof(ShipOrderCommandHandler).Assembly));
+
+builder.Modules.AddInboxModule(inbox =>
+{
+    inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
+    inbox.UsePostgreSqlStorage(connectionString);
+    inbox.UseInProcessDispatch();
+
+    inbox.UseAmqpDispatch(transport => transport.DefaultDestination = "orders.commands", connection);
+
+    inbox.UseAmqpIngress(ingress =>
+    {
+        ingress.UseOptions(new AmqpInboxIngressOptions
+        {
+            QueueName = "orders.commands",
+            PrefetchCount = 10,
+            Connection = connection,
+            RequeueOnFailure = true
+        });
+    });
+
+    inbox.EnableInboxProcessor();
+});
+```
+
+`UseAmqpDispatch` and `UseAmqpIngress` register `AmqpTransportModule` when `IMessageConsumer` is not already present. Register a different transport module first only when you intentionally replace the broker adapter.
+
+## Wire Headers
+
+Dispatch copies durable envelope metadata through `TransportEnvelopeHeaderMapper` using canonical names from `TransportHeaders` (`litebus-message-id`, `litebus-contract-name`, `correlation-id`, `litebus-idempotency-key`, `litebus-visible-after`, and related fields). Ingress maps those headers back into `InboxAcceptItem` metadata.
+
+## Guarantees and Non-Guarantees
+
+| Guaranteed | Not guaranteed |
+| --- | --- |
+| At-least-once when `basic.ack` follows successful accept | Exactly-once side effects |
+| `basic.nack` with requeue on `ReturnToQueueAsync` | Ordering across competing consumers |
+| Poison drain when `RequeueOnFailure = false` | Cross-broker federation |
+
+Handler exceptions propagate to ingress, which applies `RequeueOnFailure` through `ReturnToQueueAsync` or `DiscardAsync`.
+
+## Operations
+
+| Symptom | Check | Action |
+| --- | --- | --- |
+| Messages requeued indefinitely | Consumer prefetch, store health | Fix accept failure; verify idempotency keys |
+| No ingress deliveries | Queue name, vhost, credentials | Confirm queue exists and consumer tag is unique |
+| Circuit breaker open | `litebus.amqp.circuit_breaker.open` metric | Inspect broker connectivity and backoff settings |
+
+## Tests
+
+| Scenario | Location |
+| --- | --- |
+| Publish/consume round-trip | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
+| Ingress end-to-end | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
+| PostgreSQL + AMQP reliable chain | `LiteBus.Storage.IntegrationTests` (`PostgreSql/`) |
+
+## Related Docs
+
+* [Inbox AMQP ingress](inbox-amqp-ingress.md)
+* [Outbox AMQP dispatch](outbox-amqp-dispatch.md)
+* [Kafka transport](kafka.md)
+* [Reliable messaging](../reliable-messaging/README.md)

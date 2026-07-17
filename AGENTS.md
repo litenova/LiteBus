@@ -2,7 +2,7 @@
 
 Default guidance for changes in this repository. These are conventions and guardrails, not immutable law.
 
-Package inventories, registration recipes, and feature-specific detail live in `docs/Architecture.md`, `docs/Dependency-Graph.md`, and `docs/Hosted-services.md`.
+Package inventories, registration recipes, and feature-specific detail live in `docs/architecture/README.md`, `docs/architecture/dependency-graph.md`, and `docs/architecture/hosted-services.md`.
 
 ## How agents should use this guide
 
@@ -139,7 +139,7 @@ Conventions below apply during cleanup and to all new code. Analyzer severities 
 - Prefer **`params` read-only spans/arrays** for **variadic convenience** APIs where callers pass a small, inline list:
   - Module registration helpers (`RegisterDiagnosticCheck`, tag lists, module type lists).
   - Internal builder wiring with 2–5 homogeneous arguments.
-- **Keep `IReadOnlyList<T>`** for **batch/domain writer APIs** per existing [API Design](docs/API-Design.md) rules (`AcceptBatchAsync`, `EnqueueAsync` batch entries, parallel business data). Do not replace batch contracts with `params`.
+- **Keep `IReadOnlyList<T>`** for **batch/domain writer APIs** per existing [API Design](docs/architecture/api-design.md) rules (`AcceptBatchAsync`, `EnqueueAsync` batch entries, parallel business data). Do not replace batch contracts with `params`.
 - When converting, use `params ReadOnlySpan<T>` or `params T[]` and wrap to `IReadOnlyList` internally only at the public batch boundary if needed.
 
 ### Enums
@@ -213,7 +213,7 @@ Every package belongs to exactly one layer. A package may only reference package
 | Integration adapters | 4 | Optional persistence, dispatch, ingress, or store bindings |
 | Hosting / composition | 5 | DI, generic host, OpenTelemetry, ASP.NET, and other framework bridges |
 
-The current package-to-layer map is maintained in [Dependency Graph](docs/Dependency-Graph.md).
+The current package-to-layer map is maintained in [Dependency Graph](docs/architecture/dependency-graph.md).
 
 ### Package roles
 
@@ -241,6 +241,7 @@ LiteBus splits NuGet packages along **concern boundaries** so consumers referenc
 | Per broker (`*.Dispatch.Amqp`, `*.Ingress.Kafka`, `Transport.Amqp`) | Each broker pulls its own SDK. A Kafka-only service must not transitively reference RabbitMQ, Azure Service Bus, or AWS clients. |
 | Per store (`*.Storage.PostgreSql`, `*.Storage.EntityFrameworkCore`, `*.Storage.InMemory`) | Same rule for ORM and database drivers. |
 | Shared core vs broker glue (`Inbox.Dispatch` + `Inbox.Dispatch.Amqp`) | Shared dispatch logic stays broker-neutral; glue packages register one `IModule` pair without referencing sibling brokers or the other durable axis. |
+| Per-module `*.Extensions.Microsoft.DependencyInjection` / `*.Extensions.Autofac` | Empty reference-only install shells; one NuGet ID per semantic module for opt-in registration. **Keep in v6.** Removing `LiteBus.Extensions.All` does not collapse these. |
 
 **Consumer composition** follows need, not defaults:
 
@@ -259,10 +260,11 @@ Outbox only, in-process dispatch
 
 **What agents should not propose by default**
 
+- Removing or merging per-module empty `*.Extensions.Microsoft.DependencyInjection` or `*.Extensions.Autofac` shell packages (v6 removes only `LiteBus.Extensions.All`).
 - Merging inbox and outbox adapters into one package because they share similar file names.
 - A single `UseTransport(TransportKind, …)` API backed by one assembly that references every `Transport.*` broker (forces unused SDKs onto consumers).
 - “Durable” or “Transport” meta-packages that bundle both axes and multiple brokers for convenience (duplicates the forbidden kitchen-sink pattern outside the documented `LiteBus` / `Extensions.*` entry points).
-- Treating high package count in `docs/Dependency-Graph.md` as technical debt; treat **unwanted transitive dependencies** as the debt signal instead.
+- Treating high package count in `docs/architecture/dependency-graph.md` as technical debt; treat **unwanted transitive dependencies** as the debt signal instead.
 
 **When consolidation is in scope**
 
@@ -270,11 +272,13 @@ Outbox only, in-process dispatch
 - Two packages always ship together, share identical versioning constraints, and never appear independently in samples or consumer apps (rare; needs evidence).
 - Extracting **shared implementation** into a lower-layer package without changing which packages consumers must install (refactor, not merge).
 
-Ergonomic aliases belong in **documentation and samples**, not in wider default dependency graphs. See [Dependency Graph](docs/Dependency-Graph.md) for the living inventory.
+Per-module empty DI/Autofac extension shells are **not** consolidation candidates unless a maintainer explicitly requests their removal in a tracked packaging change.
+
+Ergonomic aliases belong in **documentation and samples**, not in wider default dependency graphs. See [Dependency Graph](docs/architecture/dependency-graph.md) for the living inventory.
 
 ### Feature axes
 
-- **Vertical** domain packages (durable messaging, saga, semantic mediators) must not reference each other or broker or ORM SDKs unless the dependency rule table in `docs/Dependency-Graph.md` explicitly allows it.
+- **Vertical** domain packages (durable messaging, saga, semantic mediators) must not reference each other or broker or ORM SDKs unless the dependency rule table in `docs/architecture/dependency-graph.md` explicitly allows it.
 - **Horizontal** platform packages (runtime, transport) must not reference vertical domain abstractions.
 - Mapping between axes (domain envelope to wire format, store row to contract) belongs in layer-4 adapters, not platform core.
 
@@ -286,7 +290,7 @@ Packages ending in `.Abstractions` contain only interfaces, value objects, enums
 
 ### API and value object design
 
-Public APIs group related parameters into **semantic types named by role**, not by parameter count. Match an existing suffix before inventing a new one. Concrete inventories, package maps, feature exemplars, **CLR kind selection**, and the inbox/outbox `Message` property rule live in [API Design](docs/API-Design.md); this section states the rules that apply to every axis.
+Public APIs group related parameters into **semantic types named by role**, not by parameter count. Match an existing suffix before inventing a new one. Concrete inventories, package maps, feature exemplars, **CLR kind selection**, and the inbox/outbox `Message` property rule live in [API Design](docs/architecture/api-design.md); this section states the rules that apply to every axis.
 
 #### Separate concerns by model role
 
@@ -337,7 +341,7 @@ When a command carries optional behavior, group by **concern** inside `*Metadata
 | Tenancy | unscoped vs isolated tenant |
 | Routing or target | default vs explicit destination (axis-specific) |
 
-Feature packages name their own value objects. Shared cross-axis primitives belong in the lowest abstractions layer that both axes reference. See [API Design](docs/API-Design.md) for the durable-messaging application.
+Feature packages name their own value objects. Shared cross-axis primitives belong in the lowest abstractions layer that both axes reference. See [API Design](docs/architecture/api-design.md) for the durable-messaging application.
 
 #### Optional data and mapping
 
@@ -387,7 +391,7 @@ One mapper per feature owns translation from command value objects to persistenc
 
 #### Legacy alignment
 
-Surfaces that predate this taxonomy should be aligned when their area is next touched: options objects that mix invocation tuning with cancellation or strategy references; methods with three or more scalar parameters where a request record would clarify intent; error and lease APIs that pass parallel context fields instead of a context record. Specific type names, CLR kind rules (`sealed record` vs `sealed class` for `*HostOptions`), `*Binding` adapter types, and target shapes are tracked in [API Design](docs/API-Design.md) and [Migration guide v6](docs/Migration-Guide-v6.md).
+Surfaces that predate this taxonomy should be aligned when their area is next touched: options objects that mix invocation tuning with cancellation or strategy references; methods with three or more scalar parameters where a request record would clarify intent; error and lease APIs that pass parallel context fields instead of a context record. Specific type names, CLR kind rules (`sealed record` vs `sealed class` for `*HostOptions`), `*Binding` adapter types, and target shapes are tracked in [API Design](docs/architecture/api-design.md) and [Migration guide v6](docs/migration/v6.md).
 
 ### Composite module pattern
 
@@ -399,7 +403,7 @@ Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs du
 
 - Applications reference only packages they compose. See **Granular opt-in packages** above; never widen a package reference graph because another integration exists in the same repo.
 - Do not add convenience APIs on shared builders that pull storage, transport, or other adapters into generic DI packages.
-- Defer ergonomic shortcuts to `docs/Roadmap.md` when they would violate layer boundaries or opt-in packaging.
+- Defer ergonomic shortcuts to `docs/roadmap/README.md` when they would violate layer boundaries or opt-in packaging.
 
 ### Adapter rules
 
@@ -419,7 +423,7 @@ Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs du
 - Diagnostic probes implement `IDiagnosticCheck` and register through `configuration.RegisterDiagnosticCheck(Type, string)`. `AddLiteBus` exposes collected descriptors on `LiteBusHostManifest`.
 - **Manifest over direct host wiring.** Any work the generic host must run (startup tasks, background loops, diagnostic probes) registers through `IModuleConfiguration` manifest methods. Core and adapter packages must not register host framework types directly.
 
-See `docs/Hosted-services.md` for registration examples and feature-specific hosted types.
+See `docs/architecture/hosted-services.md` for registration examples and feature-specific hosted types.
 
 ### Contract registration
 
@@ -439,7 +443,7 @@ See `docs/Hosted-services.md` for registration examples and feature-specific hos
 ## Public contract stability
 
 - Telemetry meter names, activity source names, and instrument name constants on public telemetry types are part of the consumer contract. Treat renames and removals as breaking changes.
-- When adding instruments, define names as public `const string` on the telemetry type, register meters through the matching `*.Extensions.OpenTelemetry` package at layer 5, and document new names in `docs/Architecture.md`.
+- When adding instruments, define names as public `const string` on the telemetry type, register meters through the matching `*.Extensions.OpenTelemetry` package at layer 5, and document new names in `docs/architecture/README.md`.
 - Builder method renames, manifest entry changes, and persisted envelope field semantics are breaking; update docs in the same change.
 - Prefer stable contract names and versions over assembly-qualified CLR names in persisted envelopes.
 
@@ -460,13 +464,13 @@ Before adding a project:
 2. Can an existing package absorb this without a layer violation?
 3. Does it need a new `*.Abstractions` package or fit an existing one?
 4. Does it need manifest registration (startup task, background service, diagnostic check)?
-5. Does `docs/Dependency-Graph.md` need a new row?
-6. Does `docs/Architecture.md` need a feature section or invariant note?
+5. Does `docs/architecture/dependency-graph.md` need a new row?
+6. Does `docs/architecture/README.md` need a feature section or invariant note?
 
 ## Analyzers
 
 - Ship compile-time rules in `LiteBus.Analyzers` only; no runtime dependency on mediator or durable packages.
-- Keep the rule inventory in `docs/Analyzers.md` aligned with `DiagnosticIds` (LB1001–LB1017).
+- Keep the rule inventory in `docs/reference/analyzers.md` aligned with `DiagnosticIds` (LB1001–LB1017).
 - **LB1007** covers handled durable types missing contract registration; honor `RegisterFromAssembly` the same as explicit `Contracts.Register`.
 - **LB1017** covers attributed durable types; match only `IContractWriter` / `IMessageContractRegistry` `Register` invocations, not unrelated `Register<T>()` methods.
 - **LB1004** must cover `AcceptAsync`, `AcceptBatchAsync`, and `ITransactionalInbox` acceptance APIs.
@@ -489,8 +493,8 @@ Before adding a project:
 
 - **Docs move with API changes.** When adding, renaming, or removing public builder methods, contracts, manifest entries, metric names, or registration patterns, update the matching section in `docs/` in the same change (`Architecture.md`, `API-Design.md`, `Hosted-services.md`, feature guides, or `Roadmap.md` when scope shifts).
 - Document application-owned integration (health endpoints, schema probes, export sinks) as recipes; ship framework-neutral contracts and stable telemetry names in libraries.
-- Keep `docs/Hosted-services.md` and `docs/Architecture.md` aligned with the manifest model (`IStartupTask`, `IBackgroundService`, `IDiagnosticCheck`, `LiteBusHostManifest`).
-- Keep `docs/Dependency-Graph.md` as the living package inventory and dependency rule reference.
+- Keep `docs/architecture/hosted-services.md` and `docs/architecture/README.md` aligned with the manifest model (`IStartupTask`, `IBackgroundService`, `IDiagnosticCheck`, `LiteBusHostManifest`).
+- Keep `docs/architecture/dependency-graph.md` as the living package inventory and dependency rule reference.
 
 ## Evolving this guide
 
