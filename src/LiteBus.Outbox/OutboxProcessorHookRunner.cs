@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Orchestration.Abstractions;
+using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 
 namespace LiteBus.Outbox;

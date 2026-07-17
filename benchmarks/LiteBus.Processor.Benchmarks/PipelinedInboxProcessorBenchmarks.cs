@@ -3,7 +3,7 @@ using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Orchestration.Abstractions;
+using LiteBus.DurableMessaging.Abstractions.Processing;
 
 namespace LiteBus.Processor.Benchmarks;
 

@@ -131,11 +131,12 @@ public sealed record OutboxEnvelope
     /// <summary>
     ///     Returns a new envelope representing successful publication.
     /// </summary>
+    /// <param name="publishedAt">The UTC timestamp when publication completed.</param>
     /// <returns>The envelope after successful publication.</returns>
     /// <exception cref="InvalidOperationException">
     ///     The envelope is not in the <see cref="OutboxStatus.Publishing" /> state.
     /// </exception>
-    public OutboxEnvelope AsPublished()
+    public OutboxEnvelope AsPublished(DateTimeOffset publishedAt)
     {
         EnsureStatus(OutboxStatus.Publishing);
 
@@ -143,7 +144,7 @@ public sealed record OutboxEnvelope
         {
             Status = OutboxStatus.Published,
             LastError = null,
-            PublishedAt = DateTimeOffset.UtcNow
+            PublishedAt = publishedAt
         };
     }
 

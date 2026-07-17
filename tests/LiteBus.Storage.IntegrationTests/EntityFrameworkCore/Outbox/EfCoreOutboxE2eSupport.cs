@@ -61,13 +61,9 @@ internal static class EfCoreOutboxE2eSupport
             services.AddSingleton<IOutboxDispatcher, AlwaysFailingOutboxDispatcher>();
         }
 
-        services.AddScoped<TDbContext>(_ =>
-        {
-            var builder = new DbContextOptionsBuilder<TDbContext>()
-                .UseNpgsql(EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(connectionString, storeOptions));
-
-            return (TDbContext) Activator.CreateInstance(typeof(TDbContext), builder.Options, storeOptions)!;
-        });
+        services.AddSingleton(storeOptions);
+        services.AddDbContextFactory<TDbContext>(options =>
+            options.UseNpgsql(EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(connectionString, storeOptions)));
 
         services.AddLiteBus(registry =>
         {

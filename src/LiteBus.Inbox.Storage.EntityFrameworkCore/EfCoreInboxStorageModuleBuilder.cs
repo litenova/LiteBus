@@ -64,6 +64,10 @@ public sealed class EfCoreInboxStorageModuleBuilder
     /// </summary>
     /// <typeparam name="TContext">The database context type.</typeparam>
     /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     Register <see cref="IDbContextFactory{TContext}" /> with the application container. The inbox store creates and
+    ///     disposes one context per operation through that factory.
+    /// </remarks>
     public EfCoreInboxStorageModuleBuilder UseDbContext<TContext>()
         where TContext : DbContext, IInboxDbContext
     {

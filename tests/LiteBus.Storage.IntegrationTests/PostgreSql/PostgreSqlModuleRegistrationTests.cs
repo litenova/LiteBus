@@ -174,6 +174,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
+                registry.Register(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
                     registry.AddMessageModule(_ =>
                     {
                     });
@@ -186,7 +187,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
                         inbox.UseAmqpDispatch(
                             _ =>
                             {
-                            }, new AmqpConnectionOptions { HostName = "localhost" });
+                            });
                     });
                 })
                 .BuildServiceProvider();
@@ -230,6 +231,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         services.AddLiteBus(registry =>
         {
+                registry.Register(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
             registry.AddMessageModule(_ =>
             {
             });
@@ -241,17 +243,15 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
                 inbox.UseAmqpDispatch(
                     _ =>
                     {
-                    }, new AmqpConnectionOptions { HostName = "localhost" });
+                    });
 
                 inbox.UseAmqpIngress(ingress =>
                 {
                     ingress.DisableIngressConsumer();
-                    ingress.UseRegisteredTransport();
 
                     ingress.UseOptions(new AmqpInboxIngressOptions
                     {
                         QueueName = "litebus.inbox.ingress.disabled",
-                        Connection = new AmqpConnectionOptions { HostName = "localhost" }
                     });
                 });
             });

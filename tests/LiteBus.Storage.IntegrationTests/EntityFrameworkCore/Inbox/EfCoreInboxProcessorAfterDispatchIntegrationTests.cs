@@ -1,6 +1,6 @@
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.Orchestration.Abstractions;
+using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

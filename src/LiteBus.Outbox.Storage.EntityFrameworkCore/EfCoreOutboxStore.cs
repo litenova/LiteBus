@@ -12,7 +12,6 @@ using LiteBus.Storage.EntityFrameworkCore;
 using LiteBus.Storage.EntityFrameworkCore.Leasing;
 using LiteBus.Storage.EntityFrameworkCore.Stores;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 
@@ -31,8 +30,9 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 ///         <c>OnModelCreating</c> to align schema with this store.
 ///     </para>
 ///     <para>
-///         The default <see cref="IOutboxStore" /> registration resolves a scoped <see cref="DbContext" /> per store call
-///         and commits outbox rows immediately inside <see cref="AddAsync(OutboxEnvelope, CancellationToken)" />. To
+///         The default <see cref="IOutboxStore" /> registration creates a <see cref="DbContext" /> per store call through
+///         <see cref="IDbContextFactory{TContext}" /> and commits outbox rows immediately inside
+///         <see cref="AddAsync(OutboxEnvelope, CancellationToken)" />. To
 ///         participate in the caller's unit of work, call
 ///         <see cref="UseExistingDbContext{TContext}(TContext)" /> or stage envelopes with
 ///         <see cref="LiteBusOutboxSaveChangesInterceptor" /> before <c>SaveChanges</c>.
@@ -50,9 +50,9 @@ public sealed class EfCoreOutboxStore :
     private readonly Func<CancellationToken, Task<IOutboxDbContext>>? _contextFactory;
 
     /// <summary>
-    ///     The Entity Framework Core context type registered for scoped resolution.
+    ///     Creates and owns database contexts for store operations registered through the EF Core adapter.
     /// </summary>
-    private readonly Type? _dbContextType;
+    private readonly IEfCoreOutboxDbContextFactory? _operationContextFactory;
 
     /// <summary>
     ///     The existing database context used when callers need to participate in an outer transaction.
@@ -76,34 +76,17 @@ public sealed class EfCoreOutboxStore :
     private readonly bool _saveChangesOnAdd = true;
 
     /// <summary>
-    ///     Creates scopes that resolve application database contexts from dependency injection.
+    ///     Initializes a new instance of the <see cref="EfCoreOutboxStore" /> class using an EF Core context factory.
     /// </summary>
-    private readonly IServiceScopeFactory? _scopeFactory;
-
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="EfCoreOutboxStore" /> class using dependency injection scopes.
-    /// </summary>
-    /// <param name="scopeFactory">The scope factory that resolves the application database context.</param>
-    /// <param name="dbContextType">The database context type that implements <see cref="IOutboxDbContext" />.</param>
+    /// <param name="operationContextFactory">The factory that creates one database context per store operation.</param>
     /// <param name="options">The store options.</param>
-    public EfCoreOutboxStore(
-        IServiceScopeFactory scopeFactory,
-        Type dbContextType,
+    internal EfCoreOutboxStore(
+        IEfCoreOutboxDbContextFactory operationContextFactory,
         EntityFrameworkCoreOutboxStoreOptions options)
     {
-        ArgumentNullException.ThrowIfNull(scopeFactory);
-        ArgumentNullException.ThrowIfNull(dbContextType);
+        ArgumentNullException.ThrowIfNull(operationContextFactory);
         ArgumentNullException.ThrowIfNull(options);
-
-        if (!typeof(IOutboxDbContext).IsAssignableFrom(dbContextType))
-        {
-            throw new ArgumentException(
-                $"The database context type '{dbContextType.FullName}' must implement {nameof(IOutboxDbContext)}.",
-                nameof(dbContextType));
-        }
-
-        _scopeFactory = scopeFactory;
-        _dbContextType = dbContextType;
+        _operationContextFactory = operationContextFactory;
         _options = options;
     }
 
@@ -687,9 +670,7 @@ public sealed class EfCoreOutboxStore :
                 continue;
             }
 
-            ApplyMutableState(entity, source.Status == OutboxStatus.Published
-                ? source
-                : source.AsPublished());
+            ApplyMutableState(entity, source);
 
             persistedMessageIds.Add(entity.Id);
         }
@@ -906,14 +887,40 @@ public sealed class EfCoreOutboxStore :
             return await action(context, cancellationToken).ConfigureAwait(false);
         }
 
-        if (_scopeFactory is null || _dbContextType is null)
+        if (_operationContextFactory is null)
         {
-            throw new InvalidOperationException("The outbox store is not configured with a context factory or scope factory.");
+            throw new InvalidOperationException("The outbox store is not configured with a context factory.");
         }
 
-        using var scope = _scopeFactory.CreateAsyncScope();
-        var contextFromScope = (IOutboxDbContext) scope.ServiceProvider.GetRequiredService(_dbContextType);
-        return await action(contextFromScope, cancellationToken).ConfigureAwait(false);
+        var operationContext = await _operationContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            return await action(operationContext, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            await DisposeContextAsync(operationContext).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Disposes a database context created for one store operation.
+    /// </summary>
+    /// <param name="context">The context to dispose.</param>
+    /// <returns>A task that completes when disposal finishes.</returns>
+    private static async ValueTask DisposeContextAsync(IOutboxDbContext context)
+    {
+        if (context is IAsyncDisposable asyncDisposable)
+        {
+            await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+            return;
+        }
+
+        if (context is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
     }
 
     /// <summary>

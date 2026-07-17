@@ -7,7 +7,7 @@ using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
-using LiteBus.Orchestration.Abstractions;
+using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using LiteBus.Storage.PostgreSql;

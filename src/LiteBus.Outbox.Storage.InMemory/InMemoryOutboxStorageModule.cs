@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 
@@ -7,7 +8,7 @@ namespace LiteBus.Outbox.Storage.InMemory;
 /// <summary>
 ///     Registers the in-memory outbox store with the LiteBus module pipeline.
 /// </summary>
-public sealed class InMemoryOutboxStorageModule : IOutboxStorageModule
+public sealed class InMemoryOutboxStorageModule : IOutboxStorageModule, IRequires<OutboxModule>
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -29,8 +30,6 @@ public sealed class InMemoryOutboxStorageModule : IOutboxStorageModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        OutboxModuleRegistrationGuard.EnsureCoreRegistered(configuration);
 
         var moduleBuilder = new InMemoryOutboxStorageModuleBuilder();
         _builder(moduleBuilder);

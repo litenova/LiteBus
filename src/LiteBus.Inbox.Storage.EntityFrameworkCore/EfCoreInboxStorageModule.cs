@@ -1,15 +1,16 @@
 using System;
+using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
-using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Runtime.Abstractions.Extensions;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 
 /// <summary>
 ///     Registers the Entity Framework Core inbox store with LiteBus dependency injection.
 /// </summary>
-public sealed class EfCoreInboxStorageModule : IInboxStorageModule
+public sealed class EfCoreInboxStorageModule : IInboxStorageModule, IRequires<InboxModule>
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -30,8 +31,6 @@ public sealed class EfCoreInboxStorageModule : IInboxStorageModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        InboxModuleRegistrationGuard.EnsureCoreRegistered(configuration);
 
         var moduleBuilder = new EfCoreInboxStorageModuleBuilder();
         _builder(moduleBuilder);
@@ -62,6 +61,11 @@ public sealed class EfCoreInboxStorageModule : IInboxStorageModule
                 _ => new LiteBusInboxSaveChangesInterceptor(),
                 InstanceLifetime.Singleton));
         }
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IEfCoreInboxDbContextFactory),
+            serviceProvider => CreateDbContextFactory(serviceProvider, moduleBuilder.DbContextType),
+            InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(EfCoreInboxStore),
@@ -168,7 +172,25 @@ public sealed class EfCoreInboxStorageModule : IInboxStorageModule
         IServiceProvider serviceProvider,
         EfCoreInboxStorageModuleBuilder moduleBuilder)
     {
-        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
-        return new EfCoreInboxStore(scopeFactory, moduleBuilder.DbContextType!, moduleBuilder.Options);
+        return new EfCoreInboxStore(
+            serviceProvider.GetRequiredService<IEfCoreInboxDbContextFactory>(),
+            moduleBuilder.Options);
+    }
+
+    /// <summary>
+    ///     Creates the adapter that owns EF Core contexts for inbox store operations.
+    /// </summary>
+    /// <param name="serviceProvider">The application service provider.</param>
+    /// <param name="dbContextType">The configured application database context type.</param>
+    /// <returns>The context factory adapter.</returns>
+    private static object CreateDbContextFactory(IServiceProvider serviceProvider, Type? dbContextType)
+    {
+        var contextType = dbContextType ?? throw new LiteBusConfigurationException(
+            "An inbox database context must be configured before the context factory is created.");
+        var factoryContract = typeof(Microsoft.EntityFrameworkCore.IDbContextFactory<>).MakeGenericType(contextType);
+        var factory = serviceProvider.GetRequiredService(factoryContract);
+        var adapterType = typeof(EfCoreInboxDbContextFactory<>).MakeGenericType(contextType);
+
+        return Activator.CreateInstance(adapterType, factory)!;
     }
 }

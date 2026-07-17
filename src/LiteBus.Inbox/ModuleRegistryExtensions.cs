@@ -2,7 +2,6 @@ using System;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Inbox;
 
@@ -12,25 +11,36 @@ namespace LiteBus.Inbox;
 public static class ModuleRegistryExtensions
 {
     /// <summary>
+    ///     Adds durable inbox processing to a LiteBus composition.
+    /// </summary>
+    /// <param name="builder">The package-neutral LiteBus builder.</param>
+    /// <param name="builderAction">The inbox configuration callback.</param>
+    /// <returns>The current LiteBus builder.</returns>
+    public static ILiteBusBuilder AddInbox(
+        this ILiteBusBuilder builder,
+        Action<InboxModuleBuilder> builderAction)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(builderAction);
+
+        builder.Modules.AddInboxModule(builderAction);
+        return builder;
+    }
+
+    /// <summary>
     ///     Registers the inbox module.
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
     /// <param name="builderAction">The inbox module configuration action.</param>
     /// <returns>The current module registry.</returns>
-    /// <exception cref="LiteBusConfigurationException">
-    ///     Thrown when <see cref="MessageModule" /> has not been registered.
-    /// </exception>
+    /// <remarks>
+    ///     <see cref="InboxModule" /> declares its messaging dependency in the module graph, so registration order does
+    ///     not affect validation.
+    /// </remarks>
     public static IModuleRegistry AddInboxModule(this IModuleRegistry moduleRegistry, Action<InboxModuleBuilder> builderAction)
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
-
-        if (!moduleRegistry.IsModuleRegistered<MessageModule>())
-        {
-            throw new LiteBusConfigurationException(
-                "MessageModule must be registered before AddInboxModule(). " +
-                "Call AddMessageModule() first, or register a command, event, or query module after AddMessageModule().");
-        }
 
         moduleRegistry.Register(new InboxModule(builderAction));
         return moduleRegistry;
@@ -41,9 +51,7 @@ public static class ModuleRegistryExtensions
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
     /// <returns>The current module registry.</returns>
-    /// <exception cref="LiteBusConfigurationException">
-    ///     Thrown when <see cref="MessageModule" /> has not been registered.
-    /// </exception>
+    /// <remarks>The complete graph validates the required messaging module.</remarks>
     public static IModuleRegistry AddInboxModule(this IModuleRegistry moduleRegistry)
     {
         return moduleRegistry.AddInboxModule(_ =>

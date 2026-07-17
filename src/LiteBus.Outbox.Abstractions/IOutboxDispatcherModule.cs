@@ -4,13 +4,13 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
-///     Marker for outbox dispatcher sub-modules registered through <see cref="OutboxModuleBuilder.RegisterDispatcher" />.
+///     Marks an outbox dispatcher sub-module registered by the outbox core builder.
 /// </summary>
 public interface IOutboxDispatcherModule : IModule
 {
     /// <summary>
     ///     Gets the default after-dispatch hook failure policy applied when
-    ///     <see cref="OutboxModuleBuilder.UseProcessorOptions" /> did not override hook behavior after dispatcher
+    ///     the outbox core builder did not override hook behavior after dispatcher
     ///     registration.
     /// </summary>
     /// <value>

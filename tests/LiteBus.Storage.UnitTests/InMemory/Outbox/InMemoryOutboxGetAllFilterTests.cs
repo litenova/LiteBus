@@ -30,7 +30,7 @@ public sealed class InMemoryOutboxGetAllFilterTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.PersistAsync([publishedLease[0].AsPublished()]).ConfigureAwait(false);
+        await store.PersistAsync([publishedLease[0].AsPublished(DateTimeOffset.UtcNow)]).ConfigureAwait(false);
 
         await store.EnqueueAsync(CreateEnvelope(pendingMatchId, "contract.a", OutboxStatus.Pending, now)).ConfigureAwait(false);
         await store.EnqueueAsync(CreateEnvelope(pendingOtherContractId, "contract.b", OutboxStatus.Pending, now)).ConfigureAwait(false);

@@ -155,7 +155,6 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
         RegisterObservableMetrics(configuration);
         RegisterDiagnosticChecks(configuration);
 
-        configuration.SetContext(new OutboxCoreRegisteredMarker());
     }
 
     /// <summary>
@@ -164,18 +163,12 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
     /// <param name="configuration">The module configuration receiving the metrics registration.</param>
     private static void RegisterObservableMetrics(IModuleConfiguration configuration)
     {
-        if (configuration.TryGetContext<OutboxObservableMetricsRegisteredMarker>(out _))
-        {
-            return;
-        }
-
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(OutboxObservableMetrics),
             static serviceProvider => new OutboxObservableMetrics(serviceProvider),
             InstanceLifetime.Singleton));
 
         configuration.RegisterStartupTask(typeof(OutboxObservableMetricsInitializer));
-        configuration.SetContext(new OutboxObservableMetricsRegisteredMarker());
     }
 
     /// <summary>

@@ -154,7 +154,6 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
         RegisterObservableMetrics(configuration);
         RegisterDiagnosticChecks(configuration);
 
-        configuration.SetContext(new InboxCoreRegisteredMarker());
     }
 
     /// <summary>
@@ -163,18 +162,12 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
     /// <param name="configuration">The module configuration receiving the metrics registration.</param>
     private static void RegisterObservableMetrics(IModuleConfiguration configuration)
     {
-        if (configuration.TryGetContext<InboxObservableMetricsRegisteredMarker>(out _))
-        {
-            return;
-        }
-
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(InboxObservableMetrics),
             static serviceProvider => new InboxObservableMetrics(serviceProvider),
             InstanceLifetime.Singleton));
 
         configuration.RegisterStartupTask(typeof(InboxObservableMetricsInitializer));
-        configuration.SetContext(new InboxObservableMetricsRegisteredMarker());
     }
 
     /// <summary>

@@ -33,7 +33,7 @@
         <Project Path="src/LiteBus.Transport.AwsSqs/LiteBus.Transport.AwsSqs.csproj"/>
         <Project Path="src/LiteBus.Transport.InMemory/LiteBus.Transport.InMemory.csproj"/>
         <Project Path="src/LiteBus.Transport.Kafka/LiteBus.Transport.Kafka.csproj"/>
-        <Project Path="src/LiteBus.Orchestration.Abstractions/LiteBus.Orchestration.Abstractions.csproj"/>
+        <Project Path="src/LiteBus.DurableMessaging.Abstractions/LiteBus.DurableMessaging.Abstractions.csproj"/>
         <Project Path="src/LiteBus.Saga.Abstractions/LiteBus.Saga.Abstractions.csproj"/>
         <Project Path="src/LiteBus.Saga/LiteBus.Saga.csproj"/>
         <Project Path="src/LiteBus.Saga.InboxIntegration/LiteBus.Saga.InboxIntegration.csproj"/>

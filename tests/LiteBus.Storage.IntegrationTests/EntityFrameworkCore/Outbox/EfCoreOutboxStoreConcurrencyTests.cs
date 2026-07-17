@@ -55,9 +55,9 @@ public sealed class EfCoreOutboxStoreConcurrencyTests : IClassFixture<PostgreSql
         leased.Should().ContainSingle();
         var publishing = leased[0];
 
-        var winner = publishing.AsPublished();
+        var winner = publishing.AsPublished(DateTimeOffset.UtcNow);
         var stale = publishing with { LeaseOwner = "publisher-b" };
-        stale = stale.AsPublished();
+        stale = stale.AsPublished(DateTimeOffset.UtcNow);
 
         var firstPersist = store.PersistAsync([winner]);
         var secondPersist = store.PersistAsync([stale]);

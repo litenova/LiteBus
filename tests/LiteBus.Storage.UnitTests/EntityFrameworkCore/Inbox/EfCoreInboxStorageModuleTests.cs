@@ -16,7 +16,7 @@ public sealed class EfCoreInboxStorageModuleTests
         var databaseName = Guid.NewGuid().ToString("N");
 
         var provider = new ServiceCollection()
-            .AddDbContext<ModuleTestInboxDbContext>(options => options.UseInMemoryDatabase(databaseName))
+            .AddDbContextFactory<ModuleTestInboxDbContext>(options => options.UseInMemoryDatabase(databaseName))
             .AddLiteBus(registry =>
             {
                 registry.AddMessageModule(_ =>
@@ -45,7 +45,7 @@ public sealed class EfCoreInboxStorageModuleTests
         var interceptor = new LiteBusInboxSaveChangesInterceptor();
 
         var provider = new ServiceCollection()
-            .AddDbContext<ModuleTestInboxDbContext>(options => options
+            .AddDbContextFactory<ModuleTestInboxDbContext>(options => options
                 .UseInMemoryDatabase(databaseName)
                 .AddLiteBusInboxInterceptor(interceptor))
             .AddLiteBus(registry =>
@@ -72,7 +72,7 @@ public sealed class EfCoreInboxStorageModuleTests
     {
         var act = () =>
             new ServiceCollection()
-                .AddDbContext<ModuleTestInboxDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString("N")))
+                .AddDbContextFactory<ModuleTestInboxDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString("N")))
                 .AddLiteBus(registry =>
                 {
                     registry.AddMessageModule(_ =>

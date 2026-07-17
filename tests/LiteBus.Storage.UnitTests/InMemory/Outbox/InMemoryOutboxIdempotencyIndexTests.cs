@@ -39,7 +39,7 @@ public sealed class InMemoryOutboxIdempotencyIndexTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.PersistAsync([leased[0].AsPublished() with { PublishedAt = now.AddHours(-2) }]).ConfigureAwait(false);
+        await store.PersistAsync([leased[0].AsPublished(now.AddHours(-2))]).ConfigureAwait(false);
 
         var deleted = await store.DeletePublishedOlderThanAsync(now.AddHours(1)).ConfigureAwait(false);
         deleted.Should().Be(1);

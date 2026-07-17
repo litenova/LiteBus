@@ -15,7 +15,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
-        <ProjectReference Include="..\LiteBus.Orchestration.Abstractions\LiteBus.Orchestration.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.DurableMessaging.Abstractions\LiteBus.DurableMessaging.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Saga.Abstractions\LiteBus.Saga.Abstractions.csproj"/>
     </ItemGroup>

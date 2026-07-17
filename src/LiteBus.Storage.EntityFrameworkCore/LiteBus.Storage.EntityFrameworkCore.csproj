@@ -6,6 +6,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\LiteBus.DurableMessaging.Abstractions\LiteBus.DurableMessaging.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
     </ItemGroup>
 

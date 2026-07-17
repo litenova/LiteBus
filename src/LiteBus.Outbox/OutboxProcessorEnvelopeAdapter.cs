@@ -1,5 +1,5 @@
 using System;
-using LiteBus.Orchestration.Abstractions;
+using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 
 namespace LiteBus.Outbox;

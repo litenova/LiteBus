@@ -1,4 +1,3 @@
-using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -10,7 +9,7 @@ namespace LiteBus.Saga.Storage.PostgreSql;
 /// <summary>
 ///     Module for registering the PostgreSQL saga store.
 /// </summary>
-public sealed class PostgreSqlSagaModule : ISagaStoreModule
+public sealed class PostgreSqlSagaModule : ISagaStorageModule
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -64,8 +63,6 @@ public sealed class PostgreSqlSagaModule : ISagaStoreModule
                 registration.Options,
                 services.GetService(typeof(TimeProvider)) as TimeProvider),
             InstanceLifetime.Singleton));
-
-        configuration.SetContext(new SagaStoreRegisteredMarker());
 
         if (moduleBuilder.IsSchemaInitializationEnabled)
         {

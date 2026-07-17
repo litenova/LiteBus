@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.PostgreSql.Exceptions;
 using LiteBus.Runtime.Abstractions;
@@ -11,7 +12,7 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 /// <summary>
 ///     Module for registering the PostgreSQL inbox store.
 /// </summary>
-public sealed class PostgreSqlInboxModule : IInboxStorageModule
+public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<InboxModule>
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -32,8 +33,6 @@ public sealed class PostgreSqlInboxModule : IInboxStorageModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        InboxModuleRegistrationGuard.EnsureCoreRegistered(configuration);
 
         var moduleBuilder = new PostgreSqlInboxModuleBuilder();
         _builder(moduleBuilder);

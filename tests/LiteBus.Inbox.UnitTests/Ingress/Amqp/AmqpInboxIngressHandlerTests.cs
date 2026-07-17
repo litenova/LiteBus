@@ -227,6 +227,9 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                var connection = new AmqpConnectionOptions { HostName = "localhost" };
+                registry.Register(new AmqpTransportModule(connection));
+
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -246,7 +249,6 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
                         ingress.UseOptions(new AmqpInboxIngressOptions
                         {
                             QueueName = "litebus.inbox.ingress.unit-tests",
-                            Connection = new AmqpConnectionOptions { HostName = "localhost" }
                         });
                     });
                 });

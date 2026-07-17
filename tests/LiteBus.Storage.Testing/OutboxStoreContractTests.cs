@@ -67,7 +67,7 @@ public abstract class OutboxStoreContractTests
         visible.Should().ContainSingle();
         visible[0].AttemptCount.Should().Be(2);
 
-        await store.StateWriter.PersistAsync([visible[0].AsPublished()]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([visible[0].AsPublished(DateTimeOffset.UtcNow)]).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -442,7 +442,7 @@ public abstract class OutboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsPublished()]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsPublished(DateTimeOffset.UtcNow)]).ConfigureAwait(false);
 
         var counts = await store.Diagnostics.GetStatusCountsAsync().ConfigureAwait(false);
 
@@ -474,9 +474,9 @@ public abstract class OutboxStoreContractTests
         leased.Should().ContainSingle();
         var publishing = leased[0];
 
-        var winner = publishing.AsPublished();
+        var winner = publishing.AsPublished(DateTimeOffset.UtcNow);
         var stale = publishing with { LeaseOwner = "publisher-b" };
-        stale = stale.AsPublished();
+        stale = stale.AsPublished(DateTimeOffset.UtcNow);
 
         var firstPersist = store.StateWriter.PersistAsync([winner]);
         var secondPersist = store.StateWriter.PersistAsync([stale]);
@@ -569,7 +569,7 @@ public abstract class OutboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsPublished()]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsPublished(DateTimeOffset.UtcNow)]).ConfigureAwait(false);
         await store.Writer.EnqueueAsync(CreatePendingEnvelope(thirdId, now.AddSeconds(3)) with { ContractName = "tests.events.a", Topic = "topic.a" }).ConfigureAwait(false);
 
         var pendingPage = await store.MessageQuery.QueryAsync(
@@ -610,7 +610,7 @@ public abstract class OutboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsPublished()]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsPublished(DateTimeOffset.UtcNow)]).ConfigureAwait(false);
 
         var deleted = await store.PurgeStore.PurgeAsync(new OutboxMessageFilter
         {

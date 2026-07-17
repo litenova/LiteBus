@@ -1,15 +1,16 @@
 using System;
+using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
-using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Runtime.Abstractions.Extensions;
 
 namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 
 /// <summary>
 ///     Registers the Entity Framework Core outbox store with LiteBus dependency injection.
 /// </summary>
-public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule
+public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<OutboxModule>
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -31,8 +32,6 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        OutboxModuleRegistrationGuard.EnsureCoreRegistered(configuration);
 
         var moduleBuilder = new EfCoreOutboxStorageModuleBuilder();
         _builder(moduleBuilder);
@@ -63,6 +62,11 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule
                 _ => new LiteBusOutboxSaveChangesInterceptor(),
                 InstanceLifetime.Singleton));
         }
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IEfCoreOutboxDbContextFactory),
+            serviceProvider => CreateDbContextFactory(serviceProvider, moduleBuilder.DbContextType),
+            InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(EfCoreOutboxStore),
@@ -169,7 +173,25 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule
         IServiceProvider serviceProvider,
         EfCoreOutboxStorageModuleBuilder moduleBuilder)
     {
-        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
-        return new EfCoreOutboxStore(scopeFactory, moduleBuilder.DbContextType!, moduleBuilder.Options);
+        return new EfCoreOutboxStore(
+            serviceProvider.GetRequiredService<IEfCoreOutboxDbContextFactory>(),
+            moduleBuilder.Options);
+    }
+
+    /// <summary>
+    ///     Creates the adapter that owns EF Core contexts for outbox store operations.
+    /// </summary>
+    /// <param name="serviceProvider">The application service provider.</param>
+    /// <param name="dbContextType">The configured application database context type.</param>
+    /// <returns>The context factory adapter.</returns>
+    private static object CreateDbContextFactory(IServiceProvider serviceProvider, Type? dbContextType)
+    {
+        var contextType = dbContextType ?? throw new LiteBusConfigurationException(
+            "An outbox database context must be configured before the context factory is created.");
+        var factoryContract = typeof(Microsoft.EntityFrameworkCore.IDbContextFactory<>).MakeGenericType(contextType);
+        var factory = serviceProvider.GetRequiredService(factoryContract);
+        var adapterType = typeof(EfCoreOutboxDbContextFactory<>).MakeGenericType(contextType);
+
+        return Activator.CreateInstance(adapterType, factory)!;
     }
 }

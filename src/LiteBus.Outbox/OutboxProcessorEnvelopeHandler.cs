@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Messaging.Processing;
-using LiteBus.Orchestration.Abstractions;
+using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using Microsoft.Extensions.Logging;
 
@@ -96,7 +96,7 @@ internal static class OutboxProcessorEnvelopeHandler
             await dispatcher.DispatchAsync(envelope, cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
             OutboxProcessorTelemetry.RecordDispatchDuration(stopwatch.Elapsed);
-            var published = envelope.AsPublished() with { PublishedAt = clock.GetUtcNow() };
+            var published = envelope.AsPublished(clock.GetUtcNow());
             dispatchCompleted = true;
             return published;
         }

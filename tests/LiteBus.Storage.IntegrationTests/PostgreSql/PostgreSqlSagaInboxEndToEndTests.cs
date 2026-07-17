@@ -230,12 +230,14 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
                     builder.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(25));
                 }
 
-                builder.EnableSaga(registry => registry.MapState<OrderSagaState>("orders.saga.advance"));
-
-                builder.UsePostgreSqlSagaStorage(postgres =>
+                builder.EnableSaga(saga =>
                 {
-                    postgres.UseDataSource(_fixture.DataSource);
-                    postgres.UseOptions(sagaOptions);
+                    saga.MapState<OrderSagaState>("orders.saga.advance");
+                    saga.UsePostgreSqlStorage(postgres =>
+                    {
+                        postgres.UseDataSource(_fixture.DataSource);
+                        postgres.UseOptions(sagaOptions);
+                    });
                 });
             });
         });

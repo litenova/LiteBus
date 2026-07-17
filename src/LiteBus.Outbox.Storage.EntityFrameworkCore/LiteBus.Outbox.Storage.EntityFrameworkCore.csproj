@@ -3,11 +3,11 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.EntityFrameworkCore"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Relational"/>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions"/>
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
         <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Storage.EntityFrameworkCore\LiteBus.Storage.EntityFrameworkCore.csproj"/>
     </ItemGroup>

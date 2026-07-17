@@ -30,7 +30,7 @@ public sealed class AxisAdapterModuleRegistrationGuardTests
 
         act.Should()
             .Throw<LiteBusConfigurationException>()
-            .WithMessage("*AddInboxModule*");
+            .WithMessage("*requires 'InboxModule'*");
     }
 
     [Fact]
@@ -51,6 +51,6 @@ public sealed class AxisAdapterModuleRegistrationGuardTests
 
         act.Should()
             .Throw<LiteBusConfigurationException>()
-            .WithMessage("*AddOutboxModule*");
+            .WithMessage("*requires 'OutboxModule'*");
     }
 }

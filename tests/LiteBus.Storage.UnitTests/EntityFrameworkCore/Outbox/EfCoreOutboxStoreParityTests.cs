@@ -113,7 +113,7 @@ public sealed class EfCoreOutboxStoreParityTests
         }).ConfigureAwait(false)).Single();
 
         var result = await store.PersistAsync([
-            leased.AsPublished() with { LeaseOwner = "other-worker" }
+            leased.AsPublished(DateTimeOffset.UtcNow) with { LeaseOwner = "other-worker" }
         ]);
 
         result.AppliedCount.Should().Be(0);

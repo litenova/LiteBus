@@ -41,7 +41,7 @@ public abstract class OutboxRetentionStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([retainedLease[0].AsPublished() with { PublishedAt = now }]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([retainedLease[0].AsPublished(now)]).ConfigureAwait(false);
 
         var deletedLease = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -51,7 +51,7 @@ public abstract class OutboxRetentionStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([deletedLease[0].AsPublished() with { PublishedAt = now.AddHours(-2) }]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([deletedLease[0].AsPublished(now.AddHours(-2))]).ConfigureAwait(false);
 
         var deleted = await store.Retention.DeletePublishedOlderThanAsync(now.AddHours(-1)).ConfigureAwait(false);
 
@@ -84,7 +84,7 @@ public abstract class OutboxRetentionStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsPublished() with { PublishedAt = publishedAt }]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsPublished(publishedAt)]).ConfigureAwait(false);
 
         var deleted = await store.Retention.DeletePublishedOlderThanAsync(now.AddDays(-1)).ConfigureAwait(false);
 
@@ -115,7 +115,7 @@ public abstract class OutboxRetentionStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsPublished()]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsPublished(DateTimeOffset.UtcNow)]).ConfigureAwait(false);
 
         var deleted = await store.Retention.DeletePublishedOlderThanAsync(now.AddHours(-2)).ConfigureAwait(false);
 

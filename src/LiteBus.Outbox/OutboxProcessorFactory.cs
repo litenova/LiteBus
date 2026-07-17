@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Messaging.Processing;
-using LiteBus.Orchestration.Abstractions;
+using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -32,9 +32,7 @@ internal static class OutboxProcessorFactory
         var dispatcher = GetRequiredService<IOutboxDispatcher>(services);
         var hooks = ResolveHooks(services);
 
-        var dispatchScopeFactory = services.GetService(typeof(IServiceScopeFactory)) is IServiceScopeFactory scopeFactory
-            ? new MessageDispatchScopeFactory(scopeFactory)
-            : null;
+        var dispatchScopeFactory = GetRequiredService<IMessageDispatchScopeFactory>(services);
 
         return new PipelinedOutboxProcessor(
             leaseStore,

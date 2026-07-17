@@ -6,10 +6,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions"/>
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
         <ProjectReference Include="..\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
-        <ProjectReference Include="..\LiteBus.Orchestration.Abstractions\LiteBus.Orchestration.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.DurableMessaging.Abstractions\LiteBus.DurableMessaging.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
     </ItemGroup>

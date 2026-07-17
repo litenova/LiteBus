@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 
@@ -7,7 +8,7 @@ namespace LiteBus.Inbox.Storage.InMemory;
 /// <summary>
 ///     Module for registering the in-memory inbox store.
 /// </summary>
-public sealed class InMemoryInboxStorageModule : IInboxStorageModule
+public sealed class InMemoryInboxStorageModule : IInboxStorageModule, IRequires<InboxModule>
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -28,8 +29,6 @@ public sealed class InMemoryInboxStorageModule : IInboxStorageModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        InboxModuleRegistrationGuard.EnsureCoreRegistered(configuration);
 
         var moduleBuilder = new InMemoryInboxStorageModuleBuilder();
         _builder(moduleBuilder);

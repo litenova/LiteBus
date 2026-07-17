@@ -391,6 +391,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
 
         services.AddLiteBus(registry =>
         {
+                registry.Register(new AmqpTransportModule(connectionOptions));
             registry.AddMessageModule(_ =>
             {
             });
@@ -422,7 +423,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                 outbox.EnableOutboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(100));
 
                 outbox.UseAmqpDispatch(
-                    transport => transport.DefaultDestination = string.Empty, connectionOptions);
+                    transport => transport.DefaultDestination = string.Empty);
             });
 
             registry.AddInboxModule(inbox =>
@@ -448,12 +449,10 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
 
                 inbox.UseAmqpIngress(ingress =>
                 {
-                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AmqpInboxIngressOptions
                     {
                         QueueName = ingressQueue,
                         PrefetchCount = 1,
-                        Connection = connectionOptions,
                         RequeueOnFailure = true,
                         TrustApplicationHeaders = true
                     });
@@ -483,6 +482,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
 
         services.AddLiteBus(registry =>
         {
+            registry.Register(new AmqpTransportModule(connectionOptions));
             registry.AddMessageModule(_ =>
             {
             });
@@ -515,7 +515,6 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                     {
                         QueueName = ingressQueue,
                         PrefetchCount = 1,
-                        Connection = connectionOptions,
                         RequeueOnFailure = true,
                         TrustApplicationHeaders = true
                     });

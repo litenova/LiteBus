@@ -2,7 +2,6 @@ using System;
 using LiteBus.Messaging;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Outbox;
 
@@ -12,25 +11,36 @@ namespace LiteBus.Outbox;
 public static class ModuleRegistryExtensions
 {
     /// <summary>
+    ///     Adds durable outbox processing to a LiteBus composition.
+    /// </summary>
+    /// <param name="builder">The package-neutral LiteBus builder.</param>
+    /// <param name="builderAction">The outbox configuration callback.</param>
+    /// <returns>The current LiteBus builder.</returns>
+    public static ILiteBusBuilder AddOutbox(
+        this ILiteBusBuilder builder,
+        Action<OutboxModuleBuilder> builderAction)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(builderAction);
+
+        builder.Modules.AddOutboxModule(builderAction);
+        return builder;
+    }
+
+    /// <summary>
     ///     Registers the outbox module.
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
     /// <param name="builderAction">The outbox module configuration action.</param>
     /// <returns>The current module registry.</returns>
-    /// <exception cref="LiteBusConfigurationException">
-    ///     Thrown when <see cref="MessageModule" /> has not been registered.
-    /// </exception>
+    /// <remarks>
+    ///     <see cref="OutboxModule" /> declares its messaging dependency in the module graph, so registration order does
+    ///     not affect validation.
+    /// </remarks>
     public static IModuleRegistry AddOutboxModule(this IModuleRegistry moduleRegistry, Action<OutboxModuleBuilder> builderAction)
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
-
-        if (!moduleRegistry.IsModuleRegistered<MessageModule>())
-        {
-            throw new LiteBusConfigurationException(
-                "MessageModule must be registered before AddOutboxModule(). " +
-                "Call AddMessageModule() first, or register a command, event, or query module after AddMessageModule().");
-        }
 
         moduleRegistry.Register(new OutboxModule(builderAction));
         return moduleRegistry;
@@ -41,9 +51,7 @@ public static class ModuleRegistryExtensions
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
     /// <returns>The current module registry.</returns>
-    /// <exception cref="LiteBusConfigurationException">
-    ///     Thrown when <see cref="MessageModule" /> has not been registered.
-    /// </exception>
+    /// <remarks>The complete graph validates the required messaging module.</remarks>
     public static IModuleRegistry AddOutboxModule(this IModuleRegistry moduleRegistry)
     {
         return moduleRegistry.AddOutboxModule(_ =>

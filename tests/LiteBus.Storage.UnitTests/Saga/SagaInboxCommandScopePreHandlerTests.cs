@@ -2,7 +2,7 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Orchestration.Abstractions;
+using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Saga;
 using LiteBus.Saga.Abstractions;
 using LiteBus.Saga.InboxIntegration;

@@ -3,7 +3,7 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Outbox.Abstractions;
 
 /// <summary>
-///     Marker for outbox storage sub-modules registered through <see cref="OutboxModuleBuilder.RegisterStorage" />.
+///     Marks an outbox storage sub-module registered by the outbox core builder.
 /// </summary>
 public interface IOutboxStorageModule : IModule
 {

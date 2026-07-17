@@ -47,11 +47,10 @@ public sealed class EfCoreInboxDispatchScopeIsolationIntegrationTests : LiteBusT
         services.AddScoped(_ => new DispatchProbeDbContext(
             new DbContextOptionsBuilder<DispatchProbeDbContext>().Options,
             recorder));
-        services.AddScoped(_ => new StorageScopeInboxDbContext(
-            new DbContextOptionsBuilder<StorageScopeInboxDbContext>()
-                .UseNpgsql(EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(_fixture.ConnectionString, storeOptions))
-                .Options,
-            storeOptions));
+        services.AddSingleton(storeOptions);
+        services.AddDbContextFactory<StorageScopeInboxDbContext>(options =>
+            options.UseNpgsql(
+                EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(_fixture.ConnectionString, storeOptions)));
 
         services.AddLiteBus(registry =>
         {

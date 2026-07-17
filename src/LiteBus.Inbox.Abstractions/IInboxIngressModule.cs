@@ -3,7 +3,7 @@ using LiteBus.Runtime.Abstractions;
 namespace LiteBus.Inbox.Abstractions;
 
 /// <summary>
-///     Marker for inbox ingress sub-modules registered through <see cref="InboxModuleBuilder.RegisterIngress" />.
+///     Marks an inbox ingress sub-module registered by the inbox core builder.
 /// </summary>
 public interface IInboxIngressModule : IModule
 {

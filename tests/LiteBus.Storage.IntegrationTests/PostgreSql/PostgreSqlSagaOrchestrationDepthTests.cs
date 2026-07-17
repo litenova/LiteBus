@@ -1,7 +1,7 @@
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
-using LiteBus.Orchestration.Abstractions;
+using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Saga.Abstractions;
 using LiteBus.Saga.Storage.PostgreSql;
 using LiteBus.Testing;

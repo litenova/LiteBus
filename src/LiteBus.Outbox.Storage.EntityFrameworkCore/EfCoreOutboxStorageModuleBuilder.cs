@@ -64,6 +64,10 @@ public sealed class EfCoreOutboxStorageModuleBuilder
     /// </summary>
     /// <typeparam name="TContext">The database context type.</typeparam>
     /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     Register <see cref="IDbContextFactory{TContext}" /> with the application container. The outbox store creates and
+    ///     disposes one context per operation through that factory.
+    /// </remarks>
     public EfCoreOutboxStorageModuleBuilder UseDbContext<TContext>()
         where TContext : DbContext, IOutboxDbContext
     {

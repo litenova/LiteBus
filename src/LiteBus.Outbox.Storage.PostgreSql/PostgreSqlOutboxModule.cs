@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql.Exceptions;
 using LiteBus.Runtime.Abstractions;
@@ -11,7 +12,7 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 /// <summary>
 ///     Module for registering the PostgreSQL outbox store.
 /// </summary>
-public sealed class PostgreSqlOutboxModule : IOutboxStorageModule
+public sealed class PostgreSqlOutboxModule : IOutboxStorageModule, IRequires<OutboxModule>
 {
     /// <summary>
     ///     The module builder action supplied at registration time.
@@ -33,8 +34,6 @@ public sealed class PostgreSqlOutboxModule : IOutboxStorageModule
     public void Build(IModuleConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-
-        OutboxModuleRegistrationGuard.EnsureCoreRegistered(configuration);
 
         var moduleBuilder = new PostgreSqlOutboxModuleBuilder();
         _builder(moduleBuilder);

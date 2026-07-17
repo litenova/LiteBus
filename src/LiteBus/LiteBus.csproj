@@ -8,6 +8,7 @@
     -->
 
     <ItemGroup>
+        <ProjectReference Include="..\LiteBus.DurableMessaging.Abstractions\LiteBus.DurableMessaging.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Commands\LiteBus.Commands.csproj"/>
         <ProjectReference Include="..\LiteBus.Events.Abstractions\LiteBus.Events.Abstractions.csproj"/>

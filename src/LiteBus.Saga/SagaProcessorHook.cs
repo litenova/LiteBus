@@ -1,5 +1,5 @@
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Orchestration.Abstractions;
+using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Saga.Abstractions;
 
 namespace LiteBus.Saga;

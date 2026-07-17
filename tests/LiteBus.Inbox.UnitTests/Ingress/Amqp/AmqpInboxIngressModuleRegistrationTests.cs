@@ -37,12 +37,10 @@ public sealed class AmqpInboxIngressModuleRegistrationTests : LiteBusTestBase
                     inbox.UseAmqpIngress(ingress =>
                     {
                         ingress.DisableIngressConsumer();
-                        ingress.UseRegisteredTransport();
 
                         ingress.UseOptions(new AmqpInboxIngressOptions
                         {
                             QueueName = "litebus.inbox.ingress.rabbit",
-                            Connection = connection
                         });
                     });
                 });
@@ -53,14 +51,17 @@ public sealed class AmqpInboxIngressModuleRegistrationTests : LiteBusTestBase
     }
 
     /// <summary>
-    ///     Verifies ingress bootstraps AMQP transport from connection options when no consumer is pre-registered.
+    ///     Verifies ingress uses an AMQP transport registered at the root composition boundary.
     /// </summary>
     [Fact]
-    public void UseAmqpIngress_WithConnectionOptions_ShouldBootstrapAmqpTransport()
+    public void UseAmqpIngress_WithRootTransport_ShouldResolveConsumer()
     {
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
+                var connection = new AmqpConnectionOptions { HostName = "localhost" };
+                registry.Register(new AmqpTransportModule(connection));
+
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -76,7 +77,6 @@ public sealed class AmqpInboxIngressModuleRegistrationTests : LiteBusTestBase
                         ingress.UseOptions(new AmqpInboxIngressOptions
                         {
                             QueueName = "litebus.inbox.ingress.auto-transport",
-                            Connection = new AmqpConnectionOptions { HostName = "localhost" }
                         });
                     });
                 });

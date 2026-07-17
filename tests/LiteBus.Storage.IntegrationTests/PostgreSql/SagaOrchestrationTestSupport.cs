@@ -87,12 +87,14 @@ internal static class SagaOrchestrationTestSupport
                 processorOptions = configureProcessor?.Invoke(processorOptions) ?? processorOptions;
                 builder.UseProcessorOptions(processorOptions);
                 builder.UseInProcessDispatch();
-                builder.EnableSaga(registry => registry.MapState<OrderWorkflowSagaState>(WorkflowContractName));
-
-                builder.UsePostgreSqlSagaStorage(postgres =>
+                builder.EnableSaga(saga =>
                 {
-                    postgres.UseDataSource(fixture.DataSource);
-                    postgres.UseOptions(sagaOptions);
+                    saga.MapState<OrderWorkflowSagaState>(WorkflowContractName);
+                    saga.UsePostgreSqlStorage(postgres =>
+                    {
+                        postgres.UseDataSource(fixture.DataSource);
+                        postgres.UseOptions(sagaOptions);
+                    });
                 });
             });
         });

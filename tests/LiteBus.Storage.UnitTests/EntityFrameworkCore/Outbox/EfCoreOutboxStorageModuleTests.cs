@@ -16,7 +16,7 @@ public sealed class EfCoreOutboxStorageModuleTests
         var databaseName = Guid.NewGuid().ToString("N");
 
         var provider = new ServiceCollection()
-            .AddDbContext<ModuleTestOutboxDbContext>(options => options.UseInMemoryDatabase(databaseName))
+            .AddDbContextFactory<ModuleTestOutboxDbContext>(options => options.UseInMemoryDatabase(databaseName))
             .AddLiteBus(registry =>
             {
                 registry.AddMessageModule(_ =>
@@ -42,7 +42,7 @@ public sealed class EfCoreOutboxStorageModuleTests
     {
         var act = () =>
             new ServiceCollection()
-                .AddDbContext<ModuleTestOutboxDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString("N")))
+                .AddDbContextFactory<ModuleTestOutboxDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString("N")))
                 .AddLiteBus(registry =>
                 {
                     registry.AddMessageModule(_ =>

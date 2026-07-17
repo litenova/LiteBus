@@ -74,6 +74,7 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
 
         services.AddLiteBus(registry =>
         {
+                registry.Register(new AmqpTransportModule(connectionOptions));
             registry.AddMessageModule(_ =>
             {
             });
@@ -108,16 +109,14 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
                     {
                         transport.DefaultDestination = string.Empty;
                         transport.ResolveRoute = _ => dispatchQueue;
-                    }, connectionOptions);
+                    });
 
                 inbox.UseAmqpIngress(ingress =>
                 {
-                    ingress.UseRegisteredTransport();
                     ingress.UseOptions(new AmqpInboxIngressOptions
                     {
                         QueueName = ingressQueue,
                         PrefetchCount = 1,
-                        Connection = connectionOptions
                     });
                 });
             });
