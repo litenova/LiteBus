@@ -1,13 +1,16 @@
 # LiteBus
 
 <p align="center">
-  <img src="assets/logo/icon.png" alt="LiteBus logo" width="128">
+  <img src="assets/logo/litebus-logo.svg" alt="LiteBus logo" width="360">
 </p>
 
 <p align="center">
   <a href="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml"><img src="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml/badge.svg" alt="Build and test status"></a>
   <a href="https://codecov.io/gh/litenova/LiteBus"><img src="https://codecov.io/gh/litenova/LiteBus/graph/badge.svg?token=XBNYITSV5A" alt="Code coverage"></a>
   <a href="https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.DependencyInjection"><img src="https://img.shields.io/nuget/vpre/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.svg" alt="NuGet version"></a>
+  <a href="https://github.com/litenova/LiteBus/blob/main/LICENSE"><img src="https://img.shields.io/github/license/litenova/LiteBus" alt="License"></a>
+  <a href="https://dotnet.microsoft.com/download/dotnet/10.0"><img src="https://img.shields.io/badge/.NET-10.0-512BD4" alt=".NET 10"></a>
+  <a href="https://litebus.dev"><img src="https://img.shields.io/badge/docs-litebus.dev-2f6fed" alt="Documentation"></a>
 </p>
 
 LiteBus is a mediator and durable messaging library for .NET 10. Commands, queries, and events have separate contracts and pipelines. Inbox and outbox processing use explicit storage, dispatch, and ingress adapters, so an application references an external SDK only when it selects that integration.
@@ -32,6 +35,9 @@ Install the package for each application concern. The package brings its abstrac
 | OpenTelemetry registration | `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, or `LiteBus.Transport.Extensions.OpenTelemetry` |
 
 The [Dependency Graph](docs/architecture/dependency-graph.md) lists every package, its architectural layer, and its direct references.
+
+Read the published documentation at [litebus.dev](https://litebus.dev), or run the
+Fumadocs site locally from [`site`](site/README.md).
 
 ## Quick Start
 

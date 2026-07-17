@@ -1,0 +1,29 @@
+name: Bug report
+description: Report a reproducible problem in LiteBus
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Include only sanitized data. Never attach credentials or production payloads.
+  - type: input
+    id: version
+    attributes:
+      label: LiteBus version
+      description: Which package version is affected?
+    validations:
+      required: true
+  - type: input
+    id: framework
+    attributes:
+      label: Target framework
+      description: For example, net10.0.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide a minimal reproduction and expected versus actual behavior.
+    validations:
+      required: true
