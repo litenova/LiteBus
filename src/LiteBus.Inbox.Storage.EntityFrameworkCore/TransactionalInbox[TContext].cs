@@ -84,7 +84,7 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
             items,
             async (envelopes, token) =>
             {
-                var staged = new InboxEnvelope[envelopes.Count];
+                var staged = new InboxAppendResult[envelopes.Count];
 
                 for (var index = 0; index < envelopes.Count; index++)
                 {
@@ -102,12 +102,12 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
     /// </summary>
     /// <param name="envelope">The envelope created for the current accept attempt.</param>
     /// <param name="cancellationToken">The token used to cancel the lookup.</param>
-    /// <returns>The envelope staged for persistence or the existing stored envelope.</returns>
+    /// <returns>The staged or existing envelope with its acceptance outcome.</returns>
     /// <remarks>
     ///     Strict conflict mode never resolves duplicates here; conflicting scoped keys are left for the database unique
     ///     index to reject during <c>SaveChanges</c>.
     /// </remarks>
-    private async Task<InboxEnvelope> StageAsync(InboxEnvelope envelope, CancellationToken cancellationToken)
+    private async Task<InboxAppendResult> StageAsync(InboxEnvelope envelope, CancellationToken cancellationToken)
     {
         if (envelope.IdempotencyConflictMode == IdempotencyConflictMode.ReturnExisting)
         {
@@ -115,12 +115,12 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
 
             if (existing is not null)
             {
-                return existing;
+                return new InboxAppendResult(existing, InboxAcceptOutcome.AlreadyAccepted);
             }
         }
 
         _interceptor.Enqueue(_dbContext, envelope);
-        return envelope;
+        return new InboxAppendResult(envelope, InboxAcceptOutcome.Accepted);
     }
 
     /// <summary>

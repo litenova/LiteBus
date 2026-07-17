@@ -18,7 +18,7 @@ Enqueue integration events and other registered message types into durable stora
 - **`IOutbox`**: Application-facing writer for enqueue operations. Inject at command handlers, domain-event drains, or tools that need immediate store commit.
 - **`OutboxEnqueueItem<TEvent>` / `OutboxEnqueueItem`**: Command input carrying payload plus `OutboxEnqueueMetadata`. Use the untyped variant when the runtime type varies in a batch.
 - **`OutboxEnqueueMetadata`**: Per-message identity, idempotency, visibility, trace, tenant, and publication target variants. Start from `OutboxEnqueueMetadata.Immediate` and compose with `with`.
-- **`OutboxReceipt`**: Enqueue result confirming storage. Not a publish acknowledgment.
+- **`OutboxReceipt` / `OutboxEnqueueOutcome`**: Enqueue result confirming `Enqueued` or `AlreadyEnqueued`. Not a publish acknowledgment.
 - **`PublicationTarget`**: Routing metadata (topic, exchange, or default) stored on the envelope for dispatch.
 
 ### Invocation
@@ -44,7 +44,7 @@ Typical call sites: command post-handlers draining domain events, application se
 
 ### Extension Points
 
-- Custom storage implements **`IOutboxStore`** append role (storage axis).
+- Custom storage implements **`IOutboxStore`** append role and returns **`OutboxAppendResult`** so the writer can preserve insertion outcomes (storage axis).
 - For domain-transaction alignment use **`ITransactionalOutbox`** or **`ITransactionalOutbox<TContext>`** instead of **`IOutbox`** (transactional-writes capability).
 - **`IOutboxEnvelopeFactory`** controls serialization and field mapping inside the writer pipeline.
 
@@ -52,7 +52,7 @@ Typical call sites: command post-handlers draining domain events, application se
 
 | Package | Role |
 | --- | --- |
-| `LiteBus.Outbox.Abstractions` | `IOutbox`, `OutboxEnqueueItem`, `OutboxReceipt`, `PublicationTarget` |
+| `LiteBus.Outbox.Abstractions` | `IOutbox`, `OutboxEnqueueItem`, `OutboxReceipt`, `OutboxAppendResult`, `PublicationTarget` |
 | `LiteBus.Outbox` | Default `Outbox` writer |
 | `LiteBus.Outbox.Storage.*` | Persistence (required at runtime) |
 
@@ -66,6 +66,7 @@ Typical call sites: command post-handlers draining domain events, application se
 
 - Contract lookup uses `event.GetType()` for each instance
 - Default `IOutbox` commits immediately (separate from open domain transactions)
+- `AlreadyEnqueued` returns the existing row for a duplicate message ID or tenant-scoped idempotency key
 - Do not call `IEventMediator.PublishAsync` for cross-process notifications that must survive crash or commit with domain state
 
 ## Non-Goals
@@ -134,7 +135,7 @@ No dedicated enqueue counter. Writer failures surface as store or contract-resol
 - **Test kind**: Unit
 - **Description**: Retry enqueue with same supplied message id
 - **Behavior**: Second enqueue with duplicate id
-- **Expected outcome**: Existing row returned
+- **Expected outcome**: Existing row returned with `AlreadyEnqueued`
 - **Remarks**:
 
 #### `OutboxProcessorEdgeCaseTests.AddAsync_WhenMessageIdOmitted_ShouldGenerateId`
@@ -197,7 +198,7 @@ No dedicated enqueue counter. Writer failures surface as store or contract-resol
 - **Test kind**: Contract
 - **Description**: Store-level append dedup (shared contract suite across backends)
 - **Behavior**: Insert dedup on tenant-scoped idempotency key
-- **Expected outcome**: Existing envelope
+- **Expected outcome**: Existing envelope with `AlreadyEnqueued`
 - **Remarks**: Shared contract suite
 
 #### `OutboxStoreContractTests.AddAsync_ShouldPersistTopicMetadataAndVisibleAfter`

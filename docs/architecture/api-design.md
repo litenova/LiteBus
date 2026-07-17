@@ -78,6 +78,8 @@ flowchart LR
 | Untyped batch item | `InboxAcceptItem` | `OutboxEnqueueItem` with `MessageType` (renamed from `EventType`) |
 | Typed accept/enqueue return | `InboxReceipt<TMessage>` | `OutboxReceipt<TEvent>` (unchanged generic param name) |
 | Batch return | `InboxReceipt` | `OutboxReceipt` |
+| Receipt outcome | `InboxAcceptOutcome` | `OutboxEnqueueOutcome` |
+| Store append return | `InboxAppendResult` | `OutboxAppendResult` |
 | Default metadata | `InboxAcceptMetadata.Immediate` | Immediate enqueue via metadata variants |
 | Item order in source | Typed first, untyped second | Typed first, untyped second (aligned in naming pass) |
 
@@ -116,13 +118,16 @@ Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
     CancellationToken cancellationToken);
 ```
 
-Outbox mirrors the pattern with `EnqueueAsync` / `EnqueueBatchAsync` and `OutboxEnqueueItem`. Typed paths return axis-specific receipts; batch paths return non-generic receipts.
+Outbox mirrors the pattern with `EnqueueAsync` / `EnqueueBatchAsync` and `OutboxEnqueueItem`. Typed single-message paths return axis-specific receipts; the one canonical batch path accepts non-generic items and returns non-generic receipts. The redundant homogeneous `EnqueueBatchAsync<TEvent>` overload is not part of v6.
+
+Append stores return `InboxAppendResult` or `OutboxAppendResult`, not an envelope alone. The result preserves whether the insert succeeded or resolved an existing message ID or tenant-scoped idempotency key. Writers map that store fact to `InboxReceipt.Outcome` or `OutboxReceipt.Outcome`; they never infer it by comparing envelope values.
 
 - The message body is the generic argument on `*Item<TMessage>` when typed; untyped batch paths use non-generic `InboxAcceptItem`.
 - `CancellationToken` is always the last parameter.
 - At most **one** sugar overload per writer operation family: message body only, no metadata scalars.
 - Batch methods accept `IReadOnlyList<*Item>`. Callers may use collection expressions (`[item1, item2]`); do not add no-op `From(params *Item[])` helpers.
 - Store, lease, and processor APIs use `*Request` for operation inputs that are not full message accepts.
+- Custom append stores must return an axis-specific append result for every input slot. Batch results retain input order and mark later duplicates as `AlreadyAccepted` or `AlreadyEnqueued`.
 
 ## Writer Construction
 

@@ -401,7 +401,7 @@ public sealed class EfCoreInboxStore :
     }
 
     /// <inheritdoc />
-    public async Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
+    public async Task<InboxAppendResult> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelope);
 
@@ -411,7 +411,7 @@ public sealed class EfCoreInboxStore :
 
             if (local is not null)
             {
-                return ToEnvelope(local);
+                return new InboxAppendResult(ToEnvelope(local), InboxAcceptOutcome.AlreadyAccepted);
             }
 
             var existing = await FindExistingEntityAsync(
@@ -425,7 +425,7 @@ public sealed class EfCoreInboxStore :
             if (existing is not null)
             {
                 ThrowIfStrictConflict(envelope, existing);
-                return ToEnvelope(existing);
+                return new InboxAppendResult(ToEnvelope(existing), InboxAcceptOutcome.AlreadyAccepted);
             }
 
             var entity = ToEntity(envelope);
@@ -433,14 +433,14 @@ public sealed class EfCoreInboxStore :
 
             if (!_saveChangesOnAdd)
             {
-                return ToEnvelope(entity);
+                return new InboxAppendResult(ToEnvelope(entity), InboxAcceptOutcome.Accepted);
             }
 
             try
             {
                 await SaveChangesAsync(context, token).ConfigureAwait(false);
                 await ReloadEntityAsync(context, entity, token).ConfigureAwait(false);
-                return ToEnvelope(entity);
+                return new InboxAppendResult(ToEnvelope(entity), InboxAcceptOutcome.Accepted);
             }
             catch (DbUpdateException)
             {
@@ -459,13 +459,13 @@ public sealed class EfCoreInboxStore :
 
                 ThrowIfStrictConflict(envelope, stored);
                 DetachFailedInsert(context, entity);
-                return ToEnvelope(stored);
+                return new InboxAppendResult(ToEnvelope(stored), InboxAcceptOutcome.AlreadyAccepted);
             }
         }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
+    public async Task<IReadOnlyList<InboxAppendResult>> AddBatchAsync(
         IReadOnlyList<InboxEnvelope> envelopes,
         CancellationToken cancellationToken = default)
     {
@@ -478,10 +478,11 @@ public sealed class EfCoreInboxStore :
 
         return await ExecuteAsync(async (context, token) =>
         {
-            var results = new InboxEnvelope[envelopes.Count];
+            var results = new InboxAppendResult[envelopes.Count];
             var pending = new List<(int Index, InboxEnvelope Envelope)>([]);
             var seenIds = new Dictionary<Guid, InboxEnvelope>();
             var seenIdempotencyKeys = new Dictionary<string, InboxEnvelope>(StringComparer.Ordinal);
+            var pendingIds = new Dictionary<Guid, int>();
             var pendingIdempotencyKeys = new Dictionary<string, int>(StringComparer.Ordinal);
             var pendingAliases = new Dictionary<int, int>();
 
@@ -492,7 +493,7 @@ public sealed class EfCoreInboxStore :
                 if (seenIds.TryGetValue(envelope.Id, out var duplicateById))
                 {
                     ThrowIfStrictConflict(envelope, duplicateById);
-                    results[index] = duplicateById;
+                    results[index] = new InboxAppendResult(duplicateById, InboxAcceptOutcome.AlreadyAccepted);
                     continue;
                 }
 
@@ -504,7 +505,7 @@ public sealed class EfCoreInboxStore :
                     out var duplicateByKey))
                 {
                     ThrowIfStrictConflict(envelope, duplicateByKey);
-                    results[index] = duplicateByKey;
+                    results[index] = new InboxAppendResult(duplicateByKey, InboxAcceptOutcome.AlreadyAccepted);
                     continue;
                 }
 
@@ -513,8 +514,8 @@ public sealed class EfCoreInboxStore :
                 if (local is not null)
                 {
                     ThrowIfStrictConflict(envelope, local);
-                    results[index] = ToEnvelope(local);
-                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
+                    results[index] = new InboxAppendResult(ToEnvelope(local), InboxAcceptOutcome.AlreadyAccepted);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
                     continue;
                 }
 
@@ -529,8 +530,15 @@ public sealed class EfCoreInboxStore :
                 if (existing is not null)
                 {
                     ThrowIfStrictConflict(envelope, existing);
-                    results[index] = ToEnvelope(existing);
-                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
+                    results[index] = new InboxAppendResult(ToEnvelope(existing), InboxAcceptOutcome.AlreadyAccepted);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
+                    continue;
+                }
+
+                if (pendingIds.TryGetValue(envelope.Id, out var pendingIdSourceIndex))
+                {
+                    ThrowIfStrictConflict(envelope, envelopes[pendingIdSourceIndex]);
+                    pendingAliases[index] = pendingIdSourceIndex;
                     continue;
                 }
 
@@ -556,6 +564,7 @@ public sealed class EfCoreInboxStore :
                         EfCoreIdempotencyResolution.CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey)] = index;
                 }
 
+                pendingIds[envelope.Id] = index;
                 pending.Add((index, envelope));
             }
 
@@ -572,13 +581,15 @@ public sealed class EfCoreInboxStore :
                 for (var index = 0; index < pending.Count; index++)
                 {
                     var stored = ToEnvelope(entities[index]);
-                    results[pending[index].Index] = stored;
+                    results[pending[index].Index] = new InboxAppendResult(stored, InboxAcceptOutcome.Accepted);
                     RememberBatchResult(seenIds, seenIdempotencyKeys, pending[index].Envelope, stored);
                 }
 
                 foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
                 {
-                    results[duplicateIndex] = results[sourceIndex];
+                    results[duplicateIndex] = new InboxAppendResult(
+                        results[sourceIndex].Envelope,
+                        InboxAcceptOutcome.AlreadyAccepted);
                 }
             }
 
@@ -618,13 +629,15 @@ public sealed class EfCoreInboxStore :
                                  throw new InvalidOperationException(
                                      "The inbox batch insert failed and the existing message could not be found.");
 
-                    results[index] = ToEnvelope(stored);
-                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
+                    results[index] = new InboxAppendResult(ToEnvelope(stored), InboxAcceptOutcome.AlreadyAccepted);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
                 }
 
                 foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
                 {
-                    results[duplicateIndex] = results[sourceIndex];
+                    results[duplicateIndex] = new InboxAppendResult(
+                        results[sourceIndex].Envelope,
+                        InboxAcceptOutcome.AlreadyAccepted);
                 }
             }
 

@@ -13,8 +13,12 @@ internal static class OutboxReceiptMapper
     /// </summary>
     /// <param name="storedEnvelope">The envelope returned by the store or staging path.</param>
     /// <param name="messageType">The runtime message type used for contract lookup.</param>
+    /// <param name="outcome">Whether the store inserted or resolved the envelope.</param>
     /// <returns>The enqueue receipt returned to callers.</returns>
-    internal static OutboxReceipt CreateReceipt(OutboxEnvelope storedEnvelope, Type messageType)
+    internal static OutboxReceipt CreateReceipt(
+        OutboxEnvelope storedEnvelope,
+        Type messageType,
+        OutboxEnqueueOutcome outcome)
     {
         return new OutboxReceipt
         {
@@ -30,7 +34,8 @@ internal static class OutboxReceiptMapper
                 storedEnvelope.CorrelationId,
                 storedEnvelope.CausationId,
                 storedEnvelope.TraceContext),
-            Tenant = ResolveTenant(storedEnvelope.TenantId)
+            Tenant = ResolveTenant(storedEnvelope.TenantId),
+            Outcome = outcome
         };
     }
 
@@ -40,11 +45,15 @@ internal static class OutboxReceiptMapper
     /// <typeparam name="TEvent">The compile-time event type associated with the receipt.</typeparam>
     /// <param name="storedEnvelope">The envelope returned by the store or staging path.</param>
     /// <param name="messageType">The runtime message type used for contract lookup.</param>
+    /// <param name="outcome">Whether the store inserted or resolved the envelope.</param>
     /// <returns>The typed enqueue receipt returned to callers.</returns>
-    internal static OutboxReceipt<TEvent> CreateTypedReceipt<TEvent>(OutboxEnvelope storedEnvelope, Type messageType)
+    internal static OutboxReceipt<TEvent> CreateTypedReceipt<TEvent>(
+        OutboxEnvelope storedEnvelope,
+        Type messageType,
+        OutboxEnqueueOutcome outcome)
         where TEvent : notnull
     {
-        var receipt = CreateReceipt(storedEnvelope, messageType);
+        var receipt = CreateReceipt(storedEnvelope, messageType, outcome);
 
         return new OutboxReceipt<TEvent>
         {
@@ -53,7 +62,8 @@ internal static class OutboxReceiptMapper
             Contract = receipt.Contract,
             StoredAt = receipt.StoredAt,
             Trace = receipt.Trace,
-            Tenant = receipt.Tenant
+            Tenant = receipt.Tenant,
+            Outcome = receipt.Outcome
         };
     }
 

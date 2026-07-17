@@ -44,13 +44,15 @@ public sealed class InMemoryInboxStoreOptionsTests
             IdempotencyKey = idempotencyKey
         }).ConfigureAwait(false);
 
-        var duplicate = await store.AddAsync(first with
+        var duplicate = await store.AddAsync(first.Envelope with
         {
             Id = Guid.NewGuid(),
             Payload = "{\"orderId\":\"2\"}"
         }).ConfigureAwait(false);
 
-        duplicate.Id.Should().Be(first.Id);
+        first.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
+        duplicate.Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
+        duplicate.Envelope.Id.Should().Be(first.Envelope.Id);
         store.Count.Should().Be(1);
     }
 

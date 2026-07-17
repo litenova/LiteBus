@@ -56,15 +56,15 @@ public sealed class StoreBoundTransactionalOutboxTests
         public OutboxEnvelope? LastEnvelope { get; private set; }
 
         /// <inheritdoc />
-        public Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
+        public Task<OutboxAppendResult> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
         {
             AddCalls++;
             LastEnvelope = envelope;
-            return Task.FromResult(envelope);
+            return Task.FromResult(new OutboxAppendResult(envelope, OutboxEnqueueOutcome.Enqueued));
         }
 
         /// <inheritdoc />
-        public Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
+        public Task<IReadOnlyList<OutboxAppendResult>> AddBatchAsync(
             IReadOnlyList<OutboxEnvelope> envelopes,
             CancellationToken cancellationToken = default)
         {

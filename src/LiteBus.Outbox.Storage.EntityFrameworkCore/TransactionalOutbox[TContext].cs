@@ -80,33 +80,6 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<OutboxReceipt<TEvent>>> EnqueueBatchAsync<TEvent>(
-        IReadOnlyList<OutboxEnqueueItem<TEvent>> items,
-        CancellationToken cancellationToken = default)
-        where TEvent : notnull
-    {
-        if (items.Count == 0)
-        {
-            return Task.FromResult<IReadOnlyList<OutboxReceipt<TEvent>>>([]);
-        }
-
-        return _writerCore.EnqueueBatchAsync(
-            items,
-            async (envelopes, token) =>
-            {
-                var staged = new OutboxEnvelope[envelopes.Count];
-
-                for (var index = 0; index < envelopes.Count; index++)
-                {
-                    staged[index] = await StageAsync(envelopes[index], token).ConfigureAwait(false);
-                }
-
-                return staged;
-            },
-            cancellationToken);
-    }
-
-    /// <inheritdoc />
     public Task<IReadOnlyList<OutboxReceipt>> EnqueueBatchAsync(
         IReadOnlyList<OutboxEnqueueItem> items,
         CancellationToken cancellationToken = default)
@@ -120,7 +93,7 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
             items,
             async (envelopes, token) =>
             {
-                var staged = new OutboxEnvelope[envelopes.Count];
+                var staged = new OutboxAppendResult[envelopes.Count];
 
                 for (var index = 0; index < envelopes.Count; index++)
                 {
@@ -138,12 +111,12 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
     /// </summary>
     /// <param name="envelope">The envelope created for the current enqueue attempt.</param>
     /// <param name="cancellationToken">The token used to cancel the lookup.</param>
-    /// <returns>The envelope staged for persistence or the existing stored envelope.</returns>
+    /// <returns>The staged or existing envelope with its enqueue outcome.</returns>
     /// <remarks>
     ///     Strict conflict mode never resolves duplicates here; conflicting scoped keys are left for the database unique
     ///     index to reject during <c>SaveChanges</c>.
     /// </remarks>
-    private async Task<OutboxEnvelope> StageAsync(OutboxEnvelope envelope, CancellationToken cancellationToken)
+    private async Task<OutboxAppendResult> StageAsync(OutboxEnvelope envelope, CancellationToken cancellationToken)
     {
         if (envelope.IdempotencyConflictMode == IdempotencyConflictMode.ReturnExisting)
         {
@@ -151,12 +124,12 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
 
             if (existing is not null)
             {
-                return existing;
+                return new OutboxAppendResult(existing, OutboxEnqueueOutcome.AlreadyEnqueued);
             }
         }
 
         _interceptor.Enqueue(_dbContext, envelope);
-        return envelope;
+        return new OutboxAppendResult(envelope, OutboxEnqueueOutcome.Enqueued);
     }
 
     /// <summary>

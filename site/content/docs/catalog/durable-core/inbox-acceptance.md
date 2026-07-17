@@ -44,7 +44,7 @@ Typical call sites: HTTP controllers deferring work, ingress handlers after brok
 
 ### Extension Points
 
-- Custom storage implements **`IInboxStore`** append role (storage axis).
+- Custom storage implements **`IInboxStore`** append role and returns **`InboxAppendResult`** so the writer can preserve insertion outcomes (storage axis).
 - Ingress maps broker deliveries to **`InboxAcceptItem`** (inbox-ingress capability).
 - For domain-transaction alignment use **`ITransactionalInbox`** instead of **`IInbox`** (transactional-writes capability).
 
@@ -52,7 +52,7 @@ Typical call sites: HTTP controllers deferring work, ingress handlers after brok
 
 | Package | Role |
 | --- | --- |
-| `LiteBus.Inbox.Abstractions` | `IInbox`, `InboxAcceptItem`, `InboxReceipt` |
+| `LiteBus.Inbox.Abstractions` | `IInbox`, `InboxAcceptItem`, `InboxReceipt`, `InboxAppendResult` |
 | `LiteBus.Inbox` | Default `Inbox` writer implementation |
 | `LiteBus.Inbox.Storage.*` | Persistence (required at runtime) |
 

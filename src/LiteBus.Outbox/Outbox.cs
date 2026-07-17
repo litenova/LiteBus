@@ -68,18 +68,6 @@ public sealed class Outbox : IOutbox
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<OutboxReceipt<TEvent>>> EnqueueBatchAsync<TEvent>(
-        IReadOnlyList<OutboxEnqueueItem<TEvent>> items,
-        CancellationToken cancellationToken = default)
-        where TEvent : notnull
-    {
-        return _writerCore.EnqueueBatchAsync(
-            items,
-            (envelopes, token) => _store.AddBatchAsync(envelopes, token),
-            cancellationToken);
-    }
-
-    /// <inheritdoc />
     public Task<IReadOnlyList<OutboxReceipt>> EnqueueBatchAsync(
         IReadOnlyList<OutboxEnqueueItem> items,
         CancellationToken cancellationToken = default)

@@ -94,7 +94,7 @@ Closed generic types are supported when each closed shape is registered. Open ge
 | `UsePostgreSqlStorage(...)` | `LiteBus.Inbox.Storage.PostgreSql` |
 | `UseEntityFrameworkCoreStorage(...)` | `LiteBus.Inbox.Storage.EntityFrameworkCore` |
 
-The writer persists through `IInboxStore`. The processor leases through `IInboxLeaseStore` and records results through `IInboxStateWriter`. A single store implementation registers all roles on one singleton instance.
+The writer persists through `IInboxStore`. `AddAsync` returns `InboxAppendResult`, which carries the stored envelope and the authoritative `InboxAcceptOutcome`. The processor leases through `IInboxLeaseStore` and records results through `IInboxStateWriter`. A single store implementation registers all roles on one singleton instance.
 
 ### Schema v1 (Greenfield)
 

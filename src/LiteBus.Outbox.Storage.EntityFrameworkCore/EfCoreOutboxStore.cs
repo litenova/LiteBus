@@ -391,7 +391,7 @@ public sealed class EfCoreOutboxStore :
     }
 
     /// <inheritdoc />
-    public async Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
+    public async Task<OutboxAppendResult> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelope);
 
@@ -401,7 +401,7 @@ public sealed class EfCoreOutboxStore :
 
             if (local is not null)
             {
-                return ToEnvelope(local);
+                return new OutboxAppendResult(ToEnvelope(local), OutboxEnqueueOutcome.AlreadyEnqueued);
             }
 
             var existing = await FindExistingEntityAsync(context, envelope.Id, envelope.TenantId, envelope.IdempotencyKey, token).ConfigureAwait(false);
@@ -409,7 +409,7 @@ public sealed class EfCoreOutboxStore :
             if (existing is not null)
             {
                 ThrowIfStrictConflict(envelope, existing);
-                return ToEnvelope(existing);
+                return new OutboxAppendResult(ToEnvelope(existing), OutboxEnqueueOutcome.AlreadyEnqueued);
             }
 
             var entity = ToEntity(envelope);
@@ -417,14 +417,14 @@ public sealed class EfCoreOutboxStore :
 
             if (!_saveChangesOnAdd)
             {
-                return ToEnvelope(entity);
+                return new OutboxAppendResult(ToEnvelope(entity), OutboxEnqueueOutcome.Enqueued);
             }
 
             try
             {
                 await SaveChangesAsync(context, token).ConfigureAwait(false);
                 await ReloadEntityAsync(context, entity, token).ConfigureAwait(false);
-                return ToEnvelope(entity);
+                return new OutboxAppendResult(ToEnvelope(entity), OutboxEnqueueOutcome.Enqueued);
             }
             catch (DbUpdateException)
             {
@@ -437,13 +437,13 @@ public sealed class EfCoreOutboxStore :
 
                 ThrowIfStrictConflict(envelope, stored);
                 DetachFailedInsert(context, entity);
-                return ToEnvelope(stored);
+                return new OutboxAppendResult(ToEnvelope(stored), OutboxEnqueueOutcome.AlreadyEnqueued);
             }
         }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
+    public async Task<IReadOnlyList<OutboxAppendResult>> AddBatchAsync(
         IReadOnlyList<OutboxEnvelope> envelopes,
         CancellationToken cancellationToken = default)
     {
@@ -456,10 +456,11 @@ public sealed class EfCoreOutboxStore :
 
         return await ExecuteAsync(async (context, token) =>
         {
-            var results = new OutboxEnvelope[envelopes.Count];
+            var results = new OutboxAppendResult[envelopes.Count];
             var pending = new List<(int Index, OutboxEnvelope Envelope)>();
             var seenIds = new Dictionary<Guid, OutboxEnvelope>();
             var seenIdempotencyKeys = new Dictionary<string, OutboxEnvelope>(StringComparer.Ordinal);
+            var pendingIds = new Dictionary<Guid, int>();
             var pendingIdempotencyKeys = new Dictionary<string, int>(StringComparer.Ordinal);
             var pendingAliases = new Dictionary<int, int>();
 
@@ -470,7 +471,7 @@ public sealed class EfCoreOutboxStore :
                 if (seenIds.TryGetValue(envelope.Id, out var duplicateById))
                 {
                     ThrowIfStrictConflict(envelope, duplicateById);
-                    results[index] = duplicateById;
+                    results[index] = new OutboxAppendResult(duplicateById, OutboxEnqueueOutcome.AlreadyEnqueued);
                     continue;
                 }
 
@@ -482,7 +483,7 @@ public sealed class EfCoreOutboxStore :
                     out var duplicateByKey))
                 {
                     ThrowIfStrictConflict(envelope, duplicateByKey);
-                    results[index] = duplicateByKey;
+                    results[index] = new OutboxAppendResult(duplicateByKey, OutboxEnqueueOutcome.AlreadyEnqueued);
                     continue;
                 }
 
@@ -491,8 +492,8 @@ public sealed class EfCoreOutboxStore :
                 if (local is not null)
                 {
                     ThrowIfStrictConflict(envelope, local);
-                    results[index] = ToEnvelope(local);
-                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
+                    results[index] = new OutboxAppendResult(ToEnvelope(local), OutboxEnqueueOutcome.AlreadyEnqueued);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
                     continue;
                 }
 
@@ -502,8 +503,15 @@ public sealed class EfCoreOutboxStore :
                 if (existing is not null)
                 {
                     ThrowIfStrictConflict(envelope, existing);
-                    results[index] = ToEnvelope(existing);
-                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
+                    results[index] = new OutboxAppendResult(ToEnvelope(existing), OutboxEnqueueOutcome.AlreadyEnqueued);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
+                    continue;
+                }
+
+                if (pendingIds.TryGetValue(envelope.Id, out var pendingIdSourceIndex))
+                {
+                    ThrowIfStrictConflict(envelope, envelopes[pendingIdSourceIndex]);
+                    pendingAliases[index] = pendingIdSourceIndex;
                     continue;
                 }
 
@@ -529,6 +537,7 @@ public sealed class EfCoreOutboxStore :
                         EfCoreIdempotencyResolution.CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey)] = index;
                 }
 
+                pendingIds[envelope.Id] = index;
                 pending.Add((index, envelope));
             }
 
@@ -545,13 +554,15 @@ public sealed class EfCoreOutboxStore :
                 for (var index = 0; index < pending.Count; index++)
                 {
                     var stored = ToEnvelope(entities[index]);
-                    results[pending[index].Index] = stored;
+                    results[pending[index].Index] = new OutboxAppendResult(stored, OutboxEnqueueOutcome.Enqueued);
                     RememberBatchResult(seenIds, seenIdempotencyKeys, pending[index].Envelope, stored);
                 }
 
                 foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
                 {
-                    results[duplicateIndex] = results[sourceIndex];
+                    results[duplicateIndex] = new OutboxAppendResult(
+                        results[sourceIndex].Envelope,
+                        OutboxEnqueueOutcome.AlreadyEnqueued);
                 }
             }
 
@@ -586,13 +597,15 @@ public sealed class EfCoreOutboxStore :
                                  throw new InvalidOperationException(
                                      "The outbox batch insert failed and the existing message could not be found.");
 
-                    results[index] = ToEnvelope(stored);
-                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index]);
+                    results[index] = new OutboxAppendResult(ToEnvelope(stored), OutboxEnqueueOutcome.AlreadyEnqueued);
+                    RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
                 }
 
                 foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
                 {
-                    results[duplicateIndex] = results[sourceIndex];
+                    results[duplicateIndex] = new OutboxAppendResult(
+                        results[sourceIndex].Envelope,
+                        OutboxEnqueueOutcome.AlreadyEnqueued);
                 }
             }
 

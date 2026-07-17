@@ -21,7 +21,7 @@
 ## SQL Behavior
 
 - Table: configurable, defaults to `public.litebus_outbox_messages`.
-- Insert path uses `ON CONFLICT DO NOTHING`, then loads existing row for duplicates.
+- Insert path uses `ON CONFLICT DO NOTHING RETURNING`; returned rows report `Enqueued`, while conflict lookups report `AlreadyEnqueued`.
 - Retention delete uses `COALESCE(published_at, created_at) < @older_than`.
 - Dead-letter replay resets row to pending and clears lease and error fields.
 - Status diagnostics uses grouped counts by outbox status.

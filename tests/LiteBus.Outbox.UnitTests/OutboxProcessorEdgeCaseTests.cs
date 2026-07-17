@@ -74,16 +74,17 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
         var firstOrderId = Guid.NewGuid();
         var secondOrderId = Guid.NewGuid();
 
-        await writer.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+        var first = await writer.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
             new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = firstOrderId },
             messageId)).ConfigureAwait(true);
 
 
-        await writer.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+        var duplicate = await writer.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
             new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = secondOrderId },
             messageId)).ConfigureAwait(true);
-
-
+        first.Outcome.Should().Be(OutboxEnqueueOutcome.Enqueued);
+        duplicate.Outcome.Should().Be(OutboxEnqueueOutcome.AlreadyEnqueued);
+        duplicate.Id.Should().Be(first.Id);
         store.GetAll().Should().HaveCount(1);
         store.Get(messageId).Topic.Should().BeNull();
     }

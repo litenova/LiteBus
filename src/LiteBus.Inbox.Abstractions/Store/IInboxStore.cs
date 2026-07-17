@@ -28,8 +28,8 @@ public interface IInboxStore
     ///     and tracing metadata already assigned.
     /// </param>
     /// <param name="cancellationToken">A token that cancels the store write before it is committed.</param>
-    /// <returns>The stored envelope, or the existing envelope when the store detects a duplicate submission.</returns>
-    Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default);
+    /// <returns>The stored envelope and whether this append inserted it or resolved an existing submission.</returns>
+    Task<InboxAppendResult> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Adds multiple pending inbox envelopes in one store round trip.
@@ -40,10 +40,10 @@ public interface IInboxStore
     /// </param>
     /// <param name="cancellationToken">A token that cancels the store write before it is committed.</param>
     /// <returns>
-    ///     The stored envelopes in the same order as <paramref name="envelopes" />. Duplicate idempotency keys or message
-    ///     identifiers return the previously accepted row for that slot.
+    ///     The append results in the same order as <paramref name="envelopes" />. Each result identifies whether its
+    ///     envelope was inserted or resolved from a duplicate idempotency key or message identifier.
     /// </returns>
-    Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
+    Task<IReadOnlyList<InboxAppendResult>> AddBatchAsync(
         IReadOnlyList<InboxEnvelope> envelopes,
         CancellationToken cancellationToken = default);
 }

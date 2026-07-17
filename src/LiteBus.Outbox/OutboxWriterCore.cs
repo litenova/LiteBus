@@ -36,7 +36,7 @@ public sealed class OutboxWriterCore
     /// <returns>The typed enqueue receipt returned to callers.</returns>
     public async Task<OutboxReceipt<TEvent>> EnqueueAsync<TEvent>(
         OutboxEnqueueItem<TEvent> item,
-        Func<OutboxEnvelope, CancellationToken, Task<OutboxEnvelope>> persistAsync,
+        Func<OutboxEnvelope, CancellationToken, Task<OutboxAppendResult>> persistAsync,
         CancellationToken cancellationToken)
         where TEvent : notnull
     {
@@ -44,9 +44,12 @@ public sealed class OutboxWriterCore
         ArgumentNullException.ThrowIfNull(persistAsync);
 
         var envelope = await _envelopeFactory.CreateAsync(item, cancellationToken).ConfigureAwait(false);
-        var storedEnvelope = await persistAsync(envelope, cancellationToken).ConfigureAwait(false);
+        var appendResult = await persistAsync(envelope, cancellationToken).ConfigureAwait(false);
 
-        return OutboxReceiptMapper.CreateTypedReceipt<TEvent>(storedEnvelope, item.Message.GetType());
+        return OutboxReceiptMapper.CreateTypedReceipt<TEvent>(
+            appendResult.Envelope,
+            item.Message.GetType(),
+            appendResult.Outcome);
     }
 
     /// <summary>
@@ -58,45 +61,19 @@ public sealed class OutboxWriterCore
     /// <returns>The enqueue receipt returned to callers.</returns>
     public async Task<OutboxReceipt> EnqueueAsync(
         OutboxEnqueueItem item,
-        Func<OutboxEnvelope, CancellationToken, Task<OutboxEnvelope>> persistAsync,
+        Func<OutboxEnvelope, CancellationToken, Task<OutboxAppendResult>> persistAsync,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(persistAsync);
 
         var envelope = await _envelopeFactory.CreateAsync(item, cancellationToken).ConfigureAwait(false);
-        var storedEnvelope = await persistAsync(envelope, cancellationToken).ConfigureAwait(false);
+        var appendResult = await persistAsync(envelope, cancellationToken).ConfigureAwait(false);
 
-        return OutboxReceiptMapper.CreateReceipt(storedEnvelope, item.MessageType);
-    }
-
-    /// <summary>
-    ///     Enqueues a batch of typed events through the supplied persistence delegate.
-    /// </summary>
-    /// <typeparam name="TEvent">The compile-time event type associated with the batch.</typeparam>
-    /// <param name="items">The enqueue items describing each event and metadata pair.</param>
-    /// <param name="persistBatchAsync">The delegate that persists or stages the created envelopes.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>The typed enqueue receipts returned to batch callers.</returns>
-    public async Task<IReadOnlyList<OutboxReceipt<TEvent>>> EnqueueBatchAsync<TEvent>(
-        IReadOnlyList<OutboxEnqueueItem<TEvent>> items,
-        Func<IReadOnlyList<OutboxEnvelope>, CancellationToken, Task<IReadOnlyList<OutboxEnvelope>>> persistBatchAsync,
-        CancellationToken cancellationToken)
-        where TEvent : notnull
-    {
-        ArgumentNullException.ThrowIfNull(items);
-        ArgumentNullException.ThrowIfNull(persistBatchAsync);
-
-        var envelopes = await _envelopeFactory.CreateBatchAsync(items, cancellationToken).ConfigureAwait(false);
-        var stored = await persistBatchAsync(envelopes, cancellationToken).ConfigureAwait(false);
-        var receipts = new OutboxReceipt<TEvent>[stored.Count];
-
-        for (var index = 0; index < stored.Count; index++)
-        {
-            receipts[index] = OutboxReceiptMapper.CreateTypedReceipt<TEvent>(stored[index], items[index].Message.GetType());
-        }
-
-        return receipts;
+        return OutboxReceiptMapper.CreateReceipt(
+            appendResult.Envelope,
+            item.MessageType,
+            appendResult.Outcome);
     }
 
     /// <summary>
@@ -108,19 +85,30 @@ public sealed class OutboxWriterCore
     /// <returns>The enqueue receipts returned to batch callers.</returns>
     public async Task<IReadOnlyList<OutboxReceipt>> EnqueueBatchAsync(
         IReadOnlyList<OutboxEnqueueItem> items,
-        Func<IReadOnlyList<OutboxEnvelope>, CancellationToken, Task<IReadOnlyList<OutboxEnvelope>>> persistBatchAsync,
+        Func<IReadOnlyList<OutboxEnvelope>, CancellationToken, Task<IReadOnlyList<OutboxAppendResult>>> persistBatchAsync,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(persistBatchAsync);
 
         var envelopes = await _envelopeFactory.CreateBatchAsync(items, cancellationToken).ConfigureAwait(false);
-        var stored = await persistBatchAsync(envelopes, cancellationToken).ConfigureAwait(false);
-        var receipts = new OutboxReceipt[stored.Count];
+        var appendResults = await persistBatchAsync(envelopes, cancellationToken).ConfigureAwait(false);
 
-        for (var index = 0; index < stored.Count; index++)
+        if (appendResults.Count != items.Count)
         {
-            receipts[index] = OutboxReceiptMapper.CreateReceipt(stored[index], items[index].MessageType);
+            throw new InvalidOperationException(
+                $"The outbox append store returned {appendResults.Count} results for {items.Count} input items.");
+        }
+
+        var receipts = new OutboxReceipt[appendResults.Count];
+
+        for (var index = 0; index < appendResults.Count; index++)
+        {
+            var appendResult = appendResults[index];
+            receipts[index] = OutboxReceiptMapper.CreateReceipt(
+                appendResult.Envelope,
+                items[index].MessageType,
+                appendResult.Outcome);
         }
 
         return receipts;

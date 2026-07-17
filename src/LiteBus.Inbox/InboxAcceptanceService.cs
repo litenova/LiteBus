@@ -35,7 +35,7 @@ public sealed class InboxAcceptanceService
     /// <returns>The typed acceptance receipt returned to callers.</returns>
     public async Task<InboxReceipt<TMessage>> AcceptAsync<TMessage>(
         InboxAcceptItem<TMessage> item,
-        Func<InboxEnvelope, CancellationToken, Task<InboxEnvelope>> persistAsync,
+        Func<InboxEnvelope, CancellationToken, Task<InboxAppendResult>> persistAsync,
         CancellationToken cancellationToken)
         where TMessage : notnull
     {
@@ -46,10 +46,12 @@ public sealed class InboxAcceptanceService
             .CreateAsync(InboxAcceptItem.From(item), cancellationToken)
             .ConfigureAwait(false);
 
-        var storedEnvelope = await persistAsync(envelope, cancellationToken).ConfigureAwait(false);
-        var outcome = InboxReceiptMapper.ResolveOutcome(envelope, storedEnvelope);
+        var appendResult = await persistAsync(envelope, cancellationToken).ConfigureAwait(false);
 
-        return InboxReceiptMapper.CreateTypedReceipt<TMessage>(storedEnvelope, item.Message.GetType(), outcome);
+        return InboxReceiptMapper.CreateTypedReceipt<TMessage>(
+            appendResult.Envelope,
+            item.Message.GetType(),
+            appendResult.Outcome);
     }
 
     /// <summary>
@@ -61,17 +63,19 @@ public sealed class InboxAcceptanceService
     /// <returns>The acceptance receipt returned to callers.</returns>
     public async Task<InboxReceipt> AcceptAsync(
         InboxAcceptItem item,
-        Func<InboxEnvelope, CancellationToken, Task<InboxEnvelope>> persistAsync,
+        Func<InboxEnvelope, CancellationToken, Task<InboxAppendResult>> persistAsync,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(persistAsync);
 
         var envelope = await _envelopeFactory.CreateAsync(item, cancellationToken).ConfigureAwait(false);
-        var storedEnvelope = await persistAsync(envelope, cancellationToken).ConfigureAwait(false);
-        var outcome = InboxReceiptMapper.ResolveOutcome(envelope, storedEnvelope);
+        var appendResult = await persistAsync(envelope, cancellationToken).ConfigureAwait(false);
 
-        return InboxReceiptMapper.CreateUntypedReceipt(storedEnvelope, item.Message.GetType(), outcome);
+        return InboxReceiptMapper.CreateUntypedReceipt(
+            appendResult.Envelope,
+            item.Message.GetType(),
+            appendResult.Outcome);
     }
 
     /// <summary>
@@ -83,22 +87,30 @@ public sealed class InboxAcceptanceService
     /// <returns>The acceptance receipts returned to batch callers.</returns>
     public async Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
         IReadOnlyList<InboxAcceptItem> items,
-        Func<IReadOnlyList<InboxEnvelope>, CancellationToken, Task<IReadOnlyList<InboxEnvelope>>> persistBatchAsync,
+        Func<IReadOnlyList<InboxEnvelope>, CancellationToken, Task<IReadOnlyList<InboxAppendResult>>> persistBatchAsync,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(persistBatchAsync);
 
         var envelopes = await _envelopeFactory.CreateBatchAsync(items, cancellationToken).ConfigureAwait(false);
-        var stored = await persistBatchAsync(envelopes, cancellationToken).ConfigureAwait(false);
-        var receipts = new InboxReceipt[stored.Count];
+        var appendResults = await persistBatchAsync(envelopes, cancellationToken).ConfigureAwait(false);
 
-        for (var index = 0; index < stored.Count; index++)
+        if (appendResults.Count != items.Count)
         {
+            throw new InvalidOperationException(
+                $"The inbox append store returned {appendResults.Count} results for {items.Count} input items.");
+        }
+
+        var receipts = new InboxReceipt[appendResults.Count];
+
+        for (var index = 0; index < appendResults.Count; index++)
+        {
+            var appendResult = appendResults[index];
             receipts[index] = InboxReceiptMapper.CreateUntypedReceipt(
-                stored[index],
+                appendResult.Envelope,
                 items[index].MessageType ?? items[index].Message.GetType(),
-                InboxReceiptMapper.ResolveOutcome(envelopes[index], stored[index]));
+                appendResult.Outcome);
         }
 
         return receipts;

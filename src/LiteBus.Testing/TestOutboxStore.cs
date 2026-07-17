@@ -83,13 +83,13 @@ public sealed class TestOutboxStore :
     }
 
     /// <inheritdoc />
-    public Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
+    public Task<OutboxAppendResult> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
     {
         return _inner.AddAsync(envelope, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
+    public Task<IReadOnlyList<OutboxAppendResult>> AddBatchAsync(
         IReadOnlyList<OutboxEnvelope> envelopes,
         CancellationToken cancellationToken = default)
     {

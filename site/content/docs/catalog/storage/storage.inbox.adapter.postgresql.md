@@ -21,7 +21,7 @@
 ## SQL Behavior
 
 - Table: configurable, defaults to `public.litebus_inbox_messages`.
-- Insert path uses `ON CONFLICT DO NOTHING`, then fetches existing row for idempotent duplicates.
+- Insert path uses `ON CONFLICT DO NOTHING RETURNING`; returned rows report `Accepted`, while conflict lookups report `AlreadyAccepted`.
 - Retention delete uses `COALESCE(completed_at, created_at) < @older_than`.
 - Dead-letter replay uses `UPDATE ... SET status = pending, visible_after = NULL, attempt_count = 0`.
 - Status diagnostics uses grouped count query: `SELECT status, COUNT(*) FROM ... GROUP BY status`.

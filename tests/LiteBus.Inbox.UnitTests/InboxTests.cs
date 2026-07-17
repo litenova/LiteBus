@@ -207,7 +207,34 @@ public sealed class InboxTests : LiteBusTestBase
             },
             metadata));
 
+        first.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
+        second.Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
         second.Id.Should().Be(first.Id);
+    }
+
+    [Fact]
+    public async Task AcceptAsync_WhenMessageIdMatchesExisting_ShouldReturnExistingOutcome()
+    {
+        var store = new InMemoryInboxStore();
+        var contractRegistry = new MessageContractRegistry();
+        contractRegistry.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
+        var scheduler = InboxWriterTestFactory.Create(
+            store,
+            contractRegistry,
+            new SystemTextJsonMessageSerializer(),
+            TimeProvider.System);
+        var messageId = Guid.NewGuid();
+
+        var first = await scheduler.AcceptAsync(InboxAcceptItem<InboxTestFixtures.ShipOrderCommand>.WithIdentity(
+            new InboxTestFixtures.ShipOrderCommand { OrderId = Guid.NewGuid(), IdempotencyKey = "first" },
+            messageId));
+        var duplicate = await scheduler.AcceptAsync(InboxAcceptItem<InboxTestFixtures.ShipOrderCommand>.WithIdentity(
+            new InboxTestFixtures.ShipOrderCommand { OrderId = Guid.NewGuid(), IdempotencyKey = "duplicate" },
+            messageId));
+
+        first.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
+        duplicate.Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
+        duplicate.Id.Should().Be(messageId);
     }
 
     [Fact]

@@ -76,20 +76,23 @@ public abstract class OutboxStoreContractTests
         var now = BaseTime;
         const string idempotencyKey = "order-submitted-1";
 
-        var first = await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now) with
+        var firstResult = await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now) with
         {
             IdempotencyKey = idempotencyKey
         }).ConfigureAwait(false);
 
+        var first = firstResult.Envelope;
         var duplicate = await store.Writer.EnqueueAsync(first with
         {
             Id = Guid.NewGuid(),
             Payload = "{\"orderId\":\"2\"}"
         }).ConfigureAwait(false);
 
-        duplicate.Id.Should().Be(first.Id);
-        duplicate.Payload.Should().Be(first.Payload);
-        duplicate.IdempotencyKey.Should().Be(idempotencyKey);
+        firstResult.Outcome.Should().Be(OutboxEnqueueOutcome.Enqueued);
+        duplicate.Outcome.Should().Be(OutboxEnqueueOutcome.AlreadyEnqueued);
+        duplicate.Envelope.Id.Should().Be(first.Id);
+        duplicate.Envelope.Payload.Should().Be(first.Payload);
+        duplicate.Envelope.IdempotencyKey.Should().Be(idempotencyKey);
     }
 
     /// <summary>
@@ -163,10 +166,13 @@ public abstract class OutboxStoreContractTests
         var now = BaseTime;
 
         var first = await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
-        var duplicate = await store.Writer.EnqueueAsync(first with { Payload = "{\"orderId\":\"2\"}" }).ConfigureAwait(false);
+        var duplicate = await store.Writer.EnqueueAsync(
+            first.Envelope with { Payload = "{\"orderId\":\"2\"}" }).ConfigureAwait(false);
 
-        duplicate.Id.Should().Be(first.Id);
-        duplicate.Payload.Should().Be(first.Payload);
+        first.Outcome.Should().Be(OutboxEnqueueOutcome.Enqueued);
+        duplicate.Outcome.Should().Be(OutboxEnqueueOutcome.AlreadyEnqueued);
+        duplicate.Envelope.Id.Should().Be(first.Envelope.Id);
+        duplicate.Envelope.Payload.Should().Be(first.Envelope.Payload);
     }
 
     /// <summary>
@@ -197,10 +203,56 @@ public abstract class OutboxStoreContractTests
             TraceContext = "{\"traceparent\":\"00-def\"}"
         }).ConfigureAwait(false);
 
-        stored.Topic.Should().Be("orders");
-        stored.VisibleAfter.Should().Be(visibleAfter);
-        stored.CorrelationId.Should().Be("correlation-1");
-        stored.TraceContext.Should().Be("{\"traceparent\":\"00-def\"}");
+        stored.Outcome.Should().Be(OutboxEnqueueOutcome.Enqueued);
+        stored.Envelope.Topic.Should().Be("orders");
+        stored.Envelope.VisibleAfter.Should().Be(visibleAfter);
+        stored.Envelope.CorrelationId.Should().Be("correlation-1");
+        stored.Envelope.TraceContext.Should().Be("{\"traceparent\":\"00-def\"}");
+    }
+
+    /// <summary>
+    ///     Verifies that batch append preserves input order and reports new rows.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task AddBatchAsync_ShouldReturnResultsInInputOrder()
+    {
+        var store = CreateStore();
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+
+        var results = await store.Writer.AddBatchAsync([
+            CreatePendingEnvelope(firstId, BaseTime),
+            CreatePendingEnvelope(secondId, BaseTime.AddSeconds(1))
+        ]).ConfigureAwait(false);
+
+        results.Should().HaveCount(2);
+        results[0].Envelope.Id.Should().Be(firstId);
+        results[1].Envelope.Id.Should().Be(secondId);
+        results.Select(result => result.Outcome).Should()
+            .OnlyContain(outcome => outcome == OutboxEnqueueOutcome.Enqueued);
+    }
+
+    /// <summary>
+    ///     Verifies that a repeated message identifier within one batch reports the later slot as an existing row.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task AddBatchAsync_RepeatedMessageIdWithinBatch_ShouldReportExistingOutcome()
+    {
+        var store = CreateStore();
+        var messageId = Guid.NewGuid();
+        var first = CreatePendingEnvelope(messageId, BaseTime) with { IdempotencyKey = null };
+
+        var results = await store.Writer.AddBatchAsync([
+            first,
+            first with { Payload = "{\"changed\":true}" }
+        ]).ConfigureAwait(false);
+
+        results.Should().HaveCount(2);
+        results[0].Outcome.Should().Be(OutboxEnqueueOutcome.Enqueued);
+        results[1].Outcome.Should().Be(OutboxEnqueueOutcome.AlreadyEnqueued);
+        results[1].Envelope.Payload.Should().Be(first.Payload);
     }
 
     /// <summary>

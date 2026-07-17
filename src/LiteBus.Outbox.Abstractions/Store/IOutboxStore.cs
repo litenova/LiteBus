@@ -31,10 +31,9 @@ public interface IOutboxStore
     /// </param>
     /// <param name="cancellationToken">A token that cancels the database write before it is committed.</param>
     /// <returns>
-    ///     The stored envelope. For idempotent duplicate inserts, the returned value should be the original stored row
-    ///     rather than a copy of the rejected input.
+    ///     The stored envelope and whether this append inserted it or resolved an existing idempotent submission.
     /// </returns>
-    Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default);
+    Task<OutboxAppendResult> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Adds multiple pending outbox envelopes in one store round trip.
@@ -45,10 +44,10 @@ public interface IOutboxStore
     /// </param>
     /// <param name="cancellationToken">A token that cancels the store write before it is committed.</param>
     /// <returns>
-    ///     The stored envelopes in the same order as <paramref name="envelopes" />. Duplicate message identifiers return
-    ///     the previously accepted row for that slot.
+    ///     The append results in the same order as <paramref name="envelopes" />. Each result identifies whether its
+    ///     envelope was inserted or resolved from a duplicate idempotency key or message identifier.
     /// </returns>
-    Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
+    Task<IReadOnlyList<OutboxAppendResult>> AddBatchAsync(
         IReadOnlyList<OutboxEnvelope> envelopes,
         CancellationToken cancellationToken = default);
 }

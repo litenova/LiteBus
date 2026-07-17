@@ -14,8 +14,8 @@ public static class OutboxStoreExtensions
     /// <param name="store">The outbox writer store.</param>
     /// <param name="envelope">The envelope to persist.</param>
     /// <param name="cancellationToken">A token used to cancel the store write.</param>
-    /// <returns>The stored envelope, or the existing envelope when the store detects a duplicate submission.</returns>
-    public static Task<OutboxEnvelope> EnqueueAsync(
+    /// <returns>The stored envelope and whether this append inserted it or resolved an existing submission.</returns>
+    public static Task<OutboxAppendResult> EnqueueAsync(
         this IOutboxStore store,
         OutboxEnvelope envelope,
         CancellationToken cancellationToken = default)

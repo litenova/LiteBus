@@ -485,7 +485,7 @@ public sealed class PostgreSqlOutboxStore :
     }
 
     /// <inheritdoc />
-    public async Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
+    public async Task<OutboxAppendResult> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelope);
 
@@ -558,7 +558,7 @@ public sealed class PostgreSqlOutboxStore :
 
         if (storedEnvelope is not null)
         {
-            return storedEnvelope;
+            return new OutboxAppendResult(storedEnvelope, OutboxEnqueueOutcome.Enqueued);
         }
 
         var existing = await FindExistingAsync(
@@ -576,7 +576,10 @@ public sealed class PostgreSqlOutboxStore :
                 $"An outbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
         }
 
-        return existing ?? envelope;
+        return existing is null
+            ? throw new InvalidOperationException(
+                "The outbox insert reported a conflict, but the existing envelope could not be resolved.")
+            : new OutboxAppendResult(existing, OutboxEnqueueOutcome.AlreadyEnqueued);
     }
 
     /// <summary>
@@ -599,7 +602,7 @@ public sealed class PostgreSqlOutboxStore :
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
+    public async Task<IReadOnlyList<OutboxAppendResult>> AddBatchAsync(
         IReadOnlyList<OutboxEnvelope> envelopes,
         CancellationToken cancellationToken = default)
     {
@@ -612,7 +615,7 @@ public sealed class PostgreSqlOutboxStore :
 
         if (envelopes.Any(envelope => envelope.IdempotencyConflictMode == Messaging.Abstractions.DurableMessaging.IdempotencyConflictMode.Strict))
         {
-            var strictResults = new OutboxEnvelope[envelopes.Count];
+            var strictResults = new OutboxAppendResult[envelopes.Count];
 
             for (var index = 0; index < envelopes.Count; index++)
             {
@@ -698,16 +701,18 @@ public sealed class PostgreSqlOutboxStore :
 
         var inserted = await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
         var insertedById = inserted.ToDictionary(envelope => envelope.Id);
-        var stored = new OutboxEnvelope[envelopes.Count];
+        var results = new OutboxAppendResult[envelopes.Count];
+        var assignedInsertedIds = new HashSet<Guid>();
         var missingKeys = new List<PostgreSqlBatchIdempotencyLookup.LookupKey>();
 
         for (var index = 0; index < envelopes.Count; index++)
         {
             var envelope = envelopes[index];
 
-            if (insertedById.TryGetValue(envelope.Id, out var accepted))
+            if (insertedById.TryGetValue(envelope.Id, out var accepted) &&
+                assignedInsertedIds.Add(envelope.Id))
             {
-                stored[index] = accepted;
+                results[index] = new OutboxAppendResult(accepted, OutboxEnqueueOutcome.Enqueued);
                 continue;
             }
 
@@ -733,24 +738,28 @@ public sealed class PostgreSqlOutboxStore :
 
             for (var index = 0; index < envelopes.Count; index++)
             {
-                if (stored[index] is not null)
+                if (results[index] is not null)
                 {
                     continue;
                 }
 
                 var envelope = envelopes[index];
 
-                stored[index] = resolved.TryGetValue(envelope.Id, out var existing)
-                    ? existing
+                var existing = resolved.TryGetValue(envelope.Id, out var resolvedEnvelope)
+                    ? resolvedEnvelope
                     : await FindExistingAsync(
                         envelope.Id,
                         envelope.TenantId,
                         envelope.IdempotencyKey,
                         cancellationToken).ConfigureAwait(false);
+
+                results[index] = new OutboxAppendResult(
+                    existing,
+                    OutboxEnqueueOutcome.AlreadyEnqueued);
             }
         }
 
-        return stored;
+        return results;
     }
 
     /// <summary>

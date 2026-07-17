@@ -58,7 +58,8 @@ public sealed class InMemoryOutboxIdempotencyIndexTests
             IdempotencyKey = idempotencyKey
         }).ConfigureAwait(false);
 
-        stored.Id.Should().Be(secondId);
+        stored.Outcome.Should().Be(OutboxEnqueueOutcome.Enqueued);
+        stored.Envelope.Id.Should().Be(secondId);
     }
 
     /// <summary>
@@ -99,6 +100,7 @@ public sealed class InMemoryOutboxIdempotencyIndexTests
             IdempotencyKey = idempotencyKey
         }).ConfigureAwait(false);
 
-        stored.Id.Should().Be(secondId);
+        stored.Outcome.Should().Be(OutboxEnqueueOutcome.Enqueued);
+        stored.Envelope.Id.Should().Be(secondId);
     }
 }

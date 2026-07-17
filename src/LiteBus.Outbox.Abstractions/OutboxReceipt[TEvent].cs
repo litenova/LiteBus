@@ -14,7 +14,7 @@ namespace LiteBus.Outbox.Abstractions;
 ///     </para>
 /// </remarks>
 /// <typeparam name="TEvent">The message type associated with the receipt.</typeparam>
-[DebuggerDisplay("Id = {Id}, MessageType = {MessageType}")]
+[DebuggerDisplay("Id = {Id}, Outcome = {Outcome}")]
 public sealed record OutboxReceipt<TEvent>
     where TEvent : notnull
 {
@@ -47,4 +47,9 @@ public sealed record OutboxReceipt<TEvent>
     ///     Gets the tenant isolation metadata copied from enqueue metadata or from the stored duplicate row.
     /// </summary>
     public TenantScope Tenant { get; init; } = TenantScope.Unscoped.Instance;
+
+    /// <summary>
+    ///     Gets whether the store enqueued a new row or returned an existing one for the supplied idempotency metadata.
+    /// </summary>
+    public OutboxEnqueueOutcome Outcome { get; init; } = OutboxEnqueueOutcome.Enqueued;
 }

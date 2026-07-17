@@ -9,7 +9,7 @@ Collapse duplicate accept and enqueue attempts at store insert time using messag
 
 ## What It Does
 
-Writers persist optional idempotency keys with envelopes. On duplicate `(tenant_id, idempotency_key)` or duplicate `message_id`, stores return the existing row with `AlreadyAccepted` outcome (non-transactional path) or fail the unit of work (transactional EF path). Ingress generates broker-scoped idempotency keys from delivery ids. Handlers remain responsible for idempotent side effects because processing is still at-least-once.
+Writers persist optional idempotency keys with envelopes. On duplicate `(tenant_id, idempotency_key)` or duplicate `message_id`, stores return the existing row with `AlreadyAccepted` or `AlreadyEnqueued`. Transactional EF writers resolve existing rows in `ReturnExisting` mode; `Strict` mode leaves the conflict for `SaveChanges` to reject. Ingress generates broker-scoped idempotency keys from delivery ids. Handlers remain responsible for idempotent side effects because processing is still at-least-once.
 
 ## Public Surface
 
@@ -21,12 +21,13 @@ Writers persist optional idempotency keys with envelopes. On duplicate `(tenant_
 - **`MessageIdentity.Supplied(Guid)`**: Caller-supplied message id; collisions deduplicate like idempotency keys.
 - **`InboxAcceptMetadata.Idempotency` / `OutboxEnqueueMetadata.Idempotency`**: Per-message idempotency variant on writer metadata records.
 - **`InboxAcceptOutcome.AlreadyAccepted`**: Receipt outcome when the store returned an existing row instead of inserting.
+- **`OutboxEnqueueOutcome.AlreadyEnqueued`**: Receipt outcome when the outbox store returned an existing row instead of inserting.
 
 ### Writer Invocation
 
 - Set idempotency on **`InboxAcceptItem`** / **`OutboxEnqueueItem`** metadata, or use **`InboxAcceptItem<T>.WithIdempotency(message, key)`** / **`OutboxEnqueueItem<T>.WithIdempotency(message, key)`** sugar helpers.
 - Combine with **`TenantScope.Isolated(tenantId)`** so keys deduplicate per tenant, not globally.
-- Read **`InboxReceipt.Outcome`** (or untyped receipt equivalent) to distinguish first accept from duplicate.
+- Read **`InboxReceipt.Outcome`** or **`OutboxReceipt.Outcome`** to distinguish the first append from a duplicate.
 
 ### Ingress Defaults
 
@@ -35,13 +36,13 @@ Writers persist optional idempotency keys with envelopes. On duplicate `(tenant_
 
 ### Store and Transactional Behavior
 
-- Non-transactional **`IInbox`** / **`IOutbox`**: duplicate key or message id returns existing envelope with **`AlreadyAccepted`** (inbox) or existing outbox row.
-- Transactional EF path: duplicate idempotency key fails **`SaveChanges`**; silent dedup is not available on that path.
+- Non-transactional **`IInbox`** / **`IOutbox`**: duplicate key or message ID returns the existing envelope with **`AlreadyAccepted`** or **`AlreadyEnqueued`**.
+- Transactional EF path: `ReturnExisting` resolves a tracked, pending, or persisted duplicate before staging. `Strict` stages the conflicting envelope so **`SaveChanges`** rejects the unit of work.
 - All built-in stores enforce tenant-scoped unique constraints on idempotency keys.
 
 ### Extension Points
 
-- Custom stores implement append-role dedup in **`AddAsync`** / **`AddBatchAsync`** (storage axis).
+- Custom stores implement append-role dedup in **`AddAsync`** / **`AddBatchAsync`** and return **`InboxAppendResult`** / **`OutboxAppendResult`** for each input slot (storage axis).
 - Application HTTP layers map client **`Idempotency-Key`** headers to **`Idempotency.Keyed`** (application-owned; no framework middleware).
 
 ## Packages

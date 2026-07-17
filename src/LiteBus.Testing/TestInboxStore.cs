@@ -93,13 +93,13 @@ public sealed class TestInboxStore :
     }
 
     /// <inheritdoc />
-    public Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
+    public Task<InboxAppendResult> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
     {
         return _inner.AddAsync(envelope, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
+    public Task<IReadOnlyList<InboxAppendResult>> AddBatchAsync(
         IReadOnlyList<InboxEnvelope> envelopes,
         CancellationToken cancellationToken = default)
     {

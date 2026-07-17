@@ -163,22 +163,25 @@ public sealed class DomainEventOutboxPatternTests
 
         public IReadOnlyList<OutboxEnvelope> Envelopes => _envelopes;
 
-        public Task<OutboxEnvelope> AddAsync(
+        public Task<OutboxAppendResult> AddAsync(
             OutboxEnvelope envelope,
             CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(envelope);
             _envelopes.Add(envelope);
-            return Task.FromResult(envelope);
+            return Task.FromResult(new OutboxAppendResult(envelope, OutboxEnqueueOutcome.Enqueued));
         }
 
-        public Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
+        public Task<IReadOnlyList<OutboxAppendResult>> AddBatchAsync(
             IReadOnlyList<OutboxEnvelope> envelopes,
             CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(envelopes);
             _envelopes.AddRange(envelopes);
-            return Task.FromResult(envelopes);
+            return Task.FromResult<IReadOnlyList<OutboxAppendResult>>(
+                envelopes
+                    .Select(envelope => new OutboxAppendResult(envelope, OutboxEnqueueOutcome.Enqueued))
+                    .ToArray());
         }
     }
 }

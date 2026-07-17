@@ -14,8 +14,8 @@ public static class InboxStoreExtensions
     /// <param name="store">The inbox writer store.</param>
     /// <param name="envelope">The envelope to persist.</param>
     /// <param name="cancellationToken">A token used to cancel the store write.</param>
-    /// <returns>The stored envelope, or the existing envelope when the store detects a duplicate submission.</returns>
-    public static Task<InboxEnvelope> EnqueueAsync(
+    /// <returns>The stored envelope and whether this append inserted it or resolved an existing submission.</returns>
+    public static Task<InboxAppendResult> EnqueueAsync(
         this IInboxStore store,
         InboxEnvelope envelope,
         CancellationToken cancellationToken = default)

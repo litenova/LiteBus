@@ -15,9 +15,9 @@
 ## SQL Behavior
 
 - PostgreSQL append uses insert with `ON CONFLICT DO NOTHING`.
-- When conflict occurs, adapter returns existing row instead of creating a duplicate.
+- When conflict occurs, the adapter returns the existing row with `AlreadyAccepted` or `AlreadyEnqueued` instead of creating a duplicate.
 - Tenant-scoped idempotency is enforced by filtered unique index on `(tenant_id, idempotency_key)`.
-- Batch append preserves request ordering in returned envelope list.
+- Batch append preserves request ordering in the returned append-result list. A later slot that duplicates an earlier slot reports the existing outcome.
 
 ## Concurrency Model
 
@@ -42,7 +42,7 @@
 
 ### `LiteBus.Storage.UnitTests`
 
-- Inherited store contract tests validate duplicate message id and idempotency semantics for all adapters.
+- Inherited store contract tests validate duplicate message IDs, idempotency keys, ordered batch results, and later-slot duplicate outcomes for all adapters.
 - EF transactional unit tests verify staged append behavior before `SaveChanges`.
 
 ### `LiteBus.Storage.IntegrationTests` (`PostgreSql/`)
@@ -53,7 +53,7 @@
 
 ## Concrete Example
 
-When a command with the same tenant and idempotency key is accepted twice, the second append call returns the first stored row. Processor logic then sees one pending message, not two.
+When a command with the same tenant and idempotency key is accepted twice, the second append call returns `InboxAppendResult(firstEnvelope, AlreadyAccepted)`. Processor logic then sees one pending message, not two.
 
 ## Related Docs
 

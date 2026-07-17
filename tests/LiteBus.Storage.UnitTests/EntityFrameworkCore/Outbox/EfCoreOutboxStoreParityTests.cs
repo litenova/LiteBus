@@ -82,8 +82,10 @@ public sealed class EfCoreOutboxStoreParityTests
         ]);
 
         batch.Should().HaveCount(2);
-        batch[0].Id.Should().Be(firstId);
-        batch[1].Id.Should().Be(firstId);
+        batch[0].Outcome.Should().Be(OutboxEnqueueOutcome.Enqueued);
+        batch[1].Outcome.Should().Be(OutboxEnqueueOutcome.AlreadyEnqueued);
+        batch[0].Envelope.Id.Should().Be(firstId);
+        batch[1].Envelope.Id.Should().Be(firstId);
 
          var context = CreateContext(databaseName);
          await using (context.ConfigureAwait(false))

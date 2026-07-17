@@ -71,8 +71,9 @@ public sealed class EfCoreOutboxFindExistingTests
             IdempotencyKey = idempotencyKey
         }).ConfigureAwait(false);
 
-        resolved.Id.Should().Be(idRowId);
-        resolved.Payload.Should().Contain("by\":\"id");
+        resolved.Outcome.Should().Be(OutboxEnqueueOutcome.AlreadyEnqueued);
+        resolved.Envelope.Id.Should().Be(idRowId);
+        resolved.Envelope.Payload.Should().Contain("by\":\"id");
         }
     }
 

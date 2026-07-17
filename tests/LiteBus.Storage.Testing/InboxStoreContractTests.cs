@@ -31,7 +31,7 @@ public abstract class InboxStoreContractTests
         var secondCommandId = Guid.NewGuid();
         var now = BaseTime;
 
-        var first = await roles.Writer.EnqueueAsync(new InboxEnvelope
+        var firstResult = await roles.Writer.EnqueueAsync(new InboxEnvelope
         {
             Id = firstCommandId,
             ContractName = "tests.commands.ship",
@@ -43,14 +43,17 @@ public abstract class InboxStoreContractTests
             IdempotencyKey = "ship-1"
         });
 
+        var first = firstResult.Envelope;
         var duplicate = await roles.Writer.EnqueueAsync(first with
         {
             Id = secondCommandId,
             Payload = "{\"orderId\":\"2\"}"
         });
 
-        duplicate.Id.Should().Be(first.Id);
-        duplicate.Payload.Should().Be(first.Payload);
+        firstResult.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
+        duplicate.Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
+        duplicate.Envelope.Id.Should().Be(first.Id);
+        duplicate.Envelope.Payload.Should().Be(first.Payload);
     }
 
     /// <summary>
@@ -89,9 +92,11 @@ public abstract class InboxStoreContractTests
             IdempotencyKey = idempotencyKey
         });
 
-        tenantA.Id.Should().NotBe(tenantB.Id);
-        JsonDocument.Parse(tenantA.Payload).RootElement.GetProperty("tenant").GetString().Should().Be("a");
-        JsonDocument.Parse(tenantB.Payload).RootElement.GetProperty("tenant").GetString().Should().Be("b");
+        tenantA.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
+        tenantB.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
+        tenantA.Envelope.Id.Should().NotBe(tenantB.Envelope.Id);
+        JsonDocument.Parse(tenantA.Envelope.Payload).RootElement.GetProperty("tenant").GetString().Should().Be("a");
+        JsonDocument.Parse(tenantB.Envelope.Payload).RootElement.GetProperty("tenant").GetString().Should().Be("b");
     }
 
     /// <summary>
@@ -105,7 +110,7 @@ public abstract class InboxStoreContractTests
         const string tenantId = "tenant-a";
         const string idempotencyKey = "ship-tenant-a";
 
-        var first = await roles.Writer.EnqueueAsync(new InboxEnvelope
+        var firstResult = await roles.Writer.EnqueueAsync(new InboxEnvelope
         {
             Id = Guid.NewGuid(),
             ContractName = "tests.commands.ship",
@@ -118,14 +123,17 @@ public abstract class InboxStoreContractTests
             IdempotencyKey = idempotencyKey
         });
 
+        var first = firstResult.Envelope;
         var duplicate = await roles.Writer.EnqueueAsync(first with
         {
             Id = Guid.NewGuid(),
             Payload = """{"n":2}"""
         });
 
-        duplicate.Id.Should().Be(first.Id);
-        duplicate.Payload.Should().Be(first.Payload);
+        firstResult.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
+        duplicate.Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
+        duplicate.Envelope.Id.Should().Be(first.Id);
+        duplicate.Envelope.Payload.Should().Be(first.Payload);
     }
 
     /// <summary>
@@ -195,11 +203,15 @@ public abstract class InboxStoreContractTests
         var commandId = Guid.NewGuid();
         var now = BaseTime;
 
-        var first = await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now) with { IdempotencyKey = null });
-        var duplicate = await roles.Writer.EnqueueAsync(first with { Payload = "{\"changed\":true}" });
+        var firstResult = await roles.Writer.EnqueueAsync(
+            CreatePendingEnvelope(commandId, now) with { IdempotencyKey = null });
+        var duplicate = await roles.Writer.EnqueueAsync(
+            firstResult.Envelope with { Payload = "{\"changed\":true}" });
 
-        duplicate.Id.Should().Be(commandId);
-        duplicate.Payload.Should().Be(first.Payload);
+        firstResult.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
+        duplicate.Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
+        duplicate.Envelope.Id.Should().Be(commandId);
+        duplicate.Envelope.Payload.Should().Be(firstResult.Envelope.Payload);
     }
 
     /// <summary>
@@ -228,11 +240,12 @@ public abstract class InboxStoreContractTests
             TraceContext = "{\"traceparent\":\"00-abc\"}"
         });
 
-        stored.VisibleAfter.Should().Be(visibleAfter);
-        stored.CorrelationId.Should().Be("correlation-1");
-        stored.CausationId.Should().Be("causation-1");
-        stored.TenantId.Should().Be("tenant-1");
-        using var traceDocument = JsonDocument.Parse(stored.TraceContext!);
+        stored.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
+        stored.Envelope.VisibleAfter.Should().Be(visibleAfter);
+        stored.Envelope.CorrelationId.Should().Be("correlation-1");
+        stored.Envelope.CausationId.Should().Be("causation-1");
+        stored.Envelope.TenantId.Should().Be("tenant-1");
+        using var traceDocument = JsonDocument.Parse(stored.Envelope.TraceContext!);
         traceDocument.RootElement.GetProperty("traceparent").GetString().Should().Be("00-abc");
     }
 
@@ -867,8 +880,30 @@ public abstract class InboxStoreContractTests
         ]);
 
         stored.Should().HaveCount(2);
-        stored[0].Id.Should().Be(firstId);
-        stored[1].Id.Should().Be(secondId);
+        stored[0].Envelope.Id.Should().Be(firstId);
+        stored[1].Envelope.Id.Should().Be(secondId);
+        stored.Select(result => result.Outcome).Should().OnlyContain(outcome => outcome == InboxAcceptOutcome.Accepted);
+    }
+
+    /// <summary>
+    ///     Verifies that a repeated message identifier within one batch reports the later slot as an existing row.
+    /// </summary>
+    [Fact]
+    public async Task AddBatchAsync_RepeatedMessageIdWithinBatch_ShouldReportExistingOutcome()
+    {
+        var roles = CreateStore();
+        var commandId = Guid.NewGuid();
+        var first = CreatePendingEnvelope(commandId, BaseTime) with { IdempotencyKey = null };
+
+        var results = await roles.Writer.AddBatchAsync([
+            first,
+            first with { Payload = "{\"changed\":true}" }
+        ]);
+
+        results.Should().HaveCount(2);
+        results[0].Outcome.Should().Be(InboxAcceptOutcome.Accepted);
+        results[1].Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
+        results[1].Envelope.Payload.Should().Be(first.Payload);
     }
 
     /// <summary>
@@ -882,7 +917,7 @@ public abstract class InboxStoreContractTests
         var duplicateId = Guid.NewGuid();
         var now = BaseTime;
 
-        var first = await roles.Writer.EnqueueAsync(new InboxEnvelope
+        var firstResult = await roles.Writer.EnqueueAsync(new InboxEnvelope
         {
             Id = firstId,
             ContractName = "tests.commands.ship",
@@ -894,15 +929,18 @@ public abstract class InboxStoreContractTests
             IdempotencyKey = "batch-ship-1"
         });
 
+        var first = firstResult.Envelope;
         var batch = await roles.Writer.AddBatchAsync([
             first with { Id = duplicateId, Payload = "{\"orderId\":\"changed\"}" },
             CreatePendingEnvelope(Guid.NewGuid(), now) with { IdempotencyKey = "batch-ship-2" }
         ]);
 
         batch.Should().HaveCount(2);
-        batch[0].Id.Should().Be(first.Id);
-        batch[0].Payload.Should().Be(first.Payload);
-        batch[1].IdempotencyKey.Should().Be("batch-ship-2");
+        batch[0].Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
+        batch[0].Envelope.Id.Should().Be(first.Id);
+        batch[0].Envelope.Payload.Should().Be(first.Payload);
+        batch[1].Outcome.Should().Be(InboxAcceptOutcome.Accepted);
+        batch[1].Envelope.IdempotencyKey.Should().Be("batch-ship-2");
     }
 
     /// <summary>
@@ -918,12 +956,13 @@ public abstract class InboxStoreContractTests
         var first = await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now) with { IdempotencyKey = null });
 
         var batch = await roles.Writer.AddBatchAsync([
-            first with { Payload = "{\"changed\":true}" }
+            first.Envelope with { Payload = "{\"changed\":true}" }
         ]);
 
         batch.Should().ContainSingle();
-        batch[0].Id.Should().Be(commandId);
-        batch[0].Payload.Should().Be(first.Payload);
+        batch[0].Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
+        batch[0].Envelope.Id.Should().Be(commandId);
+        batch[0].Envelope.Payload.Should().Be(first.Envelope.Payload);
     }
 
     /// <summary>

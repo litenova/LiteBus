@@ -73,30 +73,6 @@ internal static class InboxReceiptMapper
     }
 
     /// <summary>
-    ///     Resolves the acceptance outcome for one stored envelope relative to the attempted envelope.
-    /// </summary>
-    /// <param name="attempted">The envelope produced for the current accept attempt.</param>
-    /// <param name="stored">The envelope returned by the store or staging path.</param>
-    /// <returns>The acceptance outcome represented by the stored envelope.</returns>
-    internal static InboxAcceptOutcome ResolveOutcome(InboxEnvelope attempted, InboxEnvelope stored)
-    {
-        if (stored.Id == attempted.Id)
-        {
-            return InboxAcceptOutcome.Accepted;
-        }
-
-        if (!string.IsNullOrWhiteSpace(attempted.IdempotencyKey) &&
-            string.Equals(attempted.IdempotencyKey, stored.IdempotencyKey, StringComparison.Ordinal))
-        {
-            return InboxAcceptOutcome.AlreadyAccepted;
-        }
-
-        return stored.Id != attempted.Id
-            ? InboxAcceptOutcome.AlreadyAccepted
-            : InboxAcceptOutcome.Accepted;
-    }
-
-    /// <summary>
     ///     Reconstructs trace metadata from persisted envelope columns.
     /// </summary>
     /// <param name="correlationId">The optional correlation identifier stored with the envelope.</param>

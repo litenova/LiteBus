@@ -13,7 +13,7 @@ namespace LiteBus.Outbox.Abstractions;
 ///         to its final target. Use the message id for diagnostics, replay tooling, or API acceptance responses.
 ///     </para>
 /// </remarks>
-[DebuggerDisplay("Id = {Id}, MessageType = {MessageType}")]
+[DebuggerDisplay("Id = {Id}, Outcome = {Outcome}")]
 public sealed record OutboxReceipt
 {
     /// <summary>
@@ -45,4 +45,9 @@ public sealed record OutboxReceipt
     ///     Gets the tenant isolation metadata copied from enqueue metadata or from the stored duplicate row.
     /// </summary>
     public TenantScope Tenant { get; init; } = TenantScope.Unscoped.Instance;
+
+    /// <summary>
+    ///     Gets whether the store enqueued a new row or returned an existing one for the supplied idempotency metadata.
+    /// </summary>
+    public OutboxEnqueueOutcome Outcome { get; init; } = OutboxEnqueueOutcome.Enqueued;
 }

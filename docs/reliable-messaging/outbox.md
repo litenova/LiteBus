@@ -38,6 +38,8 @@ var receipt = await outbox.EnqueueAsync(
     cancellationToken);
 ```
 
+`receipt.Outcome` is `Enqueued` when the store inserted a row and `AlreadyEnqueued` when a duplicate message ID or tenant-scoped idempotency key resolved to an existing row. The receipt confirms storage, not broker publication.
+
 Register each stored message type in `IMessageContractRegistry` with a stable name and version, or apply `[MessageContract]` and call `RegisterFromAssembly` during module configuration.
 
 ## Registration (Nested Builder Only)
@@ -156,7 +158,7 @@ The integration test `ProcessPendingAsync_WhenPersistSkippedAfterPublish_ShouldR
 
 | Interface | Used by | Responsibility |
 | --- | --- | --- |
-| `IOutboxStore` | `IOutbox` | Append a pending outbox envelope |
+| `IOutboxStore` | `IOutbox` | Append a pending envelope and return `OutboxAppendResult` with the insertion outcome |
 | `IOutboxLeaseStore` | `IOutboxProcessor` | Atomically claim due messages |
 | `IOutboxStateWriter` | `IOutboxProcessor` | Persist published, failed, or dead-lettered envelopes |
 | `IOutboxDeadLetterStore` | Operator tooling | Requeue dead-lettered messages |

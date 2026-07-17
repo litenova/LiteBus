@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Role-based project and package dependency policy enforced by `ArchitectureDependencyPolicyTests`.
 - Root `Add*Transport` composition extensions for AMQP, Kafka, AWS SQS, Azure Service Bus, and in-memory transports.
 - Container-specific dispatch-scope lifecycle coverage for Autofac.
+- Axis-specific append results and outbox enqueue outcomes so receipts distinguish new rows from idempotent replays.
 
 ### Changed
 
@@ -26,6 +27,8 @@ All notable changes to this project will be documented in this file.
 - Outbox processor option precedence is independent of configuration call order.
 - PostgreSQL inbox and outbox schemas are version 3; saga schema is version 2. Validation checks required column
   types as well as columns, indexes, and metadata.
+- Inbox and outbox store append methods return ordered append results containing the source-of-truth envelope and
+  insertion outcome.
 
 ### Fixed
 
@@ -37,6 +40,8 @@ All notable changes to this project will be documented in this file.
   including when the same configured owner reacquires an expired row.
 - Direct PostgreSQL and relational EF Core leasing use the database clock for eligibility, expiry, and renewal so an
   application clock offset cannot claim future-visible work or extend a lease incorrectly.
+- Inbox and outbox receipts now report exact message-ID and tenant-scoped idempotency replays as `AlreadyAccepted` or
+  `AlreadyEnqueued` instead of inferring the outcome from envelope equality.
 
 ### Breaking changes
 
@@ -49,6 +54,8 @@ All notable changes to this project will be documented in this file.
   can calculate expiry from their database clock while in-memory stores retain deterministic clock control.
 - Existing v6 PostgreSQL tables must apply the ordered payload-text, lease-fencing, and saga duplicate-suppression SQL
   files before validation records inbox/outbox version 3 and saga version 2.
+- `IInboxStore` and `IOutboxStore` append methods return `InboxAppendResult` and `OutboxAppendResult`. The redundant
+  typed `IOutbox.EnqueueBatchAsync<TEvent>` overload is removed; use the non-generic item batch overload.
 
 ## v6.0.0
 

@@ -478,7 +478,7 @@ public sealed class PostgreSqlInboxStore :
     }
 
     /// <inheritdoc />
-    public async Task<InboxEnvelope> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
+    public async Task<InboxAppendResult> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelope);
 
@@ -550,7 +550,7 @@ public sealed class PostgreSqlInboxStore :
 
         if (storedEnvelope is not null)
         {
-            return storedEnvelope;
+            return new InboxAppendResult(storedEnvelope, InboxAcceptOutcome.Accepted);
         }
 
         var existing = await FindExistingAsync(
@@ -568,7 +568,10 @@ public sealed class PostgreSqlInboxStore :
                 $"An inbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
         }
 
-        return existing ?? envelope;
+        return existing is null
+            ? throw new InvalidOperationException(
+                "The inbox insert reported a conflict, but the existing envelope could not be resolved.")
+            : new InboxAppendResult(existing, InboxAcceptOutcome.AlreadyAccepted);
     }
 
     /// <summary>
@@ -590,7 +593,7 @@ public sealed class PostgreSqlInboxStore :
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<InboxEnvelope>> AddBatchAsync(
+    public async Task<IReadOnlyList<InboxAppendResult>> AddBatchAsync(
         IReadOnlyList<InboxEnvelope> envelopes,
         CancellationToken cancellationToken = default)
     {
@@ -603,7 +606,7 @@ public sealed class PostgreSqlInboxStore :
 
         if (envelopes.Any(envelope => envelope.IdempotencyConflictMode == Messaging.Abstractions.DurableMessaging.IdempotencyConflictMode.Strict))
         {
-            var strictResults = new InboxEnvelope[envelopes.Count];
+            var strictResults = new InboxAppendResult[envelopes.Count];
 
             for (var index = 0; index < envelopes.Count; index++)
             {
@@ -687,16 +690,18 @@ public sealed class PostgreSqlInboxStore :
 
         var inserted = await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
         var insertedById = inserted.ToDictionary(envelope => envelope.Id);
-        var stored = new InboxEnvelope[envelopes.Count];
+        var results = new InboxAppendResult[envelopes.Count];
+        var assignedInsertedIds = new HashSet<Guid>();
         var missingKeys = new List<PostgreSqlBatchIdempotencyLookup.LookupKey>([]);
 
         for (var index = 0; index < envelopes.Count; index++)
         {
             var envelope = envelopes[index];
 
-            if (insertedById.TryGetValue(envelope.Id, out var accepted))
+            if (insertedById.TryGetValue(envelope.Id, out var accepted) &&
+                assignedInsertedIds.Add(envelope.Id))
             {
-                stored[index] = accepted;
+                results[index] = new InboxAppendResult(accepted, InboxAcceptOutcome.Accepted);
                 continue;
             }
 
@@ -722,24 +727,28 @@ public sealed class PostgreSqlInboxStore :
 
             for (var index = 0; index < envelopes.Count; index++)
             {
-                if (stored[index] is not null)
+                if (results[index] is not null)
                 {
                     continue;
                 }
 
                 var envelope = envelopes[index];
 
-                stored[index] = resolved.TryGetValue(envelope.Id, out var existing)
-                    ? existing
+                var existing = resolved.TryGetValue(envelope.Id, out var resolvedEnvelope)
+                    ? resolvedEnvelope
                     : await FindExistingAsync(
                         envelope.Id,
                         envelope.TenantId,
                         envelope.IdempotencyKey,
                         cancellationToken).ConfigureAwait(false);
+
+                results[index] = new InboxAppendResult(
+                    existing,
+                    InboxAcceptOutcome.AlreadyAccepted);
             }
         }
 
-        return stored;
+        return results;
     }
 
     /// <summary>

@@ -68,21 +68,6 @@ public interface IOutbox
     /// <summary>
     ///     Enqueues multiple events for later publication in one store round trip.
     /// </summary>
-    /// <typeparam name="TEvent">The shared compile-time event type. Each instance's runtime type is used for contract lookup.</typeparam>
-    /// <param name="items">The enqueue commands to serialize and store.</param>
-    /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
-    /// <returns>
-    ///     Receipts containing message ids, contract references, storage times, and trace metadata in the same order as
-    ///     <paramref name="items" />.
-    /// </returns>
-    Task<IReadOnlyList<OutboxReceipt<TEvent>>> EnqueueBatchAsync<TEvent>(
-        IReadOnlyList<OutboxEnqueueItem<TEvent>> items,
-        CancellationToken cancellationToken = default)
-        where TEvent : notnull;
-
-    /// <summary>
-    ///     Enqueues multiple events for later publication in one store round trip.
-    /// </summary>
     /// <param name="items">The enqueue commands carrying heterogeneous runtime types and durable metadata.</param>
     /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
     /// <returns>

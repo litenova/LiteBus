@@ -311,7 +311,7 @@ public sealed class InMemoryOutboxStore :
     }
 
     /// <inheritdoc />
-    public Task<OutboxEnvelope> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
+    public Task<OutboxAppendResult> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelope);
 
@@ -322,7 +322,7 @@ public sealed class InMemoryOutboxStore :
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<OutboxEnvelope>> AddBatchAsync(
+    public Task<IReadOnlyList<OutboxAppendResult>> AddBatchAsync(
         IReadOnlyList<OutboxEnvelope> envelopes,
         CancellationToken cancellationToken = default)
     {
@@ -330,19 +330,19 @@ public sealed class InMemoryOutboxStore :
 
         if (envelopes.Count == 0)
         {
-            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>([]);
+            return Task.FromResult<IReadOnlyList<OutboxAppendResult>>([]);
         }
 
         lock (_sync)
         {
-            var stored = new OutboxEnvelope[envelopes.Count];
+            var stored = new OutboxAppendResult[envelopes.Count];
 
             for (var index = 0; index < envelopes.Count; index++)
             {
                 stored[index] = AddCore(envelopes[index]);
             }
 
-            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>(stored);
+            return Task.FromResult<IReadOnlyList<OutboxAppendResult>>(stored);
         }
     }
 
@@ -628,13 +628,13 @@ public sealed class InMemoryOutboxStore :
     ///     Inserts one envelope or returns the existing row for duplicate identifiers or idempotency keys.
     /// </summary>
     /// <param name="envelope">The envelope to store.</param>
-    /// <returns>The stored envelope.</returns>
-    private OutboxEnvelope AddCore(OutboxEnvelope envelope)
+    /// <returns>The stored envelope and its insertion outcome.</returns>
+    private OutboxAppendResult AddCore(OutboxEnvelope envelope)
     {
         if (_envelopes.TryGetValue(envelope.Id, out var existingById))
         {
             ThrowIfStrictConflict(envelope, existingById);
-            return existingById;
+            return new OutboxAppendResult(existingById, OutboxEnqueueOutcome.AlreadyEnqueued);
         }
 
         if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey) &&
@@ -642,7 +642,7 @@ public sealed class InMemoryOutboxStore :
             _envelopes.TryGetValue(existingId, out var existingByKey))
         {
             ThrowIfStrictConflict(envelope, existingByKey);
-            return existingByKey;
+            return new OutboxAppendResult(existingByKey, OutboxEnqueueOutcome.AlreadyEnqueued);
         }
 
         if (_options.Capacity > 0 && _envelopes.Count >= _options.Capacity)
@@ -658,7 +658,7 @@ public sealed class InMemoryOutboxStore :
             _idempotencyIndex[CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey)] = envelope.Id;
         }
 
-        return envelope;
+        return new OutboxAppendResult(envelope, OutboxEnqueueOutcome.Enqueued);
     }
 
     /// <summary>
