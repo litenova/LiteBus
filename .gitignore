@@ -55,6 +55,11 @@ LiteBus.snk
 # Local build logs
 build-output.txt
 build2.txt
+BenchmarkDotNet.Artifacts/
+release-notes.md
+
+# Local tooling caches
+.fuse/
 
 # Cursor agent plans (local only)
 .cursor/plans/
