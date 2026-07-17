@@ -34,7 +34,7 @@ public sealed class ArchitectureDependencyPolicyTests
 
             foreach (var reference in ReadIncludes(document, "ProjectReference"))
             {
-                var referencedProject = Path.GetFileNameWithoutExtension(reference)!;
+                var referencedProject = GetProjectName(reference);
 
                 if (!projects.ContainsKey(referencedProject))
                 {
@@ -182,6 +182,16 @@ public sealed class ArchitectureDependencyPolicyTests
             .Select(element => element.Attribute("Include")?.Value)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Cast<string>();
+    }
+
+    /// <summary>
+    ///     Gets a project name from an MSBuild reference on any operating system.
+    /// </summary>
+    /// <param name="reference">The project reference path.</param>
+    /// <returns>The referenced project name.</returns>
+    private static string GetProjectName(string reference)
+    {
+        return Path.GetFileNameWithoutExtension(reference.Replace('\\', '/'))!;
     }
 
     /// <summary>
