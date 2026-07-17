@@ -8,7 +8,7 @@ Package inventories, registration recipes, and feature-specific detail live in `
 
 - **Treat every section as a default, not a veto.** When a task conflicts with a rule here or in `docs/`, say so plainly: what the rule expects, what the task needs, and the trade-off.
 - **Propose alternatives.** Offer at least one viable path that follows the guide and, when useful, one that bends or breaks it with justification. Counter-argue your own recommendation when the trade-offs are close.
-- **Override only with confirmation.** If the user accepts a deviation (layer violation, skipped docs, different package shape, and similar), proceed and note the exception in the change summary. Do not silently ignore a rule.
+- **Override only with confirmation.** If the user accepts a deviation (forbidden role edge, skipped docs, different package shape, and similar), proceed and note the exception in the change summary. Do not silently ignore a rule.
 - **Suggest guide updates.** When repeated overrides, new patterns, or outdated docs show a rule no longer fits, recommend a concrete edit to `AGENTS.md` or the relevant `docs/` file. The user decides whether to adopt it.
 - **Prefer dialogue over deadlock.** A short question beats a long assumption. If confirmation is unclear, ask once with options rather than blocking on rigid compliance.
 
@@ -149,7 +149,7 @@ Conventions below apply during cleanup and to all new code. Analyzer severities 
 
 ### Library async discipline
 
-- All `await` in library code (`src/`, and tests/samples where async) must use `.ConfigureAwait(false)` unless documented host-context requirement (layer-5 ASP.NET edge only) (`CA2007`).
+- All `await` in library code (`src/`, and tests/samples where async) must use `.ConfigureAwait(false)` unless documented host-context requirement (ASP.NET host-adapter edge only) (`CA2007`).
 
 ### Exception handling at transport boundaries
 
@@ -198,32 +198,35 @@ After editing a batch, call `ReadLints` on touched paths and fix ReSharper warni
 
 ## Architecture principles
 
-### Layer rules
+### Dependency role rules
 
-Every package belongs to exactly one layer. A package may only reference packages in the same layer or layers strictly below it.
+Every package belongs to exactly one dependency role. A package may reference only the project and package roles allowed by the matrix below.
 
-**Layer violations are the default failure mode in review.** Before adding a project or package reference, confirm the target sits in the same layer or a strictly lower layer. If a feature needs a higher-layer type, the usual fix is to move code down, introduce an abstraction in a lower layer, or add a dedicated adapter package at layer 4 or 5. If none of those work, explain why and get explicit approval before merging a violation.
+**Forbidden role edges are the default failure mode in review.** Before adding a project or package reference, confirm that the target is allowed for the source role. If a feature needs a forbidden type, the usual fix is to move the contract into an allowed contract role, introduce an abstraction, or add a dedicated feature or host adapter. If none of those work, explain why and get explicit approval before merging a violation.
 
-| Layer | Number | Role |
+| Role | Purpose | Allowed dependencies |
 |---|---|---|
-| Platform contracts | 0 | Cross-cutting abstractions usable by any feature axis |
-| Domain abstractions | 1 | Contracts for one vertical concern (messaging, durable messaging, saga, and similar) |
-| Core implementations | 2 | Default implementations; broker or SDK adapters that implement platform abstractions |
-| Shared storage infrastructure | 3 | Storage primitives reused by multiple storage adapters |
-| Integration adapters | 4 | Optional persistence, dispatch, ingress, or store bindings |
-| Hosting / composition | 5 | DI, generic host, OpenTelemetry, ASP.NET, and other framework bridges |
+| Platform contracts | Cross-cutting runtime and transport abstractions | Platform contracts and the BCL |
+| Mediation contracts | Messaging and semantic mediator contracts | Platform and mediation contracts, plus the BCL |
+| Durable contracts | Durable messaging and saga contracts | Platform, mediation, and durable contracts, plus the BCL |
+| Core implementation | Default implementations without technology or host coupling | Contract roles and other core implementations |
+| Technology adapter | One persistence or broker technology | Contract roles, core implementations, technology adapters, and one relevant SDK family |
+| Feature bridge | Storage, dispatch, ingress, or cross-feature integration | Contract roles, core implementations, technology adapters, and relevant feature bridges |
+| Host adapter | DI, hosting, OpenTelemetry, health checks, or ASP.NET Core | Applicable roles and the relevant host framework |
+| Consumer tooling | Analyzers and test support | Roles and packages required by the tool |
+| Aggregate | The `LiteBus` convenience package | Contract and core implementation roles only |
 
-The current package-to-layer map is maintained in [Dependency Graph](docs/architecture/dependency-graph.md).
+The current package-to-role map and exact allowlist are maintained in [Dependency Graph](docs/architecture/dependency-graph.md) and enforced for every `src/**/*.csproj` by `ArchitectureDependencyPolicyTests`.
 
 ### Package roles
 
-| Suffix / pattern | Role | Typical layer |
+| Suffix / pattern | Role | Typical dependency role |
 |---|---|---|
-| `*.Abstractions` | Contracts only; no concrete SDK or hosting references | 0–1 |
-| Core package (no suffix) | Default implementation for one domain concern | 2 |
-| `*.Storage.*` | Persistence adapter | 4 |
-| `*.Dispatch.*` / `*.Ingress.*` | Execution or intake adapter | 4 |
-| `*.Extensions.*` | Framework or host composition adapter | 5 |
+| `*.Abstractions` | Contracts only; no concrete SDK or hosting references | Platform, mediation, or durable contracts |
+| Core package (no suffix) | Default implementation for one domain concern | Core implementation |
+| `*.Storage.*` | Persistence adapter | Technology adapter or feature bridge |
+| `*.Dispatch.*` / `*.Ingress.*` | Execution or intake adapter | Feature bridge |
+| `*.Extensions.*` | Framework or host composition adapter | Host adapter |
 
 Name new packages to match an existing role before inventing a new shape. The aggregate `LiteBus` meta-package is the only kitchen-sink reference; all other integrations stay opt-in.
 
@@ -270,7 +273,7 @@ Outbox only, in-process dispatch
 
 - The user explicitly asks to reduce package count and accepts breaking reference changes.
 - Two packages always ship together, share identical versioning constraints, and never appear independently in samples or consumer apps (rare; needs evidence).
-- Extracting **shared implementation** into a lower-layer package without changing which packages consumers must install (refactor, not merge).
+- Extracting **shared implementation** into an allowed core or technology package without changing which packages consumers must install (refactor, not merge).
 
 Per-module empty DI/Autofac extension shells are **not** consolidation candidates unless a maintainer explicitly requests their removal in a tracked packaging change.
 
@@ -280,13 +283,13 @@ Ergonomic aliases belong in **documentation and samples**, not in wider default 
 
 - **Vertical** domain packages (durable messaging, saga, semantic mediators) must not reference each other or broker or ORM SDKs unless the dependency rule table in `docs/architecture/dependency-graph.md` explicitly allows it.
 - **Horizontal** platform packages (runtime, transport) must not reference vertical domain abstractions.
-- Mapping between axes (domain envelope to wire format, store row to contract) belongs in layer-4 adapters, not platform core.
+- Mapping between axes (domain envelope to wire format, store row to contract) belongs in feature bridges, not platform core.
 
 ### Abstract package rules
 
 Packages ending in `.Abstractions` contain only interfaces, value objects, enums, exceptions, attributes, and coordination types whose fields and parameters are abstract types. They never reference concrete implementation, storage, transport, or hosting packages.
 
-**Abstractions stay abstract on public surfaces.** Parameters, return types, properties, and fields exposed by `*.Abstractions` types must be interfaces, primitives, enums, records, or other abstractions from allowed lower layers. Do not surface concrete store, transport, ORM, broker SDK, or hosting types in public or internal API members consumers could depend on indirectly.
+**Abstractions stay abstract on public surfaces.** Parameters, return types, properties, and fields exposed by `*.Abstractions` types must be interfaces, primitives, enums, records, or other types from allowed contract roles. Do not surface concrete store, transport, ORM, broker SDK, or hosting types in public or internal API members consumers could depend on indirectly.
 
 ### API and value object design
 
@@ -341,7 +344,7 @@ When a command carries optional behavior, group by **concern** inside `*Metadata
 | Tenancy | unscoped vs isolated tenant |
 | Routing or target | default vs explicit destination (axis-specific) |
 
-Feature packages name their own value objects. Shared cross-axis primitives belong in the lowest abstractions layer that both axes reference. See [API Design](docs/architecture/api-design.md) for the durable-messaging application.
+Feature packages name their own value objects. Shared cross-axis primitives belong in the narrowest contract role that both axes may reference. See [API Design](docs/architecture/api-design.md) for the durable-messaging application.
 
 #### Optional data and mapping
 
@@ -360,9 +363,9 @@ One mapper per feature owns translation from command value objects to persistenc
 - **Async methods:** semantic input first, `CancellationToken` last.
 - **Mediators:** message plus optional `*Settings` plus `CancellationToken` remains the established pattern.
 
-#### Layer placement
+#### Role placement
 
-- Shared value objects used by multiple axes sit in the lowest shared `*.Abstractions` package for that concern.
+- Shared value objects used by multiple axes sit in the narrowest shared `*.Abstractions` package allowed by the role matrix.
 - Axis-specific command types (`*Item`, `*Metadata`, receipts) sit in that axis's `*.Abstractions`.
 - Mediation `*Settings` sit in the matching semantic module abstractions package.
 - Module and host `*Options` sit in the package that registers the service.
@@ -387,7 +390,7 @@ One mapper per feature owns translation from command value objects to persistenc
 5. Is `CancellationToken` on the method only?
 6. Does mapping live in one place?
 7. Does the suffix match the taxonomy table?
-8. Does the type belong in abstractions or an adapter package per layer rules?
+8. Does the type belong in abstractions or an adapter package per dependency role rules?
 
 #### Legacy alignment
 
@@ -395,7 +398,7 @@ Surfaces that predate this taxonomy should be aligned when their area is next to
 
 ### Composite module pattern
 
-Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs during `Register()` before any `Build()`. The builder action runs inside `DeclareChildren`. `Build()` registers core services only. Parent modules set `InboxCoreRegisteredMarker` / `OutboxCoreRegisteredMarker` on configuration context during `Build()`. Storage and dispatch adapters call `InboxModuleRegistrationGuard.EnsureCoreRegistered` / `OutboxModuleRegistrationGuard.EnsureCoreRegistered` at the start of `Build()` so standalone registration fails fast. Ingress adapters register through the parent builder; composite child insertion keeps them under `InboxModule`. The registry inserts children depth-first during `Register()`, then topological sort runs. Duplicate registration of the same module type throws `LiteBusConfigurationException` at compose time.
+Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs during `Register()` before any `Build()`, and the builder action runs inside `DeclareChildren`. `Build()` registers core services only. Required ordering is expressed through `IRequires<TModule>` and composite ownership; modules do not use registration markers or scan the registry during `Build()`. The registry inserts children depth-first, validates the complete dependency graph, and then topologically sorts it before building any module. Duplicate registration of the same module type throws `LiteBusConfigurationException` at compose time.
 
 **Compose through parent module builders.** Register storage, dispatch, and ingress inside the parent module builder via `Use*` extensions. Do not add new top-level `IModuleRegistry` shortcuts that bypass the parent builder. Mark obsolete patterns rather than extending them.
 
@@ -403,13 +406,13 @@ Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs du
 
 - Applications reference only packages they compose. See **Granular opt-in packages** above; never widen a package reference graph because another integration exists in the same repo.
 - Do not add convenience APIs on shared builders that pull storage, transport, or other adapters into generic DI packages.
-- Defer ergonomic shortcuts to `docs/roadmap/README.md` when they would violate layer boundaries or opt-in packaging.
+- Defer ergonomic shortcuts to `docs/roadmap/README.md` when they would violate role boundaries or opt-in packaging.
 
 ### Adapter rules
 
 - One adapter package per integration surface (one store technology, one broker, one host framework).
 - Adapters register through `IModuleConfiguration`; they do not register `IHostedService`, `IHealthCheck`, or equivalent framework types directly.
-- Observability and diagnostics use framework-neutral contracts or dedicated `*.Extensions.*` packages at layer 5.
+- Observability and diagnostics use framework-neutral contracts or dedicated host-adapter `*.Extensions.*` packages.
 
 ## Runtime patterns
 
@@ -443,16 +446,16 @@ See `docs/architecture/hosted-services.md` for registration examples and feature
 ## Public contract stability
 
 - Telemetry meter names, activity source names, and instrument name constants on public telemetry types are part of the consumer contract. Treat renames and removals as breaking changes.
-- When adding instruments, define names as public `const string` on the telemetry type, register meters through the matching `*.Extensions.OpenTelemetry` package at layer 5, and document new names in `docs/architecture/README.md`.
+- When adding instruments, define names as public `const string` on the telemetry type, register meters through the matching host-adapter `*.Extensions.OpenTelemetry` package, and document new names in `docs/architecture/README.md`.
 - Builder method renames, manifest entry changes, and persisted envelope field semantics are breaking; update docs in the same change.
 - Prefer stable contract names and versions over assembly-qualified CLR names in persisted envelopes.
 
 ## Package and framework dependencies
 
-Keep each package's dependency graph minimal and aligned with its layer. Before adding a NuGet or project reference, confirm the consuming code uses a type or member that truly requires it.
+Keep each package's dependency graph minimal and aligned with its dependency role. Before adding a NuGet or project reference, confirm the consuming code uses a type or member that truly requires it.
 
 - **Prefer BCL and abstractions already in the graph.** `IServiceProvider.GetService(Type)` lives in `System`; do not add `Microsoft.Extensions.DependencyInjection*` packages only to call `GetService<T>()` or other extension methods. Use the non-generic API or inject the required service through constructors and module registration instead.
-- **Restrict hosting and framework packages to hosting adapters.** Packages in layers 0–4 must not reference `Microsoft.Extensions.Hosting`, `Microsoft.Extensions.Diagnostics.HealthChecks`, ASP.NET Core, or similar host frameworks unless the package is an explicit hosting or composition adapter (layer 5).
+- **Restrict hosting and framework packages to host adapters.** Other roles must not reference `Microsoft.Extensions.Hosting`, `Microsoft.Extensions.Diagnostics.HealthChecks`, ASP.NET Core, or similar host frameworks.
 - **One integration surface per concern.** Observability, health, and diagnostics belong in framework-neutral contracts (`IDiagnosticCheck`, OpenTelemetry meters on public constants) or in dedicated `*.Extensions.*` adapter packages.
 - **Justify every new reference in review.** If a feature can be expressed with an existing abstraction, manifest entry, or documented application code, prefer that over a new package dependency.
 
@@ -460,8 +463,8 @@ Keep each package's dependency graph minimal and aligned with its layer. Before 
 
 Before adding a project:
 
-1. Which layer and which role suffix?
-2. Can an existing package absorb this without a layer violation?
+1. Which dependency role and role suffix?
+2. Can an existing package absorb this without a forbidden role edge?
 3. Does it need a new `*.Abstractions` package or fit an existing one?
 4. Does it need manifest registration (startup task, background service, diagnostic check)?
 5. Does `docs/architecture/dependency-graph.md` need a new row?
