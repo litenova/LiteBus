@@ -131,7 +131,7 @@ PostgreSQL and EF paths share **orchestration** (lease batch, persist with owner
 
 1. Update [Dependency graph](../architecture/dependency-graph.md) with `Stores/` layout (deferred from v6 integration).
 2. Cross-link from [Custom stores and dispatchers](../extending/custom-stores-and-dispatchers.md) for adapter authors.
-3. Record the completed refactor and its validation commands in [Changelog](../../Changelog.md).
+3. Record the completed refactor and its validation commands in [Changelog](https://github.com/litenova/LiteBus/blob/main/Changelog.md).
 
 ## Acceptance Criteria
 

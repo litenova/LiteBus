@@ -2,7 +2,7 @@
 param()
 
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$documentationRoot = Join-Path $repositoryRoot 'docs'
+$documentationRoot = Join-Path $repositoryRoot 'site/content/docs'
 $samplesRoot = Join-Path $repositoryRoot 'samples'
 $documentationFiles = @(
     Get-Item -LiteralPath (Join-Path $repositoryRoot 'README.md')
@@ -111,7 +111,7 @@ if (-not [string]::Equals(
     Add-Violation `
         -Path $packageInventoryPath `
         -Line 1 `
-        -Message 'Generated package inventory is stale. Run scripts/Get-PackageInventory.ps1 with -OutputPath docs/architecture/generated-package-inventory.md.'
+        -Message 'Generated package inventory is stale. Run scripts/Get-PackageInventory.ps1 with -OutputPath site/content/docs/architecture/generated-package-inventory.md.'
 }
 
 foreach ($file in $documentationFiles) {

@@ -1,6 +1,6 @@
 # v6 Feature Index
 
-Quick map from capability to documentation and primary packages. For install commands, see the [Documentation Index](../README.md). For the full cross-axis inventory, see [Capability Catalog](capability-catalog.md).
+Quick map from capability to documentation and primary packages. For install commands, see the [Documentation Index](https://litebus.io/docs). For the full cross-axis inventory, see [Capability Catalog](capability-catalog.md).
 
 ## Mediator
 
@@ -34,7 +34,7 @@ Shared PostgreSQL primitives: `LiteBus.Storage.PostgreSql`.
 
 ## Dispatch
 
-Broker dispatch adapters ship for every transport package. The [Documentation Index](../README.md) records the release classification for each transport, dispatch, and ingress surface.
+Broker dispatch adapters ship for every transport package. The [Documentation Index](https://litebus.io/docs) records the release classification for each transport, dispatch, and ingress surface.
 
 | Path | Inbox | Outbox |
 | --- | --- | --- |

@@ -31,7 +31,7 @@ root v7 roadmap is mirrored under the site's roadmap section by the same gate.
 | Goal | Page |
 | --- | --- |
 | Install LiteBus and run the first handler | [Getting Started](getting-started/README.md) |
-| Run a compile-checked application | [LiteBus Sample](../samples/LiteBus.Sample/README.md) |
+| Run a compile-checked application | [LiteBus Sample](https://github.com/litenova/LiteBus/blob/main/samples/LiteBus.Sample/README.md) |
 | Select packages without widening dependencies | [Dependency Graph](architecture/dependency-graph.md) |
 | Review the full v6 feature inventory | [v6 Feature Index](reference/feature-index-v6.md) |
 | Find a contract, builder method, or adapter by capability | [Capability Catalog](reference/capability-catalog.md) |

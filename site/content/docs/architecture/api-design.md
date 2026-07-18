@@ -1,6 +1,6 @@
 # API Design Reference
 
-This page is the **concrete inventory** for LiteBus public API shapes: named types, package placement, method signatures, and the v6 durable-messaging exemplar. The **rules** that govern every axis (suffix taxonomy, banned shapes, parameter budget, mapping boundary) live in [AGENTS.md](../../AGENTS.md) under **API and value object design**. Read that section first when adding or renaming types; use this page when you need examples and placement.
+This page is the **concrete inventory** for LiteBus public API shapes: named types, package placement, method signatures, and the v6 durable-messaging exemplar. The **rules** that govern every axis (suffix taxonomy, banned shapes, parameter budget, mapping boundary) live in [AGENTS.md](https://github.com/litenova/LiteBus/blob/main/AGENTS.md) under **API and value object design**. Read that section first when adding or renaming types; use this page when you need examples and placement.
 
 ## Who This Is For
 
@@ -225,7 +225,7 @@ Legacy to v6.0 mapping for application upgrades. Shipping libraries use v6 names
 
 Error handlers use `HandleErrorAsync(MessageErrorContext<TMessage, TResult>, CancellationToken)`. The typed context shares `Outcome` and `HandledResult` with the mediation pipeline, so observing a failure leaves it unhandled while recovery is an explicit state transition. Cancellation is always the token supplied to the mediation call; error handlers do not depend on ambient token lookup.
 
-Other aligned v6 surfaces include `ILeaseRenewable.RenewLeaseAsync(LeaseRenewalRequest, ...)` on inbox and outbox lease stores; `ISagaStore.SaveAsync(SagaSaveItem<TState>, ...)`, `SagaCompleteItem`, `SagaSaveItem.From`, `SagaCorrelation.SagaDefinitionId`, and tenant-scoped saga primary keys. See [Saga](../reliable-messaging/saga.md) and [Changelog](../../Changelog.md).
+Other aligned v6 surfaces include `ILeaseRenewable.RenewLeaseAsync(LeaseRenewalRequest, ...)` on inbox and outbox lease stores; `ISagaStore.SaveAsync(SagaSaveItem<TState>, ...)`, `SagaCompleteItem`, `SagaSaveItem.From`, `SagaCorrelation.SagaDefinitionId`, and tenant-scoped saga primary keys. See [Saga](../reliable-messaging/saga.md) and [Changelog](https://github.com/litenova/LiteBus/blob/main/Changelog.md).
 
 Track broader roadmap items in [Roadmap](../roadmap/README.md).
 

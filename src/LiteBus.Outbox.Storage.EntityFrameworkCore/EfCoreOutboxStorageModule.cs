@@ -48,7 +48,7 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<
                 "EnforceTransactionalSetup() is enabled but EnableSaveChangesInterceptor() was not called. " +
                 "Call EnableSaveChangesInterceptor() on the EF Core outbox storage builder and add " +
                 "optionsBuilder.AddLiteBusOutboxInterceptor(interceptor) to your DbContext configuration. " +
-                "See docs/reliable-messaging/outbox.md for the complete transactional setup.");
+                "See https://litebus.io/docs/reliable-messaging/outbox for the complete transactional setup.");
         }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

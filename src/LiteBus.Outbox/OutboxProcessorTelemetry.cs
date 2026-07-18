@@ -9,7 +9,7 @@ namespace LiteBus.Outbox;
 /// </summary>
 /// <remarks>
 ///     Pass-level counter instrument names are stable and documented in
-///     <c>docs/architecture/README.md</c> as internal-only until promoted to
+///     <c>site/content/docs/architecture/README.md</c> as internal-only until promoted to
 ///     <see cref="LiteBusOutboxTelemetry" /> public constants.
 /// </remarks>
 internal static class OutboxProcessorTelemetry

@@ -28,4 +28,4 @@ GET /payments/018f7f65-e73c-7f85-b13a-2f00427a2278
 
 The command handler updates the in-process ledger and enqueues `PaymentProcessed`. The outbox processor publishes that event to `PaymentProcessedHandler`.
 
-The in-memory ledger and message stores are process-local and do not provide an atomic database transaction. Use the PostgreSQL or Entity Framework Core storage adapters and the matching transactional writer for application state that must commit with an inbox or outbox row. See [Transactional Messaging Writes](../../docs/reliable-messaging/transactional-writes.md).
+The in-memory ledger and message stores are process-local and do not provide an atomic database transaction. Use the PostgreSQL or Entity Framework Core storage adapters and the matching transactional writer for application state that must commit with an inbox or outbox row. See [Transactional Messaging Writes](https://litebus.io/docs/reliable-messaging/transactional-writes).

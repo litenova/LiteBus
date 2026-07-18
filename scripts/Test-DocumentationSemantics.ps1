@@ -7,7 +7,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$documentationRoot = Join-Path $repositoryRoot 'docs'
+$documentationRoot = Join-Path $repositoryRoot 'site/content/docs'
 $documentationFiles = Get-ChildItem -LiteralPath $documentationRoot -Filter '*.md' -File -Recurse
 $violations = [Collections.Generic.List[string]]::new()
 

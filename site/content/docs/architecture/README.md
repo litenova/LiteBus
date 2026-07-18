@@ -45,7 +45,7 @@ Pre-handlers, post-handlers, and error handlers wrap the main handler path. Even
 
 LiteBus names public value objects and operation inputs with a fixed suffix taxonomy (`*Item`, `*Metadata`, `*Request`, `*Settings`, `*Options`, and related patterns). Durable writers accept `InboxAcceptItem` / `OutboxEnqueueItem` with per-message metadata; mediation keeps `*Settings` for per-invocation pipeline tuning.
 
-- **Rules** (suffix taxonomy, banned shapes, parameter budget, mapping boundary): [AGENTS.md](../../AGENTS.md) under **API and value object design**
+- **Rules** (suffix taxonomy, banned shapes, parameter budget, mapping boundary): [AGENTS.md](https://github.com/litenova/LiteBus/blob/main/AGENTS.md) under **API and value object design**
 - **Concrete inventory** (named types, package map, writer signatures, remaining API alignment): [API design reference](api-design.md)
 
 When adding or renaming public types, match AGENTS.md first; use API-Design.md for examples and placement.

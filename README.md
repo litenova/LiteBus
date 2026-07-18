@@ -10,7 +10,7 @@
   <a href="https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.DependencyInjection"><img src="https://img.shields.io/nuget/vpre/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.svg" alt="NuGet version"></a>
   <a href="https://github.com/litenova/LiteBus/blob/main/LICENSE"><img src="https://img.shields.io/github/license/litenova/LiteBus" alt="License"></a>
   <a href="https://dotnet.microsoft.com/download/dotnet/10.0"><img src="https://img.shields.io/badge/.NET-10.0-512BD4" alt=".NET 10"></a>
-  <a href="https://litebus.dev"><img src="https://img.shields.io/badge/docs-litebus.dev-2f6fed" alt="Documentation"></a>
+  <a href="https://litebus.io"><img src="https://img.shields.io/badge/docs-litebus.io-2f6fed" alt="Documentation"></a>
 </p>
 
 LiteBus is a mediator and durable messaging library for .NET 10. Commands, queries, and events have separate contracts and pipelines. Inbox and outbox processing use explicit storage, dispatch, and ingress adapters, so an application references an external SDK only when it selects that integration.
@@ -34,9 +34,9 @@ Install the package for each application concern. The package brings its abstrac
 | Broker transport | `LiteBus.Transport.Amqp`, `LiteBus.Transport.Kafka`, `LiteBus.Transport.AwsSqs`, or `LiteBus.Transport.AzureServiceBus` |
 | OpenTelemetry registration | `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, or `LiteBus.Transport.Extensions.OpenTelemetry` |
 
-The [Dependency Graph](docs/architecture/dependency-graph.md) lists every package, its architectural layer, and its direct references.
+The [Dependency Graph](https://litebus.io/docs/architecture/dependency-graph) lists every package, its architectural layer, and its direct references.
 
-Read the published documentation at [litebus.dev](https://litebus.dev), or run the
+Read the published documentation at [litebus.io](https://litebus.io), or run the
 Fumadocs site locally from [`site`](site/README.md).
 
 ## Quick Start
@@ -91,7 +91,7 @@ var productId = await commandMediator.SendAsync(
     cancellationToken);
 ```
 
-The [Getting Started](docs/getting-started/README.md) guide covers commands, queries, events, module declaration, and handler discovery.
+The [Getting Started](https://litebus.io/docs/getting-started) guide covers commands, queries, events, module declaration, and handler discovery.
 
 ## Durable Messaging
 
@@ -114,7 +114,7 @@ builder.Services.AddLiteBus(liteBus =>
 });
 ```
 
-Use in-memory storage for tests and local behavior checks. Use the PostgreSQL or Entity Framework Core adapter when durable writes must participate in an application transaction. See [Inbox](docs/reliable-messaging/inbox.md), [Outbox](docs/reliable-messaging/outbox.md), and [Transactional Messaging Writes](docs/reliable-messaging/transactional-writes.md).
+Use in-memory storage for tests and local behavior checks. Use the PostgreSQL or Entity Framework Core adapter when durable writes must participate in an application transaction. See [Inbox](https://litebus.io/docs/reliable-messaging/inbox), [Outbox](https://litebus.io/docs/reliable-messaging/outbox), and [Transactional Messaging Writes](https://litebus.io/docs/reliable-messaging/transactional-writes).
 
 ## Architecture
 
@@ -129,22 +129,22 @@ LiteBus projects follow an explicit dependency role matrix. Every shipping proje
 | Host adapter | Dependency injection, hosting, ASP.NET Core, diagnostics, and telemetry composition |
 | Consumer tooling and aggregate | Analyzer/test support and the core-only convenience package |
 
-The project count is intentional. Inbox and outbox remain separate, each broker and store remains opt-in, and integration SDKs do not enter unrelated dependency graphs. See [Architecture](docs/architecture/README.md) for the module lifecycle and package rules.
+The project count is intentional. Inbox and outbox remain separate, each broker and store remains opt-in, and integration SDKs do not enter unrelated dependency graphs. See [Architecture](https://litebus.io/docs/architecture) for the module lifecycle and package rules.
 
 ## Documentation
 
-Repository documentation is authoritative. Start with the [Documentation Index](docs/README.md).
+Repository documentation is authoritative. Start with the [Documentation Index](https://litebus.io/docs).
 
 | Subject | Reference |
 | --- | --- |
 | Compile-checked application sample | [LiteBus Sample](samples/LiteBus.Sample/README.md) |
-| Capability and package inventory | [v6 Feature Index](docs/reference/feature-index-v6.md) and [Capability Catalog](docs/reference/capability-catalog.md) |
-| Module and dependency model | [Architecture](docs/architecture/README.md) and [Dependency Graph](docs/architecture/dependency-graph.md) |
-| Handler behavior | [Handler Pipeline](docs/concepts/handler-pipeline.md) and [Execution Context](docs/concepts/execution-context.md) |
-| Reliable messaging | [Reliable Messaging Semantics](docs/reliable-messaging/semantics.md) |
-| Operations | [Production Runbook](docs/operations/runbook.md) and [Diagnostics and Health](docs/operations/diagnostics-and-health.md) |
-| Testing | [Testing](docs/testing/README.md) and [Integration Tests](docs/testing/integration-tests.md) |
-| Upgrade work | [Migration Guide v6](docs/migration/v6.md) |
+| Capability and package inventory | [v6 Feature Index](https://litebus.io/docs/reference/feature-index-v6) and [Capability Catalog](https://litebus.io/docs/reference/capability-catalog) |
+| Module and dependency model | [Architecture](https://litebus.io/docs/architecture) and [Dependency Graph](https://litebus.io/docs/architecture/dependency-graph) |
+| Handler behavior | [Handler Pipeline](https://litebus.io/docs/concepts/handler-pipeline) and [Execution Context](https://litebus.io/docs/concepts/execution-context) |
+| Reliable messaging | [Reliable Messaging Semantics](https://litebus.io/docs/reliable-messaging/semantics) |
+| Operations | [Production Runbook](https://litebus.io/docs/operations/runbook) and [Diagnostics and Health](https://litebus.io/docs/operations/diagnostics-and-health) |
+| Testing | [Testing](https://litebus.io/docs/testing) and [Integration Tests](https://litebus.io/docs/testing/integration-tests) |
+| Upgrade work | [Migration Guide v6](https://litebus.io/docs/migration/v6) |
 
 ## Build and Test
 
@@ -155,10 +155,10 @@ dotnet test LiteBus.slnx --configuration Release --no-build
 pwsh ./scripts/Test-Documentation.ps1
 ```
 
-Docker is required for the PostgreSQL, AMQP, Kafka, AWS SQS emulator, Azure Service Bus emulator, and relational integration suites. The [Integration Tests](docs/testing/integration-tests.md) guide lists the CI categories and local commands.
+Docker is required for the PostgreSQL, AMQP, Kafka, AWS SQS emulator, Azure Service Bus emulator, and relational integration suites. The [Integration Tests](https://litebus.io/docs/testing/integration-tests) guide lists the CI categories and local commands.
 
 ## Contributing
 
-Read [Contributing](docs/contributing/README.md) before changing public APIs, package references, module dependencies, or persisted envelope behavior.
+Read [Contributing](https://litebus.io/docs/contributing) before changing public APIs, package references, module dependencies, or persisted envelope behavior.
 
 LiteBus is licensed under the [MIT License](LICENSE).

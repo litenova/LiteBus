@@ -131,8 +131,8 @@ All notable changes to this project will be documented in this file.
 
 Greenfield release for durable messaging on **.NET 10** (`net10.0` only). Adopt v6 as a fresh integration: nested module builders, `AcceptAsync` /
 `EnqueueAsync`, pipelined processors only, and current PostgreSQL schemas with no automatic upgrade from LiteBus v5
-table shapes. Historical v4/v5 upgrade steps remain in [Migration Guide v4](docs/migration/v4.md)
-and [Migration Guide v5](docs/migration/v5.md) only.
+table shapes. Historical v4/v5 upgrade steps remain in [Migration Guide v4](https://litebus.io/docs/migration/v4)
+and [Migration Guide v5](https://litebus.io/docs/migration/v5) only.
 
 ### Added
 
@@ -144,7 +144,7 @@ and [Migration Guide v5](docs/migration/v5.md) only.
   ambient participation.
 - Writer item/metadata model: `InboxAcceptItem`, `InboxAcceptMetadata`, `OutboxEnqueueItem`, `OutboxEnqueueMetadata`,
   and shared durable value objects in `LiteBus.Messaging.Abstractions.DurableMessaging`.
-- [Transactional messaging writes](docs/reliable-messaging/transactional-writes.md) scenario guide.
+- [Transactional messaging writes](https://litebus.io/docs/reliable-messaging/transactional-writes) scenario guide.
 - `LiteBus.Testing` package with `Test*` mediators, inbox/outbox test doubles, and assertion helpers.
 - `ICompositeModule` and nested `InboxModuleBuilder` / `OutboxModuleBuilder` with `UsePostgreSqlStorage`,
   `UseEntityFrameworkCoreStorage`, `UseInMemoryStorage`, `UseInProcessDispatch`, `UseAmqpDispatch`,
@@ -166,13 +166,13 @@ and [Migration Guide v5](docs/migration/v5.md) only.
   connection and EF `UseExistingDbContext` participation APIs.
 - `LiteBus.Analyzers` rules LB1001, LB1003, LB1004, LB1005, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1013,
   LB1014 (processor without dispatcher), LB1015-LB1016 (transactional EF/interceptor and DbContext), LB1017 (explicit
-  contract registration for attributed types). See [Analyzers](docs/reference/analyzers.md).
+  contract registration for attributed types). See [Analyzers](https://litebus.io/docs/reference/analyzers).
 - Saga inbox integration (`inbox.EnableSaga()`), payload encryption hooks, tenant lease filters, management and health
   extensions.
 - Failure-mode coverage for real worker process termination, Generic Host drain during active dispatch, broker-backed
   shutdown persistence policy, and per-message scoped `DbContext` isolation.
-- Repository-owned docs corpus under `docs/` with [Documentation Index](docs/README.md), [Migration Guide v6](docs/migration/v6.md),
-  [v6 feature index](docs/reference/feature-index-v6.md), and [Capability catalog](docs/reference/capability-catalog.md).
+- Repository-owned docs corpus under `docs/` with [Documentation Index](https://litebus.io/docs), [Migration Guide v6](https://litebus.io/docs/migration/v6),
+  [v6 feature index](https://litebus.io/docs/reference/feature-index-v6), and [Capability catalog](https://litebus.io/docs/reference/capability-catalog).
 
 ### Breaking changes
 
@@ -189,7 +189,7 @@ and [Migration Guide v5](docs/migration/v5.md) only.
 - **Store roles:** `IInboxTerminalStateStore`, retention, and diagnostics interfaces replace monolithic state stores.
 - **Registry:** process-wide `MessageRegistry` and `Clear()` removed; one registry per module configuration.
 - **Removed APIs:** `IEventPublisher`, `IIdempotentCommand`, v5 `ICommandScheduler` / `AddCommandInboxModule` aliases,
-  `ISagaHandler<TCommand,TState>` (use `ISagaContext` in command handlers). See [Saga](docs/reliable-messaging/saga.md).
+  `ISagaHandler<TCommand,TState>` (use `ISagaContext` in command handlers). See [Saga](https://litebus.io/docs/reliable-messaging/saga).
 - **Registration:** flat storage/dispatch/ingress registrars removed; compose inside `AddInboxModule` /
   `AddOutboxModule` only.
 - **Composition packages:** removed `LiteBus.Extensions.All`. Use the per-module Microsoft DI packages or the
@@ -212,7 +212,7 @@ and [Migration Guide v5](docs/migration/v5.md) only.
 - Saga: per-dispatch `AsyncLocal` scope, `SagaDefinitionId` and tenant-scoped primary keys, versioned `SagaCompleteItem`,
   dirty-conflict propagation and completion-only retry in `SagaProcessorHook`, `ISagaStore.QueryAsync` / `PurgeAsync`,
   removed `ISaga<TState>`.
-- **v6.0 API renames (complete in shipping libraries):** see [Migration Guide v6](docs/migration/v6.md) for the
+- **v6.0 API renames (complete in shipping libraries):** see [Migration Guide v6](https://litebus.io/docs/migration/v6) for the
   legacy-to-v6 inventory.
 
 ### Fixed
@@ -229,7 +229,7 @@ and [Migration Guide v5](docs/migration/v5.md) only.
 ### Docs
 
 - Imported the documentation into the main repository and removed the GitHub wiki submodule.
-- Added [Documentation Index](docs/README.md) as the canonical manual entry point.
+- Added [Documentation Index](https://litebus.io/docs) as the canonical manual entry point.
 - Added a compile-checked application sample covering command, query, event, inbox, and outbox composition.
 - Added repository checks for relative links, plain ASCII typography, trailing whitespace, and writing-rule phrases.
 - Added release checks for benchmark discovery, package metadata, symbol packages, and changelog-derived release notes.
@@ -308,7 +308,7 @@ and [Migration Guide v5](docs/migration/v5.md) only.
 - Updated command inbox docs for explicit scheduling semantics, storage metadata, retry, dead-letter, and idempotency
   guidance.
 - Added durable outbox docs for writer, processor, dispatcher, PostgreSQL storage, and transaction boundaries.
-- Added [PostgreSQL Schema Management](docs/integrations/postgresql-schema-management.md) covering migration-owned DDL, explicit
+- Added [PostgreSQL Schema Management](https://litebus.io/docs/integrations/postgresql-schema-management) covering migration-owned DDL, explicit
   bootstrap, opt-in host bootstrap, multi-instance safety, and future upgrade paths.
 - Added architecture, dependency graph, and v5 migration docs.
 - Added a cookbook recipe for PostgreSQL inbox and outbox registration with processor hosting.
@@ -326,7 +326,7 @@ and [Migration Guide v5](docs/migration/v5.md) only.
 - v5 ships durable storage for **PostgreSQL only** (`LiteBus.Inbox.Storage.PostgreSql`,
   `LiteBus.Outbox.Storage.PostgreSql`). Entity Framework Core and SQL Server store packages shipped in **v6**
   (`LiteBus.Inbox.Storage.EntityFrameworkCore`, `LiteBus.Outbox.Storage.EntityFrameworkCore`); dedicated SQL Server
-  Npgsql-style packages remain on the [Roadmap](docs/roadmap/README.md).
+  Npgsql-style packages remain on the [Roadmap](https://litebus.io/docs/roadmap).
 
 ## v4.4.0
 
@@ -490,7 +490,7 @@ Injection (DI) containers, introduce a durable Command Inbox, and provide advanc
 ## v2.0.0
 
 - **Breaking Change**: Removed nullable annotations from mediator interfaces. Nullability should now be expressed in
-  message contracts instead. See [Migration Guides](docs/migration/README.md) for
+  message contracts instead. See [Migration Guides](https://litebus.io/docs/migration) for
   details.
 
 ## v1.1.0

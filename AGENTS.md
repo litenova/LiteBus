@@ -2,14 +2,14 @@
 
 Default guidance for changes in this repository. These are conventions and guardrails, not immutable law.
 
-Package inventories, registration recipes, and feature-specific detail live in `docs/architecture/README.md`, `docs/architecture/dependency-graph.md`, and `docs/architecture/hosted-services.md`.
+Package inventories, registration recipes, and feature-specific detail live in `site/content/docs/architecture/README.md`, `site/content/docs/architecture/dependency-graph.md`, and `site/content/docs/architecture/hosted-services.md`.
 
 ## How agents should use this guide
 
-- **Treat every section as a default, not a veto.** When a task conflicts with a rule here or in `docs/`, say so plainly: what the rule expects, what the task needs, and the trade-off.
+- **Treat every section as a default, not a veto.** When a task conflicts with a rule here or in `site/content/docs/`, say so plainly: what the rule expects, what the task needs, and the trade-off.
 - **Propose alternatives.** Offer at least one viable path that follows the guide and, when useful, one that bends or breaks it with justification. Counter-argue your own recommendation when the trade-offs are close.
 - **Override only with confirmation.** If the user accepts a deviation (forbidden role edge, skipped docs, different package shape, and similar), proceed and note the exception in the change summary. Do not silently ignore a rule.
-- **Suggest guide updates.** When repeated overrides, new patterns, or outdated docs show a rule no longer fits, recommend a concrete edit to `AGENTS.md` or the relevant `docs/` file. The user decides whether to adopt it.
+- **Suggest guide updates.** When repeated overrides, new patterns, or outdated docs show a rule no longer fits, recommend a concrete edit to `AGENTS.md` or the relevant `site/content/docs/` file. The user decides whether to adopt it.
 - **Prefer dialogue over deadlock.** A short question beats a long assumption. If confirmation is unclear, ask once with options rather than blocking on rigid compliance.
 
 ## XML documentation (required)
@@ -139,7 +139,7 @@ Conventions below apply during cleanup and to all new code. Analyzer severities 
 - Prefer **`params` read-only spans/arrays** for **variadic convenience** APIs where callers pass a small, inline list:
   - Module registration helpers (`RegisterDiagnosticCheck`, tag lists, module type lists).
   - Internal builder wiring with 2–5 homogeneous arguments.
-- **Keep `IReadOnlyList<T>`** for **batch/domain writer APIs** per existing [API Design](docs/architecture/api-design.md) rules (`AcceptBatchAsync`, `EnqueueAsync` batch entries, parallel business data). Do not replace batch contracts with `params`.
+- **Keep `IReadOnlyList<T>`** for **batch/domain writer APIs** per existing [API Design](site/content/docs/architecture/api-design.md) rules (`AcceptBatchAsync`, `EnqueueAsync` batch entries, parallel business data). Do not replace batch contracts with `params`.
 - When converting, use `params ReadOnlySpan<T>` or `params T[]` and wrap to `IReadOnlyList` internally only at the public batch boundary if needed.
 
 ### Enums
@@ -216,7 +216,7 @@ Every package belongs to exactly one dependency role. A package may reference on
 | Consumer tooling | Analyzers and test support | Roles and packages required by the tool |
 | Aggregate | The `LiteBus` convenience package | Contract and core implementation roles only |
 
-The current package-to-role map and exact allowlist are maintained in [Dependency Graph](docs/architecture/dependency-graph.md) and enforced for every `src/**/*.csproj` by `ArchitectureDependencyPolicyTests`.
+The current package-to-role map and exact allowlist are maintained in [Dependency Graph](site/content/docs/architecture/dependency-graph.md) and enforced for every `src/**/*.csproj` by `ArchitectureDependencyPolicyTests`.
 
 ### Package roles
 
@@ -267,7 +267,7 @@ Outbox only, in-process dispatch
 - Merging inbox and outbox adapters into one package because they share similar file names.
 - A single `UseTransport(TransportKind, …)` API backed by one assembly that references every `Transport.*` broker (forces unused SDKs onto consumers).
 - “Durable” or “Transport” meta-packages that bundle both axes and multiple brokers for convenience (duplicates the forbidden kitchen-sink pattern outside the documented `LiteBus` / `Extensions.*` entry points).
-- Treating high package count in `docs/architecture/dependency-graph.md` as technical debt; treat **unwanted transitive dependencies** as the debt signal instead.
+- Treating high package count in `site/content/docs/architecture/dependency-graph.md` as technical debt; treat **unwanted transitive dependencies** as the debt signal instead.
 
 **When consolidation is in scope**
 
@@ -277,11 +277,11 @@ Outbox only, in-process dispatch
 
 Per-module empty DI/Autofac extension shells are **not** consolidation candidates unless a maintainer explicitly requests their removal in a tracked packaging change.
 
-Ergonomic aliases belong in **documentation and samples**, not in wider default dependency graphs. See [Dependency Graph](docs/architecture/dependency-graph.md) for the living inventory.
+Ergonomic aliases belong in **documentation and samples**, not in wider default dependency graphs. See [Dependency Graph](site/content/docs/architecture/dependency-graph.md) for the living inventory.
 
 ### Feature axes
 
-- **Vertical** domain packages (durable messaging, saga, semantic mediators) must not reference each other or broker or ORM SDKs unless the dependency rule table in `docs/architecture/dependency-graph.md` explicitly allows it.
+- **Vertical** domain packages (durable messaging, saga, semantic mediators) must not reference each other or broker or ORM SDKs unless the dependency rule table in `site/content/docs/architecture/dependency-graph.md` explicitly allows it.
 - **Horizontal** platform packages (runtime, transport) must not reference vertical domain abstractions.
 - Mapping between axes (domain envelope to wire format, store row to contract) belongs in feature bridges, not platform core.
 
@@ -293,7 +293,7 @@ Packages ending in `.Abstractions` contain only interfaces, value objects, enums
 
 ### API and value object design
 
-Public APIs group related parameters into **semantic types named by role**, not by parameter count. Match an existing suffix before inventing a new one. Concrete inventories, package maps, feature exemplars, **CLR kind selection**, and the inbox/outbox `Message` property rule live in [API Design](docs/architecture/api-design.md); this section states the rules that apply to every axis.
+Public APIs group related parameters into **semantic types named by role**, not by parameter count. Match an existing suffix before inventing a new one. Concrete inventories, package maps, feature exemplars, **CLR kind selection**, and the inbox/outbox `Message` property rule live in [API Design](site/content/docs/architecture/api-design.md); this section states the rules that apply to every axis.
 
 #### Separate concerns by model role
 
@@ -344,7 +344,7 @@ When a command carries optional behavior, group by **concern** inside `*Metadata
 | Tenancy | unscoped vs isolated tenant |
 | Routing or target | default vs explicit destination (axis-specific) |
 
-Feature packages name their own value objects. Shared cross-axis primitives belong in the narrowest contract role that both axes may reference. See [API Design](docs/architecture/api-design.md) for the durable-messaging application.
+Feature packages name their own value objects. Shared cross-axis primitives belong in the narrowest contract role that both axes may reference. See [API Design](site/content/docs/architecture/api-design.md) for the durable-messaging application.
 
 #### Optional data and mapping
 
@@ -394,7 +394,7 @@ One mapper per feature owns translation from command value objects to persistenc
 
 #### Legacy alignment
 
-Surfaces that predate this taxonomy should be aligned when their area is next touched: options objects that mix invocation tuning with cancellation or strategy references; methods with three or more scalar parameters where a request record would clarify intent; error and lease APIs that pass parallel context fields instead of a context record. Specific type names, CLR kind rules (`sealed record` vs `sealed class` for `*HostOptions`), `*Binding` adapter types, and target shapes are tracked in [API Design](docs/architecture/api-design.md) and [Migration guide v6](docs/migration/v6.md).
+Surfaces that predate this taxonomy should be aligned when their area is next touched: options objects that mix invocation tuning with cancellation or strategy references; methods with three or more scalar parameters where a request record would clarify intent; error and lease APIs that pass parallel context fields instead of a context record. Specific type names, CLR kind rules (`sealed record` vs `sealed class` for `*HostOptions`), `*Binding` adapter types, and target shapes are tracked in [API Design](site/content/docs/architecture/api-design.md) and [Migration guide v6](site/content/docs/migration/v6.md).
 
 ### Composite module pattern
 
@@ -406,7 +406,7 @@ Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs du
 
 - Applications reference only packages they compose. See **Granular opt-in packages** above; never widen a package reference graph because another integration exists in the same repo.
 - Do not add convenience APIs on shared builders that pull storage, transport, or other adapters into generic DI packages.
-- Defer ergonomic shortcuts to `docs/roadmap/README.md` when they would violate role boundaries or opt-in packaging.
+- Defer ergonomic shortcuts to `site/content/docs/roadmap/README.md` when they would violate role boundaries or opt-in packaging.
 
 ### Adapter rules
 
@@ -426,7 +426,7 @@ Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs du
 - Diagnostic probes implement `IDiagnosticCheck` and register through `configuration.RegisterDiagnosticCheck(Type, string)`. `AddLiteBus` exposes collected descriptors on `LiteBusHostManifest`.
 - **Manifest over direct host wiring.** Any work the generic host must run (startup tasks, background loops, diagnostic probes) registers through `IModuleConfiguration` manifest methods. Core and adapter packages must not register host framework types directly.
 
-See `docs/architecture/hosted-services.md` for registration examples and feature-specific hosted types.
+See `site/content/docs/architecture/hosted-services.md` for registration examples and feature-specific hosted types.
 
 ### Contract registration
 
@@ -446,7 +446,7 @@ See `docs/architecture/hosted-services.md` for registration examples and feature
 ## Public contract stability
 
 - Telemetry meter names, activity source names, and instrument name constants on public telemetry types are part of the consumer contract. Treat renames and removals as breaking changes.
-- When adding instruments, define names as public `const string` on the telemetry type, register meters through the matching host-adapter `*.Extensions.OpenTelemetry` package, and document new names in `docs/architecture/README.md`.
+- When adding instruments, define names as public `const string` on the telemetry type, register meters through the matching host-adapter `*.Extensions.OpenTelemetry` package, and document new names in `site/content/docs/architecture/README.md`.
 - Builder method renames, manifest entry changes, and persisted envelope field semantics are breaking; update docs in the same change.
 - Prefer stable contract names and versions over assembly-qualified CLR names in persisted envelopes.
 
@@ -467,13 +467,13 @@ Before adding a project:
 2. Can an existing package absorb this without a forbidden role edge?
 3. Does it need a new `*.Abstractions` package or fit an existing one?
 4. Does it need manifest registration (startup task, background service, diagnostic check)?
-5. Does `docs/architecture/dependency-graph.md` need a new row?
-6. Does `docs/architecture/README.md` need a feature section or invariant note?
+5. Does `site/content/docs/architecture/dependency-graph.md` need a new row?
+6. Does `site/content/docs/architecture/README.md` need a feature section or invariant note?
 
 ## Analyzers
 
 - Ship compile-time rules in `LiteBus.Analyzers` only; no runtime dependency on mediator or durable packages.
-- Keep the rule inventory in `docs/reference/analyzers.md` aligned with `DiagnosticIds` (LB1001–LB1017).
+- Keep the rule inventory in `site/content/docs/reference/analyzers.md` aligned with `DiagnosticIds` (LB1001–LB1017).
 - **LB1007** covers handled durable types missing contract registration; honor `RegisterFromAssembly` the same as explicit `Contracts.Register`.
 - **LB1017** covers attributed durable types; match only `IContractWriter` / `IMessageContractRegistry` `Register` invocations, not unrelated `Register<T>()` methods.
 - **LB1004** must cover `AcceptAsync`, `AcceptBatchAsync`, and `ITransactionalInbox` acceptance APIs.
@@ -494,11 +494,11 @@ Before adding a project:
 
 ## Documentation
 
-- **Docs move with API changes.** When adding, renaming, or removing public builder methods, contracts, manifest entries, metric names, or registration patterns, update the matching section in `docs/` in the same change (`Architecture.md`, `API-Design.md`, `Hosted-services.md`, feature guides, or `Roadmap.md` when scope shifts).
+- **Docs move with API changes.** When adding, renaming, or removing public builder methods, contracts, manifest entries, metric names, or registration patterns, update the matching section in `site/content/docs/` in the same change (`Architecture.md`, `API-Design.md`, `Hosted-services.md`, feature guides, or `Roadmap.md` when scope shifts).
 - Document application-owned integration (health endpoints, schema probes, export sinks) as recipes; ship framework-neutral contracts and stable telemetry names in libraries.
-- Keep `docs/architecture/hosted-services.md` and `docs/architecture/README.md` aligned with the manifest model (`IStartupTask`, `IBackgroundService`, `IDiagnosticCheck`, `LiteBusHostManifest`).
-- Keep `docs/architecture/dependency-graph.md` as the living package inventory and dependency rule reference.
+- Keep `site/content/docs/architecture/hosted-services.md` and `site/content/docs/architecture/README.md` aligned with the manifest model (`IStartupTask`, `IBackgroundService`, `IDiagnosticCheck`, `LiteBusHostManifest`).
+- Keep `site/content/docs/architecture/dependency-graph.md` as the living package inventory and dependency rule reference.
 
 ## Evolving this guide
 
-These instructions and `docs/` should reflect how the codebase is actually built. Agents and maintainers may change any rule when the project direction shifts. Propose amendments in the same PR or conversation as the code change that motivates them, so guidance and implementation stay aligned.
+These instructions and `site/content/docs/` should reflect how the codebase is actually built. Agents and maintainers may change any rule when the project direction shifts. Propose amendments in the same PR or conversation as the code change that motivates them, so guidance and implementation stay aligned.

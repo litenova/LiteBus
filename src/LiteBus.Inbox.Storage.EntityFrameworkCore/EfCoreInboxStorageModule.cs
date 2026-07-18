@@ -47,7 +47,7 @@ public sealed class EfCoreInboxStorageModule : IInboxStorageModule, IRequires<In
                 "EnforceTransactionalSetup() is enabled but EnableSaveChangesInterceptor() was not called. " +
                 "Call EnableSaveChangesInterceptor() on the EF Core inbox storage builder and add " +
                 "optionsBuilder.AddLiteBusInboxInterceptor(interceptor) to your DbContext configuration. " +
-                "See docs/reliable-messaging/inbox.md for the complete transactional setup.");
+                "See https://litebus.io/docs/reliable-messaging/inbox for the complete transactional setup.");
         }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
