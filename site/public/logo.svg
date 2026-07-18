@@ -1,6 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 128" role="img" aria-labelledby="title">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 128" role="img" aria-labelledby="title desc">
   <title id="title">LiteBus</title>
-  <path fill="#34343d" d="M91 2 27 53l27 26-15 47 63-63-27-22L91 2Z"/>
-  <path fill="#ffc400" d="m70 38-16 24 14 14-11 31 34-43-19-18 8-8Z"/>
-  <text x="145" y="84" fill="#34343d" font-family="Arial,Helvetica,sans-serif" font-size="72" font-weight="700" letter-spacing="-4">LiteBus</text>
+  <desc id="desc">The LiteBus lightning mark followed by the LiteBus wordmark.</desc>
+  <path
+    d="M84 4 36 53l24 23-16 48 48-49-25-21L84 4Z"
+    fill="none"
+    stroke="#3e3643"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="8"
+  />
+  <path
+    fill="#fdbf00"
+    d="m68 36-15 16-2 3-1 2 1 4 14 14-11 34 34-34-13-10 2-4-4-5-9-2 4-18Z"
+  />
+  <text
+    x="128"
+    y="85"
+    fill="#3e3643"
+    font-family="Segoe UI,Arial,sans-serif"
+    font-size="72"
+    font-weight="700"
+    letter-spacing="-3"
+  >LiteBus</text>
 </svg>
