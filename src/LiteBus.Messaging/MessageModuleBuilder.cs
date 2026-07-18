@@ -19,16 +19,36 @@ public sealed class MessageModuleBuilder
     /// </summary>
     /// <param name="messageRegistry">The message registry shared across LiteBus modules.</param>
     /// <param name="contracts">The message contract registry for persisted inbox and outbox messages.</param>
-    public MessageModuleBuilder(IMessageRegistry messageRegistry, IMessageContractRegistry contracts)
+    public MessageModuleBuilder(IMessageRegistry messageRegistry, IContractWriter contracts)
     {
         _messageRegistry = messageRegistry;
         Contracts = contracts;
     }
 
     /// <summary>
-    ///     Gets the message contract registry used to register stable persisted contracts.
+    ///     Gets the message contract writer used to register stable persisted contracts.
     /// </summary>
-    public IMessageContractRegistry Contracts { get; }
+    public IContractWriter Contracts { get; }
+
+    /// <summary>
+    ///     Gets the optional time provider registered for messaging and dependent modules.
+    /// </summary>
+    internal TimeProvider? TimeProvider { get; private set; }
+
+    /// <summary>
+    ///     Registers the <see cref="TimeProvider" /> instance exposed through dependency injection.
+    /// </summary>
+    /// <param name="timeProvider">
+    ///     The time provider to register. When omitted at build time,
+    ///     <see cref="TimeProvider.System" /> is used.
+    /// </param>
+    /// <returns>The current builder.</returns>
+    public MessageModuleBuilder UseTimeProvider(TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        TimeProvider = timeProvider;
+        return this;
+    }
 
     /// <summary>
     ///     Registers a message or handler type with the message registry.
@@ -60,10 +80,14 @@ public sealed class MessageModuleBuilder
     /// <returns>The current builder.</returns>
     public MessageModuleBuilder RegisterFromAssembly(Assembly assembly)
     {
+        ArgumentNullException.ThrowIfNull(assembly);
+
         foreach (var type in assembly.GetTypes())
         {
             _messageRegistry.Register(type);
         }
+
+        Contracts.AddFromAssembly(assembly);
 
         return this;
     }

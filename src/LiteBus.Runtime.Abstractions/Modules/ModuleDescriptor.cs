@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -38,8 +39,8 @@ public readonly record struct ModuleDescriptor(
         // Find all IRequires<T> interfaces implemented by this module.
         var dependencies = moduleType.GetInterfaces()
             .Where(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequires<>))
-            .Select(static i => i.GetGenericArguments()[0]) // Extract T from IRequires<T>
-            .ToHashSet();
+            .Select(static i => i.GetGenericArguments()[0])
+            .ToFrozenSet();
 
         return new ModuleDescriptor(module, dependencies);
     }

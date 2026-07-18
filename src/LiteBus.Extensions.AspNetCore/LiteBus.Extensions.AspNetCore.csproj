@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <RootNamespace>LiteBus.Extensions.AspNetCore</RootNamespace>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+    </ItemGroup>
+
+</Project>

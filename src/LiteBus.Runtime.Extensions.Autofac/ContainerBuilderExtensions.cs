@@ -1,7 +1,10 @@
 using System;
 using Autofac;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Hosting;
+using LiteBus.Runtime.Composition;
 using LiteBus.Runtime.Extensions.Autofac;
+using LiteBus.Runtime.Extensions.Autofac.Hosting;
 using LiteBus.Runtime.Modules;
 
 // ReSharper disable once CheckNamespace
@@ -13,68 +16,77 @@ namespace LiteBus.Extensions.Autofac;
 public static class ContainerBuilderExtensions
 {
     /// <summary>
-    ///     Adds LiteBus to the Autofac container builder with the specified module configuration.
+    ///     Adds LiteBus to the Autofac container builder through the package-neutral composition builder.
     /// </summary>
     /// <param name="builder">The Autofac container builder to add LiteBus to.</param>
-    /// <param name="liteBusBuilderAction">Action to configure LiteBus modules.</param>
+    /// <param name="configure">
+    ///     Action that invokes feature-specific extensions on <see cref="ILiteBusBuilder" />.
+    /// </param>
     /// <returns>The container builder for method chaining.</returns>
     /// <exception cref="ArgumentNullException">
-    ///     Thrown when <paramref name="builder" /> or
-    ///     <paramref name="liteBusBuilderAction" /> is <see langword="null" />.
+    ///     Thrown when <paramref name="builder" /> or <paramref name="configure" /> is <see langword="null" />.
     /// </exception>
-    /// <example>
-    ///     <code>
-    /// var builder = new ContainerBuilder();
-    /// 
-    /// builder.AddLiteBus(modules =>
-    /// {
-    ///     modules.AddMessageModule(messaging => messaging.RegisterFromAssembly(assembly));
-    ///     modules.AddCommandModule(commands => commands.RegisterFromAssembly(assembly));
-    /// });
-    /// 
-    /// var container = builder.Build();
-    /// </code>
-    /// </example>
-    public static ContainerBuilder AddLiteBus(this ContainerBuilder builder,
-                                              Action<IModuleRegistry> liteBusBuilderAction)
+    public static ContainerBuilder AddLiteBus(this ContainerBuilder builder, Action<ILiteBusBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(liteBusBuilderAction);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        RegisterServiceProviderAdapter(builder);
 
         var dependencyRegistryAdapter = new AutofacDependencyRegistryAdapter(builder);
+        RegisterDispatchScopeFactory(dependencyRegistryAdapter);
         var moduleRegistry = new ModuleRegistry();
+        var liteBusBuilder = new LiteBusBuilder(moduleRegistry);
 
-        liteBusBuilderAction(moduleRegistry);
+        configure(liteBusBuilder);
 
         var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
 
-        foreach (var moduleDescriptor in moduleRegistry)
+        foreach (var moduleDescriptor in moduleRegistry.BuildOrder())
         {
             moduleDescriptor.Module.Build(moduleConfiguration);
         }
 
-        // Register IServiceProvider for factory compatibility.
-        builder.Register(c => new AutofacServiceProvider(c.Resolve<IComponentContext>()))
-            .As<IServiceProvider>()
-            .InstancePerLifetimeScope();
+        RegisterHostManifest(builder, moduleConfiguration);
+        builder.RegisterDiagnosticChecks(moduleConfiguration.DiagnosticChecks);
+        builder.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
 
         return builder;
     }
 
-    // Helper class to adapt Autofac's IComponentContext to IServiceProvider.
     /// <summary>
-    ///     Adapts an Autofac component context to the <see cref="IServiceProvider" /> contract.
+    ///     Registers the host manifest describing startup tasks, background services, and diagnostic probes.
     /// </summary>
-    private sealed class AutofacServiceProvider(IComponentContext context) : IServiceProvider
+    /// <param name="builder">The Autofac container builder receiving the manifest registration.</param>
+    /// <param name="moduleConfiguration">The module configuration that collected host registrations.</param>
+    private static void RegisterHostManifest(ContainerBuilder builder, ModuleConfiguration moduleConfiguration)
     {
-        /// <summary>
-        ///     Resolves an optional service from the underlying Autofac component context.
-        /// </summary>
-        /// <param name="serviceType">The service type to resolve.</param>
-        /// <returns>The resolved service instance, or <see langword="null" /> when it is not registered.</returns>
-        public object? GetService(Type serviceType)
-        {
-            return context.ResolveOptional(serviceType);
-        }
+        builder.Register(_ => LiteBusHostManifest.FromConfiguration(moduleConfiguration))
+            .As<LiteBusHostManifest>()
+            .SingleInstance();
+    }
+
+    /// <summary>
+    ///     Registers an <see cref="IServiceProvider" /> adapter before module build so factory registrations can resolve
+    ///     services.
+    /// </summary>
+    /// <param name="builder">The Autofac container builder receiving the adapter registration.</param>
+    private static void RegisterServiceProviderAdapter(ContainerBuilder builder)
+    {
+        builder.Register(c => (IServiceProvider) new AutofacServiceProviderAdapter(c.Resolve<ILifetimeScope>()))
+            .As<IServiceProvider>()
+            .InstancePerLifetimeScope();
+    }
+
+    /// <summary>
+    ///     Registers the Autofac dispatch-scope adapter before module validation.
+    /// </summary>
+    /// <param name="dependencyRegistry">The registry receiving the adapter descriptor.</param>
+    private static void RegisterDispatchScopeFactory(AutofacDependencyRegistryAdapter dependencyRegistry)
+    {
+        dependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IMessageDispatchScopeFactory),
+            typeof(AutofacMessageDispatchScopeFactory),
+            InstanceLifetime.Singleton));
     }
 }

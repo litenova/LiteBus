@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <PackageReference Include="AwesomeAssertions"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <PackageReference Include="xunit"/>
+        <PackageReference Include="xunit.runner.visualstudio">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Transport.Testing\LiteBus.Transport.Testing.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime\LiteBus.Runtime.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.Abstractions\LiteBus.Transport.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport\LiteBus.Transport.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.AwsSqs\LiteBus.Transport.AwsSqs.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.AzureServiceBus\LiteBus.Transport.AzureServiceBus.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.InMemory\LiteBus.Transport.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.Kafka\LiteBus.Transport.Kafka.csproj"/>
+    </ItemGroup>
+
+</Project>

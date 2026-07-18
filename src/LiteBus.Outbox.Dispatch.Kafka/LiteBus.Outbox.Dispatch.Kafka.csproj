@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
+        <ProjectReference Include="..\LiteBus.Outbox.Dispatch\LiteBus.Outbox.Dispatch.csproj"/>
+        <ProjectReference Include="..\LiteBus.Transport.Kafka\LiteBus.Transport.Kafka.csproj"/>
+    </ItemGroup>
+
+</Project>

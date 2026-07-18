@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <PackageReference Include="AwesomeAssertions"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <PackageReference Include="Testcontainers"/>
+        <PackageReference Include="Testcontainers.RabbitMq"/>
+        <PackageReference Include="xunit"/>
+        <PackageReference Include="xunit.runner.visualstudio">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Transport.IntegrationTesting\LiteBus.Transport.IntegrationTesting.csproj"/>
+        <ProjectReference Include="..\LiteBus.Transport.Testing\LiteBus.Transport.Testing.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>
+    </ItemGroup>
+
+</Project>

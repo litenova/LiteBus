@@ -21,23 +21,32 @@ public sealed class EventMediationSettings
     ///     <see langword="true" /> to throw an exception when no handlers are found; otherwise, <see langword="false" />.
     ///     The default is <see langword="false" />.
     /// </value>
-    public bool ThrowIfNoHandlerFound { get; init; } = false;
+    public bool ThrowIfNoHandlerFound { get; init; }
 
     /// <summary>
-    ///     Gets or initializes the event mediation routing configuration that determines which handlers should execute.
+    ///     Gets a value indicating whether unregistered plain event types are registered in the message registry at publish time.
     /// </summary>
     /// <value>
-    ///     An <see cref="EventMediationRoutingSettings" /> instance containing routing configuration.
+    ///     <see langword="true" /> to register plain event types on first publish; otherwise, <see langword="false" />.
+    ///     The default is <see langword="false" />. This setting is independent of <see cref="ThrowIfNoHandlerFound" />.
     /// </value>
-    public EventMediationRoutingSettings Routing { get; init; } = new();
+    public bool AutoRegisterUnregisteredMessageTypes { get; init; }
 
     /// <summary>
-    ///     Gets or initializes the event mediation execution configuration that controls how handlers are executed.
+    ///     Gets or initializes the event routing configuration that determines which handlers should execute.
     /// </summary>
     /// <value>
-    ///     An <see cref="EventMediationExecutionSettings" /> instance containing execution configuration.
+    ///     An <see cref="EventRoutingSettings" /> instance containing routing configuration.
     /// </value>
-    public EventMediationExecutionSettings Execution { get; init; } = new();
+    public EventRoutingSettings Routing { get; init; } = new();
+
+    /// <summary>
+    ///     Gets or initializes the event execution configuration that controls how handlers are executed.
+    /// </summary>
+    /// <value>
+    ///     An <see cref="EventExecutionSettings" /> instance containing execution configuration.
+    /// </value>
+    public EventExecutionSettings Execution { get; init; } = new();
 
     /// <summary>
     ///     Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.

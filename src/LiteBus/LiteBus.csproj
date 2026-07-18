@@ -1,6 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+    <!--
+      Aggregate policy (NuGet ID: LiteBus):
+      - Includes core mediators (Commands, Queries, Events, Messaging) and inbox/outbox orchestration with abstractions.
+      - Storage adapters (PostgreSQL, EF Core, InMemory), dispatch adapters (InProcess, AMQP),
+        ingress (AMQP), LiteBus.Transport.Amqp, LiteBus.Analyzers, and runtime/DI extension packages remain separate NuGet packages.
+    -->
+
     <ItemGroup>
+        <ProjectReference Include="..\LiteBus.DurableMessaging.Abstractions\LiteBus.DurableMessaging.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Commands\LiteBus.Commands.csproj"/>
         <ProjectReference Include="..\LiteBus.Events.Abstractions\LiteBus.Events.Abstractions.csproj"/>

@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <NoWarn>$(NoWarn);CS8002</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Autofac"/>
+        <PackageReference Include="AwesomeAssertions"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <PackageReference Include="xunit"/>
+        <PackageReference Include="xunit.runner.visualstudio">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Commands.Extensions.Microsoft.DependencyInjection\LiteBus.Commands.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Events\LiteBus.Events.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Events.Extensions.Microsoft.DependencyInjection\LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Commands\LiteBus.Commands.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.InProcess\LiteBus.Inbox.Dispatch.InProcess.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Messaging.Extensions.Microsoft.DependencyInjection\LiteBus.Messaging.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.InProcess\LiteBus.Outbox.Dispatch.InProcess.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.InMemory\LiteBus.Outbox.Storage.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Autofac.Hosting\LiteBus.Runtime.Extensions.Autofac.Hosting.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Autofac\LiteBus.Runtime.Extensions.Autofac.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection\LiteBus.Runtime.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime.Extensions.Microsoft.Hosting\LiteBus.Runtime.Extensions.Microsoft.Hosting.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime\LiteBus.Runtime.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Saga.InboxIntegration\LiteBus.Saga.InboxIntegration.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing.Hosting\LiteBus.Testing.Hosting.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
+    </ItemGroup>
+
+</Project>

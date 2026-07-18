@@ -1,10 +1,10 @@
 using System;
 using System.Collections;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Reflection;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Extensions;
 using LiteBus.Messaging.Registry.Abstractions;
 using LiteBus.Messaging.Registry.Builders;
 using LiteBus.Messaging.Registry.Descriptors;
@@ -40,6 +40,11 @@ internal sealed class MessageRegistry : IMessageRegistry
     ];
 
     /// <summary>
+    ///     Committed message descriptors keyed by normalized message type for O(1) exact lookup.
+    /// </summary>
+    private readonly Dictionary<Type, MessageDescriptor> _descriptorsByType = new();
+
+    /// <summary>
     ///     Handler descriptors in registration order for module incremental DI registration.
     /// </summary>
     private readonly List<IHandlerDescriptor> _handlerDescriptorsInOrder = [];
@@ -50,19 +55,29 @@ internal sealed class MessageRegistry : IMessageRegistry
     private readonly object _lock = new();
 
     /// <summary>
-    ///     Message descriptors discovered during the current registration pass before commit.
-    /// </summary>
-    private readonly List<MessageDescriptor> _pendingMessages = [];
-
-    /// <summary>
     ///     Open generic handler definitions waiting to be closed over concrete message types.
     /// </summary>
     private readonly List<Type> _openGenericHandlers = [];
 
     /// <summary>
+    ///     Message descriptors discovered during the current registration pass before commit.
+    /// </summary>
+    private readonly List<MessageDescriptor> _pendingMessages = [];
+
+    /// <summary>
+    ///     Normalized message types registered in the current pass before commit.
+    /// </summary>
+    private readonly HashSet<Type> _pendingMessageTypes = [];
+
+    /// <summary>
     ///     Tracks CLR types already analyzed to prevent duplicate registration work.
     /// </summary>
-    private readonly ConcurrentDictionary<Type, byte> _processedTypes = new();
+    private readonly HashSet<Type> _processedTypes = [];
+
+    /// <summary>
+    ///     The next registration sequence value assigned to committed handler descriptors.
+    /// </summary>
+    private int _nextRegistrationSequence;
 
     /// <inheritdoc />
     public IReadOnlyList<IHandlerDescriptor> Handlers => _handlerDescriptorsInOrder.AsReadOnly();
@@ -76,6 +91,24 @@ internal sealed class MessageRegistry : IMessageRegistry
             {
                 return _committedMessages.Count;
             }
+        }
+    }
+
+    /// <inheritdoc />
+    public IMessageDescriptor? Find(Type messageType)
+    {
+        ArgumentNullException.ThrowIfNull(messageType);
+
+        lock (_lock)
+        {
+            if (_descriptorsByType.TryGetValue(messageType, out var exactDescriptor))
+            {
+                return exactDescriptor;
+            }
+
+            return messageType.IsGenericType
+                ? _descriptorsByType.GetValueOrDefault(messageType.GetGenericTypeDefinition())
+                : null;
         }
     }
 
@@ -96,14 +129,20 @@ internal sealed class MessageRegistry : IMessageRegistry
     }
 
     /// <inheritdoc />
-    public void Register(Type type)
+    [RequiresUnreferencedCode("Handler and message registration inspects CLR types via reflection.")]
+    public void Register(
+        [DynamicallyAccessedMembers(
+            DynamicallyAccessedMemberTypes.PublicConstructors
+            | DynamicallyAccessedMemberTypes.PublicMethods
+            | DynamicallyAccessedMemberTypes.Interfaces)]
+        Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
 
         lock (_lock)
         {
             // Skip if already processed to avoid duplicate work.
-            if (_processedTypes.ContainsKey(type))
+            if (!_processedTypes.Add(type))
                 return;
 
             // Analyze the type using all available descriptor builders.
@@ -133,24 +172,8 @@ internal sealed class MessageRegistry : IMessageRegistry
             // Ensure pending messages are linked with all existing handlers.
             LinkHandlersToPendingMessages();
 
-            // Mark type as processed.
-            _processedTypes[type] = 0;
-
             // Commit any pending message descriptors.
             CommitPendingMessages();
-        }
-    }
-
-    /// <inheritdoc />
-    public void Clear()
-    {
-        lock (_lock)
-        {
-            _handlerDescriptorsInOrder.Clear();
-            _committedMessages.Clear();
-            _pendingMessages.Clear();
-            _processedTypes.Clear();
-            _openGenericHandlers.Clear();
         }
     }
 
@@ -159,19 +182,23 @@ internal sealed class MessageRegistry : IMessageRegistry
     ///     and linking them to existing message descriptors.
     /// </summary>
     /// <param name="newDescriptors">The handler descriptors to process.</param>
-    private void ProcessHandlerDescriptors(IList<IHandlerDescriptor> newDescriptors)
+    private void ProcessHandlerDescriptors(List<IHandlerDescriptor> newDescriptors)
     {
+        var committedDescriptors = new List<IHandlerDescriptor>(newDescriptors.Count);
+
         foreach (var descriptor in newDescriptors)
         {
             // Ensure the handler's message type is registered.
             RegisterMessageType(descriptor.MessageType);
 
             // Add to ordered list for indexed access.
-            _handlerDescriptorsInOrder.Add(descriptor);
+            var committed = CommitHandlerDescriptor(descriptor);
+            _handlerDescriptorsInOrder.Add(committed);
+            committedDescriptors.Add(committed);
         }
 
         // Link new handlers to existing committed messages.
-        LinkHandlersToCommittedMessages(newDescriptors);
+        LinkHandlersToCommittedMessages(committedDescriptors);
     }
 
     /// <summary>
@@ -184,21 +211,9 @@ internal sealed class MessageRegistry : IMessageRegistry
         if (IsSystemNamespace(messageType))
             return;
 
-        // Normalize generic types to their generic type definition.
-        var normalizedType = messageType.IsGenericType
-            ? messageType.GetGenericTypeDefinition()
-            : messageType;
+        var normalizedType = messageType.NormalizeMessageRegistrationType();
 
-        // Check if already exists in committed messages (create snapshot to avoid enumeration issues).
-        var committedSnapshot = _committedMessages.ToList();
-
-        if (committedSnapshot.Any(m => m.MessageType == normalizedType))
-            return;
-
-        // Check if already exists in pending messages (create snapshot to avoid enumeration issues).
-        var pendingSnapshot = _pendingMessages.ToList();
-
-        if (pendingSnapshot.Any(m => m.MessageType == normalizedType))
+        if (_descriptorsByType.ContainsKey(normalizedType) || !_pendingMessageTypes.Add(normalizedType))
             return;
 
         // Add to pending messages.
@@ -211,7 +226,7 @@ internal sealed class MessageRegistry : IMessageRegistry
         {
             foreach (var openGenericHandler in _openGenericHandlers.ToList())
             {
-                TryCloseOpenGenericHandler(openGenericHandler, descriptor, linkToMessageDescriptor: false);
+                TryCloseOpenGenericHandler(openGenericHandler, descriptor, false);
             }
         }
     }
@@ -221,16 +236,20 @@ internal sealed class MessageRegistry : IMessageRegistry
     ///     that can be processed by those handlers.
     /// </summary>
     /// <param name="newDescriptors">The new handler descriptors to link.</param>
-    private void LinkHandlersToCommittedMessages(IList<IHandlerDescriptor> newDescriptors)
+    private void LinkHandlersToCommittedMessages(List<IHandlerDescriptor> newDescriptors)
     {
-        if (newDescriptors.Count > 0 && _committedMessages.Count > 0)
+        if (newDescriptors.Count == 0 || _committedMessages.Count == 0)
         {
-            // Create snapshot to avoid modification during enumeration.
-            var committedSnapshot = _committedMessages.ToList();
+            return;
+        }
 
+        var committedSnapshot = _committedMessages.ToList();
+
+        foreach (var handlerDescriptor in newDescriptors)
+        {
             foreach (var messageDescriptor in committedSnapshot)
             {
-                messageDescriptor.AddDescriptors(newDescriptors);
+                messageDescriptor.AddDescriptor(handlerDescriptor);
             }
         }
     }
@@ -265,22 +284,22 @@ internal sealed class MessageRegistry : IMessageRegistry
         // Close for committed messages - must add directly since LinkHandlersToPendingMessages won't touch them.
         foreach (var messageDescriptor in _committedMessages.ToList())
         {
-            TryCloseOpenGenericHandler(openGenericHandlerType, messageDescriptor, linkToMessageDescriptor: true);
+            TryCloseOpenGenericHandler(openGenericHandlerType, messageDescriptor, true);
         }
 
         // Close for pending messages - only add to _handlerDescriptorsInOrder.
         // LinkHandlersToPendingMessages (called later in Register) will link them.
         foreach (var messageDescriptor in _pendingMessages.ToList())
         {
-            TryCloseOpenGenericHandler(openGenericHandlerType, messageDescriptor, linkToMessageDescriptor: false);
+            TryCloseOpenGenericHandler(openGenericHandlerType, messageDescriptor, false);
         }
     }
 
     /// <summary>
     ///     Attempts to close an open generic handler type for a specific message type.
-    ///     Always adds closed descriptors to <see cref="_handlerDescriptorsInOrder"/> for DI registration.
+    ///     Always adds closed descriptors to <see cref="_handlerDescriptorsInOrder" /> for DI registration.
     ///     Optionally links them directly to the message descriptor (for committed messages only,
-    ///     since pending messages will be linked by <see cref="LinkHandlersToPendingMessages"/>).
+    ///     since pending messages will be linked by <see cref="LinkHandlersToPendingMessages" />).
     /// </summary>
     /// <param name="openGenericHandlerType">The open generic handler type definition.</param>
     /// <param name="messageDescriptor">The message descriptor to potentially add closed handler descriptors to.</param>
@@ -296,16 +315,10 @@ internal sealed class MessageRegistry : IMessageRegistry
         if (messageType.IsGenericTypeDefinition || messageType.IsGenericParameter)
             return;
 
-        // Shape was already validated in StoreOpenGenericHandler; no need to re-validate here.
-        var typeParams = openGenericHandlerType.GetGenericArguments();
-
-        // Check if the message type satisfies the generic constraints.
-        if (!SatisfiesGenericConstraints(typeParams[0], messageType))
-            return;
-
         try
         {
-            // Close the generic type (e.g., GenericValidator<CreateProductCommand>)
+            // Let the CLR evaluate substituted constraints such as IComparable<T>, which cannot be tested correctly
+            // against the unresolved generic parameter with Type.IsAssignableTo.
             var closedHandlerType = openGenericHandlerType.MakeGenericType(messageType);
 
             // Build descriptors for the closed type.
@@ -315,62 +328,46 @@ internal sealed class MessageRegistry : IMessageRegistry
                 .ToList();
 
             // Add to the ordered handler list for DI registration.
+            var committedDescriptors = new List<IHandlerDescriptor>(closedDescriptors.Count);
+
             foreach (var descriptor in closedDescriptors)
             {
-                _handlerDescriptorsInOrder.Add(descriptor);
+                var committed = CommitHandlerDescriptor(descriptor);
+                committedDescriptors.Add(committed);
+                _handlerDescriptorsInOrder.Add(committed);
             }
 
             // Link to the message descriptor only if requested (for committed messages)
             if (linkToMessageDescriptor)
             {
-                messageDescriptor.AddDescriptors(closedDescriptors);
+                messageDescriptor.AddDescriptors(committedDescriptors);
             }
         }
         catch (ArgumentException)
         {
-            // MakeGenericType may throw if constraints can't be satisfied at runtime.
+            // The concrete message does not satisfy the handler's complete generic constraint set.
         }
     }
 
     /// <summary>
-    ///     Checks whether a candidate type satisfies all the generic parameter constraints
-    ///     of the specified type parameter.
+    ///     Assigns a stable registration sequence and returns the committed handler descriptor.
     /// </summary>
-    /// <param name="typeParameter">The generic type parameter with constraints to check.</param>
-    /// <param name="candidateType">The concrete type to check against the constraints.</param>
-    /// <returns><see langword="true" /> if the candidate type satisfies all constraints; otherwise, <see langword="false" />.</returns>
-    private static bool SatisfiesGenericConstraints(Type typeParameter, Type candidateType)
+    /// <param name="descriptor">The handler descriptor discovered during module registration.</param>
+    /// <returns>The descriptor annotated with its registration sequence.</returns>
+    private IHandlerDescriptor CommitHandlerDescriptor(IHandlerDescriptor descriptor)
     {
-        // Check type constraints (e.g., where T : ICommand).
-        var constraints = typeParameter.GetGenericParameterConstraints();
-        foreach (var constraint in constraints)
-        {
-            if (!candidateType.IsAssignableTo(constraint))
-                return false;
-        }
-
-        // Check special constraints (class, struct, new()).
-        var attributes = typeParameter.GenericParameterAttributes;
-
-        if ((attributes & GenericParameterAttributes.ReferenceTypeConstraint) != 0 && candidateType.IsValueType)
-            return false;
-
-        if ((attributes & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0 && !candidateType.IsValueType)
-            return false;
-
-        if ((attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0
-            && candidateType.GetConstructor(Type.EmptyTypes) == null
-            && !candidateType.IsValueType)
-            return false;
-
-        return true;
+        var sequence = _nextRegistrationSequence++;
+        return HandlerDescriptorRegistration.WithRegistrationSequence(descriptor, sequence);
     }
 
     /// <summary>
     ///     Determines whether a message type belongs to the BCL <c>System</c> namespace and should be ignored.
     /// </summary>
     /// <param name="messageType">The candidate message type.</param>
-    /// <returns><see langword="true" /> when the type is in <c>System</c> or <c>System.*</c>; otherwise, <see langword="false" />.</returns>
+    /// <returns>
+    ///     <see langword="true" /> when the type is in <c>System</c> or <c>System.*</c>; otherwise,
+    ///     <see langword="false" />.
+    /// </returns>
     private static bool IsSystemNamespace(Type messageType)
     {
         return messageType.Namespace is "System" ||
@@ -398,8 +395,14 @@ internal sealed class MessageRegistry : IMessageRegistry
     {
         if (_pendingMessages.Count > 0)
         {
+            foreach (var descriptor in _pendingMessages)
+            {
+                _descriptorsByType[descriptor.MessageType] = descriptor;
+            }
+
             _committedMessages.AddRange(_pendingMessages);
             _pendingMessages.Clear();
+            _pendingMessageTypes.Clear();
         }
     }
 }

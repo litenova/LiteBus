@@ -1,7 +1,10 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.MediationStrategies;
 using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.Queries;
@@ -23,6 +26,8 @@ public sealed class QueryMediator : IQueryMediator
     /// <param name="messageMediator">The core message mediator for immediate query execution.</param>
     public QueryMediator(IMessageMediator messageMediator)
     {
+        ArgumentNullException.ThrowIfNull(messageMediator);
+
         _messageMediator = messageMediator;
     }
 
@@ -31,19 +36,22 @@ public sealed class QueryMediator : IQueryMediator
                                                        QueryMediationSettings? queryMediationSettings = null,
                                                        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(query);
+
         queryMediationSettings ??= new QueryMediationSettings();
         var mediationStrategy = new SingleAsyncHandlerMediationStrategy<IQuery<TQueryResult>, TQueryResult>();
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
         return _messageMediator.Mediate(query,
-            new MediateOptions<IQuery<TQueryResult>, Task<TQueryResult>>
+            new MessageMediationRequest<IQuery<TQueryResult>, Task<TQueryResult>>
             {
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,
-                CancellationToken = cancellationToken,
-                Tags = queryMediationSettings.Filters.Tags,
-                Items = queryMediationSettings.Items
-            });
+                Tags = queryMediationSettings.Routing.Tags,
+                Items = queryMediationSettings.Items,
+                HandlerPredicate = queryMediationSettings.Routing.HandlerPredicate
+            },
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -51,18 +59,21 @@ public sealed class QueryMediator : IQueryMediator
                                                                     QueryMediationSettings? queryMediationSettings = null,
                                                                     CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(query);
+
         queryMediationSettings ??= new QueryMediationSettings();
         var mediationStrategy = new SingleStreamHandlerMediationStrategy<IStreamQuery<TQueryResult>, TQueryResult>(cancellationToken);
         var resolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
         return _messageMediator.Mediate(query,
-            new MediateOptions<IStreamQuery<TQueryResult>, IAsyncEnumerable<TQueryResult>>
+            new MessageMediationRequest<IStreamQuery<TQueryResult>, IAsyncEnumerable<TQueryResult>>
             {
                 MessageMediationStrategy = mediationStrategy,
                 MessageResolveStrategy = resolveStrategy,
-                CancellationToken = cancellationToken,
-                Tags = queryMediationSettings.Filters.Tags,
-                Items = queryMediationSettings.Items
-            });
+                Tags = queryMediationSettings.Routing.Tags,
+                Items = queryMediationSettings.Items,
+                HandlerPredicate = queryMediationSettings.Routing.HandlerPredicate
+            },
+            cancellationToken);
     }
 }

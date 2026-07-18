@@ -2,8 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
+using LiteBus.Runtime.Dependencies;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 
@@ -14,9 +15,9 @@ namespace LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
 internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
 {
     /// <summary>
-    ///     Tracks descriptors already translated into Microsoft DI service registrations.
+    ///     Shared registration policy used to track descriptors and detect conflicts.
     /// </summary>
-    private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
+    private readonly DependencyRegistrationTracker _tracker = new();
 
     /// <summary>
     ///     The service collection receiving LiteBus dependency registrations.
@@ -30,37 +31,57 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="services" /> is <see langword="null" />.</exception>
     public MicrosoftDependencyRegistryAdapter(IServiceCollection services)
     {
-        _services = services ?? throw new ArgumentNullException(nameof(services));
+        ArgumentNullException.ThrowIfNull(services);
+
+        _services = services;
     }
 
     /// <summary>
     ///     Gets the number of unique dependency descriptors that have been registered.
     /// </summary>
-    public int Count => _registeredDescriptors.Count;
+    /// <value>The count of tracked dependency descriptors.</value>
+    public int Count => _tracker.Count;
 
     /// <summary>
     ///     Registers a dependency descriptor with the underlying service collection if not already registered.
     /// </summary>
     /// <param name="descriptor">The dependency descriptor to register.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     Thrown when another module already registered <see cref="DependencyDescriptor.DependencyType" /> with a different
+    ///     binding.
+    /// </exception>
     /// <remarks>
-    ///     Duplicate descriptors are silently ignored based on the descriptor's equality implementation.
-    ///     This prevents duplicate service registrations when multiple modules attempt to register the same services.
+    ///     Duplicate registrations with equal descriptors are ignored; see
+    ///     <see cref="DependencyDescriptor.Equals(DependencyDescriptor?)" />.
     /// </remarks>
     public void Register(DependencyDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        // Use HashSet.Add, which uses IEquatable<DependencyDescriptor>
-        // Returns false if the descriptor is already present.
-        if (!_registeredDescriptors.Add(descriptor))
+        if (descriptor.IsCollectionRegistration)
         {
-            // Descriptor already registered, skip silently.
-            return;
+            throw new LiteBusConfigurationException(
+                $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' was registered with collection metadata. " +
+                $"Use {nameof(RegisterCollection)} for multi-registration services such as IEnumerable<T> hooks.");
         }
 
-        var serviceDescriptor = ConvertToServiceDescriptor(descriptor);
-        _services.Add(serviceDescriptor);
+        RegisterCore(descriptor, true);
+    }
+
+    /// <inheritdoc />
+    public void RegisterCollection(DependencyDescriptor descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+
+        if (!descriptor.IsCollectionRegistration)
+        {
+            throw new LiteBusConfigurationException(
+                $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' must be created with " +
+                $"{nameof(DependencyDescriptor.ForCollection)} before calling {nameof(RegisterCollection)}.");
+        }
+
+        RegisterCore(descriptor, false);
     }
 
     /// <summary>
@@ -69,7 +90,7 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     /// <returns>An enumerator for the registered dependency descriptors.</returns>
     public IEnumerator<DependencyDescriptor> GetEnumerator()
     {
-        return _registeredDescriptors.GetEnumerator();
+        return _tracker.GetEnumerator();
     }
 
     /// <summary>
@@ -81,19 +102,22 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
         return GetEnumerator();
     }
 
-    /// <inheritdoc />
-    public void RegisterHostedService(Type implementationType)
+    /// <summary>
+    ///     Applies shared registration policy and translates accepted descriptors into Microsoft DI registrations.
+    /// </summary>
+    /// <param name="descriptor">The dependency descriptor to register.</param>
+    /// <param name="enforceSingleRegistration">
+    ///     When <see langword="true" />, rejects a second binding for the same
+    ///     <see cref="DependencyDescriptor.DependencyType" />.
+    /// </param>
+    private void RegisterCore(DependencyDescriptor descriptor, bool enforceSingleRegistration)
     {
-        ArgumentNullException.ThrowIfNull(implementationType);
-
-        if (!typeof(IHostedService).IsAssignableFrom(implementationType))
+        if (!_tracker.TryTrack(descriptor, enforceSingleRegistration))
         {
-            throw new ArgumentException(
-                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(IHostedService)}.",
-                nameof(implementationType));
+            return;
         }
 
-        _services.Add(ServiceDescriptor.Singleton(typeof(IHostedService), implementationType));
+        _services.Add(ConvertToServiceDescriptor(descriptor));
     }
 
     /// <summary>
@@ -142,6 +166,7 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
         {
             InstanceLifetime.Transient => ServiceLifetime.Transient,
             InstanceLifetime.Singleton => ServiceLifetime.Singleton,
+            InstanceLifetime.Scoped    => ServiceLifetime.Scoped,
             _                          => throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, "Unknown instance lifetime.")
         };
     }

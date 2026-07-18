@@ -12,4 +12,4 @@ namespace LiteBus.Queries.Abstractions;
 ///     only to the specified query type. Multiple type-specific pre-handlers can be registered for each query type
 ///     and will execute in sequence before the actual query handler.
 /// </remarks>
-public interface IQueryPreHandler<in TQuery> : IRegistrableQueryConstruct, IAsyncMessagePreHandler<TQuery> where TQuery : IQuery;
+public interface IQueryPreHandler<in TQuery> : IAsyncMessagePreHandler<TQuery> where TQuery : IQuery;

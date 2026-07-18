@@ -9,4 +9,4 @@ namespace LiteBus.Queries.Abstractions;
 ///     In practice, developers will typically implement the generic version <see cref="IQuery{TQueryResult}" />
 ///     which specifies the return type of the query.
 /// </remarks>
-public interface IQuery : IRegistrableQueryConstruct;
+public interface IQuery;

@@ -16,6 +16,9 @@ internal abstract class HandlerDescriptorBase : IHandlerDescriptor
     public required int Priority { get; init; }
 
     /// <inheritdoc />
+    public int RegistrationSequence { get; init; }
+
+    /// <inheritdoc />
     public required IReadOnlyCollection<string> Tags { get; init; }
 
     /// <inheritdoc />

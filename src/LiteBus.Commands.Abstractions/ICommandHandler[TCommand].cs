@@ -12,4 +12,4 @@ namespace LiteBus.Commands.Abstractions;
 ///     necessary state changes without returning data. Each command of type <typeparamref name="TCommand" />
 ///     should have exactly one handler within the application.
 /// </remarks>
-public interface ICommandHandler<in TCommand> : IRegistrableCommandConstruct, IAsyncMessageHandler<TCommand> where TCommand : ICommand;
+public interface ICommandHandler<in TCommand> : IAsyncMessageHandler<TCommand> where TCommand : ICommand;

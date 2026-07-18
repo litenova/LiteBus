@@ -12,42 +12,42 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// <summary>
     ///     Direct error handlers registered for <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IErrorHandlerDescriptor> _errorHandlers = new();
+    private readonly List<IErrorHandlerDescriptor> _errorHandlers = [];
 
     /// <summary>
     ///     Direct main handlers registered for <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IMainHandlerDescriptor> _handlers = new();
+    private readonly List<IMainHandlerDescriptor> _handlers = [];
 
     /// <summary>
     ///     Error handlers registered for a base type or interface of <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IErrorHandlerDescriptor> _indirectErrorHandlers = new();
+    private readonly List<IErrorHandlerDescriptor> _indirectErrorHandlers = [];
 
     /// <summary>
     ///     Main handlers registered for a base type or interface of <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IMainHandlerDescriptor> _indirectHandlers = new();
+    private readonly List<IMainHandlerDescriptor> _indirectHandlers = [];
 
     /// <summary>
     ///     Post-handlers registered for a base type or interface of <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IPostHandlerDescriptor> _indirectPostHandlers = new();
+    private readonly List<IPostHandlerDescriptor> _indirectPostHandlers = [];
 
     /// <summary>
     ///     Pre-handlers registered for a base type or interface of <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IPreHandlerDescriptor> _indirectPreHandlers = new();
+    private readonly List<IPreHandlerDescriptor> _indirectPreHandlers = [];
 
     /// <summary>
     ///     Direct post-handlers registered for <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IPostHandlerDescriptor> _postHandlers = new();
+    private readonly List<IPostHandlerDescriptor> _postHandlers = [];
 
     /// <summary>
     ///     Direct pre-handlers registered for <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IPreHandlerDescriptor> _preHandlers = new();
+    private readonly List<IPreHandlerDescriptor> _preHandlers = [];
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="MessageDescriptor" /> class.
@@ -143,5 +143,54 @@ internal sealed class MessageDescriptor : IMessageDescriptor
                     break;
             }
         }
+        else if (ImplementsOpenGeneric(descriptor.MessageType, MessageType))
+        {
+            switch (descriptor)
+            {
+                case IErrorHandlerDescriptor errorHandlerDescriptor:
+                    _indirectErrorHandlers.Add(errorHandlerDescriptor);
+                    break;
+                case IMainHandlerDescriptor mainHandlerDescriptor:
+                    _indirectHandlers.Add(mainHandlerDescriptor);
+                    break;
+                case IPostHandlerDescriptor postHandlerDescriptor:
+                    _indirectPostHandlers.Add(postHandlerDescriptor);
+                    break;
+                case IPreHandlerDescriptor preHandlerDescriptor:
+                    _indirectPreHandlers.Add(preHandlerDescriptor);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether <paramref name="messageType" /> implements a constructed instance of
+    ///     <paramref name="openGenericType" />.
+    /// </summary>
+    /// <param name="openGenericType">The open generic handler message type.</param>
+    /// <param name="messageType">The concrete message type.</param>
+    /// <returns><see langword="true" /> when the message implements the open generic contract.</returns>
+    private static bool ImplementsOpenGeneric(Type openGenericType, Type messageType)
+    {
+        if (!openGenericType.IsGenericTypeDefinition)
+        {
+            return false;
+        }
+
+        if (messageType.IsGenericType && messageType.GetGenericTypeDefinition() == openGenericType)
+        {
+            return true;
+        }
+
+        foreach (var implementedInterface in messageType.GetInterfaces())
+        {
+            if (implementedInterface.IsGenericType &&
+                implementedInterface.GetGenericTypeDefinition() == openGenericType)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

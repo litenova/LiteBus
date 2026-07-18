@@ -1,0 +1,132 @@
+using LiteBus.Events;
+using LiteBus.Events.Abstractions;
+using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
+using LiteBus.Testing;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace LiteBus.Mediator.UnitTests.UseCases.Messaging;
+
+/// <summary>
+///     Contains tests for the event handler predicate filtering feature, ensuring that
+///     only handlers matching the predicate are executed.
+/// </summary>
+[Collection("Sequential")]
+public sealed class PredicateFilteringTests : LiteBusTestBase
+{
+    [Fact]
+    public async Task Publish_Event_WithPredicate_ShouldExecuteOnlyMatchingHandlers()
+    {
+        // ARRANGE
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
+        {
+            registry.AddMessaging(_ =>
+            {
+            });
+
+            registry.AddEvents(builder =>
+            {
+                builder.Register<FilterableEventHandler>();
+                builder.Register<AnotherFilterableEventHandler>();
+                builder.Register<NonFilterableEventHandler>();
+            });
+        }).BuildServiceProvider();
+
+        var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
+        var @event = new FilteredEvent();
+
+        var settings = new EventMediationSettings
+        {
+            Routing = new EventRoutingSettings
+            {
+                // The predicate filters for handlers that implement our marker interface.
+                HandlerPredicate = descriptor => descriptor.HandlerType.IsAssignableTo(typeof(IFilterableHandler))
+            }
+        };
+
+        // ACT
+        await eventMediator.PublishAsync(@event, settings).ConfigureAwait(false);
+
+        // ASSERT
+        @event.ExecutedTypes.Should().HaveCount(2);
+        @event.ExecutedTypes.Should().Contain(typeof(FilterableEventHandler));
+        @event.ExecutedTypes.Should().Contain(typeof(AnotherFilterableEventHandler));
+        @event.ExecutedTypes.Should().NotContain(typeof(NonFilterableEventHandler));
+    }
+
+    [Fact]
+    public async Task Publish_IEvent_WithPredicate_ShouldExecuteOnlyMatchingHandlers()
+    {
+        // ARRANGE
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
+        {
+            registry.AddMessaging(_ =>
+            {
+            });
+
+            registry.AddEvents(builder =>
+            {
+                builder.Register<FilterableEventHandler>();
+                builder.Register<AnotherFilterableEventHandler>();
+                builder.Register<NonFilterableEventHandler>();
+            });
+        }).BuildServiceProvider();
+
+        var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
+        IEvent @event = new FilteredEvent();
+
+        var settings = new EventMediationSettings
+        {
+            AutoRegisterUnregisteredMessageTypes = true,
+            Routing = new EventRoutingSettings
+            {
+                HandlerPredicate = descriptor => descriptor.HandlerType.IsAssignableTo(typeof(IFilterableHandler))
+            }
+        };
+
+        // ACT
+        await eventMediator.PublishAsync((FilteredEvent)@event, settings).ConfigureAwait(false);
+
+        // ASSERT
+        var filteredEvent = (FilteredEvent) @event;
+        filteredEvent.ExecutedTypes.Should().HaveCount(2);
+        filteredEvent.ExecutedTypes.Should().Contain(typeof(FilterableEventHandler));
+        filteredEvent.ExecutedTypes.Should().Contain(typeof(AnotherFilterableEventHandler));
+        filteredEvent.ExecutedTypes.Should().NotContain(typeof(NonFilterableEventHandler));
+    }
+
+    // Test Components
+    private interface IFilterableHandler;
+
+    private sealed record FilteredEvent : IEvent
+    {
+        public List<Type> ExecutedTypes { get; } = [];
+    }
+
+    private sealed class FilterableEventHandler : IEventHandler<FilteredEvent>, IFilterableHandler
+    {
+        public Task HandleAsync(FilteredEvent message, CancellationToken cancellationToken = default)
+        {
+            message.ExecutedTypes.Add(GetType());
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class AnotherFilterableEventHandler : IEventHandler<FilteredEvent>, IFilterableHandler
+    {
+        public Task HandleAsync(FilteredEvent message, CancellationToken cancellationToken = default)
+        {
+            message.ExecutedTypes.Add(GetType());
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class NonFilterableEventHandler : IEventHandler<FilteredEvent>
+    {
+        public Task HandleAsync(FilteredEvent message, CancellationToken cancellationToken = default)
+        {
+            message.ExecutedTypes.Add(GetType());
+            return Task.CompletedTask;
+        }
+    }
+}

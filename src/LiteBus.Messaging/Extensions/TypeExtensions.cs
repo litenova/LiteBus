@@ -11,6 +11,18 @@ namespace LiteBus.Messaging.Extensions;
 internal static class TypeExtensions
 {
     /// <summary>
+    ///     Preserves exact closed message types while reducing open constructed types to their generic definition.
+    /// </summary>
+    /// <param name="messageType">The message type discovered from a handler contract or registration request.</param>
+    /// <returns>The exact closed type, or the generic definition for an open message shape.</returns>
+    public static Type NormalizeMessageRegistrationType(this Type messageType)
+    {
+        return messageType.IsGenericType && messageType.ContainsGenericParameters
+            ? messageType.GetGenericTypeDefinition()
+            : messageType;
+    }
+
+    /// <summary>
     ///     Returns interfaces on <paramref name="type" /> that match an open generic definition.
     /// </summary>
     /// <param name="type">The type whose interfaces are inspected.</param>

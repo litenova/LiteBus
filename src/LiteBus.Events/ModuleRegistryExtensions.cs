@@ -1,6 +1,5 @@
 using System;
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Events;
@@ -11,8 +10,24 @@ namespace LiteBus.Events;
 public static class ModuleRegistryExtensions
 {
     /// <summary>
-    ///     Registers an event module with the specified configuration, automatically ensuring
-    ///     that the required <see cref="MessageModule" /> is registered first.
+    ///     Adds event mediation to a LiteBus composition.
+    /// </summary>
+    /// <param name="builder">The package-neutral LiteBus builder.</param>
+    /// <param name="builderAction">The event registration callback.</param>
+    /// <returns>The current LiteBus builder.</returns>
+    public static ILiteBusBuilder AddEvents(
+        this ILiteBusBuilder builder,
+        Action<EventModuleBuilder> builderAction)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(builderAction);
+
+        builder.Modules.AddEventModule(builderAction);
+        return builder;
+    }
+
+    /// <summary>
+    ///     Registers an event module with the specified configuration.
     /// </summary>
     /// <param name="moduleRegistry">The module registry to register the event module with.</param>
     /// <param name="builderAction">An action to configure the event module builder.</param>
@@ -21,32 +36,18 @@ public static class ModuleRegistryExtensions
     ///     Thrown when <paramref name="moduleRegistry" /> or <paramref name="builderAction" /> is <see langword="null" />.
     /// </exception>
     /// <remarks>
-    ///     This method automatically registers a <see cref="MessageModule" /> with default configuration
-    ///     if one has not already been registered. This ensures that the core messaging services
-    ///     (such as <see cref="IMessageMediator" /> and <see cref="IMessageRegistry" />) are available
-    ///     for event processing.
-    ///     If you need custom configuration for the <see cref="MessageModule" />, register it explicitly
-    ///     before calling this method.
+    ///     <see cref="EventModule" /> declares <see cref="IRequires{TModule}" /> for <see cref="MessageModule" />.
+    ///     The complete module graph validates that dependency independent of registration order.
     /// </remarks>
     /// <example>
     ///     <code>
-    /// // Automatic MessageModule registration with default configuration
-    /// services.AddLiteBus(modules =>
+    /// services.AddLiteBus(builder =>
     /// {
-    ///     modules.AddEventModule(evt => 
+    ///     builder.AddEvents(evt =>
     ///     {
     ///         evt.RegisterFromAssembly(typeof(MyEvent).Assembly);
     ///     });
-    /// });
-    /// 
-    /// // Explicit MessageModule configuration
-    /// services.AddLiteBus(modules =>
-    /// {
-    ///     modules.AddMessageModule(msg => { /* custom config */ });
-    ///     modules.AddEventModule(evt => 
-    ///     {
-    ///         evt.RegisterFromAssembly(typeof(MyEvent).Assembly);
-    ///     });
+    ///     builder.AddMessaging(msg => { /* optional core config */ });
     /// });
     /// </code>
     /// </example>
@@ -55,21 +56,12 @@ public static class ModuleRegistryExtensions
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
 
-        // Ensure MessageModule is registered first with default configuration.
-        if (!moduleRegistry.IsModuleRegistered<MessageModule>())
-        {
-            moduleRegistry.Register(new MessageModule(_ =>
-            {
-            }));
-        }
-
         moduleRegistry.Register(new EventModule(builderAction));
         return moduleRegistry;
     }
 
     /// <summary>
-    ///     Registers an event module with default configuration, automatically ensuring
-    ///     that the required <see cref="MessageModule" /> is registered first.
+    ///     Registers an event module with default configuration.
     /// </summary>
     /// <param name="moduleRegistry">The module registry to register the event module with.</param>
     /// <returns>The current <see cref="IModuleRegistry" /> instance for method chaining.</returns>
@@ -77,21 +69,21 @@ public static class ModuleRegistryExtensions
     ///     Thrown when <paramref name="moduleRegistry" /> is <see langword="null" />.
     /// </exception>
     /// <remarks>
-    ///     This method automatically registers a <see cref="MessageModule" /> with default configuration
-    ///     if one has not already been registered. The event module is registered with default settings.
+    ///     The complete module graph validates the event module's messaging dependency independent of registration order.
     /// </remarks>
     /// <example>
     ///     <code>
     /// // Simple registration with default configuration
-    /// services.AddLiteBus(modules =>
+    /// services.AddLiteBus(builder =>
     /// {
-    ///     modules.AddEventModule();
+    ///     builder.AddMessaging(_ => { });
+    ///     builder.AddEvents(_ => { });
     /// });
     /// </code>
     /// </example>
     public static IModuleRegistry AddEventModule(this IModuleRegistry moduleRegistry)
     {
-        return AddEventModule(moduleRegistry, _ =>
+        return moduleRegistry.AddEventModule(_ =>
         {
         });
     }

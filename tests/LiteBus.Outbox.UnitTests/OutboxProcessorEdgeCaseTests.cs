@@ -1,10 +1,9 @@
-using LiteBus.Events;
-using LiteBus.Events.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Outbox;
+using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,53 +17,54 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task AddAsync_WhenMessageIdSupplied_ShouldUseProvidedId()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
+        var store = new InMemoryOutboxStore();
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+        contractRegistry.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
 
-        var writer = new OutboxWriter(
+        var writer = OutboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
             TimeProvider.System);
 
         var messageId = Guid.NewGuid();
-        var receipt = await writer.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
-        {
-            MessageId = messageId
-        });
 
-        receipt.MessageId.Should().Be(messageId);
-        store.Get(messageId).MessageId.Should().Be(messageId);
+        var receipt = await writer.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            messageId));
+
+        receipt.Id.Should().Be(messageId);
+        store.Get(messageId).Id.Should().Be(messageId);
     }
 
     [Fact]
     public async Task AddAsync_WhenMessageIdOmitted_ShouldGenerateId()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
+        var store = new InMemoryOutboxStore();
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+        contractRegistry.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
 
-        var writer = new OutboxWriter(
+        var writer = OutboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
             TimeProvider.System);
 
-        var receipt = await writer.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() });
+        var receipt = await writer.EnqueueAsync(OutboxWriterTestFactory.Item(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }));
 
-        receipt.MessageId.Should().NotBe(Guid.Empty);
-        store.Get(receipt.MessageId).MessageId.Should().Be(receipt.MessageId);
+        receipt.Id.Should().NotBe(Guid.Empty);
+        store.Get(receipt.Id).Id.Should().Be(receipt.Id);
     }
 
     [Fact]
     public async Task AddAsync_WhenDuplicateMessageId_ShouldReturnExistingEnvelope()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
+        var store = new InMemoryOutboxStore();
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+        contractRegistry.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
 
-        var writer = new OutboxWriter(
+        var writer = OutboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
@@ -74,9 +74,17 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
         var firstOrderId = Guid.NewGuid();
         var secondOrderId = Guid.NewGuid();
 
-        await writer.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = firstOrderId }, new OutboxOptions { MessageId = messageId });
-        await writer.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = secondOrderId }, new OutboxOptions { MessageId = messageId });
+        var first = await writer.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = firstOrderId },
+            messageId)).ConfigureAwait(true);
 
+
+        var duplicate = await writer.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = secondOrderId },
+            messageId)).ConfigureAwait(true);
+        first.Outcome.Should().Be(OutboxEnqueueOutcome.Enqueued);
+        duplicate.Outcome.Should().Be(OutboxEnqueueOutcome.AlreadyEnqueued);
+        duplicate.Id.Should().Be(first.Id);
         store.GetAll().Should().HaveCount(1);
         store.Get(messageId).Topic.Should().BeNull();
     }
@@ -84,14 +92,16 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task AddAsync_WhenContractNotRegistered_ShouldThrowMessageContractNotRegisteredException()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
-        var writer = new OutboxWriter(
+        var store = new InMemoryOutboxStore();
+
+        var writer = OutboxWriterTestFactory.Create(
             store,
             new MessageContractRegistry(),
             new SystemTextJsonMessageSerializer(),
             TimeProvider.System);
 
-        var act = async () => await writer.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() });
+        var act = async () => await writer.EnqueueAsync(OutboxWriterTestFactory.Item(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() })).ConfigureAwait(true);
 
         await act.Should().ThrowAsync<MessageContractNotRegisteredException>();
     }
@@ -99,117 +109,134 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldProcessMultipleMessagesInSinglePass()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
-        var recorder = new OutboxTests.EventRecorder();
-        await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10);
+         var provider = BuildProcessorProvider(10);
+         await using (provider.ConfigureAwait(true))
+         {
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        var outbox = provider.GetRequiredService<IIntegrationOutbox>();
+        var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
+        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
 
         for (var i = 0; i < 3; i++)
         {
-            await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
-            {
-                MessageId = Guid.NewGuid()
-            });
+            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Guid.NewGuid())).ConfigureAwait(true);
+
         }
 
-        var pass = await processor.ProcessPendingAsync();
+        var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
         pass.LeasedCount.Should().Be(3);
-        recorder.Events.Should().HaveCount(3);
-        store.GetAll().Should().OnlyContain(envelope => envelope.Status == OutboxMessageStatus.Published);
+        dispatcher.DispatchedMessages.Should().HaveCount(3);
+        store.GetAll().Should().OnlyContain(envelope => envelope.Status == OutboxStatus.Published);
+        }
     }
 
     [Fact]
     public async Task ProcessPendingAsync_ShouldRespectBatchSize()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
-        var recorder = new OutboxTests.EventRecorder();
-        await using var provider = BuildProcessorProvider(store, recorder, batchSize: 2);
+         var provider = BuildProcessorProvider(2);
+         await using (provider.ConfigureAwait(true))
+         {
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        var outbox = provider.GetRequiredService<IIntegrationOutbox>();
+        var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
+        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
 
         for (var i = 0; i < 5; i++)
         {
-            await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
-            {
-                MessageId = Guid.NewGuid()
-            });
+            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Guid.NewGuid())).ConfigureAwait(true);
+
         }
 
-        var firstPass = await processor.ProcessPendingAsync();
+        var firstPass = await processor.ProcessPendingAsync().ConfigureAwait(true);
         firstPass.LeasedCount.Should().Be(2);
-        recorder.Events.Should().HaveCount(2);
+        dispatcher.DispatchedMessages.Should().HaveCount(2);
 
-        var secondPass = await processor.ProcessPendingAsync();
+        var secondPass = await processor.ProcessPendingAsync().ConfigureAwait(true);
         secondPass.LeasedCount.Should().Be(2);
-        recorder.Events.Should().HaveCount(4);
+        dispatcher.DispatchedMessages.Should().HaveCount(4);
+        }
     }
 
     [Fact]
     public async Task ProcessPendingAsync_WhenVisibleAfterInFuture_ShouldNotLeaseMessage()
     {
-        var clock = new OutboxTestInfrastructure.ManualTimeProvider(BaseTime);
-        var store = new OutboxTests.InMemoryOutboxStore();
-        var recorder = new OutboxTests.EventRecorder();
-        await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10, clock: clock);
+        var clock = new ManualTimeProvider(BaseTime);
+         var provider = BuildProcessorProvider(10, clock);
+         await using (provider.ConfigureAwait(true))
+         {
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        var outbox = provider.GetRequiredService<IIntegrationOutbox>();
+        var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
+        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
         var messageId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
-        {
-            MessageId = messageId,
-            VisibleAfter = BaseTime.AddHours(1)
-        });
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithMetadata(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            OutboxEnqueueMetadata.Immediate with
+            {
+                Identity = new MessageIdentity.Supplied(messageId),
+                Visibility = new MessageVisibility.At(BaseTime.AddHours(1))
+            })).ConfigureAwait(true);
 
-        var pass = await processor.ProcessPendingAsync();
+
+        var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
         pass.LeasedCount.Should().Be(0);
-        recorder.Events.Should().BeEmpty();
-        store.Get(messageId).Status.Should().Be(OutboxMessageStatus.Pending);
+        dispatcher.DispatchedMessages.Should().BeEmpty();
+        store.Get(messageId).Status.Should().Be(OutboxStatus.Pending);
+        }
     }
 
     [Fact]
     public async Task ProcessPendingAsync_WhenVisibleAfterReached_ShouldPublishMessage()
     {
-        var clock = new OutboxTestInfrastructure.ManualTimeProvider(BaseTime);
-        var store = new OutboxTests.InMemoryOutboxStore();
-        var recorder = new OutboxTests.EventRecorder();
-        await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10, clock: clock);
+        var clock = new ManualTimeProvider(BaseTime);
+         var provider = BuildProcessorProvider(10, clock);
+         await using (provider.ConfigureAwait(true))
+         {
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        var outbox = provider.GetRequiredService<IIntegrationOutbox>();
+        var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
+        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
         var messageId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
-        {
-            MessageId = messageId,
-            VisibleAfter = BaseTime.AddMinutes(10)
-        });
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithMetadata(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            OutboxEnqueueMetadata.Immediate with
+            {
+                Identity = new MessageIdentity.Supplied(messageId),
+                Visibility = new MessageVisibility.At(BaseTime.AddMinutes(10))
+            })).ConfigureAwait(true);
+
 
         clock.Advance(TimeSpan.FromMinutes(10));
 
-        var pass = await processor.ProcessPendingAsync();
+        var pass = await processor.ProcessPendingAsync().ConfigureAwait(false);
         pass.LeasedCount.Should().Be(1);
-        recorder.Events.Should().ContainSingle();
+        dispatcher.DispatchedMessages.Should().ContainSingle();
+        }
     }
 
     [Fact]
     public async Task ProcessPendingAsync_WhenFixedBackoffConfigured_ShouldSetVisibleAfterToInitialDelay()
     {
-        var clock = new OutboxTestInfrastructure.ManualTimeProvider(BaseTime);
-        var store = new OutboxTests.InMemoryOutboxStore();
-        await using var provider = BuildProcessorProvider(
-            store,
-            recorder: null,
-            batchSize: 10,
-            clock: clock,
-            useFailingDispatcher: true,
-            configureOutbox: outbox =>
+        var clock = new ManualTimeProvider(BaseTime);
+
+        var provider = BuildProcessorProvider(
+            10,
+            clock,
+            true,
+            outbox =>
             {
-                outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
+
                 outbox.UseProcessorOptions(new OutboxProcessorOptions
                 {
                     BatchSize = 10,
@@ -223,30 +250,43 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
                     }
                 });
             });
+        await using (provider.ConfigureAwait(true))
+        {
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        var outbox = provider.GetRequiredService<IIntegrationOutbox>();
+        var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         var messageId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions { MessageId = messageId });
-        await processor.ProcessPendingAsync();
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            messageId)).ConfigureAwait(true);
+
+
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         store.Get(messageId).VisibleAfter.Should().Be(BaseTime.AddMinutes(2));
+        }
     }
 
     [Fact]
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimStuckMessage()
     {
-        var clock = new OutboxTestInfrastructure.ManualTimeProvider(BaseTime);
-        var store = new OutboxTests.InMemoryOutboxStore();
-        var recorder = new OutboxTests.EventRecorder();
-        await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10, clock: clock);
+        var clock = new ManualTimeProvider(BaseTime);
+         var provider = BuildProcessorProvider(10, clock);
+         await using (provider.ConfigureAwait(true))
+         {
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        var outbox = provider.GetRequiredService<IIntegrationOutbox>();
+        var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
+        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
         var messageId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions { MessageId = messageId });
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            messageId)).ConfigureAwait(true);
+
 
         await store.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -254,107 +294,132 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
             LeaseOwner = "stale-publisher",
             Now = BaseTime,
             LeaseDuration = TimeSpan.FromSeconds(30)
-        });
+        }).ConfigureAwait(true);
 
-        store.Get(messageId).Status.Should().Be(OutboxMessageStatus.Publishing);
+
+        store.Get(messageId).Status.Should().Be(OutboxStatus.Publishing);
 
         clock.Advance(TimeSpan.FromMinutes(1));
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        recorder.Events.Should().ContainSingle();
-        store.Get(messageId).Status.Should().Be(OutboxMessageStatus.Published);
+        dispatcher.DispatchedMessages.Should().ContainSingle();
+        store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
         store.Get(messageId).AttemptCount.Should().Be(2);
+        }
     }
 
     [Fact]
     public async Task ProcessPendingAsync_WhenDispatcherThrows_ShouldStoreErrorWithoutStackTrace()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
-        await using var provider = BuildProcessorProvider(
-            store,
-            recorder: null,
-            batchSize: 10,
+        var provider = BuildProcessorProvider(
+            10,
             useFailingDispatcher: true);
+        await using (provider.ConfigureAwait(true))
+        {
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        var outbox = provider.GetRequiredService<IIntegrationOutbox>();
+        var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         var messageId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions { MessageId = messageId });
-        await processor.ProcessPendingAsync();
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            messageId)).ConfigureAwait(true);
+
+
+        await processor.ProcessPendingAsync().ConfigureAwait(true);
 
         var lastError = store.Get(messageId).LastError;
         lastError.Should().Be($"{typeof(InvalidOperationException).FullName}: Simulated dispatcher failure.");
         lastError.Should().NotContain(" at ");
+        }
     }
 
     [Fact]
     public async Task ProcessPendingAsync_ShouldReturnLeasedCount()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
-        var recorder = new OutboxTests.EventRecorder();
-        await using var provider = BuildProcessorProvider(store, recorder, batchSize: 10);
+         var provider = BuildProcessorProvider(10);
+         await using (provider.ConfigureAwait(true))
+         {
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        var outbox = provider.GetRequiredService<IIntegrationOutbox>();
+        var outbox = provider.GetRequiredService<IOutbox>();
         var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        var emptyPass = await processor.ProcessPendingAsync();
+        var emptyPass = await processor.ProcessPendingAsync().ConfigureAwait(true);
         emptyPass.LeasedCount.Should().Be(0);
 
-        await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions { MessageId = Guid.NewGuid() });
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            Guid.NewGuid())).ConfigureAwait(false);
 
-        var pass = await processor.ProcessPendingAsync();
+
+        var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
         pass.LeasedCount.Should().Be(1);
+        }
     }
 
     [Fact]
-    public async Task LiteBusEventOutboxDispatcher_ShouldPublishPocoEvent()
+    public async Task ProcessPendingAsync_ShouldDispatchPocoMessageThroughMockDispatcher()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
-        var recorder = new PocoEventRecorder();
+        var dispatcherHolder = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IOutboxMessageWriter>(store)
-            .AddSingleton<IOutboxMessageLeaseStore>(store)
-            .AddSingleton<IOutboxMessageStateStore>(store)
-            .AddSingleton(recorder)
-            .AddLiteBus(configuration =>
+            .AddSingleton(dispatcherHolder)
+            .AddLiteBus(registry =>
             {
-                configuration.AddEventModule(builder => builder.Register<PocoEventHandler>());
-                configuration.AddOutboxModule(builder =>
+                registry.AddMessaging(_ =>
                 {
-                    builder.Contracts.Register<PocoIntegrationEvent>("poco.events.sample", 1);
-                    builder.UseLiteBusEventDispatcher();
+                });
+
+                registry.AddOutbox(builder =>
+                {
+                    builder.Contracts.Register<PocoIntegrationEvent>("poco.events.sample");
+
                     builder.UseProcessorOptions(new OutboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "poco-publisher",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
+                    builder.UseInMemoryStorage();
+                    builder.UseRecordingOutboxDispatcher(dispatcherHolder);
                 });
             })
             .BuildServiceProvider();
 
-        var writer = serviceProvider.GetRequiredService<IOutboxWriter>();
+        var writer = serviceProvider.GetRequiredService<IOutbox>();
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
+        var dispatcher = dispatcherHolder.Instance!;
         var messageId = Guid.NewGuid();
 
-        await writer.AddAsync(new PocoIntegrationEvent { Value = "poco-test" }, new OutboxOptions { MessageId = messageId });
-        await processor.ProcessPendingAsync();
+        await writer.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new PocoIntegrationEvent { Value = "poco-test" },
+            messageId)).ConfigureAwait(false);
 
-        recorder.Values.Should().ContainSingle("poco-test");
+
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+        dispatcher.DispatchedMessages
+            .OfType<PocoIntegrationEvent>()
+            .Should()
+            .ContainSingle(poco => poco.Value == "poco-test");
     }
 
     [Fact]
     public void OutboxProcessor_WithInvalidBatchSize_ShouldThrow()
     {
-        var act = () => new OutboxProcessor(
-            new OutboxTests.InMemoryOutboxStore(),
-            new OutboxTests.InMemoryOutboxStore(),
+        var store = new InMemoryOutboxStore();
+
+        var act = () => new PipelinedOutboxProcessor(
+            store,
+            store,
             new OutboxTests.AlwaysFailingOutboxDispatcher(),
             new OutboxProcessorOptions { BatchSize = 0 },
-            TimeProvider.System);
+            TimeProvider.System,
+            Array.Empty<IProcessorEnvelopeHook>());
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -362,12 +427,15 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public void OutboxProcessor_WithInvalidLeaseDuration_ShouldThrow()
     {
-        var act = () => new OutboxProcessor(
-            new OutboxTests.InMemoryOutboxStore(),
-            new OutboxTests.InMemoryOutboxStore(),
+        var store = new InMemoryOutboxStore();
+
+        var act = () => new PipelinedOutboxProcessor(
+            store,
+            store,
             new OutboxTests.AlwaysFailingOutboxDispatcher(),
             new OutboxProcessorOptions { LeaseDuration = TimeSpan.Zero },
-            TimeProvider.System);
+            TimeProvider.System,
+            Array.Empty<IProcessorEnvelopeHook>());
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
@@ -375,80 +443,67 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public void OutboxProcessor_WithInvalidMaxAttempts_ShouldThrow()
     {
-        var act = () => new OutboxProcessor(
-            new OutboxTests.InMemoryOutboxStore(),
-            new OutboxTests.InMemoryOutboxStore(),
+        var store = new InMemoryOutboxStore();
+
+        var act = () => new PipelinedOutboxProcessor(
+            store,
+            store,
             new OutboxTests.AlwaysFailingOutboxDispatcher(),
             new OutboxProcessorOptions { Retry = new RetryOptions { MaxAttempts = 0 } },
-            TimeProvider.System);
+            TimeProvider.System,
+            Array.Empty<IProcessorEnvelopeHook>());
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
 
-    public sealed record PocoIntegrationEvent
+    [Fact]
+    public async Task ProcessPendingAsync_WhenCancellationRequested_ShouldPropagateOperationCanceledException()
     {
-        public required string Value { get; init; }
-    }
+         var provider = BuildProcessorProvider(10);
+         await using (provider.ConfigureAwait(true))
+         {
+        var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-    public sealed class PocoEventHandler : IEventHandler<PocoIntegrationEvent>
-    {
-        private readonly PocoEventRecorder _recorder;
+        var outbox = provider.GetRequiredService<IOutbox>();
+        var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        public PocoEventHandler(PocoEventRecorder recorder)
+        for (var i = 0; i < 3; i++)
         {
-            _recorder = recorder;
+            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Guid.NewGuid())).ConfigureAwait(true);
+
         }
 
-        public Task HandleAsync(PocoIntegrationEvent message, CancellationToken cancellationToken = default)
-        {
-            _recorder.Record(message.Value);
-            return Task.CompletedTask;
-        }
-    }
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
 
-    public sealed class PocoEventRecorder
-    {
-        private readonly List<string> _values = [];
+        var act = async () => await processor.ProcessPendingAsync(cts.Token).ConfigureAwait(false);
 
-        public IReadOnlyList<string> Values => _values;
-
-        public void Record(string value)
-        {
-            _values.Add(value);
+        await act.Should().ThrowAsync<OperationCanceledException>();
         }
     }
 
     private static ServiceProvider BuildProcessorProvider(
-        OutboxTests.InMemoryOutboxStore store,
-        OutboxTests.EventRecorder? recorder,
         int batchSize,
         TimeProvider? clock = null,
         bool useFailingDispatcher = false,
         Action<OutboxModuleBuilder>? configureOutbox = null)
     {
-        var services = new ServiceCollection()
-            .AddSingleton<IOutboxMessageWriter>(store)
-            .AddSingleton<IOutboxMessageLeaseStore>(store)
-            .AddSingleton<IOutboxMessageStateStore>(store);
+        var dispatcherHolder = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
+        var services = new ServiceCollection().AddSingleton(dispatcherHolder);
 
-        if (recorder is not null)
+        services.AddLiteBus(registry =>
         {
-            services.AddSingleton(recorder);
-        }
-
-        if (useFailingDispatcher)
-        {
-            services.AddSingleton<IOutboxDispatcher>(new OutboxTests.AlwaysFailingOutboxDispatcher());
-        }
-
-        services.AddLiteBus(configuration =>
-        {
-            if (recorder is not null)
+            registry.AddMessaging(message =>
             {
-                configuration.AddEventModule(builder => builder.Register<OutboxTests.OrderSubmittedEventHandler>());
-            }
+                if (clock is not null)
+                {
+                    message.UseTimeProvider(clock);
+                }
+            });
 
-            configuration.AddOutboxModule(outbox =>
+            registry.AddOutbox(outbox =>
             {
                 if (configureOutbox is not null)
                 {
@@ -456,11 +511,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
                 }
                 else
                 {
-                    outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
-                    if (!useFailingDispatcher)
-                    {
-                        outbox.UseLiteBusEventDispatcher();
-                    }
+                    outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
 
                     outbox.UseProcessorOptions(new OutboxProcessorOptions
                     {
@@ -469,14 +520,25 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
                         Retry = new RetryOptions { UseJitter = false }
                     });
                 }
+
+                outbox.UseInMemoryStorage();
+
+                if (useFailingDispatcher)
+                {
+                    outbox.UseFixedOutboxDispatcher(new OutboxTests.AlwaysFailingOutboxDispatcher());
+                }
+                else
+                {
+                    outbox.UseRecordingOutboxDispatcher(dispatcherHolder);
+                }
             });
         });
 
-        if (clock is not null)
-        {
-            services.AddSingleton(clock);
-        }
-
         return services.BuildServiceProvider();
+    }
+
+    public sealed record PocoIntegrationEvent
+    {
+        public required string Value { get; init; }
     }
 }

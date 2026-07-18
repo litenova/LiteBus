@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.Linq;
 using LiteBus.Events.Abstractions;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Events;
@@ -11,7 +11,7 @@ namespace LiteBus.Events;
 ///     Module for configuring event handling infrastructure.
 ///     Depends on the messaging module for core messaging functionality.
 /// </summary>
-public sealed class EventModule : IModule
+public sealed class EventModule : IModule, IRequires<MessageModule>
 {
     /// <summary>
     ///     Gets the configuration action invoked when the module is built.
@@ -25,7 +25,8 @@ public sealed class EventModule : IModule
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder" /> is <see langword="null" />.</exception>
     public EventModule(Action<EventModuleBuilder> builder)
     {
-        _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+        ArgumentNullException.ThrowIfNull(builder);
+        _builder = builder;
     }
 
     /// <summary>
@@ -37,11 +38,12 @@ public sealed class EventModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var messageRegistry = MessageRegistryAccessor.Instance;
+        var messageRegistry = configuration.GetContext<IMessageRegistry>();
+        var contractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
 
         var startIndex = messageRegistry.Handlers.Count;
 
-        var moduleBuilder = new EventModuleBuilder(messageRegistry);
+        var moduleBuilder = new EventModuleBuilder(messageRegistry, contractRegistry);
         _builder(moduleBuilder);
 
         RegisterEventServices(configuration);
@@ -56,10 +58,6 @@ public sealed class EventModule : IModule
     {
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IEventMediator),
-            typeof(EventMediator)));
-
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IEventPublisher),
             typeof(EventMediator)));
     }
 
@@ -81,7 +79,8 @@ public sealed class EventModule : IModule
             {
                 configuration.DependencyRegistry.Register(new DependencyDescriptor(
                     handlerType,
-                    handlerType));
+                    handlerType,
+                    InstanceLifetime.Scoped));
             }
         }
     }

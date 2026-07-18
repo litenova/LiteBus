@@ -1,0 +1,49 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace LiteBus.Outbox.Abstractions;
+
+/// <summary>
+///     Controls pause, resume, and drain behavior for the outbox processor background loop.
+/// </summary>
+public interface IOutboxProcessorControl
+{
+    /// <summary>
+    ///     Gets the current processor loop state.
+    /// </summary>
+    /// <value>The state observed by callers without acquiring the processor gate.</value>
+    ProcessorState State { get; }
+
+    /// <summary>
+    ///     Suspends leasing after the current pass completes.
+    /// </summary>
+    /// <remarks>
+    ///     Blocks until the running pass finishes before returning. Repeated pause requests are idempotent. Once the
+    ///     transition is applied, cancelling the wait does not resume the processor.
+    /// </remarks>
+    /// <param name="cancellationToken">A token used to cancel waiting for the gate.</param>
+    /// <returns>A task that completes when the processor loop is paused.</returns>
+    Task PauseAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Resumes leasing after a pause.
+    /// </summary>
+    /// <remarks>Repeated resume requests are idempotent.</remarks>
+    /// <param name="cancellationToken">A token reserved for future cancellation support.</param>
+    /// <returns>A task that completes when the processor loop is running again.</returns>
+    Task ResumeAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Processes messages currently in the store once, then stops leasing.
+    /// </summary>
+    /// <remarks>
+    ///     Useful for graceful shutdown: call before host stop, await completion, then cancel the host. Concurrent drain
+    ///     requests await the same final pass. A timeout throws <see cref="TimeoutException" /> and stops only that
+    ///     caller's wait; the processor continues its drain pass.
+    /// </remarks>
+    /// <param name="timeout">The maximum time to wait for the drain pass to complete.</param>
+    /// <param name="cancellationToken">A token used to cancel waiting for drain completion.</param>
+    /// <returns>A task that completes when the processor loop exits after the final pass.</returns>
+    Task DrainAsync(TimeSpan timeout, CancellationToken cancellationToken = default);
+}

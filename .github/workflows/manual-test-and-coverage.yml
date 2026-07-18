@@ -1,5 +1,8 @@
 name: Manual Test and Coverage
 
+permissions:
+  contents: read
+
 on:
   # This allows the workflow to be triggered manually from the GitHub Actions UI.
   workflow_dispatch:
@@ -10,10 +13,10 @@ jobs:
     
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -21,19 +24,28 @@ jobs:
         run: dotnet restore LiteBus.slnx
 
       - name: Decode Strong Name Key
-        run: echo "${{ secrets.STRONG_NAME_KEY }}" | base64 --decode > LiteBus.snk
+        env:
+          STRONG_NAME_KEY: ${{ secrets.STRONG_NAME_KEY }}
+        run: |
+          if [ -z "${STRONG_NAME_KEY}" ]; then
+            echo "::error::STRONG_NAME_KEY is required for the manual release-equivalent test run."
+            exit 1
+          fi
+          echo "${STRONG_NAME_KEY}" | base64 --decode > LiteBus.snk
 
       - name: Docker Info
         run: docker info
 
       - name: Run Tests and Generate Coverage
-        run: dotnet test LiteBus.slnx --no-restore --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
+        shell: pwsh
+        run: ./scripts/run-coverage.ps1 -ResultsDirectory ./coverage -SkipReport -EnforceThreshold
 
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v6
         with:
-          files: ./tests/**/coverage.opencover.xml
+          files: ./coverage/**/coverage.cobertura.xml
+          disable_search: true
           token: ${{ secrets.CODECOV_TOKEN }}
-          flags: unittests
+          flags: full-suite
           fail_ci_if_error: true
           verbose: true

@@ -1,8 +1,8 @@
 using System;
 using System.Linq;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Commands;
@@ -11,7 +11,7 @@ namespace LiteBus.Commands;
 ///     Module for configuring command handling infrastructure.
 ///     Depends on the messaging module for core messaging functionality.
 /// </summary>
-public sealed class CommandModule : IModule
+public sealed class CommandModule : IModule, IRequires<MessageModule>
 {
     /// <summary>
     ///     Gets the configuration action invoked when the module is built.
@@ -25,7 +25,8 @@ public sealed class CommandModule : IModule
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder" /> is <see langword="null" />.</exception>
     public CommandModule(Action<CommandModuleBuilder> builder)
     {
-        _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+        ArgumentNullException.ThrowIfNull(builder);
+        _builder = builder;
     }
 
     /// <summary>
@@ -37,11 +38,12 @@ public sealed class CommandModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var messageRegistry = MessageRegistryAccessor.Instance;
+        var messageRegistry = configuration.GetContext<IMessageRegistry>();
+        var contractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
 
         var startIndex = messageRegistry.Handlers.Count;
 
-        var moduleBuilder = new CommandModuleBuilder(messageRegistry);
+        var moduleBuilder = new CommandModuleBuilder(messageRegistry, contractRegistry);
         _builder(moduleBuilder);
 
         RegisterCommandServices(configuration);
@@ -77,7 +79,8 @@ public sealed class CommandModule : IModule
             {
                 configuration.DependencyRegistry.Register(new DependencyDescriptor(
                     handlerType,
-                    handlerType));
+                    handlerType,
+                    InstanceLifetime.Scoped));
             }
         }
     }

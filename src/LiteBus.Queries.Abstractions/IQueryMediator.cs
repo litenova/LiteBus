@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,7 +16,7 @@ namespace LiteBus.Queries.Abstractions;
 ///     modifying the system state. The query mediator helps maintain separation between
 ///     the query issuers and the query handlers.
 /// </remarks>
-public interface IQueryMediator : IRegistrableQueryConstruct
+public interface IQueryMediator
 {
     /// <summary>
     ///     Asynchronously executes a query and returns the result.
@@ -58,7 +58,8 @@ public interface IQueryMediator : IRegistrableQueryConstruct
     ///     The query is routed to its appropriate handler based on its type, and the query handling pipeline
     ///     is executed, including pre-handlers, the main handler, post-handlers, and error handlers if exceptions occur.
     ///     The sequence of results produced by the handler is returned to the caller as an <see cref="IAsyncEnumerable{T}" />,
-    ///     allowing for asynchronous enumeration of the results.
+    ///     allowing for asynchronous enumeration of the results. The returned stream owns one message dispatch scope and
+    ///     must be enumerated only once. Disposing its enumerator releases scoped handler dependencies.
     /// </remarks>
     IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
                                                              QueryMediationSettings? queryMediationSettings = null,

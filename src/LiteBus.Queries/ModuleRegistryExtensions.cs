@@ -1,6 +1,5 @@
 using System;
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Queries;
@@ -11,8 +10,24 @@ namespace LiteBus.Queries;
 public static class ModuleRegistryExtensions
 {
     /// <summary>
-    ///     Registers a query module with the specified configuration, automatically ensuring
-    ///     that the required <see cref="MessageModule" /> is registered first.
+    ///     Adds query mediation to a LiteBus composition.
+    /// </summary>
+    /// <param name="builder">The package-neutral LiteBus builder.</param>
+    /// <param name="builderAction">The query registration callback.</param>
+    /// <returns>The current LiteBus builder.</returns>
+    public static ILiteBusBuilder AddQueries(
+        this ILiteBusBuilder builder,
+        Action<QueryModuleBuilder> builderAction)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(builderAction);
+
+        builder.Modules.AddQueryModule(builderAction);
+        return builder;
+    }
+
+    /// <summary>
+    ///     Registers a query module with the specified configuration.
     /// </summary>
     /// <param name="moduleRegistry">The module registry to register the query module with.</param>
     /// <param name="builderAction">An action to configure the query module builder.</param>
@@ -21,32 +36,18 @@ public static class ModuleRegistryExtensions
     ///     Thrown when <paramref name="moduleRegistry" /> or <paramref name="builderAction" /> is <see langword="null" />.
     /// </exception>
     /// <remarks>
-    ///     This method automatically registers a <see cref="MessageModule" /> with default configuration
-    ///     if one has not already been registered. This ensures that the core messaging services
-    ///     (such as <see cref="IMessageMediator" /> and <see cref="IMessageRegistry" />) are available
-    ///     for query processing.
-    ///     If you need custom configuration for the <see cref="MessageModule" />, register it explicitly
-    ///     before calling this method.
+    ///     <see cref="QueryModule" /> declares <see cref="IRequires{TModule}" /> for <see cref="MessageModule" />.
+    ///     The complete module graph validates that dependency independent of registration order.
     /// </remarks>
     /// <example>
     ///     <code>
-    /// // Automatic MessageModule registration with default configuration
-    /// services.AddLiteBus(modules =>
+    /// services.AddLiteBus(builder =>
     /// {
-    ///     modules.AddQueryModule(qry => 
+    ///     builder.AddQueries(qry =>
     ///     {
     ///         qry.RegisterFromAssembly(typeof(MyQuery).Assembly);
     ///     });
-    /// });
-    /// 
-    /// // Explicit MessageModule configuration
-    /// services.AddLiteBus(modules =>
-    /// {
-    ///     modules.AddMessageModule(msg => { /* custom config */ });
-    ///     modules.AddQueryModule(qry => 
-    ///     {
-    ///         qry.RegisterFromAssembly(typeof(MyQuery).Assembly);
-    ///     });
+    ///     builder.AddMessaging(msg => { /* optional core config */ });
     /// });
     /// </code>
     /// </example>
@@ -54,14 +55,6 @@ public static class ModuleRegistryExtensions
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
-
-        // Ensure MessageModule is registered first with default configuration.
-        if (!moduleRegistry.IsModuleRegistered<MessageModule>())
-        {
-            moduleRegistry.Register(new MessageModule(_ =>
-            {
-            }));
-        }
 
         moduleRegistry.Register(new QueryModule(builderAction));
         return moduleRegistry;

@@ -1,0 +1,26 @@
+{
+  "UserConfig": {
+    "Namespaces": [
+      {
+        "Name": "sbemulatorns",
+        "Queues": [
+          {
+            "Name": "litebus-ingress"
+          },
+          {
+            "Name": "litebus-dispatch"
+          },
+          {
+            "Name": "litebus-outbox"
+          },
+          {
+            "Name": "litebus-fail"
+          }
+        ]
+      }
+    ],
+    "Logging": {
+      "Type": "Console"
+    }
+  }
+}

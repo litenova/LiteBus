@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
+        <ProjectReference Include="..\LiteBus.Inbox.Ingress\LiteBus.Inbox.Ingress.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Transport.AzureServiceBus\LiteBus.Transport.AzureServiceBus.csproj"/>
+    </ItemGroup>
+
+</Project>

@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
@@ -36,7 +33,10 @@ public interface IHandleContextData
     ///     Determines whether the context contains a value of the specified type.
     /// </summary>
     /// <typeparam name="T">The type to check for.</typeparam>
-    /// <returns><see langword="true" /> if the context contains a value of type <typeparamref name="T" />; otherwise, <see langword="false" />.</returns>
+    /// <returns>
+    ///     <see langword="true" /> if the context contains a value of type <typeparamref name="T" />; otherwise,
+    ///     <see langword="false" />.
+    /// </returns>
     bool Contains<T>();
 
     /// <summary>
@@ -47,42 +47,4 @@ public interface IHandleContextData
     ///     If no value of the specified type exists in the context, this method has no effect.
     /// </remarks>
     void Remove<T>();
-}
-
-/// <summary>
-///     Provides a default implementation of the <see cref="IHandleContextData" /> interface.
-/// </summary>
-/// <remarks>
-///     This class uses a dictionary to store context data, with the type as the key and the value as the value.
-/// </remarks>
-public class HandleContextData : IHandleContextData
-{
-    /// <summary>
-    ///     Stores context values keyed by their CLR type.
-    /// </summary>
-    private readonly Dictionary<Type, object> _data = new();
-
-    /// <inheritdoc />
-    public T Get<T>()
-    {
-        return (T) _data[typeof(T)];
-    }
-
-    /// <inheritdoc />
-    public void Set<T>(T value) where T : notnull
-    {
-        _data[typeof(T)] = value;
-    }
-
-    /// <inheritdoc />
-    public bool Contains<T>()
-    {
-        return _data.ContainsKey(typeof(T));
-    }
-
-    /// <inheritdoc />
-    public void Remove<T>()
-    {
-        _data.Remove(typeof(T));
-    }
 }

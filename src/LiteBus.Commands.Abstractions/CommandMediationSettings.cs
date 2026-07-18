@@ -13,12 +13,12 @@ namespace LiteBus.Commands.Abstractions;
 public sealed class CommandMediationSettings
 {
     /// <summary>
-    ///     Gets the filters to be applied during command mediation.
+    ///     Gets or initializes the command routing configuration that determines which handlers should execute.
     /// </summary>
-    /// <remarks>
-    ///     Filters determine which handlers participate in the command processing pipeline.
-    /// </remarks>
-    public CommandMediationFilters Filters { get; } = new();
+    /// <value>
+    ///     A <see cref="CommandRoutingSettings" /> instance containing routing configuration.
+    /// </value>
+    public CommandRoutingSettings Routing { get; init; } = new();
 
     /// <summary>
     ///     Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.
@@ -30,25 +30,4 @@ public sealed class CommandMediationSettings
     ///     step under specific, controlled conditions.
     /// </remarks>
     public IDictionary<string, object> Items { get; } = new Dictionary<string, object>();
-
-    /// <summary>
-    ///     Represents the filters to be applied during command mediation.
-    /// </summary>
-    /// <remarks>
-    ///     Command mediation filters allow for selective inclusion of handlers in the command processing pipeline
-    ///     based on their metadata such as tags.
-    /// </remarks>
-    public sealed class CommandMediationFilters
-    {
-        /// <summary>
-        ///     Gets or sets the collection of tags used to filter command handlers (pre-handlers, main handlers, and
-        ///     post-handlers) during mediation.
-        /// </summary>
-        /// <remarks>
-        ///     When tags are specified, only handlers marked with at least one matching tag will participate in command
-        ///     processing.
-        ///     If the collection is empty, all registered handlers will be considered.
-        /// </remarks>
-        public IEnumerable<string> Tags { get; set; } = new List<string>();
-    }
 }

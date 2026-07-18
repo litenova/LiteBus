@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>false</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="AWSSDK.SQS"/>
+        <PackageReference Include="Azure.Messaging.ServiceBus"/>
+        <PackageReference Include="Confluent.Kafka"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
+        <PackageReference Include="Testcontainers"/>
+        <PackageReference Include="Testcontainers.Kafka"/>
+        <PackageReference Include="Testcontainers.Redpanda"/>
+        <PackageReference Include="Testcontainers.LocalStack"/>
+        <PackageReference Include="Testcontainers.ServiceBus"/>
+        <PackageReference Include="Xunit.SkippableFact"/>
+        <PackageReference Include="xunit"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.InProcess\LiteBus.Inbox.Dispatch.InProcess.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Ingress.Kafka\LiteBus.Inbox.Ingress.Kafka.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.InProcess\LiteBus.Outbox.Dispatch.InProcess.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.InMemory\LiteBus.Outbox.Storage.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing.Hosting\LiteBus.Testing.Hosting.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.Abstractions\LiteBus.Transport.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.AwsSqs\LiteBus.Transport.AwsSqs.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.AzureServiceBus\LiteBus.Transport.AzureServiceBus.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.Kafka\LiteBus.Transport.Kafka.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Transport.InMemory\LiteBus.Transport.InMemory.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="Azure\servicebus-emulator-config.json" CopyToOutputDirectory="PreserveNewest"/>
+    </ItemGroup>
+
+</Project>

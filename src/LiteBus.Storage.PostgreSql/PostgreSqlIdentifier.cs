@@ -1,0 +1,102 @@
+using System;
+using System.Globalization;
+using System.Text;
+
+namespace LiteBus.Storage.PostgreSql;
+
+/// <summary>
+///     Builds quoted PostgreSQL identifiers used by LiteBus PostgreSQL stores and schema helpers.
+/// </summary>
+/// <remarks>
+///     PostgreSQL does not allow parameterized schema, table, or index names. This helper centralizes quoting and index
+///     name trimming so SQL text can be built without spreading identifier rules through store code.
+/// </remarks>
+public static class PostgreSqlIdentifier
+{
+    /// <summary>
+    ///     Combines a schema and table name into a quoted qualified table identifier.
+    /// </summary>
+    /// <param name="schemaName">The unquoted schema name supplied by store options.</param>
+    /// <param name="tableName">The unquoted table name supplied by store options.</param>
+    /// <returns>A qualified identifier in the form <c>"schema"."table"</c>.</returns>
+    public static string Qualify(string schemaName, string tableName)
+    {
+        return $"{Quote(schemaName)}.{Quote(tableName)}";
+    }
+
+    /// <summary>
+    ///     Quotes one PostgreSQL identifier and escapes embedded quote characters.
+    /// </summary>
+    /// <param name="identifier">The unquoted identifier.</param>
+    /// <returns>The quoted identifier.</returns>
+    public static string Quote(string identifier)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        if (identifier.Contains('\0'))
+        {
+            throw new ArgumentException("PostgreSQL identifiers cannot contain null characters.", nameof(identifier));
+        }
+
+        return $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+    }
+
+    /// <summary>
+    ///     Creates a deterministic index name that stays within PostgreSQL identifier length limits.
+    /// </summary>
+    /// <param name="tableName">The table name used as the index name prefix.</param>
+    /// <param name="suffix">The logical suffix that describes the index role.</param>
+    /// <returns>A quoted index identifier.</returns>
+    public static string IndexName(string tableName, string suffix)
+    {
+        return Quote(UnquotedIndexName(tableName, suffix));
+    }
+
+    /// <summary>
+    ///     Creates a deterministic unquoted index name that stays within PostgreSQL identifier length limits.
+    /// </summary>
+    /// <param name="tableName">The table name used as the index name prefix.</param>
+    /// <param name="suffix">The logical suffix that describes the index role.</param>
+    /// <returns>The unquoted index name as stored in <c>pg_indexes.indexname</c>.</returns>
+    public static string UnquotedIndexName(string tableName, string suffix)
+    {
+        var builder = new StringBuilder(tableName.Length + suffix.Length + 1);
+
+        foreach (var character in $"{tableName}_{suffix}")
+        {
+            builder.Append(char.IsLetterOrDigit(character) || character == '_' ? character : '_');
+        }
+
+        var name = builder.ToString();
+
+        if (name.Length > 60)
+        {
+            name = name[..48] + "_" + StableHash(name).ToString("x8", CultureInfo.InvariantCulture);
+        }
+
+        return name;
+    }
+
+    /// <summary>
+    ///     Computes a stable, process-invariant FNV-1a 32-bit hash of the given string.
+    /// </summary>
+    /// <param name="value">The string to hash.</param>
+    /// <returns>A 32-bit hash value.</returns>
+    public static uint StableHash(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+
+        const uint fnvPrime = 16777619;
+        const uint offsetBasis = 2166136261;
+
+        var hash = offsetBasis;
+
+        foreach (var c in value)
+        {
+            hash ^= c;
+            hash *= fnvPrime;
+        }
+
+        return hash;
+    }
+}

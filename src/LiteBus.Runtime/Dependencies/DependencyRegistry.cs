@@ -2,48 +2,66 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Runtime.Dependencies;
 
 /// <summary>
 ///     Default implementation of <see cref="IDependencyRegistry" /> that manages dependency descriptors
 ///     used throughout LiteBus. This registry provides an abstraction over dependency injection containers
-///     and prevents duplicate registrations.
+///     and rejects conflicting service registrations at configuration time.
 /// </summary>
 public sealed class DependencyRegistry : IDependencyRegistry
 {
     /// <summary>
-    ///     Stores unique dependency descriptors registered through this registry.
+    ///     Shared registration policy used to track descriptors and detect conflicts.
     /// </summary>
-    private readonly HashSet<DependencyDescriptor> _descriptors = [];
+    private readonly DependencyRegistrationTracker _tracker = new();
 
     /// <summary>
     ///     Gets the total number of dependency descriptors registered in the registry.
     /// </summary>
     /// <value>The total count of registered dependency descriptors.</value>
-    public int Count => _descriptors.Count;
+    public int Count => _tracker.Count;
 
     /// <summary>
-    ///     Registers a dependency in the registry if it hasn't been registered already.
-    ///     Duplicate registrations (same dependency type and implementation type) are ignored.
+    ///     Registers a dependency in the registry when no other module has registered the same service type.
+    ///     Duplicate registrations with equal descriptors are ignored; see
+    ///     <see cref="DependencyDescriptor.Equals(DependencyDescriptor?)" />.
     /// </summary>
     /// <param name="descriptor">The dependency descriptor that defines how the dependency should be registered.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     Thrown when another module already registered <see cref="DependencyDescriptor.DependencyType" /> with a different
+    ///     binding.
+    /// </exception>
     public void Register(DependencyDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        _descriptors.Add(descriptor);
+        if (descriptor.IsCollectionRegistration)
+        {
+            throw new LiteBusConfigurationException(
+                $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' was registered with collection metadata. " +
+                $"Use {nameof(RegisterCollection)} for multi-registration services such as IEnumerable<T> hooks.");
+        }
+
+        _tracker.TryTrack(descriptor, true);
     }
 
     /// <inheritdoc />
-    public void RegisterHostedService(Type implementationType)
+    public void RegisterCollection(DependencyDescriptor descriptor)
     {
-        ArgumentNullException.ThrowIfNull(implementationType);
+        ArgumentNullException.ThrowIfNull(descriptor);
 
-        throw new InvalidOperationException(
-            "Hosted services require LiteBus to be configured through Microsoft.Extensions.DependencyInjection or Autofac. " +
-            "Use services.AddLiteBus(...) or containerBuilder.AddLiteBus(...), then call AddCommandInboxProcessorHosting or AddOutboxProcessorHosting.");
+        if (!descriptor.IsCollectionRegistration)
+        {
+            throw new LiteBusConfigurationException(
+                $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' must be created with " +
+                $"{nameof(DependencyDescriptor.ForCollection)} before calling {nameof(RegisterCollection)}.");
+        }
+
+        _tracker.TryTrack(descriptor, false);
     }
 
     /// <summary>
@@ -52,7 +70,7 @@ public sealed class DependencyRegistry : IDependencyRegistry
     /// <returns>An enumerator that can be used to iterate through the dependency descriptors.</returns>
     public IEnumerator<DependencyDescriptor> GetEnumerator()
     {
-        return _descriptors.GetEnumerator();
+        return _tracker.GetEnumerator();
     }
 
     /// <summary>

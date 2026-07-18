@@ -1,10 +1,8 @@
-using LiteBus.Events;
-using LiteBus.Events.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,65 +12,64 @@ namespace LiteBus.Outbox.UnitTests;
 public sealed class OutboxTests : LiteBusTestBase
 {
     [Fact]
-    public async Task IntegrationOutbox_ShouldStoreEventWithExplicitMessageId()
+    public async Task OutboxWriter_ShouldStoreEventWithExplicitMessageId()
     {
         var now = new DateTimeOffset(2026, 5, 28, 11, 0, 0, TimeSpan.Zero);
         var store = new InMemoryOutboxStore();
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 3);
 
-        var outbox = new IntegrationOutbox(new OutboxWriter(
+        var outbox = OutboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
-            new FixedTimeProvider(now)));
+            new ManualTimeProvider(now));
 
         var eventId = Guid.NewGuid();
 
-        var receipt = await outbox.AddAsync(new OrderSubmittedIntegrationEvent
+        var metadata = OutboxEnqueueMetadata.Immediate with
         {
-            OrderId = Guid.NewGuid()
-        }, new OutboxOptions
-        {
-            MessageId = eventId,
-            Topic = "orders",
-            CorrelationId = "correlation-1"
-        });
+            Identity = new MessageIdentity.Supplied(eventId),
+            Target = new PublicationTarget.Topic("orders"),
+            Trace = new MessageTrace.Correlated("correlation-1")
+        };
 
-        receipt.MessageId.Should().Be(eventId);
-        receipt.EventType.Should().Be(typeof(OrderSubmittedIntegrationEvent));
-        receipt.ContractName.Should().Be("orders.events.submitted");
-        receipt.ContractVersion.Should().Be(3);
+        var receipt = await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithMetadata(
+            new OrderSubmittedIntegrationEvent
+            {
+                OrderId = Guid.NewGuid()
+            },
+            metadata)).ConfigureAwait(false);
+
+        receipt.Id.Should().Be(eventId);
+        receipt.MessageType.Should().Be(typeof(OrderSubmittedIntegrationEvent));
+        receipt.Contract.Name.Should().Be("orders.events.submitted");
+        receipt.Contract.Version.Should().Be(3);
         receipt.StoredAt.Should().Be(now);
 
         var envelope = store.Get(eventId);
         envelope.Topic.Should().Be("orders");
-        envelope.Status.Should().Be(OutboxMessageStatus.Pending);
+        envelope.Status.Should().Be(OutboxStatus.Pending);
         envelope.CorrelationId.Should().Be("correlation-1");
     }
 
     [Fact]
-    public async Task ProcessPendingAsync_ShouldPublishThroughLiteBusEventDispatcherAndMarkPublished()
+    public async Task ProcessPendingAsync_ShouldDispatchThroughMockDispatcherAndMarkPublished()
     {
-        var store = new InMemoryOutboxStore();
-        var recorder = new EventRecorder();
+        var dispatcherHolder = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IOutboxMessageWriter>(store)
-            .AddSingleton<IOutboxMessageLeaseStore>(store)
-            .AddSingleton<IOutboxMessageStateStore>(store)
-            .AddSingleton(recorder)
-            .AddLiteBus(configuration =>
+            .AddSingleton(dispatcherHolder)
+            .AddLiteBus(registry =>
             {
-                configuration.AddEventModule(builder =>
+                registry.AddMessaging(_ =>
                 {
-                    builder.Register<OrderSubmittedEventHandler>();
                 });
 
-                configuration.AddOutboxModule(builder =>
+                registry.AddOutbox(builder =>
                 {
-                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
-                    builder.UseLiteBusEventDispatcher();
+                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted");
+
                     builder.UseProcessorOptions(new OutboxProcessorOptions
                     {
                         BatchSize = 10,
@@ -82,29 +79,36 @@ public sealed class OutboxTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
+
+                    builder.UseInMemoryStorage();
+                    builder.UseRecordingOutboxDispatcher(dispatcherHolder);
                 });
             })
             .BuildServiceProvider();
 
-        var outbox = serviceProvider.GetRequiredService<IIntegrationOutbox>();
+        var store = serviceProvider.GetRequiredService<InMemoryOutboxStore>();
+        var outbox = serviceProvider.GetRequiredService<IOutbox>();
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
+        var dispatcher = dispatcherHolder.Instance!;
         var eventId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OrderSubmittedIntegrationEvent
-        {
-            OrderId = orderId
-        }, new OutboxOptions
-        {
-            MessageId = eventId
-        });
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OrderSubmittedIntegrationEvent
+            {
+                OrderId = orderId
+            },
+            eventId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
+        dispatcher.DispatchedMessages
+            .OfType<OrderSubmittedIntegrationEvent>()
+            .Should()
+            .ContainSingle(submitted => submitted.OrderId == orderId);
 
         var envelope = store.Get(eventId);
-        envelope.Status.Should().Be(OutboxMessageStatus.Published);
+        envelope.Status.Should().Be(OutboxStatus.Published);
         envelope.AttemptCount.Should().Be(1);
         envelope.LeaseOwner.Should().BeNull();
     }
@@ -112,25 +116,20 @@ public sealed class OutboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldSupportClosedGenericIntegrationEvents()
     {
-        var store = new InMemoryOutboxStore();
-        var recorder = new GenericEventRecorder();
+        var dispatcherHolder = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IOutboxMessageWriter>(store)
-            .AddSingleton<IOutboxMessageLeaseStore>(store)
-            .AddSingleton<IOutboxMessageStateStore>(store)
-            .AddSingleton(recorder)
-            .AddLiteBus(configuration =>
+            .AddSingleton(dispatcherHolder)
+            .AddLiteBus(registry =>
             {
-                configuration.AddEventModule(builder =>
+                registry.AddMessaging(_ =>
                 {
-                    builder.Register<GenericIntegrationEventHandler>();
                 });
 
-                configuration.AddOutboxModule(builder =>
+                registry.AddOutbox(builder =>
                 {
-                    builder.Contracts.Register<GenericIntegrationEvent<int>>("generic.events.int", 1);
-                    builder.UseLiteBusEventDispatcher();
+                    builder.Contracts.Register<GenericIntegrationEvent<int>>("generic.events.int");
+
                     builder.UseProcessorOptions(new OutboxProcessorOptions
                     {
                         BatchSize = 10,
@@ -140,26 +139,34 @@ public sealed class OutboxTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
+
+                    builder.UseInMemoryStorage();
+                    builder.UseRecordingOutboxDispatcher(dispatcherHolder);
                 });
             })
             .BuildServiceProvider();
 
-        var outbox = serviceProvider.GetRequiredService<IIntegrationOutbox>();
+        var store = serviceProvider.GetRequiredService<InMemoryOutboxStore>();
+        var outbox = serviceProvider.GetRequiredService<IOutbox>();
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
+        var dispatcher = dispatcherHolder.Instance!;
         var messageId = Guid.NewGuid();
 
-        await outbox.AddAsync(new GenericIntegrationEvent<int>
-        {
-            Value = 42
-        }, new OutboxOptions
-        {
-            MessageId = messageId
-        });
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new GenericIntegrationEvent<int>
+            {
+                Value = 42
+            },
+            messageId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        recorder.Values.Should().ContainSingle(value => value == 42);
-        store.Get(messageId).Status.Should().Be(OutboxMessageStatus.Published);
+        dispatcher.DispatchedMessages
+            .OfType<GenericIntegrationEvent<int>>()
+            .Should()
+            .ContainSingle(generic => generic.Value == 42);
+
+        store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
     }
 
     [Fact]
@@ -167,7 +174,7 @@ public sealed class OutboxTests : LiteBusTestBase
     {
         var contractRegistry = new MessageContractRegistry();
 
-        var act = () => contractRegistry.Register(typeof(GenericIntegrationEvent<>), "generic.events.open", 1);
+        var act = () => contractRegistry.Register(typeof(GenericIntegrationEvent<>), "generic.events.open");
 
         act.Should().Throw<ArgumentException>()
             .WithMessage("*closed message type*");
@@ -176,18 +183,17 @@ public sealed class OutboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenDispatcherThrows_ShouldMarkFailedAndSetVisibleAfter()
     {
-        var store = new InMemoryOutboxStore();
-
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IOutboxMessageWriter>(store)
-            .AddSingleton<IOutboxMessageLeaseStore>(store)
-            .AddSingleton<IOutboxMessageStateStore>(store)
-            .AddSingleton<IOutboxDispatcher>(new AlwaysFailingOutboxDispatcher())
-            .AddLiteBus(configuration =>
+            .AddLiteBus(registry =>
             {
-                configuration.AddOutboxModule(builder =>
+                registry.AddMessaging(_ =>
                 {
-                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                });
+
+                registry.AddOutbox(builder =>
+                {
+                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted");
+
                     builder.UseProcessorOptions(new OutboxProcessorOptions
                     {
                         BatchSize = 10,
@@ -199,24 +205,31 @@ public sealed class OutboxTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
+
+                    builder.UseInMemoryStorage();
+                    builder.UseFixedOutboxDispatcher(new AlwaysFailingOutboxDispatcher());
                 });
             })
             .BuildServiceProvider();
 
-        var outbox = serviceProvider.GetRequiredService<IIntegrationOutbox>();
+        var store = serviceProvider.GetRequiredService<InMemoryOutboxStore>();
+
+        var outbox = serviceProvider.GetRequiredService<IOutbox>();
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
 
         var messageId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OrderSubmittedIntegrationEvent
-        {
-            OrderId = Guid.NewGuid()
-        }, new OutboxOptions { MessageId = messageId });
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OrderSubmittedIntegrationEvent
+            {
+                OrderId = Guid.NewGuid()
+            },
+            messageId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
         var envelope = store.Get(messageId);
-        envelope.Status.Should().Be(OutboxMessageStatus.Failed);
+        envelope.Status.Should().Be(OutboxStatus.Failed);
         envelope.LastError.Should().NotBeNullOrWhiteSpace();
         envelope.AttemptCount.Should().Be(1);
     }
@@ -224,18 +237,17 @@ public sealed class OutboxTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenDispatcherExceedsMaxAttempts_ShouldMoveToDeadLetter()
     {
-        var store = new InMemoryOutboxStore();
-
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IOutboxMessageWriter>(store)
-            .AddSingleton<IOutboxMessageLeaseStore>(store)
-            .AddSingleton<IOutboxMessageStateStore>(store)
-            .AddSingleton<IOutboxDispatcher>(new AlwaysFailingOutboxDispatcher())
-            .AddLiteBus(configuration =>
+            .AddLiteBus(registry =>
             {
-                configuration.AddOutboxModule(builder =>
+                registry.AddMessaging(_ =>
                 {
-                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+                });
+
+                registry.AddOutbox(builder =>
+                {
+                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted");
+
                     builder.UseProcessorOptions(new OutboxProcessorOptions
                     {
                         BatchSize = 10,
@@ -247,26 +259,34 @@ public sealed class OutboxTests : LiteBusTestBase
                             UseJitter = false
                         }
                     });
+
+                    builder.UseInMemoryStorage();
+                    builder.UseFixedOutboxDispatcher(new AlwaysFailingOutboxDispatcher());
                 });
             })
             .BuildServiceProvider();
 
-        var outbox = serviceProvider.GetRequiredService<IIntegrationOutbox>();
+        var store = serviceProvider.GetRequiredService<InMemoryOutboxStore>();
+
+        var outbox = serviceProvider.GetRequiredService<IOutbox>();
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
 
         var messageId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OrderSubmittedIntegrationEvent
-        {
-            OrderId = Guid.NewGuid()
-        }, new OutboxOptions { MessageId = messageId });
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OrderSubmittedIntegrationEvent
+            {
+                OrderId = Guid.NewGuid()
+            },
+            messageId)).ConfigureAwait(false);
 
         // Attempt 1 of 2: AttemptCount reaches 1 which is < MaxAttempts (2), so envelope is retried.
-        await processor.ProcessPendingAsync();
-        // Attempt 2 of 2: AttemptCount reaches 2 which is >= MaxAttempts (2), so envelope is dead-lettered.
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        store.Get(messageId).Status.Should().Be(OutboxMessageStatus.DeadLettered);
+        // Attempt 2 of 2: AttemptCount reaches 2 which is >= MaxAttempts (2), so envelope is dead-lettered.
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+        store.Get(messageId).Status.Should().Be(OutboxStatus.DeadLettered);
     }
 
     [Fact]
@@ -276,296 +296,126 @@ public sealed class OutboxTests : LiteBusTestBase
         var visibleAfter = now.AddHours(2);
         var store = new InMemoryOutboxStore();
         var contractRegistry = new MessageContractRegistry();
-        contractRegistry.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+        contractRegistry.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted");
 
-        var writer = new OutboxWriter(
+        var writer = OutboxWriterTestFactory.Create(
             store,
             contractRegistry,
             new SystemTextJsonMessageSerializer(),
-            new FixedTimeProvider(now));
+            new ManualTimeProvider(now));
 
         var messageId = Guid.NewGuid();
 
-        await writer.AddAsync(new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
-        {
-            MessageId = messageId,
-            VisibleAfter = visibleAfter
-        });
+        await writer.EnqueueAsync(OutboxWriterTestFactory.ItemWithMetadata(
+            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            OutboxEnqueueMetadata.Immediate with
+            {
+                Identity = new MessageIdentity.Supplied(messageId),
+                Visibility = new MessageVisibility.At(visibleAfter)
+            })).ConfigureAwait(false);
 
         store.Get(messageId).VisibleAfter.Should().Be(visibleAfter);
     }
 
     [Fact]
-    public async Task ProcessPendingAsync_ShouldPropagateTraceMetadataToEventHandlers()
+    public async Task ProcessPendingAsync_ShouldPassTraceMetadataToDispatcher()
     {
-        var store = new InMemoryOutboxStore();
-        var capture = new TraceMetadataCapture();
+        var dispatcherHolder = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IOutboxMessageWriter>(store)
-            .AddSingleton<IOutboxMessageLeaseStore>(store)
-            .AddSingleton<IOutboxMessageStateStore>(store)
-            .AddSingleton(capture)
-            .AddLiteBus(configuration =>
+            .AddSingleton(dispatcherHolder)
+            .AddLiteBus(registry =>
             {
-                configuration.AddEventModule(builder =>
+                registry.AddMessaging(_ =>
                 {
-                    builder.Register<TraceMetadataEventHandler>();
                 });
 
-                configuration.AddOutboxModule(builder =>
+                registry.AddOutbox(builder =>
                 {
-                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
-                    builder.UseLiteBusEventDispatcher();
+                    builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted");
+
                     builder.UseProcessorOptions(new OutboxProcessorOptions
                     {
                         BatchSize = 10,
                         LeaseOwner = "test-publisher",
                         Retry = new RetryOptions { UseJitter = false }
                     });
+
+                    builder.UseInMemoryStorage();
+                    builder.UseRecordingOutboxDispatcher(dispatcherHolder);
                 });
             })
             .BuildServiceProvider();
 
-        var outbox = serviceProvider.GetRequiredService<IIntegrationOutbox>();
+        var outbox = serviceProvider.GetRequiredService<IOutbox>();
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();
+        var dispatcher = dispatcherHolder.Instance!;
         var messageId = Guid.NewGuid();
 
-        await outbox.AddAsync(new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions
-        {
-            MessageId = messageId,
-            CorrelationId = "correlation-99",
-            CausationId = "causation-99",
-            TenantId = "tenant-99"
-        });
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithMetadata(
+            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+            OutboxEnqueueMetadata.Immediate with
+            {
+                Identity = new MessageIdentity.Supplied(messageId),
+                Trace = new MessageTrace.Workflow("correlation-99", "causation-99"),
+                Tenant = new TenantScope.Isolated("tenant-99")
+            })).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync();
+        await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        capture.CorrelationId.Should().Be("correlation-99");
-        capture.CausationId.Should().Be("causation-99");
-        capture.TenantId.Should().Be("tenant-99");
+        var envelope = dispatcher.DispatchedEnvelopes.Should().ContainSingle().Subject;
+        envelope.CorrelationId.Should().Be("correlation-99");
+        envelope.CausationId.Should().Be("causation-99");
+        envelope.TenantId.Should().Be("tenant-99");
     }
 
-    private sealed class FixedTimeProvider : TimeProvider
+    [Fact]
+    public async Task EnqueueBatchAsync_ShouldStoreAllEventsWithRuntimeTypes()
     {
-        private readonly DateTimeOffset _now;
+        var store = new InMemoryOutboxStore();
+        var contractRegistry = new MessageContractRegistry();
+        contractRegistry.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted");
+        contractRegistry.Register<GenericIntegrationEvent<string>>("orders.events.generic");
 
-        public FixedTimeProvider(DateTimeOffset now)
-        {
-            _now = now;
-        }
+        var outbox = OutboxWriterTestFactory.Create(
+            store,
+            contractRegistry,
+            new SystemTextJsonMessageSerializer(),
+            TimeProvider.System);
 
-        public override DateTimeOffset GetUtcNow()
-        {
-            return _now;
-        }
+        var receipts = await outbox.EnqueueBatchAsync(
+        [
+            OutboxEnqueueItem.From(
+                new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                typeof(OrderSubmittedIntegrationEvent)),
+            OutboxEnqueueItem.From(
+                new GenericIntegrationEvent<string> { Value = "batch" },
+                typeof(GenericIntegrationEvent<string>))
+        ]).ConfigureAwait(false);
+
+        receipts.Should().HaveCount(2);
+        receipts[0].Contract.Name.Should().Be("orders.events.submitted");
+        receipts[1].Contract.Name.Should().Be("orders.events.generic");
+        store.GetAll().Should().HaveCount(2);
     }
 
-    public sealed record OrderSubmittedIntegrationEvent : IIntegrationEvent
+    public abstract record BaseIntegrationEvent;
+
+    public sealed record OrderSubmittedIntegrationEvent : BaseIntegrationEvent
     {
         public Guid OrderId { get; init; }
     }
 
-    public sealed class OrderSubmittedEventHandler : IEventHandler<OrderSubmittedIntegrationEvent>
-    {
-        private readonly EventRecorder _recorder;
-
-        public OrderSubmittedEventHandler(EventRecorder recorder)
-        {
-            _recorder = recorder;
-        }
-
-        public Task HandleAsync(OrderSubmittedIntegrationEvent message, CancellationToken cancellationToken = default)
-        {
-            _recorder.Record(message);
-            return Task.CompletedTask;
-        }
-    }
-
-    public sealed class TraceMetadataCapture
-    {
-        public string? CorrelationId { get; set; }
-
-        public string? CausationId { get; set; }
-
-        public string? TenantId { get; set; }
-    }
-
-    public sealed class TraceMetadataEventHandler : IEventHandler<OrderSubmittedIntegrationEvent>
-    {
-        private readonly TraceMetadataCapture _capture;
-
-        public TraceMetadataEventHandler(TraceMetadataCapture capture)
-        {
-            _capture = capture;
-        }
-
-        public Task HandleAsync(OrderSubmittedIntegrationEvent message, CancellationToken cancellationToken = default)
-        {
-            var items = AmbientExecutionContext.Current.Items;
-            _capture.CorrelationId = items.TryGetValue(MessageTraceContextKeys.CorrelationId, out var correlation)
-                ? correlation as string
-                : null;
-            _capture.CausationId = items.TryGetValue(MessageTraceContextKeys.CausationId, out var causation)
-                ? causation as string
-                : null;
-            _capture.TenantId = items.TryGetValue(MessageTraceContextKeys.TenantId, out var tenant)
-                ? tenant as string
-                : null;
-
-            return Task.CompletedTask;
-        }
-    }
-
-    public sealed class EventRecorder
-    {
-        private readonly List<OrderSubmittedIntegrationEvent> _events = [];
-
-        public IReadOnlyList<OrderSubmittedIntegrationEvent> Events => _events;
-
-        public void Record(OrderSubmittedIntegrationEvent @event)
-        {
-            _events.Add(@event);
-        }
-    }
-
-    public sealed record GenericIntegrationEvent<T> : IIntegrationEvent
+    public sealed record GenericIntegrationEvent<T>
     {
         public required T Value { get; init; }
     }
 
-    public sealed class GenericIntegrationEventHandler : IEventHandler<GenericIntegrationEvent<int>>
-    {
-        private readonly GenericEventRecorder _recorder;
-
-        public GenericIntegrationEventHandler(GenericEventRecorder recorder)
-        {
-            _recorder = recorder;
-        }
-
-        public Task HandleAsync(GenericIntegrationEvent<int> message, CancellationToken cancellationToken = default)
-        {
-            _recorder.Record(message.Value);
-            return Task.CompletedTask;
-        }
-    }
-
-    public sealed class GenericEventRecorder
-    {
-        private readonly List<int> _values = [];
-
-        public IReadOnlyList<int> Values => _values;
-
-        public void Record(int value)
-        {
-            _values.Add(value);
-        }
-    }
-
     public sealed class AlwaysFailingOutboxDispatcher : IOutboxDispatcher
     {
-        public Task DispatchAsync(OutboxMessageEnvelope message, CancellationToken cancellationToken = default)
+        public Task DispatchAsync(OutboxEnvelope message, CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException("Simulated dispatcher failure.");
-        }
-    }
-
-    public sealed class InMemoryOutboxStore : IOutboxMessageWriter, IOutboxMessageLeaseStore, IOutboxMessageStateStore
-    {
-        private readonly Dictionary<Guid, OutboxMessageEnvelope> _envelopes = [];
-
-        public Task<OutboxMessageEnvelope> AddAsync(OutboxMessageEnvelope envelope, CancellationToken cancellationToken = default)
-        {
-            if (_envelopes.TryGetValue(envelope.MessageId, out var existing))
-            {
-                return Task.FromResult(existing);
-            }
-
-            _envelopes[envelope.MessageId] = envelope;
-            return Task.FromResult(envelope);
-        }
-
-        public Task<IReadOnlyList<OutboxMessageEnvelope>> LeasePendingAsync(OutboxLeaseRequest request, CancellationToken cancellationToken = default)
-        {
-            var leased = _envelopes.Values
-                .Where(envelope => IsAvailable(envelope, request.Now))
-                .OrderBy(envelope => envelope.CreatedAt)
-                .Take(request.BatchSize)
-                .Select(envelope => envelope with
-                {
-                    Status = OutboxMessageStatus.Publishing,
-                    LeaseOwner = request.LeaseOwner,
-                    LeaseExpiresAt = request.Now.Add(request.LeaseDuration),
-                    AttemptCount = envelope.AttemptCount + 1
-                })
-                .ToArray();
-
-            foreach (var envelope in leased)
-            {
-                _envelopes[envelope.MessageId] = envelope;
-            }
-
-            return Task.FromResult<IReadOnlyList<OutboxMessageEnvelope>>(leased);
-        }
-
-        public Task MarkPublishedAsync(Guid messageId, CancellationToken cancellationToken = default)
-        {
-            var envelope = Get(messageId);
-            _envelopes[messageId] = envelope with
-            {
-                Status = OutboxMessageStatus.Published,
-                LeaseOwner = null,
-                LeaseExpiresAt = null,
-                LastError = null
-            };
-
-            return Task.CompletedTask;
-        }
-
-        public Task MarkFailedAsync(OutboxMessageFailure failure, CancellationToken cancellationToken = default)
-        {
-            var envelope = Get(failure.MessageId);
-            _envelopes[failure.MessageId] = envelope with
-            {
-                Status = OutboxMessageStatus.Failed,
-                LeaseOwner = null,
-                LeaseExpiresAt = null,
-                LastError = failure.Error,
-                VisibleAfter = failure.VisibleAfter
-            };
-
-            return Task.CompletedTask;
-        }
-
-        public Task MoveToDeadLetterAsync(OutboxMessageDeadLetter deadLetter, CancellationToken cancellationToken = default)
-        {
-            var envelope = Get(deadLetter.MessageId);
-            _envelopes[deadLetter.MessageId] = envelope with
-            {
-                Status = OutboxMessageStatus.DeadLettered,
-                LeaseOwner = null,
-                LeaseExpiresAt = null,
-                LastError = deadLetter.Reason
-            };
-
-            return Task.CompletedTask;
-        }
-
-        public OutboxMessageEnvelope Get(Guid messageId)
-        {
-            return _envelopes[messageId];
-        }
-
-        public IReadOnlyList<OutboxMessageEnvelope> GetAll()
-        {
-            return _envelopes.Values.ToList();
-        }
-
-        private static bool IsAvailable(OutboxMessageEnvelope envelope, DateTimeOffset now)
-        {
-            return ((envelope.Status is OutboxMessageStatus.Pending or OutboxMessageStatus.Failed) &&
-                    (envelope.VisibleAfter is null || envelope.VisibleAfter <= now)) ||
-                   (envelope.Status == OutboxMessageStatus.Publishing && envelope.LeaseExpiresAt <= now);
         }
     }
 }

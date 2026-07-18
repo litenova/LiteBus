@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -17,17 +18,21 @@ public static class MessageContextExtensions
     /// </summary>
     /// <param name="messageDependencies">The message dependencies encapsulating pre-handlers.</param>
     /// <param name="message">The message to be pre-handled.</param>
+    /// <param name="cancellationToken">The cancellation token passed to each pre-handler invocation.</param>
     /// <returns>A Task representing the asynchronous operation.</returns>
-    public static async Task RunAsyncPreHandlers(this IMessageDependencies messageDependencies, object message)
+    public static async Task RunAsyncPreHandlers(
+        this IMessageDependencies messageDependencies,
+        object message,
+        CancellationToken cancellationToken)
     {
         foreach (var preHandler in messageDependencies.IndirectPreHandlers)
         {
-            await (Task) preHandler.Handler.Value.PreHandle(message);
+            await InvokePreHandlerAsync(preHandler.Handler.Value, message, cancellationToken).ConfigureAwait(false);
         }
 
         foreach (var preHandler in messageDependencies.PreHandlers)
         {
-            await (Task) preHandler.Handler.Value.PreHandle(message);
+            await InvokePreHandlerAsync(preHandler.Handler.Value, message, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -39,23 +44,46 @@ public static class MessageContextExtensions
     /// <param name="message">The message that was being handled when the error occurred.</param>
     /// <param name="messageResult">The result of the message handling process, if any.</param>
     /// <param name="exceptionDispatchInfo">The exception that triggered the error handler.</param>
-    /// <returns>A Task representing the asynchronous operation.</returns>
-    public static async Task RunAsyncErrorHandlers(this IMessageDependencies messageDependencies, object message, object? messageResult, ExceptionDispatchInfo exceptionDispatchInfo)
+    /// <param name="cancellationToken">The cancellation token passed to each error handler invocation.</param>
+    /// <returns>
+    ///     The error context after all error handlers run. When <see cref="MessageErrorContext.Outcome" /> remains
+    ///     <see cref="MessageErrorOutcome.Unhandled" />, the original exception is rethrown.
+    /// </returns>
+    public static async Task<MessageErrorContext> RunAsyncErrorHandlers(
+        this IMessageDependencies messageDependencies,
+        object message,
+        object? messageResult,
+        ExceptionDispatchInfo exceptionDispatchInfo,
+        CancellationToken cancellationToken)
     {
         if (messageDependencies.ErrorHandlers.Count + messageDependencies.IndirectErrorHandlers.Count == 0)
         {
             exceptionDispatchInfo.Throw();
         }
 
+        var context = new MessageErrorContext
+        {
+            Message = message,
+            Exception = exceptionDispatchInfo.SourceException,
+            MessageResult = messageResult
+        };
+
         foreach (var errorHandler in messageDependencies.IndirectErrorHandlers)
         {
-            await (Task) errorHandler.Handler.Value.HandleError(message, exceptionDispatchInfo.SourceException, messageResult);
+            await InvokeErrorHandlerAsync(errorHandler.Handler.Value, context, cancellationToken).ConfigureAwait(false);
         }
 
         foreach (var errorHandler in messageDependencies.ErrorHandlers)
         {
-            await (Task) errorHandler.Handler.Value.HandleError(message, exceptionDispatchInfo.SourceException, exceptionDispatchInfo);
+            await InvokeErrorHandlerAsync(errorHandler.Handler.Value, context, cancellationToken).ConfigureAwait(false);
         }
+
+        if (context.Outcome == MessageErrorOutcome.Unhandled)
+        {
+            exceptionDispatchInfo.Throw();
+        }
+
+        return context;
     }
 
     /// <summary>
@@ -65,17 +93,69 @@ public static class MessageContextExtensions
     /// <param name="messageDependencies">The message dependencies encapsulating post-handlers.</param>
     /// <param name="message">The message that has been handled.</param>
     /// <param name="messageResult">The result produced by the message handling process.</param>
+    /// <param name="cancellationToken">The cancellation token passed to each post-handler invocation.</param>
     /// <returns>A Task representing the asynchronous operation.</returns>
-    public static async Task RunAsyncPostHandlers(this IMessageDependencies messageDependencies, object message, object? messageResult)
+    public static async Task RunAsyncPostHandlers(
+        this IMessageDependencies messageDependencies,
+        object message,
+        object? messageResult,
+        CancellationToken cancellationToken)
     {
         foreach (var postHandler in messageDependencies.PostHandlers)
         {
-            await (Task) postHandler.Handler.Value.PostHandle(message, messageResult);
+            await InvokePostHandlerAsync(postHandler.Handler.Value, message, messageResult, cancellationToken).ConfigureAwait(false);
         }
 
         foreach (var postHandler in messageDependencies.IndirectPostHandlers)
         {
-            await (Task) postHandler.Handler.Value.PostHandle(message, messageResult);
+            await InvokePostHandlerAsync(postHandler.Handler.Value, message, messageResult, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    ///     Invokes a pre-handler using an explicit cancellation token when an asynchronous method is available.
+    /// </summary>
+    /// <param name="handler">The pre-handler instance.</param>
+    /// <param name="message">The message to pre-handle.</param>
+    /// <param name="cancellationToken">The cancellation token for the invocation.</param>
+    /// <returns>A task representing the asynchronous pre-handler operation.</returns>
+    private static Task InvokePreHandlerAsync(
+        IMessagePreHandler handler,
+        object message,
+        CancellationToken cancellationToken)
+    {
+        return PipelineHandlerInvocation.InvokePreHandlerAsync(handler, message, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Invokes a post-handler using an explicit cancellation token when an asynchronous method is available.
+    /// </summary>
+    /// <param name="handler">The post-handler instance.</param>
+    /// <param name="message">The handled message.</param>
+    /// <param name="messageResult">The result produced by the main handler, if any.</param>
+    /// <param name="cancellationToken">The cancellation token for the invocation.</param>
+    /// <returns>A task representing the asynchronous post-handler operation.</returns>
+    private static Task InvokePostHandlerAsync(
+        IMessagePostHandler handler,
+        object message,
+        object? messageResult,
+        CancellationToken cancellationToken)
+    {
+        return PipelineHandlerInvocation.InvokePostHandlerAsync(handler, message, messageResult, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Invokes an error handler using an explicit cancellation token when an asynchronous method is available.
+    /// </summary>
+    /// <param name="handler">The error handler instance.</param>
+    /// <param name="context">The error context observed during mediation.</param>
+    /// <param name="cancellationToken">The cancellation token for the invocation.</param>
+    /// <returns>A task representing the asynchronous error handler operation.</returns>
+    private static Task InvokeErrorHandlerAsync(
+        IMessageErrorHandler handler,
+        MessageErrorContext context,
+        CancellationToken cancellationToken)
+    {
+        return PipelineHandlerInvocation.InvokeErrorHandlerAsync(handler, context, cancellationToken);
     }
 }

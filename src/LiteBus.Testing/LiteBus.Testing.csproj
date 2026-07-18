@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>Framework-neutral clocks and lifecycle helpers for LiteBus tests.</Description>
+        <PackageTags>$(PackageTags);testing;time</PackageTags>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+</Project>

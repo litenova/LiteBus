@@ -15,4 +15,4 @@ namespace LiteBus.Queries.Abstractions;
 ///     or when implementing pagination. Each stream query should have exactly one handler within the application.
 ///     Like regular queries, stream queries should be side-effect free and should not modify the system state.
 /// </remarks>
-public interface IStreamQueryHandler<in TQuery, out TQueryResult> : IRegistrableQueryConstruct, IStreamMessageHandler<TQuery, TQueryResult> where TQuery : IStreamQuery<TQueryResult>;
+public interface IStreamQueryHandler<in TQuery, out TQueryResult> : IStreamMessageHandler<TQuery, TQueryResult> where TQuery : IStreamQuery<TQueryResult>;

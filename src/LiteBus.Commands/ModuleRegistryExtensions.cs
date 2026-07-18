@@ -1,6 +1,5 @@
 using System;
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Commands;
@@ -11,8 +10,24 @@ namespace LiteBus.Commands;
 public static class ModuleRegistryExtensions
 {
     /// <summary>
-    ///     Registers a command module with the specified configuration, automatically ensuring
-    ///     that the required <see cref="MessageModule" /> is registered first.
+    ///     Adds command mediation to a LiteBus composition.
+    /// </summary>
+    /// <param name="builder">The package-neutral LiteBus builder.</param>
+    /// <param name="builderAction">The command registration callback.</param>
+    /// <returns>The current LiteBus builder.</returns>
+    public static ILiteBusBuilder AddCommands(
+        this ILiteBusBuilder builder,
+        Action<CommandModuleBuilder> builderAction)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(builderAction);
+
+        builder.Modules.AddCommandModule(builderAction);
+        return builder;
+    }
+
+    /// <summary>
+    ///     Registers a command module with the specified configuration.
     /// </summary>
     /// <param name="moduleRegistry">The module registry to register the command module with.</param>
     /// <param name="builderAction">An action to configure the command module builder.</param>
@@ -21,32 +36,18 @@ public static class ModuleRegistryExtensions
     ///     Thrown when <paramref name="moduleRegistry" /> or <paramref name="builderAction" /> is <see langword="null" />.
     /// </exception>
     /// <remarks>
-    ///     This method automatically registers a <see cref="MessageModule" /> with default configuration
-    ///     if one has not already been registered. This ensures that the core messaging services
-    ///     (such as <see cref="IMessageMediator" /> and <see cref="IMessageRegistry" />) are available
-    ///     for command processing.
-    ///     If you need custom configuration for the <see cref="MessageModule" />, register it explicitly
-    ///     before calling this method.
+    ///     <see cref="CommandModule" /> declares <see cref="IRequires{TModule}" /> for <see cref="MessageModule" />.
+    ///     The complete module graph validates that dependency independent of registration order.
     /// </remarks>
     /// <example>
     ///     <code>
-    /// // Automatic MessageModule registration with default configuration
-    /// services.AddLiteBus(modules =>
+    /// services.AddLiteBus(builder =>
     /// {
-    ///     modules.AddCommandModule(cmd => 
+    ///     builder.AddCommands(cmd =>
     ///     {
     ///         cmd.RegisterFromAssembly(typeof(MyCommand).Assembly);
     ///     });
-    /// });
-    /// 
-    /// // Explicit MessageModule configuration
-    /// services.AddLiteBus(modules =>
-    /// {
-    ///     modules.AddMessageModule(msg => { /* custom config */ });
-    ///     modules.AddCommandModule(cmd => 
-    ///     {
-    ///         cmd.RegisterFromAssembly(typeof(MyCommand).Assembly);
-    ///     });
+    ///     builder.AddMessaging(msg => { /* optional core config */ });
     /// });
     /// </code>
     /// </example>
@@ -54,14 +55,6 @@ public static class ModuleRegistryExtensions
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
-
-        // Ensure MessageModule is registered first with default configuration.
-        if (!moduleRegistry.IsModuleRegistered<MessageModule>())
-        {
-            moduleRegistry.Register(new MessageModule(_ =>
-            {
-            }));
-        }
 
         moduleRegistry.Register(new CommandModule(builderAction));
         return moduleRegistry;

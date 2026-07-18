@@ -1,11 +1,11 @@
-using System.Linq;
+using System.Collections.Generic;
 
 namespace LiteBus.Runtime.Abstractions;
 
 /// <summary>
-///     Registry for managing module registration and providing dependency-ordered enumeration of modules.
+///     Registry for managing module registration and resolving dependency-ordered module descriptors.
 /// </summary>
-public interface IModuleRegistry : IOrderedEnumerable<ModuleDescriptor>
+public interface IModuleRegistry
 {
     /// <summary>
     ///     Registers a module in the registry.
@@ -13,6 +13,9 @@ public interface IModuleRegistry : IOrderedEnumerable<ModuleDescriptor>
     /// <param name="module">The module to register.</param>
     /// <returns>The current registry instance for method chaining.</returns>
     /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="module" /> is <see langword="null" />.</exception>
+    /// <exception cref="Exceptions.LiteBusConfigurationException">
+    ///     Thrown when registration is attempted after <see cref="BuildOrder" /> has frozen the registry.
+    /// </exception>
     IModuleRegistry Register(IModule module);
 
     /// <summary>
@@ -37,4 +40,13 @@ public interface IModuleRegistry : IOrderedEnumerable<ModuleDescriptor>
     /// </code>
     /// </example>
     bool IsModuleRegistered<T>() where T : IModule;
+
+    /// <summary>
+    ///     Returns module descriptors in dependency order and freezes further registration.
+    /// </summary>
+    /// <returns>Module descriptors sorted so dependencies appear before dependents.</returns>
+    /// <exception cref="Exceptions.LiteBusConfigurationException">
+    ///     Thrown when circular dependencies are detected or when required dependencies are missing.
+    /// </exception>
+    IReadOnlyList<ModuleDescriptor> BuildOrder();
 }

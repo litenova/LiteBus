@@ -1,8 +1,10 @@
-﻿using System;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.MediationStrategies;
 
 namespace LiteBus.Commands;
 
@@ -37,16 +39,16 @@ public sealed class CommandMediator : ICommandMediator
         var mediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand>();
         var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
-        var options = new MediateOptions<ICommand, Task>
+        var request = new MessageMediationRequest<ICommand, Task>
         {
             MessageMediationStrategy = mediationStrategy,
             MessageResolveStrategy = findStrategy,
-            CancellationToken = cancellationToken,
-            Tags = commandMediationSettings.Filters.Tags,
-            Items = commandMediationSettings.Items
+            Tags = commandMediationSettings.Routing.Tags,
+            Items = commandMediationSettings.Items,
+            HandlerPredicate = commandMediationSettings.Routing.HandlerPredicate
         };
 
-        return _messageMediator.Mediate(command, options);
+        return _messageMediator.Mediate(command, request, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -60,15 +62,15 @@ public sealed class CommandMediator : ICommandMediator
         var mediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand<TCommandResult>, TCommandResult>();
         var findStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy();
 
-        var options = new MediateOptions<ICommand<TCommandResult>, Task<TCommandResult>>
+        var request = new MessageMediationRequest<ICommand<TCommandResult>, Task<TCommandResult>>
         {
             MessageResolveStrategy = findStrategy,
             MessageMediationStrategy = mediationStrategy,
-            CancellationToken = cancellationToken,
-            Tags = commandMediationSettings.Filters.Tags,
-            Items = commandMediationSettings.Items
+            Tags = commandMediationSettings.Routing.Tags,
+            Items = commandMediationSettings.Items,
+            HandlerPredicate = commandMediationSettings.Routing.HandlerPredicate
         };
 
-        return _messageMediator.Mediate(command, options);
+        return _messageMediator.Mediate(command, request, cancellationToken);
     }
 }

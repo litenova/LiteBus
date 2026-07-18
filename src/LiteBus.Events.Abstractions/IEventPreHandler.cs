@@ -11,4 +11,4 @@ namespace LiteBus.Events.Abstractions;
 ///     or security checks that should be applied to all events. Multiple pre-handlers can be
 ///     registered in the application and they will all execute before each event is handled.
 /// </remarks>
-public interface IEventPreHandler : IAsyncMessagePreHandler<IEvent>, IRegistrableEventConstruct;
+public interface IEventPreHandler : IAsyncMessagePreHandler<IEvent>;

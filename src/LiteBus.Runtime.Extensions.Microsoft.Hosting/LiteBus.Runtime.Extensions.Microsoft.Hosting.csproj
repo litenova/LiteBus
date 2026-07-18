@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Runtime.Extensions.Hosting\LiteBus.Runtime.Extensions.Hosting.csproj"/>
+    </ItemGroup>
+
+</Project>

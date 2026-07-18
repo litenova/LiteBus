@@ -1,4 +1,6 @@
-﻿using System;
+using System;
+using System.Diagnostics;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 
 namespace LiteBus.Outbox.Abstractions;
 
@@ -11,29 +13,23 @@ namespace LiteBus.Outbox.Abstractions;
 ///         to its final target. Use the message id for diagnostics, replay tooling, or API acceptance responses.
 ///     </para>
 /// </remarks>
-/// <typeparam name="TEvent">The event type associated with the receipt.</typeparam>
-public sealed record OutboxReceipt<TEvent>
-    where TEvent : notnull
+[DebuggerDisplay("Id = {Id}, Outcome = {Outcome}")]
+public sealed record OutboxReceipt
 {
     /// <summary>
     ///     Gets the unique outbox message identifier used by processors and operational tooling.
     /// </summary>
-    public required Guid MessageId { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>
-    ///     Gets the CLR event type that was stored. For closed generic events, this is the closed runtime type.
+    ///     Gets the CLR message type that was stored. For closed generic types, this is the closed runtime type.
     /// </summary>
-    public required Type EventType { get; init; }
+    public required Type MessageType { get; init; }
 
     /// <summary>
-    ///     Gets the stable event contract name stored with the payload.
+    ///     Gets the stable event contract reference stored with the payload.
     /// </summary>
-    public required string ContractName { get; init; }
-
-    /// <summary>
-    ///     Gets the event contract version used when the payload was serialized.
-    /// </summary>
-    public required int ContractVersion { get; init; }
+    public required MessageContractReference Contract { get; init; }
 
     /// <summary>
     ///     Gets the UTC timestamp when the event was accepted by the store.
@@ -41,17 +37,17 @@ public sealed record OutboxReceipt<TEvent>
     public required DateTimeOffset StoredAt { get; init; }
 
     /// <summary>
-    ///     Gets the optional correlation identifier copied from outbox options or from the stored duplicate row.
+    ///     Gets the distributed trace metadata copied from enqueue metadata or from the stored duplicate row.
     /// </summary>
-    public string? CorrelationId { get; init; }
+    public MessageTrace Trace { get; init; } = MessageTrace.None.Instance;
 
     /// <summary>
-    ///     Gets the optional causation identifier copied from outbox options or from the stored duplicate row.
+    ///     Gets the tenant isolation metadata copied from enqueue metadata or from the stored duplicate row.
     /// </summary>
-    public string? CausationId { get; init; }
+    public TenantScope Tenant { get; init; } = TenantScope.Unscoped.Instance;
 
     /// <summary>
-    ///     Gets the optional tenant identifier copied from outbox options or from the stored duplicate row.
+    ///     Gets whether the store enqueued a new row or returned an existing one for the supplied idempotency metadata.
     /// </summary>
-    public string? TenantId { get; init; }
+    public OutboxEnqueueOutcome Outcome { get; init; } = OutboxEnqueueOutcome.Enqueued;
 }

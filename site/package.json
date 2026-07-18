@@ -1,0 +1,43 @@
+{
+  "name": "litebus-docs",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "local-md dev -- node node_modules/next/dist/bin/next dev",
+    "build": "next build && npm run check:links && npm run check:search-trace",
+    "check:links": "node scripts/check-rendered-links.mjs",
+    "check:search-trace": "node scripts/check-search-trace.mjs",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.10"
+    }
+  },
+  "dependencies": {
+    "@fumadocs/local-md": "^0.3.0",
+    "fumadocs-core": "^16.11.5",
+    "fumadocs-ui": "^16.11.5",
+    "next": "^16.2.10",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "shiki": "^3.22.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.2.10",
+    "postcss": "^8.5.10",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3"
+  }
+}

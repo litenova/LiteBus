@@ -19,11 +19,11 @@ public sealed class PostHandlerDescriptorBuilder : IHandlerDescriptorBuilder
     }
 
     /// <inheritdoc />
-    public IEnumerable<IHandlerDescriptor> Build(Type handlerType)
+    public IEnumerable<IHandlerDescriptor> Build(Type type)
     {
-        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessagePostHandler<,>));
-        var priority = handlerType.GetPriorityFromAttribute();
-        var tags = handlerType.GetTagsFromAttribute();
+        var interfaces = type.GetInterfacesEqualTo(typeof(IMessagePostHandler<,>));
+        var priority = type.GetPriorityFromAttribute();
+        var tags = type.GetTagsFromAttribute();
 
         foreach (var @interface in interfaces)
         {
@@ -32,11 +32,11 @@ public sealed class PostHandlerDescriptorBuilder : IHandlerDescriptorBuilder
 
             yield return new PostHandlerDescriptor
             {
-                MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
+                MessageType = messageType.NormalizeMessageRegistrationType(),
                 MessageResultType = messageResultType,
                 Priority = priority,
                 Tags = tags,
-                HandlerType = handlerType
+                HandlerType = type
             };
         }
     }

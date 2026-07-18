@@ -1,18 +1,59 @@
+# Build & Test - mandatory CI gates for v6 GA
+#
+# Skip waiver policy:
+#   - [Fact(Skip = ...)] is blocked by verify-no-fact-skips.sh on all branches except quarantine.
+#   - Quarantine branch waives the gate until every hard-coded Fact skip is removed.
+#   - Emulator-backed SkippableFact broker tests must not skip when Docker is available: TransportDocker and
+#     TransportAzure set LITEBUS_CI_STRICT_TRANSPORT=true and verify TRX skipped counts. TransportLiveAzure is an
+#     opt-in category that requires explicit cloud credentials.
+#   - Full integration (PostgreSQL, AMQP, EF) requires Docker on ubuntu-latest runners.
 name: Build & Test
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-and-test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI_PACKAGE_VERSION: 6.0.0-ci.${{ github.run_number }}
 
 on:
   push:
-    branches: [ '**', '!main' ]
+    branches: [ '**' ]
     paths:
       - 'LiteBus.slnx'
+      - 'Changelog.md'
+      - 'README.md'
+      - 'assets/**'
+      - 'benchmarks/**'
+      - 'coverlet*.runsettings'
+      - 'site/**'
+      - 'global.json'
+      - 'samples/**'
       - 'src/**'
       - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+      - '.github/scripts/**'
   pull_request:
     branches: [ main ]
     paths:
       - 'LiteBus.slnx'
+      - 'Changelog.md'
+      - 'README.md'
+      - 'assets/**'
+      - 'benchmarks/**'
+      - 'coverlet*.runsettings'
+      - 'site/**'
+      - 'global.json'
+      - 'samples/**'
       - 'src/**'
       - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+      - '.github/scripts/**'
 
 jobs:
   build:
@@ -20,38 +61,156 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
-          fetch-depth: 0 # Important for GitVersion
+          fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Validate Documentation
+        shell: pwsh
+        run: ./scripts/Test-Documentation.ps1
+
+      - name: Validate Documentation Site
+        working-directory: site
+        run: |
+          npm ci
+          npm audit --audit-level=high
+          npm run lint
+          npm run typecheck
+          npm run build
+
       - name: Restore Dependencies
-        run: dotnet restore LiteBus.slnx
+        run: dotnet restore LiteBus.slnx --locked-mode
+
+      - name: Audit NuGet Dependencies
+        shell: bash
+        run: |
+          audit_output="$(dotnet list LiteBus.slnx package --vulnerable --include-transitive)"
+          printf '%s\n' "${audit_output}"
+          if grep -qi "has the following vulnerable packages" <<< "${audit_output}"; then
+            echo "::error::NuGet vulnerability audit found a vulnerable package."
+            exit 1
+          fi
 
       - name: Decode Strong Name Key
-        run: echo "${{ secrets.STRONG_NAME_KEY }}" | base64 --decode > LiteBus.snk
+        env:
+          STRONG_NAME_KEY: ${{ secrets.STRONG_NAME_KEY }}
+        run: |
+          if [ -n "${STRONG_NAME_KEY}" ]; then
+            echo "${STRONG_NAME_KEY}" | base64 --decode > LiteBus.snk
+          fi
 
       - name: Build
-        run: dotnet build LiteBus.slnx --configuration Release --no-restore
+        run: dotnet build LiteBus.slnx --configuration Release --no-restore /p:Version=${{ env.CI_PACKAGE_VERSION }} /p:ContinuousIntegrationBuild=true
 
-      - name: Docker Info
-        run: docker info
+      - name: Validate Documentation Semantics
+        shell: pwsh
+        run: ./scripts/Test-DocumentationSemantics.ps1 -Configuration Release
 
-      - name: Test
-        run: dotnet test LiteBus.slnx --no-restore --verbosity normal --collect:"XPlat Code Coverage"
+      - name: Verify Benchmark Discovery
+        run: dotnet run --project benchmarks/LiteBus.Processor.Benchmarks --configuration Release --no-build -- --list flat
 
-      - name: Upload Test Results
+      - name: Fail on [Fact(Skip = ...)] in test projects
+        run: bash .github/scripts/verify-no-fact-skips.sh "${{ github.workspace }}"
+
+      - name: Require Docker for integration suites
+        run: |
+          if ! docker info >/dev/null 2>&1; then
+            echo "::error::Docker is required for TransportDocker, TransportAzure, and full integration tests on CI."
+            exit 1
+          fi
+          echo "Docker is available."
+
+      - name: Unit Tests
+        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/unit --filter "FullyQualifiedName!~IntegrationTests"
+
+      - name: Transport Fast Integration Tests
+        run: dotnet test tests/LiteBus.Durable.IntegrationTests --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/transport-fast --filter "Category=TransportFast"
+
+      - name: Transport Docker Integration Tests
+        env:
+          LITEBUS_CI_STRICT_TRANSPORT: 'true'
+        run: |
+          trx_dir="${RUNNER_TEMP}/transport-docker"
+          mkdir -p "${trx_dir}"
+          dotnet test tests/LiteBus.Durable.IntegrationTests \
+            --no-build --configuration Release --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings \
+            --results-directory artifacts/coverage/transport-docker-durable \
+            --filter "Category=TransportDocker" \
+            --logger "trx;LogFileName=${trx_dir}/durable-transport-docker.trx"
+          bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/durable-transport-docker.trx"
+          dotnet test tests/LiteBus.Transport.IntegrationTests \
+            --no-build --configuration Release --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings \
+            --results-directory artifacts/coverage/transport-docker-wire \
+            --filter "Category=TransportDocker" \
+            --logger "trx;LogFileName=${trx_dir}/transport-wire-docker.trx"
+          bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-wire-docker.trx"
+
+      - name: Transport Azure Integration Tests
+        env:
+          LITEBUS_CI_STRICT_TRANSPORT: 'true'
+        run: |
+          trx_dir="${RUNNER_TEMP}/transport-azure"
+          mkdir -p "${trx_dir}"
+          dotnet test tests/LiteBus.Durable.IntegrationTests \
+            --no-build --configuration Release --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings \
+            --results-directory artifacts/coverage/transport-azure \
+            --filter "Category=TransportAzure" \
+            --logger "trx;LogFileName=${trx_dir}/transport-azure.trx"
+          bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-azure.trx"
+
+      - name: Integration Tests
+        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/integration --filter "FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure"
+
+      - name: Enforce Merged Coverage Gate
+        shell: pwsh
+        run: ./scripts/Test-CoverageThreshold.ps1 -Root artifacts/coverage -LineThreshold 90
+
+      - name: Pack Packages
+        shell: pwsh
+        run: ./scripts/Pack-Packages.ps1 -OutputDirectory artifacts -Configuration Release -Version ${{ env.CI_PACKAGE_VERSION }} -NoBuild -NoRestore
+
+      - name: Validate Packages
+        shell: pwsh
+        run: ./scripts/Test-Packages.ps1 -PackageDirectory artifacts -ExpectedVersion ${{ env.CI_PACKAGE_VERSION }}
+
+      - name: Upload Packages
         uses: actions/upload-artifact@v7
         with:
-          name: test-results
-          path: '**/TestResults/**/*.xml'
+          name: nuget-packages
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+
+      - name: Upload Coverage Reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-reports
+          path: artifacts/coverage/**/coverage.*
 
       - name: Upload Coverage to Codecov
+        if: always()
         uses: codecov/codecov-action@v6
         with:
-          fail_ci_if_error: false
+          files: ./artifacts/coverage/**/coverage.cobertura.xml
+          disable_search: true
+          fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}

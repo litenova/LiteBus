@@ -1,0 +1,29 @@
+using LiteBus.Storage.PostgreSql;
+
+namespace LiteBus.Saga.Storage.PostgreSql;
+
+/// <summary>
+///     Options for the PostgreSQL saga store table and schema bootstrap.
+/// </summary>
+public sealed record PostgreSqlSagaStoreOptions : PostgreSqlSchemaStoreOptions, IPostgreSqlStoreTableOptions
+{
+    /// <summary>
+    ///     Gets the PostgreSQL schema that contains saga tables.
+    /// </summary>
+    public string SchemaName { get; init; } = "public";
+
+    /// <summary>
+    ///     Gets the saga instances table name.
+    /// </summary>
+    public string TableName { get; init; } = "litebus_saga_instances";
+
+    /// <summary>
+    ///     Gets a value indicating whether schema creation runs during host startup.
+    /// </summary>
+    public bool EnsureSchemaCreationOnStartup { get; init; } = true;
+
+    /// <summary>
+    ///     Gets a value indicating whether schema validation runs during host startup.
+    /// </summary>
+    public bool ValidateSchemaCreationOnStartup { get; init; }
+}

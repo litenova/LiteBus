@@ -4,7 +4,8 @@ using System.Collections.Generic;
 using Autofac;
 using Autofac.Builder;
 using LiteBus.Runtime.Abstractions;
-using Microsoft.Extensions.Hosting;
+using LiteBus.Runtime.Abstractions.Exceptions;
+using LiteBus.Runtime.Dependencies;
 
 namespace LiteBus.Runtime.Extensions.Autofac;
 
@@ -20,9 +21,9 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     private readonly ContainerBuilder _builder;
 
     /// <summary>
-    ///     Tracks descriptors already translated into Autofac registrations.
+    ///     Shared registration policy used to track descriptors and detect conflicts.
     /// </summary>
-    private readonly HashSet<DependencyDescriptor> _registeredDescriptors = [];
+    private readonly DependencyRegistrationTracker _tracker = new();
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="AutofacDependencyRegistryAdapter" /> class.
@@ -31,36 +32,57 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder" /> is <see langword="null" />.</exception>
     public AutofacDependencyRegistryAdapter(ContainerBuilder builder)
     {
-        _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+        ArgumentNullException.ThrowIfNull(builder);
+
+        _builder = builder;
     }
 
     /// <summary>
     ///     Gets the number of unique dependency descriptors that have been registered.
     /// </summary>
-    public int Count => _registeredDescriptors.Count;
+    /// <value>The count of tracked dependency descriptors.</value>
+    public int Count => _tracker.Count;
 
     /// <summary>
     ///     Registers a dependency descriptor with the underlying Autofac container builder if not already registered.
     /// </summary>
     /// <param name="descriptor">The dependency descriptor to register.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     Thrown when another module already registered <see cref="DependencyDescriptor.DependencyType" /> with a different
+    ///     binding.
+    /// </exception>
     /// <remarks>
-    ///     Duplicate descriptors are silently ignored based on the descriptor's equality implementation.
-    ///     This prevents duplicate service registrations when multiple modules attempt to register the same services.
+    ///     Duplicate registrations with equal descriptors are ignored; see
+    ///     <see cref="DependencyDescriptor.Equals(DependencyDescriptor?)" />.
     /// </remarks>
     public void Register(DependencyDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        // Use HashSet.Add, which uses IEquatable<DependencyDescriptor>
-        // Returns false if the descriptor is already present.
-        if (!_registeredDescriptors.Add(descriptor))
+        if (descriptor.IsCollectionRegistration)
         {
-            // Descriptor already registered, skip silently.
-            return;
+            throw new LiteBusConfigurationException(
+                $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' was registered with collection metadata. " +
+                $"Use {nameof(RegisterCollection)} for multi-registration services such as IEnumerable<T> hooks.");
         }
 
-        ConvertToAutofacRegistration(descriptor);
+        RegisterCore(descriptor, true);
+    }
+
+    /// <inheritdoc />
+    public void RegisterCollection(DependencyDescriptor descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+
+        if (!descriptor.IsCollectionRegistration)
+        {
+            throw new LiteBusConfigurationException(
+                $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' must be created with " +
+                $"{nameof(DependencyDescriptor.ForCollection)} before calling {nameof(RegisterCollection)}.");
+        }
+
+        RegisterCore(descriptor, false);
     }
 
     /// <summary>
@@ -69,7 +91,7 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     /// <returns>An enumerator for the registered dependency descriptors.</returns>
     public IEnumerator<DependencyDescriptor> GetEnumerator()
     {
-        return _registeredDescriptors.GetEnumerator();
+        return _tracker.GetEnumerator();
     }
 
     /// <summary>
@@ -81,21 +103,22 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
         return GetEnumerator();
     }
 
-    /// <inheritdoc />
-    public void RegisterHostedService(Type implementationType)
+    /// <summary>
+    ///     Applies shared registration policy and translates accepted descriptors into Autofac registrations.
+    /// </summary>
+    /// <param name="descriptor">The dependency descriptor to register.</param>
+    /// <param name="enforceSingleRegistration">
+    ///     When <see langword="true" />, rejects a second binding for the same
+    ///     <see cref="DependencyDescriptor.DependencyType" />.
+    /// </param>
+    private void RegisterCore(DependencyDescriptor descriptor, bool enforceSingleRegistration)
     {
-        ArgumentNullException.ThrowIfNull(implementationType);
-
-        if (!typeof(IHostedService).IsAssignableFrom(implementationType))
+        if (!_tracker.TryTrack(descriptor, enforceSingleRegistration))
         {
-            throw new ArgumentException(
-                $"Type '{implementationType.FullName ?? implementationType.Name}' must implement {nameof(IHostedService)}.",
-                nameof(implementationType));
+            return;
         }
 
-        _builder.RegisterType(implementationType)
-            .As<IHostedService>()
-            .SingleInstance();
+        ConvertToAutofacRegistration(descriptor);
     }
 
     /// <summary>
@@ -116,22 +139,21 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
         }
         else if (descriptor.Factory is not null)
         {
-            // Note: Autofac's IComponentContext can resolve IServiceProvider if needed,
-            // but direct resolution is more common. We adapt to IServiceProvider for consistency.
-            registration = _builder.Register(c => descriptor.Factory(c.Resolve<IServiceProvider>()))
+            registration = _builder.Register(c =>
+                    descriptor.Factory(new AutofacServiceProviderAdapter(c.Resolve<ILifetimeScope>())))
                 .As(descriptor.DependencyType);
         }
         else if (descriptor.ImplementationType is not null)
         {
-            registration = _builder.RegisterType(descriptor.ImplementationType)
-                .As(descriptor.DependencyType);
+            registration = descriptor.ImplementationType.IsGenericTypeDefinition
+                ? _builder.RegisterGeneric(descriptor.ImplementationType).As(descriptor.DependencyType)
+                : _builder.RegisterType(descriptor.ImplementationType).As(descriptor.DependencyType);
         }
         else
         {
             throw new ArgumentException("Invalid dependency descriptor: must have either Instance, Factory, or ImplementationType.", nameof(descriptor));
         }
 
-        // Apply lifetime.
         switch (descriptor.Lifetime)
         {
             case InstanceLifetime.Singleton:
@@ -140,8 +162,11 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
             case InstanceLifetime.Transient:
                 registration.InstancePerDependency();
                 break;
+            case InstanceLifetime.Scoped:
+                registration.InstancePerLifetimeScope();
+                break;
             default:
-                throw new ArgumentOutOfRangeException(nameof(descriptor.Lifetime), descriptor.Lifetime, "Unknown instance lifetime.");
+                throw new ArgumentOutOfRangeException(nameof(descriptor), descriptor.Lifetime, "Unknown instance lifetime.");
         }
     }
 }

@@ -1,0 +1,148 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using LiteBus.Storage.PostgreSql.Exceptions;
+using Npgsql;
+
+namespace LiteBus.Storage.PostgreSql;
+
+/// <summary>
+///     Acquires and releases a PostgreSQL session advisory lock used during schema bootstrap.
+/// </summary>
+internal sealed class PostgreSqlAdvisoryLockScope : IAsyncDisposable
+{
+    /// <summary>
+    ///     The open connection that holds the advisory lock for the lifetime of this scope.
+    /// </summary>
+    private readonly NpgsqlConnection _connection;
+
+    /// <summary>
+    ///     The first PostgreSQL advisory lock key passed to <c>pg_try_advisory_lock</c>.
+    /// </summary>
+    private readonly int _key1;
+
+    /// <summary>
+    ///     The second PostgreSQL advisory lock key passed to <c>pg_try_advisory_lock</c>.
+    /// </summary>
+    private readonly int _key2;
+
+    /// <summary>
+    ///     Indicates whether this scope successfully acquired the lock and must release it on disposal.
+    /// </summary>
+    private bool _acquired;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="PostgreSqlAdvisoryLockScope" /> class.
+    /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="key1">The first advisory lock key.</param>
+    /// <param name="key2">The second advisory lock key.</param>
+    /// <param name="acquired">Whether the lock was acquired.</param>
+    private PostgreSqlAdvisoryLockScope(NpgsqlConnection connection, int key1, int key2, bool acquired)
+    {
+        _connection = connection;
+        _key1 = key1;
+        _key2 = key2;
+        _acquired = acquired;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (!_acquired)
+        {
+            return;
+        }
+
+        _acquired = false;
+
+        using var command = _connection.CreateCommand();
+        command.CommandText = "SELECT pg_advisory_unlock(@key1, @key2);";
+        command.Parameters.AddWithValue("key1", _key1);
+        command.Parameters.AddWithValue("key2", _key2);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Attempts to acquire a session advisory lock for the supplied key.
+    /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="lockKey">The stable lock key.</param>
+    /// <param name="cancellationToken">A token used to cancel the attempt.</param>
+    /// <returns>
+    ///     A scope that releases the lock on disposal when acquisition succeeded; otherwise <see langword="null" />.
+    /// </returns>
+    public static async Task<PostgreSqlAdvisoryLockScope?> TryAcquireAsync(
+        NpgsqlConnection connection,
+        string lockKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(lockKey);
+
+        var (key1, key2) = CreateLockKeys(lockKey);
+
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT pg_try_advisory_lock(@key1, @key2);";
+        command.Parameters.AddWithValue("key1", key1);
+        command.Parameters.AddWithValue("key2", key2);
+
+        var acquired = (bool) (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) ?? false);
+        return acquired ? new PostgreSqlAdvisoryLockScope(connection, key1, key2, true) : null;
+    }
+
+    /// <summary>
+    ///     Waits until the advisory lock can be acquired or the timeout elapses.
+    /// </summary>
+    /// <param name="connection">The open PostgreSQL connection.</param>
+    /// <param name="lockKey">The stable lock key.</param>
+    /// <param name="timeout">The maximum time to wait for the lock.</param>
+    /// <param name="pollInterval">The delay between lock attempts.</param>
+    /// <param name="cancellationToken">A token used to cancel the wait.</param>
+    /// <returns>A scope that releases the lock on disposal.</returns>
+    public static async Task<PostgreSqlAdvisoryLockScope> AcquireAsync(
+        NpgsqlConnection connection,
+        string lockKey,
+        TimeSpan timeout,
+        TimeSpan pollInterval,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(lockKey);
+
+        var deadline = DateTime.UtcNow + timeout;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var scope = await TryAcquireAsync(connection, lockKey, cancellationToken).ConfigureAwait(false);
+
+            if (scope is not null)
+            {
+                return scope;
+            }
+
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new PostgreSqlStorageTimeoutException(
+                    $"Timed out after {timeout} waiting for PostgreSQL advisory lock '{lockKey}'.");
+            }
+
+            await Task.Delay(pollInterval, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Derives a stable two-part advisory lock key from a logical lock name.
+    /// </summary>
+    /// <param name="lockKey">The logical lock name supplied by schema bootstrap code.</param>
+    /// <returns>The key pair passed to PostgreSQL advisory lock functions.</returns>
+    internal static (int Key1, int Key2) CreateLockKeys(string lockKey)
+    {
+        const string key2Seed = "\u0000litebus:advisory:key2";
+        var key1 = (int) (PostgreSqlIdentifier.StableHash(lockKey) & 0x7FFFFFFF);
+        var key2 = (int) (PostgreSqlIdentifier.StableHash(lockKey + key2Seed) & 0x7FFFFFFF);
+        return (key1, key2);
+    }
+}

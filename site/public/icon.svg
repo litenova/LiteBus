@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">LiteBus icon</title>
+  <desc id="desc">A rounded charcoal lightning outline with a yellow route.</desc>
+  <path
+    d="M84 4 36 53l24 23-16 48 48-49-25-21L84 4Z"
+    fill="none"
+    stroke="#3e3643"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="8"
+  />
+  <path
+    fill="#fdbf00"
+    d="m68 36-15 16-2 3-1 2 1 4 14 14-11 34 34-34-13-10 2-4-4-5-9-2 4-18Z"
+  />
+</svg>

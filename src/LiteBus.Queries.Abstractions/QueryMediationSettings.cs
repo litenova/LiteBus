@@ -13,12 +13,12 @@ namespace LiteBus.Queries.Abstractions;
 public sealed class QueryMediationSettings
 {
     /// <summary>
-    ///     Gets the filters to be applied during query mediation.
+    ///     Gets or initializes the query routing configuration that determines which handlers should execute.
     /// </summary>
-    /// <remarks>
-    ///     Filters determine which handlers participate in the query processing pipeline.
-    /// </remarks>
-    public QueryMediationFilters Filters { get; } = new();
+    /// <value>
+    ///     A <see cref="QueryRoutingSettings" /> instance containing routing configuration.
+    /// </value>
+    public QueryRoutingSettings Routing { get; init; } = new();
 
     /// <summary>
     ///     Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.
@@ -30,24 +30,4 @@ public sealed class QueryMediationSettings
     ///     step under specific, controlled conditions.
     /// </remarks>
     public IDictionary<string, object> Items { get; init; } = new Dictionary<string, object>();
-
-    /// <summary>
-    ///     Represents the filters to be applied during query mediation.
-    /// </summary>
-    /// <remarks>
-    ///     Query mediation filters allow for selective inclusion of handlers in the query processing pipeline
-    ///     based on their metadata such as tags.
-    /// </remarks>
-    public sealed class QueryMediationFilters
-    {
-        /// <summary>
-        ///     Gets or sets the collection of tags used to filter query handlers (pre-handlers, main handlers, and post-handlers)
-        ///     during mediation.
-        /// </summary>
-        /// <remarks>
-        ///     When tags are specified, only handlers marked with at least one matching tag will participate in query processing.
-        ///     If the collection is empty, all registered handlers will be considered.
-        /// </remarks>
-        public IEnumerable<string> Tags { get; set; } = new List<string>();
-    }
 }

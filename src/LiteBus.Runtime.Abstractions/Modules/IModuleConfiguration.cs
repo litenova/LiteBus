@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using LiteBus.Runtime.Abstractions.Diagnostics;
 
 namespace LiteBus.Runtime.Abstractions;
 
@@ -11,6 +13,54 @@ public interface IModuleConfiguration
     ///     Gets the dependency registry for registering services.
     /// </summary>
     IDependencyRegistry DependencyRegistry { get; }
+
+    /// <summary>
+    ///     Gets the startup task implementation types registered by modules for host execution.
+    /// </summary>
+    IReadOnlyList<Type> StartupTasks { get; }
+
+    /// <summary>
+    ///     Gets the background service implementation types registered by modules for host execution.
+    /// </summary>
+    IReadOnlyList<Type> BackgroundServices { get; }
+
+    /// <summary>
+    ///     Gets the diagnostic probe descriptors registered by modules for host execution.
+    /// </summary>
+    IReadOnlyList<DiagnosticCheckDescriptor> DiagnosticChecks { get; }
+
+    /// <summary>
+    ///     Registers a startup task implementation type for host execution after dependency registration is applied.
+    /// </summary>
+    /// <param name="implementationType">The concrete type that implements <see cref="IStartupTask" />.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="implementationType" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="implementationType" /> does not implement <see cref="IStartupTask" />.
+    /// </exception>
+    void RegisterStartupTask(Type implementationType);
+
+    /// <summary>
+    ///     Registers a background service implementation type for host execution after dependency registration is applied.
+    /// </summary>
+    /// <param name="implementationType">The concrete type that implements <see cref="IBackgroundService" />.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="implementationType" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="implementationType" /> does not implement <see cref="IBackgroundService" />.
+    /// </exception>
+    void RegisterBackgroundService(Type implementationType);
+
+    /// <summary>
+    ///     Registers a diagnostic probe implementation type for host execution after dependency registration is applied.
+    /// </summary>
+    /// <param name="implementationType">The concrete type that implements <see cref="IDiagnosticCheck" />.</param>
+    /// <param name="name">The probe name reported to operators and health hosts.</param>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="implementationType" /> or <paramref name="name" /> is <see langword="null" />.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="implementationType" /> does not implement <see cref="IDiagnosticCheck" />.
+    /// </exception>
+    void RegisterDiagnosticCheck(Type implementationType, string name);
 
     /// <summary>
     ///     Gets a context object of the specified type.
@@ -26,6 +76,9 @@ public interface IModuleConfiguration
     /// <typeparam name="T">The type of context to store.</typeparam>
     /// <param name="context">The context object to store.</param>
     /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="context" /> is <see langword="null" />.</exception>
+    /// <exception cref="Exceptions.LiteBusConfigurationException">
+    ///     Thrown when a different context instance is already registered for <typeparamref name="T" />.
+    /// </exception>
     void SetContext<T>(T context) where T : class;
 
     /// <summary>
@@ -43,5 +96,8 @@ public interface IModuleConfiguration
     /// <param name="factory">The factory function to create the context if it doesn't exist.</param>
     /// <returns>The existing or newly created context object.</returns>
     /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="factory" /> is <see langword="null" />.</exception>
+    /// <exception cref="Exceptions.LiteBusConfigurationException">
+    ///     Thrown when <paramref name="factory" /> returns <see langword="null" />.
+    /// </exception>
     T GetOrCreateContext<T>(Func<T> factory) where T : class;
 }

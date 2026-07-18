@@ -34,8 +34,37 @@ msbuild.log
 msbuild.err
 msbuild.wrn
 
+# Test results
+[Tt]est[Rr]esults/
+*.trx
+test-results*.txt
+agent-tools/test-runs/
+
+# Code coverage (local / CI artifacts)
+coverage/
+coverage-*/
+**/coverage.cobertura.xml
+*.opencover.xml
+
 # Visual Studio 2015
 .vs/
 
 # Key Pair File
 LiteBus.snk
+
+# Local build logs
+build-output.txt
+build2.txt
+BenchmarkDotNet.Artifacts/
+release-notes.md
+
+# Fumadocs site dependencies and build output
+site/node_modules/
+site/.next/
+site/*.tsbuildinfo
+
+# Local tooling caches
+.fuse/
+
+# Cursor agent plans (local only)
+.cursor/plans/

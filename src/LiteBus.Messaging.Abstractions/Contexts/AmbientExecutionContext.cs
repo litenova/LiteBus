@@ -82,6 +82,18 @@ public static class AmbientExecutionContext
     }
 
     /// <summary>
+    ///     Clears the ambient execution context for the current async flow.
+    /// </summary>
+    /// <remarks>
+    ///     This method exists for test isolation. Production code should prefer disposing an
+    ///     <see cref="ExecutionContextScope" /> created by <see cref="CreateScope" />.
+    /// </remarks>
+    public static void ResetForTesting()
+    {
+        ExecutionContextLocal.Value = null;
+    }
+
+    /// <summary>
     ///     Represents a scope for an execution context that automatically restores the previous context when disposed.
     /// </summary>
     /// <remarks>
@@ -128,8 +140,15 @@ public static class AmbientExecutionContext
         {
             if (_disposed) return;
 
-            // This assignment is safe because ExecutionContextLocal.Value accepts nullable values.
-            ExecutionContextLocal.Value = _previousContext;
+            if (_previousContext is null)
+            {
+                ExecutionContextLocal.Value = null;
+            }
+            else
+            {
+                ExecutionContextLocal.Value = _previousContext;
+            }
+
             _disposed = true;
         }
     }

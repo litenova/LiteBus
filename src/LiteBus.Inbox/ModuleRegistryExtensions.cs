@@ -1,44 +1,60 @@
 using System;
+using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Inbox;
 
 /// <summary>
-///     Provides extension methods for registering command inbox modules.
+///     Provides extension methods for registering inbox modules.
 /// </summary>
 public static class ModuleRegistryExtensions
 {
     /// <summary>
-    ///     Registers the command inbox module.
+    ///     Adds durable inbox processing to a LiteBus composition.
+    /// </summary>
+    /// <param name="builder">The package-neutral LiteBus builder.</param>
+    /// <param name="builderAction">The inbox configuration callback.</param>
+    /// <returns>The current LiteBus builder.</returns>
+    public static ILiteBusBuilder AddInbox(
+        this ILiteBusBuilder builder,
+        Action<InboxModuleBuilder> builderAction)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(builderAction);
+
+        builder.Modules.AddInboxModule(builderAction);
+        return builder;
+    }
+
+    /// <summary>
+    ///     Registers the inbox module.
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
-    /// <param name="builderAction">The command inbox module configuration action.</param>
+    /// <param name="builderAction">The inbox module configuration action.</param>
     /// <returns>The current module registry.</returns>
-    public static IModuleRegistry AddCommandInboxModule(this IModuleRegistry moduleRegistry, Action<CommandInboxModuleBuilder> builderAction)
+    /// <remarks>
+    ///     <see cref="InboxModule" /> declares its messaging dependency in the module graph, so registration order does
+    ///     not affect validation.
+    /// </remarks>
+    public static IModuleRegistry AddInboxModule(this IModuleRegistry moduleRegistry, Action<InboxModuleBuilder> builderAction)
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
 
-        if (!moduleRegistry.IsModuleRegistered<MessageModule>())
-        {
-            moduleRegistry.Register(new MessageModule(moduleBuilder =>
-            {
-            }));
-        }
-
-        moduleRegistry.Register(new CommandInboxModule(builderAction));
+        moduleRegistry.Register(new InboxModule(builderAction));
         return moduleRegistry;
     }
 
     /// <summary>
-    ///     Registers the command inbox module with default settings.
+    ///     Registers the inbox module with default settings.
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
     /// <returns>The current module registry.</returns>
-    public static IModuleRegistry AddCommandInboxModule(this IModuleRegistry moduleRegistry)
+    /// <remarks>The complete graph validates the required messaging module.</remarks>
+    public static IModuleRegistry AddInboxModule(this IModuleRegistry moduleRegistry)
     {
-        return AddCommandInboxModule(moduleRegistry, moduleBuilder =>
+        return moduleRegistry.AddInboxModule(_ =>
         {
         });
     }

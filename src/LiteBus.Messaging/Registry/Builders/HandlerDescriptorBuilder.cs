@@ -19,25 +19,25 @@ public sealed class HandlerDescriptorBuilder : IHandlerDescriptorBuilder
     }
 
     /// <inheritdoc />
-    public IEnumerable<IHandlerDescriptor> Build(Type handlerType)
+    public IEnumerable<IHandlerDescriptor> Build(Type type)
     {
-        var interfaces = handlerType.GetInterfacesEqualTo(typeof(IMessageHandler<,>));
+        var interfaces = type.GetInterfacesEqualTo(typeof(IMessageHandler<,>));
 
-        var priority = handlerType.GetPriorityFromAttribute();
+        var priority = type.GetPriorityFromAttribute();
 
         foreach (var @interface in interfaces)
         {
             var messageType = @interface.GetGenericArguments()[0];
             var messageResultType = @interface.GetGenericArguments()[1];
-            var tags = handlerType.GetTagsFromAttribute();
+            var tags = type.GetTagsFromAttribute();
 
             yield return new MainHandlerDescriptor
             {
-                MessageType = messageType.IsGenericType ? messageType.GetGenericTypeDefinition() : messageType,
+                MessageType = messageType.NormalizeMessageRegistrationType(),
                 MessageResultType = messageResultType,
                 Priority = priority,
                 Tags = tags,
-                HandlerType = handlerType
+                HandlerType = type
             };
         }
     }

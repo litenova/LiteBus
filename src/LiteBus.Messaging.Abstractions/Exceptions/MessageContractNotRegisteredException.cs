@@ -13,18 +13,23 @@ public sealed class MessageContractNotRegisteredException : Exception
     /// </summary>
     /// <param name="messageType">The CLR message type.</param>
     public MessageContractNotRegisteredException(Type messageType)
-        : base($"Message type '{messageType.FullName ?? messageType.Name}' has no contract registration.")
+        : base(
+            $"Message type '{messageType.FullName ?? messageType.Name}' has no contract registration. " +
+            "Register it with Contracts.Register<T>() or apply [MessageContract] and call Contracts.RegisterFromAssembly().")
     {
         MessageType = messageType;
     }
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="MessageContractNotRegisteredException" /> class for a persisted contract.
+    ///     Initializes a new instance of the <see cref="MessageContractNotRegisteredException" /> class for a persisted
+    ///     contract.
     /// </summary>
     /// <param name="contractName">The stable contract name.</param>
     /// <param name="contractVersion">The contract version.</param>
     public MessageContractNotRegisteredException(string contractName, int contractVersion)
-        : base($"Message contract '{contractName}' version {contractVersion} has no CLR type registration.")
+        : base(
+            $"Message contract '{contractName}' version {contractVersion} has no CLR type registration. " +
+            "Register the type with Contracts.Register<T>() using the same contract name and version.")
     {
         ContractName = contractName;
         ContractVersion = contractVersion;

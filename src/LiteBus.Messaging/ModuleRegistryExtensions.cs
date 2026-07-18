@@ -9,6 +9,23 @@ namespace LiteBus.Messaging;
 public static class ModuleRegistryExtensions
 {
     /// <summary>
+    ///     Adds the messaging core and configures message contracts, serialization, and handlers.
+    /// </summary>
+    /// <param name="builder">The package-neutral LiteBus builder.</param>
+    /// <param name="builderAction">The messaging configuration callback.</param>
+    /// <returns>The current LiteBus builder.</returns>
+    public static ILiteBusBuilder AddMessaging(
+        this ILiteBusBuilder builder,
+        Action<MessageModuleBuilder> builderAction)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(builderAction);
+
+        builder.Modules.AddMessageModule(builderAction);
+        return builder;
+    }
+
+    /// <summary>
     ///     Registers a message module with the specified configuration.
     /// </summary>
     /// <param name="moduleRegistry">The module registry to register the message module with.</param>
@@ -18,19 +35,19 @@ public static class ModuleRegistryExtensions
     ///     Thrown when <paramref name="moduleRegistry" /> or <paramref name="builderAction" /> is <see langword="null" />.
     /// </exception>
     /// <remarks>
-    ///     The message module provides core messaging infrastructure and should typically be registered
-    ///     before other LiteBus modules (commands, events, queries) that depend on its services.
+    ///     The message module provides core messaging infrastructure. Dependent modules declare that relationship through
+    ///     <see cref="IRequires{TModule}" />, so callback order does not affect graph validation.
     /// </remarks>
     /// <example>
     ///     <code>
-    /// services.AddLiteBus(modules =>
+    /// services.AddLiteBus(builder =>
     /// {
-    ///     modules.AddMessageModule(msg => 
+    ///     builder.AddMessaging(msg =>
     ///     {
     ///         msg.RegisterFromAssembly(typeof(MyHandler).Assembly);
     ///     });
-    ///     modules.AddCommandModule(cmd => { /* ... */ });
-    ///     modules.AddEventModule(evt => { /* ... */ });
+    ///     builder.AddCommands(cmd => { /* ... */ });
+    ///     builder.AddEvents(evt => { /* ... */ });
     /// });
     /// </code>
     /// </example>
@@ -38,14 +55,6 @@ public static class ModuleRegistryExtensions
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
-
-        // Check if MessageModule is already registered.
-        if (moduleRegistry.IsModuleRegistered<MessageModule>())
-        {
-            throw new InvalidOperationException(
-                "Ensure that AddMessageModule() is called before other LiteBus modules " +
-                "(AddCommandModule, AddEventModule, AddQueryModule) to provide the core messaging infrastructure.");
-        }
 
         moduleRegistry.Register(new MessageModule(builderAction));
         return moduleRegistry;

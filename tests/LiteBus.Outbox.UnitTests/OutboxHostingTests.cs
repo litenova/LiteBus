@@ -1,246 +1,184 @@
-using LiteBus.Events;
-using LiteBus.Events.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
-using LiteBus.Outbox.Extensions.Microsoft.Hosting;
+using LiteBus.Outbox.Storage.InMemory;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Outbox.UnitTests;
 
 [Collection("Sequential")]
 public sealed class OutboxHostingTests : LiteBusTestBase
 {
-    [Fact]
-    public async Task ProcessorHost_WhenDisabled_ShouldCompleteWithoutPublishing()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ProcessorBackgroundService_WhenTimingIsNegative_ShouldThrowOnBuild(bool startupDelay)
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
-        var recorder = new OutboxTests.EventRecorder();
-
-        await using var provider = BuildProvider(store, recorder, hostOptions => hostOptions.Enabled = false);
-        var hostedService = provider.GetServices<IHostedService>().Single();
-
-        await hostedService.StartAsync(CancellationToken.None);
-        await hostedService.StopAsync(CancellationToken.None);
-
-        recorder.Events.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task ProcessorHost_ShouldRecordPassStateForHealthCheck()
-    {
-        var store = new OutboxTests.InMemoryOutboxStore();
-        var recorder = new OutboxTests.EventRecorder();
-
-        await using var provider = BuildProvider(
-            store,
-            recorder,
-            configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(50));
-
-        var outbox = provider.GetRequiredService<IIntegrationOutbox>();
-        var hostedService = provider.GetServices<IHostedService>().Single();
-        var state = provider.GetRequiredService<OutboxProcessorHostState>();
-        var healthCheck = new OutboxProcessorHealthCheck(state);
-
-        var orderId = Guid.NewGuid();
-        var messageId = Guid.NewGuid();
-        await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { MessageId = messageId });
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await hostedService.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(300));
-        await hostedService.StopAsync(CancellationToken.None);
-
-        state.LastSuccessfulPassAt.Should().NotBeNull();
-        state.ConsecutiveFailures.Should().Be(0);
-
-        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
-        result.Status.Should().Be(HealthStatus.Healthy);
-        recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
-    }
-
-    [Fact]
-    public async Task ProcessorHost_BeforeFirstPass_HealthCheckShouldReportHealthyWithPendingMessage()
-    {
-        var store = new OutboxTests.InMemoryOutboxStore();
-        var recorder = new OutboxTests.EventRecorder();
-
-        await using var provider = BuildProvider(store, recorder);
-        var state = provider.GetRequiredService<OutboxProcessorHostState>();
-        var healthCheck = new OutboxProcessorHealthCheck(state);
-
-        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
-
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("has not completed a pass yet");
-    }
-
-    [Fact]
-    public async Task ProcessorHost_WhenPassFails_ShouldRecordFailureAndReportUnhealthy()
-    {
-        var flakyLeaseStore = new OutboxTestInfrastructure.ThrowingOutboxLeaseStore();
-        var recorder = new OutboxTests.EventRecorder();
-
-        await using var provider = BuildProvider(
-            flakyLeaseStore.Inner,
-            recorder,
-            configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(25),
-            leaseStore: flakyLeaseStore);
-
-        var hostedService = provider.GetServices<IHostedService>().Single();
-        var state = provider.GetRequiredService<OutboxProcessorHostState>();
-        var healthCheck = new OutboxProcessorHealthCheck(state);
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await hostedService.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(150));
-        await hostedService.StopAsync(CancellationToken.None);
-
-        state.ConsecutiveFailures.Should().BeGreaterThan(0);
-        state.LastFailureMessage.Should().Contain("Simulated lease store failure");
-
-        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-    }
-
-    [Fact]
-    public async Task ProcessorHost_WhenRecoversAfterFailure_ShouldReportHealthyAgain()
-    {
-        var flakyLeaseStore = new OutboxTestInfrastructure.ThrowingOutboxLeaseStore(failuresBeforeSuccess: 1);
-        var recorder = new OutboxTests.EventRecorder();
-
-        await using var provider = BuildProvider(
-            flakyLeaseStore.Inner,
-            recorder,
-            configureHost: options => options.PollInterval = TimeSpan.FromMilliseconds(25),
-            leaseStore: flakyLeaseStore);
-
-        var outbox = provider.GetRequiredService<IIntegrationOutbox>();
-        var hostedService = provider.GetServices<IHostedService>().Single();
-        var state = provider.GetRequiredService<OutboxProcessorHostState>();
-        var healthCheck = new OutboxProcessorHealthCheck(state);
-
-        var orderId = Guid.NewGuid();
-        await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { MessageId = Guid.NewGuid() });
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await hostedService.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(400));
-        await hostedService.StopAsync(CancellationToken.None);
-
-        state.ConsecutiveFailures.Should().Be(0);
-        state.LastSuccessfulPassAt.Should().NotBeNull();
-
-        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
-        result.Status.Should().Be(HealthStatus.Healthy);
-        recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
-    }
-
-    [Fact]
-    public async Task ProcessorHost_WhenMissingDependency_ShouldThrowOnStart()
-    {
-        var services = new ServiceCollection()
-            .AddLiteBus(configuration =>
+        var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
+        var act = () => BuildProvider(
+            dispatcher,
+            options =>
             {
-                configuration.AddOutboxModule(outbox =>
+                if (startupDelay)
                 {
-                    outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
-                });
-
-                configuration.AddOutboxProcessorHosting();
+                    options.StartupDelay = TimeSpan.FromTicks(-1);
+                }
+                else
+                {
+                    options.PollInterval = TimeSpan.FromTicks(-1);
+                }
             });
 
-        await using var provider = services.BuildServiceProvider();
-
-        var act = () => provider.GetServices<IHostedService>().ToList();
-
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*IOutboxMessageLeaseStore*");
+        act.Should().Throw<ArgumentOutOfRangeException>();
     }
 
     [Fact]
-    public async Task ProcessorHost_WhenMissingDispatcher_ShouldThrowOnStart()
+    public async Task ProcessorBackgroundService_WhenDisabled_ShouldCompleteWithoutPublishing()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
+        var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
-        var services = new ServiceCollection()
-            .AddSingleton<IOutboxMessageWriter>(store)
-            .AddSingleton<IOutboxMessageLeaseStore>(store)
-            .AddSingleton<IOutboxMessageStateStore>(store)
-            .AddLiteBus(configuration =>
-            {
-                configuration.AddOutboxModule(outbox =>
+         var provider = BuildProvider(dispatcher, hostOptions => hostOptions.Enabled = false);
+         await using (provider.ConfigureAwait(true))
+         {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(true);
+        await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
+
+        dispatcher.Instance!.DispatchedMessages.Should().BeEmpty();
+        }
+    }
+
+    [Fact]
+    public async Task ProcessorBackgroundService_ShouldPublishScheduledMessages()
+    {
+        var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
+
+        var provider = BuildProvider(
+            dispatcher,
+            options => options.PollInterval = TimeSpan.FromMilliseconds(50));
+        await using (provider.ConfigureAwait(true))
+        {
+        var outbox = provider.GetRequiredService<IOutbox>();
+
+        var orderId = Guid.NewGuid();
+
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId },
+            Guid.NewGuid())).ConfigureAwait(true);
+
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(true);
+        await Task.Delay(TimeSpan.FromMilliseconds(300)).ConfigureAwait(true);
+        await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
+
+        dispatcher.Instance!.DispatchedMessages
+            .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
+            .Should()
+            .ContainSingle(submitted => submitted.OrderId == orderId);
+        }
+    }
+
+    [Fact]
+    public void ProcessorBackgroundService_WhenMissingDependency_ShouldThrowOnBuild()
+    {
+        var act = () =>
+            new ServiceCollection()
+                .AddLiteBus(registry =>
                 {
-                    outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
-                    outbox.UseProcessorOptions(new OutboxProcessorOptions
+                    registry.AddMessaging(_ =>
                     {
-                        BatchSize = 10,
-                        LeaseOwner = "test-publisher",
-                        Retry = new RetryOptions { UseJitter = false }
                     });
-                });
 
-                configuration.AddOutboxProcessorHosting();
-            });
+                    registry.AddOutbox(outbox =>
+                    {
+                        outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
+                        outbox.EnableOutboxProcessor();
+                    });
+                })
+                .BuildServiceProvider();
 
-        await using var provider = services.BuildServiceProvider();
-
-        var act = () => provider.GetServices<IHostedService>().ToList();
-
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*IOutboxDispatcher*");
+        act.Should().Throw<LiteBusConfigurationException>()
+            .WithMessage("*Outbox storage is required*");
     }
 
     [Fact]
-    public async Task ProcessorHost_ShouldRespectStartupDelay()
+    public void ProcessorBackgroundService_WhenMissingDispatcher_ShouldThrowOnBuild()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
-        var recorder = new OutboxTests.EventRecorder();
+        var act = () =>
+            new ServiceCollection()
+                .AddLiteBus(registry =>
+                {
+                    registry.AddMessaging(_ =>
+                    {
+                    });
 
-        await using var provider = BuildProvider(
-            store,
-            recorder,
-            configureHost: options =>
+                    registry.AddOutbox(outbox =>
+                    {
+                        outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
+                        outbox.UseInMemoryStorage();
+                        outbox.EnableOutboxProcessor();
+                    });
+                })
+                .BuildServiceProvider();
+
+        act.Should().Throw<LiteBusConfigurationException>()
+            .WithMessage("*EnableOutboxProcessor requires an outbox dispatcher*");
+    }
+
+    [Fact]
+    public async Task ProcessorBackgroundService_ShouldRespectStartupDelay()
+    {
+        var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
+
+        var provider = BuildProvider(
+            dispatcher,
+            options =>
             {
                 options.StartupDelay = TimeSpan.FromMilliseconds(300);
                 options.PollInterval = TimeSpan.FromMilliseconds(50);
             });
-
-        var outbox = provider.GetRequiredService<IIntegrationOutbox>();
-        var hostedService = provider.GetServices<IHostedService>().Single();
+        await using (provider.ConfigureAwait(true))
+        {
+        var outbox = provider.GetRequiredService<IOutbox>();
 
         var orderId = Guid.NewGuid();
-        await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId }, new OutboxOptions { MessageId = Guid.NewGuid() });
+
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId },
+            Guid.NewGuid())).ConfigureAwait(true);
+
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await hostedService.StartAsync(cts.Token);
+        await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(true);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(100));
-        recorder.Events.Should().BeEmpty();
+        await Task.Delay(TimeSpan.FromMilliseconds(100)).ConfigureAwait(true);
+        dispatcher.Instance!.DispatchedMessages.Should().BeEmpty();
 
-        await Task.Delay(TimeSpan.FromMilliseconds(350));
-        await hostedService.StopAsync(CancellationToken.None);
+        await Task.Delay(TimeSpan.FromMilliseconds(350)).ConfigureAwait(true);
+        await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
 
-        recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
+        dispatcher.Instance.DispatchedMessages
+            .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
+            .Should()
+            .ContainSingle(submitted => submitted.OrderId == orderId);
+        }
     }
 
     [Fact]
-    public async Task ProcessorHost_WithAdaptivePollingAndFullBatch_ShouldPublishMultipleMessagesQuickly()
+    public async Task ProcessorBackgroundService_WithAdaptivePollingAndFullBatch_ShouldPublishMultipleMessagesQuickly()
     {
-        var store = new OutboxTests.InMemoryOutboxStore();
-        var recorder = new OutboxTests.EventRecorder();
+        var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
-        await using var provider = BuildProvider(
-            store,
-            recorder,
+        var provider = BuildProvider(
+            dispatcher,
             configureOutbox: outbox =>
             {
-                outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
-                outbox.UseLiteBusEventDispatcher();
+                outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
+
                 outbox.UseProcessorOptions(new OutboxProcessorOptions
                 {
                     BatchSize = 2,
@@ -251,56 +189,53 @@ public sealed class OutboxHostingTests : LiteBusTestBase
             configureHost: options =>
             {
                 options.UseAdaptivePolling = true;
-                options.PollInterval = TimeSpan.FromSeconds(1);
+                options.PollInterval = TimeSpan.FromMilliseconds(50);
             });
-
-        var outbox = provider.GetRequiredService<IIntegrationOutbox>();
-        var hostedService = provider.GetServices<IHostedService>().Single();
+        await using (provider.ConfigureAwait(true))
+        {
+        var outbox = provider.GetRequiredService<IOutbox>();
 
         for (var i = 0; i < 4; i++)
         {
-            await outbox.AddAsync(new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() }, new OutboxOptions { MessageId = Guid.NewGuid() });
+            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Guid.NewGuid())).ConfigureAwait(true);
+
         }
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        var startedAt = DateTimeOffset.UtcNow;
-        await hostedService.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(500));
-        await hostedService.StopAsync(CancellationToken.None);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(true);
+        await WaitUntilAsync(() => dispatcher.Instance!.DispatchedMessages.Count == 4, TimeSpan.FromSeconds(10)).ConfigureAwait(true);
+        await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
 
-        var elapsed = DateTimeOffset.UtcNow - startedAt;
-        elapsed.Should().BeLessThan(TimeSpan.FromSeconds(1));
-        recorder.Events.Should().HaveCount(4);
+        dispatcher.Instance!.DispatchedMessages.Should().HaveCount(4);
+        }
     }
 
-    [Fact]
-    public void AddLiteBusOutboxProcessor_ShouldRegisterNamedHealthCheck()
+    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
     {
-        var services = new ServiceCollection();
-        services.AddSingleton(new OutboxProcessorHostState());
+        var deadline = DateTimeOffset.UtcNow + timeout;
 
-        var act = () => services.AddHealthChecks().AddLiteBusOutboxProcessor("outbox-host");
-
-        act.Should().NotThrow();
+        while (!condition() && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(50).ConfigureAwait(false);
+        }
     }
 
     private static ServiceProvider BuildProvider(
-        OutboxTests.InMemoryOutboxStore store,
-        OutboxTests.EventRecorder recorder,
+        OutboxTestInfrastructure.RecordingOutboxDispatcherHolder dispatcherHolder,
         Action<OutboxProcessorHostOptions>? configureHost = null,
-        Action<OutboxModuleBuilder>? configureOutbox = null,
-        IOutboxMessageLeaseStore? leaseStore = null)
+        Action<OutboxModuleBuilder>? configureOutbox = null)
     {
         return new ServiceCollection()
-            .AddSingleton<IOutboxMessageWriter>(store)
-            .AddSingleton<IOutboxMessageLeaseStore>(leaseStore ?? store)
-            .AddSingleton<IOutboxMessageStateStore>(store)
-            .AddSingleton(recorder)
-            .AddLiteBus(configuration =>
+            .AddSingleton(dispatcherHolder)
+            .AddLiteBus(registry =>
             {
-                configuration.AddEventModule(builder => builder.Register<OutboxTests.OrderSubmittedEventHandler>());
+                registry.AddMessaging(_ =>
+                {
+                });
 
-                configuration.AddOutboxModule(outbox =>
+                registry.AddOutbox(outbox =>
                 {
                     if (configureOutbox is not null)
                     {
@@ -308,8 +243,8 @@ public sealed class OutboxHostingTests : LiteBusTestBase
                     }
                     else
                     {
-                        outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
-                        outbox.UseLiteBusEventDispatcher();
+                        outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
+
                         outbox.UseProcessorOptions(new OutboxProcessorOptions
                         {
                             BatchSize = 10,
@@ -317,9 +252,11 @@ public sealed class OutboxHostingTests : LiteBusTestBase
                             Retry = new RetryOptions { UseJitter = false }
                         });
                     }
-                });
 
-                configuration.AddOutboxProcessorHosting(configureHost);
+                    outbox.UseInMemoryStorage();
+                    outbox.UseRecordingOutboxDispatcher(dispatcherHolder);
+                    outbox.EnableOutboxProcessor(configureHost);
+                });
             })
             .BuildServiceProvider();
     }

@@ -1,0 +1,19 @@
+name: Feature request
+description: Propose an improvement to LiteBus
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem or operational gap should be solved?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the smallest API and package shape that would solve it.
+    validations:
+      required: true

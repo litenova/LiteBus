@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="BenchmarkDotNet"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
+    </ItemGroup>
+
+</Project>

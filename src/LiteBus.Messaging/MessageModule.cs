@@ -4,6 +4,7 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Mediator;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging;
 
@@ -25,25 +26,32 @@ public sealed class MessageModule : IModule
     /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="builder" /> is <see langword="null" />.</exception>
     public MessageModule(Action<MessageModuleBuilder> builder)
     {
-        _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+        ArgumentNullException.ThrowIfNull(builder);
+        _builder = builder;
     }
 
     /// <inheritdoc />
     public void Build(IModuleConfiguration configuration)
     {
-        // Create or get the message registry - this will be shared across all messaging-related modules.
-        var messageRegistry = MessageRegistryAccessor.Instance;
+        if (!configuration.DependencyRegistry.Any(static descriptor =>
+                descriptor.DependencyType == typeof(IMessageDispatchScopeFactory)))
+        {
+            throw new LiteBusConfigurationException(
+                "Message dispatch requires an IMessageDispatchScopeFactory. " +
+                "Use a supported container adapter or explicitly register RootMessageDispatchScopeFactory in a custom host.");
+        }
+
+        // Create or get the message registry shared by all messaging-related modules in this configuration.
+        var messageRegistry = configuration.GetOrCreateContext<IMessageRegistry>(() => new MessageRegistry());
         var messageContractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
         var startIndex = messageRegistry.Handlers.Count;
-
-        configuration.SetContext(messageRegistry);
 
         // Configure the message module using the builder.
         var moduleBuilder = new MessageModuleBuilder(messageRegistry, messageContractRegistry);
         _builder(moduleBuilder);
 
         // Register core messaging services.
-        RegisterMessagingServices(configuration, messageRegistry, messageContractRegistry);
+        RegisterMessagingServices(configuration, messageRegistry, messageContractRegistry, moduleBuilder.TimeProvider);
         RegisterNewHandlers(configuration, messageRegistry, startIndex);
     }
 
@@ -53,10 +61,12 @@ public sealed class MessageModule : IModule
     /// <param name="configuration">The module configuration.</param>
     /// <param name="messageRegistry">The message registry instance.</param>
     /// <param name="messageContractRegistry">The message contract registry instance.</param>
+    /// <param name="timeProvider">The optional time provider registered for messaging services.</param>
     private static void RegisterMessagingServices(
         IModuleConfiguration configuration,
         IMessageRegistry messageRegistry,
-        MessageContractRegistry messageContractRegistry)
+        MessageContractRegistry messageContractRegistry,
+        TimeProvider? timeProvider)
     {
         // Register message registry as singleton.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -64,7 +74,23 @@ public sealed class MessageModule : IModule
             messageRegistry));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IMessageReader),
+            messageRegistry));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IMessageWriter),
+            messageRegistry));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageContractRegistry),
+            messageContractRegistry));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IContractReader),
+            messageContractRegistry));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IContractWriter),
             messageContractRegistry));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -73,17 +99,13 @@ public sealed class MessageModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(TimeProvider),
-            TimeProvider.System));
+            timeProvider ?? TimeProvider.System));
 
         // Register message mediator as transient.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageMediator),
             typeof(MessageMediator)));
 
-        // Register execution context accessor as transient factory.
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IExecutionContext),
-            _ => AmbientExecutionContext.Current));
     }
 
     /// <summary>
@@ -102,7 +124,10 @@ public sealed class MessageModule : IModule
 
             if (handlerType is { IsClass: true, IsAbstract: false })
             {
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(handlerType, handlerType));
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    handlerType,
+                    handlerType,
+                    InstanceLifetime.Scoped));
             }
         }
     }

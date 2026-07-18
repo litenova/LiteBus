@@ -24,6 +24,6 @@ namespace LiteBus.Queries.Abstractions;
 ///         collection.
 ///     </para>
 /// </remarks>
-public interface IStreamQueryPostHandler<in TQuery, in TQueryResult> : IRegistrableQueryConstruct,
+public interface IStreamQueryPostHandler<in TQuery, in TQueryResult> :
                                                                        IAsyncMessagePostHandler<TQuery, IAsyncEnumerable<TQueryResult>>
     where TQuery : IStreamQuery<TQueryResult>;

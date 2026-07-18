@@ -1,7 +1,7 @@
-﻿using System;
+using System;
 using System.Linq;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Registry;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Runtime.Abstractions;
 
@@ -11,7 +11,7 @@ namespace LiteBus.Queries;
 ///     Module for configuring query handling infrastructure.
 ///     Depends on the messaging module for core messaging functionality.
 /// </summary>
-public sealed class QueryModule : IModule
+public sealed class QueryModule : IModule, IRequires<MessageModule>
 {
     /// <summary>
     ///     Gets the configuration action invoked when the module is built.
@@ -25,7 +25,8 @@ public sealed class QueryModule : IModule
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder" /> is <see langword="null" />.</exception>
     public QueryModule(Action<QueryModuleBuilder> builder)
     {
-        _builder = builder ?? throw new ArgumentNullException(nameof(builder));
+        ArgumentNullException.ThrowIfNull(builder);
+        _builder = builder;
     }
 
     /// <summary>
@@ -37,10 +38,11 @@ public sealed class QueryModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var messageRegistry = MessageRegistryAccessor.Instance;
+        var messageRegistry = configuration.GetContext<IMessageRegistry>();
+        var contractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
 
         var startIndex = messageRegistry.Handlers.Count;
-        var moduleBuilder = new QueryModuleBuilder(messageRegistry);
+        var moduleBuilder = new QueryModuleBuilder(messageRegistry, contractRegistry);
         _builder(moduleBuilder);
 
         RegisterQueryServices(configuration);
@@ -76,7 +78,8 @@ public sealed class QueryModule : IModule
             {
                 configuration.DependencyRegistry.Register(new DependencyDescriptor(
                     handlerType,
-                    handlerType));
+                    handlerType,
+                    InstanceLifetime.Scoped));
             }
         }
     }

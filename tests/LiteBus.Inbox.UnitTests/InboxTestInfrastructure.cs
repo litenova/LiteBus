@@ -1,48 +1,89 @@
+using LiteBus.Commands.Abstractions;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Storage.InMemory;
+using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Inbox.UnitTests;
 
 internal static class InboxTestInfrastructure
 {
-    internal sealed class ManualTimeProvider : TimeProvider
+    /// <summary>
+    ///     Registers a test <see cref="IInboxDispatcher" /> that deserializes envelopes and executes them through
+    ///     <see cref="ICommandMediator" />.
+    /// </summary>
+    /// <param name="services">The service collection under test.</param>
+    /// <returns>The same service collection for chaining.</returns>
+    internal static IServiceCollection AddCommandMediatorInboxDispatcher(this IServiceCollection services)
     {
-        private DateTimeOffset _utcNow;
-
-        public ManualTimeProvider(DateTimeOffset initial)
-        {
-            _utcNow = initial;
-        }
-
-        public void Advance(TimeSpan amount)
-        {
-            _utcNow = _utcNow.Add(amount);
-        }
-
-        public void SetUtcNow(DateTimeOffset value)
-        {
-            _utcNow = value;
-        }
-
-        public override DateTimeOffset GetUtcNow()
-        {
-            return _utcNow;
-        }
+        return services.AddSingleton<IInboxDispatcher, CommandMediatorInboxDispatcher>();
     }
 
-    internal sealed class ThrowingInboxLeaseStore : ICommandInboxLeaseStore
+    /// <summary>
+    ///     Creates a processing store from separate lease and state writer roles.
+    /// </summary>
+    /// <param name="leaseStore">The store role used to lease due envelopes.</param>
+    /// <param name="stateWriter">The store role used to persist post-transition envelopes.</param>
+    /// <returns>The composite processing store passed to inbox processors.</returns>
+    internal static IInboxProcessingStore CreateProcessingStore(
+        IInboxLeaseStore leaseStore,
+        IInboxStateWriter stateWriter)
+    {
+        return new CompositeInboxProcessingStore(leaseStore, stateWriter);
+    }
+
+    /// <summary>
+    ///     Starts every LiteBus <see cref="IHostedService" /> so startup tasks unblock background loops.
+    /// </summary>
+    /// <param name="provider">The service provider built with <c>AddLiteBus</c>.</param>
+    /// <param name="cancellationToken">A token that cancels host startup.</param>
+    /// <returns>A task that completes after each hosted service has started.</returns>
+    internal static Task StartLiteBusHostedServicesAsync(
+        IServiceProvider provider,
+        CancellationToken cancellationToken)
+    {
+        return LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Stops every LiteBus <see cref="IHostedService" /> in reverse registration order.
+    /// </summary>
+    /// <param name="provider">The service provider built with <c>AddLiteBus</c>.</param>
+    /// <param name="cancellationToken">A token that cancels host shutdown.</param>
+    /// <returns>A task that completes after each hosted service has stopped.</returns>
+    internal static Task StopLiteBusHostedServicesAsync(
+        IServiceProvider provider,
+        CancellationToken cancellationToken)
+    {
+        return LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Resolves the generic-host adapter for <see cref="InboxProcessorBackgroundService" />.
+    /// </summary>
+    /// <param name="provider">The service provider built with <c>AddLiteBus</c> and an enabled inbox processor.</param>
+    /// <returns>The <see cref="IHostedService" /> that runs the inbox processor loop.</returns>
+    internal static IHostedService GetInboxProcessorHostedService(IServiceProvider provider)
+    {
+        return LiteBusHostedServiceExtensions.GetInboxProcessorHostedService(provider);
+    }
+
+    internal sealed class ThrowingInboxLeaseStore : IInboxLeaseStore
     {
         private readonly int _failuresBeforeSuccess;
         private int _attempts;
-        private readonly CommandInboxTests.InMemoryCommandInboxStore _inner = new();
 
         public ThrowingInboxLeaseStore(int failuresBeforeSuccess = int.MaxValue)
         {
             _failuresBeforeSuccess = failuresBeforeSuccess;
         }
 
-        public CommandInboxTests.InMemoryCommandInboxStore Inner => _inner;
+        public InMemoryInboxStore Inner { get; } = new();
 
-        public Task<IReadOnlyList<InboxCommandEnvelope>> LeasePendingAsync(
+        public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
             InboxLeaseRequest request,
             CancellationToken cancellationToken = default)
         {
@@ -51,29 +92,155 @@ internal static class InboxTestInfrastructure
                 throw new InvalidOperationException("Simulated lease store failure.");
             }
 
-            return _inner.LeasePendingAsync(request, cancellationToken);
+            return Inner.LeasePendingAsync(request, cancellationToken);
+        }
+
+        public Task<bool> RenewLeaseAsync(
+            LeaseRenewalRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Inner.RenewLeaseAsync(request, cancellationToken);
         }
     }
 
-    internal sealed class DelegatingInboxLeaseStore : ICommandInboxLeaseStore
+    internal sealed class DelegatingInboxLeaseStore : IInboxLeaseStore
     {
-        private readonly CommandInboxTests.InMemoryCommandInboxStore _inner;
-        private readonly Func<InboxLeaseRequest, IReadOnlyList<InboxCommandEnvelope>>? _onLease;
+        private readonly InMemoryInboxStore _inner;
+        private readonly Func<InboxLeaseRequest, IReadOnlyList<InboxEnvelope>>? _onLease;
 
         public DelegatingInboxLeaseStore(
-            CommandInboxTests.InMemoryCommandInboxStore inner,
-            Func<InboxLeaseRequest, IReadOnlyList<InboxCommandEnvelope>>? onLease = null)
+            InMemoryInboxStore inner,
+            Func<InboxLeaseRequest, IReadOnlyList<InboxEnvelope>>? onLease = null)
         {
             _inner = inner;
             _onLease = onLease;
         }
 
-        public async Task<IReadOnlyList<InboxCommandEnvelope>> LeasePendingAsync(
+        public async Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
             InboxLeaseRequest request,
             CancellationToken cancellationToken = default)
         {
             var leased = await _inner.LeasePendingAsync(request, cancellationToken).ConfigureAwait(false);
             return _onLease?.Invoke(request) ?? leased;
+        }
+
+        public Task<bool> RenewLeaseAsync(
+            LeaseRenewalRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return _inner.RenewLeaseAsync(request, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    ///     Test dispatcher that routes deserialized inbox envelopes through the command mediator.
+    /// </summary>
+    internal sealed class CommandMediatorInboxDispatcher : IInboxDispatcher
+    {
+        /// <summary>
+        ///     Gets the command mediator used to execute deserialized commands.
+        /// </summary>
+        private readonly ICommandMediator _commandMediator;
+
+        /// <summary>
+        ///     Gets the registry used to resolve persisted contracts back to CLR types.
+        /// </summary>
+        private readonly IMessageContractRegistry _contractRegistry;
+
+        /// <summary>
+        ///     Gets the serializer used to hydrate envelope payloads.
+        /// </summary>
+        private readonly IMessageSerializer _messageSerializer;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="CommandMediatorInboxDispatcher" /> class.
+        /// </summary>
+        /// <param name="commandMediator">The command mediator used to execute deserialized commands.</param>
+        /// <param name="contractRegistry">The registry used to resolve persisted contracts back to CLR types.</param>
+        /// <param name="messageSerializer">The serializer used to hydrate envelope payloads.</param>
+        public CommandMediatorInboxDispatcher(
+            ICommandMediator commandMediator,
+            IMessageContractRegistry contractRegistry,
+            IMessageSerializer messageSerializer)
+        {
+            _commandMediator = commandMediator ?? throw new ArgumentNullException(nameof(commandMediator));
+            _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
+            _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
+        }
+
+        /// <inheritdoc />
+        public async Task DispatchAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(envelope);
+
+            var messageType = _contractRegistry.GetMessageType(envelope.ContractName, envelope.ContractVersion);
+            var message = await _messageSerializer.DeserializeAsync(messageType, envelope.Payload, cancellationToken).ConfigureAwait(false);
+
+            if (message is not ICommand command)
+            {
+                throw new InvalidOperationException(
+                    $"Contract '{envelope.ContractName}' version {envelope.ContractVersion} resolved to a type that does not implement ICommand.");
+            }
+
+            var mediationSettings = new CommandMediationSettings();
+            mediationSettings.Items[InboxExecutionContextKeys.IsInboxExecution] = true;
+
+            MessageProcessorDiagnostics.ApplyTraceMetadata(
+                mediationSettings.Items,
+                envelope.CorrelationId,
+                envelope.CausationId,
+                envelope.TenantId);
+
+            await _commandMediator.SendAsync(command, mediationSettings, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Adapts separate lease and state writer roles to <see cref="IInboxProcessingStore" />.
+    /// </summary>
+    private sealed class CompositeInboxProcessingStore : IInboxProcessingStore
+    {
+        /// <summary>
+        ///     The store role used to lease due envelopes.
+        /// </summary>
+        private readonly IInboxLeaseStore _leaseStore;
+
+        /// <summary>
+        ///     The store role used to persist post-transition envelopes.
+        /// </summary>
+        private readonly IInboxStateWriter _stateWriter;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="CompositeInboxProcessingStore" /> class.
+        /// </summary>
+        /// <param name="leaseStore">The store role used to lease due envelopes.</param>
+        /// <param name="stateWriter">The store role used to persist post-transition envelopes.</param>
+        public CompositeInboxProcessingStore(IInboxLeaseStore leaseStore, IInboxStateWriter stateWriter)
+        {
+            _leaseStore = leaseStore ?? throw new ArgumentNullException(nameof(leaseStore));
+            _stateWriter = stateWriter ?? throw new ArgumentNullException(nameof(stateWriter));
+        }
+
+        /// <inheritdoc />
+        public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
+            InboxLeaseRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return _leaseStore.LeasePendingAsync(request, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task<bool> RenewLeaseAsync(
+            LeaseRenewalRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return _leaseStore.RenewLeaseAsync(request, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task<PersistResult> PersistAsync(IReadOnlyList<InboxEnvelope> envelopes, CancellationToken cancellationToken = default)
+        {
+            return _stateWriter.PersistAsync(envelopes, cancellationToken);
         }
     }
 }

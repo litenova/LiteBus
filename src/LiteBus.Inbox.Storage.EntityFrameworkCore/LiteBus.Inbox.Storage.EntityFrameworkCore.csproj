@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.EntityFrameworkCore"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Storage.EntityFrameworkCore\LiteBus.Storage.EntityFrameworkCore.csproj"/>
+    </ItemGroup>
+
+</Project>

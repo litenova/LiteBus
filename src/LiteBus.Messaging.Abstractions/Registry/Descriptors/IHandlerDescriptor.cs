@@ -22,6 +22,12 @@ public interface IHandlerDescriptor
     int Priority { get; }
 
     /// <summary>
+    ///     Gets the registration sequence assigned when the handler descriptor was committed to the message registry.
+    ///     Lower values indicate earlier module registration and act as a stable tiebreaker after <see cref="Priority" />.
+    /// </summary>
+    int RegistrationSequence { get; }
+
+    /// <summary>
     ///     Gets a collection of tags associated with the handler. Tags can be used to categorize or identify handlers in a
     ///     flexible way.
     /// </summary>
