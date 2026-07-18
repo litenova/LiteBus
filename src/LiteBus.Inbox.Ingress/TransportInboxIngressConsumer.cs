@@ -147,13 +147,6 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
             try
             {
                 await _consumer.StartAsync(consumerOptions, HandleDeliveryAsync, stoppingToken).ConfigureAwait(false);
-
-                using var stopRegistration = stoppingToken.Register(static state =>
-                {
-                    var consumer = (IMessageConsumer)state!;
-                    _ = consumer.StopAsync(CancellationToken.None);
-                }, _consumer);
-
                 await _consumer.WaitUntilStoppedAsync(stoppingToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -170,9 +163,16 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
             finally
             {
                 CancelBatchFlushTimer();
-                await AwaitActiveBatchFlushAsync().ConfigureAwait(false);
-                await FlushBatchBufferAsync(CancellationToken.None).ConfigureAwait(false);
-                await _consumer.StopAsync(stoppingToken).ConfigureAwait(false);
+
+                try
+                {
+                    await _consumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                finally
+                {
+                    await AwaitActiveBatchFlushAsync().ConfigureAwait(false);
+                    await FlushBatchBufferAsync(CancellationToken.None).ConfigureAwait(false);
+                }
             }
 
             if (stoppingToken.IsCancellationRequested)

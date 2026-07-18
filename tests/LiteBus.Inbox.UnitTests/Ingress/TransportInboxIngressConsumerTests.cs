@@ -402,6 +402,34 @@ public sealed class TransportInboxIngressConsumerTests
     }
 
     /// <summary>
+    ///     Verifies host cancellation stops the transport consumer once with a cleanup-safe token.
+    /// </summary>
+    /// <returns>A task that completes when shutdown has finished.</returns>
+    [Fact]
+    public async Task ExecuteAsync_WhenHostStops_ShouldAwaitOneUncancelledConsumerStop()
+    {
+        var transportConsumer = new RecordingLifecycleConsumer();
+        var consumer = CreateConsumer(
+            true,
+            messageConsumer: transportConsumer,
+            hostOptions: new TransportInboxIngressHostOptions
+            {
+                Enabled = true,
+                RetryPollInterval = TimeSpan.Zero
+            });
+        using var stoppingSource = new CancellationTokenSource();
+
+        var execution = consumer.ExecuteAsync(stoppingSource.Token);
+        await transportConsumer.Waiting.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+
+        await stoppingSource.CancelAsync().ConfigureAwait(false);
+        await execution.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+
+        transportConsumer.StopCallCount.Should().Be(1);
+        transportConsumer.StopTokenCanBeCanceled.Should().BeFalse();
+    }
+
+    /// <summary>
     ///     Invokes the private delivery handler on the ingress consumer.
     /// </summary>
     /// <param name="consumer">The ingress consumer under test.</param>
@@ -439,12 +467,16 @@ public sealed class TransportInboxIngressConsumerTests
     /// <param name="inboxCapacity">The optional inbox capacity limit.</param>
     /// <param name="inbox">The optional inbox implementation.</param>
     /// <param name="options">The optional ingress options overriding defaults.</param>
+    /// <param name="messageConsumer">The optional transport consumer implementation.</param>
+    /// <param name="hostOptions">The optional ingress host options.</param>
     /// <returns>The configured ingress consumer.</returns>
     private static TransportInboxIngressConsumer CreateConsumer(
         bool requeueOnFailure,
         int? inboxCapacity = null,
         IInbox? inbox = null,
-        TransportInboxIngressOptions? options = null)
+        TransportInboxIngressOptions? options = null,
+        IMessageConsumer? messageConsumer = null,
+        TransportInboxIngressHostOptions? hostOptions = null)
     {
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<ProbeCommand>("probe.command");
@@ -474,10 +506,10 @@ public sealed class TransportInboxIngressConsumerTests
             options);
 
         return new TransportInboxIngressConsumer(
-            new FakeMessageConsumer(),
+            messageConsumer ?? new FakeMessageConsumer(),
             handler,
             options,
-            new TransportInboxIngressHostOptions { Enabled = false },
+            hostOptions ?? new TransportInboxIngressHostOptions { Enabled = false },
             NullLogger<TransportInboxIngressConsumer>.Instance);
     }
 
@@ -696,6 +728,62 @@ public sealed class TransportInboxIngressConsumerTests
         public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
+        }
+
+        /// <inheritdoc />
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    ///     Records transport consumer lifecycle calls while holding the active wait until cancellation.
+    /// </summary>
+    private sealed class RecordingLifecycleConsumer : IMessageConsumer
+    {
+        /// <summary>
+        ///     Signals that the ingress loop reached the active consumer wait.
+        /// </summary>
+        private readonly TaskCompletionSource _waiting = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>
+        ///     Gets the task that signals when the consumer is waiting for shutdown.
+        /// </summary>
+        public Task Waiting => _waiting.Task;
+
+        /// <summary>
+        ///     Gets the number of stop calls observed by this consumer.
+        /// </summary>
+        public int StopCallCount { get; private set; }
+
+        /// <summary>
+        ///     Gets a value indicating whether the last stop token could be canceled.
+        /// </summary>
+        public bool StopTokenCanBeCanceled { get; private set; }
+
+        /// <inheritdoc />
+        public Task StartAsync(
+            TransportConsumerOptions options,
+            Func<TransportMessage, CancellationToken, Task> handler,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc />
+        public Task StopAsync(CancellationToken cancellationToken = default)
+        {
+            StopCallCount++;
+            StopTokenCanBeCanceled = cancellationToken.CanBeCanceled;
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc />
+        public Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
+        {
+            _waiting.TrySetResult();
+            return Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
         }
 
         /// <inheritdoc />
