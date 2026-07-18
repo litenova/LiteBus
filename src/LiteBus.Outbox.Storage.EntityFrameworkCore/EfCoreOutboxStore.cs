@@ -293,6 +293,9 @@ public sealed class EfCoreOutboxStore :
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.BatchSize, 0);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.LeaseDuration, TimeSpan.Zero);
 
         return await ExecuteAsync(async (context, token) =>
         {

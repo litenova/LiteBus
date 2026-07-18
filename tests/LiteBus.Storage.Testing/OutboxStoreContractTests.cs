@@ -21,6 +21,32 @@ public abstract class OutboxStoreContractTests
     protected abstract OutboxStoreContracts CreateStore();
 
     /// <summary>
+    ///     Verifies invalid lease inputs are rejected before a store can create an unusable lease.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task LeasePendingAsync_WhenRequestIsInvalid_ShouldRejectRequest()
+    {
+        var store = CreateStore();
+        var request = new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-1",
+            Now = BaseTime,
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        };
+
+        var zeroBatch = () => store.Lease.LeasePendingAsync(request with { BatchSize = 0 });
+        var blankOwner = () => store.Lease.LeasePendingAsync(request with { LeaseOwner = " " });
+        var negativeDuration = () => store.Lease.LeasePendingAsync(
+            request with { LeaseDuration = TimeSpan.FromSeconds(-1) });
+
+        await zeroBatch.Should().ThrowAsync<ArgumentOutOfRangeException>().ConfigureAwait(false);
+        await blankOwner.Should().ThrowAsync<ArgumentException>().ConfigureAwait(false);
+        await negativeDuration.Should().ThrowAsync<ArgumentOutOfRangeException>().ConfigureAwait(false);
+    }
+
+    /// <summary>
     ///     Verifies that cancellation requested before an append prevents any store mutation.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>

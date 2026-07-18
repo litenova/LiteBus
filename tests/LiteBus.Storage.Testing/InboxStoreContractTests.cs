@@ -22,6 +22,31 @@ public abstract class InboxStoreContractTests
     protected abstract InboxStoreRoles CreateStore();
 
     /// <summary>
+    ///     Verifies invalid lease inputs are rejected before a store can create an unusable lease.
+    /// </summary>
+    [Fact]
+    public async Task LeasePendingAsync_WhenRequestIsInvalid_ShouldRejectRequest()
+    {
+        var roles = CreateStore();
+        var request = new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "worker-1",
+            Now = BaseTime,
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        };
+
+        var zeroBatch = () => roles.LeaseStore.LeasePendingAsync(request with { BatchSize = 0 });
+        var blankOwner = () => roles.LeaseStore.LeasePendingAsync(request with { LeaseOwner = " " });
+        var negativeDuration = () => roles.LeaseStore.LeasePendingAsync(
+            request with { LeaseDuration = TimeSpan.FromSeconds(-1) });
+
+        await zeroBatch.Should().ThrowAsync<ArgumentOutOfRangeException>().ConfigureAwait(false);
+        await blankOwner.Should().ThrowAsync<ArgumentException>().ConfigureAwait(false);
+        await negativeDuration.Should().ThrowAsync<ArgumentOutOfRangeException>().ConfigureAwait(false);
+    }
+
+    /// <summary>
     ///     Verifies that cancellation requested before an append prevents any store mutation.
     /// </summary>
     [Fact]
