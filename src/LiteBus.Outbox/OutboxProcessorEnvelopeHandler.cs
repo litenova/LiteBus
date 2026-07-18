@@ -92,6 +92,12 @@ internal static class OutboxProcessorEnvelopeHandler
 
             OutboxProcessorHookRunner.RunPrepareDispatchScope(hooks, envelope);
 
+            if (!OutboxProcessorHookRunner.ShouldDispatch(hooks, envelope))
+            {
+                dispatchCompleted = true;
+                return envelope.AsPublished(clock.GetUtcNow());
+            }
+
             var stopwatch = Stopwatch.StartNew();
             await dispatcher.DispatchAsync(envelope, cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();

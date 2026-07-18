@@ -49,6 +49,27 @@ internal static class InboxProcessorHookRunner
     }
 
     /// <summary>
+    ///     Determines whether every hook permits the axis dispatcher to run.
+    /// </summary>
+    /// <param name="hooks">The registered orchestration hooks.</param>
+    /// <param name="envelope">The leased inbox envelope.</param>
+    /// <returns><see langword="true" /> when every hook permits dispatch; otherwise, <see langword="false" />.</returns>
+    internal static bool ShouldDispatch(
+        IReadOnlyList<IProcessorEnvelopeHook> hooks,
+        InboxEnvelope envelope)
+    {
+        var context = new InboxProcessorEnvelopeAdapter(envelope);
+        var shouldDispatch = true;
+
+        foreach (var hook in hooks)
+        {
+            shouldDispatch &= hook.ShouldDispatch(context);
+        }
+
+        return shouldDispatch;
+    }
+
+    /// <summary>
     ///     Releases hook-owned dispatch state after dispatch or after-dispatch processing stops on a failure.
     /// </summary>
     /// <param name="hooks">The registered orchestration hooks.</param>

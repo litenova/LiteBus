@@ -123,6 +123,13 @@ internal static class InboxProcessorEnvelopeHandler
         {
             await InboxProcessorHookRunner.RunBeforeDispatchAsync(hooks, envelope, cancellationToken).ConfigureAwait(false);
             InboxProcessorHookRunner.RunPrepareDispatchScope(hooks, envelope);
+
+            if (!InboxProcessorHookRunner.ShouldDispatch(hooks, envelope))
+            {
+                dispatchCompleted = true;
+                return envelope.AsCompleted();
+            }
+
             var stopwatch = Stopwatch.StartNew();
             await dispatcher.DispatchAsync(envelope, cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();

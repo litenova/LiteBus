@@ -73,6 +73,35 @@ public sealed class OutboxProcessorCorrectnessTests
     }
 
     [Fact]
+    public async Task ProcessAsync_when_hook_suppresses_dispatch_should_publish_without_invoking_dispatcher()
+    {
+        var dispatchCount = 0;
+        var envelope = new OutboxEnvelope
+        {
+            Id = Guid.NewGuid(),
+            ContractName = "orders.events.submitted",
+            ContractVersion = 1,
+            Payload = "{}",
+            CreatedAt = BaseTime,
+            AttemptCount = 1,
+            Status = OutboxStatus.Publishing
+        };
+
+        var updated = await OutboxProcessorEnvelopeHandler.DispatchAsync(
+            envelope,
+            new CountingOutboxDispatcher(() => Interlocked.Increment(ref dispatchCount)),
+            new OutboxProcessorOptions(),
+            TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+            [new SuppressingDispatchHook()],
+            CancellationToken.None).ConfigureAwait(false);
+
+        updated.Should().NotBeNull();
+        updated!.Status.Should().Be(OutboxStatus.Published);
+        dispatchCount.Should().Be(0);
+    }
+
+    [Fact]
     public async Task PipelinedProcessor_when_lease_renewal_fails_should_cancel_dispatch()
     {
         var clock = new ManualTimeProvider(BaseTime);
@@ -478,6 +507,24 @@ public sealed class OutboxProcessorCorrectnessTests
         public Task AfterDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException("AfterDispatch failed.");
+        }
+    }
+
+    private sealed class SuppressingDispatchHook : IProcessorEnvelopeHook
+    {
+        public Task BeforeDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public bool ShouldDispatch(IProcessorEnvelope envelope)
+        {
+            return false;
+        }
+
+        public Task AfterDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
         }
     }
 

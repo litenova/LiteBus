@@ -31,6 +31,11 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
     private readonly ConcurrentDictionary<Guid, (string Key, CorrelationGate Gate)> _dispatchGates = new();
 
     /// <summary>
+    ///     Tracks durable messages whose saga mutation was already applied so the dispatcher is not invoked again.
+    /// </summary>
+    private readonly ConcurrentDictionary<Guid, byte> _suppressedDispatches = new();
+
+    /// <summary>
     ///     Gets the ambient saga context exposed to handlers.
     /// </summary>
     private readonly SagaExecutionContext _context;
@@ -133,6 +138,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
 
             if (loaded?.LastAppliedMessageId == envelope.MessageId || loaded?.IsCompleted == true)
             {
+                _suppressedDispatches[envelope.MessageId] = 0;
                 _context.Reset();
                 ReleaseDispatchGate(envelope.MessageId);
                 return;
@@ -159,9 +165,17 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
     }
 
     /// <inheritdoc />
+    public bool ShouldDispatch(IProcessorEnvelope envelope)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+        return !_suppressedDispatches.TryRemove(envelope.MessageId, out _);
+    }
+
+    /// <inheritdoc />
     public void AbandonDispatchScope(IProcessorEnvelope envelope)
     {
         ArgumentNullException.ThrowIfNull(envelope);
+        _suppressedDispatches.TryRemove(envelope.MessageId, out _);
 
         if (_context.TryAttach(envelope.MessageId))
         {

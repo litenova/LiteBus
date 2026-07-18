@@ -45,6 +45,20 @@ public interface IProcessorEnvelopeHook
     }
 
     /// <summary>
+    ///     Determines whether the axis dispatcher should run for one leased envelope.
+    /// </summary>
+    /// <remarks>
+    ///     Hooks may return <see langword="false" /> when durable hook state proves the same dispatch was already
+    ///     applied. Processors still run after-dispatch hooks and persist the successful terminal outcome.
+    /// </remarks>
+    /// <param name="envelope">The axis-neutral leased envelope view.</param>
+    /// <returns><see langword="true" /> to invoke the dispatcher; otherwise, <see langword="false" />.</returns>
+    bool ShouldDispatch(IProcessorEnvelope envelope)
+    {
+        return true;
+    }
+
+    /// <summary>
     ///     Releases hook-owned dispatch state when dispatch or after-dispatch processing cannot finish.
     /// </summary>
     /// <remarks>

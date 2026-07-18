@@ -365,8 +365,10 @@ public sealed class SagaProcessorHookTests
         await hook.AfterDispatchAsync(envelope).ConfigureAwait(false);
 
         await hook.BeforeDispatchAsync(envelope).ConfigureAwait(false);
+        hook.PrepareDispatchScope(envelope);
 
         context.IsActive.Should().BeFalse();
+        hook.ShouldDispatch(envelope).Should().BeFalse();
         var persisted = await sagaStore.LoadAsync<OrderSagaState>(new SagaCorrelation
         {
             CorrelationId = "order-42",
