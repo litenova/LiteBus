@@ -102,6 +102,7 @@ public sealed class InMemoryOutboxStore :
     public Task<RequeueResult> RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (messageIds.Count == 0)
         {
@@ -127,6 +128,8 @@ public sealed class InMemoryOutboxStore :
     /// <inheritdoc />
     public Task<int> DeletePublishedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         lock (_sync)
         {
             var toRemove = _envelopes.Values
@@ -147,6 +150,8 @@ public sealed class InMemoryOutboxStore :
     /// <inheritdoc />
     public Task<IReadOnlyDictionary<OutboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         lock (_sync)
         {
             var counts = _envelopes.Values
@@ -160,7 +165,7 @@ public sealed class InMemoryOutboxStore :
     /// <inheritdoc />
     public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
     {
-        _ = cancellationToken;
+        cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(StoreSchemaInfo.ForLogicalStore("outbox", 1));
     }
 
@@ -173,6 +178,7 @@ public sealed class InMemoryOutboxStore :
         ArgumentNullException.ThrowIfNull(filter);
         ArgumentNullException.ThrowIfNull(pageRequest);
         ValidatePageSize(pageRequest.PageSize);
+        cancellationToken.ThrowIfCancellationRequested();
 
         lock (_sync)
         {
@@ -193,6 +199,7 @@ public sealed class InMemoryOutboxStore :
     public Task<int> PurgeAsync(OutboxMessageFilter filter, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(filter);
+        cancellationToken.ThrowIfCancellationRequested();
 
         lock (_sync)
         {
@@ -223,6 +230,7 @@ public sealed class InMemoryOutboxStore :
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.LeaseDuration, TimeSpan.Zero);
+        cancellationToken.ThrowIfCancellationRequested();
 
         lock (_sync)
         {
@@ -245,6 +253,7 @@ public sealed class InMemoryOutboxStore :
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var now = ResolveLeaseClock(request);
 
@@ -278,6 +287,7 @@ public sealed class InMemoryOutboxStore :
     public Task<PersistResult> PersistAsync(IReadOnlyList<OutboxEnvelope> envelopes, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelopes);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (envelopes.Count == 0)
         {
@@ -314,6 +324,7 @@ public sealed class InMemoryOutboxStore :
     public Task<OutboxAppendResult> AddAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelope);
+        cancellationToken.ThrowIfCancellationRequested();
 
         lock (_sync)
         {
@@ -327,6 +338,7 @@ public sealed class InMemoryOutboxStore :
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelopes);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (envelopes.Count == 0)
         {

@@ -22,6 +22,33 @@ public abstract class InboxStoreContractTests
     protected abstract InboxStoreRoles CreateStore();
 
     /// <summary>
+    ///     Verifies that cancellation requested before an append prevents any store mutation.
+    /// </summary>
+    [Fact]
+    public async Task AddAsync_WhenCancellationIsRequested_ShouldNotStoreCommand()
+    {
+        var roles = CreateStore();
+        using var cancellationSource = new CancellationTokenSource();
+        await cancellationSource.CancelAsync().ConfigureAwait(false);
+
+        var append = () => roles.Writer.EnqueueAsync(new InboxEnvelope
+        {
+            Id = Guid.NewGuid(),
+            ContractName = "tests.commands.cancelled",
+            ContractVersion = 1,
+            Payload = "{}",
+            CreatedAt = BaseTime,
+            AttemptCount = 0,
+            Status = InboxStatus.Pending
+        }, cancellationSource.Token);
+
+        await append.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
+
+        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync().ConfigureAwait(false);
+        counts.Values.Sum().Should().Be(0);
+    }
+
+    /// <summary>
     ///     Verifies that duplicate idempotency keys return the original stored command.
     /// </summary>
     [Fact]

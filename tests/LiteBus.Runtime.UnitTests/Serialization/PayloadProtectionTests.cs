@@ -24,6 +24,26 @@ public sealed class PayloadProtectionTests
     }
 
     /// <summary>
+    ///     Verifies pass-through protection observes cancellation before returning the original payload.
+    /// </summary>
+    [Fact]
+    public async Task Operations_WithoutEncryptorAndCancellationRequested_ThrowOperationCanceledException()
+    {
+        using var cancellationSource = new CancellationTokenSource();
+        await cancellationSource.CancelAsync().ConfigureAwait(false);
+
+        var protect = () => PayloadProtection.ProtectAsync("plain", null, cancellationSource.Token);
+        var unprotect = () => PayloadProtection.UnprotectAsync("cipher", null, cancellationSource.Token);
+        var contextualProtect = () => PayloadProtection.ProtectAsync("plain", null, null, cancellationSource.Token);
+        var contextualUnprotect = () => PayloadProtection.UnprotectAsync("cipher", null, null, cancellationSource.Token);
+
+        await protect.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
+        await unprotect.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
+        await contextualProtect.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
+        await contextualUnprotect.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
+    }
+
+    /// <summary>
     ///     Verifies protection delegates to the encryptor and forwards cancellation.
     /// </summary>
     [Fact]

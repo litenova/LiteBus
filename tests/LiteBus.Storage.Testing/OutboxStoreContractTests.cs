@@ -21,6 +21,25 @@ public abstract class OutboxStoreContractTests
     protected abstract OutboxStoreContracts CreateStore();
 
     /// <summary>
+    ///     Verifies that cancellation requested before an append prevents any store mutation.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task AddAsync_WhenCancellationIsRequested_ShouldNotStoreMessage()
+    {
+        var store = CreateStore();
+        using var cancellationSource = new CancellationTokenSource();
+        await cancellationSource.CancelAsync().ConfigureAwait(false);
+
+        var append = () => store.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), BaseTime), cancellationSource.Token);
+
+        await append.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
+
+        var counts = await store.Diagnostics.GetStatusCountsAsync().ConfigureAwait(false);
+        counts.Values.Sum().Should().Be(0);
+    }
+
+    /// <summary>
     ///     Verifies that retry visibility delays subsequent lease attempts.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>

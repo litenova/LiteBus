@@ -23,6 +23,7 @@ public static class PayloadProtection
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(payload);
+        cancellationToken.ThrowIfCancellationRequested();
 
         return encryptor is null
             ? Task.FromResult(payload)
@@ -42,6 +43,7 @@ public static class PayloadProtection
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(payload);
+        cancellationToken.ThrowIfCancellationRequested();
 
         return encryptor is null
             ? Task.FromResult(payload)
@@ -63,6 +65,7 @@ public static class PayloadProtection
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(payload);
+        cancellationToken.ThrowIfCancellationRequested();
         return ProtectCoreAsync(payload, encryptor, context, cancellationToken);
     }
 
@@ -81,6 +84,7 @@ public static class PayloadProtection
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(payload);
+        cancellationToken.ThrowIfCancellationRequested();
         return UnprotectCoreAsync(payload, encryptor, context, cancellationToken);
     }
 
