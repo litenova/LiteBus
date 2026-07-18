@@ -9,6 +9,9 @@ Files named `README.md` are exposed as their directory index, so
 `docs/getting-started/README.md` is served at `/docs/getting-started`.
 Relative Markdown links are resolved through the Fumadocs source loader. The production
 build rejects rendered local links that still contain a `.md` source-file suffix.
+The search route compiles Markdown at runtime, so its narrow Next.js output-file trace
+includes `content/docs` for serverless deployments. The build verifies that every
+Markdown source file is present in that trace.
 
 ## Local development
 
