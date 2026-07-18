@@ -34,6 +34,9 @@ public static partial class LiteBusManagementEndpointExtensions
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MaxBulkMessageIds);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.DefaultDrainTimeout.Ticks);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MaxDrainTimeout.Ticks);
+        ArgumentNullException.ThrowIfNull(options.DiagnosticChecks);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.DiagnosticChecks.MaxParallelism);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.DiagnosticChecks.Timeout.Ticks);
         if (options.DefaultDrainTimeout > options.MaxDrainTimeout)
         {
             throw new ArgumentException("DefaultDrainTimeout cannot exceed MaxDrainTimeout.", nameof(options));
@@ -680,6 +683,7 @@ public static partial class LiteBusManagementEndpointExtensions
                 manifest,
                 services,
                 options.FailHealthWhenNoProbes,
+                options.DiagnosticChecks,
                 cancellationToken)
             .ConfigureAwait(false);
 

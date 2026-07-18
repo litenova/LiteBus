@@ -15,6 +15,8 @@ All notable changes to this project will be documented in this file.
 - Evaluated package inventory, source-linked compiled snippets, test-symbol discovery, and semantic documentation gates.
 - Shared durable-store contract cases for empty batches, mixed terminal outcomes, complete filters, dead-letter replay,
   and strict idempotency conflicts.
+- Broker readiness diagnostics for Kafka, AWS SQS, and Azure Service Bus, including live emulator coverage for each
+  configured target.
 
 ### Changed
 
@@ -46,6 +48,8 @@ All notable changes to this project will be documented in this file.
 - Transport consumers now separate provider-neutral `MaxInFlightMessages` from RabbitMQ and Azure prefetch, SQS
   `ReceiveBatchSize`, and Azure `MaxConcurrentCalls`. Every ingress adapter carries the same nested `Safety` record.
   In-memory destinations now apply configurable, lossless backpressure to queued and in-flight deliveries.
+- ASP.NET Core health checks and the management health route expose shared per-probe timeout and parallelism limits.
+  The `AddLiteBus()` health registration carries both `litebus` and `ready` tags.
 
 ### Fixed
 
@@ -76,6 +80,8 @@ All notable changes to this project will be documented in this file.
   SQS receive, and Azure concurrency bounds now fail during module composition.
 - In-memory transport publication no longer grows an unbounded channel. Publishers wait asynchronously at the
   configured per-destination capacity, cancellation removes waiting publishers, and requeue retains its reservation.
+- Kafka readiness no longer runs a synchronous metadata call inside the diagnostic runner. Provider probes preserve
+  caller cancellation, redact SDK error text, and isolate broker failures as unhealthy results.
 
 ### Breaking changes
 
@@ -100,6 +106,9 @@ All notable changes to this project will be documented in this file.
   `MaxInFlightMessages` were added. `AwsSqsInboxIngressOptions.PrefetchCount` became `ReceiveBatchSize`; Kafka and
   in-memory ingress removed `PrefetchCount`. Provider-neutral ingress properties now live under each adapter's
   `Safety` record, including AMQP trust and batch settings.
+- AWS SQS and Azure Service Bus root transport modules now register connectivity probes. Configure
+  `ConnectivityCheckQueueUrl` or `ConnectivityCheckTarget`; otherwise the registered probe reports degraded instead
+  of claiming an unopened SDK client is healthy.
 - `IInboxStore` and `IOutboxStore` append methods return `InboxAppendResult` and `OutboxAppendResult`. The redundant
   typed `IOutbox.EnqueueBatchAsync<TEvent>` overload is removed; use the non-generic item batch overload.
 - EF application migrations must add `IX_LiteBus_Inbox_CreatedAt` and `IX_LiteBus_Outbox_CreatedAt`. Existing SQLite

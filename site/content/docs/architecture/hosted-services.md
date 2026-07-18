@@ -116,6 +116,8 @@ Implement `IDiagnosticCheck` in application code for schema validation, broker c
 
 `LiteBus.Extensions.AspNetCore` maps `GET /litebus/health` to manifest probes. `LiteBusManagementOptions.FailHealthWhenNoProbes` defaults to **`true`**: when the manifest has zero probes, the endpoint returns degraded/unhealthy. `AddHealthChecks().AddLiteBus()` uses the same default through `LiteBusHealthCheckOptions.FailHealthWhenNoProbes`. Set both to `false` in local samples so demos work without registering probes. Production templates should keep the default `true` and register at least one probe.
 
+Both host surfaces expose `DiagnosticChecks.Timeout` and `DiagnosticChecks.MaxParallelism`. The Generic Host health registration carries `litebus` and `ready` tags. Broker modules register AMQP, Kafka, SQS, or Azure Service Bus readiness probes; SQS and Azure require an explicit queue or subscription diagnostic target.
+
 Startup tasks run sequentially inside the LiteBus host orchestrator before any background service loop starts. When a startup task throws, host startup fails closed: the orchestrator does not start background services and the exception propagates from `IHostedService.StartAsync`.
 
 The orchestrator derives from the .NET Generic Host `BackgroundService` contract and supervises every LiteBus loop. If

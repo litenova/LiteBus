@@ -44,6 +44,7 @@
 - Descriptor implementation type must resolve to `IDiagnosticCheck` from DI.
 - Duplicate probe type registrations are deduplicated by implementation type.
 - `MaxParallelism` and `Timeout` are positive. Probe cancellation is requested when a timeout expires.
+- Caller cancellation propagates; provider failures, missing registrations, and timeouts become isolated unhealthy outcomes.
 
 ## Non-Goals
 
@@ -96,6 +97,8 @@ When no probes are registered and fail-on-empty is true, runner returns degraded
 | Gap | Priority | Notes |
 | --- | --- | --- |
 | Parallel long-running probe execution behavior | Covered | `DiagnosticCheckRunnerTests` verifies timeout cancellation and sibling-safe failure mapping. |
+
+Host adapters expose the shared run options through `LiteBusHealthCheckOptions.DiagnosticChecks` and `LiteBusManagementOptions.DiagnosticChecks`.
 
 ### Out-of-Scope Use Cases
 

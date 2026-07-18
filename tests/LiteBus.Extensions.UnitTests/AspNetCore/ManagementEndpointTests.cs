@@ -76,6 +76,28 @@ public sealed class ManagementEndpointTests
     }
 
     [Fact]
+    public async Task Health_WhenProbeExceedsConfiguredTimeout_ReturnsServiceUnavailable()
+    {
+        using var host = await CreateHostAsync(
+            new LiteBusManagementOptions
+            {
+                AllowAnonymousManagement = true,
+                DiagnosticChecks = new DiagnosticCheckRunOptions
+                {
+                    Timeout = TimeSpan.FromMilliseconds(20),
+                    MaxParallelism = 1
+                }
+            },
+            inbox => inbox.AddDiagnosticCheck<BlockingDiagnosticCheck>("test.blocking")).ConfigureAwait(false);
+
+        using var client = host.GetTestClient();
+
+        var response = await client.GetAsync("/litebus/health").ConfigureAwait(false);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Requeue_SelectiveIds_ReturnsOk()
     {
         using var host = await CreateHostAsync(new LiteBusManagementOptions
@@ -211,6 +233,17 @@ public sealed class ManagementEndpointTests
                 DiagnosticStatus.Unhealthy,
                 "Probe failed.",
                 new Dictionary<string, object> { ["reason"] = "test" }));
+        }
+    }
+
+    private sealed class BlockingDiagnosticCheck : IDiagnosticCheck
+    {
+        public string Name => "test.blocking";
+
+        public async Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            return new DiagnosticResult(DiagnosticStatus.Healthy, "Unexpected completion.");
         }
     }
 }

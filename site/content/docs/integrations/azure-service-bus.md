@@ -18,7 +18,8 @@
 ```csharp
 var transportOptions = new AzureServiceBusTransportOptions
 {
-    ConnectionString = configuration["ServiceBus:ConnectionString"]!
+    ConnectionString = configuration["ServiceBus:ConnectionString"]!,
+    ConnectivityCheckTarget = new AzureServiceBusQueueDiagnosticTarget("orders-ingress")
 };
 
 builder.AddAzureServiceBusTransport(transportOptions);
@@ -46,6 +47,7 @@ builder.AddInbox(inbox =>
 | Type | Property | Default | Notes |
 | --- | --- | --- | --- |
 | `AzureServiceBusTransportOptions` | `ConnectionString` | required | Namespace or emulator connection |
+| | `ConnectivityCheckTarget` | `null` | Queue or topic subscription peeked for readiness; missing reports degraded |
 | | `ConsumerErrorRetryInterval` | 5 s | Processor restart backoff initial |
 | | `ConsumerErrorRetryMaxInterval` | 60 s | Processor restart backoff cap |
 | `AzureServiceBusInboxIngressOptions` | `RequeueOnFailure` | `true` | Abandon vs complete on failure |
@@ -54,6 +56,8 @@ builder.AddInbox(inbox =>
 | | `Safety.MaxInFlightMessages` | 32 | Final LiteBus handler admission cap |
 
 Azure defines `PrefetchCount` and `MaxConcurrentCalls` as separate processor settings. Keep the prefetch cache large enough to feed the requested callback concurrency, then use `Safety.MaxInFlightMessages` when LiteBus work needs a lower bound. See [Microsoft's Service Bus prefetch guidance](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-prefetch).
+
+The root transport registers `transport.azure_service_bus.connectivity`. Configure an `AzureServiceBusQueueDiagnosticTarget` or `AzureServiceBusSubscriptionDiagnosticTarget` and grant listen permission on that entity. The probe uses [`PeekMessagesAsync`](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusreceiver.peekmessagesasync?view=azure-dotnet), which reads without locking or settling a message. Without a target, health reports degraded because constructing `ServiceBusClient` does not open a broker connection.
 
 ## Guarantees and Non-Guarantees
 
@@ -72,6 +76,7 @@ Handler exceptions propagate to ingress, which applies `RequeueOnFailure` throug
 | Messages stuck in peek-lock | Inspect accept failures; verify processor and store health |
 | Emulator tests skip | Start Docker; see [Integration tests](../testing/integration-tests.md) |
 | Repeated redelivery | Confirm idempotency keys on ingress metadata |
+| `transport.azure_service_bus.connectivity` degraded | `ConnectivityCheckTarget` is missing | Configure a queue or topic subscription target |
 
 ## Tests
 

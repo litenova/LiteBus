@@ -23,6 +23,9 @@ public sealed class KafkaTransportModule : IModule
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.BootstrapServers);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
+            _options.ConnectivityCheckTimeout,
+            TimeSpan.Zero);
     }
 
     /// <inheritdoc />
@@ -87,6 +90,22 @@ public sealed class KafkaTransportModule : IModule
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IAdminClient),
+            static serviceProvider =>
+            {
+                var options = serviceProvider.GetService(typeof(KafkaTransportOptions))
+                                  as KafkaTransportOptions ??
+                              throw new InvalidOperationException($"{nameof(KafkaTransportOptions)} is not registered.");
+
+                return new AdminClientBuilder(new AdminClientConfig
+                {
+                    BootstrapServers = options.BootstrapServers,
+                    ClientId = options.ClientId
+                }).Build();
+            },
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ITransportPublisher),
             typeof(KafkaPublisher)));
 
@@ -95,5 +114,14 @@ public sealed class KafkaTransportModule : IModule
             typeof(KafkaConsumer)));
 
         TransportMetricsRegistration.RegisterIfNeeded(configuration, "kafka");
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(KafkaConnectivityDiagnosticCheck),
+            typeof(KafkaConnectivityDiagnosticCheck),
+            InstanceLifetime.Singleton));
+
+        configuration.RegisterDiagnosticCheck(
+            typeof(KafkaConnectivityDiagnosticCheck),
+            "transport.kafka.connectivity");
     }
 }

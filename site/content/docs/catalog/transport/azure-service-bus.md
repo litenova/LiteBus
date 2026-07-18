@@ -21,6 +21,8 @@ Beta tier note: adapter behavior is validated in durable integration tests, with
 | `AzureServiceBusPublisher.PublishAsync` | Sends broker message |
 | `AzureServiceBusConsumer.StartAsync` | Runs processor consume loop |
 | `AzureServiceBusMessageMapper` | Maps transport request and application properties |
+| `AzureServiceBusConnectivityDiagnosticCheck` | Peeks a configured entity for host readiness |
+| `AzureServiceBusDiagnosticTarget` | Queue or topic-subscription readiness target |
 | `LiteBusTransportAzureServiceBusTelemetry.MeterName` | Reserved Service Bus meter name |
 
 ### Options
@@ -29,6 +31,7 @@ Beta tier note: adapter behavior is validated in durable integration tests, with
 | --- | --- | --- |
 | `ConnectionString` | required | Service Bus connection |
 | `ClientId` | `null` | Service Bus client identifier |
+| `ConnectivityCheckTarget` | `null` | Queue or subscription peeked by readiness; missing reports degraded |
 | `ConsumerErrorRetryInterval` | `5s` | Base restart delay after processor errors |
 | `ConsumerErrorRetryMaxInterval` | `1m` | Max restart delay |
 
@@ -80,6 +83,14 @@ Beta tier note: adapter behavior is validated in durable integration tests, with
 - Activity source `LiteBus.Transport`
 - Spans `send {destination}` and `process {destination}` with `messaging.system=servicebus`
 
+### Diagnostics
+
+- Diagnostic check id: `transport.azure_service_bus.connectivity`
+- `AzureServiceBusQueueDiagnosticTarget` peeks a queue.
+- `AzureServiceBusSubscriptionDiagnosticTarget` peeks a topic subscription.
+- The peek does not lock or settle messages. Grant entity listen permission. Missing target configuration reports degraded.
+- See the current [`PeekMessagesAsync` contract](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusreceiver.peekmessagesasync?view=azure-dotnet).
+
 ## Test Coverage
 
 ### Covered
@@ -88,7 +99,9 @@ Beta tier note: adapter behavior is validated in durable integration tests, with
 | --- | --- |
 | `Build_ShouldRejectDuplicateTransportRegistration` | `LiteBus.Transport.UnitTests` (`AzureServiceBus/`) |
 | `Constructor_ShouldRejectEmptyConnectionString` | `LiteBus.Transport.UnitTests` (`AzureServiceBus/`) |
+| `CheckAsync_WithoutTarget_ShouldReturnDegraded` | `LiteBus.Transport.UnitTests` (`AzureServiceBus/`) |
 | `PublishThroughServiceBus_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/AzureServiceBus/`) |
+| `PublishThroughServiceBus_ShouldAcceptProcessAndDispatchCommand` readiness assertion | `LiteBus.Durable.IntegrationTests` (`Ingress/AzureServiceBus/`) |
 | `RequeueEnabled_WithTransientStoreFailure_ShouldEventuallyAccept` | `LiteBus.Durable.IntegrationTests` (`Ingress/AzureServiceBus/`) |
 | `ProcessPendingAsync_ShouldPublishEnvelopeToServiceBusQueue` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/AzureServiceBus/`) |
 | `ProcessPendingAsync_ShouldPublishLeasedEnvelopeToServiceBusQueue` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Inbox/AzureServiceBus/`) |

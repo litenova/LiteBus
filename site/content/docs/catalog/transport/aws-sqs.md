@@ -24,6 +24,7 @@ Beta tier note: this adapter is production-oriented but remains Beta while the p
 | `SqsConsumer.StartAsync` | Runs long-poll receive loop |
 | `SqsMessageMapper` | Maps request and received message attributes |
 | `SqsRequeueBackoff` | Computes visibility timeout and poll backoff |
+| `AwsSqsConnectivityDiagnosticCheck` | Reads one queue ARN for host readiness |
 | `LiteBusTransportAwsTelemetry.MeterName` | Reserved SQS meter name |
 
 ### Options
@@ -34,6 +35,7 @@ Beta tier note: this adapter is production-oriented but remains Beta while the p
 | `ServiceUrl` | `null` | LocalStack or custom endpoint |
 | `AccessKey` | `null` | Explicit credential key |
 | `SecretKey` | `null` | Explicit credential secret |
+| `ConnectivityCheckQueueUrl` | `null` | Queue URL read by the readiness probe; missing reports degraded |
 | `LongPollWaitTimeSeconds` | `20` | Long-poll interval |
 | `VisibilityTimeoutSeconds` | `30` | Receive visibility timeout |
 | `RequeueVisibilityTimeoutSeconds` | `30` | Base requeue timeout |
@@ -91,6 +93,13 @@ Beta tier note: this adapter is production-oriented but remains Beta while the p
 - Activity source `LiteBus.Transport`
 - Spans `send {destination}` and `process {destination}` with `messaging.system=aws_sqs`
 
+### Diagnostics
+
+- Diagnostic check id: `transport.sqs.connectivity`
+- The probe requests only `QueueArn` from `ConnectivityCheckQueueUrl` through `GetQueueAttributes`.
+- Grant `sqs:GetQueueAttributes` on the target queue. Missing target configuration reports degraded.
+- See the [AWS SDK for .NET v4 SQS client contract](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/SQS/TSQSClient.html).
+
 ## Test Coverage
 
 ### Covered
@@ -99,11 +108,13 @@ Beta tier note: this adapter is production-oriented but remains Beta while the p
 | --- | --- |
 | `Build_ShouldRegisterTransportServices` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
 | `Build_SecondTransportModule_ShouldThrow` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
+| `CheckAsync_WithoutQueueUrl_ShouldReturnDegraded` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
 | `ToSendMessageRequest_ShouldMapBodyAndHeaders` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
 | `ToSendMessageRequest_WithBinaryBody_ShouldBase64Encode` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
 | `ToTransportMessage_WithBase64Body_ShouldDecodeBytes` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
 | `ComputeRequeueVisibilityTimeout_shouldHonorReceiveCount` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
 | `PublishThroughSqs_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/AwsSqs/`) |
+| `PublishThroughSqs_ShouldAcceptProcessAndDispatchCommand` readiness assertion | `LiteBus.Durable.IntegrationTests` (`Ingress/AwsSqs/`) |
 | `RequeueEnabled_WithTransientStoreFailure_ShouldEventuallyAccept` | `LiteBus.Durable.IntegrationTests` (`Ingress/AwsSqs/`) |
 | `ProcessPendingAsync_ShouldPublishEnvelopeToSqsQueue` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/AwsSqs/`) |
 | `ProcessPendingAsync_WhenCircuitBreakerOpen_ShouldNotPublish` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/AwsSqs/`) |

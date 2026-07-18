@@ -16,6 +16,15 @@ public sealed record AzureServiceBusTransportOptions
     public string? ClientId { get; init; }
 
     /// <summary>
+    ///     Gets the queue or subscription target peeked by the connectivity diagnostic.
+    /// </summary>
+    /// <value>
+    ///     When <see langword="null" />, the diagnostic reports degraded because opening a client does not establish a
+    ///     broker connection.
+    /// </value>
+    public AzureServiceBusDiagnosticTarget? ConnectivityCheckTarget { get; init; }
+
+    /// <summary>
     ///     Gets the delay applied before restarting the processor after a recoverable processing error.
     /// </summary>
     public TimeSpan ConsumerErrorRetryInterval { get; init; } = TimeSpan.FromSeconds(5);

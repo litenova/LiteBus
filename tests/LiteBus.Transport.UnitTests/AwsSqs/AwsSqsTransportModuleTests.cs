@@ -31,6 +31,10 @@ public sealed class AwsSqsTransportModuleTests
             .Count(descriptor => descriptor.DependencyType == typeof(ITransportPublisher))
             .Should()
             .Be(1);
+
+        configuration.DiagnosticChecks.Should().ContainSingle(descriptor =>
+            descriptor.ImplementationType == typeof(AwsSqsConnectivityDiagnosticCheck) &&
+            descriptor.Name == "transport.sqs.connectivity");
     }
 
     /// <summary>

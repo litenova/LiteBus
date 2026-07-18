@@ -22,6 +22,7 @@ When handlers call `ReturnToQueueAsync`, the adapter seeks to the consumed offse
 | `KafkaConsumer.StartAsync` | Runs consume loop with manual commit |
 | `KafkaMessageMapper` | Maps `TransportPublishRequest` and consumed records |
 | `KafkaSeekBackoff` | Tracks per-offset retry delay |
+| `KafkaConnectivityDiagnosticCheck` | Describes the cluster for host readiness |
 | `LiteBusTransportKafkaTelemetry.MeterName` | Reserved Kafka meter name |
 
 ### Options
@@ -32,6 +33,7 @@ When handlers call `ReturnToQueueAsync`, the adapter seeks to the consumed offse
 | `ClientId` | `null` | Producer and consumer client id |
 | `ConsumerGroupId` | `litebus-transport` | Kafka consumer group |
 | `MessageTimeoutMs` | `null` | Producer message timeout |
+| `ConnectivityCheckTimeout` | `5s` | Cluster description request timeout |
 | `SeekFailureBackoffInitial` | `250ms` | Initial seek retry delay |
 | `SeekFailureBackoffMax` | `30s` | Max seek retry delay |
 | `SeekFailureBackoffMultiplier` | `2.0` | Exponential backoff multiplier |
@@ -83,6 +85,12 @@ When handlers call `ReturnToQueueAsync`, the adapter seeks to the consumed offse
 - Activity source `LiteBus.Transport` with `send {destination}` and `process {destination}` spans.
 - Consume spans include destination, key, message id, and correlation id when present.
 
+### Diagnostics
+
+- Diagnostic check id: `transport.kafka.connectivity`
+- `DescribeClusterAsync` must return at least one broker within `ConnectivityCheckTimeout`.
+- Provider exception text is not returned. Caller cancellation propagates to the host runner.
+
 ## Test Coverage
 
 ### Covered
@@ -91,11 +99,14 @@ When handlers call `ReturnToQueueAsync`, the adapter seeks to the consumed offse
 | --- | --- |
 | `Build_ShouldRegisterTransportServices` | `LiteBus.Transport.UnitTests` (`Kafka/`) |
 | `Build_SecondTransportModule_ShouldThrow` | `LiteBus.Transport.UnitTests` (`Kafka/`) |
+| `CheckAsync_WhenClusterIsUnavailable_ShouldReturnUnhealthy` | `LiteBus.Transport.UnitTests` (`Kafka/`) |
+| `CheckAsync_WhenCallerCancels_ShouldPropagateCancellation` | `LiteBus.Transport.UnitTests` (`Kafka/`) |
 | `ToKafkaMessage_ShouldMapKeyBodyAndHeaders` | `LiteBus.Transport.UnitTests` (`Kafka/`) |
 | `ToTransportMessage_ShouldExposeCommitDelegate` | `LiteBus.Transport.UnitTests` (`Kafka/`) |
 | `ToTransportMessage_ReturnToQueueAsync_ShouldSeekToConsumedOffset` | `LiteBus.Transport.UnitTests` (`Kafka/`) |
 | `RecordSeek_repeatedFailures_ShouldIncreaseBackoff` | `LiteBus.Transport.UnitTests` (`Kafka/`) |
 | `PublishThroughKafka_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/Kafka/`) |
+| `PublishThroughKafka_ShouldAcceptProcessAndDispatchCommand` readiness assertion | `LiteBus.Durable.IntegrationTests` (`Ingress/Kafka/`) |
 | `TransientAcceptFailure_ShouldRedeliverSameOffsetWithoutRestart` | `LiteBus.Durable.IntegrationTests` (`Ingress/Kafka/`) |
 | `ProcessPendingAsync_ShouldPublishEnvelopeToKafkaTopic` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Kafka/`) |
 | `ProcessPendingAsync_WhenCircuitBreakerOpen_ShouldNotPublish` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Kafka/`) |

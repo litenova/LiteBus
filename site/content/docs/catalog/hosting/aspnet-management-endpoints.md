@@ -33,6 +33,7 @@ Hosts that map through `IEndpointRouteBuilder` can call `AddLiteBusManagementEnd
 | `LiteBusManagementOptions.AllowAnonymousManagement` | Disables authorization metadata when explicitly set to `true` |
 | `LiteBusManagementOptions.AuthorizationPolicy` | Applies a named ASP.NET Core authorization policy |
 | `LiteBusManagementOptions.FailHealthWhenNoProbes` | Controls the empty-manifest health result |
+| `LiteBusManagementOptions.DiagnosticChecks` | Sets per-probe timeout and parallelism for the health route |
 | `LiteBusManagementOptions.DefaultDrainTimeout` | Supplies the processor drain timeout when the query omits one |
 | `LiteBusManagementOptions.MaxPageSize` | Caps one query page at 100 rows by default |
 | `LiteBusManagementOptions.MaxBulkMessageIds` | Caps one requeue or purge identifier list at 1,000 by default |
@@ -113,6 +114,7 @@ Management routes do not define a separate meter. Use `LiteBus.Inbox` and `LiteB
 | `ManagementEndpointTests.Health_ReturnsDegraded_WhenNoProbesAndFailHealthWhenNoProbesIsTrue` | Empty diagnostic manifests return HTTP 503 when configured to fail |
 | `ManagementEndpointTests.Health_ReturnsHealthy_WhenNoProbesAndFailHealthWhenNoProbesIsFalse` | Empty diagnostic manifests return HTTP 200 when explicitly allowed |
 | `ManagementEndpointTests.Health_IncludesProbeData_WhenProbeFails` | Health payloads preserve diagnostic data |
+| `ManagementEndpointTests.Health_WhenProbeExceedsConfiguredTimeout_ReturnsServiceUnavailable` | A blocking probe is bounded and returns HTTP 503 |
 | `ManagementEndpointAuthorizationIntegrationTests` | Default authentication, named policies, forbidden responses, and anonymous opt-in |
 | `ManagementEndpointPostgreSqlIntegrationTests.QueryInboxMessages_ReturnsPersistedRows` | Query binding reads physical PostgreSQL inbox rows |
 | `ManagementEndpointPostgreSqlIntegrationTests.Purge_WithConfirm_DeletesRowsInStore` | Confirmed HTTP purge deletes PostgreSQL rows |

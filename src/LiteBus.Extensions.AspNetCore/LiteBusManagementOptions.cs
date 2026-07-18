@@ -1,3 +1,5 @@
+using LiteBus.Runtime.Abstractions.Diagnostics;
+
 namespace LiteBus.Extensions.AspNetCore;
 
 /// <summary>
@@ -40,6 +42,11 @@ public sealed class LiteBusManagementOptions
     ///     <see langword="false" /> so demos work without registering probes.
     /// </value>
     public bool FailHealthWhenNoProbes { get; set; } = true;
+
+    /// <summary>
+    ///     Gets or sets the timeout and parallelism limits applied by <c>GET /litebus/health</c>.
+    /// </summary>
+    public DiagnosticCheckRunOptions DiagnosticChecks { get; set; } = new();
 
     /// <summary>
     ///     Gets or sets the default processor drain timeout used by HTTP drain endpoints.

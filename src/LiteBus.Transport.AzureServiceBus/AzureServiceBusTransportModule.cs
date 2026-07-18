@@ -24,6 +24,7 @@ public sealed class AzureServiceBusTransportModule : IModule
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.ConnectionString);
+        ValidateConnectivityTarget(_options.ConnectivityCheckTarget);
     }
 
     /// <inheritdoc />
@@ -75,5 +76,36 @@ public sealed class AzureServiceBusTransportModule : IModule
             InstanceLifetime.Singleton));
 
         TransportMetricsRegistration.RegisterIfNeeded(configuration, "azure_service_bus");
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(AzureServiceBusConnectivityDiagnosticCheck),
+            typeof(AzureServiceBusConnectivityDiagnosticCheck),
+            InstanceLifetime.Singleton));
+
+        configuration.RegisterDiagnosticCheck(
+            typeof(AzureServiceBusConnectivityDiagnosticCheck),
+            "transport.azure_service_bus.connectivity");
+    }
+
+    /// <summary>
+    ///     Validates a configured connectivity target before module composition.
+    /// </summary>
+    /// <param name="target">The optional target to validate.</param>
+    private static void ValidateConnectivityTarget(AzureServiceBusDiagnosticTarget? target)
+    {
+        switch (target)
+        {
+            case null:
+                return;
+            case AzureServiceBusQueueDiagnosticTarget queue:
+                ArgumentException.ThrowIfNullOrWhiteSpace(queue.QueueName);
+                return;
+            case AzureServiceBusSubscriptionDiagnosticTarget subscription:
+                ArgumentException.ThrowIfNullOrWhiteSpace(subscription.TopicName);
+                ArgumentException.ThrowIfNullOrWhiteSpace(subscription.SubscriptionName);
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(target), target, "Unsupported diagnostic target.");
+        }
     }
 }

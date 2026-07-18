@@ -15,7 +15,7 @@ public sealed class LiteBusHealthCheck : IHealthCheck
     private readonly LiteBusHostManifest _manifest;
 
     /// <summary>
-    ///     The options controlling zero-probe policy.
+    ///     The options controlling probe execution and zero-probe policy.
     /// </summary>
     private readonly LiteBusHealthCheckOptions _options;
 
@@ -29,7 +29,7 @@ public sealed class LiteBusHealthCheck : IHealthCheck
     /// </summary>
     /// <param name="manifest">The host manifest that lists diagnostic probe descriptors.</param>
     /// <param name="services">The service provider used to resolve probe implementations.</param>
-    /// <param name="options">The options controlling zero-probe policy.</param>
+    /// <param name="options">The options controlling probe execution and zero-probe policy.</param>
     public LiteBusHealthCheck(
         LiteBusHostManifest manifest,
         IServiceProvider services,
@@ -52,6 +52,7 @@ public sealed class LiteBusHealthCheck : IHealthCheck
                 _manifest,
                 _services,
                 _options.FailHealthWhenNoProbes,
+                _options.DiagnosticChecks,
                 cancellationToken)
             .ConfigureAwait(false);
 

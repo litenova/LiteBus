@@ -32,21 +32,21 @@ public sealed class LiteBusHealthCheckIntegrationTests
 
         services.AddHealthChecks().AddLiteBus();
 
-         var provider = services.BuildServiceProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var healthCheckService = provider.GetRequiredService<HealthCheckService>();
+        var provider = services.BuildServiceProvider();
+        await using (provider.ConfigureAwait(false))
+        {
+            var healthCheckService = provider.GetRequiredService<HealthCheckService>();
 
-        var report = await healthCheckService.CheckHealthAsync().ConfigureAwait(false);
+            var report = await healthCheckService.CheckHealthAsync().ConfigureAwait(false);
 
-        report.Status.Should().Be(HealthStatus.Unhealthy);
-        report.Entries.Should().ContainKey("litebus");
-        report.Entries["litebus"].Status.Should().Be(HealthStatus.Unhealthy);
+            report.Status.Should().Be(HealthStatus.Unhealthy);
+            report.Entries.Should().ContainKey("litebus");
+            report.Entries["litebus"].Status.Should().Be(HealthStatus.Unhealthy);
 
-        report.Entries["litebus"].Description.Should()
-            .Be("One or more LiteBus diagnostic probes reported unhealthy status.");
+            report.Entries["litebus"].Description.Should()
+                .Be("One or more LiteBus diagnostic probes reported unhealthy status.");
 
-        report.Entries["litebus"].Data.Should().ContainKey("probes");
+            report.Entries["litebus"].Data.Should().ContainKey("probes");
         }
     }
 
@@ -71,16 +71,60 @@ public sealed class LiteBusHealthCheckIntegrationTests
 
         services.AddHealthChecks().AddLiteBus();
 
-         var provider = services.BuildServiceProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var healthCheckService = provider.GetRequiredService<HealthCheckService>();
+        var provider = services.BuildServiceProvider();
+        await using (provider.ConfigureAwait(false))
+        {
+            var healthCheckService = provider.GetRequiredService<HealthCheckService>();
 
-        var report = await healthCheckService.CheckHealthAsync().ConfigureAwait(false);
+            var report = await healthCheckService.CheckHealthAsync().ConfigureAwait(false);
 
-        report.Status.Should().Be(HealthStatus.Healthy);
-        report.Entries["litebus"].Status.Should().Be(HealthStatus.Healthy);
-        report.Entries["litebus"].Description.Should().Be("All LiteBus diagnostic probes succeeded.");
+            report.Status.Should().Be(HealthStatus.Healthy);
+            report.Entries["litebus"].Status.Should().Be(HealthStatus.Healthy);
+            report.Entries["litebus"].Description.Should().Be("All LiteBus diagnostic probes succeeded.");
+
+            var readinessReport = await healthCheckService
+                .CheckHealthAsync(registration => registration.Tags.Contains("ready"))
+                .ConfigureAwait(false);
+
+            readinessReport.Entries.Should().ContainKey("litebus");
+        }
+    }
+
+    [Fact]
+    public async Task AddLiteBus_WhenProbeExceedsConfiguredTimeout_ShouldReportUnhealthyHealthCheck()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddLiteBus(registry =>
+        {
+            registry.AddMessageModule(_ =>
+            {
+            });
+
+            registry.AddInboxModule(inbox =>
+            {
+                inbox.UseInMemoryStorage();
+                inbox.AddDiagnosticCheck<BlockingDiagnosticCheck>("litebus.test.blocking");
+            });
+        });
+
+        services.AddHealthChecks().AddLiteBus(options =>
+            options.DiagnosticChecks = new DiagnosticCheckRunOptions
+            {
+                Timeout = TimeSpan.FromMilliseconds(20),
+                MaxParallelism = 1
+            });
+
+        var provider = services.BuildServiceProvider();
+        await using (provider.ConfigureAwait(false))
+        {
+            var healthCheckService = provider.GetRequiredService<HealthCheckService>();
+
+            var report = await healthCheckService.CheckHealthAsync().ConfigureAwait(false);
+
+            report.Status.Should().Be(HealthStatus.Unhealthy);
+            report.Entries["litebus"].Status.Should().Be(HealthStatus.Unhealthy);
         }
     }
 
@@ -99,16 +143,16 @@ public sealed class LiteBusHealthCheckIntegrationTests
 
         services.AddHealthChecks().AddLiteBus(options => options.FailHealthWhenNoProbes = false);
 
-         var provider = services.BuildServiceProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var healthCheckService = provider.GetRequiredService<HealthCheckService>();
+        var provider = services.BuildServiceProvider();
+        await using (provider.ConfigureAwait(false))
+        {
+            var healthCheckService = provider.GetRequiredService<HealthCheckService>();
 
-        var report = await healthCheckService.CheckHealthAsync().ConfigureAwait(false);
+            var report = await healthCheckService.CheckHealthAsync().ConfigureAwait(false);
 
-        report.Status.Should().Be(HealthStatus.Healthy);
-        report.Entries["litebus"].Status.Should().Be(HealthStatus.Healthy);
-        report.Entries["litebus"].Description.Should().Be("No LiteBus diagnostic probes are registered.");
+            report.Status.Should().Be(HealthStatus.Healthy);
+            report.Entries["litebus"].Status.Should().Be(HealthStatus.Healthy);
+            report.Entries["litebus"].Description.Should().Be("No LiteBus diagnostic probes are registered.");
         }
     }
 
@@ -127,16 +171,16 @@ public sealed class LiteBusHealthCheckIntegrationTests
 
         services.AddHealthChecks().AddLiteBus();
 
-         var provider = services.BuildServiceProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var healthCheckService = provider.GetRequiredService<HealthCheckService>();
+        var provider = services.BuildServiceProvider();
+        await using (provider.ConfigureAwait(false))
+        {
+            var healthCheckService = provider.GetRequiredService<HealthCheckService>();
 
-        var report = await healthCheckService.CheckHealthAsync().ConfigureAwait(false);
+            var report = await healthCheckService.CheckHealthAsync().ConfigureAwait(false);
 
-        report.Status.Should().Be(HealthStatus.Degraded);
-        report.Entries["litebus"].Status.Should().Be(HealthStatus.Degraded);
-        report.Entries["litebus"].Description.Should().Be("No LiteBus diagnostic probes are registered.");
+            report.Status.Should().Be(HealthStatus.Degraded);
+            report.Entries["litebus"].Status.Should().Be(HealthStatus.Degraded);
+            report.Entries["litebus"].Description.Should().Be("No LiteBus diagnostic probes are registered.");
         }
     }
 
@@ -161,6 +205,17 @@ public sealed class LiteBusHealthCheckIntegrationTests
             return Task.FromResult(new DiagnosticResult(
                 DiagnosticStatus.Healthy,
                 "Probe succeeded for integration test."));
+        }
+    }
+
+    private sealed class BlockingDiagnosticCheck : IDiagnosticCheck
+    {
+        public string Name => "litebus.test.blocking";
+
+        public async Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            return new DiagnosticResult(DiagnosticStatus.Healthy, "Unexpected completion.");
         }
     }
 }

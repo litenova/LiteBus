@@ -26,6 +26,15 @@ public sealed record AwsSqsTransportOptions
     public string? SecretKey { get; init; }
 
     /// <summary>
+    ///     Gets the queue URL whose attributes are read by the connectivity diagnostic.
+    /// </summary>
+    /// <value>
+    ///     When <see langword="null" />, the diagnostic reports degraded because connectivity cannot be verified with
+    ///     least-privilege queue permissions.
+    /// </value>
+    public string? ConnectivityCheckQueueUrl { get; init; }
+
+    /// <summary>
     ///     Gets the long-poll wait time in seconds used by the consumer.
     /// </summary>
     public int LongPollWaitTimeSeconds { get; init; } = 20;

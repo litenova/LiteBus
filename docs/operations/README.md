@@ -38,6 +38,8 @@ Register authentication before mapping routes. When `AllowAnonymousManagement` i
 | `AllowAnonymousManagement` | `false` | Set `true` only for local demos |
 | `AuthorizationPolicy` | `null` | When set, applied to all management routes |
 | `FailHealthWhenNoProbes` | `true` | Health fails when no `IDiagnosticCheck` registered |
+| `DiagnosticChecks.Timeout` | 5 seconds | Per-probe health timeout |
+| `DiagnosticChecks.MaxParallelism` | 4 | Maximum concurrent probes |
 | `RoutePrefix` | `litebus` | Route group prefix |
 
 ## Endpoints (Summary)

@@ -29,6 +29,10 @@ public sealed class AzureServiceBusTransportModuleTests
 
         module.Build(configuration);
 
+        configuration.DiagnosticChecks.Should().ContainSingle(descriptor =>
+            descriptor.ImplementationType == typeof(AzureServiceBusConnectivityDiagnosticCheck) &&
+            descriptor.Name == "transport.azure_service_bus.connectivity");
+
         var act = () => module.Build(configuration);
 
         act.Should()
@@ -45,6 +49,21 @@ public sealed class AzureServiceBusTransportModuleTests
         var act = () => new AzureServiceBusTransportModule(new AzureServiceBusTransportOptions
         {
             ConnectionString = "   "
+        });
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    /// <summary>
+    ///     Verifies an empty diagnostic queue name fails during module construction.
+    /// </summary>
+    [Fact]
+    public void Constructor_WithEmptyDiagnosticQueueName_ShouldThrow()
+    {
+        var act = () => new AzureServiceBusTransportModule(new AzureServiceBusTransportOptions
+        {
+            ConnectionString = "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=key",
+            ConnectivityCheckTarget = new AzureServiceBusQueueDiagnosticTarget(" ")
         });
 
         act.Should().Throw<ArgumentException>();

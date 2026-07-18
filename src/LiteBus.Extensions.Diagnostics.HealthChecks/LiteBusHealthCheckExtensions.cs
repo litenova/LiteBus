@@ -13,7 +13,7 @@ public static class LiteBusHealthCheckExtensions
     ///     Adds a health check that runs probes registered on <see cref="LiteBusHostManifest" />.
     /// </summary>
     /// <param name="builder">The health checks builder.</param>
-    /// <param name="configure">Optional callback to configure zero-probe policy.</param>
+    /// <param name="configure">Optional callback to configure probe execution and zero-probe policy.</param>
     /// <param name="name">The health check name. The default is <c>litebus</c>.</param>
     /// <returns>The health checks builder for chaining.</returns>
     public static IHealthChecksBuilder AddLiteBus(
@@ -26,11 +26,14 @@ public static class LiteBusHealthCheckExtensions
 
         var options = new LiteBusHealthCheckOptions();
         configure?.Invoke(options);
+        ArgumentNullException.ThrowIfNull(options.DiagnosticChecks);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.DiagnosticChecks.MaxParallelism);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.DiagnosticChecks.Timeout.Ticks);
         builder.Services.AddSingleton(options);
 
         return builder.AddCheck<LiteBusHealthCheck>(
             name,
             HealthStatus.Unhealthy,
-            ["litebus"]);
+            ["litebus", "ready"]);
     }
 }

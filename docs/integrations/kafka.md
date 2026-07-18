@@ -18,7 +18,11 @@ Add inbox/outbox core and storage packages as usual. See [Dependency graph](../a
 ## Registration
 
 ```csharp
-var kafkaOptions = new KafkaTransportOptions { BootstrapServers = "localhost:9092" };
+var kafkaOptions = new KafkaTransportOptions
+{
+    BootstrapServers = "localhost:9092",
+    ConnectivityCheckTimeout = TimeSpan.FromSeconds(3)
+};
 
 builder.AddKafkaTransport(kafkaOptions);
 builder.AddMessaging(_ => { });
@@ -49,6 +53,7 @@ builder.AddInbox(inbox =>
 | --- | --- | --- | --- |
 | `KafkaTransportOptions` | `BootstrapServers` | required | Broker list |
 | | `ConsumerGroupId` | `litebus-transport` | Consumer group for ingress |
+| | `ConnectivityCheckTimeout` | 5 s | Readiness cluster-description request timeout |
 | | `SeekFailureBackoffInitial` | 250 ms | Delay before re-read after seek |
 | | `SeekFailureBackoffMax` | 30 s | Cap on seek backoff |
 | | `SeekFailureBackoffMultiplier` | 2.0 | Per-offset failure multiplier |
@@ -74,8 +79,11 @@ On transient ingress failure, `ReturnToQueueAsync` seeks the consumer to the fai
 | Same message reprocessed repeatedly | Consumer lag, seek backoff logs | Fix root accept/dispatch failure; verify idempotency |
 | Consumer stuck on one offset | Repeated seek at same partition/offset | Inspect store availability; increase backoff cap if broker pressure |
 | No ingress | Topic name, group id, ACLs | Confirm `Destination` topic exists; reset group if needed |
+| `transport.kafka.connectivity` unhealthy | Bootstrap reachability, TLS/SASL, cluster ACLs | Fix broker access; tune `ConnectivityCheckTimeout` only when network latency requires it |
 
 Monitor consumer lag, seek retry rate, and inbox/outbox row counts. See [Production runbook](../operations/runbook.md).
+
+The root transport registers `transport.kafka.connectivity`. It uses Confluent's asynchronous cluster-description API with an explicit [request timeout](https://docs.confluent.io/platform/current/clients/confluent-kafka-dotnet/_site/api/Confluent.Kafka.Admin.DescribeClusterOptions.html).
 
 ## Tests
 

@@ -53,6 +53,10 @@ public sealed class AmqpConnectivityDiagnosticCheck : IDiagnosticCheck
                     ["isOpen"] = connection.IsOpen
                 });
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (OperationCanceledException exception)
         {
             return CreateUnhealthyResult(exception);
@@ -74,7 +78,7 @@ public sealed class AmqpConnectivityDiagnosticCheck : IDiagnosticCheck
     }
 
     /// <summary>
-    ///     Creates an unhealthy diagnostic result for a connection failure.
+    ///     Creates an unhealthy diagnostic result for a connection failure without exposing SDK exception text.
     /// </summary>
     /// <param name="exception">The exception observed while opening the broker connection.</param>
     /// <returns>The unhealthy diagnostic result.</returns>
@@ -82,7 +86,7 @@ public sealed class AmqpConnectivityDiagnosticCheck : IDiagnosticCheck
     {
         return new DiagnosticResult(
             DiagnosticStatus.Unhealthy,
-            $"AMQP broker connection failed: {exception.Message}",
+            "AMQP broker connection is unavailable.",
             new Dictionary<string, object>
             {
                 ["errorType"] = exception.GetType().Name

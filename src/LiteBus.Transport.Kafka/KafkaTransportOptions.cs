@@ -29,6 +29,11 @@ public sealed record KafkaTransportOptions
     public int? MessageTimeoutMs { get; init; }
 
     /// <summary>
+    ///     Gets the maximum duration of the cluster description request used by the connectivity diagnostic.
+    /// </summary>
+    public TimeSpan ConnectivityCheckTimeout { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
     ///     Gets the initial delay applied before re-consuming an offset that failed ingress processing.
     /// </summary>
     public TimeSpan SeekFailureBackoffInitial { get; init; } = TimeSpan.FromMilliseconds(250);

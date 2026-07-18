@@ -22,7 +22,8 @@ var sqsOptions = new AwsSqsTransportOptions
     // LocalStack:
     ServiceUrl = "http://localhost:4566",
     AccessKey = "test",
-    SecretKey = "test"
+    SecretKey = "test",
+    ConnectivityCheckQueueUrl = queueUrl
 };
 
 builder.AddAwsSqsTransport(sqsOptions);
@@ -53,6 +54,7 @@ builder.AddInbox(inbox =>
 | Type | Property | Default | Notes |
 | --- | --- | --- | --- |
 | `AwsSqsTransportOptions` | `LongPollWaitTimeSeconds` | 20 | Receive wait time |
+| | `ConnectivityCheckQueueUrl` | `null` | Queue whose ARN is read for readiness; missing reports degraded |
 | | `VisibilityTimeoutSeconds` | 30 | Initial visibility on receive |
 | | `RequeueVisibilityTimeoutSeconds` | 30 | Base timeout on nack/requeue |
 | | `MaxRequeueVisibilityTimeoutSeconds` | 900 | Backoff cap |
@@ -63,6 +65,8 @@ builder.AddInbox(inbox =>
 | | `Safety.MaxInFlightMessages` | 32 | Concurrent LiteBus handler cap |
 
 `ReceiveBatchSize` maps directly to `ReceiveMessageRequest.MaxNumberOfMessages`. Module composition rejects values outside the [AWS SDK for .NET v4 range of 1 through 10](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/SQS/TReceiveMessageRequest.html) instead of silently clamping them.
+
+The root transport registers `transport.sqs.connectivity`. Configure `ConnectivityCheckQueueUrl` and grant `sqs:GetQueueAttributes` on that queue. The probe requests only `QueueArn` through the current [AWS SDK for .NET v4 SQS client](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/SQS/TSQSClient.html). Without a target, health reports degraded because creating an SDK client does not verify broker access.
 
 ## Wire Encoding
 
@@ -86,6 +90,7 @@ Handler exceptions propagate to ingress, which applies `RequeueOnFailure` throug
 | Messages invisible too long after failure | Lower `RequeueVisibilityTimeoutSeconds` for faster retry; check DLQ policy |
 | Poll stalls after repeated failures | Inspect `PollBackoffMax`; fix store/accept errors |
 | LocalStack tests skip | Start Docker; see [Integration tests](../testing/integration-tests.md) |
+| `transport.sqs.connectivity` degraded | `ConnectivityCheckQueueUrl` is missing | Configure a queue URL with narrow attribute-read permission |
 
 ## Tests
 

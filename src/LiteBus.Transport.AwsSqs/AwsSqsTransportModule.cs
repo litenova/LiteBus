@@ -78,5 +78,14 @@ public sealed class AwsSqsTransportModule : IModule
             typeof(SqsConsumer)));
 
         TransportMetricsRegistration.RegisterIfNeeded(configuration, "sqs");
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(AwsSqsConnectivityDiagnosticCheck),
+            typeof(AwsSqsConnectivityDiagnosticCheck),
+            InstanceLifetime.Singleton));
+
+        configuration.RegisterDiagnosticCheck(
+            typeof(AwsSqsConnectivityDiagnosticCheck),
+            "transport.sqs.connectivity");
     }
 }

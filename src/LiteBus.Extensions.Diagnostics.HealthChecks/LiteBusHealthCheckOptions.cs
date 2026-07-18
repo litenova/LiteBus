@@ -1,7 +1,9 @@
+using LiteBus.Runtime.Abstractions.Diagnostics;
+
 namespace LiteBus.Extensions.Diagnostics.HealthChecks;
 
 /// <summary>
-///     Configures how <see cref="LiteBusHealthCheck" /> reports readiness when no diagnostic probes are registered.
+///     Configures manifest probe execution and empty-manifest readiness behavior for <see cref="LiteBusHealthCheck" />.
 /// </summary>
 public sealed class LiteBusHealthCheckOptions
 {
@@ -14,4 +16,9 @@ public sealed class LiteBusHealthCheckOptions
     ///     match <c>GET /litebus/health</c> when <c>LiteBusManagementOptions.FailHealthWhenNoProbes</c> is enabled.
     /// </value>
     public bool FailHealthWhenNoProbes { get; set; } = true;
+
+    /// <summary>
+    ///     Gets or sets the timeout and parallelism limits applied to manifest diagnostic probes.
+    /// </summary>
+    public DiagnosticCheckRunOptions DiagnosticChecks { get; set; } = new();
 }

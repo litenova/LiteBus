@@ -1,6 +1,4 @@
-using LiteBus.Transport.Kafka;
 using System.Text.Json;
-using LiteBus.Transport.IntegrationTesting;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.Kafka;
@@ -8,9 +6,12 @@ using LiteBus.Inbox.Ingress;
 using LiteBus.Inbox.Ingress.Kafka;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
+using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
+using LiteBus.Transport.IntegrationTesting;
+using LiteBus.Transport.Kafka;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Durable.IntegrationTests.Ingress.Kafka;
@@ -65,6 +66,19 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
             var manifest = provider.GetRequiredService<LiteBusHostManifest>();
             manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
             manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
+            manifest.DiagnosticChecks.Should().ContainSingle(descriptor =>
+                descriptor.ImplementationType == typeof(KafkaConnectivityDiagnosticCheck));
+
+            var diagnostics = await DiagnosticCheckRunner.RunAsync(
+                    manifest,
+                    provider,
+                    failHealthWhenNoProbes: true)
+                .ConfigureAwait(false);
+
+            diagnostics.Status.Should().Be(DiagnosticAggregateStatus.Healthy);
+            diagnostics.Probes.Should().ContainSingle(probe =>
+                probe.Name == "transport.kafka.connectivity" &&
+                probe.Status == DiagnosticStatus.Healthy);
 
             await KafkaIngressTestSupport.StartEndToEndAsync(provider).ConfigureAwait(false);
 

@@ -1,6 +1,4 @@
-using LiteBus.Transport.AzureServiceBus;
 using System.Text.Json;
-using LiteBus.Transport.IntegrationTesting;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.AzureServiceBus;
@@ -8,9 +6,12 @@ using LiteBus.Inbox.Ingress;
 using LiteBus.Inbox.Ingress.AzureServiceBus;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
+using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
+using LiteBus.Transport.AzureServiceBus;
+using LiteBus.Transport.IntegrationTesting;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Durable.IntegrationTests.Ingress.AzureServiceBus;
@@ -52,45 +53,59 @@ public sealed class AzureServiceBusInboxIngressEndToEndIntegrationTests : LiteBu
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
 
-         var provider = BuildProvider(ingressQueue, dispatchQueue);
-         await using (provider.ConfigureAwait(false))
-         {
-
-        provider.GetRequiredService<LiteBusHostManifest>().BackgroundServices
-            .Should().Contain(typeof(TransportInboxIngressConsumer));
-
-        using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
-        await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token).ConfigureAwait(false);
-
-        try
+        var provider = BuildProvider(ingressQueue, dispatchQueue);
+        await using (provider.ConfigureAwait(false))
         {
-            var publisher = provider.GetRequiredService<ITransportPublisher>();
+            var manifest = provider.GetRequiredService<LiteBusHostManifest>();
+            manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
+            manifest.DiagnosticChecks.Should().ContainSingle(descriptor =>
+                descriptor.ImplementationType == typeof(AzureServiceBusConnectivityDiagnosticCheck));
 
-            await publisher.PublishAsync(new TransportPublishRequest
+            var diagnostics = await DiagnosticCheckRunner.RunAsync(
+                    manifest,
+                    provider,
+                    failHealthWhenNoProbes: true)
+                .ConfigureAwait(false);
+
+            diagnostics.Status.Should().Be(DiagnosticAggregateStatus.Healthy);
+            diagnostics.Probes.Should().ContainSingle(probe =>
+                probe.Name == "transport.azure_service_bus.connectivity" &&
+                probe.Status == DiagnosticStatus.Healthy);
+
+            using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token)
+                .ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token).ConfigureAwait(false);
+
+            try
             {
-                Destination = ingressQueue,
-                Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = orderId }),
-                MessageId = messageId.ToString("D"),
-                Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-            }).ConfigureAwait(false);
+                var publisher = provider.GetRequiredService<ITransportPublisher>();
 
-            var (body, headers) = await AzureServiceBusTransportTestInfrastructure.ReceiveOneAsync(
-                _fixture.TransportOptions.ConnectionString,
-                dispatchQueue,
-                TimeSpan.FromSeconds(45)).ConfigureAwait(false);
+                await publisher.PublishAsync(new TransportPublishRequest
+                {
+                    Destination = ingressQueue,
+                    Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = orderId }),
+                    MessageId = messageId.ToString("D"),
+                    Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
+                }).ConfigureAwait(false);
 
-            body.Should().Contain(orderId.ToString());
-            headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));
+                var (body, headers) = await AzureServiceBusTransportTestInfrastructure.ReceiveOneAsync(
+                    _fixture.TransportOptions.ConnectionString,
+                    dispatchQueue,
+                    TimeSpan.FromSeconds(45)).ConfigureAwait(false);
 
-            await PollingWait.UntilAsync(
-                () => provider.GetRequiredService<InMemoryInboxStore>().Get(messageId).Status == InboxStatus.Completed,
-                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
-        }
-        finally
-        {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
-        }
+                body.Should().Contain(orderId.ToString());
+                headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));
+
+                await PollingWait.UntilAsync(
+                    () => provider.GetRequiredService<InMemoryInboxStore>().Get(messageId).Status == InboxStatus.Completed,
+                    TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+            }
+            finally
+            {
+                await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
         }
     }
 
@@ -105,7 +120,10 @@ public sealed class AzureServiceBusInboxIngressEndToEndIntegrationTests : LiteBu
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new AzureServiceBusTransportModule(_fixture.TransportOptions));
+                registry.Register(new AzureServiceBusTransportModule(_fixture.TransportOptions with
+                {
+                    ConnectivityCheckTarget = new AzureServiceBusQueueDiagnosticTarget(ingressQueue)
+                }));
                 registry.AddMessageModule(_ =>
                 {
                 });
@@ -127,12 +145,12 @@ public sealed class AzureServiceBusInboxIngressEndToEndIntegrationTests : LiteBu
                     inbox.UseAzureServiceBusDispatch(
                         transport => transport.DefaultDestination = dispatchQueue);
 
-                inbox.UseAzureServiceBusIngress(ingress =>
-                {
-                    ingress.UseOptions(new AzureServiceBusInboxIngressOptions
+                    inbox.UseAzureServiceBusIngress(ingress =>
+                    {
+                        ingress.UseOptions(new AzureServiceBusInboxIngressOptions
                         {
                             Destination = ingressQueue,
-                            PrefetchCount = 1,
+                            PrefetchCount = 1
                         });
                     });
                 });

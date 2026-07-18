@@ -9,7 +9,7 @@
 
 ## What It Does
 
-`LiteBus.Extensions.Diagnostics.HealthChecks` registers `LiteBusHealthCheck` that executes manifest probes using `DiagnosticCheckRunner`. The option `FailHealthWhenNoProbes` controls whether empty probe lists report degraded or healthy.
+`LiteBus.Extensions.Diagnostics.HealthChecks` registers `LiteBusHealthCheck` that executes manifest probes using `DiagnosticCheckRunner`. The option `FailHealthWhenNoProbes` controls whether empty probe lists report degraded or healthy. `DiagnosticChecks` configures the timeout and maximum parallel probe count.
 
 The health check maps aggregated diagnostic status into ASP.NET health statuses and includes probe details in health data payload.
 
@@ -22,6 +22,8 @@ The health check maps aggregated diagnostic status into ASP.NET health statuses 
 ### Configuration
 
 - `LiteBusHealthCheckOptions.FailHealthWhenNoProbes` (default `true`)
+- `LiteBusHealthCheckOptions.DiagnosticChecks.Timeout` (default 5 seconds per probe)
+- `LiteBusHealthCheckOptions.DiagnosticChecks.MaxParallelism` (default 4)
 
 ### Consumer Contracts
 
@@ -40,6 +42,7 @@ The health check maps aggregated diagnostic status into ASP.NET health statuses 
 
 - Default registration name is `litebus`.
 - Default failure status configured in `AddCheck` is unhealthy.
+- Default registration tags are `litebus` and `ready` for host readiness filtering.
 - Empty-probe behavior follows configured `FailHealthWhenNoProbes`.
 
 ## Non-Goals
@@ -84,6 +87,15 @@ The health check maps aggregated diagnostic status into ASP.NET health statuses 
 - **Description**: sets `FailHealthWhenNoProbes = false`
 - **Behavior**: executes health check service
 - **Expected outcome**: healthy status and no-probe description
+- **Remarks**: `tests/LiteBus.Extensions.IntegrationTests/HealthChecks/LiteBusHealthCheckIntegrationTests.cs`
+
+#### `LiteBusHealthCheckIntegrationTests.AddLiteBus_WhenProbeExceedsConfiguredTimeout_ShouldReportUnhealthyHealthCheck`
+
+- **Use case**: host-configured probe timeout
+- **Test kind**: Integration
+- **Description**: runs a cancellation-aware blocking probe with a 20 millisecond timeout
+- **Behavior**: executes the health check service through the `ready`-tagged aggregate check
+- **Expected outcome**: the LiteBus health entry reports unhealthy without hanging the host
 - **Remarks**: `tests/LiteBus.Extensions.IntegrationTests/HealthChecks/LiteBusHealthCheckIntegrationTests.cs`
 
 ### Untested Use Cases

@@ -36,6 +36,10 @@ public sealed class KafkaTransportModuleTests
             .Count(descriptor => descriptor.DependencyType == typeof(IMessageConsumer))
             .Should()
             .Be(1);
+
+        configuration.DiagnosticChecks.Should().ContainSingle(descriptor =>
+            descriptor.ImplementationType == typeof(KafkaConnectivityDiagnosticCheck) &&
+            descriptor.Name == "transport.kafka.connectivity");
     }
 
     /// <summary>
@@ -55,5 +59,20 @@ public sealed class KafkaTransportModuleTests
         act.Should()
             .Throw<LiteBusConfigurationException>()
             .WithMessage("*already registered*");
+    }
+
+    /// <summary>
+    ///     Verifies non-positive connectivity timeouts fail during module construction.
+    /// </summary>
+    [Fact]
+    public void Constructor_WithInvalidConnectivityTimeout_ShouldThrow()
+    {
+        var act = () => new KafkaTransportModule(new KafkaTransportOptions
+        {
+            BootstrapServers = "localhost:9092",
+            ConnectivityCheckTimeout = TimeSpan.Zero
+        });
+
+        act.Should().Throw<ArgumentOutOfRangeException>();
     }
 }
