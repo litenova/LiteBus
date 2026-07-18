@@ -70,6 +70,16 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
                 "Call UseInProcessDispatch, a broker-specific Use*Dispatch extension, or RegisterDispatcher inside AddInboxModule(...).");
         }
 
+        if (_builder.IsInboxProcessorEnabled)
+        {
+            _builder.ProcessorHostOptions.Validate();
+        }
+
+        if (_builder.IsCleanupEnabled)
+        {
+            _builder.CleanupHostOptions.Validate();
+        }
+
         var contractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
         _builder.ApplyContracts(contractRegistry);
 

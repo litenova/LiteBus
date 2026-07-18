@@ -64,6 +64,8 @@ public sealed class InMemoryInboxIngressModule :
 
         if (moduleBuilder.EnableIngressConsumer)
         {
+            moduleBuilder.HostOptions.Validate();
+
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
                 typeof(TransportInboxIngressHostOptions),
                 moduleBuilder.HostOptions));

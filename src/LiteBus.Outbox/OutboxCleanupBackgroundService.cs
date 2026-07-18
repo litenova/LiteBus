@@ -83,7 +83,9 @@ public sealed class OutboxCleanupBackgroundService : IBackgroundService
     /// <inheritdoc />
     public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_hostOptions.Enabled || _hostOptions.Retention is null || _hostOptions.Retention <= TimeSpan.Zero)
+        _hostOptions.Validate();
+
+        if (!_hostOptions.Enabled || _hostOptions.Retention is null)
         {
             return;
         }

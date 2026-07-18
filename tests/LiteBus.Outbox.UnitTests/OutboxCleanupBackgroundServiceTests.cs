@@ -10,6 +10,25 @@ namespace LiteBus.Outbox.UnitTests;
 public sealed class OutboxCleanupBackgroundServiceTests
 {
     /// <summary>
+    ///     Verifies nonpositive cleanup timing is rejected instead of creating a tight store loop.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Validate_WhenCleanupTimingIsNonpositive_ShouldThrow(bool retention)
+    {
+        var options = new OutboxCleanupHostOptions
+        {
+            Interval = retention ? TimeSpan.FromMinutes(1) : TimeSpan.Zero,
+            Retention = retention ? TimeSpan.Zero : TimeSpan.FromMinutes(1)
+        };
+
+        var act = options.Validate;
+
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    /// <summary>
     ///     Verifies cleanup deletes published rows older than the configured retention window.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>

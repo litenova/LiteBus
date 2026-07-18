@@ -27,4 +27,13 @@ public class ProcessorHostOptions
     ///     Gets or sets a value indicating whether the poll delay is skipped after a full batch.
     /// </summary>
     public bool UseAdaptivePolling { get; set; } = true;
+
+    /// <summary>
+    ///     Validates timing values before the background processor starts.
+    /// </summary>
+    public void Validate()
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(PollInterval, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThan(StartupDelay, TimeSpan.Zero);
+    }
 }

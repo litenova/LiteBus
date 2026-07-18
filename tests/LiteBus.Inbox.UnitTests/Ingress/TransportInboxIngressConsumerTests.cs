@@ -16,6 +16,22 @@ namespace LiteBus.Inbox.UnitTests.Ingress;
 public sealed class TransportInboxIngressConsumerTests
 {
     /// <summary>
+    ///     Verifies negative restart timing is rejected instead of creating a tight reconnect loop.
+    /// </summary>
+    [Fact]
+    public void HostOptions_WhenRetryIntervalIsNegative_ShouldThrow()
+    {
+        var options = new TransportInboxIngressHostOptions
+        {
+            RetryPollInterval = TimeSpan.FromTicks(-1)
+        };
+
+        var act = options.Validate;
+
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    /// <summary>
     ///     Verifies successful acceptance acknowledges the delivery.
     /// </summary>
     /// <returns>A task that completes when the acknowledgement assertion succeeds.</returns>

@@ -12,6 +12,29 @@ namespace LiteBus.Outbox.UnitTests;
 [Collection("Sequential")]
 public sealed class OutboxHostingTests : LiteBusTestBase
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ProcessorBackgroundService_WhenTimingIsNegative_ShouldThrowOnBuild(bool startupDelay)
+    {
+        var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
+        var act = () => BuildProvider(
+            dispatcher,
+            options =>
+            {
+                if (startupDelay)
+                {
+                    options.StartupDelay = TimeSpan.FromTicks(-1);
+                }
+                else
+                {
+                    options.PollInterval = TimeSpan.FromTicks(-1);
+                }
+            });
+
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
     [Fact]
     public async Task ProcessorBackgroundService_WhenDisabled_ShouldCompleteWithoutPublishing()
     {

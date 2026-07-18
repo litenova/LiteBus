@@ -24,4 +24,17 @@ public sealed class InboxCleanupHostOptions
     ///     When <see langword="null" />, the cleanup loop does not delete rows.
     /// </value>
     public TimeSpan? Retention { get; set; }
+
+    /// <summary>
+    ///     Validates cleanup timing values before the background loop starts.
+    /// </summary>
+    public void Validate()
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(Interval, TimeSpan.Zero);
+
+        if (Retention is { } retention)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(retention, TimeSpan.Zero);
+        }
+    }
 }

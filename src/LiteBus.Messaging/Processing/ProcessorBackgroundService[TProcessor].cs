@@ -97,6 +97,8 @@ internal sealed class ProcessorBackgroundService<TProcessor> : IBackgroundServic
     /// <inheritdoc />
     public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _hostOptions.Validate();
+
         if (!_hostOptions.Enabled)
         {
             return;

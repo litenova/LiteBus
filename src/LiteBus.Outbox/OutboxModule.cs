@@ -71,6 +71,16 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
                 "Call UseInProcessDispatch, a broker-specific Use*Dispatch extension, or RegisterDispatcher inside AddOutboxModule(...).");
         }
 
+        if (_builder.IsOutboxProcessorEnabled)
+        {
+            _builder.ProcessorHostOptions.Validate();
+        }
+
+        if (_builder.IsCleanupEnabled)
+        {
+            _builder.CleanupHostOptions.Validate();
+        }
+
         var contractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
         _builder.ApplyContracts(contractRegistry);
 

@@ -91,6 +91,7 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
         _logger = logger ?? NullLogger<TransportInboxIngressConsumer>.Instance;
 
         options.Safety.Validate();
+        hostOptions.Validate();
 
         if (options.Safety.EnableBatchAccept)
         {
@@ -125,6 +126,8 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     /// </remarks>
     public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _hostOptions.Validate();
+
         if (!_hostOptions.Enabled)
         {
             return;
