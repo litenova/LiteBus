@@ -199,13 +199,6 @@ jobs:
             artifacts/*.nupkg
             artifacts/*.snupkg
 
-      - name: Upload Test Results
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-results
-          path: '**/TestResults/**/*.xml'
-
       - name: Upload Coverage Reports
         if: always()
         uses: actions/upload-artifact@v7
