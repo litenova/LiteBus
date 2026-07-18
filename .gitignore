@@ -61,6 +61,7 @@ release-notes.md
 # Fumadocs site dependencies and build output
 site/node_modules/
 site/.next/
+site/*.tsbuildinfo
 
 # Local tooling caches
 .fuse/

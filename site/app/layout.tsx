@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { RootProvider } from 'fumadocs-ui/provider/next';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -8,14 +9,16 @@ export const metadata: Metadata = {
   },
   description: 'Mediator and durable messaging building blocks for .NET.',
   icons: {
-    icon: '/logo.svg',
+    icon: '/icon.svg',
   },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className="flex min-h-screen flex-col">
+        <RootProvider>{children}</RootProvider>
+      </body>
     </html>
   );
 }

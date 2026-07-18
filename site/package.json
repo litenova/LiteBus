@@ -7,9 +7,11 @@
   },
   "scripts": {
     "dev": "local-md dev -- node node_modules/next/dist/bin/next dev",
-    "build": "next build",
+    "build": "next build && npm run check:links",
+    "check:links": "node scripts/check-rendered-links.mjs",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
   },
   "overrides": {
     "next": {
@@ -27,9 +29,14 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^24.10.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.2.10",
+    "postcss": "^8.5.10",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3"
   }
 }

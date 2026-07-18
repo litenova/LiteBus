@@ -4,10 +4,17 @@ This is the Fumadocs site for LiteBus. The Markdown source is copied from `../do
 the repository's source documentation remains available to package and architecture
 workflows while the site can evolve its navigation and presentation independently.
 
+Each page title is derived from the first level-one heading in its Markdown source.
+Files named `README.md` are exposed as their directory index, so
+`docs/getting-started/README.md` is served at `/docs/getting-started`.
+Relative Markdown links are resolved through the Fumadocs source loader. The production
+build rejects rendered local links that still contain a `.md` source-file suffix.
+
 ## Local development
 
 Use Node.js 22 or later. Fumadocs and Next.js use the version declared in `package.json`.
 The lockfile overrides Next.js's bundled PostCSS to the patched `8.5.10` release.
+Tailwind CSS 4 and its PostCSS plugin compile the Fumadocs preset and application styles.
 
 ```bash
 npm ci
@@ -15,4 +22,5 @@ npm run dev
 ```
 
 Open `http://localhost:3000`. The build command is `npm run build` and the production
-server is `npm run start`.
+server is `npm run start`. Run `npm run lint` for the Next.js ESLint rules and
+`npm run typecheck` for a standalone TypeScript check.
