@@ -126,6 +126,69 @@ public sealed class InMemoryTransportTests
     }
 
     /// <summary>
+    ///     Verifies invalid admission limits fail before the consumer records an active session.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_WithInvalidMaxInFlight_ShouldRejectStartupWithoutPoisoningConsumer()
+    {
+        var consumer = new InMemoryConsumer(new InMemoryTransportBroker());
+        var invalidStart = () => consumer.StartAsync(
+            new TransportConsumerOptions
+            {
+                Destination = "orders",
+                MaxInFlightMessages = 0
+            },
+            static (_, _) => Task.CompletedTask);
+
+        await invalidStart.Should().ThrowAsync<ArgumentOutOfRangeException>().ConfigureAwait(false);
+
+        await consumer.StartAsync(
+            new TransportConsumerOptions { Destination = "orders" },
+            static (_, _) => Task.CompletedTask).ConfigureAwait(false);
+        await consumer.StopAsync().ConfigureAwait(false);
+        await consumer.DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Verifies a terminal consume-loop failure is propagated while teardown still permits a new session.
+    /// </summary>
+    [Fact]
+    public async Task StopAsync_AfterTerminalLoopFailure_ShouldCleanUpForRestart()
+    {
+        var broker = new InMemoryTransportBroker();
+        var publisher = new InMemoryPublisher(broker, new TransportCircuitBreakerRegistry());
+        var consumer = new InMemoryConsumer(broker);
+        var handlerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseHandler = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await consumer.StartAsync(
+            new TransportConsumerOptions { Destination = "faulted-consumer" },
+            async (_, _) =>
+            {
+                handlerStarted.TrySetResult();
+                await releaseHandler.Task.ConfigureAwait(false);
+                throw new InvalidOperationException("handler failed");
+            }).ConfigureAwait(false);
+
+        await publisher.PublishAsync(CreateRequest("faulted-consumer")).ConfigureAwait(false);
+        await handlerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        broker.GetOrCreateEndpoint("faulted-consumer").TryComplete().Should().BeTrue();
+        releaseHandler.TrySetResult();
+
+        var wait = () => consumer.WaitUntilStoppedAsync();
+        await wait.Should().ThrowAsync<ChannelClosedException>().ConfigureAwait(false);
+
+        var stop = () => consumer.StopAsync();
+        await stop.Should().ThrowAsync<ChannelClosedException>().ConfigureAwait(false);
+
+        await consumer.StartAsync(
+            new TransportConsumerOptions { Destination = "restarted-consumer" },
+            static (_, _) => Task.CompletedTask).ConfigureAwait(false);
+        await consumer.StopAsync().ConfigureAwait(false);
+        await consumer.DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
     ///     Verifies a full destination blocks publication until the admitted delivery settles.
     /// </summary>
     [Fact]

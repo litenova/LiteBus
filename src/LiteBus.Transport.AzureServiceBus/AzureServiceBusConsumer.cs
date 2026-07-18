@@ -80,6 +80,14 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(handler);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Destination);
+        ArgumentOutOfRangeException.ThrowIfNegative(options.PrefetchCount);
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxInFlightMessages, 1);
+
+        if (options.MaxConcurrentCalls is { } maxConcurrentCalls)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(maxConcurrentCalls, 1);
+        }
 
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -113,24 +121,31 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
                 return;
             }
 
-            await _consumeCts.CancelAsync().ConfigureAwait(false);
+            var consumeCts = _consumeCts;
 
-            if (_consumeTask is not null)
+            try
             {
-                try
+                await consumeCts.CancelAsync().ConfigureAwait(false);
+
+                if (_consumeTask is not null)
                 {
-                    await _consumeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    // Expected when cancellation stops the recovery loop.
+                    try
+                    {
+                        await _consumeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Expected when cancellation stops the recovery loop.
+                    }
                 }
             }
-
-            _consumeCts.Dispose();
-            _consumeCts = null;
-            _consumeTask = null;
-            SignalStopped();
+            finally
+            {
+                consumeCts.Dispose();
+                _consumeCts = null;
+                _consumeTask = null;
+                SignalStopped();
+            }
         }
         finally
         {
@@ -141,6 +156,12 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     /// <inheritdoc />
     public async Task WaitUntilStoppedAsync(CancellationToken cancellationToken = default)
     {
+        if (_consumeTask is { } consumeTask)
+        {
+            await consumeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         await _stoppedTcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -235,14 +256,6 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
         Func<TransportMessage, CancellationToken, Task> handler,
         CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Destination);
-        ArgumentOutOfRangeException.ThrowIfNegative(options.PrefetchCount);
-
-        if (options.MaxConcurrentCalls is { } maxConcurrentCalls)
-        {
-            ArgumentOutOfRangeException.ThrowIfLessThan(maxConcurrentCalls, 1);
-        }
-
         var sessionStopped = CreateStoppedTaskSource();
         var sessionError = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
         var boundedHandler = TransportConsumerHandlerInvoker.CreateBoundedHandler(

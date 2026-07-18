@@ -75,6 +75,8 @@ public sealed class KafkaConsumer : IMessageConsumer
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(handler);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Destination);
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxInFlightMessages, 1);
 
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -118,50 +120,57 @@ public sealed class KafkaConsumer : IMessageConsumer
                 return;
             }
 
-            await _consumeCts.CancelAsync().ConfigureAwait(false);
+            var consumeCts = _consumeCts;
 
-            if (_consumeTask is not null)
+            try
             {
-                try
-                {
-                    await _consumeTask.WaitAsync(StopWaitTimeout, cancellationToken).ConfigureAwait(false);
-                }
-                catch (TimeoutException)
-                {
-                    try
-                    {
-                        await Task.Run(() => _consumer.Close(), CancellationToken.None)
-                            .WaitAsync(CloseWaitTimeout, CancellationToken.None)
-                            .ConfigureAwait(false);
-                    }
-                    catch (TimeoutException)
-                    {
-                        // Close is best-effort when the consume loop does not exit promptly.
-                    }
+                await consumeCts.CancelAsync().ConfigureAwait(false);
 
+                if (_consumeTask is not null)
+                {
                     try
                     {
-                        await _consumeTask.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false);
+                        await _consumeTask.WaitAsync(StopWaitTimeout, cancellationToken).ConfigureAwait(false);
                     }
                     catch (TimeoutException)
                     {
-                        // The consume loop may still be blocked in native code.
+                        try
+                        {
+                            await Task.Run(() => _consumer.Close(), CancellationToken.None)
+                                .WaitAsync(CloseWaitTimeout, CancellationToken.None)
+                                .ConfigureAwait(false);
+                        }
+                        catch (TimeoutException)
+                        {
+                            // Close is best-effort when the consume loop does not exit promptly.
+                        }
+
+                        try
+                        {
+                            await _consumeTask.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false);
+                        }
+                        catch (TimeoutException)
+                        {
+                            // The consume loop may still be blocked in native code.
+                        }
                     }
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    // Expected when host shutdown cancels the stop wait.
-                }
-                catch (OperationCanceledException)
-                {
-                    // Expected when cancellation stops the consume loop.
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        // Expected when host shutdown cancels the stop wait.
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Expected when cancellation stops the consume loop.
+                    }
                 }
             }
-
-            _consumeCts.Dispose();
-            _consumeCts = null;
-            _consumeTask = null;
-            SignalStopped();
+            finally
+            {
+                consumeCts.Dispose();
+                _consumeCts = null;
+                _consumeTask = null;
+                SignalStopped();
+            }
         }
         finally
         {
@@ -206,8 +215,6 @@ public sealed class KafkaConsumer : IMessageConsumer
         Func<TransportMessage, CancellationToken, Task> handler,
         CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Destination);
-
         var boundedHandler = TransportConsumerHandlerInvoker.CreateBoundedHandler(
             handler,
             options.MaxInFlightMessages);

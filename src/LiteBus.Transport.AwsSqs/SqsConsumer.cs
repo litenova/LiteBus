@@ -65,6 +65,10 @@ public sealed class SqsConsumer : IMessageConsumer
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(handler);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Destination);
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.ReceiveBatchSize, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.ReceiveBatchSize, 10);
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxInFlightMessages, 1);
 
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -98,24 +102,31 @@ public sealed class SqsConsumer : IMessageConsumer
                 return;
             }
 
-            await _consumeCts.CancelAsync().ConfigureAwait(false);
+            var consumeCts = _consumeCts;
 
-            if (_consumeTask is not null)
+            try
             {
-                try
+                await consumeCts.CancelAsync().ConfigureAwait(false);
+
+                if (_consumeTask is not null)
                 {
-                    await _consumeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    // Expected when cancellation stops the consume loop.
+                    try
+                    {
+                        await _consumeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Expected when cancellation stops the consume loop.
+                    }
                 }
             }
-
-            _consumeCts.Dispose();
-            _consumeCts = null;
-            _consumeTask = null;
-            SignalStopped();
+            finally
+            {
+                consumeCts.Dispose();
+                _consumeCts = null;
+                _consumeTask = null;
+                SignalStopped();
+            }
         }
         finally
         {
@@ -159,10 +170,6 @@ public sealed class SqsConsumer : IMessageConsumer
         Func<TransportMessage, CancellationToken, Task> handler,
         CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Destination);
-        ArgumentOutOfRangeException.ThrowIfLessThan(options.ReceiveBatchSize, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.ReceiveBatchSize, 10);
-
         var boundedHandler = TransportConsumerHandlerInvoker.CreateBoundedOutcomeHandler(
             handler,
             options.MaxInFlightMessages);
