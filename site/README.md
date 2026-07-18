@@ -12,9 +12,12 @@ build rejects rendered local links that still contain a `.md` source-file suffix
 
 ## Local development
 
-Use Node.js 22 or later. Fumadocs and Next.js use the version declared in `package.json`.
+Use Node.js 24. Fumadocs, Next.js, CI, and Vercel use the major version pinned in
+`package.json`.
 The lockfile overrides Next.js's bundled PostCSS to the patched `8.5.10` release.
 Tailwind CSS 4 and its PostCSS plugin compile the Fumadocs preset and application styles.
+Regenerate `package-lock.json` on Linux when optional native dependencies change so
+`npm ci` remains portable between contributor workstations, CI, and Vercel.
 
 ```bash
 npm ci
