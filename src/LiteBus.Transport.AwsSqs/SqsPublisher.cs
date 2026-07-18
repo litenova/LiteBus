@@ -75,6 +75,7 @@ public sealed class SqsPublisher : ITransportPublisher
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            circuitBreaker.ReleasePermit(permit);
             throw;
         }
         catch (AmazonSQSException exception)
@@ -88,6 +89,7 @@ public sealed class SqsPublisher : ITransportPublisher
 #pragma warning restore CA1031
         {
             TransportTracing.RecordException(activity, exception);
+            circuitBreaker.ReleasePermit(permit);
             throw;
         }
     }

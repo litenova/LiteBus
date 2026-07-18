@@ -261,6 +261,7 @@ public sealed class InMemoryTransportTests
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("unexpected").ConfigureAwait(false);
         circuitBreaker.RecordedFailures.Should().Be(0);
+        circuitBreaker.ReleasedPermits.Should().Be(1);
     }
 
     private static TransportPublishRequest CreateRequest(string destination)
@@ -305,6 +306,8 @@ public sealed class InMemoryTransportTests
 
         public int RecordedFailures { get; private set; }
 
+        public int ReleasedPermits { get; private set; }
+
         public TransportCircuitBreakerPermit AcquirePermit()
         {
             if (_throwDuringAcquire)
@@ -326,6 +329,11 @@ public sealed class InMemoryTransportTests
         public void RecordFailure(TransportCircuitBreakerPermit permit)
         {
             RecordedFailures++;
+        }
+
+        public void ReleasePermit(TransportCircuitBreakerPermit permit)
+        {
+            ReleasedPermits++;
         }
     }
 

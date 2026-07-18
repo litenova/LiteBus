@@ -186,6 +186,24 @@ public class TransportCircuitBreaker : ITransportCircuitBreaker
         }
     }
 
+    /// <inheritdoc />
+    public void ReleasePermit(TransportCircuitBreakerPermit permit)
+    {
+        lock (_stateSync)
+        {
+            if (!IsEnabled() ||
+                permit.Generation != _generation ||
+                _state != HalfOpenState ||
+                !permit.IsRecoveryProbe)
+            {
+                return;
+            }
+
+            _state = OpenState;
+            _generation++;
+        }
+    }
+
     /// <summary>
     ///     Transitions the circuit to open without extending an already-open deadline.
     /// </summary>

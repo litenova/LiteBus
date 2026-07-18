@@ -38,4 +38,15 @@ public interface ITransportCircuitBreaker
     /// </summary>
     /// <param name="permit">The permit that admitted the failed operation.</param>
     void RecordFailure(TransportCircuitBreakerPermit permit);
+
+    /// <summary>
+    ///     Releases an admitted operation whose outcome does not indicate broker health.
+    /// </summary>
+    /// <remarks>
+    ///     Publishers use this for caller cancellation and failures that occur outside broker I/O. Releasing a
+    ///     half-open recovery probe allows another caller to test broker recovery without closing the circuit or
+    ///     starting a new break duration.
+    /// </remarks>
+    /// <param name="permit">The permit that admitted the operation.</param>
+    void ReleasePermit(TransportCircuitBreakerPermit permit);
 }

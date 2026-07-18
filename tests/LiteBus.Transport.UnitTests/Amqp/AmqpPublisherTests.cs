@@ -82,6 +82,30 @@ public sealed class AmqpPublisherTests
         }
     }
 
+    /// <summary>
+    ///     Verifies a failure before broker publication releases the admitted circuit breaker permit.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task PublishAsync_WhenChannelCreationFails_ShouldReleaseCircuitPermit()
+    {
+        var registry = new TrackingCircuitBreakerRegistry();
+        var publisher = new AmqpPublisher(new UnexpectedConnectionManager(), registry);
+        await using (publisher.ConfigureAwait(false))
+        {
+            var act = () => publisher.PublishAsync(new AmqpPublishRequest
+            {
+                Exchange = "orders.events",
+                RoutingKey = "orders.created",
+                Body = ReadOnlyMemory<byte>.Empty
+            });
+
+            await act.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
+            registry.ReleasedPermits.Should().Be(1);
+            registry.RecordedFailures.Should().Be(0);
+        }
+    }
+
     private sealed class RecordingCircuitBreakerRegistry : ITransportCircuitBreakerRegistry
     {
         private readonly RejectingCircuitBreaker _circuitBreaker = new();
@@ -118,6 +142,52 @@ public sealed class AmqpPublisherTests
         public void RecordFailure(TransportCircuitBreakerPermit permit)
         {
             throw new InvalidOperationException("A rejected publish cannot record failure.");
+        }
+
+        public void ReleasePermit(TransportCircuitBreakerPermit permit)
+        {
+            throw new InvalidOperationException("A rejected publish cannot release a permit.");
+        }
+    }
+
+    private sealed class TrackingCircuitBreakerRegistry :
+        ITransportCircuitBreakerRegistry,
+        ITransportCircuitBreaker
+    {
+        public bool IsAnyOpen => false;
+
+        public long FailureCount => RecordedFailures;
+
+        public bool IsOpen => false;
+
+        int ITransportCircuitBreaker.FailureCount => RecordedFailures;
+
+        public int RecordedFailures { get; private set; }
+
+        public int ReleasedPermits { get; private set; }
+
+        public ITransportCircuitBreaker GetPublisherCircuit(string destination)
+        {
+            return this;
+        }
+
+        public TransportCircuitBreakerPermit AcquirePermit()
+        {
+            return default;
+        }
+
+        public void RecordSuccess(TransportCircuitBreakerPermit permit)
+        {
+        }
+
+        public void RecordFailure(TransportCircuitBreakerPermit permit)
+        {
+            RecordedFailures++;
+        }
+
+        public void ReleasePermit(TransportCircuitBreakerPermit permit)
+        {
+            ReleasedPermits++;
         }
     }
 

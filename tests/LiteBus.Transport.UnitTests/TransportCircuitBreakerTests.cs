@@ -73,6 +73,26 @@ public sealed class TransportCircuitBreakerTests
     }
 
     /// <summary>
+    ///     Verifies an inconclusive half-open probe releases its exclusive slot without reporting broker recovery.
+    /// </summary>
+    [Fact]
+    public void ReleasePermit_DuringHalfOpenProbe_ShouldAllowAnotherProbe()
+    {
+        var timeProvider = new ManualTimeProvider();
+        var circuitBreaker = CreateCircuitBreaker(timeProvider);
+        circuitBreaker.RecordFailure(circuitBreaker.AcquirePermit());
+        timeProvider.Advance(TimeSpan.FromSeconds(30));
+        var abandonedProbe = circuitBreaker.AcquirePermit();
+
+        circuitBreaker.ReleasePermit(abandonedProbe);
+
+        circuitBreaker.IsOpen.Should().BeTrue();
+        var replacementProbe = circuitBreaker.AcquirePermit();
+        circuitBreaker.RecordSuccess(replacementProbe);
+        circuitBreaker.IsOpen.Should().BeFalse();
+    }
+
+    /// <summary>
     ///     Verifies failures reported while a circuit is already open do not extend its deadline.
     /// </summary>
     [Fact]

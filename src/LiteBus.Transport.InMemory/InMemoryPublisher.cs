@@ -83,6 +83,7 @@ public sealed class InMemoryPublisher : ITransportPublisher
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            circuitBreaker.ReleasePermit(permit);
             throw;
         }
         catch (ChannelClosedException exception)
@@ -96,6 +97,7 @@ public sealed class InMemoryPublisher : ITransportPublisher
 #pragma warning restore CA1031
         {
             TransportTracing.RecordException(activity, exception);
+            circuitBreaker.ReleasePermit(permit);
             throw;
         }
     }

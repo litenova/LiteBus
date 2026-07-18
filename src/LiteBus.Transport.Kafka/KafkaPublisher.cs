@@ -83,6 +83,7 @@ public sealed class KafkaPublisher : ITransportPublisher, IDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            circuitBreaker.ReleasePermit(permit);
             throw;
         }
         catch (ProduceException<string, byte[]> exception)
@@ -102,6 +103,7 @@ public sealed class KafkaPublisher : ITransportPublisher, IDisposable
 #pragma warning restore CA1031
         {
             TransportTracing.RecordException(activity, exception);
+            circuitBreaker.ReleasePermit(permit);
             throw;
         }
     }

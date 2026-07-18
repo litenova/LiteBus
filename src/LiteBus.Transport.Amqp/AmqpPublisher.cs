@@ -91,62 +91,67 @@ public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncD
             throw;
         }
 
-        await _publishGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var enteredPublishGate = false;
 
         try
         {
+            await _publishGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            enteredPublishGate = true;
+
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
 
             var channel = await GetPublishChannelAsync(cancellationToken).ConfigureAwait(false);
             var properties = CreateBasicProperties(channel, request);
 
-            try
-            {
-                await channel
-                    .BasicPublishAsync(
-                        request.Exchange,
-                        request.RoutingKey,
-                        request.Mandatory,
-                        properties,
-                        request.Body,
-                        cancellationToken)
-                    .ConfigureAwait(false);
+            await channel
+                .BasicPublishAsync(
+                    request.Exchange,
+                    request.RoutingKey,
+                    request.Mandatory,
+                    properties,
+                    request.Body,
+                    cancellationToken)
+                .ConfigureAwait(false);
 
-                circuitBreaker.RecordSuccess(permit);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (OperationInterruptedException exception)
-            {
-                TransportTracing.RecordException(activity, exception);
-                circuitBreaker.RecordFailure(permit);
-                throw;
-            }
-            catch (PublishException exception)
-            {
-                TransportTracing.RecordException(activity, exception);
-                circuitBreaker.RecordFailure(permit);
-                throw;
-            }
-            catch (BrokerUnreachableException exception)
-            {
-                TransportTracing.RecordException(activity, exception);
-                circuitBreaker.RecordFailure(permit);
-                throw;
-            }
+            circuitBreaker.RecordSuccess(permit);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            circuitBreaker.ReleasePermit(permit);
+            throw;
+        }
+        catch (OperationInterruptedException exception)
+        {
+            TransportTracing.RecordException(activity, exception);
+            circuitBreaker.RecordFailure(permit);
+            throw;
+        }
+        catch (PublishException exception)
+        {
+            TransportTracing.RecordException(activity, exception);
+            circuitBreaker.RecordFailure(permit);
+            throw;
+        }
+        catch (BrokerUnreachableException exception)
+        {
+            TransportTracing.RecordException(activity, exception);
+            circuitBreaker.RecordFailure(permit);
+            throw;
+        }
 #pragma warning disable CA1031 // Last-resort publish boundary traces unexpected failures before rethrowing.
-            catch (Exception exception)
+        catch (Exception exception)
 #pragma warning restore CA1031
-            {
-                TransportTracing.RecordException(activity, exception);
-                throw;
-            }
+        {
+            TransportTracing.RecordException(activity, exception);
+            circuitBreaker.ReleasePermit(permit);
+            throw;
         }
         finally
         {
-            _publishGate.Release();
+            if (enteredPublishGate)
+            {
+                _publishGate.Release();
+            }
         }
     }
 
