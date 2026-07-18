@@ -18,19 +18,34 @@ public sealed class OutboxProcessorControl : IOutboxProcessorControl, IProcessor
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>
-    ///     Serializes loop entry; pause holds the gate without releasing it.
+    ///     Cancels the processor polling delay when drain starts.
     /// </summary>
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly CancellationTokenSource _drainRequested = new();
 
     /// <summary>
-    ///     Serializes public control transitions so repeated and concurrent requests remain idempotent.
+    ///     Protects processor state and pass lifecycle transitions.
     /// </summary>
-    private readonly SemaphoreSlim _stateGate = new(1, 1);
+    private readonly object _sync = new();
+
+    /// <summary>
+    ///     Completes when the active processing pass finishes.
+    /// </summary>
+    private TaskCompletionSource _passComplete = CreateCompletedSignal();
+
+    /// <summary>
+    ///     Completes when a paused loop may resume entering passes.
+    /// </summary>
+    private TaskCompletionSource _resume = CreateCompletedSignal();
 
     /// <summary>
     ///     Indicates whether a drain operation requested loop termination after one pass.
     /// </summary>
     private volatile bool _drainSignalled;
+
+    /// <summary>
+    ///     Indicates whether the processor loop currently owns an active pass.
+    /// </summary>
+    private bool _passActive;
 
     /// <summary>
     ///     The current processor loop state.
@@ -44,10 +59,12 @@ public sealed class OutboxProcessorControl : IOutboxProcessorControl, IProcessor
     internal bool IsDraining => _drainSignalled;
 
     /// <inheritdoc />
+    CancellationToken IProcessorBackgroundControl.DrainRequestedToken => _drainRequested.Token;
+
+    /// <inheritdoc />
     public ValueTask DisposeAsync()
     {
-        _gate.Dispose();
-        _stateGate.Dispose();
+        _drainRequested.Dispose();
         return ValueTask.CompletedTask;
     }
 
@@ -57,71 +74,69 @@ public sealed class OutboxProcessorControl : IOutboxProcessorControl, IProcessor
     /// <inheritdoc />
     public async Task PauseAsync(CancellationToken cancellationToken = default)
     {
-        await _stateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        Task passComplete;
 
-        try
-        {
-            ThrowIfDraining();
-
-            if (_state == ProcessorState.Paused)
-            {
-                return;
-            }
-
-            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            _state = ProcessorState.Paused;
-        }
-        finally
-        {
-            _stateGate.Release();
-        }
-    }
-
-    /// <inheritdoc />
-    public async Task ResumeAsync(CancellationToken cancellationToken = default)
-    {
-        await _stateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-        try
+        lock (_sync)
         {
             ThrowIfDraining();
 
             if (_state == ProcessorState.Running)
             {
-                return;
+                _state = ProcessorState.Paused;
+                _resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             }
 
-            _state = ProcessorState.Running;
-            _gate.Release();
+            passComplete = _passComplete.Task;
         }
-        finally
+
+        await passComplete.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task ResumeAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
         {
-            _stateGate.Release();
+            ThrowIfDraining();
+
+            if (_state == ProcessorState.Paused)
+            {
+                _state = ProcessorState.Running;
+                _resume.TrySetResult();
+            }
         }
+
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc />
     public async Task DrainAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        await _stateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (timeout != Timeout.InfiniteTimeSpan)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(timeout, TimeSpan.Zero);
+        }
 
-        try
+        cancellationToken.ThrowIfCancellationRequested();
+        var signalDrain = false;
+
+        lock (_sync)
         {
             if (!_drainSignalled)
             {
-                var wasPaused = _state == ProcessorState.Paused;
                 _state = ProcessorState.Draining;
                 _drainSignalled = true;
-
-                if (wasPaused)
-                {
-                    _gate.Release();
-                }
+                signalDrain = true;
+                _resume.TrySetResult();
             }
         }
-        finally
+
+        if (signalDrain)
         {
-            _stateGate.Release();
+            await _drainRequested.CancelAsync().ConfigureAwait(false);
         }
 
         await _drainComplete.Task.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
@@ -137,9 +152,15 @@ public sealed class OutboxProcessorControl : IOutboxProcessorControl, IProcessor
     bool IProcessorBackgroundControl.IsDraining => IsDraining;
 
     /// <inheritdoc />
-    void IProcessorBackgroundControl.SignalDrainComplete()
+    void IProcessorBackgroundControl.SignalPassComplete()
     {
-        SignalDrainComplete();
+        SignalPassComplete();
+    }
+
+    /// <inheritdoc />
+    void IProcessorBackgroundControl.SignalDrainComplete(Exception? exception)
+    {
+        SignalDrainComplete(exception);
     }
 
     /// <summary>
@@ -149,16 +170,61 @@ public sealed class OutboxProcessorControl : IOutboxProcessorControl, IProcessor
     /// <returns>A task that completes when the loop may proceed.</returns>
     internal async Task WaitIfPausedAsync(CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        _gate.Release();
+        while (true)
+        {
+            Task resume;
+
+            lock (_sync)
+            {
+                if (_state != ProcessorState.Paused)
+                {
+                    if (_passActive)
+                    {
+                        throw new InvalidOperationException("The outbox processor loop attempted to start overlapping passes.");
+                    }
+
+                    _passActive = true;
+                    _passComplete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    return;
+                }
+
+                resume = _resume.Task;
+            }
+
+            await resume.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
-    ///     Signals that the processor loop exited after completing the drain pass.
+    ///     Signals that the active processor pass has completed.
     /// </summary>
-    internal void SignalDrainComplete()
+    internal void SignalPassComplete()
     {
-        _drainComplete.TrySetResult();
+        lock (_sync)
+        {
+            if (!_passActive)
+            {
+                return;
+            }
+
+            _passActive = false;
+            _passComplete.TrySetResult();
+        }
+    }
+
+    /// <summary>
+    ///     Signals that the processor loop exited after completing or failing the drain pass.
+    /// </summary>
+    /// <param name="exception">The failure that ended the drain pass, or <see langword="null" /> when it succeeded.</param>
+    internal void SignalDrainComplete(Exception? exception = null)
+    {
+        if (exception is null)
+        {
+            _drainComplete.TrySetResult();
+            return;
+        }
+
+        _drainComplete.TrySetException(exception);
     }
 
     /// <summary>
@@ -170,5 +236,16 @@ public sealed class OutboxProcessorControl : IOutboxProcessorControl, IProcessor
         {
             throw new InvalidOperationException("The outbox processor cannot pause or resume after drain has started.");
         }
+    }
+
+    /// <summary>
+    ///     Creates an asynchronously continued signal in the completed state.
+    /// </summary>
+    /// <returns>A completed signal.</returns>
+    private static TaskCompletionSource CreateCompletedSignal()
+    {
+        var signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        signal.SetResult();
+        return signal;
     }
 }

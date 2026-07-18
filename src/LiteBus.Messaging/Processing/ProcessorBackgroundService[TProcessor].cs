@@ -104,39 +104,38 @@ internal sealed class ProcessorBackgroundService<TProcessor> : IBackgroundServic
 
         if (_hostOptions.StartupDelay > TimeSpan.Zero)
         {
-            await Task.Delay(_hostOptions.StartupDelay, stoppingToken).ConfigureAwait(false);
+            using var startupCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                stoppingToken,
+                _control.DrainRequestedToken);
+
+            try
+            {
+                await Task.Delay(_hostOptions.StartupDelay, startupCancellation.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (_control.IsDraining && !stoppingToken.IsCancellationRequested)
+            {
+                // Drain bypasses startup delay so the loop can run its final pass immediately.
+            }
         }
 
         while (!stoppingToken.IsCancellationRequested)
         {
             await _control.WaitIfPausedAsync(stoppingToken).ConfigureAwait(false);
-
-            if (_control.IsDraining)
-            {
-                try
-                {
-                    await _processor.ProcessPendingAsync(stoppingToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                }
-
-                _control.SignalDrainComplete();
-                return;
-            }
+            var drainPass = _control.IsDraining;
+            ProcessorPassResult? passResult = null;
 
             try
             {
-                var passResult = await _processor.ProcessPendingAsync(stoppingToken).ConfigureAwait(false);
-
-                if (ShouldDelayAfterPass(passResult))
-                {
-                    await _workSignal.WaitForWorkOrDelayAsync(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
-                }
+                passResult = await _processor.ProcessPendingAsync(stoppingToken).ConfigureAwait(false);
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            catch (OperationCanceledException exception) when (stoppingToken.IsCancellationRequested)
             {
-                break;
+                if (drainPass)
+                {
+                    _control.SignalDrainComplete(exception);
+                }
+
+                return;
             }
 #pragma warning disable CA1031 // Do not catch general exception types
             catch (Exception exception)
@@ -144,9 +143,66 @@ internal sealed class ProcessorBackgroundService<TProcessor> : IBackgroundServic
                 // Background processor loops must survive transient store or dispatch failures and continue polling.
                 _recordLoopError();
                 _logLoopFailed(_logger, exception);
-                await _workSignal.WaitForWorkOrDelayAsync(_hostOptions.PollInterval, stoppingToken).ConfigureAwait(false);
+
+                if (drainPass)
+                {
+                    _control.SignalDrainComplete(exception);
+                    throw;
+                }
             }
 #pragma warning restore CA1031
+            finally
+            {
+                _control.SignalPassComplete();
+            }
+
+            if (drainPass)
+            {
+                _control.SignalDrainComplete(null);
+                return;
+            }
+
+            if (passResult is null || ShouldDelayAfterPass(passResult))
+            {
+                try
+                {
+                    await WaitForWorkOrDrainAsync(stoppingToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    return;
+                }
+#pragma warning disable CA1031 // The polling boundary must keep the processor alive when a work signal fails.
+                catch (Exception exception)
+                {
+                    _recordLoopError();
+                    _logLoopFailed(_logger, exception);
+                }
+#pragma warning restore CA1031
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Waits for work while allowing a drain request to interrupt the polling delay immediately.
+    /// </summary>
+    /// <param name="stoppingToken">A token that stops the background loop.</param>
+    /// <returns>A task that completes when work, drain, or host cancellation ends the wait.</returns>
+    private async Task WaitForWorkOrDrainAsync(CancellationToken stoppingToken)
+    {
+        using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            stoppingToken,
+            _control.DrainRequestedToken);
+
+        try
+        {
+            await _workSignal
+                .WaitForWorkOrDelayAsync(_hostOptions.PollInterval, waitCancellation.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_control.IsDraining && !stoppingToken.IsCancellationRequested)
+        {
+            // Drain cancellation only wakes the loop so it can enter its final pass without waiting for the poll interval.
         }
     }
 

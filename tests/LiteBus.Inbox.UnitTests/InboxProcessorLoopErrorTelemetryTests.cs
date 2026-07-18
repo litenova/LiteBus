@@ -10,6 +10,40 @@ namespace LiteBus.Inbox.UnitTests;
 public sealed class InboxProcessorLoopErrorTelemetryTests
 {
     /// <summary>
+    ///     Confirms a failed final pass is reported to the background service and the drain caller.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_when_drain_pass_fails_should_propagate_to_drain_caller()
+    {
+        var control = new InboxProcessorControl();
+
+        try
+        {
+            var service = new InboxProcessorBackgroundService(
+                new ThrowingInboxProcessor(),
+                new InboxProcessorOptions { BatchSize = 1, LeaseOwner = "drain-error" },
+                new InboxProcessorHostOptions
+                {
+                    PollInterval = TimeSpan.FromSeconds(30),
+                    StartupDelay = TimeSpan.FromSeconds(30)
+                },
+                new InboxPollingWorkSignal(),
+                control);
+
+            var drainTask = control.DrainAsync(TimeSpan.FromSeconds(1));
+            var execute = () => service.ExecuteAsync(CancellationToken.None);
+            var drain = () => drainTask;
+
+            await execute.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
+            await drain.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
+        }
+        finally
+        {
+            await control.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
     ///     Confirms an unhandled processor exception increments the loop error counter.
     /// </summary>
     [Fact]

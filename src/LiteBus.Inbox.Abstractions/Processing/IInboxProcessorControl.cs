@@ -19,7 +19,8 @@ public interface IInboxProcessorControl
     ///     Suspends leasing after the current pass completes.
     /// </summary>
     /// <remarks>
-    ///     Blocks until the running pass finishes before returning. Repeated pause requests are idempotent.
+    ///     Blocks until the running pass finishes before returning. Repeated pause requests are idempotent. Once the
+    ///     transition is applied, cancelling the wait does not resume the processor.
     /// </remarks>
     /// <param name="cancellationToken">A token used to cancel waiting for the gate.</param>
     /// <returns>A task that completes when the processor loop is paused.</returns>
@@ -38,7 +39,8 @@ public interface IInboxProcessorControl
     /// </summary>
     /// <remarks>
     ///     Useful for graceful shutdown: call before host stop, await completion, then cancel the host. Concurrent drain
-    ///     requests await the same final pass. A timeout throws <see cref="TimeoutException" />.
+    ///     requests await the same final pass. A timeout throws <see cref="TimeoutException" /> and stops only that
+    ///     caller's wait; the processor continues its drain pass.
     /// </remarks>
     /// <param name="timeout">The maximum time to wait for the drain pass to complete.</param>
     /// <param name="cancellationToken">A token used to cancel waiting for drain completion.</param>

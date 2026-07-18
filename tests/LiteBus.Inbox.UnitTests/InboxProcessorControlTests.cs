@@ -118,6 +118,33 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
 
         await control.ResumeAsync(CancellationToken.None).ConfigureAwait(false);
         await waitTask.ConfigureAwait(false);
+        control.SignalPassComplete();
+    }
+
+    /// <summary>
+    ///     Confirms pause does not complete until an active processing pass has finished.
+    /// </summary>
+    [Fact]
+    public async Task PauseAsync_should_wait_for_active_pass()
+    {
+        var control = new InboxProcessorControl();
+
+        try
+        {
+            await control.WaitIfPausedAsync(CancellationToken.None).ConfigureAwait(false);
+            var pauseTask = control.PauseAsync();
+
+            await Task.Delay(TimeSpan.FromMilliseconds(20)).ConfigureAwait(false);
+            pauseTask.IsCompleted.Should().BeFalse();
+
+            control.SignalPassComplete();
+            await pauseTask.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+            control.State.Should().Be(ProcessorState.Paused);
+        }
+        finally
+        {
+            await control.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -148,6 +175,19 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
     [Fact]
     public async Task DrainAsync_should_timeout_and_share_completion_across_callers()
     {
+        var invalidControl = new InboxProcessorControl();
+
+        try
+        {
+            var invalidTimeout = () => invalidControl.DrainAsync(TimeSpan.FromTicks(-1));
+            await invalidTimeout.Should().ThrowAsync<ArgumentOutOfRangeException>().ConfigureAwait(false);
+            invalidControl.State.Should().Be(ProcessorState.Running);
+        }
+        finally
+        {
+            await invalidControl.DisposeAsync().ConfigureAwait(false);
+        }
+
         var timedOutControl = new InboxProcessorControl();
 
         try
@@ -173,6 +213,38 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
         finally
         {
             await control.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Confirms drain interrupts a long polling delay before running the final pass.
+    /// </summary>
+    [Fact]
+    public async Task DrainAsync_should_interrupt_polling_delay()
+    {
+        var recorder = new InboxTestFixtures.CommandRecorder();
+        var provider = BuildProvider(recorder, options => options.PollInterval = TimeSpan.FromSeconds(30));
+        await using (provider.ConfigureAwait(true))
+        {
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var control = provider.GetRequiredService<IInboxProcessorControl>();
+            var orderId = Guid.NewGuid();
+
+            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+            {
+                OrderId = orderId,
+                IdempotencyKey = $"ship:{orderId}"
+            }).ConfigureAwait(false);
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(false);
+            await WaitUntilAsync(
+                () => recorder.Commands.Any(command => command.OrderId == orderId),
+                TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+
+            await control.DrainAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+            await InboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
