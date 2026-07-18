@@ -55,6 +55,11 @@ All notable changes to this project will be documented in this file.
 - `LiteBus.Testing` is now a framework-neutral base package. Mediator, transport, durable, and host helpers no longer
   impose unrelated dependency graphs, Newtonsoft.Json, or an assertion library on consumers.
 
+### Removed
+
+- The duplicate `AddLiteBus(Action<IModuleRegistry>)` overloads from the Microsoft DI and Autofac adapters. Use the
+  single `Action<ILiteBusBuilder>` callback and access `builder.Modules` for custom module registration.
+
 ### Fixed
 
 - Typed error handlers can suppress a recoverable exception and return a fallback result without reimplementing an

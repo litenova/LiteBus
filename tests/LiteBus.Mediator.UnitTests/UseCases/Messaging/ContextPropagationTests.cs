@@ -21,11 +21,11 @@ public sealed class ContextPropagationTests : LiteBusTestBase
         // ARRANGE
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(builder =>
+            registry.AddCommands(builder =>
             {
                 builder.Register<ContextPropagationPreHandler>();
                 builder.Register<ContextPropagationCommandHandler>();

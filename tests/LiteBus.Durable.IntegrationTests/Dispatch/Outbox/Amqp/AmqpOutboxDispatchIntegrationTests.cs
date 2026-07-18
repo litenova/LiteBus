@@ -203,12 +203,12 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new AmqpTransportModule(ConnectionOptions));
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AmqpTransportModule(ConnectionOptions));
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(builder =>
+                registry.AddOutbox(builder =>
                 {
                     builder.UseInMemoryStorage();
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted");
@@ -510,12 +510,12 @@ public sealed class AmqpOutboxDispatchRegistrationTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(outbox =>
+                registry.AddOutbox(outbox =>
                 {
                     outbox.UseInMemoryStorage();
 

@@ -147,17 +147,17 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
                     builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
 

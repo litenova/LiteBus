@@ -208,16 +208,16 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddEventModule(builder =>
+            registry.AddEvents(builder =>
             {
                 builder.Register<OrderSubmittedEventHandler>();
             });
 
-            registry.AddOutboxModule(builder =>
+            registry.AddOutbox(builder =>
             {
                 builder.UsePostgreSqlStorage(postgres =>
                 {

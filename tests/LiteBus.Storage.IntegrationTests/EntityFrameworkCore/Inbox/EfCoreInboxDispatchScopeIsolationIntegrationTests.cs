@@ -54,17 +54,17 @@ public sealed class EfCoreInboxDispatchScopeIsolationIntegrationTests : LiteBusT
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(commands =>
+            registry.AddCommands(commands =>
             {
                 commands.Register<ScopedDispatchCommand>();
                 commands.Register<ScopedDispatchCommandHandler>();
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UseEntityFrameworkCoreStorage(storage =>
                 {

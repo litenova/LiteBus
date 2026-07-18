@@ -24,13 +24,13 @@ public sealed class AmqpInboxIngressModuleRegistrationTests : LiteBusTestBase
             .AddLiteBus(registry =>
             {
                 var connection = new AmqpConnectionOptions { HostName = "localhost" };
-                registry.Register(new AmqpTransportModule(connection));
+                registry.Modules.Register(new AmqpTransportModule(connection));
 
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UseInMemoryStorage();
 
@@ -60,13 +60,13 @@ public sealed class AmqpInboxIngressModuleRegistrationTests : LiteBusTestBase
             .AddLiteBus(registry =>
             {
                 var connection = new AmqpConnectionOptions { HostName = "localhost" };
-                registry.Register(new AmqpTransportModule(connection));
+                registry.Modules.Register(new AmqpTransportModule(connection));
 
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UseInMemoryStorage();
 

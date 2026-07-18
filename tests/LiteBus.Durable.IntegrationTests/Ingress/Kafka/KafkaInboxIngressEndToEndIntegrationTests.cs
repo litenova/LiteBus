@@ -137,12 +137,12 @@ public sealed class KafkaInboxIngressEndToEndIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new KafkaTransportModule(connection));
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(new KafkaTransportModule(connection));
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.Contracts.Register<ShipOrderCommand>(ContractName);
 

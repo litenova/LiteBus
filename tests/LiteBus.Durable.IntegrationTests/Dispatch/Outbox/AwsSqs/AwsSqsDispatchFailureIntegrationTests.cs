@@ -137,12 +137,12 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
-                registry.Register(new AwsSqsTransportModule(transportOptions));
-            registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AwsSqsTransportModule(transportOptions));
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddOutboxModule(outbox =>
+            registry.AddOutbox(outbox =>
             {
                 outbox.UseInMemoryStorage();
                 outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted");

@@ -14,11 +14,11 @@ public sealed class InMemoryInboxStorageModuleTests
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox => inbox.UseInMemoryStorage());
+                registry.AddInbox(inbox => inbox.UseInMemoryStorage());
             })
             .BuildServiceProvider();
 
@@ -39,11 +39,11 @@ public sealed class InMemoryInboxStorageModuleTests
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                     inbox.UseInMemoryStorage(builder => builder.UseTimeProvider(timeProvider)));
             })
             .BuildServiceProvider();
@@ -57,11 +57,11 @@ public sealed class InMemoryInboxStorageModuleTests
         var act = () => new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UseInMemoryStorage();
                     inbox.UseInMemoryStorage();

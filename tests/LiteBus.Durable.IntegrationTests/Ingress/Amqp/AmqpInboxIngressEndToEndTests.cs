@@ -81,12 +81,12 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
-                registry.Register(new AmqpTransportModule(connectionOptions));
-            registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AmqpTransportModule(connectionOptions));
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.Contracts.Register<ShipOrderCommand>(contractName);
 

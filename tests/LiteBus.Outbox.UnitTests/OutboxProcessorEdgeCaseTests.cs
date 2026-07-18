@@ -369,11 +369,11 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
             .AddSingleton(dispatcherHolder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(builder =>
+                registry.AddOutbox(builder =>
                 {
                     builder.Contracts.Register<PocoIntegrationEvent>("poco.events.sample");
 
@@ -495,7 +495,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(message =>
+            registry.AddMessaging(message =>
             {
                 if (clock is not null)
                 {
@@ -503,7 +503,7 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
                 }
             });
 
-            registry.AddOutboxModule(outbox =>
+            registry.AddOutbox(outbox =>
             {
                 if (configureOutbox is not null)
                 {

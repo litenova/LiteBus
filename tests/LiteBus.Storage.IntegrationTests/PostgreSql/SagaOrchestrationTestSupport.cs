@@ -58,17 +58,17 @@ internal static class SagaOrchestrationTestSupport
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(builder =>
+            registry.AddCommands(builder =>
             {
                 builder.Register<OrderWorkflowSagaCommand>();
                 builder.Register<OrderWorkflowSagaCommandHandler>();
             });
 
-            registry.AddInboxModule(builder =>
+            registry.AddInbox(builder =>
             {
                 builder.UsePostgreSqlStorage(postgres =>
                 {

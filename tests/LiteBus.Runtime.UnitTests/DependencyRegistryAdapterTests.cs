@@ -89,7 +89,7 @@ public sealed class DependencyRegistryAdapterTests
 
         services.AddLiteBus(registry =>
         {
-            registry.Register(new RegistrationModule(configuration =>
+            registry.Modules.Register(new RegistrationModule(configuration =>
             {
                 configuration.RegisterBackgroundService(typeof(TestBackgroundService));
                 configuration.RegisterBackgroundService(typeof(TestBackgroundService));
@@ -106,7 +106,7 @@ public sealed class DependencyRegistryAdapterTests
 
         services.AddLiteBus(registry =>
         {
-            registry.Register(new BackgroundServiceRegistrationModule(typeof(TestBackgroundService), typeof(OtherBackgroundService)));
+            registry.Modules.Register(new BackgroundServiceRegistrationModule(typeof(TestBackgroundService), typeof(OtherBackgroundService)));
         });
 
         services.Count(service => service.ServiceType == typeof(IHostedService)).Should().Be(1);
@@ -230,7 +230,7 @@ public sealed class DependencyRegistryAdapterTests
 
         builder.AddLiteBus(registry =>
         {
-            registry.Register(new RegistrationModule(configuration =>
+            registry.Modules.Register(new RegistrationModule(configuration =>
             {
                 configuration.RegisterBackgroundService(typeof(TestBackgroundService));
                 configuration.RegisterBackgroundService(typeof(TestBackgroundService));

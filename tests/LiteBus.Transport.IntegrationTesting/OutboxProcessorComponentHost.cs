@@ -39,13 +39,13 @@ public sealed class OutboxProcessorComponentHost : IAsyncDisposable
     ///     Creates a host with in-memory storage, in-process dispatch, and an enabled outbox processor loop.
     /// </summary>
     /// <param name="configureOutbox">An optional outbox module builder callback.</param>
-    /// <param name="configureRegistry">An optional LiteBus module registry callback invoked after the default outbox wiring.</param>
+    /// <param name="configureBuilder">An optional LiteBus builder callback invoked after the default outbox wiring.</param>
     /// <param name="configureServices">An optional service collection callback.</param>
     /// <param name="configureHost">An optional outbox processor host options callback.</param>
     /// <returns>A disposable component host.</returns>
     public static OutboxProcessorComponentHost Create(
         Action<OutboxModuleBuilder>? configureOutbox = null,
-        Action<IModuleRegistry>? configureRegistry = null,
+        Action<ILiteBusBuilder>? configureBuilder = null,
         Action<IServiceCollection>? configureServices = null,
         Action<OutboxProcessorHostOptions>? configureHost = null)
     {
@@ -53,11 +53,11 @@ public sealed class OutboxProcessorComponentHost : IAsyncDisposable
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddOutboxModule(outbox =>
+            registry.AddOutbox(outbox =>
             {
                 outbox.UseInMemoryStorage();
                 outbox.UseInProcessDispatch();
@@ -65,7 +65,7 @@ public sealed class OutboxProcessorComponentHost : IAsyncDisposable
                 configureOutbox?.Invoke(outbox);
             });
 
-            configureRegistry?.Invoke(registry);
+            configureBuilder?.Invoke(registry);
         });
 
         configureServices?.Invoke(services);

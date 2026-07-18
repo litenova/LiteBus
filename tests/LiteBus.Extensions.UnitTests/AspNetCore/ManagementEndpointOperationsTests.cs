@@ -228,18 +228,18 @@ public sealed class ManagementEndpointOperationsTests
                     services.AddSingleton(options);
                     services.AddLiteBus(registry =>
                     {
-                        registry.AddMessageModule(_ =>
+                        registry.AddMessaging(_ =>
                         {
                         });
 
                         if (includeInbox)
                         {
-                            registry.AddInboxModule(inbox => inbox.UseInMemoryStorage());
+                            registry.AddInbox(inbox => inbox.UseInMemoryStorage());
                         }
 
                         if (includeOutbox)
                         {
-                            registry.AddOutboxModule(outbox => outbox.UseInMemoryStorage());
+                            registry.AddOutbox(outbox => outbox.UseInMemoryStorage());
                         }
                     });
 

@@ -392,18 +392,18 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
 
         services.AddLiteBus(registry =>
         {
-                registry.Register(new AmqpTransportModule(connectionOptions));
-            registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AmqpTransportModule(connectionOptions));
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(module =>
+            registry.AddCommands(module =>
             {
                 module.Register<ShipOrderCommand>();
                 module.Register<ShipOrderCommandHandler>();
             });
 
-            registry.AddOutboxModule(outbox =>
+            registry.AddOutbox(outbox =>
             {
                 outbox.UsePostgreSqlStorage(postgres =>
                 {
@@ -427,7 +427,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                     transport => transport.DefaultDestination = string.Empty);
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UsePostgreSqlStorage(postgres =>
                 {
@@ -486,18 +486,18 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
 
         services.AddLiteBus(registry =>
         {
-            registry.Register(new AmqpTransportModule(connectionOptions));
-            registry.AddMessageModule(_ =>
+            registry.Modules.Register(new AmqpTransportModule(connectionOptions));
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(module =>
+            registry.AddCommands(module =>
             {
                 module.Register<ShipOrderCommand>();
                 module.Register<ShipOrderCommandHandler>();
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UsePostgreSqlStorage(postgres =>
                 {

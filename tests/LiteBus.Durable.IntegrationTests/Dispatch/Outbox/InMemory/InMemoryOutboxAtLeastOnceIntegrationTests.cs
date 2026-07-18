@@ -115,12 +115,12 @@ public sealed class InMemoryOutboxAtLeastOnceIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new InMemoryTransportModule());
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(new InMemoryTransportModule());
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(builder =>
+                registry.AddOutbox(builder =>
                 {
                     builder.UseInMemoryStorage();
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted");

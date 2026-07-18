@@ -16,11 +16,11 @@ public sealed class ParallelExecutionContextTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddEventModule(builder =>
+                registry.AddEvents(builder =>
                 {
                     builder.Register<ParallelContextEventHandler1>();
                     builder.Register<ParallelContextEventHandler2>();

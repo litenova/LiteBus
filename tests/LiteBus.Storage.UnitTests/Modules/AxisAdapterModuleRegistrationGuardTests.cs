@@ -18,11 +18,11 @@ public sealed class AxisAdapterModuleRegistrationGuardTests
         var act = () => new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.Register(new InMemoryInboxStorageModule(_ =>
+                registry.Modules.Register(new InMemoryInboxStorageModule(_ =>
                 {
                 }));
             })
@@ -39,11 +39,11 @@ public sealed class AxisAdapterModuleRegistrationGuardTests
         var act = () => new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.Register(new InMemoryOutboxStorageModule(_ =>
+                registry.Modules.Register(new InMemoryOutboxStorageModule(_ =>
                 {
                 }));
             })

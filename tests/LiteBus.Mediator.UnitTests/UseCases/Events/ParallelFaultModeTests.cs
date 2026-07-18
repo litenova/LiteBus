@@ -14,11 +14,11 @@ public sealed class ParallelFaultModeTests
     {
         await using var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddEventModule(builder =>
+            registry.AddEvents(builder =>
             {
                 builder.Register<ImmediateFailureHandler>();
                 builder.Register<BlockedSiblingHandler>();
@@ -47,11 +47,11 @@ public sealed class ParallelFaultModeTests
     {
         await using var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddEventModule(builder =>
+            registry.AddEvents(builder =>
             {
                 builder.Register<FirstAggregatedFailureHandler>();
                 builder.Register<SecondAggregatedFailureHandler>();

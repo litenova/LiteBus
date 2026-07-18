@@ -197,17 +197,17 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(builder =>
+            registry.AddCommands(builder =>
             {
                 builder.Register<AdvanceOrderSagaCommand>();
                 builder.Register<AdvanceOrderSagaCommandHandler>();
             });
 
-            registry.AddInboxModule(builder =>
+            registry.AddInbox(builder =>
             {
                 builder.UsePostgreSqlStorage(postgres =>
                 {

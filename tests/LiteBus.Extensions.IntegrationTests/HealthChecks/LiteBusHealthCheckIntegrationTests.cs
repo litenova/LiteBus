@@ -19,11 +19,11 @@ public sealed class LiteBusHealthCheckIntegrationTests
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UseInMemoryStorage();
                 inbox.AddDiagnosticCheck<UnhealthyDiagnosticCheck>("litebus.test.unhealthy");
@@ -58,11 +58,11 @@ public sealed class LiteBusHealthCheckIntegrationTests
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UseInMemoryStorage();
                 inbox.AddDiagnosticCheck<HealthyDiagnosticCheck>("litebus.test.healthy");
@@ -98,11 +98,11 @@ public sealed class LiteBusHealthCheckIntegrationTests
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UseInMemoryStorage();
                 inbox.AddDiagnosticCheck<BlockingDiagnosticCheck>("litebus.test.blocking");
@@ -136,7 +136,7 @@ public sealed class LiteBusHealthCheckIntegrationTests
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
         });
@@ -164,7 +164,7 @@ public sealed class LiteBusHealthCheckIntegrationTests
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
         });

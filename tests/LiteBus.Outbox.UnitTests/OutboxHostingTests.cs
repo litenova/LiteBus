@@ -66,11 +66,11 @@ public sealed class OutboxHostingTests : LiteBusTestBase
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ =>
+                    registry.AddMessaging(_ =>
                     {
                     });
 
-                    registry.AddOutboxModule(outbox =>
+                    registry.AddOutbox(outbox =>
                     {
                         outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
                         outbox.EnableOutboxProcessor();
@@ -89,11 +89,11 @@ public sealed class OutboxHostingTests : LiteBusTestBase
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ =>
+                    registry.AddMessaging(_ =>
                     {
                     });
 
-                    registry.AddOutboxModule(outbox =>
+                    registry.AddOutbox(outbox =>
                     {
                         outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>("orders.events.submitted");
                         outbox.UseInMemoryStorage();
@@ -208,11 +208,11 @@ public sealed class OutboxHostingTests : LiteBusTestBase
             .AddSingleton(dispatcherHolder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(outbox =>
+                registry.AddOutbox(outbox =>
                 {
                     if (configureOutbox is not null)
                     {

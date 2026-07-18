@@ -43,11 +43,11 @@ public sealed class ModuleConfigurationDiagnosticCheckTests
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UseInMemoryStorage();
                 inbox.AddDiagnosticCheck<SampleDiagnosticCheck>("litebus.sample");

@@ -89,12 +89,12 @@ public sealed class AzureServiceBusIngressRequeueBehaviorIntegrationTests : Lite
 
         services.AddLiteBus(registry =>
         {
-                registry.Register(new AzureServiceBusTransportModule(_fixture.TransportOptions));
-            registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AzureServiceBusTransportModule(_fixture.TransportOptions));
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.Contracts.Register<ShipOrderCommand>(ContractName);
                 inbox.UseInMemoryStorage();

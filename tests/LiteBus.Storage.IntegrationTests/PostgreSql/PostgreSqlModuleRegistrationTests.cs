@@ -41,11 +41,11 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox => inbox.UsePostgreSqlStorage(postgres =>
+            registry.AddInbox(inbox => inbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
@@ -72,11 +72,11 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddOutboxModule(outbox => outbox.UsePostgreSqlStorage(postgres =>
+            registry.AddOutbox(outbox => outbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
@@ -103,11 +103,11 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox => inbox.UsePostgreSqlStorage(postgres =>
+            registry.AddInbox(inbox => inbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
@@ -139,11 +139,11 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddOutboxModule(outbox => outbox.UsePostgreSqlStorage(postgres =>
+            registry.AddOutbox(outbox => outbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
@@ -174,12 +174,12 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                registry.Register(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
-                    registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
+                    registry.AddMessaging(_ =>
                     {
                     });
 
-                    registry.AddInboxModule(inbox =>
+                    registry.AddInbox(inbox =>
                     {
                         inbox.UseInMemoryStorage();
                         inbox.UseInProcessDispatch();
@@ -206,11 +206,11 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ =>
+                    registry.AddMessaging(_ =>
                     {
                     });
 
-                    registry.AddInboxModule(inbox =>
+                    registry.AddInbox(inbox =>
                     {
                         inbox.UseInMemoryStorage();
                         inbox.UseInMemoryStorage();
@@ -231,12 +231,12 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         services.AddLiteBus(registry =>
         {
-                registry.Register(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
-            registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UseInMemoryStorage();
 
@@ -272,15 +272,15 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(_ =>
+            registry.AddCommands(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UseInMemoryStorage();
                 inbox.UseInProcessDispatch();
@@ -314,18 +314,18 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox => inbox.UsePostgreSqlStorage(pg =>
+            registry.AddInbox(inbox => inbox.UsePostgreSqlStorage(pg =>
             {
                 pg.UseDataSource(_fixture.DataSource);
                 pg.UseOptions(inboxOptions);
                 pg.DisableSchemaInitialization();
             }));
 
-            registry.AddOutboxModule(outbox => outbox.UsePostgreSqlStorage(pg =>
+            registry.AddOutbox(outbox => outbox.UsePostgreSqlStorage(pg =>
             {
                 pg.UseDataSource(_fixture.DataSource);
                 pg.UseOptions(outboxOptions);

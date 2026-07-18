@@ -41,13 +41,13 @@ public static class ModuleRegistryExtensions
     /// </remarks>
     /// <example>
     ///     <code>
-    /// services.AddLiteBus(registry =>
+    /// services.AddLiteBus(builder =>
     /// {
-    ///     registry.AddCommandModule(cmd => 
+    ///     builder.AddCommands(cmd =>
     ///     {
     ///         cmd.RegisterFromAssembly(typeof(MyCommand).Assembly);
     ///     });
-    ///     registry.AddMessageModule(msg => { /* optional core config */ });
+    ///     builder.AddMessaging(msg => { /* optional core config */ });
     /// });
     /// </code>
     /// </example>

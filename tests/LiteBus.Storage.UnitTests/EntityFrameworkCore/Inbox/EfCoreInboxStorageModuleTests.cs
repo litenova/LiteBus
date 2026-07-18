@@ -19,11 +19,11 @@ public sealed class EfCoreInboxStorageModuleTests
             .AddDbContextFactory<ModuleTestInboxDbContext>(options => options.UseInMemoryDatabase(databaseName))
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox => inbox.UseEntityFrameworkCoreStorage(builder =>
+                registry.AddInbox(inbox => inbox.UseEntityFrameworkCoreStorage(builder =>
                     builder.UseDbContext<ModuleTestInboxDbContext>()));
             })
             .BuildServiceProvider();
@@ -50,11 +50,11 @@ public sealed class EfCoreInboxStorageModuleTests
                 .AddLiteBusInboxInterceptor(interceptor))
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox => inbox.UseEntityFrameworkCoreStorage(builder =>
+                registry.AddInbox(inbox => inbox.UseEntityFrameworkCoreStorage(builder =>
                     builder
                         .UseDbContext<ModuleTestInboxDbContext>()
                         .EnableSaveChangesInterceptor()));
@@ -75,11 +75,11 @@ public sealed class EfCoreInboxStorageModuleTests
                 .AddDbContextFactory<ModuleTestInboxDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString("N")))
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ =>
+                    registry.AddMessaging(_ =>
                     {
                     });
 
-                    registry.AddInboxModule(inbox => inbox.UseEntityFrameworkCoreStorage(builder =>
+                    registry.AddInbox(inbox => inbox.UseEntityFrameworkCoreStorage(builder =>
                         builder
                             .UseDbContext<ModuleTestInboxDbContext>()
                             .EnforceTransactionalSetup()));

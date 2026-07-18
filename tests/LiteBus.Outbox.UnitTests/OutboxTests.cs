@@ -62,11 +62,11 @@ public sealed class OutboxTests : LiteBusTestBase
             .AddSingleton(dispatcherHolder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(builder =>
+                registry.AddOutbox(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted");
 
@@ -122,11 +122,11 @@ public sealed class OutboxTests : LiteBusTestBase
             .AddSingleton(dispatcherHolder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(builder =>
+                registry.AddOutbox(builder =>
                 {
                     builder.Contracts.Register<GenericIntegrationEvent<int>>("generic.events.int");
 
@@ -186,11 +186,11 @@ public sealed class OutboxTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(builder =>
+                registry.AddOutbox(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted");
 
@@ -240,11 +240,11 @@ public sealed class OutboxTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(builder =>
+                registry.AddOutbox(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted");
 
@@ -326,11 +326,11 @@ public sealed class OutboxTests : LiteBusTestBase
             .AddSingleton(dispatcherHolder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(builder =>
+                registry.AddOutbox(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted");
 

@@ -13,11 +13,11 @@ public sealed class InMemoryOutboxStorageModuleTests
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(outbox => outbox.UseInMemoryStorage());
+                registry.AddOutbox(outbox => outbox.UseInMemoryStorage());
             })
             .BuildServiceProvider();
 

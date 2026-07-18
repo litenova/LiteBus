@@ -27,11 +27,11 @@ public sealed class AutofacIntegrationTests : LiteBusTestBase
         // Configure LiteBus using the Autofac extension
         builder.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(commandModuleBuilder =>
+            registry.AddCommands(commandModuleBuilder =>
             {
                 commandModuleBuilder.Register<RegisterComponentCommand>();
                 commandModuleBuilder.Register<RegisterComponentCommandPreHandler>();
@@ -56,17 +56,17 @@ public sealed class AutofacIntegrationTests : LiteBusTestBase
     }
 
     [Fact]
-    public void AddLiteBus_WithModuleRegistryOverload_ShouldRegisterLiteBusHostManifest()
+    public void AddLiteBus_WithBuilder_ShouldRegisterLiteBusHostManifest()
     {
         var builder = new ContainerBuilder();
 
         builder.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UseInMemoryStorage();
                 inbox.AddDiagnosticCheck<SampleDiagnosticCheck>("litebus.sample");

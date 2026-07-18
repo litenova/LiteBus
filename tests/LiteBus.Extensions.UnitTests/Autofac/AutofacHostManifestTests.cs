@@ -21,7 +21,7 @@ public sealed class AutofacHostManifestTests : LiteBusTestBase
 
         builder.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
         });

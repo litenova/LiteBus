@@ -67,16 +67,16 @@ internal static class EfCoreOutboxE2eSupport
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddEventModule(module =>
+            registry.AddEvents(module =>
             {
                 module.Register<OrderSubmittedEventHandler>();
             });
 
-            registry.AddOutboxModule(outbox =>
+            registry.AddOutbox(outbox =>
             {
                 outbox.UseEntityFrameworkCoreStorage(builder =>
                 {

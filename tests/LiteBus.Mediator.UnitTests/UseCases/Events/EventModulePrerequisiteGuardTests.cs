@@ -21,7 +21,7 @@ public sealed class EventModulePrerequisiteGuardTests
         {
             _ = new ServiceCollection().AddLiteBus(registry =>
             {
-                registry.AddEventModule(_ =>
+                registry.AddEvents(_ =>
                 {
                 });
             });
@@ -42,10 +42,10 @@ public sealed class EventModulePrerequisiteGuardTests
         {
             _ = new ServiceCollection().AddLiteBus(registry =>
             {
-                registry.AddEventModule(_ =>
+                registry.AddEvents(_ =>
                 {
                 });
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
             });

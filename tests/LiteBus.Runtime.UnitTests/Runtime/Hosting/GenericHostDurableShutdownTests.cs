@@ -30,17 +30,17 @@ public sealed class GenericHostDurableShutdownTests : LiteBusTestBase
         builder.Services.AddSingleton(gate);
         builder.Services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(commands =>
+            registry.AddCommands(commands =>
             {
                 commands.Register<ShutdownCommand>();
                 commands.Register<ShutdownCommandHandler>();
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UseInMemoryStorage();
                 inbox.Contracts.Register<ShutdownCommand>("tests.commands.host-shutdown");

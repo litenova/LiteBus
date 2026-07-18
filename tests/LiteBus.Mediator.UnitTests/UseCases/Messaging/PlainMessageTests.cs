@@ -19,7 +19,7 @@ public sealed class PlainMessageTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(builder =>
+                registry.AddMessaging(builder =>
                 {
                     // Global Handlers
                     builder.Register<FakeGlobalCommandPostHandler>();
@@ -30,7 +30,9 @@ public sealed class PlainMessageTests : LiteBusTestBase
                     builder.Register<FakePlainMessageAsyncHandler3>();
                 });
 
-                registry.AddEventModule();
+                registry.AddEvents(_ =>
+                {
+                });
             })
             .BuildServiceProvider();
 

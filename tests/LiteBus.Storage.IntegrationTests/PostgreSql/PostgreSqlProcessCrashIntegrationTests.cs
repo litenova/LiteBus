@@ -149,17 +149,17 @@ public sealed class PostgreSqlProcessCrashIntegrationTests : LiteBusTestBase, IC
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(commands =>
+            registry.AddCommands(commands =>
             {
                 commands.Register<ProcessCrashCommand>();
                 commands.Register<ProcessCrashCommandHandler>();
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UsePostgreSqlStorage(postgres =>
                 {

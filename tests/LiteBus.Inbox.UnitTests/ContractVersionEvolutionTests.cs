@@ -26,11 +26,11 @@ public sealed class ContractVersionEvolutionTests
         services.AddSingleton(recorder);
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(builder =>
+            registry.AddCommands(builder =>
             {
                 builder.Register<CreateOrderV1>();
                 builder.Register<CreateOrderV1Handler>();
@@ -38,7 +38,7 @@ public sealed class ContractVersionEvolutionTests
                 builder.Register<CreateOrderV2Handler>();
             });
 
-            registry.AddInboxModule(builder =>
+            registry.AddInbox(builder =>
             {
                 builder.Contracts.Register<CreateOrderV1>("orders.commands.create", 1);
                 builder.Contracts.Register<CreateOrderV2>("orders.commands.create", 2);

@@ -188,11 +188,11 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox => inbox.UsePostgreSqlStorage(postgres =>
+            registry.AddInbox(inbox => inbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);
@@ -208,11 +208,11 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddOutboxModule(outbox => outbox.UsePostgreSqlStorage(postgres =>
+            registry.AddOutbox(outbox => outbox.UsePostgreSqlStorage(postgres =>
             {
                 postgres.UseDataSource(_fixture.DataSource);
                 postgres.UseOptions(options);

@@ -140,7 +140,7 @@ Emulator-based Azure tests still require Docker; the env vars do not replace the
 
 Most inbox/outbox integration tests follow the same pipeline:
 
-1. Build `ServiceCollection` to `AddLiteBus(registry => ...)`.
+1. Build `ServiceCollection` through `AddLiteBus(builder => ...)`.
 2. Register contracts, storage (`UseInMemoryStorage` or PostgreSQL/EF), and dispatch/ingress adapter.
 3. **Ingress path:** publish to broker to wait for consumer to assert store/handler state.
 4. **Dispatch path:** `IInbox.AcceptAsync` or `IOutbox.EnqueueAsync` to `ProcessPendingAsync` to assert broker message or handler side effect.

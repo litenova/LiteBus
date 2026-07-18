@@ -21,7 +21,7 @@ public sealed class CommandModulePrerequisiteGuardTests
         {
             _ = new ServiceCollection().AddLiteBus(registry =>
             {
-                registry.AddCommandModule(_ =>
+                registry.AddCommands(_ =>
                 {
                 });
             });
@@ -42,10 +42,10 @@ public sealed class CommandModulePrerequisiteGuardTests
         {
             _ = new ServiceCollection().AddLiteBus(registry =>
             {
-                registry.AddCommandModule(_ =>
+                registry.AddCommands(_ =>
                 {
                 });
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
             });

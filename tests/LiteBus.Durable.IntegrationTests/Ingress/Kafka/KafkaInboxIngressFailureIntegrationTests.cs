@@ -259,7 +259,7 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
     private ServiceProvider BuildTransportOnlyProvider()
     {
         return new ServiceCollection()
-            .AddLiteBus(registry => registry.Register(new KafkaTransportModule(_fixture.TransportOptions)))
+            .AddLiteBus(registry => registry.Modules.Register(new KafkaTransportModule(_fixture.TransportOptions)))
             .BuildServiceProvider();
     }
 
@@ -276,12 +276,12 @@ public sealed class KafkaInboxIngressFailureIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new KafkaTransportModule(connection));
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(new KafkaTransportModule(connection));
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.Contracts.Register<ShipOrderCommand>(ContractName);
 

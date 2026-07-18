@@ -9,7 +9,7 @@
 
 ## What It Does
 
-`IServiceCollection.AddLiteBus(...)` is the Microsoft DI entry point for LiteBus composition. It accepts an advanced `Action<IModuleRegistry>` overload or a normal `Action<ILiteBusBuilder>` overload. Both build module order, execute module `Build(...)`, register `LiteBusHostManifest`, and wire diagnostic checks and background hosting registrations.
+`IServiceCollection.AddLiteBus(...)` is the Microsoft DI entry point for LiteBus composition. Its `Action<ILiteBusBuilder>` callback builds module order, executes module `Build(...)`, registers `LiteBusHostManifest`, and wires diagnostic checks and background hosting registrations. Advanced callers register custom modules through `builder.Modules` inside the same callback.
 
 This capability is composition only. It does not own ASP.NET routes, health checks, or exporters.
 
@@ -17,7 +17,6 @@ This capability is composition only. It does not own ASP.NET routes, health chec
 
 ### Invocation
 
-- `IServiceCollection AddLiteBus(Action<IModuleRegistry> configureRegistry)`
 - `IServiceCollection AddLiteBus(Action<ILiteBusBuilder> configure)`
 
 ### Registration
@@ -29,8 +28,7 @@ This capability is composition only. It does not own ASP.NET routes, health chec
 
 ### Configuration
 
-- `Action<IModuleRegistry>` for advanced module setup.
-- `Action<ILiteBusBuilder>` for package-owned `Add*` feature extensions.
+- `Action<ILiteBusBuilder>` for package-owned `Add*` feature extensions and advanced `builder.Modules` access.
 
 ## Packages
 

@@ -39,13 +39,13 @@ public sealed class InboxProcessorComponentHost : IAsyncDisposable
     ///     Creates a host with in-memory storage, in-process dispatch, and an enabled inbox processor loop.
     /// </summary>
     /// <param name="configureInbox">An optional inbox module builder callback.</param>
-    /// <param name="configureRegistry">An optional LiteBus module registry callback invoked after the default inbox wiring.</param>
+    /// <param name="configureBuilder">An optional LiteBus builder callback invoked after the default inbox wiring.</param>
     /// <param name="configureServices">An optional service collection callback.</param>
     /// <param name="configureHost">An optional inbox processor host options callback.</param>
     /// <returns>A disposable component host.</returns>
     public static InboxProcessorComponentHost Create(
         Action<InboxModuleBuilder>? configureInbox = null,
-        Action<IModuleRegistry>? configureRegistry = null,
+        Action<ILiteBusBuilder>? configureBuilder = null,
         Action<IServiceCollection>? configureServices = null,
         Action<InboxProcessorHostOptions>? configureHost = null)
     {
@@ -53,11 +53,11 @@ public sealed class InboxProcessorComponentHost : IAsyncDisposable
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UseInMemoryStorage();
                 inbox.UseInProcessDispatch();
@@ -65,7 +65,7 @@ public sealed class InboxProcessorComponentHost : IAsyncDisposable
                 configureInbox?.Invoke(inbox);
             });
 
-            configureRegistry?.Invoke(registry);
+            configureBuilder?.Invoke(registry);
         });
 
         configureServices?.Invoke(services);

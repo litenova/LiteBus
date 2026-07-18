@@ -120,17 +120,17 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(builder =>
+            registry.AddCommands(builder =>
             {
                 builder.Register<ShipOrderCommand>();
                 builder.Register<ShipOrderCommandHandler>();
             });
 
-            registry.AddInboxModule(builder =>
+            registry.AddInbox(builder =>
             {
                 builder.UsePostgreSqlStorage(postgres =>
                 {

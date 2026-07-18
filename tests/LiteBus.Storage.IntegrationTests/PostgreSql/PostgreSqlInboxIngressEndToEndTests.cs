@@ -74,17 +74,17 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
 
         services.AddLiteBus(registry =>
         {
-                registry.Register(new AmqpTransportModule(connectionOptions));
-            registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AmqpTransportModule(connectionOptions));
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(module =>
+            registry.AddCommands(module =>
             {
                 module.Register<ShipOrderCommand>();
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UsePostgreSqlStorage(postgres =>
                 {

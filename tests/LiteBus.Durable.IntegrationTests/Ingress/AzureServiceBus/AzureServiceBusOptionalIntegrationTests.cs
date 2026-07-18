@@ -84,12 +84,12 @@ public sealed class AzureServiceBusOptionalIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new AzureServiceBusTransportModule(transportOptions));
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AzureServiceBusTransportModule(transportOptions));
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.Contracts.Register<RemoteWorkCommand>("tests.remote-work");
 

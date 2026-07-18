@@ -98,12 +98,12 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new AmqpTransportModule(_rabbitMqFixture.ConnectionOptions));
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AmqpTransportModule(_rabbitMqFixture.ConnectionOptions));
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(outbox =>
+                registry.AddOutbox(outbox =>
                 {
                     outbox.UsePostgreSqlStorage(postgres =>
                     {

@@ -135,10 +135,10 @@ public sealed class CommandLoggingPostHandler<TCommand> : ICommandPostHandler<TC
 If the open generic handlers are in the same assembly you're scanning, `RegisterFromAssembly` discovers them automatically:
 
 ```csharp
-builder.Services.AddLiteBus(registry =>
+builder.Services.AddLiteBus(builder =>
 {
-    registry.AddMessaging(_ => { });
-    registry.AddCommands(module =>
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(module =>
     {
         // Discovers both open generic and concrete handlers
         module.RegisterFromAssembly(typeof(Program).Assembly);
@@ -149,10 +149,10 @@ builder.Services.AddLiteBus(registry =>
 If they're in a **different assembly** (e.g., a shared infrastructure library), register them explicitly:
 
 ```csharp
-builder.Services.AddLiteBus(registry =>
+builder.Services.AddLiteBus(builder =>
 {
-    registry.AddMessaging(_ => { });
-    registry.AddCommands(module =>
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(module =>
     {
         // From external library
         module.Register(typeof(CommandLoggingPreHandler<>));
@@ -224,10 +224,10 @@ public sealed class FluentValidationPreHandler<TCommand> : ICommandPreHandler<TC
 If the open generic validator is in the same assembly you're scanning, `RegisterFromAssembly` discovers it automatically:
 
 ```csharp
-builder.Services.AddLiteBus(registry =>
+builder.Services.AddLiteBus(builder =>
 {
-    registry.AddMessaging(_ => { });
-    registry.AddCommands(module =>
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(module =>
     {
         module.RegisterFromAssembly(typeof(Program).Assembly); // picks up FluentValidationPreHandler<> too
     });
@@ -240,10 +240,10 @@ builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 If the handler is in a **different assembly**, register it explicitly:
 
 ```csharp
-builder.Services.AddLiteBus(registry =>
+builder.Services.AddLiteBus(builder =>
 {
-    registry.AddMessaging(_ => { });
-    registry.AddCommands(module =>
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(module =>
     {
         module.Register(typeof(FluentValidationPreHandler<>)); // from external library
         module.RegisterFromAssembly(typeof(Program).Assembly);

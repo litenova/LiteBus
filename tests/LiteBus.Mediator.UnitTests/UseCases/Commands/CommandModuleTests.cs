@@ -24,11 +24,11 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.RegisterFromCommandsTestAssembly();
                 });
@@ -61,11 +61,11 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.RegisterFromCommandsTestAssembly();
                 });
@@ -96,11 +96,11 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.RegisterFromCommandsTestAssembly();
                 });
@@ -133,11 +133,11 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.RegisterFromCommandsTestAssembly();
                 });
@@ -171,11 +171,11 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.RegisterFromCommandsTestAssembly();
                 });
@@ -207,11 +207,11 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.RegisterFromCommandsTestAssembly();
                     builder.Register<GlobalCommandPreHandler>();
@@ -248,11 +248,11 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.RegisterFromCommandsTestAssembly();
                 });
@@ -291,11 +291,11 @@ public sealed class CommandModuleTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.RegisterFromCommandsTestAssembly();
                 });

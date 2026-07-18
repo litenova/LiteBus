@@ -62,11 +62,11 @@ internal static class EfCoreInboxE2eSupport
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(module =>
+            registry.AddCommands(module =>
             {
                 if (composition.RegisterShipHandler)
                 {
@@ -81,7 +81,7 @@ internal static class EfCoreInboxE2eSupport
                 }
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UseEntityFrameworkCoreStorage(builder =>
                 {

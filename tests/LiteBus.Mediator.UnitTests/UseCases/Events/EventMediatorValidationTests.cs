@@ -16,11 +16,11 @@ public sealed class EventMediatorValidationTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddEventModule(builder =>
+                registry.AddEvents(builder =>
                 {
                     builder.RegisterFromEventsTestAssembly();
                 });
@@ -40,11 +40,11 @@ public sealed class EventMediatorValidationTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddEventModule(builder =>
+                registry.AddEvents(builder =>
                 {
                     builder.RegisterFromEventsTestAssembly();
                 });

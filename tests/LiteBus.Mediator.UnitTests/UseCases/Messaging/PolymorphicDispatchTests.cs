@@ -20,11 +20,11 @@ public sealed class PolymorphicDispatchTests : LiteBusTestBase
         // ARRANGE
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(builder =>
+            registry.AddCommands(builder =>
             {
                 // Register only the handler for the BASE command.
                 // LiteBus should be smart enough to route the specialized command to it.

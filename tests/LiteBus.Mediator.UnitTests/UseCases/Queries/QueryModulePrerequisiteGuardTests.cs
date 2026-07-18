@@ -21,7 +21,7 @@ public sealed class QueryModulePrerequisiteGuardTests
         {
             _ = new ServiceCollection().AddLiteBus(registry =>
             {
-                registry.AddQueryModule(_ =>
+                registry.AddQueries(_ =>
                 {
                 });
             });
@@ -42,10 +42,10 @@ public sealed class QueryModulePrerequisiteGuardTests
         {
             _ = new ServiceCollection().AddLiteBus(registry =>
             {
-                registry.AddQueryModule(_ =>
+                registry.AddQueries(_ =>
                 {
                 });
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
             });

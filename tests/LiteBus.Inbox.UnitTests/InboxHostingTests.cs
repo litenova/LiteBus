@@ -63,11 +63,11 @@ public sealed class InboxHostingTests : LiteBusTestBase
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ =>
+                    registry.AddMessaging(_ =>
                     {
                     });
 
-                    registry.AddInboxModule(inbox =>
+                    registry.AddInbox(inbox =>
                     {
                         inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
                         inbox.EnableInboxProcessor();
@@ -86,11 +86,11 @@ public sealed class InboxHostingTests : LiteBusTestBase
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ =>
+                    registry.AddMessaging(_ =>
                     {
                     });
 
-                    registry.AddInboxModule(inbox =>
+                    registry.AddInbox(inbox =>
                     {
                         inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
                         inbox.UseInMemoryStorage();
@@ -230,17 +230,17 @@ public sealed class InboxHostingTests : LiteBusTestBase
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
                     builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     if (configureInbox is not null)
                     {

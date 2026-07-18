@@ -41,13 +41,13 @@ public static class ModuleRegistryExtensions
     /// </remarks>
     /// <example>
     ///     <code>
-    /// services.AddLiteBus(registry =>
+    /// services.AddLiteBus(builder =>
     /// {
-    ///     registry.AddEventModule(evt => 
+    ///     builder.AddEvents(evt =>
     ///     {
     ///         evt.RegisterFromAssembly(typeof(MyEvent).Assembly);
     ///     });
-    ///     registry.AddMessageModule(msg => { /* optional core config */ });
+    ///     builder.AddMessaging(msg => { /* optional core config */ });
     /// });
     /// </code>
     /// </example>
@@ -74,10 +74,10 @@ public static class ModuleRegistryExtensions
     /// <example>
     ///     <code>
     /// // Simple registration with default configuration
-    /// services.AddLiteBus(registry =>
+    /// services.AddLiteBus(builder =>
     /// {
-    ///     registry.AddMessageModule(_ => { });
-    ///     registry.AddEventModule();
+    ///     builder.AddMessaging(_ => { });
+    ///     builder.AddEvents(_ => { });
     /// });
     /// </code>
     /// </example>

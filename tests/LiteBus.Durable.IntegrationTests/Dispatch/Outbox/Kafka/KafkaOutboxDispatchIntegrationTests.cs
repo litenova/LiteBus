@@ -151,12 +151,12 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new KafkaTransportModule(_fixture.TransportOptions));
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(new KafkaTransportModule(_fixture.TransportOptions));
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(outbox =>
+                registry.AddOutbox(outbox =>
                 {
                     outbox.UseInMemoryStorage();
                     outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.order-submitted");

@@ -17,7 +17,7 @@ LiteBus is an in-process mediator with semantic modules for commands, queries, a
 
 ## Startup Model
 
-Applications call `AddLiteBus` and configure package extensions on `ILiteBusBuilder` from `LiteBus.Runtime.Abstractions`. The builder exposes only `Modules`; normal application code uses package-owned extensions such as `AddMessaging`, `AddCommands`, `AddInbox`, and `AddOutbox`. `IModuleRegistry` remains available for advanced composition. Each module contributes dependency descriptors, and the selected container adapter translates them into registrations.
+Applications call the single `AddLiteBus(Action<ILiteBusBuilder>)` entry point and configure package extensions on `ILiteBusBuilder` from `LiteBus.Runtime.Abstractions`. The builder exposes only `Modules`; normal application code uses package-owned extensions such as `AddMessaging`, `AddCommands`, `AddInbox`, and `AddOutbox`. Advanced composition uses `builder.Modules` rather than a second host-adapter overload. Each module contributes dependency descriptors, and the selected container adapter translates them into registrations.
 
 `IModuleRegistry.BuildOrder()` resolves modules in topological order and freezes further registration. `AddLiteBus` calls `BuildOrder()` after the configuration callback returns.
 

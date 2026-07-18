@@ -125,15 +125,15 @@ public sealed class AwsSqsInboxIngressEndToEndIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new AwsSqsTransportModule(_fixture.TransportOptions with
+                registry.Modules.Register(new AwsSqsTransportModule(_fixture.TransportOptions with
                 {
                     ConnectivityCheckQueueUrl = ingressQueueUrl
                 }));
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.Contracts.Register<ShipOrderCommand>(ContractName);
 

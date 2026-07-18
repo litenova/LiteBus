@@ -196,18 +196,18 @@ public sealed class ManagementEndpointTests
 
                     services.AddLiteBus(registry =>
                     {
-                        registry.AddMessageModule(_ =>
+                        registry.AddMessaging(_ =>
                         {
                         });
 
-                        registry.AddInboxModule(inbox =>
+                        registry.AddInbox(inbox =>
                         {
                             inbox.Contracts.Register<TestCommand>("tests.command");
                             inbox.UseInMemoryStorage();
                             configureInbox?.Invoke(inbox);
                         });
 
-                        registry.AddOutboxModule(outbox => outbox.UseInMemoryStorage());
+                        registry.AddOutbox(outbox => outbox.UseInMemoryStorage());
                     });
                 });
 

@@ -17,7 +17,7 @@ public sealed class InboxCompositeModuleTests
         var act = () =>
         {
             new ServiceCollection()
-                .AddLiteBus(registry => registry.Register(new InMemoryInboxStorageModule(_ =>
+                .AddLiteBus(registry => registry.Modules.Register(new InMemoryInboxStorageModule(_ =>
                 {
                 })))
                 .BuildServiceProvider();
@@ -36,11 +36,13 @@ public sealed class InboxCompositeModuleTests
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ =>
+                    registry.AddMessaging(_ =>
                     {
                     });
 
-                    registry.AddInboxModule();
+                    registry.AddInbox(_ =>
+                    {
+                    });
                 })
                 .BuildServiceProvider();
         };
@@ -56,17 +58,17 @@ public sealed class InboxCompositeModuleTests
         var services = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
                     builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
                     inbox.UseInMemoryStorage();
@@ -90,17 +92,17 @@ public sealed class InboxCompositeModuleTests
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
                     builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
                     inbox.UseInMemoryStorage();

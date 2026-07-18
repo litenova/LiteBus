@@ -99,12 +99,12 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
 
         services.AddLiteBus(registry =>
         {
-                registry.Register(new InMemoryTransportModule());
-            registry.AddMessageModule(_ =>
+                registry.Modules.Register(new InMemoryTransportModule());
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.Contracts.Register<ShipOrderCommand>(ContractName);
                 inbox.UseInMemoryStorage();

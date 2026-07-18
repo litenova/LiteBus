@@ -21,8 +21,8 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-            registry.AddCommandModule(builder => builder.Register<DeferredAmbientCommandHandler>());
+            registry.AddMessaging(_ => { });
+            registry.AddCommands(builder => builder.Register<DeferredAmbientCommandHandler>());
         }).BuildServiceProvider();
 
         var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
@@ -39,8 +39,8 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
         using var cts = new CancellationTokenSource();
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-            registry.AddCommandModule(builder => builder.Register<CancellationObservingCommandHandler>());
+            registry.AddMessaging(_ => { });
+            registry.AddCommands(builder => builder.Register<CancellationObservingCommandHandler>());
         }).BuildServiceProvider();
 
         var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
@@ -55,8 +55,8 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-            registry.AddCommandModule(builder =>
+            registry.AddMessaging(_ => { });
+            registry.AddCommands(builder =>
             {
                 builder.Register<FailingCommandHandler>();
                 builder.Register<ObservingCommandErrorHandler>();
@@ -76,8 +76,8 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-            registry.AddCommandModule(builder =>
+            registry.AddMessaging(_ => { });
+            registry.AddCommands(builder =>
             {
                 builder.Register<FailingCommandHandler>();
                 builder.Register<HandledOutcomeCommandErrorHandler>();
@@ -95,8 +95,8 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
         using var cts = new CancellationTokenSource();
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-            registry.AddCommandModule(builder =>
+            registry.AddMessaging(_ => { });
+            registry.AddCommands(builder =>
             {
                 builder.Register<FailingCommandHandler>();
                 builder.Register<TokenObservingCommandErrorHandler>();
@@ -119,8 +119,8 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-            registry.AddCommandModule(builder =>
+            registry.AddMessaging(_ => { });
+            registry.AddCommands(builder =>
             {
                 builder.Register<FailingResultCommandHandler>();
                 builder.Register<ObservingCommandErrorHandler>();
@@ -139,8 +139,8 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-            registry.AddCommandModule(builder =>
+            registry.AddMessaging(_ => { });
+            registry.AddCommands(builder =>
             {
                 builder.Register<FailingResultCommandHandler>();
                 builder.Register<TypedHandledResultCommandErrorHandler>();
@@ -159,8 +159,8 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-            registry.AddCommandModule(builder =>
+            registry.AddMessaging(_ => { });
+            registry.AddCommands(builder =>
             {
                 builder.Register<CancellingCommandHandler>();
                 builder.Register<RecordingCommandErrorHandler>();
@@ -182,8 +182,8 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ => { });
-            registry.AddQueryModule(builder =>
+            registry.AddMessaging(_ => { });
+            registry.AddQueries(builder =>
             {
                 builder.Register<PrimaryQueryHandler>();
                 builder.Register<SecondaryQueryHandler>();

@@ -76,10 +76,10 @@ public sealed class CommandMetricsPostHandler<TCommand> : ICommandPostHandler<TC
 `RegisterFromAssembly` discovers open generic handlers in the scanned assembly automatically, alongside concrete handlers:
 
 ```csharp
-builder.Services.AddLiteBus(registry =>
+builder.Services.AddLiteBus(builder =>
 {
-    registry.AddMessaging(_ => { });
-    registry.AddCommands(module =>
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(module =>
     {
         module.RegisterFromAssembly(typeof(Program).Assembly);
     });
@@ -89,10 +89,10 @@ builder.Services.AddLiteBus(registry =>
 If the open generic handler lives in a different assembly, such as a shared library, register it explicitly alongside assembly scanning:
 
 ```csharp
-builder.Services.AddLiteBus(registry =>
+builder.Services.AddLiteBus(builder =>
 {
-    registry.AddMessaging(_ => { });
-    registry.AddCommands(module =>
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(module =>
     {
         module.Register(typeof(CommandLoggingPreHandler<>));
         module.Register(typeof(CommandMetricsPostHandler<>));

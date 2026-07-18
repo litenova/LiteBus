@@ -54,12 +54,12 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(transportModule);
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(transportModule);
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UseInMemoryStorage();
                     configure(inbox);
@@ -87,12 +87,12 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(transportModule);
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(transportModule);
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(outbox =>
+                registry.AddOutbox(outbox =>
                 {
                     outbox.UseInMemoryStorage();
                     configure(outbox);
@@ -119,12 +119,12 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(transportModule);
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(transportModule);
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UseInMemoryStorage();
                     configure(inbox);
@@ -152,12 +152,12 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(transportModule);
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(transportModule);
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UseInMemoryStorage();
                     configure(inbox);
@@ -177,14 +177,14 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
         var act = () => new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new AwsSqsTransportModule(new AwsSqsTransportOptions
+                registry.Modules.Register(new AwsSqsTransportModule(new AwsSqsTransportOptions
                 {
                     ServiceUrl = "http://localhost:4566"
                 }));
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UseInMemoryStorage();
                     inbox.UseAwsSqsIngress(ingress =>
@@ -211,14 +211,14 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
         var act = () => new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new AzureServiceBusTransportModule(new AzureServiceBusTransportOptions
+                registry.Modules.Register(new AzureServiceBusTransportModule(new AzureServiceBusTransportOptions
                 {
                     ConnectionString = "Endpoint=sb://example/;SharedAccessKeyName=a;SharedAccessKey=b"
                 }));
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UseInMemoryStorage();
                     inbox.UseAzureServiceBusIngress(ingress =>
@@ -245,11 +245,11 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
         var act = () => new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new InMemoryTransportModule());
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(new InMemoryTransportModule());
+                registry.AddMessaging(_ =>
                 {
                 });
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UseInMemoryStorage();
                     inbox.UseInMemoryIngress(ingress =>
@@ -283,12 +283,12 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new InMemoryTransportModule());
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(new InMemoryTransportModule());
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UseInMemoryStorage();
                     inbox.UseInMemoryDispatch();
@@ -317,11 +317,11 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
         var act = () => new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UseInMemoryStorage();
                     inbox.UseInMemoryIngress(ingress =>
@@ -347,13 +347,13 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new InMemoryTransportModule());
+                registry.Modules.Register(new InMemoryTransportModule());
 
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UseInMemoryStorage();
                     inbox.UseInMemoryDispatch();
@@ -364,7 +364,7 @@ public sealed class BrokerDispatchIngressRegistrationTests : LiteBusTestBase
                     });
                 });
 
-                registry.AddOutboxModule(outbox =>
+                registry.AddOutbox(outbox =>
                 {
                     outbox.UseInMemoryStorage();
                     outbox.UseInMemoryDispatch();

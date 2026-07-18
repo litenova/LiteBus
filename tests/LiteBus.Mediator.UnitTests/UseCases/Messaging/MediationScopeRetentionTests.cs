@@ -24,7 +24,7 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
             .AddScoped<ScopedLifetimeMarker>()
             .AddScoped<DelayedScopedHandler>();
 
-        services.AddLiteBus(registry => registry.AddMessageModule(_ => { }));
+        services.AddLiteBus(registry => registry.AddMessaging(_ => { }));
 
         using var provider = services.BuildServiceProvider();
 
@@ -56,7 +56,7 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
             .AddScoped<ScopedLifetimeMarker>()
             .AddScoped<StreamingScopedHandler>();
 
-        services.AddLiteBus(registry => registry.AddMessageModule(_ => { }));
+        services.AddLiteBus(registry => registry.AddMessaging(_ => { }));
 
         using var provider = services.BuildServiceProvider();
 

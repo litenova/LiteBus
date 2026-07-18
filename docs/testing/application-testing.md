@@ -90,10 +90,10 @@ public class CommandIntegrationTests
         services.AddSingleton(new Mock<IEventMediator>().Object); // Mock for the post-handler
 
         // Configure LiteBus with all relevant handlers
-        services.AddLiteBus(registry =>
+        services.AddLiteBus(builder =>
         {
-            registry.AddMessaging(_ => { });
-            registry.AddCommands(module =>
+            builder.AddMessaging(_ => { });
+            builder.AddCommands(module =>
             {
                 module.Register<CreateProductCommandValidator>(); // Pre-handler
                 module.Register<CreateProductCommandHandler>();   // Main handler
@@ -174,10 +174,10 @@ public class OpenGenericHandlerIntegrationTests
         var services = new ServiceCollection();
         services.AddSingleton(executionLog);
 
-        services.AddLiteBus(registry =>
+        services.AddLiteBus(builder =>
         {
-            registry.AddMessaging(_ => { });
-            registry.AddCommands(module =>
+            builder.AddMessaging(_ => { });
+            builder.AddCommands(module =>
             {
                 // Register the open generic
                 module.Register(typeof(LoggingPreHandler<>));
@@ -232,10 +232,10 @@ public class AppWebApplicationFactory : WebApplicationFactory<Program>, IDisposa
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.AddDbContextPool<AppDbContext>(options => options.UseSqlite(_connection));
 
-            services.AddLiteBus(registry =>
+            services.AddLiteBus(builder =>
             {
-                registry.AddMessaging(_ => { });
-                registry.AddCommands(module => module.Register<SignUpUserCommandHandler>());
+                builder.AddMessaging(_ => { });
+                builder.AddCommands(module => module.Register<SignUpUserCommandHandler>());
             });
 
             EnsureDatabaseCreated(services);

@@ -16,51 +16,6 @@ namespace LiteBus.Extensions.Microsoft.DependencyInjection;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    ///     Adds LiteBus to the service collection with the specified module configuration.
-    /// </summary>
-    /// <param name="services">The service collection to add LiteBus to.</param>
-    /// <param name="configureRegistry">Action to configure LiteBus through <see cref="IModuleRegistry" />.</param>
-    /// <returns>The service collection for method chaining.</returns>
-    /// <exception cref="ArgumentNullException">
-    ///     Thrown when <paramref name="services" /> or <paramref name="configureRegistry" /> is <see langword="null" />.
-    /// </exception>
-    /// <example>
-    ///     <code>
-    /// services.AddLiteBus(registry =>
-    /// {
-    ///     registry.AddMessageModule(messaging => messaging.RegisterFromAssembly(assembly));
-    ///     registry.AddCommandModule(commands => commands.RegisterFromAssembly(assembly));
-    /// });
-    /// </code>
-    /// </example>
-    public static IServiceCollection AddLiteBus(
-        this IServiceCollection services,
-        Action<IModuleRegistry> configureRegistry)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configureRegistry);
-
-        var dependencyRegistryAdapter = new MicrosoftDependencyRegistryAdapter(services);
-        RegisterDispatchScopeFactory(dependencyRegistryAdapter);
-        var moduleRegistry = new ModuleRegistry();
-
-        configureRegistry(moduleRegistry);
-
-        var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
-
-        foreach (var moduleDescriptor in moduleRegistry.BuildOrder())
-        {
-            moduleDescriptor.Module.Build(moduleConfiguration);
-        }
-
-        RegisterHostManifest(services, moduleConfiguration);
-        services.RegisterDiagnosticChecks(moduleConfiguration.DiagnosticChecks);
-        services.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
-
-        return services;
-    }
-
-    /// <summary>
     ///     Adds LiteBus to the service collection through the package-neutral composition builder.
     /// </summary>
     /// <param name="services">The service collection to add LiteBus to.</param>

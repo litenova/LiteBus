@@ -228,15 +228,15 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
             .AddLiteBus(registry =>
             {
                 var connection = new AmqpConnectionOptions { HostName = "localhost" };
-                registry.Register(new AmqpTransportModule(connection));
+                registry.Modules.Register(new AmqpTransportModule(connection));
 
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(module => module.Register<ShipOrderCommandHandler>());
+                registry.AddCommands(module => module.Register<ShipOrderCommandHandler>());
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship");
                     inbox.UseInMemoryStorage();

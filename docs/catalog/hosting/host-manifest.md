@@ -78,7 +78,7 @@ Manifest itself emits no telemetry. It is the source of truth for:
 - **Expected outcome**: `LiteBusHostManifest` is registered
 - **Remarks**: `tests/LiteBus.Extensions.UnitTests/Autofac/AutofacHostManifestTests.cs`
 
-#### `AutofacIntegrationTests.AddLiteBus_WithModuleRegistryOverload_ShouldRegisterLiteBusHostManifest`
+#### `AutofacIntegrationTests.AddLiteBus_WithBuilder_ShouldRegisterLiteBusHostManifest`
 
 - **Use case**: manifest contains diagnostic check in Autofac integration path
 - **Test kind**: Unit

@@ -98,12 +98,12 @@ public sealed class AwsSqsIngressIdempotencyIntegrationTests : LiteBusTestBase
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new AwsSqsTransportModule(_fixture.TransportOptions));
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AwsSqsTransportModule(_fixture.TransportOptions));
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.Contracts.Register<ShipOrderCommand>(ContractName);
                     inbox.UseInMemoryStorage();

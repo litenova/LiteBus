@@ -133,12 +133,12 @@ public sealed class AwsSqsIngressRequeueBehaviorIntegrationTests : LiteBusTestBa
 
         services.AddLiteBus(registry =>
         {
-                registry.Register(new AwsSqsTransportModule(CreateTestTransportOptions()));
-            registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AwsSqsTransportModule(CreateTestTransportOptions()));
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.Contracts.Register<ShipOrderCommand>(ContractName);
                 inbox.UseInMemoryStorage();

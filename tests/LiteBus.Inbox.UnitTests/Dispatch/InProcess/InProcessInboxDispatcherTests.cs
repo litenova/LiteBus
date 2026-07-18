@@ -30,13 +30,13 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder => builder.Register<ProcessOrderCommandHandler>());
+                registry.AddCommands(builder => builder.Register<ProcessOrderCommandHandler>());
 
-                registry.AddInboxModule(builder =>
+                registry.AddInbox(builder =>
                 {
                     builder.Contracts.Register<ProcessOrderCommand>("orders.commands.process");
                     builder.UseInMemoryStorage();
@@ -115,16 +115,16 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
             .AddSingleton(traceCapture)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.Register<InboxProbeCommandHandler>();
                 });
 
-                registry.AddInboxModule(builder =>
+                registry.AddInbox(builder =>
                 {
                     builder.Contracts.Register<InboxProbeCommand>("inbox.commands.probe");
                     builder.UseInMemoryStorage();
@@ -181,15 +181,15 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(_ =>
+                registry.AddCommands(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UseInMemoryStorage();
                     inbox.UseInProcessDispatch();
@@ -206,17 +206,17 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         var act = () => new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(_ =>
+                registry.AddCommands(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox => inbox.UseInMemoryStorage());
-                registry.Register(new PreRegisteredInboxDispatcherModule());
-                registry.Register(new CommandInboxDispatchModule());
+                registry.AddInbox(inbox => inbox.UseInMemoryStorage());
+                registry.Modules.Register(new PreRegisteredInboxDispatcherModule());
+                registry.Modules.Register(new CommandInboxDispatchModule());
             })
             .BuildServiceProvider();
 
@@ -230,15 +230,15 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         var act = () => new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(_ =>
+                registry.AddCommands(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UseInMemoryStorage();
                     inbox.UseInProcessDispatch();

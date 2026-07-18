@@ -56,10 +56,10 @@ When registering a generic handler with the dependency injection container, you 
 
 ```csharp
 // In Program.cs
-builder.Services.AddLiteBus(registry =>
+builder.Services.AddLiteBus(builder =>
 {
-    registry.AddMessaging(_ => { });
-    registry.AddCommands(module =>
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(module =>
     {
         // Register the open generic type.
         module.Register(typeof(CreateEntityCommandHandler<,>));
@@ -115,17 +115,17 @@ Generic commands and events can be used with the durable inbox and outbox, but t
 public sealed record ArchiveCommand<TPayload>(TPayload Payload) : ICommand;
 public sealed record ExportCompletedEvent<TPayload>(Guid ExportId);
 
-builder.Services.AddLiteBus(registry =>
+builder.Services.AddLiteBus(builder =>
 {
-    registry.AddMessaging(_ => { });
-    registry.AddInbox(inbox =>
+    builder.AddMessaging(_ => { });
+    builder.AddInbox(inbox =>
     {
         inbox.Contracts.Register<ArchiveCommand<CustomerSnapshot>>(
             "archive.commands.customer-snapshot",
             version: 1);
     });
 
-    registry.AddOutbox(outbox =>
+    builder.AddOutbox(outbox =>
     {
         outbox.Contracts.Register<ExportCompletedEvent<CustomerExport>>(
             "exports.events.customer-export-completed",

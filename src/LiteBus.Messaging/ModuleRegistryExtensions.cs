@@ -40,14 +40,14 @@ public static class ModuleRegistryExtensions
     /// </remarks>
     /// <example>
     ///     <code>
-    /// services.AddLiteBus(registry =>
+    /// services.AddLiteBus(builder =>
     /// {
-    ///     registry.AddMessageModule(msg => 
+    ///     builder.AddMessaging(msg =>
     ///     {
     ///         msg.RegisterFromAssembly(typeof(MyHandler).Assembly);
     ///     });
-    ///     registry.AddCommandModule(cmd => { /* ... */ });
-    ///     registry.AddEventModule(evt => { /* ... */ });
+    ///     builder.AddCommands(cmd => { /* ... */ });
+    ///     builder.AddEvents(evt => { /* ... */ });
     /// });
     /// </code>
     /// </example>

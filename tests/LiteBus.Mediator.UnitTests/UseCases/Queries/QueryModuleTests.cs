@@ -25,11 +25,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
         // Arrange
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddQueryModule(builder =>
+            registry.AddQueries(builder =>
             {
                 builder.RegisterFromQueriesTestAssembly();
             });
@@ -59,11 +59,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
         // Arrange
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddQueryModule(builder =>
+            registry.AddQueries(builder =>
             {
                 builder.RegisterFromQueriesTestAssembly();
             });
@@ -93,11 +93,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
         // Arrange
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddQueryModule(builder =>
+            registry.AddQueries(builder =>
             {
                 builder.RegisterFromQueriesTestAssembly();
                 builder.Register<StreamProductsQuery>();
@@ -128,11 +128,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddQueryModule(builder =>
+            registry.AddQueries(builder =>
             {
                 builder.RegisterFromQueriesTestAssembly();
             });
@@ -158,11 +158,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddQueryModule(builder =>
+            registry.AddQueries(builder =>
             {
                 builder.RegisterFromQueriesTestAssembly();
             });
@@ -191,11 +191,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddQueryModule(builder =>
+            registry.AddQueries(builder =>
             {
                 builder.RegisterFromQueriesTestAssembly();
             });
@@ -224,11 +224,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddQueryModule(builder =>
+            registry.AddQueries(builder =>
             {
                 builder.RegisterFromQueriesTestAssembly();
             });
@@ -251,11 +251,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
         // Arrange
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddQueryModule(builder =>
+            registry.AddQueries(builder =>
             {
                 builder.RegisterFromQueriesTestAssembly();
             });
@@ -280,11 +280,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
         // Arrange
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddQueryModule(builder =>
+            registry.AddQueries(builder =>
             {
                 builder.Register<StreamProductsQueryHandler>();
                 builder.Register<StreamProductsQueryHandlerPostHandler1>();
@@ -308,11 +308,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddQueryModule(builder =>
+            registry.AddQueries(builder =>
             {
                 builder.Register<IndirectStreamProductsQuery>();
                 builder.Register<IndirectStreamProductsQueryHandler>();
@@ -335,11 +335,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddQueryModule(builder =>
+            registry.AddQueries(builder =>
             {
                 builder.Register<EmptyStreamQuery>();
             });
@@ -359,11 +359,11 @@ public sealed class QueryModuleTests : LiteBusTestBase
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddQueryModule(builder =>
+            registry.AddQueries(builder =>
             {
                 builder.RegisterFromQueriesTestAssembly();
                 builder.Register<StreamErrorHandlingQuery>();

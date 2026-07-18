@@ -234,11 +234,11 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(builder =>
+            registry.AddCommands(builder =>
             {
                 if (registerShipHandler)
                 {
@@ -253,7 +253,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
                 }
             });
 
-            registry.AddInboxModule(builder =>
+            registry.AddInbox(builder =>
             {
                 builder.UsePostgreSqlStorage(postgres =>
                 {

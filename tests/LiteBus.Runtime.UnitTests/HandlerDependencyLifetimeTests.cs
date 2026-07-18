@@ -15,8 +15,8 @@ public sealed class HandlerDependencyLifetimeTests
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(message => message.Register<ScopedLifetimeProbeHandler>());
-            registry.AddCommandModule(command => command.Register<ScopedLifetimeProbeCommand>());
+            registry.AddMessaging(message => message.Register<ScopedLifetimeProbeHandler>());
+            registry.AddCommands(command => command.Register<ScopedLifetimeProbeCommand>());
         });
 
         var handlerDescriptor = services.Single(descriptor =>

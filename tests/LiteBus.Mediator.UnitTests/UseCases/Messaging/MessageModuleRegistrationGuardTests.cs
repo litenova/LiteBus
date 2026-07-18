@@ -20,10 +20,10 @@ public sealed class MessageModuleRegistrationGuardTests
         {
             _ = new ServiceCollection().AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
             });

@@ -16,57 +16,6 @@ namespace LiteBus.Extensions.Autofac;
 public static class ContainerBuilderExtensions
 {
     /// <summary>
-    ///     Adds LiteBus to the Autofac container builder with the specified module configuration.
-    /// </summary>
-    /// <param name="builder">The Autofac container builder to add LiteBus to.</param>
-    /// <param name="configureRegistry">Action to configure LiteBus through <see cref="IModuleRegistry" />.</param>
-    /// <returns>The container builder for method chaining.</returns>
-    /// <exception cref="ArgumentNullException">
-    ///     Thrown when <paramref name="builder" /> or
-    ///     <paramref name="configureRegistry" /> is <see langword="null" />.
-    /// </exception>
-    /// <example>
-    ///     <code>
-    /// var builder = new ContainerBuilder();
-    /// 
-    /// builder.AddLiteBus(registry =>
-    /// {
-    ///     registry.AddMessageModule(messaging => messaging.RegisterFromAssembly(assembly));
-    ///     registry.AddCommandModule(commands => commands.RegisterFromAssembly(assembly));
-    /// });
-    /// 
-    /// var container = builder.Build();
-    /// </code>
-    /// </example>
-    public static ContainerBuilder AddLiteBus(this ContainerBuilder builder,
-                                              Action<IModuleRegistry> configureRegistry)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(configureRegistry);
-
-        RegisterServiceProviderAdapter(builder);
-
-        var dependencyRegistryAdapter = new AutofacDependencyRegistryAdapter(builder);
-        RegisterDispatchScopeFactory(dependencyRegistryAdapter);
-        var moduleRegistry = new ModuleRegistry();
-
-        configureRegistry(moduleRegistry);
-
-        var moduleConfiguration = new ModuleConfiguration(dependencyRegistryAdapter);
-
-        foreach (var moduleDescriptor in moduleRegistry.BuildOrder())
-        {
-            moduleDescriptor.Module.Build(moduleConfiguration);
-        }
-
-        RegisterHostManifest(builder, moduleConfiguration);
-        builder.RegisterDiagnosticChecks(moduleConfiguration.DiagnosticChecks);
-        builder.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
-
-        return builder;
-    }
-
-    /// <summary>
     ///     Adds LiteBus to the Autofac container builder through the package-neutral composition builder.
     /// </summary>
     /// <param name="builder">The Autofac container builder to add LiteBus to.</param>

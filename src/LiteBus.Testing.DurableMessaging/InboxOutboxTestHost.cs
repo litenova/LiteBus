@@ -39,12 +39,12 @@ public sealed class InboxOutboxTestHost : IAsyncDisposable
     /// <summary>
     ///     Creates a host with in-memory inbox and outbox storage and optional module configuration.
     /// </summary>
-    /// <param name="configureRegistry">An optional LiteBus module registry configuration callback.</param>
+    /// <param name="configure">An optional LiteBus builder configuration callback.</param>
     /// <param name="configureServices">An optional service collection callback.</param>
     /// <param name="timeProvider">An optional clock used by inbox and outbox writers.</param>
     /// <returns>A disposable test host.</returns>
     public static InboxOutboxTestHost Create(
-        Action<IModuleRegistry>? configureRegistry = null,
+        Action<ILiteBusBuilder>? configure = null,
         Action<IServiceCollection>? configureServices = null,
         TimeProvider? timeProvider = null)
     {
@@ -55,15 +55,15 @@ public sealed class InboxOutboxTestHost : IAsyncDisposable
             services.AddSingleton(timeProvider);
         }
 
-        services.AddLiteBus(registry =>
+        services.AddLiteBus(builder =>
         {
-            registry.AddMessageModule(_ =>
+            builder.AddMessaging(_ =>
             {
             });
 
-            registry.AddInboxModule(inbox => inbox.UseInMemoryStorage());
-            registry.AddOutboxModule(outbox => outbox.UseInMemoryStorage());
-            configureRegistry?.Invoke(registry);
+            builder.AddInbox(inbox => inbox.UseInMemoryStorage());
+            builder.AddOutbox(outbox => outbox.UseInMemoryStorage());
+            configure?.Invoke(builder);
         });
 
         configureServices?.Invoke(services);

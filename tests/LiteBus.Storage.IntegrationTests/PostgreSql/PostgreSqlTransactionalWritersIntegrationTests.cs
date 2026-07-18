@@ -127,11 +127,11 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddOutboxModule(outbox =>
+            registry.AddOutbox(outbox =>
             {
                 outbox.Contracts.Register<TestIntegrationEvent>("orders.events.submitted");
 

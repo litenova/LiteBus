@@ -17,11 +17,11 @@ public sealed class CommandModuleBuilderTests : LiteBusTestBase
         {
             new ServiceCollection().AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(module => module.RegisterFromAssembly(null!));
+                registry.AddCommands(module => module.RegisterFromAssembly(null!));
             });
         };
 
@@ -34,11 +34,11 @@ public sealed class CommandModuleBuilderTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(module => module.RegisterFromAssembly(typeof(ICommand).Assembly));
+                registry.AddCommands(module => module.RegisterFromAssembly(typeof(ICommand).Assembly));
             })
             .BuildServiceProvider();
 

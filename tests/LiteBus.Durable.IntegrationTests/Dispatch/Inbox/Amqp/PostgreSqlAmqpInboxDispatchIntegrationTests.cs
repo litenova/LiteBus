@@ -104,12 +104,12 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new AmqpTransportModule(_rabbitMqFixture.ConnectionOptions));
-                registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AmqpTransportModule(_rabbitMqFixture.ConnectionOptions));
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.UsePostgreSqlStorage(postgres =>
                     {

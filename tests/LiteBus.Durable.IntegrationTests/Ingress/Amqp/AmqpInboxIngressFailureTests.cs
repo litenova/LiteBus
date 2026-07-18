@@ -150,18 +150,18 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
-                registry.Register(new AmqpTransportModule(connectionOptions));
-            registry.AddMessageModule(_ =>
+                registry.Modules.Register(new AmqpTransportModule(connectionOptions));
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(module =>
+            registry.AddCommands(module =>
             {
                 module.Register<ShipOrderCommand>();
                 module.Register<ShipOrderCommandHandler>();
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship");
 

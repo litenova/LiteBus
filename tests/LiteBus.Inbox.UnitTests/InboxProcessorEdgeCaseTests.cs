@@ -455,7 +455,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(message =>
+            registry.AddMessaging(message =>
             {
                 if (clock is not null)
                 {
@@ -463,7 +463,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
                 }
             });
 
-            registry.AddCommandModule(builder =>
+            registry.AddCommands(builder =>
             {
                 if (registerFaultyHandler)
                 {
@@ -477,7 +477,7 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
                 }
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 if (configureInbox is not null)
                 {

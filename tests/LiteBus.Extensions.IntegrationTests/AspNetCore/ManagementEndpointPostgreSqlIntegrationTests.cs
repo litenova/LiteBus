@@ -195,11 +195,11 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
 
                     services.AddLiteBus(registry =>
                     {
-                        registry.AddMessageModule(_ =>
+                        registry.AddMessaging(_ =>
                         {
                         });
 
-                        registry.AddInboxModule(inbox =>
+                        registry.AddInbox(inbox =>
                         {
                             inbox.UsePostgreSqlStorage(postgres =>
                             {
@@ -211,7 +211,7 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
                             configureInbox?.Invoke(inbox);
                         });
 
-                        registry.AddOutboxModule(outbox =>
+                        registry.AddOutbox(outbox =>
                         {
                             outbox.UsePostgreSqlStorage(postgres =>
                             {

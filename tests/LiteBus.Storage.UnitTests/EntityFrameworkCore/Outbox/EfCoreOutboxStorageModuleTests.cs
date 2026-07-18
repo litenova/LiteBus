@@ -19,11 +19,11 @@ public sealed class EfCoreOutboxStorageModuleTests
             .AddDbContextFactory<ModuleTestOutboxDbContext>(options => options.UseInMemoryDatabase(databaseName))
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddOutboxModule(outbox => outbox.UseEntityFrameworkCoreStorage(builder =>
+                registry.AddOutbox(outbox => outbox.UseEntityFrameworkCoreStorage(builder =>
                     builder.UseDbContext<ModuleTestOutboxDbContext>()));
             })
             .BuildServiceProvider();
@@ -45,11 +45,11 @@ public sealed class EfCoreOutboxStorageModuleTests
                 .AddDbContextFactory<ModuleTestOutboxDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString("N")))
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ =>
+                    registry.AddMessaging(_ =>
                     {
                     });
 
-                    registry.AddOutboxModule(outbox => outbox.UseEntityFrameworkCoreStorage(builder =>
+                    registry.AddOutbox(outbox => outbox.UseEntityFrameworkCoreStorage(builder =>
                         builder
                             .UseDbContext<ModuleTestOutboxDbContext>()
                             .EnforceTransactionalSetup()));

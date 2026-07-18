@@ -20,11 +20,11 @@ public sealed class PredicateFilteringTests : LiteBusTestBase
         // ARRANGE
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddEventModule(builder =>
+            registry.AddEvents(builder =>
             {
                 builder.Register<FilterableEventHandler>();
                 builder.Register<AnotherFilterableEventHandler>();
@@ -60,11 +60,11 @@ public sealed class PredicateFilteringTests : LiteBusTestBase
         // ARRANGE
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddEventModule(builder =>
+            registry.AddEvents(builder =>
             {
                 builder.Register<FilterableEventHandler>();
                 builder.Register<AnotherFilterableEventHandler>();

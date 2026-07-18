@@ -26,16 +26,16 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddEventModule(builder =>
+                registry.AddEvents(builder =>
                 {
                     builder.Register<OrderSubmittedEventHandler>();
                 });
 
-                registry.AddOutboxModule(builder =>
+                registry.AddOutbox(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted");
 
@@ -80,13 +80,13 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddEventModule(builder => builder.Register<PocoEventHandler>());
+                registry.AddEvents(builder => builder.Register<PocoEventHandler>());
 
-                registry.AddOutboxModule(builder =>
+                registry.AddOutbox(builder =>
                 {
                     builder.Contracts.Register<PocoIntegrationEvent>("poco.events.sample");
 
@@ -124,13 +124,13 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
             .AddSingleton(capture)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddEventModule(builder => builder.Register<TraceMetadataEventHandler>());
+                registry.AddEvents(builder => builder.Register<TraceMetadataEventHandler>());
 
-                registry.AddOutboxModule(builder =>
+                registry.AddOutbox(builder =>
                 {
                     builder.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted");
 
@@ -176,13 +176,15 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddEventModule();
+                registry.AddEvents(_ =>
+                {
+                });
 
-                registry.AddOutboxModule(outbox =>
+                registry.AddOutbox(outbox =>
                 {
                     outbox.UseInMemoryStorage();
                     outbox.UseInProcessDispatch();
@@ -199,14 +201,16 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
         var act = () => new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddEventModule();
-                registry.AddOutboxModule(outbox => outbox.UseInMemoryStorage());
-                registry.Register(new PreRegisteredOutboxDispatcherModule());
-                registry.Register(new EventOutboxDispatchModule());
+                registry.AddEvents(_ =>
+                {
+                });
+                registry.AddOutbox(outbox => outbox.UseInMemoryStorage());
+                registry.Modules.Register(new PreRegisteredOutboxDispatcherModule());
+                registry.Modules.Register(new EventOutboxDispatchModule());
             })
             .BuildServiceProvider();
 
@@ -222,13 +226,15 @@ public sealed class InProcessOutboxDispatcherTests : LiteBusTestBase
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                    registry.AddMessageModule(_ =>
+                    registry.AddMessaging(_ =>
                     {
                     });
 
-                    registry.AddEventModule();
+                    registry.AddEvents(_ =>
+                    {
+                    });
 
-                    registry.AddOutboxModule(outbox =>
+                    registry.AddOutbox(outbox =>
                     {
                         outbox.UseInMemoryStorage();
                         outbox.UseInProcessDispatch();

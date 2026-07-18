@@ -9,7 +9,7 @@
 
 ## What It Does
 
-`ContainerBuilder.AddLiteBus(...)` is the Autofac composition entry point. Like the Microsoft DI adapter, it supports an advanced `Action<IModuleRegistry>` overload and a normal `Action<ILiteBusBuilder>` overload. It builds module order, executes module `Build(...)`, publishes `LiteBusHostManifest`, and wires diagnostic/background hosting bridges for Autofac.
+`ContainerBuilder.AddLiteBus(...)` is the Autofac composition entry point. Its `Action<ILiteBusBuilder>` callback builds module order, executes module `Build(...)`, publishes `LiteBusHostManifest`, and wires diagnostic/background hosting bridges for Autofac. Advanced callers register custom modules through `builder.Modules` inside the same callback.
 
 The adapter also registers an `IServiceProvider` wrapper so factory registrations can resolve dependencies during composition.
 
@@ -17,7 +17,6 @@ The adapter also registers an `IServiceProvider` wrapper so factory registration
 
 ### Invocation
 
-- `ContainerBuilder AddLiteBus(Action<IModuleRegistry> configureRegistry)`
 - `ContainerBuilder AddLiteBus(Action<ILiteBusBuilder> configure)`
 
 ### Registration
@@ -30,8 +29,7 @@ The adapter also registers an `IServiceProvider` wrapper so factory registration
 
 ### Configuration
 
-- `Action<IModuleRegistry>` for advanced module setup.
-- `Action<ILiteBusBuilder>` for package-owned `Add*` feature extensions.
+- `Action<ILiteBusBuilder>` for package-owned `Add*` feature extensions and advanced `builder.Modules` access.
 
 ## Packages
 
@@ -73,7 +71,7 @@ No direct telemetry is emitted by this composition API. Probe and metrics behavi
 - **Expected outcome**: all handlers execute in expected order
 - **Remarks**: `tests/LiteBus.Extensions.UnitTests/Autofac/AutofacIntegrationTests.cs`
 
-#### `AutofacIntegrationTests.AddLiteBus_WithModuleRegistryOverload_ShouldRegisterLiteBusHostManifest`
+#### `AutofacIntegrationTests.AddLiteBus_WithBuilder_ShouldRegisterLiteBusHostManifest`
 
 - **Use case**: Autofac AddLiteBus publishes host manifest including diagnostic checks
 - **Test kind**: Unit

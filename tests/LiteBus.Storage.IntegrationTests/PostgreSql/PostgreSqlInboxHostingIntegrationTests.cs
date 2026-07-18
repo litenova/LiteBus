@@ -255,17 +255,17 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(_ =>
+            registry.AddMessaging(_ =>
             {
             });
 
-            registry.AddCommandModule(builder =>
+            registry.AddCommands(builder =>
             {
                 builder.Register<ShipOrderCommand>();
                 builder.Register<ShipOrderCommandHandler>();
             });
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UsePostgreSqlStorage(postgres =>
                 {
@@ -304,9 +304,9 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessageModule(message => message.UseTimeProvider(clock));
+            registry.AddMessaging(message => message.UseTimeProvider(clock));
 
-            registry.AddInboxModule(inbox =>
+            registry.AddInbox(inbox =>
             {
                 inbox.UsePostgreSqlStorage(postgres =>
                 {

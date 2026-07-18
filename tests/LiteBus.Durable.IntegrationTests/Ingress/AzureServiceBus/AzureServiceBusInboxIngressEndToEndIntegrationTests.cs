@@ -120,15 +120,15 @@ public sealed class AzureServiceBusInboxIngressEndToEndIntegrationTests : LiteBu
         return new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.Register(new AzureServiceBusTransportModule(_fixture.TransportOptions with
+                registry.Modules.Register(new AzureServiceBusTransportModule(_fixture.TransportOptions with
                 {
                     ConnectivityCheckTarget = new AzureServiceBusQueueDiagnosticTarget(ingressQueue)
                 }));
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddInboxModule(inbox =>
+                registry.AddInbox(inbox =>
                 {
                     inbox.Contracts.Register<ShipOrderCommand>(ContractName);
 

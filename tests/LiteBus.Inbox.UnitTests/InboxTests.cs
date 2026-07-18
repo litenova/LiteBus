@@ -69,17 +69,17 @@ public sealed class InboxTests : LiteBusTestBase
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
                     builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                 });
 
-                registry.AddInboxModule(builder =>
+                registry.AddInbox(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
 
@@ -129,17 +129,17 @@ public sealed class InboxTests : LiteBusTestBase
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.Register<InboxTestFixtures.ArchiveCommand<string>>();
                     builder.Register<InboxTestFixtures.ArchiveStringCommandHandler>();
                 });
 
-                registry.AddInboxModule(builder =>
+                registry.AddInbox(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.ArchiveCommand<string>>("archive.commands.string");
 
@@ -243,17 +243,17 @@ public sealed class InboxTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.Register<InboxTestFixtures.FaultyCommand>();
                     builder.Register<InboxTestFixtures.FaultyCommandHandler>();
                 });
 
-                registry.AddInboxModule(builder =>
+                registry.AddInbox(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.FaultyCommand>("orders.commands.faulty");
 
@@ -296,17 +296,17 @@ public sealed class InboxTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.Register<InboxTestFixtures.FaultyCommand>();
                     builder.Register<InboxTestFixtures.FaultyCommandHandler>();
                 });
 
-                registry.AddInboxModule(builder =>
+                registry.AddInbox(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.FaultyCommand>("orders.commands.faulty");
 
@@ -353,17 +353,17 @@ public sealed class InboxTests : LiteBusTestBase
             .AddSingleton(capture)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.Register<InboxTestFixtures.InboxCheckCommand>();
                     builder.Register<InboxTestFixtures.InboxCheckCommandHandler>();
                 });
 
-                registry.AddInboxModule(builder =>
+                registry.AddInbox(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.InboxCheckCommand>("test.commands.inbox-check");
 
@@ -398,17 +398,17 @@ public sealed class InboxTests : LiteBusTestBase
             .AddSingleton(capture)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.Register<InboxTestFixtures.InboxCheckCommand>();
                     builder.Register<InboxTestFixtures.TraceMetadataCommandHandler>();
                 });
 
-                registry.AddInboxModule(builder =>
+                registry.AddInbox(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.InboxCheckCommand>("test.commands.inbox-check");
 
@@ -449,17 +449,17 @@ public sealed class InboxTests : LiteBusTestBase
         var serviceProvider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(_ =>
+                registry.AddMessaging(_ =>
                 {
                 });
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.Register<InboxTestFixtures.FaultyCommand>();
                     builder.Register<InboxTestFixtures.FaultyCommandHandler>();
                 });
 
-                registry.AddInboxModule(builder =>
+                registry.AddInbox(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.FaultyCommand>("orders.commands.faulty");
 
@@ -504,15 +504,15 @@ public sealed class InboxTests : LiteBusTestBase
             .AddSingleton(recorder)
             .AddLiteBus(registry =>
             {
-                registry.AddMessageModule(message => message.UseTimeProvider(clock));
+                registry.AddMessaging(message => message.UseTimeProvider(clock));
 
-                registry.AddCommandModule(builder =>
+                registry.AddCommands(builder =>
                 {
                     builder.Register<InboxTestFixtures.ShipOrderCommand>();
                     builder.Register<InboxTestFixtures.ShipOrderCommandHandler>();
                 });
 
-                registry.AddInboxModule(builder =>
+                registry.AddInbox(builder =>
                 {
                     builder.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
 
