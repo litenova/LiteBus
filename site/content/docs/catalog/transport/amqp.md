@@ -11,6 +11,10 @@
 
 AMQP registration includes a transport connectivity diagnostic check and shared transport circuit-breaker metrics tagged with broker value `amqp`.
 
+RabbitMQ's default exchange has an empty name and routes directly to the queue named by the routing key. LiteBus scopes
+its publisher circuit by named exchange, or by routing key for the default exchange, so one unavailable default-exchange
+queue does not reject publications to another queue.
+
 ## Public Surface
 
 ### Registration and Runtime Types
@@ -71,6 +75,7 @@ AMQP registration includes a transport connectivity diagnostic check and shared 
 - AMQP is exclusive per process; adding a second broker module fails standard duplicate-service composition validation.
 - `TransportMessage` ack delegates map directly to `basic.ack` and `basic.nack`.
 - Circuit breaker and metrics register once per module configuration using broker tag `amqp`.
+- Publisher circuits use the named exchange as their scope. The empty-name default exchange uses its queue routing key.
 
 ## Non-Goals
 

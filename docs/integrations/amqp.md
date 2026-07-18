@@ -59,6 +59,10 @@ builder.AddInbox(inbox =>
 
 `AddAmqpTransport` owns the broker connection at the root. Dispatch and ingress require that module and share its publisher and consumer.
 
+Set the destination to `string.Empty` to publish through RabbitMQ's default exchange and set the route to the target
+queue name. LiteBus uses that queue route as the publisher circuit scope. Named exchanges use the exchange name, so a
+failure on one exchange does not open another exchange's circuit.
+
 ## Wire Headers
 
 Dispatch copies durable envelope metadata through `TransportEnvelopeHeaderMapper` using canonical names from `TransportHeaders` (`litebus-message-id`, `litebus-contract-name`, `correlation-id`, `litebus-idempotency-key`, `litebus-visible-after`, and related fields). Ingress maps those headers back into `InboxAcceptItem` metadata.

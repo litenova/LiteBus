@@ -14,7 +14,7 @@ namespace LiteBus.Transport.Amqp;
 public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncDisposable
 {
     /// <summary>
-    ///     Gets the registry that scopes publish resilience by exchange.
+    ///     Gets the registry that scopes publish resilience by exchange or default-exchange route.
     /// </summary>
     private readonly ITransportCircuitBreakerRegistry _circuitBreakerRegistry;
 
@@ -42,7 +42,9 @@ public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncD
     ///     Initializes a new instance of the <see cref="AmqpPublisher" /> class.
     /// </summary>
     /// <param name="connectionManager">The connection manager used to open publish channels.</param>
-    /// <param name="circuitBreakerRegistry">The registry that scopes publish resilience by exchange.</param>
+    /// <param name="circuitBreakerRegistry">
+    ///     The registry that scopes publish resilience by exchange or default-exchange route.
+    /// </param>
     public AmqpPublisher(
         IAmqpConnectionManager connectionManager,
         ITransportCircuitBreakerRegistry circuitBreakerRegistry)
@@ -62,7 +64,10 @@ public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncD
     public async Task PublishAsync(AmqpPublishRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Exchange);
+        ArgumentNullException.ThrowIfNull(request.RoutingKey);
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
+        cancellationToken.ThrowIfCancellationRequested();
 
         using var activity = TransportTracing.StartPublishActivity(new TransportActivityMetadata
         {
@@ -73,7 +78,7 @@ public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncD
             CorrelationId = request.CorrelationId
         });
 
-        var circuitBreaker = _circuitBreakerRegistry.GetPublisherCircuit(request.Exchange);
+        var circuitBreaker = _circuitBreakerRegistry.GetPublisherCircuit(GetCircuitDestination(request));
         TransportCircuitBreakerPermit permit;
 
         try
@@ -232,6 +237,22 @@ public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncD
         };
 
         return properties;
+    }
+
+    /// <summary>
+    ///     Gets the non-empty publisher circuit scope for an AMQP publication.
+    /// </summary>
+    /// <param name="request">The publication request containing the exchange and routing key.</param>
+    /// <returns>The exchange scope, or the routing-key scope when publishing through the default exchange.</returns>
+    /// <remarks>
+    ///     AMQP reserves the empty exchange name for the default exchange. Its routing key identifies the destination
+    ///     queue, so default-exchange publications must not share one unnamed circuit or fail destination validation.
+    /// </remarks>
+    private static string GetCircuitDestination(AmqpPublishRequest request)
+    {
+        return request.Exchange.Length == 0
+            ? string.Concat("amqp:default:", request.RoutingKey)
+            : string.Concat("amqp:exchange:", request.Exchange);
     }
 
     /// <summary>

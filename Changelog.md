@@ -91,6 +91,8 @@ All notable changes to this project will be documented in this file.
   configured per-destination capacity, cancellation removes waiting publishers, and requeue retains its reservation.
 - Kafka readiness no longer runs a synchronous metadata call inside the diagnostic runner. Provider probes preserve
   caller cancellation, redact SDK error text, and isolate broker failures as unhealthy results.
+- AMQP publishers now accept RabbitMQ's empty-name default exchange and scope its circuit by routing key. An already
+  canceled publish stops before circuit lookup or broker access.
 
 ### Breaking changes
 

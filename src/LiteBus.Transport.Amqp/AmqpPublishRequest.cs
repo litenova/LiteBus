@@ -9,7 +9,7 @@ namespace LiteBus.Transport.Amqp;
 public sealed class AmqpPublishRequest
 {
     /// <summary>
-    ///     Gets the target exchange name.
+    ///     Gets the target exchange name, or an empty string to select the AMQP default exchange.
     /// </summary>
     public required string Exchange { get; init; }
 
