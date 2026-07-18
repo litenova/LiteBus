@@ -52,26 +52,25 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
         var services = new ServiceCollection();
         services.RegisterBackgroundServices([], [typeof(RecordingBackgroundService)]);
 
-         var provider = services.BuildServiceProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var hostedServices = provider.GetServices<IHostedService>().ToList();
-
-        using var cts = new CancellationTokenSource();
-
-        foreach (var hostedService in hostedServices)
+        var provider = services.BuildServiceProvider();
+        await using (provider.ConfigureAwait(false))
         {
-            await hostedService.StartAsync(cts.Token).ConfigureAwait(false);
-        }
+            var hostedServices = provider.GetServices<IHostedService>().ToList();
+            var backgroundService = provider.GetRequiredService<RecordingBackgroundService>();
 
-        await Task.Delay(50, cts.Token).ConfigureAwait(false);
+            foreach (var hostedService in hostedServices)
+            {
+                await hostedService.StartAsync(CancellationToken.None).ConfigureAwait(false);
+            }
 
-        foreach (var hostedService in hostedServices)
-        {
-            await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
-        }
+            await backgroundService.ExecutionStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
-        provider.GetRequiredService<RecordingBackgroundService>().ExecuteCount.Should().BeGreaterThan(0);
+            foreach (var hostedService in hostedServices)
+            {
+                await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+
+            backgroundService.ExecuteCount.Should().BeGreaterThan(0);
         }
     }
 
@@ -84,37 +83,37 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
             [typeof(FailingStartupTask)],
             [typeof(StartupFailureBackgroundService)]);
 
-         var provider = services.BuildServiceProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var hostedServices = provider.GetServices<IHostedService>().ToList();
-
-        using var cts = new CancellationTokenSource();
-
-        Exception? startupFailure = null;
-
-        foreach (var hostedService in hostedServices)
+        var provider = services.BuildServiceProvider();
+        await using (provider.ConfigureAwait(false))
         {
-            try
+            var hostedServices = provider.GetServices<IHostedService>().ToList();
+
+            using var cts = new CancellationTokenSource();
+
+            Exception? startupFailure = null;
+
+            foreach (var hostedService in hostedServices)
             {
-                await hostedService.StartAsync(cts.Token).ConfigureAwait(false);
+                try
+                {
+                    await hostedService.StartAsync(cts.Token).ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    startupFailure = exception;
+                }
             }
-            catch (Exception exception)
+
+            startupFailure.Should().NotBeNull();
+
+            await Task.Delay(50, cts.Token).ConfigureAwait(false);
+
+            provider.GetRequiredService<StartupFailureBackgroundService>().StartedAfterStartup.Should().BeFalse();
+
+            foreach (var hostedService in hostedServices)
             {
-                startupFailure = exception;
+                await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
             }
-        }
-
-        startupFailure.Should().NotBeNull();
-
-        await Task.Delay(50, cts.Token).ConfigureAwait(false);
-
-        provider.GetRequiredService<StartupFailureBackgroundService>().StartedAfterStartup.Should().BeFalse();
-
-        foreach (var hostedService in hostedServices)
-        {
-            await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
-        }
         }
     }
 
@@ -129,26 +128,25 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
             [typeof(RecordingStartupTask)],
             [typeof(OrderedContinuousBackgroundService)]);
 
-         var provider = services.BuildServiceProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var hostedServices = provider.GetServices<IHostedService>().ToList();
-
-        using var cts = new CancellationTokenSource();
-
-        foreach (var hostedService in hostedServices)
+        var provider = services.BuildServiceProvider();
+        await using (provider.ConfigureAwait(false))
         {
-            await hostedService.StartAsync(cts.Token).ConfigureAwait(false);
-        }
+            var hostedServices = provider.GetServices<IHostedService>().ToList();
+            var backgroundService = provider.GetRequiredService<OrderedContinuousBackgroundService>();
 
-        await Task.Delay(50, cts.Token).ConfigureAwait(false);
+            foreach (var hostedService in hostedServices)
+            {
+                await hostedService.StartAsync(CancellationToken.None).ConfigureAwait(false);
+            }
 
-        provider.GetRequiredService<OrderedContinuousBackgroundService>().StartedAfterStartup.Should().BeTrue();
+            await backgroundService.ExecutionStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
-        foreach (var hostedService in hostedServices)
-        {
-            await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
-        }
+            backgroundService.StartedAfterStartup.Should().BeTrue();
+
+            foreach (var hostedService in hostedServices)
+            {
+                await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 
@@ -216,6 +214,9 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
 
     private sealed class OrderedContinuousBackgroundService : IBackgroundService
     {
+        public TaskCompletionSource ExecutionStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         /// <summary>
         ///     Gets a value indicating whether the continuous loop started after the startup task completed.
         /// </summary>
@@ -225,6 +226,7 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
         public async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             StartedAfterStartup = RecordingStartupTaskState.StartupCompleted;
+            ExecutionStarted.TrySetResult();
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -254,6 +256,9 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
 
     private sealed class RecordingBackgroundService : IBackgroundService
     {
+        public TaskCompletionSource ExecutionStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int ExecuteCount { get; private set; }
 
         public async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -261,6 +266,7 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
             while (!stoppingToken.IsCancellationRequested)
             {
                 ExecuteCount++;
+                ExecutionStarted.TrySetResult();
                 await Task.Delay(10, stoppingToken).ConfigureAwait(false);
             }
         }

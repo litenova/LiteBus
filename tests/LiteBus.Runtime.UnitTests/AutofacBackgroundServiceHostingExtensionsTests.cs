@@ -43,26 +43,25 @@ public sealed class AutofacBackgroundServiceHostingExtensionsTests
         var builder = new ContainerBuilder();
         builder.RegisterBackgroundServices([], [typeof(RecordingBackgroundService)]);
 
-         var container = builder.Build();
-         await using (container.ConfigureAwait(false))
-         {
-
-        var hostedServices = container.Resolve<IEnumerable<IHostedService>>().ToList();
-        using var cts = new CancellationTokenSource();
-
-        foreach (var hostedService in hostedServices)
+        var container = builder.Build();
+        await using (container.ConfigureAwait(false))
         {
-            await hostedService.StartAsync(cts.Token).ConfigureAwait(false);
-        }
+            var hostedServices = container.Resolve<IEnumerable<IHostedService>>().ToList();
+            var backgroundService = container.Resolve<RecordingBackgroundService>();
 
-        await Task.Delay(50, cts.Token).ConfigureAwait(false);
+            foreach (var hostedService in hostedServices)
+            {
+                await hostedService.StartAsync(CancellationToken.None).ConfigureAwait(false);
+            }
 
-        foreach (var hostedService in hostedServices)
-        {
-            await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
-        }
+            await backgroundService.ExecutionStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
-        container.Resolve<RecordingBackgroundService>().ExecuteCount.Should().BeGreaterThan(0);
+            foreach (var hostedService in hostedServices)
+            {
+                await hostedService.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+
+            backgroundService.ExecuteCount.Should().BeGreaterThan(0);
         }
     }
 
@@ -103,6 +102,9 @@ public sealed class AutofacBackgroundServiceHostingExtensionsTests
 
     private sealed class RecordingBackgroundService : IBackgroundService
     {
+        public TaskCompletionSource ExecutionStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int ExecuteCount { get; private set; }
 
         public async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -110,6 +112,7 @@ public sealed class AutofacBackgroundServiceHostingExtensionsTests
             while (!stoppingToken.IsCancellationRequested)
             {
                 ExecuteCount++;
+                ExecutionStarted.TrySetResult();
                 await Task.Delay(10, stoppingToken).ConfigureAwait(false);
             }
         }
