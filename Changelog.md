@@ -17,6 +17,8 @@ All notable changes to this project will be documented in this file.
   and strict idempotency conflicts.
 - Broker readiness diagnostics for Kafka, AWS SQS, and Azure Service Bus, including live emulator coverage for each
   configured target.
+- Concern-specific `LiteBus.Testing.Mediation`, `LiteBus.Testing.Transport`, `LiteBus.Testing.DurableMessaging`, and
+  `LiteBus.Testing.Hosting` packages.
 
 ### Changed
 
@@ -50,6 +52,8 @@ All notable changes to this project will be documented in this file.
   In-memory destinations now apply configurable, lossless backpressure to queued and in-flight deliveries.
 - ASP.NET Core health checks and the management health route expose shared per-probe timeout and parallelism limits.
   The `AddLiteBus()` health registration carries both `litebus` and `ready` tags.
+- `LiteBus.Testing` is now a framework-neutral base package. Mediator, transport, durable, and host helpers no longer
+  impose unrelated dependency graphs, Newtonsoft.Json, or an assertion library on consumers.
 
 ### Fixed
 

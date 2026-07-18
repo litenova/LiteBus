@@ -212,7 +212,7 @@ Legacy to v6.0 mapping for application upgrades. Shipping libraries use v6 names
 | Batch construction helpers | `InboxAcceptItems`, `OutboxEnqueueItems` | *(removed)*: static factories on `InboxAcceptItem` / `OutboxEnqueueItem` |
 | Saga module extensions | `InboxModuleBuilderExtensions` (saga packages) | `InboxModuleBuilderSagaExtensions`, `InboxModuleBuilderPostgreSqlSagaExtensions` |
 | Event mediation settings | Nested bags on `EventMediationSettings` | `EventRoutingSettings`, `EventExecutionSettings`, `EventHandlerFilter` |
-| Testing doubles | `Fake*` in `LiteBus.Testing` | `Test*` (for example `TestCommandMediator`, `TestInboxStore`) |
+| Testing doubles | `Fake*` in the former aggregate testing package | `Test*` in the matching concern package (for example `TestCommandMediator` in `LiteBus.Testing.Mediation`, `TestInboxStore` in `LiteBus.Testing.DurableMessaging`) |
 
 ## Ergonomics
 

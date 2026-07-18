@@ -44,7 +44,7 @@ These are the conventions that keep a LiteBus codebase readable as it grows: how
 ## 5. Configuration and Testing
 
 - **Register Handlers at Startup**: Configure all your LiteBus modules and register your handlers during application startup for optimal performance.
-- **Isolate Tests**: Use a library like `LiteBus.Testing` or a separate `AddLiteBus` host (or new `MessageRegistry`) per test so handler registrations do not leak across tests.
+- **Isolate Tests**: Use the narrow `LiteBus.Testing.*` package for the concern under test, or create a separate `AddLiteBus` host (or new `MessageRegistry`) per test so handler registrations do not leak across tests.
 - **Unit Test Logic, Integration Test Pipelines**: Write fine-grained unit tests for the business logic inside your handlers. Write a smaller number of integration tests to verify that your most important pipelines (including pre/post handlers) are wired correctly.
 
 ## Next

@@ -19,7 +19,7 @@ Roles describe dependency direction and package purpose. They are not numeric la
 | Technology adapter | `Storage.PostgreSql`, `Storage.EntityFrameworkCore`, `Transport.Amqp`, `Transport.Kafka`, `Transport.AwsSqs`, `Transport.AzureServiceBus` | Contract roles, core implementations, and technology adapters | One relevant persistence or broker SDK, plus logging abstractions |
 | Feature bridge | `Inbox.Storage.*`, `Inbox.Dispatch.*`, `Inbox.Ingress.*`, `Outbox.Storage.*`, `Outbox.Dispatch.*`, `Saga.InboxIntegration`, `Saga.Storage.*` | Contract roles, core implementations, technology adapters, and feature bridges | The relevant adapter SDK, plus logging abstractions |
 | Host adapter | DI, hosting, OpenTelemetry, health checks, ASP.NET Core | Any applicable lower role and other host adapters | The relevant host framework |
-| Consumer tooling | `LiteBus.Analyzers`, `LiteBus.Testing` | Any role needed by the tool | Analyzer or test-support packages |
+| Consumer tooling | `LiteBus.Analyzers`, `LiteBus.Testing.*` | Any role needed by that narrowly scoped tool | Analyzer or test-support packages |
 | Aggregate | `LiteBus` | Contract and core implementation roles | BCL only |
 
 `ArchitectureDependencyPolicyTests` parses every project under `src/`. It fails when a project has no role, a project reference points in a forbidden direction, a storage, dispatch, or ingress adapter crosses concerns, or a direct or transitive package reference is not approved for that role. Technology-family checks walk the complete project-reference closure, so a broker SDK cannot enter an adapter through a shared project. Update the matrix and the test together when introducing a new architectural role or SDK family.
@@ -134,7 +134,11 @@ Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactor
 | `LiteBus.Runtime.Extensions.Autofac.Hosting` | Autofac registration for manifest host adapters | `Runtime.Extensions.Hosting`, Autofac | none |
 | `LiteBus.*.Extensions.Autofac` | Module registration for Autofac | Module package, Autofac runtime adapter | Autofac |
 | `LiteBus` | Aggregate meta-package (core modules; storage/dispatch remain opt-in) | Commands, Queries, Events, Messaging, Inbox, Outbox, abstractions | none |
-| `LiteBus.Testing` | Published test harness: `Test*` mediators and stores, `InboxOutboxTestHost`, processor pass helpers | `Commands`, `Events`, `Queries`, `Inbox`, `Outbox`, `Messaging`, `Runtime.Abstractions`, `Runtime.Extensions.Microsoft.Hosting`, `Extensions.Microsoft.DependencyInjection`, in-memory storage packages | `AwesomeAssertions`, `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Hosting.Abstractions`, `Newtonsoft.Json` |
+| `LiteBus.Testing` | Framework-neutral `ManualTimeProvider` and `LiteBusTestBase` | none | none |
+| `LiteBus.Testing.Mediation` | `TestCommandMediator`, `TestQueryMediator`, and `TestEventMediator` | command, query, and event abstractions | none |
+| `LiteBus.Testing.Transport` | `TestMessageTransport` publisher double | `Transport.Abstractions` | none |
+| `LiteBus.Testing.DurableMessaging` | Inbox/outbox stores, processor helpers, and `InboxOutboxTestHost` | inbox/outbox core and in-memory storage, Microsoft DI composition | Microsoft DI |
+| `LiteBus.Testing.Hosting` | Generic Host lifecycle and manifest helpers | inbox core and runtime hosting adapter | Microsoft DI and hosting abstractions |
 | `LiteBus.Storage.Testing` | Published xUnit store conformance bases for custom adapter authors | `Inbox.Abstractions`, `Outbox.Abstractions` | `AwesomeAssertions`, `xunit` |
 | `LiteBus.Transport.Testing` | Published xUnit publisher and consumer conformance base for custom adapter authors | `Transport.Abstractions` | `xunit` |
 
@@ -152,6 +156,8 @@ Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactor
 | `LiteBus.Transport.Amqp` | `Transport.Abstractions`, `Transport` | Inbox, Outbox abstractions |
 | `*.Extensions.OpenTelemetry` | Matching core package (`Inbox`, `Outbox`, or `Transport`) | Storage, dispatch, ingress |
 | `LiteBus.Analyzers` | Roslyn | runtime libraries |
+
+Shared storage technology packages contain only invariants that are identical across durable axes. `LiteBus.Storage.PostgreSql` owns schema mechanics, database-clock access, and idempotency resolution; `LiteBus.Storage.EntityFrameworkCore` owns provider resolution, relational lease execution, and common durable operations. Inbox and outbox adapters retain their own tables, row mappings, lifecycle transitions, and public contracts. Similar-looking transition code remains axis-owned when sharing it would couple independent semantics or require a cross-axis abstraction.
 
 Additional rules:
 

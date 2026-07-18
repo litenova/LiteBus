@@ -62,7 +62,7 @@ public static class LiteBusHostedServiceExtensions
     }
 
     /// <summary>
-    ///     Asserts manifest background service registrations match the expected implementation types.
+    ///     Verifies that manifest background service registrations match the expected implementation types.
     /// </summary>
     /// <param name="provider">The service provider built with LiteBus modules.</param>
     /// <param name="expectedBackgroundServices">The expected background service implementation types.</param>
@@ -75,7 +75,16 @@ public static class LiteBusHostedServiceExtensions
         ArgumentNullException.ThrowIfNull(expectedBackgroundServices);
 
         var manifest = provider.GetRequiredService<LiteBusHostManifest>();
-        manifest.BackgroundServices.Should().BeEquivalentTo(expectedBackgroundServices);
+
+        if (!manifest.BackgroundServices.OrderBy(type => type.FullName, StringComparer.Ordinal)
+                .SequenceEqual(expectedBackgroundServices.OrderBy(type => type.FullName, StringComparer.Ordinal)))
+        {
+            var expected = string.Join(", ", expectedBackgroundServices.Select(type => type.FullName));
+            var actual = string.Join(", ", manifest.BackgroundServices.Select(type => type.FullName));
+            throw new InvalidOperationException(
+                $"LiteBus background services do not match. Expected: [{expected}]. Actual: [{actual}].");
+        }
+
         return manifest;
     }
 }

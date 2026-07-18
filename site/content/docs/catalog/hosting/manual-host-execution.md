@@ -28,7 +28,7 @@ Manual mode bypasses orchestrator ordering guarantees unless callers enforce sta
 
 - `LiteBus.Runtime.Abstractions`
 - `LiteBus.Runtime.Extensions.Hosting`
-- `LiteBus.Testing` (test helpers)
+- `LiteBus.Testing.Hosting` (Generic Host lifecycle helpers)
 
 ## Requires
 

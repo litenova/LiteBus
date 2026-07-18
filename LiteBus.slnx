@@ -110,6 +110,10 @@
         <Project Path="src/LiteBus.Runtime/LiteBus.Runtime.csproj"/>
         <Project Path="src/LiteBus.Storage.PostgreSql/LiteBus.Storage.PostgreSql.csproj"/>
         <Project Path="src/LiteBus.Storage.EntityFrameworkCore/LiteBus.Storage.EntityFrameworkCore.csproj"/>
+        <Project Path="src/LiteBus.Testing.DurableMessaging/LiteBus.Testing.DurableMessaging.csproj"/>
+        <Project Path="src/LiteBus.Testing.Hosting/LiteBus.Testing.Hosting.csproj"/>
+        <Project Path="src/LiteBus.Testing.Mediation/LiteBus.Testing.Mediation.csproj"/>
+        <Project Path="src/LiteBus.Testing.Transport/LiteBus.Testing.Transport.csproj"/>
         <Project Path="src/LiteBus.Testing/LiteBus.Testing.csproj"/>
         <Project Path="src/LiteBus/LiteBus.csproj"/>
     </Folder>

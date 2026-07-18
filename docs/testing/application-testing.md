@@ -298,7 +298,17 @@ When using `UseInProcessDispatch`, the real event pipeline runs. Mock `IEventMed
 
 ### Registering All Store Roles Manually
 
-`LiteBus.Testing` exposes `TestInboxStore`, `TestOutboxStore`, `TestMessageTransport`, and mediator test doubles (`TestCommandMediator`, `TestQueryMediator`, `TestEventMediator`). Helpers bind every inbox or outbox store role to one shared instance:
+Testing support is split so a mediator test does not pull in durable storage or a host adapter:
+
+| Package | Support |
+| --- | --- |
+| `LiteBus.Testing` | `ManualTimeProvider`, `LiteBusTestBase` |
+| `LiteBus.Testing.Mediation` | `TestCommandMediator`, `TestQueryMediator`, `TestEventMediator` |
+| `LiteBus.Testing.Transport` | `TestMessageTransport` |
+| `LiteBus.Testing.DurableMessaging` | `TestInboxStore`, `TestOutboxStore`, `InboxOutboxTestHost`, store-role and processor-pass helpers |
+| `LiteBus.Testing.Hosting` | Generic Host start, stop, manifest, and background-service helpers |
+
+The durable-messaging package can bind every inbox or outbox store role to one shared instance:
 
 ```csharp
 var store = new InMemoryInboxStore();

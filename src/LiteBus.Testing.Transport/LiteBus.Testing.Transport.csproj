@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>Controllable transport publisher doubles for LiteBus tests.</Description>
+        <PackageTags>$(PackageTags);testing;transport</PackageTags>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Transport.Abstractions\LiteBus.Transport.Abstractions.csproj"/>
+    </ItemGroup>
+
+</Project>

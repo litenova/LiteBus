@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>Generic Host lifecycle helpers for LiteBus integration tests.</Description>
+        <PackageTags>$(PackageTags);testing;hosting</PackageTags>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Extensions.Microsoft.Hosting\LiteBus.Runtime.Extensions.Microsoft.Hosting.csproj"/>
+    </ItemGroup>
+
+</Project>

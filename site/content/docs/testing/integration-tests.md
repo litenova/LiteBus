@@ -30,7 +30,7 @@ flowchart TB
   subgraph shared [Shared libraries]
     ST["LiteBus.Storage.Testing contract suites"]
     DTT["LiteBus.Transport.IntegrationTesting helpers"]
-    LT["LiteBus.Testing DI helpers"]
+    LT["LiteBus.Testing.* concern helpers"]
   end
 
   DTBrokers --> DTT
@@ -74,7 +74,7 @@ tests/
 |-- LiteBus.Transport.IntegrationTesting/   # shared fixtures, traits (not an executor)
 |-- LiteBus.Transport.Testing/              # published transport contract suite
 |-- LiteBus.Storage.Testing/                # abstract store contract suites
-`-- LiteBus.Testing/                        # DI helpers
+`-- LiteBus.Testing*/                       # concern-specific application test helpers
 ```
 
 Supporting libraries (not test executors):
@@ -84,7 +84,9 @@ Supporting libraries (not test executors):
 | `LiteBus.Transport.IntegrationTesting` | Shared broker fixtures, xUnit traits, `DockerTestGate`, `FlakyInbox`, polling helpers, Kafka/AWS/Azure fixture hosts |
 | `LiteBus.Transport.Testing` (`tests/`, also published as a package) | Abstract `TransportContractTests` suite for payload/header round trips, redelivery, and cancellation (not a vstest executor; `IsTestProject=false`) |
 | `LiteBus.Storage.Testing` (`tests/`, also published as a package) | Abstract `InboxStoreContractTests`, `OutboxStoreContractTests`, retention contract suites, lease renewal ownership checks (not a vstest executor; `IsTestProject=false`) |
-| `LiteBus.Testing` | `AddInboxStoreRoles`, `LiteBusTestBase`, manual `MessageRegistry` isolation |
+| `LiteBus.Testing` | Framework-neutral `ManualTimeProvider` and `LiteBusTestBase` |
+| `LiteBus.Testing.DurableMessaging` | `AddInboxStoreRoles`, `AddOutboxStoreRoles`, in-memory host, and processor helpers |
+| `LiteBus.Testing.Hosting` | Generic Host lifecycle and manifest helpers |
 
 ## Shared Infrastructure Patterns
 

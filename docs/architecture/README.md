@@ -13,7 +13,7 @@ LiteBus is an in-process mediator with semantic modules for commands, queries, a
 | Technology adapters | Broker and persistence SDK ownership | `LiteBus.Transport.*`, `LiteBus.Storage.PostgreSql`, `LiteBus.Storage.EntityFrameworkCore` |
 | Feature bridges | Storage, dispatch, ingress, and saga-to-inbox mapping | `LiteBus.Inbox.*`, `LiteBus.Outbox.*`, `LiteBus.Saga.InboxIntegration`, `LiteBus.Saga.Storage.*` adapters |
 | Host adapters | DI, hosting, telemetry, health, and ASP.NET Core mapping | `LiteBus.Runtime.Extensions.*`, `LiteBus.*.Extensions.*`, `LiteBus.Extensions.*` |
-| Consumer tooling | Analyzer and application test support | `LiteBus.Analyzers`, `LiteBus.Testing` |
+| Consumer tooling | Analyzer and application test support | `LiteBus.Analyzers`, `LiteBus.Testing`, `LiteBus.Testing.Mediation`, `LiteBus.Testing.Transport`, `LiteBus.Testing.DurableMessaging`, `LiteBus.Testing.Hosting` |
 
 ## Startup Model
 

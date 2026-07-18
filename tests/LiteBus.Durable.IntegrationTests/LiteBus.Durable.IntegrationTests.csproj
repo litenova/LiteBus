@@ -53,6 +53,7 @@
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.PostgreSql\LiteBus.Outbox.Storage.PostgreSql.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Storage.PostgreSql\LiteBus.Storage.PostgreSql.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing.Hosting\LiteBus.Testing.Hosting.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Transport.AwsSqs\LiteBus.Transport.AwsSqs.csproj"/>

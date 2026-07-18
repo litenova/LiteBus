@@ -44,6 +44,33 @@
         "type": "Transitive",
         "resolved": "10.0.8",
         "contentHash": "+dJsbPJ3FyUbTZNplFj0RCKePFizmv6ewDV46JE9q/IVH4c3xTCftHfHelLsAKf0jryIPqgMb5GpS0x7TAY3mg=="
+      },
+      "litebus.commands.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.events.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.messaging.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.queries.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[1.0.0, )"
+        }
+      },
+      "litebus.runtime.abstractions": {
+        "type": "Project"
       }
     }
   }

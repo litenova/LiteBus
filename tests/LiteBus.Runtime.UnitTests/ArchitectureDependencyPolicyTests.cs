@@ -236,7 +236,7 @@ public sealed class ArchitectureDependencyPolicyTests
             ProjectRole.ConsumerTooling =>
                 package.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal) ||
                 package.StartsWith("Microsoft.Extensions.", StringComparison.Ordinal) ||
-                package is "AwesomeAssertions" or "Newtonsoft.Json" or "System.Collections.Immutable",
+                package == "System.Collections.Immutable",
             _ => false
         };
     }
@@ -459,7 +459,8 @@ public sealed class ArchitectureDependencyPolicyTests
             return true;
         }
 
-        if (projectName is "LiteBus.Analyzers" or "LiteBus.Testing")
+        if (projectName == "LiteBus.Analyzers" ||
+            projectName.StartsWith("LiteBus.Testing", StringComparison.Ordinal))
         {
             role = ProjectRole.ConsumerTooling;
             return true;

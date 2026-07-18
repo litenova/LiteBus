@@ -21,6 +21,8 @@
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch\LiteBus.Outbox.Dispatch.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.InProcess\LiteBus.Outbox.Dispatch.InProcess.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.InMemory\LiteBus.Outbox.Storage.InMemory.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing.Hosting\LiteBus.Testing.Hosting.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing.Transport\LiteBus.Testing.Transport.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Transport.Abstractions\LiteBus.Transport.Abstractions.csproj"/>
     </ItemGroup>

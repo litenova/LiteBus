@@ -26,6 +26,8 @@
         <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing.Hosting\LiteBus.Testing.Hosting.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing.Transport\LiteBus.Testing.Transport.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Transport.Abstractions\LiteBus.Transport.Abstractions.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Transport.Amqp\LiteBus.Transport.Amqp.csproj"/>

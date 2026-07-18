@@ -1,37 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <Description>LiteBus test harness with stores, mediators, transport doubles, and processor pass helpers.</Description>
-        <PackageTags>$(PackageTags);testing;inbox;outbox</PackageTags>
+        <Description>Framework-neutral clocks and lifecycle helpers for LiteBus tests.</Description>
+        <PackageTags>$(PackageTags);testing;time</PackageTags>
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
-
-    <ItemGroup>
-        <PackageReference Include="AwesomeAssertions"/>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
-        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"/>
-        <PackageReference Include="Newtonsoft.Json"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\LiteBus.Commands\LiteBus.Commands.csproj"/>
-        <ProjectReference Include="..\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
-        <ProjectReference Include="..\LiteBus.Events\LiteBus.Events.csproj"/>
-        <ProjectReference Include="..\LiteBus.Events.Abstractions\LiteBus.Events.Abstractions.csproj"/>
-        <ProjectReference Include="..\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
-        <ProjectReference Include="..\LiteBus.Runtime.Extensions.Microsoft.Hosting\LiteBus.Runtime.Extensions.Microsoft.Hosting.csproj"/>
-        <ProjectReference Include="..\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
-        <ProjectReference Include="..\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj"/>
-        <ProjectReference Include="..\LiteBus.Inbox.Storage.InMemory\LiteBus.Inbox.Storage.InMemory.csproj"/>
-        <ProjectReference Include="..\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
-        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
-        <ProjectReference Include="..\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
-        <ProjectReference Include="..\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj"/>
-        <ProjectReference Include="..\LiteBus.Outbox.Storage.InMemory\LiteBus.Outbox.Storage.InMemory.csproj"/>
-        <ProjectReference Include="..\LiteBus.Queries\LiteBus.Queries.csproj"/>
-        <ProjectReference Include="..\LiteBus.Queries.Abstractions\LiteBus.Queries.Abstractions.csproj"/>
-        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
-        <ProjectReference Include="..\LiteBus.Transport.Abstractions\LiteBus.Transport.Abstractions.csproj"/>
-    </ItemGroup>
 
 </Project>
