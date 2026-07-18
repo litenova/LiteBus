@@ -32,6 +32,11 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     private readonly SemaphoreSlim _listenerGate = new(1, 1);
 
     /// <summary>
+    ///     Serializes listener connection publication and invalidation across callbacks and reconnect attempts.
+    /// </summary>
+    private readonly object _listenerConnectionSync = new();
+
+    /// <summary>
     ///     Serializes listener loop startup.
     /// </summary>
     private readonly object _listenerLoopSync = new();
@@ -102,8 +107,7 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
 
         listenerLoopCts?.Dispose();
 
-        var connection = _listenerConnection;
-        _listenerConnection = null;
+        var connection = TakeListenerConnection();
 
         if (connection is not null)
         {
@@ -165,11 +169,13 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     {
         while (!cancellationToken.IsCancellationRequested)
         {
+            NpgsqlConnection? connection = null;
+
             try
             {
                 await EnsureListenerStartedAsync(cancellationToken).ConfigureAwait(false);
 
-                var connection = _listenerConnection;
+                connection = GetListenerConnection();
 
                 if (connection is null)
                 {
@@ -189,7 +195,7 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
             }
             catch (NpgsqlException)
             {
-                InvalidateListenerConnection();
+                InvalidateListenerConnection(connection);
 
                 try
                 {
@@ -203,7 +209,7 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
 #pragma warning disable CA1031 // Last-resort boundary: listener failures can surface as BCL exceptions outside NpgsqlException.
             catch (Exception) when (!cancellationToken.IsCancellationRequested)
             {
-                InvalidateListenerConnection();
+                InvalidateListenerConnection(connection);
 
                 try
                 {
@@ -225,7 +231,7 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     /// <returns>A task that completes when the listener is ready.</returns>
     private async Task EnsureListenerStartedAsync(CancellationToken cancellationToken)
     {
-        if (_listenerConnection is { State: ConnectionState.Open })
+        if (GetListenerConnection() is { State: ConnectionState.Open })
         {
             return;
         }
@@ -234,25 +240,38 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
 
         try
         {
-            if (_listenerConnection is { State: ConnectionState.Open })
+            var existingConnection = GetListenerConnection();
+
+            if (existingConnection is { State: ConnectionState.Open })
             {
                 return;
             }
 
-            if (_listenerConnection is not null)
+            existingConnection = TakeListenerConnection(existingConnection);
+
+            if (existingConnection is not null)
             {
-                DetachListenerConnection(_listenerConnection);
-                await _listenerConnection.DisposeAsync().ConfigureAwait(false);
-                _listenerConnection = null;
+                DetachListenerConnection(existingConnection);
+                await existingConnection.DisposeAsync().ConfigureAwait(false);
             }
 
             var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             connection.Notification += OnNotification;
             connection.StateChange += OnListenerConnectionStateChange;
-            using var command = connection.CreateCommand();
-            command.CommandText = $"LISTEN {_channelName}";
-            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-            _listenerConnection = connection;
+
+            try
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = $"LISTEN {_channelName}";
+                await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                SetListenerConnection(connection);
+            }
+            catch
+            {
+                DetachListenerConnection(connection);
+                await connection.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
         }
         finally
         {
@@ -282,27 +301,87 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
             return;
         }
 
-        if (ReferenceEquals(sender, _listenerConnection))
+        if (sender is NpgsqlConnection connection)
         {
-            InvalidateListenerConnection();
+            InvalidateListenerConnection(connection);
         }
     }
 
     /// <summary>
-    ///     Detaches event handlers and clears the listener so the next wait cycle can reconnect.
+    ///     Clears and disposes the expected listener connection, then wakes waiters so a replacement can start.
     /// </summary>
-    private void InvalidateListenerConnection()
+    /// <param name="expectedConnection">The connection whose fault triggered invalidation.</param>
+    private void InvalidateListenerConnection(NpgsqlConnection? expectedConnection)
     {
-        var connection = _listenerConnection;
+        if (expectedConnection is null)
+        {
+            return;
+        }
+
+        var connection = TakeListenerConnection(expectedConnection);
 
         if (connection is null)
         {
             return;
         }
 
-        _listenerConnection = null;
         DetachListenerConnection(connection);
-        ReleaseSignal();
+
+        try
+        {
+            connection.Dispose();
+        }
+        finally
+        {
+            ReleaseSignal();
+        }
+    }
+
+    /// <summary>
+    ///     Gets the currently published listener connection.
+    /// </summary>
+    /// <returns>The active or reconnecting listener connection, if one is published.</returns>
+    private NpgsqlConnection? GetListenerConnection()
+    {
+        lock (_listenerConnectionSync)
+        {
+            return _listenerConnection;
+        }
+    }
+
+    /// <summary>
+    ///     Publishes a listener connection after its <c>LISTEN</c> command succeeds.
+    /// </summary>
+    /// <param name="connection">The subscribed connection to publish.</param>
+    private void SetListenerConnection(NpgsqlConnection connection)
+    {
+        lock (_listenerConnectionSync)
+        {
+            _listenerConnection = connection;
+        }
+    }
+
+    /// <summary>
+    ///     Removes the published listener connection when it matches the expected instance.
+    /// </summary>
+    /// <param name="expectedConnection">
+    ///     The connection expected to be published, or <see langword="null" /> to remove any published connection.
+    /// </param>
+    /// <returns>The removed connection, or <see langword="null" /> when the expected instance is no longer current.</returns>
+    private NpgsqlConnection? TakeListenerConnection(NpgsqlConnection? expectedConnection = null)
+    {
+        lock (_listenerConnectionSync)
+        {
+            if (_listenerConnection is null ||
+                expectedConnection is not null && !ReferenceEquals(_listenerConnection, expectedConnection))
+            {
+                return null;
+            }
+
+            var connection = _listenerConnection;
+            _listenerConnection = null;
+            return connection;
+        }
     }
 
     /// <summary>
