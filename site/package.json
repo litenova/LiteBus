@@ -2,11 +2,19 @@
   "name": "litebus-docs",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "dev": "local-md dev -- next dev",
+    "dev": "local-md dev -- node node_modules/next/dist/bin/next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.10"
+    }
   },
   "dependencies": {
     "@fumadocs/local-md": "^0.3.0",

@@ -6,8 +6,11 @@ workflows while the site can evolve its navigation and presentation independentl
 
 ## Local development
 
+Use Node.js 22 or later. Fumadocs and Next.js use the version declared in `package.json`.
+The lockfile overrides Next.js's bundled PostCSS to the patched `8.5.10` release.
+
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
