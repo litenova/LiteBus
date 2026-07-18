@@ -138,6 +138,22 @@ internal static class PostgreSqlSchemaManager
                     return;
                 }
 
+                lockScope = await PostgreSqlAdvisoryLockScope.TryAcquireAsync(
+                        context.Connection,
+                        lockKey,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (lockScope is not null)
+                {
+                    context.Logger.Log(
+                        PostgreSqlSchemaLogLevel.Debug,
+                        $"Acquired advisory lock '{lockKey}' after waiting for another session.");
+
+                    await ApplyEnsureAsync(context, cancellationToken).ConfigureAwait(false);
+                    return;
+                }
+
                 await Task.Delay(DefaultLockPollInterval, cancellationToken).ConfigureAwait(false);
             }
 
