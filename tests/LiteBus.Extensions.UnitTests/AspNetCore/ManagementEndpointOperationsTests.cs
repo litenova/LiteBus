@@ -1,4 +1,6 @@
 using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using LiteBus.Extensions.AspNetCore;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
@@ -165,6 +167,30 @@ public sealed class ManagementEndpointOperationsTests
     }
 
     /// <summary>
+    ///     Verifies unexpected handler details are logged but not returned to management clients.
+    /// </summary>
+    [Fact]
+    public async Task ManagementRoute_WhenHandlerFails_ShouldReturnRedactedProblem()
+    {
+        const string sensitiveFailure = "database host and credential detail";
+        using var host = await CreateHostAsync(
+            CreateAnonymousOptions(),
+            inboxControl: new ThrowingInboxProcessorControl(sensitiveFailure)).ConfigureAwait(false);
+        using var client = host.GetTestClient();
+
+        using var response = await client.GetAsync("/litebus/inbox/processor/state").ConfigureAwait(false);
+
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+        problem.GetProperty("type").GetString().Should().Be("urn:litebus:management:operation-failed");
+        problem.GetProperty("title").GetString().Should().Be("Management operation failed");
+        problem.GetProperty("status").GetInt32().Should().Be(500);
+        problem.GetProperty("detail").GetString().Should().Be("The server could not complete the management operation.");
+        problem.GetProperty("traceId").GetString().Should().NotBeNullOrWhiteSpace();
+        problem.ToString().Should().NotContain(sensitiveFailure);
+    }
+
+    /// <summary>
     ///     Verifies an absent durable axis returns the documented fallback response for every path in its route group.
     /// </summary>
     [Fact]
@@ -215,8 +241,8 @@ public sealed class ManagementEndpointOperationsTests
         LiteBusManagementOptions options,
         bool includeInbox = true,
         bool includeOutbox = true,
-        RecordingInboxProcessorControl? inboxControl = null,
-        RecordingOutboxProcessorControl? outboxControl = null)
+        IInboxProcessorControl? inboxControl = null,
+        IOutboxProcessorControl? outboxControl = null)
     {
         var builder = Host.CreateDefaultBuilder()
             .ConfigureWebHost(webBuilder =>
@@ -324,6 +350,33 @@ public sealed class ManagementEndpointOperationsTests
             LastDrainTimeout = timeout;
             State = OutboxProcessorState.Draining;
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingInboxProcessorControl : IInboxProcessorControl
+    {
+        private readonly string _failureMessage;
+
+        public ThrowingInboxProcessorControl(string failureMessage)
+        {
+            _failureMessage = failureMessage;
+        }
+
+        public InboxProcessorState State => throw new InvalidOperationException(_failureMessage);
+
+        public Task PauseAsync(CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException(_failureMessage);
+        }
+
+        public Task ResumeAsync(CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException(_failureMessage);
+        }
+
+        public Task DrainAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException(_failureMessage);
         }
     }
 }

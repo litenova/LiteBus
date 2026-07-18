@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace LiteBus.Extensions.AspNetCore;
 
@@ -15,6 +16,33 @@ namespace LiteBus.Extensions.AspNetCore;
 /// </summary>
 public static partial class LiteBusManagementEndpointExtensions
 {
+    /// <summary>
+    ///     Logs a request rejected because its input is invalid.
+    /// </summary>
+    private static readonly Action<ILogger, string, string, string, Exception?> InvalidManagementRequestMessage =
+        LoggerMessage.Define<string, string, string>(
+            LogLevel.Warning,
+            new EventId(4001, "InvalidManagementRequest"),
+            "LiteBus management request {TraceIdentifier} was invalid for {RequestMethod} {RequestPath}.");
+
+    /// <summary>
+    ///     Logs a request rejected by an operator safety rule.
+    /// </summary>
+    private static readonly Action<ILogger, string, string, string, Exception?> ManagementSafetyRejectionMessage =
+        LoggerMessage.Define<string, string, string>(
+            LogLevel.Warning,
+            new EventId(4002, "ManagementSafetyRejection"),
+            "LiteBus management request {TraceIdentifier} was rejected for {RequestMethod} {RequestPath}.");
+
+    /// <summary>
+    ///     Logs a management operation that failed unexpectedly.
+    /// </summary>
+    private static readonly Action<ILogger, string, string, string, Exception?> ManagementOperationFailedMessage =
+        LoggerMessage.Define<string, string, string>(
+            LogLevel.Error,
+            new EventId(5001, "ManagementOperationFailed"),
+            "LiteBus management request {TraceIdentifier} failed for {RequestMethod} {RequestPath}.");
+
     /// <summary>
     ///     Maps inbox and outbox management endpoints when the matching manager is registered, or returns
     ///     <c>404 Not Found</c> for an axis that is not configured on the host.
@@ -84,14 +112,14 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <param name="options">The management endpoint options.</param>
     private static void MapInboxManagementEndpoints(RouteGroupBuilder inboxGroup, LiteBusManagementOptions options)
     {
-        inboxGroup.MapGet("/messages", (IInboxManager manager, [AsParameters] InboxMessageQueryBinding parameters, CancellationToken cancellationToken) =>
-            QueryInboxMessagesAsync(manager, parameters, options, cancellationToken));
+        inboxGroup.MapGet("/messages", (HttpContext context, IInboxManager manager, [AsParameters] InboxMessageQueryBinding parameters, CancellationToken cancellationToken) =>
+            QueryInboxMessagesAsync(context, manager, parameters, options, cancellationToken));
         inboxGroup.MapGet("/messages/{messageId:guid}", GetInboxMessageAsync);
-        inboxGroup.MapPost("/messages/requeue", (IInboxManager manager, [FromBody] RequeueMessagesRequest request, CancellationToken cancellationToken) =>
-            RequeueInboxMessagesAsync(manager, request, options, cancellationToken));
+        inboxGroup.MapPost("/messages/requeue", (HttpContext context, IInboxManager manager, [FromBody] RequeueMessagesRequest request, CancellationToken cancellationToken) =>
+            RequeueInboxMessagesAsync(context, manager, request, options, cancellationToken));
         inboxGroup.MapPost("/messages/requeue-dead-letters", RequeueInboxDeadLettersAsync);
-        inboxGroup.MapDelete("/messages", (IInboxManager manager, [AsParameters] InboxMessagePurgeBinding parameters, [FromBody] PurgeConfirmRequest? confirmRequest, CancellationToken cancellationToken) =>
-            PurgeInboxMessagesAsync(manager, parameters, confirmRequest, options, cancellationToken));
+        inboxGroup.MapDelete("/messages", (HttpContext context, IInboxManager manager, [AsParameters] InboxMessagePurgeBinding parameters, [FromBody] PurgeConfirmRequest? confirmRequest, CancellationToken cancellationToken) =>
+            PurgeInboxMessagesAsync(context, manager, parameters, confirmRequest, options, cancellationToken));
         inboxGroup.MapGet("/status-counts", GetInboxStatusCountsAsync);
         inboxGroup.MapGet("/schema", GetInboxSchemaAsync);
         inboxGroup.MapGet("/retention/status", GetInboxRetentionStatusAsync);
@@ -109,14 +137,14 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <param name="options">The management endpoint options.</param>
     private static void MapOutboxManagementEndpoints(RouteGroupBuilder outboxGroup, LiteBusManagementOptions options)
     {
-        outboxGroup.MapGet("/messages", (IOutboxManager manager, [AsParameters] OutboxMessageQueryBinding parameters, CancellationToken cancellationToken) =>
-            QueryOutboxMessagesAsync(manager, parameters, options, cancellationToken));
+        outboxGroup.MapGet("/messages", (HttpContext context, IOutboxManager manager, [AsParameters] OutboxMessageQueryBinding parameters, CancellationToken cancellationToken) =>
+            QueryOutboxMessagesAsync(context, manager, parameters, options, cancellationToken));
         outboxGroup.MapGet("/messages/{messageId:guid}", GetOutboxMessageAsync);
-        outboxGroup.MapPost("/messages/requeue", (IOutboxManager manager, [FromBody] RequeueMessagesRequest request, CancellationToken cancellationToken) =>
-            RequeueOutboxMessagesAsync(manager, request, options, cancellationToken));
+        outboxGroup.MapPost("/messages/requeue", (HttpContext context, IOutboxManager manager, [FromBody] RequeueMessagesRequest request, CancellationToken cancellationToken) =>
+            RequeueOutboxMessagesAsync(context, manager, request, options, cancellationToken));
         outboxGroup.MapPost("/messages/requeue-dead-letters", RequeueOutboxDeadLettersAsync);
-        outboxGroup.MapDelete("/messages", (IOutboxManager manager, [AsParameters] OutboxMessagePurgeBinding parameters, [FromBody] PurgeConfirmRequest? confirmRequest, CancellationToken cancellationToken) =>
-            PurgeOutboxMessagesAsync(manager, parameters, confirmRequest, options, cancellationToken));
+        outboxGroup.MapDelete("/messages", (HttpContext context, IOutboxManager manager, [AsParameters] OutboxMessagePurgeBinding parameters, [FromBody] PurgeConfirmRequest? confirmRequest, CancellationToken cancellationToken) =>
+            PurgeOutboxMessagesAsync(context, manager, parameters, confirmRequest, options, cancellationToken));
         outboxGroup.MapGet("/status-counts", GetOutboxStatusCountsAsync);
         outboxGroup.MapGet("/schema", GetOutboxSchemaAsync);
         outboxGroup.MapGet("/retention/status", GetOutboxRetentionStatusAsync);
@@ -176,34 +204,38 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Queries inbox messages using the supplied filter and page request from the query string.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The inbox manager.</param>
     /// <param name="parameters">The bound query string parameters.</param>
     /// <param name="options">The management endpoint options.</param>
     /// <param name="cancellationToken">A token that cancels the query.</param>
     /// <returns>The matching inbox message page.</returns>
     private static Task<IResult> QueryInboxMessagesAsync(
+        HttpContext context,
         IInboxManager manager,
         [AsParameters] InboxMessageQueryBinding parameters,
         LiteBusManagementOptions options,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () => Results.Ok(
+        return ExecuteAsync(context, async () => Results.Ok(
             await manager.QueryAsync(parameters.ToFilter(), parameters.ToPageRequest(options.MaxPageSize), cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
     ///     Returns one inbox message by identifier.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The inbox manager.</param>
     /// <param name="messageId">The message identifier.</param>
     /// <param name="cancellationToken">A token that cancels the query.</param>
     /// <returns>The matching envelope or a not-found response.</returns>
     private static Task<IResult> GetInboxMessageAsync(
+        HttpContext context,
         IInboxManager manager,
         Guid messageId,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () =>
+        return ExecuteAsync(context, async () =>
         {
             var message = await manager.GetMessageAsync(messageId, cancellationToken).ConfigureAwait(false);
             return message is null ? Results.NotFound() : Results.Ok(message);
@@ -213,18 +245,20 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Requeues selected inbox messages by identifier.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The inbox manager.</param>
     /// <param name="request">The message identifiers to requeue.</param>
     /// <param name="options">The management endpoint options.</param>
     /// <param name="cancellationToken">A token that cancels the replay operation.</param>
     /// <returns>The number of messages requeued.</returns>
     private static Task<IResult> RequeueInboxMessagesAsync(
+        HttpContext context,
         IInboxManager manager,
         [FromBody] RequeueMessagesRequest request,
         LiteBusManagementOptions options,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () =>
+        return ExecuteAsync(context, async () =>
         {
             ValidateBulkRequest(request, options);
             return Results.Ok(await manager.RequeueAsync(request.MessageIds, cancellationToken).ConfigureAwait(false));
@@ -234,19 +268,22 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Requeues all dead-lettered inbox messages.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The inbox manager.</param>
     /// <param name="cancellationToken">A token that cancels the replay operation.</param>
     /// <returns>The number of messages requeued.</returns>
     private static Task<IResult> RequeueInboxDeadLettersAsync(
+        HttpContext context,
         IInboxManager manager,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () => Results.Ok(await manager.RequeueDeadLettersAsync(cancellationToken).ConfigureAwait(false)));
+        return ExecuteAsync(context, async () => Results.Ok(await manager.RequeueDeadLettersAsync(cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
     ///     Purges inbox messages that match the supplied filter.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The inbox manager.</param>
     /// <param name="parameters">The bound query string parameters.</param>
     /// <param name="confirmRequest">The JSON body that confirms unrestricted purge.</param>
@@ -254,13 +291,14 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <param name="cancellationToken">A token that cancels the purge operation.</param>
     /// <returns>The number of deleted rows.</returns>
     private static Task<IResult> PurgeInboxMessagesAsync(
+        HttpContext context,
         IInboxManager manager,
         [AsParameters] InboxMessagePurgeBinding parameters,
         [FromBody] PurgeConfirmRequest? confirmRequest,
         LiteBusManagementOptions options,
         CancellationToken cancellationToken)
     {
-        return ExecuteManagementAsync(async () => Results.Ok(
+        return ExecuteManagementAsync(context, async () => Results.Ok(
             await PurgeInboxWithValidationAsync(
                     manager,
                     parameters.ToFilter(),
@@ -274,63 +312,72 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Returns inbox status counts.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The inbox manager.</param>
     /// <param name="cancellationToken">A token that cancels the query.</param>
     /// <returns>Status counts grouped by <see cref="InboxStatus" />.</returns>
     private static Task<IResult> GetInboxStatusCountsAsync(
+        HttpContext context,
         IInboxManager manager,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () => Results.Ok(await manager.GetStatusCountsAsync(cancellationToken).ConfigureAwait(false)));
+        return ExecuteAsync(context, async () => Results.Ok(await manager.GetStatusCountsAsync(cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
     ///     Returns inbox schema version metadata.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The inbox manager.</param>
     /// <param name="cancellationToken">A token that cancels the lookup.</param>
     /// <returns>Expected and recorded schema versions.</returns>
     private static Task<IResult> GetInboxSchemaAsync(
+        HttpContext context,
         IInboxManager manager,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () => Results.Ok(await manager.GetSchemaInfoAsync(cancellationToken).ConfigureAwait(false)));
+        return ExecuteAsync(context, async () => Results.Ok(await manager.GetSchemaInfoAsync(cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
     ///     Returns inbox retention cleanup status.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The inbox manager.</param>
     /// <param name="cancellationToken">A token reserved for future cancellation support.</param>
     /// <returns>The configured retention policy and most recent cleanup outcome.</returns>
     private static Task<IResult> GetInboxRetentionStatusAsync(
+        HttpContext context,
         IInboxManager manager,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () => Results.Ok(await manager.GetRetentionStatusAsync(cancellationToken).ConfigureAwait(false)));
+        return ExecuteAsync(context, async () => Results.Ok(await manager.GetRetentionStatusAsync(cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
     ///     Triggers an immediate inbox retention purge.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The inbox manager.</param>
     /// <param name="cancellationToken">A token that cancels the purge operation.</param>
     /// <returns>The number of rows deleted.</returns>
     private static Task<IResult> RunInboxRetentionPurgeAsync(
+        HttpContext context,
         IInboxManager manager,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () => Results.Ok(await manager.RunRetentionPurgeAsync(cancellationToken).ConfigureAwait(false)));
+        return ExecuteAsync(context, async () => Results.Ok(await manager.RunRetentionPurgeAsync(cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
     ///     Returns the inbox processor loop state.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="services">The request services.</param>
     /// <returns>The current processor state or a not-found response when the processor is disabled.</returns>
-    private static Task<IResult> GetInboxProcessorStateAsync(IServiceProvider services)
+    private static Task<IResult> GetInboxProcessorStateAsync(HttpContext context, IServiceProvider services)
     {
-        return ExecuteAsync(() =>
+        return ExecuteAsync(context, () =>
         {
             var control = services.GetService<IInboxProcessorControl>();
 
@@ -343,14 +390,16 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Pauses the inbox processor loop.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="services">The request services.</param>
     /// <param name="cancellationToken">A token used to cancel waiting for the gate.</param>
     /// <returns>A confirmation payload or a not-found response when the processor is disabled.</returns>
     private static Task<IResult> PauseInboxProcessorAsync(
+        HttpContext context,
         IServiceProvider services,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () =>
+        return ExecuteAsync(context, async () =>
         {
             if (services.GetService<IInboxProcessorControl>() is not { } control)
             {
@@ -365,14 +414,16 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Resumes the inbox processor loop.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="services">The request services.</param>
     /// <param name="cancellationToken">A token reserved for future cancellation support.</param>
     /// <returns>A confirmation payload or a not-found response when the processor is disabled.</returns>
     private static Task<IResult> ResumeInboxProcessorAsync(
+        HttpContext context,
         IServiceProvider services,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () =>
+        return ExecuteAsync(context, async () =>
         {
             if (services.GetService<IInboxProcessorControl>() is not { } control)
             {
@@ -387,18 +438,20 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Drains the inbox processor loop once and stops leasing.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="services">The request services.</param>
     /// <param name="options">The management endpoint options.</param>
     /// <param name="timeoutSeconds">The optional drain timeout override in seconds.</param>
     /// <param name="cancellationToken">A token used to cancel waiting for drain completion.</param>
     /// <returns>A confirmation payload or a not-found response when the processor is disabled.</returns>
     private static Task<IResult> DrainInboxProcessorAsync(
+        HttpContext context,
         IServiceProvider services,
         LiteBusManagementOptions options,
         [FromQuery] int? timeoutSeconds,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () =>
+        return ExecuteAsync(context, async () =>
         {
             if (services.GetService<IInboxProcessorControl>() is not { } control)
             {
@@ -422,34 +475,38 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Queries outbox messages using the supplied filter and page request from the query string.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The outbox manager.</param>
     /// <param name="parameters">The bound query string parameters.</param>
     /// <param name="options">The management endpoint options.</param>
     /// <param name="cancellationToken">A token that cancels the query.</param>
     /// <returns>The matching outbox message page.</returns>
     private static Task<IResult> QueryOutboxMessagesAsync(
+        HttpContext context,
         IOutboxManager manager,
         [AsParameters] OutboxMessageQueryBinding parameters,
         LiteBusManagementOptions options,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () => Results.Ok(
+        return ExecuteAsync(context, async () => Results.Ok(
             await manager.QueryAsync(parameters.ToFilter(), parameters.ToPageRequest(options.MaxPageSize), cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
     ///     Returns one outbox message by identifier.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The outbox manager.</param>
     /// <param name="messageId">The message identifier.</param>
     /// <param name="cancellationToken">A token that cancels the query.</param>
     /// <returns>The matching envelope or a not-found response.</returns>
     private static Task<IResult> GetOutboxMessageAsync(
+        HttpContext context,
         IOutboxManager manager,
         Guid messageId,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () =>
+        return ExecuteAsync(context, async () =>
         {
             var message = await manager.GetMessageAsync(messageId, cancellationToken).ConfigureAwait(false);
             return message is null ? Results.NotFound() : Results.Ok(message);
@@ -459,18 +516,20 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Requeues selected outbox messages by identifier.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The outbox manager.</param>
     /// <param name="request">The message identifiers to requeue.</param>
     /// <param name="options">The management endpoint options.</param>
     /// <param name="cancellationToken">A token that cancels the replay operation.</param>
     /// <returns>The number of messages requeued.</returns>
     private static Task<IResult> RequeueOutboxMessagesAsync(
+        HttpContext context,
         IOutboxManager manager,
         [FromBody] RequeueMessagesRequest request,
         LiteBusManagementOptions options,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () =>
+        return ExecuteAsync(context, async () =>
         {
             ValidateBulkRequest(request, options);
             return Results.Ok(await manager.RequeueAsync(request.MessageIds, cancellationToken).ConfigureAwait(false));
@@ -480,19 +539,22 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Requeues all dead-lettered outbox messages.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The outbox manager.</param>
     /// <param name="cancellationToken">A token that cancels the replay operation.</param>
     /// <returns>The number of messages requeued.</returns>
     private static Task<IResult> RequeueOutboxDeadLettersAsync(
+        HttpContext context,
         IOutboxManager manager,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () => Results.Ok(await manager.RequeueDeadLettersAsync(cancellationToken).ConfigureAwait(false)));
+        return ExecuteAsync(context, async () => Results.Ok(await manager.RequeueDeadLettersAsync(cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
     ///     Purges outbox messages that match the supplied filter.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The outbox manager.</param>
     /// <param name="parameters">The bound query string parameters.</param>
     /// <param name="confirmRequest">The JSON body that confirms unrestricted purge.</param>
@@ -500,13 +562,14 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <param name="cancellationToken">A token that cancels the purge operation.</param>
     /// <returns>The number of deleted rows.</returns>
     private static Task<IResult> PurgeOutboxMessagesAsync(
+        HttpContext context,
         IOutboxManager manager,
         [AsParameters] OutboxMessagePurgeBinding parameters,
         [FromBody] PurgeConfirmRequest? confirmRequest,
         LiteBusManagementOptions options,
         CancellationToken cancellationToken)
     {
-        return ExecuteManagementAsync(async () => Results.Ok(
+        return ExecuteManagementAsync(context, async () => Results.Ok(
             await PurgeOutboxWithValidationAsync(
                     manager,
                     parameters.ToFilter(),
@@ -520,63 +583,72 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Returns outbox status counts.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The outbox manager.</param>
     /// <param name="cancellationToken">A token that cancels the query.</param>
     /// <returns>Status counts grouped by <see cref="OutboxStatus" />.</returns>
     private static Task<IResult> GetOutboxStatusCountsAsync(
+        HttpContext context,
         IOutboxManager manager,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () => Results.Ok(await manager.GetStatusCountsAsync(cancellationToken).ConfigureAwait(false)));
+        return ExecuteAsync(context, async () => Results.Ok(await manager.GetStatusCountsAsync(cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
     ///     Returns outbox schema version metadata.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The outbox manager.</param>
     /// <param name="cancellationToken">A token that cancels the lookup.</param>
     /// <returns>Expected and recorded schema versions.</returns>
     private static Task<IResult> GetOutboxSchemaAsync(
+        HttpContext context,
         IOutboxManager manager,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () => Results.Ok(await manager.GetSchemaInfoAsync(cancellationToken).ConfigureAwait(false)));
+        return ExecuteAsync(context, async () => Results.Ok(await manager.GetSchemaInfoAsync(cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
     ///     Returns outbox retention cleanup status.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The outbox manager.</param>
     /// <param name="cancellationToken">A token reserved for future cancellation support.</param>
     /// <returns>The configured retention policy and most recent cleanup outcome.</returns>
     private static Task<IResult> GetOutboxRetentionStatusAsync(
+        HttpContext context,
         IOutboxManager manager,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () => Results.Ok(await manager.GetRetentionStatusAsync(cancellationToken).ConfigureAwait(false)));
+        return ExecuteAsync(context, async () => Results.Ok(await manager.GetRetentionStatusAsync(cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
     ///     Triggers an immediate outbox retention purge.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="manager">The outbox manager.</param>
     /// <param name="cancellationToken">A token that cancels the purge operation.</param>
     /// <returns>The number of rows deleted.</returns>
     private static Task<IResult> RunOutboxRetentionPurgeAsync(
+        HttpContext context,
         IOutboxManager manager,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () => Results.Ok(await manager.RunRetentionPurgeAsync(cancellationToken).ConfigureAwait(false)));
+        return ExecuteAsync(context, async () => Results.Ok(await manager.RunRetentionPurgeAsync(cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
     ///     Returns the outbox processor loop state.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="services">The request services.</param>
     /// <returns>The current processor state or a not-found response when the processor is disabled.</returns>
-    private static Task<IResult> GetOutboxProcessorStateAsync(IServiceProvider services)
+    private static Task<IResult> GetOutboxProcessorStateAsync(HttpContext context, IServiceProvider services)
     {
-        return ExecuteAsync(() =>
+        return ExecuteAsync(context, () =>
         {
             var control = services.GetService<IOutboxProcessorControl>();
 
@@ -589,14 +661,16 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Pauses the outbox processor loop.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="services">The request services.</param>
     /// <param name="cancellationToken">A token used to cancel waiting for the gate.</param>
     /// <returns>A confirmation payload or a not-found response when the processor is disabled.</returns>
     private static Task<IResult> PauseOutboxProcessorAsync(
+        HttpContext context,
         IServiceProvider services,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () =>
+        return ExecuteAsync(context, async () =>
         {
             if (services.GetService<IOutboxProcessorControl>() is not { } control)
             {
@@ -611,14 +685,16 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Resumes the outbox processor loop.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="services">The request services.</param>
     /// <param name="cancellationToken">A token reserved for future cancellation support.</param>
     /// <returns>A confirmation payload or a not-found response when the processor is disabled.</returns>
     private static Task<IResult> ResumeOutboxProcessorAsync(
+        HttpContext context,
         IServiceProvider services,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () =>
+        return ExecuteAsync(context, async () =>
         {
             if (services.GetService<IOutboxProcessorControl>() is not { } control)
             {
@@ -633,18 +709,20 @@ public static partial class LiteBusManagementEndpointExtensions
     /// <summary>
     ///     Drains the outbox processor loop once and stops leasing.
     /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="services">The request services.</param>
     /// <param name="options">The management endpoint options.</param>
     /// <param name="timeoutSeconds">The optional drain timeout override in seconds.</param>
     /// <param name="cancellationToken">A token used to cancel waiting for drain completion.</param>
     /// <returns>A confirmation payload or a not-found response when the processor is disabled.</returns>
     private static Task<IResult> DrainOutboxProcessorAsync(
+        HttpContext context,
         IServiceProvider services,
         LiteBusManagementOptions options,
         [FromQuery] int? timeoutSeconds,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(async () =>
+        return ExecuteAsync(context, async () =>
         {
             if (services.GetService<IOutboxProcessorControl>() is not { } control)
             {
@@ -707,24 +785,41 @@ public static partial class LiteBusManagementEndpointExtensions
     /// </summary>
     /// <remarks>
     ///     Catches <see cref="Exception" /> at the ASP.NET management edge because handlers may surface
-    ///     store, transport, or domain failures that must become HTTP 500 responses instead of crashing the host.
+    ///     store, transport, or domain failures that must be logged and mapped to stable HTTP 500 responses.
     /// </remarks>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="handler">The endpoint handler.</param>
     /// <returns>The HTTP result.</returns>
-    private static async Task<IResult> ExecuteAsync(Func<Task<IResult>> handler)
+    private static async Task<IResult> ExecuteAsync(HttpContext context, Func<Task<IResult>> handler)
     {
         try
         {
             return await handler().ConfigureAwait(false);
         }
-        catch (ArgumentException)
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
-            return Results.BadRequest("The management request is invalid.");
+            throw;
+        }
+        catch (ArgumentException exception)
+        {
+            LogManagementFailure(context, exception, InvalidManagementRequestMessage);
+            return CreateManagementProblem(
+                context,
+                StatusCodes.Status400BadRequest,
+                "Invalid management request",
+                "The request does not satisfy the management endpoint contract.",
+                "urn:litebus:management:invalid-request");
         }
 #pragma warning disable CA1031 // ASP.NET management edge maps unhandled failures to HTTP 500 responses.
-        catch (Exception)
+        catch (Exception exception)
         {
-            return Results.Problem("The management operation failed.", statusCode: StatusCodes.Status500InternalServerError);
+            LogManagementFailure(context, exception, ManagementOperationFailedMessage);
+            return CreateManagementProblem(
+                context,
+                StatusCodes.Status500InternalServerError,
+                "Management operation failed",
+                "The server could not complete the management operation.",
+                "urn:litebus:management:operation-failed");
         }
 #pragma warning restore CA1031
     }
@@ -734,11 +829,12 @@ public static partial class LiteBusManagementEndpointExtensions
     /// </summary>
     /// <remarks>
     ///     Catches <see cref="Exception" /> after domain-specific management exceptions because remaining
-    ///     failures from inbox or outbox managers must become HTTP 500 responses at this ASP.NET boundary.
+    ///     failures from inbox or outbox managers must be logged and mapped at this ASP.NET boundary.
     /// </remarks>
+    /// <param name="context">The current HTTP request context.</param>
     /// <param name="handler">The endpoint handler.</param>
     /// <returns>The HTTP result.</returns>
-    private static async Task<IResult> ExecuteManagementAsync(Func<Task<IResult>> handler)
+    private static async Task<IResult> ExecuteManagementAsync(HttpContext context, Func<Task<IResult>> handler)
     {
         try
         {
@@ -746,22 +842,106 @@ public static partial class LiteBusManagementEndpointExtensions
         }
         catch (InboxManagementException exception)
         {
-            return Results.BadRequest(exception.Message);
+            LogManagementFailure(context, exception, ManagementSafetyRejectionMessage);
+            return CreateSafetyRejectionProblem(context);
         }
         catch (OutboxManagementException exception)
         {
-            return Results.BadRequest(exception.Message);
+            LogManagementFailure(context, exception, ManagementSafetyRejectionMessage);
+            return CreateSafetyRejectionProblem(context);
         }
-        catch (ArgumentException)
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
-            return Results.BadRequest("The management request is invalid.");
+            throw;
+        }
+        catch (ArgumentException exception)
+        {
+            LogManagementFailure(context, exception, InvalidManagementRequestMessage);
+            return CreateManagementProblem(
+                context,
+                StatusCodes.Status400BadRequest,
+                "Invalid management request",
+                "The request does not satisfy the management endpoint contract.",
+                "urn:litebus:management:invalid-request");
         }
 #pragma warning disable CA1031 // Remaining inbox/outbox manager failures become HTTP 500 at this boundary.
-        catch (Exception)
+        catch (Exception exception)
         {
-            return Results.Problem("The management operation failed.", statusCode: StatusCodes.Status500InternalServerError);
+            LogManagementFailure(context, exception, ManagementOperationFailedMessage);
+            return CreateManagementProblem(
+                context,
+                StatusCodes.Status500InternalServerError,
+                "Management operation failed",
+                "The server could not complete the management operation.",
+                "urn:litebus:management:operation-failed");
         }
 #pragma warning restore CA1031
+    }
+
+    /// <summary>
+    ///     Creates the stable problem response used when an operator safety rule rejects a request.
+    /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
+    /// <returns>The operator safety problem response.</returns>
+    private static IResult CreateSafetyRejectionProblem(HttpContext context)
+    {
+        return CreateManagementProblem(
+            context,
+            StatusCodes.Status400BadRequest,
+            "Management request rejected",
+            "The request was rejected by a management safety rule.",
+            "urn:litebus:management:safety-rejection");
+    }
+
+    /// <summary>
+    ///     Creates a problem response with a stable type and the request trace identifier.
+    /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
+    /// <param name="statusCode">The HTTP status code.</param>
+    /// <param name="title">The stable problem title.</param>
+    /// <param name="detail">The safe problem detail.</param>
+    /// <param name="type">The stable problem type.</param>
+    /// <returns>The problem response.</returns>
+    private static IResult CreateManagementProblem(
+        HttpContext context,
+        int statusCode,
+        string title,
+        string detail,
+        string type)
+    {
+        return Results.Problem(
+            detail: detail,
+            instance: context.Request.Path,
+            statusCode: statusCode,
+            title: title,
+            type: type,
+            extensions: new Dictionary<string, object?>
+            {
+                ["traceId"] = context.TraceIdentifier
+            });
+    }
+
+    /// <summary>
+    ///     Logs a management boundary failure with request context and a stable event identifier.
+    /// </summary>
+    /// <param name="context">The current HTTP request context.</param>
+    /// <param name="exception">The failure raised by the endpoint handler.</param>
+    /// <param name="logMessage">The precompiled structured log message.</param>
+    private static void LogManagementFailure(
+        HttpContext context,
+        Exception exception,
+        Action<ILogger, string, string, string, Exception?> logMessage)
+    {
+        var logger = context.RequestServices
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("LiteBus.Management");
+
+        logMessage(
+            logger,
+            context.TraceIdentifier,
+            context.Request.Method,
+            context.Request.Path.Value ?? string.Empty,
+            exception);
     }
 
     /// <summary>

@@ -40,6 +40,10 @@ Register authentication before mapping routes. When `AllowAnonymousManagement` i
 | `FailHealthWhenNoProbes` | `true` | Health fails when no `IDiagnosticCheck` registered |
 | `DiagnosticChecks.Timeout` | 5 seconds | Per-probe health timeout |
 | `DiagnosticChecks.MaxParallelism` | 4 | Maximum concurrent probes |
+| `DefaultDrainTimeout` | 30 seconds | Drain timeout when the request omits an override |
+| `MaxDrainTimeout` | 5 minutes | Largest drain timeout accepted from a request |
+| `MaxPageSize` | 100 | Largest message-query page accepted from a request |
+| `MaxBulkMessageIds` | 1,000 | Largest selective requeue or purge identifier set |
 | `RoutePrefix` | `litebus` | Route group prefix |
 
 ## Endpoints (Summary)
@@ -63,6 +67,13 @@ Unrestricted purge (no narrowing query parameters) requires JSON body:
 
 Requests without `confirm: true` return **400**. Narrow filters (status, age, tenant) may purge without the body when the filter is explicit.
 
+### Error Responses
+
+Endpoint failures use `application/problem+json` with stable `type`, `title`, `status`, and
+`detail` values. The `traceId` extension identifies the request in host logs. Responses never
+include exception messages from managers, stores, or transport adapters. Invalid input and
+operator safety rejections return **400**; unexpected failures return **500**.
+
 ## Guarantees and Non-Guarantees
 
 | Guaranteed | Not guaranteed |
@@ -83,6 +94,7 @@ Requests without `confirm: true` return **400**. Narrow filters (status, age, te
 | Scenario | Location |
 | --- | --- |
 | Purge without confirm to 400 | `LiteBus.Extensions.AspNetCore.UnitTests` |
+| Redacted failure problem with trace identifier | `LiteBus.Extensions.AspNetCore.UnitTests` |
 | Outbox routes when outbox not registered to 404 | `LiteBus.Extensions.AspNetCore.UnitTests` |
 | Anonymous to 401 | `LiteBus.Extensions.AspNetCore.IntegrationTests` |
 | Manifest probe registration | `LiteBus.Extensions.Diagnostics.HealthChecks.IntegrationTests` |

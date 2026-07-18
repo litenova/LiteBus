@@ -130,6 +130,16 @@ public sealed class ManagementEndpointTests
         var response = await client.DeleteAsync("/litebus/inbox/messages").ConfigureAwait(false);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false);
+        Assert.Equal("urn:litebus:management:safety-rejection", problem.GetProperty("type").GetString());
+        Assert.Equal("Management request rejected", problem.GetProperty("title").GetString());
+        Assert.Equal(400, problem.GetProperty("status").GetInt32());
+        Assert.Equal(
+            "The request was rejected by a management safety rule.",
+            problem.GetProperty("detail").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(problem.GetProperty("traceId").GetString()));
+        Assert.DoesNotContain("confirm=true", problem.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
