@@ -112,5 +112,29 @@ public static class MessageProcessorDiagnostics
         ArgumentNullException.ThrowIfNull(retry);
 
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(retry.MaxAttempts, 0, optionsParameterName);
+
+        if (retry.InitialDelay < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                optionsParameterName,
+                retry.InitialDelay,
+                "Retry initial delay must not be negative.");
+        }
+
+        if (retry.MaxDelay < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                optionsParameterName,
+                retry.MaxDelay,
+                "Retry maximum delay must not be negative.");
+        }
+
+        if (!Enum.IsDefined(retry.Backoff))
+        {
+            throw new ArgumentOutOfRangeException(
+                optionsParameterName,
+                retry.Backoff,
+                "Retry backoff must be a defined value.");
+        }
     }
 }

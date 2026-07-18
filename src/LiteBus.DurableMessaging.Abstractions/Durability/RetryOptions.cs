@@ -26,16 +26,19 @@ public sealed record RetryOptions
     /// <summary>
     ///     Gets the delay before the first retry. Subsequent delays scale with <see cref="Backoff" />.
     /// </summary>
+    /// <value>Must not be negative.</value>
     public TimeSpan InitialDelay { get; init; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
     ///     Gets the upper bound on the calculated delay regardless of backoff and attempt count.
     /// </summary>
+    /// <value>Must not be negative.</value>
     public TimeSpan MaxDelay { get; init; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
     ///     Gets the retry backoff strategy used to calculate the base delay for each attempt.
     /// </summary>
+    /// <value>Must be a defined <see cref="RetryBackoff" /> value.</value>
     public RetryBackoff Backoff { get; init; } = RetryBackoff.Exponential;
 
     /// <summary>
