@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Threading;
+using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
 
 namespace LiteBus.Inbox;
@@ -53,6 +54,11 @@ internal sealed class InboxObservableMetrics : IDisposable
     private DateTimeOffset _cacheExpiresAt;
 
     /// <summary>
+    ///     The active asynchronous cache refresh, or a completed task when no refresh is running.
+    /// </summary>
+    private Task _refreshTask = Task.CompletedTask;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="InboxObservableMetrics" /> class.
     /// </summary>
     /// <param name="serviceProvider">The service provider used to resolve inbox diagnostics dependencies.</param>
@@ -83,6 +89,25 @@ internal sealed class InboxObservableMetrics : IDisposable
         if (Interlocked.Exchange(ref _disposeState, 1) == 0)
         {
             _meter.Dispose();
+        }
+    }
+
+    /// <summary>
+    ///     Refreshes the cached queue counts without blocking an observable instrument callback.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the store query.</param>
+    /// <returns>A task that completes when the current single-flight refresh finishes.</returns>
+    internal Task RefreshAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_cacheLock)
+        {
+            if (!_refreshTask.IsCompleted)
+            {
+                return _refreshTask;
+            }
+
+            _refreshTask = RefreshStatusCountsAsync(cancellationToken);
+            return _refreshTask;
         }
     }
 
@@ -119,42 +144,68 @@ internal sealed class InboxObservableMetrics : IDisposable
     }
 
     /// <summary>
-    ///     Returns cached or freshly queried inbox status counts.
+    ///     Returns cached inbox status counts and schedules a refresh when the cache has expired.
     /// </summary>
     /// <returns>A read-only map of status to row count.</returns>
     private IReadOnlyDictionary<InboxStatus, int> GetStatusCounts()
     {
         lock (_cacheLock)
         {
-            if (DateTimeOffset.UtcNow < _cacheExpiresAt)
+            if (DateTimeOffset.UtcNow >= _cacheExpiresAt &&
+                _refreshTask.IsCompleted &&
+                Volatile.Read(ref _disposeState) == 0)
             {
-                return _cachedCounts;
+                _refreshTask = RefreshStatusCountsAsync(CancellationToken.None);
             }
-        }
 
-        var store = _serviceProvider.GetService(typeof(IInboxDiagnosticsStore)) as IInboxDiagnosticsStore;
-
-        if (store is null)
-        {
-            return EmptyStatusCounts;
+            return _cachedCounts;
         }
+    }
+
+    /// <summary>
+    ///     Queries the diagnostics store and updates the queue-count cache.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the store query.</param>
+    /// <returns>A task that completes when the refresh attempt finishes.</returns>
+    private async Task RefreshStatusCountsAsync(CancellationToken cancellationToken)
+    {
+        await Task.Yield();
 
         try
         {
-            var counts = store.GetStatusCountsAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+            var store = _serviceProvider.GetService(typeof(IInboxDiagnosticsStore)) as IInboxDiagnosticsStore;
+
+            if (store is null)
+            {
+                lock (_cacheLock)
+                {
+                    _cacheExpiresAt = DateTimeOffset.UtcNow.Add(CacheDuration);
+                }
+
+                return;
+            }
+
+            var counts = await store.GetStatusCountsAsync(cancellationToken).ConfigureAwait(false);
 
             lock (_cacheLock)
             {
                 _cachedCounts = counts;
                 _cacheExpiresAt = DateTimeOffset.UtcNow.Add(CacheDuration);
-                return _cachedCounts;
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Host startup or shutdown canceled the refresh.
         }
 #pragma warning disable CA1031 // Status count probes must tolerate any backing-store failure during metric export.
         catch (Exception)
         {
             InboxDiagnosticsTelemetry.RecordUnavailable();
-            return EmptyStatusCounts;
+
+            lock (_cacheLock)
+            {
+                _cacheExpiresAt = DateTimeOffset.UtcNow.Add(CacheDuration);
+            }
         }
 #pragma warning restore CA1031
     }
