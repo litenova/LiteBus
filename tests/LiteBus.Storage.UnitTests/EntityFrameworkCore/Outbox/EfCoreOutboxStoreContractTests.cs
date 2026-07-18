@@ -1,5 +1,6 @@
 using LiteBus.Storage.Testing;
 using Microsoft.EntityFrameworkCore;
+using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
 
 namespace LiteBus.Storage.UnitTests.EntityFrameworkCore.Outbox;
@@ -18,6 +19,68 @@ public sealed class EfCoreOutboxStoreContractTests : OutboxStoreContractTests, I
     ///     The outbox store under test.
     /// </summary>
     private EfCoreOutboxStore? _store;
+
+    /// <summary>
+    ///     Verifies independent stores sharing one in-memory database cannot lease the same message.
+    /// </summary>
+    [Fact]
+    public async Task LeasePendingAsync_AcrossStoreInstances_ShouldLeaseDisjointMessages()
+    {
+        var databaseName = Guid.NewGuid().ToString("N");
+        using var saveBarrier = new Barrier(2);
+        var synchronizeLeaseSaves = false;
+
+        IOutboxDbContext CreateSharedContext()
+        {
+            var options = new DbContextOptionsBuilder<TestOutboxDbContext>()
+                .UseInMemoryDatabase(databaseName)
+                .Options;
+            var context = new TestOutboxDbContext(options);
+            context.SavingChanges += (_, _) =>
+            {
+                if (synchronizeLeaseSaves)
+                {
+                    saveBarrier.SignalAndWait(TimeSpan.FromMilliseconds(250));
+                }
+            };
+            return context;
+        }
+
+        var firstStore = new EfCoreOutboxStore(
+            _ => Task.FromResult(CreateSharedContext()),
+            new EntityFrameworkCoreOutboxStoreOptions());
+        var secondStore = new EfCoreOutboxStore(
+            _ => Task.FromResult(CreateSharedContext()),
+            new EntityFrameworkCoreOutboxStoreOptions());
+        var messageId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await firstStore.AddAsync(new OutboxEnvelope
+        {
+            Id = messageId,
+            ContractName = "tests.events.concurrent-lease",
+            ContractVersion = 1,
+            Payload = "{}",
+            CreatedAt = now,
+            AttemptCount = 0,
+            Status = OutboxStatus.Pending
+        }).ConfigureAwait(false);
+
+        synchronizeLeaseSaves = true;
+        var request = new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-a",
+            Now = now,
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        };
+
+        var firstLease = firstStore.LeasePendingAsync(request);
+        var secondLease = secondStore.LeasePendingAsync(request with { LeaseOwner = "publisher-b" });
+        var leases = await Task.WhenAll(firstLease, secondLease).ConfigureAwait(false);
+
+        leases.SelectMany(batch => batch).Should().ContainSingle(envelope => envelope.Id == messageId);
+    }
 
     /// <summary>
     ///     Releases resources held by the current test class.

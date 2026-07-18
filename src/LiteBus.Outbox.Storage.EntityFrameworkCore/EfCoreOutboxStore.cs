@@ -61,9 +61,9 @@ public sealed class EfCoreOutboxStore :
     private readonly IOutboxDbContext? _existingContext;
 
     /// <summary>
-    ///     Serializes in-memory and SQLite outbox leasing when multiple workers run in one process.
+    ///     Serializes in-memory outbox leasing across all store instances in the current process.
     /// </summary>
-    private readonly SemaphoreSlim _inMemoryLeaseLock = new(1, 1);
+    private static readonly SemaphoreSlim InMemoryLeaseLock = new(1, 1);
 
     /// <summary>
     ///     Store options that define schema and table names for raw SQL leasing.
@@ -127,7 +127,6 @@ public sealed class EfCoreOutboxStore :
     /// <inheritdoc />
     public ValueTask DisposeAsync()
     {
-        _inMemoryLeaseLock.Dispose();
         return ValueTask.CompletedTask;
     }
 
@@ -1075,12 +1074,12 @@ public sealed class EfCoreOutboxStore :
     /// <param name="request">The lease request.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The leased message envelopes.</returns>
-    private async Task<IReadOnlyList<OutboxEnvelope>> LeasePendingInMemoryAsync(
+    private static async Task<IReadOnlyList<OutboxEnvelope>> LeasePendingInMemoryAsync(
         IOutboxDbContext context,
         OutboxLeaseRequest request,
         CancellationToken cancellationToken)
     {
-        await _inMemoryLeaseLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await InMemoryLeaseLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -1088,7 +1087,7 @@ public sealed class EfCoreOutboxStore :
         }
         finally
         {
-            _inMemoryLeaseLock.Release();
+            InMemoryLeaseLock.Release();
         }
     }
 
