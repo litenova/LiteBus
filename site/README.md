@@ -24,3 +24,8 @@ npm run dev
 Open `http://localhost:3000`. The build command is `npm run build` and the production
 server is `npm run start`. Run `npm run lint` for the Next.js ESLint rules and
 `npm run typecheck` for a standalone TypeScript check.
+
+The build and release workflows run a clean install, a high-severity dependency audit,
+linting, type checking, the production build, and the rendered-link gate. Changes under
+`site/` or `Roadmap/` trigger the build workflow. A separate content-mirror gate rejects
+missing, stale, or orphaned site pages before the Fumadocs build starts.

@@ -30,6 +30,8 @@ on:
       - 'benchmarks/**'
       - 'coverlet*.runsettings'
       - 'docs/**'
+      - 'Roadmap/**'
+      - 'site/**'
       - 'global.json'
       - 'GitVersion.yml'
       - 'samples/**'
@@ -48,6 +50,8 @@ on:
       - 'benchmarks/**'
       - 'coverlet*.runsettings'
       - 'docs/**'
+      - 'Roadmap/**'
+      - 'site/**'
       - 'global.json'
       - 'GitVersion.yml'
       - 'samples/**'
@@ -63,18 +67,36 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0 # Important for GitVersion
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
       - name: Validate Documentation
         shell: pwsh
-        run: ./scripts/Test-Documentation.ps1
+        run: |
+          ./scripts/Test-Documentation.ps1
+          ./scripts/Test-DocumentationSiteContent.ps1
+
+      - name: Validate Documentation Site
+        working-directory: site
+        run: |
+          npm ci
+          npm audit --audit-level=high
+          npm run lint
+          npm run typecheck
+          npm run build
 
       - name: Restore Dependencies
         run: dotnet restore LiteBus.slnx --locked-mode

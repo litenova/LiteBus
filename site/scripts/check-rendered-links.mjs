@@ -1,8 +1,11 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
-const outputRoot = join(process.cwd(), '.next', 'server', 'app', 'docs');
-const renderedPages = await findHtmlFiles(outputRoot);
+const outputRoot = join(process.cwd(), '.next', 'server', 'app');
+const renderedPages = (await findHtmlFiles(outputRoot)).filter((page) => {
+  const route = relative(outputRoot, page).replaceAll('\\', '/');
+  return route === 'docs.html' || route.startsWith('docs/');
+});
 const invalidLinks = [];
 
 for (const page of renderedPages) {

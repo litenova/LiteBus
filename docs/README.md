@@ -4,6 +4,10 @@ This directory contains the authoritative LiteBus documentation. Pages are versi
 
 LiteBus v6 targets .NET 10 and remains unreleased. A page that describes a v6 API defines the current branch contract, not a compatibility promise for an earlier package version.
 
+The Fumadocs pages under `site/content/docs` mirror this tree. The documentation site content
+gate compares every page byte-for-byte and rejects missing, stale, or orphaned copies. The
+root v7 roadmap is mirrored under the site's roadmap section by the same gate.
+
 ## Directory Layout
 
 | Directory | Content |
