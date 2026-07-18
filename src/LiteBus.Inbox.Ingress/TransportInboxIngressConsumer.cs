@@ -466,8 +466,9 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     /// <param name="cancellationToken">The token used to cancel acceptance.</param>
     /// <returns>A task that completes when the batch has been accepted and acknowledged.</returns>
     /// <remarks>
-    ///     Batch accept failures use a broad <see cref="Exception" /> handler because store faults cannot be narrowed
-    ///     without losing isolated poison handling. Failures are logged before per-message fallback acceptance.
+    ///     Batch accept and settlement failures use broad <see cref="Exception" /> handlers because store and broker
+    ///     faults cannot be narrowed without losing isolated handling. Failures are logged before per-message fallback
+    ///     acceptance or before settlement continues with the remaining deliveries.
     /// </remarks>
     private async Task AcceptAndAcknowledgeBatchAsync(
         List<TransportMessage> messages,
@@ -510,6 +511,12 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
             {
                 await AcknowledgeDeliveryAsync(message, cancellationToken).ConfigureAwait(false);
             }
+#pragma warning disable CA1031 // One broker settlement failure must not strand later deliveries or admission permits.
+            catch (Exception settlementException)
+            {
+                TransportInboxIngressLogMessages.BatchFlushFailed(_logger, settlementException);
+            }
+#pragma warning restore CA1031
             finally
             {
                 ReleaseBatchAdmission();

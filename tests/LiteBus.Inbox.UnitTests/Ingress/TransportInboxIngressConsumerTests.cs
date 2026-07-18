@@ -306,6 +306,63 @@ public sealed class TransportInboxIngressConsumerTests
     }
 
     /// <summary>
+    ///     Verifies one broker settlement failure does not strand later deliveries or batch admission permits.
+    /// </summary>
+    /// <returns>A task that completes when both batches have been settled.</returns>
+    [Fact]
+    public async Task BatchAccept_WhenOneSettlementFails_ShouldContinueAndRestoreAdmission()
+    {
+        var ackAttemptCount = 0;
+        var nackAttemptCount = 0;
+        var inbox = new RecordingInbox();
+        var consumer = CreateConsumer(
+            true,
+            inbox: inbox,
+            options: new TransportInboxIngressOptions
+            {
+                Safety = new TransportInboxIngressSafetyOptions
+                {
+                    BatchSize = 3,
+                    EnableBatchAccept = true,
+                    RequireStableIdentity = false
+                }
+            });
+
+        var failedSettlement = CreateValidMessage(
+            () =>
+            {
+                ackAttemptCount++;
+                return Task.FromException(new IOException("ack failed"));
+            },
+            (_, _) =>
+            {
+                nackAttemptCount++;
+                return Task.FromException(new IOException("nack failed"));
+            });
+
+        await InvokeHandleDeliveryAsync(consumer, failedSettlement).ConfigureAwait(false);
+
+        for (var index = 0; index < 5; index++)
+        {
+            await InvokeHandleDeliveryAsync(
+                    consumer,
+                    CreateValidMessage(
+                        () =>
+                        {
+                            ackAttemptCount++;
+                            return Task.CompletedTask;
+                        },
+                        (_, _) => Task.CompletedTask))
+                .WaitAsync(TimeSpan.FromSeconds(2))
+                .ConfigureAwait(false);
+        }
+
+        inbox.BatchAcceptCount.Should().Be(2);
+        ackAttemptCount.Should().Be(6);
+        nackAttemptCount.Should().Be(1);
+    }
+
+    /// <summary>
     ///     Verifies partial batches flush after BatchMaxWait even when the batch size is not reached.
     /// </summary>
     /// <returns>A task that completes when the batch flush assertion succeeds.</returns>
