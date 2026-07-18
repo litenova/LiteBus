@@ -9,7 +9,7 @@ Persist inbox and outbox envelopes through role-split store interfaces with Post
 
 ## What It Does
 
-Storage adapters implement narrow roles: append (writer), lease (processor), state persist (processor), dead letter, retention, diagnostics, query, and purge. A single class typically implements all roles on one table set. Schema v1 is greenfield for PostgreSQL and EF Core (no in-place upgrade from v5 tables). Shared PostgreSQL primitives live in `LiteBus.Storage.PostgreSql`.
+Storage adapters implement narrow roles: append (writer), lease (processor), state persist (processor), dead letter, retention, diagnostics, query, and purge. A single class typically implements all roles on one table set. Schema version 1 is the first released v6 shape for PostgreSQL and EF Core; LiteBus does not upgrade v5 tables in place. Shared PostgreSQL primitives live in `LiteBus.Storage.PostgreSql`.
 
 ## Public Surface
 
@@ -85,7 +85,7 @@ Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only
 - Default table: `litebus_inbox_messages` / outbox equivalent with PK `message_id`
 - In-memory store uses process-wide lock; not for multi-worker production simulation
 - Custom stores implement roles; use envelope factories for serialization
-- Inbox and outbox PostgreSQL schema version 3, with ordered v2 and v3 migration files
+- Inbox, outbox, and saga PostgreSQL schema version 1 for the first v6 release
 
 ## Non-Goals
 

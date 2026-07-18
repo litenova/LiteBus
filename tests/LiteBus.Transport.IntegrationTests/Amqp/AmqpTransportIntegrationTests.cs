@@ -1,4 +1,5 @@
 using System.Text;
+using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Amqp.Exceptions;
 using RabbitMQ.Client;
 
@@ -27,41 +28,41 @@ public abstract class AmqpTransportIntegrationTests
     public async Task PublishAsync_ThenConsume_AcknowledgesMessage()
     {
         var queueName = CreateUniqueQueueName("ack");
-         var manager = new AmqpConnectionManager(ConnectionOptions);
-         await using (manager.ConfigureAwait(false))
-         {
-        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
-         var consumer = new AmqpConsumer(manager);
-         await using (consumer.ConfigureAwait(false))
-         {
-
-        var received = new TaskCompletionSource<AmqpReceivedMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        await consumer.StartAsync(
-            new AmqpConsumerOptions { QueueName = queueName },
-            (message, _) =>
+        var manager = new AmqpConnectionManager(ConnectionOptions);
+        await using (manager.ConfigureAwait(false))
+        {
+            var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
+            var consumer = new AmqpConsumer(manager);
+            await using (consumer.ConfigureAwait(false))
             {
-                received.TrySetResult(message);
-                return Task.CompletedTask;
-            }).ConfigureAwait(true);
+
+                var received = new TaskCompletionSource<AmqpReceivedMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                await consumer.StartAsync(
+                    new AmqpConsumerOptions { QueueName = queueName },
+                    (message, _) =>
+                    {
+                        received.TrySetResult(message);
+                        return Task.CompletedTask;
+                    }).ConfigureAwait(false);
 
 
-        var body = Encoding.UTF8.GetBytes($"hello-{BrokerName}");
+                var body = Encoding.UTF8.GetBytes($"hello-{BrokerName}");
 
-        await publisher.PublishAsync(
-            new AmqpPublishRequest
-            {
-                Exchange = string.Empty,
-                RoutingKey = queueName,
-                Body = body
-            }).ConfigureAwait(true);
+                await publisher.PublishAsync(
+                    new AmqpPublishRequest
+                    {
+                        Exchange = string.Empty,
+                        RoutingKey = queueName,
+                        Body = body
+                    }).ConfigureAwait(false);
 
 
-        using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        var message = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(true);
-        message.Body.ToArray().Should().BeEquivalentTo(body);
-        await message.AcceptAsync(CancellationToken.None).ConfigureAwait(true);
-        }
+                using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                var message = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
+                message.Body.ToArray().Should().BeEquivalentTo(body);
+                await message.AcceptAsync(CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 
@@ -73,55 +74,55 @@ public abstract class AmqpTransportIntegrationTests
     public async Task ConsumeAsync_NackWithRequeue_RedeliversMessage()
     {
         var queueName = CreateUniqueQueueName("nack");
-         var manager = new AmqpConnectionManager(ConnectionOptions);
-         await using (manager.ConfigureAwait(false))
-         {
-        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
-         var consumer = new AmqpConsumer(manager);
-         await using (consumer.ConfigureAwait(false))
-         {
-
-        var firstDelivery = new TaskCompletionSource<AmqpReceivedMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var secondDelivery = new TaskCompletionSource<AmqpReceivedMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var deliveryCount = 0;
-
-        await consumer.StartAsync(
-            new AmqpConsumerOptions { QueueName = queueName },
-            async (message, token) =>
+        var manager = new AmqpConnectionManager(ConnectionOptions);
+        await using (manager.ConfigureAwait(false))
+        {
+            var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
+            var consumer = new AmqpConsumer(manager);
+            await using (consumer.ConfigureAwait(false))
             {
-                var count = Interlocked.Increment(ref deliveryCount);
 
-                if (count == 1)
-                {
-                    firstDelivery.TrySetResult(message);
-                    await message.ReturnToQueueAsync(token).ConfigureAwait(true);
-                    return;
-                }
+                var firstDelivery = new TaskCompletionSource<AmqpReceivedMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var secondDelivery = new TaskCompletionSource<AmqpReceivedMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var deliveryCount = 0;
 
-                secondDelivery.TrySetResult(message);
-                await message.AcceptAsync(token).ConfigureAwait(true);
-            }).ConfigureAwait(true);
+                await consumer.StartAsync(
+                    new AmqpConsumerOptions { QueueName = queueName },
+                    async (message, token) =>
+                    {
+                        var count = Interlocked.Increment(ref deliveryCount);
 
+                        if (count == 1)
+                        {
+                            firstDelivery.TrySetResult(message);
+                            await message.ReturnToQueueAsync(token).ConfigureAwait(false);
+                            return;
+                        }
 
-        var body = Encoding.UTF8.GetBytes($"retry-{BrokerName}");
-
-        await publisher.PublishAsync(
-            new AmqpPublishRequest
-            {
-                Exchange = string.Empty,
-                RoutingKey = queueName,
-                Body = body
-            }).ConfigureAwait(true);
+                        secondDelivery.TrySetResult(message);
+                        await message.AcceptAsync(token).ConfigureAwait(false);
+                    }).ConfigureAwait(false);
 
 
-        using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        var firstMessage = await firstDelivery.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(true);
-        firstMessage.Redelivered.Should().BeFalse();
+                var body = Encoding.UTF8.GetBytes($"retry-{BrokerName}");
 
-        var secondMessage = await secondDelivery.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(true);
-        secondMessage.Redelivered.Should().BeTrue();
-        secondMessage.Body.ToArray().Should().BeEquivalentTo(body);
-        }
+                await publisher.PublishAsync(
+                    new AmqpPublishRequest
+                    {
+                        Exchange = string.Empty,
+                        RoutingKey = queueName,
+                        Body = body
+                    }).ConfigureAwait(false);
+
+
+                using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                var firstMessage = await firstDelivery.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
+                firstMessage.Redelivered.Should().BeFalse();
+
+                var secondMessage = await secondDelivery.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
+                secondMessage.Redelivered.Should().BeTrue();
+                secondMessage.Body.ToArray().Should().BeEquivalentTo(body);
+            }
         }
     }
 
@@ -133,57 +134,57 @@ public abstract class AmqpTransportIntegrationTests
     public async Task PublishAsync_WithLiteBusHeaders_PreservesHeaderValues()
     {
         var queueName = CreateUniqueQueueName("headers");
-         var manager = new AmqpConnectionManager(ConnectionOptions);
-         await using (manager.ConfigureAwait(false))
-         {
-        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
-         var consumer = new AmqpConsumer(manager);
-         await using (consumer.ConfigureAwait(false))
-         {
-
-        var received = new TaskCompletionSource<AmqpReceivedMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        await consumer.StartAsync(
-            new AmqpConsumerOptions { QueueName = queueName },
-            (message, _) =>
+        var manager = new AmqpConnectionManager(ConnectionOptions);
+        await using (manager.ConfigureAwait(false))
+        {
+            var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
+            var consumer = new AmqpConsumer(manager);
+            await using (consumer.ConfigureAwait(false))
             {
-                received.TrySetResult(message);
-                return Task.CompletedTask;
-            }).ConfigureAwait(true);
+
+                var received = new TaskCompletionSource<AmqpReceivedMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                await consumer.StartAsync(
+                    new AmqpConsumerOptions { QueueName = queueName },
+                    (message, _) =>
+                    {
+                        received.TrySetResult(message);
+                        return Task.CompletedTask;
+                    }).ConfigureAwait(false);
 
 
-        var messageId = Guid.NewGuid().ToString("D");
+                var messageId = Guid.NewGuid().ToString("D");
 
-        await publisher.PublishAsync(
-            new AmqpPublishRequest
-            {
-                Exchange = string.Empty,
-                RoutingKey = queueName,
-                Body = Encoding.UTF8.GetBytes("{}"),
-                MessageId = messageId,
-                CorrelationId = "corr-1",
-                Headers = new Dictionary<string, object?>
-                {
-                    [AmqpHeaders.MessageId] = messageId,
-                    [AmqpHeaders.ContractName] = "orders.order-submitted",
-                    [AmqpHeaders.ContractVersion] = 1,
-                    [AmqpHeaders.CorrelationId] = "corr-1",
-                    [AmqpHeaders.CausationId] = "cause-1",
-                    [AmqpHeaders.TenantId] = "tenant-a"
-                }
-            }).ConfigureAwait(true);
+                await publisher.PublishAsync(
+                    new AmqpPublishRequest
+                    {
+                        Exchange = string.Empty,
+                        RoutingKey = queueName,
+                        Body = Encoding.UTF8.GetBytes("{}"),
+                        MessageId = messageId,
+                        CorrelationId = "corr-1",
+                        Headers = new Dictionary<string, object?>
+                        {
+                            [TransportHeaders.MessageId] = messageId,
+                            [TransportHeaders.ContractName] = "orders.order-submitted",
+                            [TransportHeaders.ContractVersion] = 1,
+                            [TransportHeaders.CorrelationId] = "corr-1",
+                            [TransportHeaders.CausationId] = "cause-1",
+                            [TransportHeaders.TenantId] = "tenant-a"
+                        }
+                    }).ConfigureAwait(false);
 
 
-        using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        var message = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(true);
-        message.MessageId.Should().Be(messageId);
-        message.CorrelationId.Should().Be("corr-1");
-        AmqpHeaderValues.GetString(message.Headers, AmqpHeaders.ContractName).Should().Be("orders.order-submitted");
-        AmqpHeaderValues.GetInt32(message.Headers, AmqpHeaders.ContractVersion).Should().Be(1);
-        AmqpHeaderValues.GetString(message.Headers, AmqpHeaders.CausationId).Should().Be("cause-1");
-        AmqpHeaderValues.GetString(message.Headers, AmqpHeaders.TenantId).Should().Be("tenant-a");
-        await message.AcceptAsync(CancellationToken.None).ConfigureAwait(false);
-        }
+                using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                var message = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
+                message.MessageId.Should().Be(messageId);
+                message.CorrelationId.Should().Be("corr-1");
+                AmqpHeaderValues.GetString(message.Headers, TransportHeaders.ContractName).Should().Be("orders.order-submitted");
+                AmqpHeaderValues.GetInt32(message.Headers, TransportHeaders.ContractVersion).Should().Be(1);
+                AmqpHeaderValues.GetString(message.Headers, TransportHeaders.CausationId).Should().Be("cause-1");
+                AmqpHeaderValues.GetString(message.Headers, TransportHeaders.TenantId).Should().Be("tenant-a");
+                await message.AcceptAsync(CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 
@@ -195,63 +196,63 @@ public abstract class AmqpTransportIntegrationTests
     public async Task StopAsync_AfterStart_PreventsFurtherDeliveries()
     {
         var queueName = CreateUniqueQueueName("stop");
-         var manager = new AmqpConnectionManager(ConnectionOptions);
-         await using (manager.ConfigureAwait(false))
-         {
-        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
-         var consumer = new AmqpConsumer(manager);
-         await using (consumer.ConfigureAwait(false))
-         {
-
-        var firstDelivery = new TaskCompletionSource<AmqpReceivedMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        await consumer.StartAsync(
-            new AmqpConsumerOptions { QueueName = queueName },
-            async (message, token) =>
+        var manager = new AmqpConnectionManager(ConnectionOptions);
+        await using (manager.ConfigureAwait(false))
+        {
+            var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
+            var consumer = new AmqpConsumer(manager);
+            await using (consumer.ConfigureAwait(false))
             {
-                firstDelivery.TrySetResult(message);
-                await message.AcceptAsync(token).ConfigureAwait(true);
-            }).ConfigureAwait(true);
+
+                var firstDelivery = new TaskCompletionSource<AmqpReceivedMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                await consumer.StartAsync(
+                    new AmqpConsumerOptions { QueueName = queueName },
+                    async (message, token) =>
+                    {
+                        firstDelivery.TrySetResult(message);
+                        await message.AcceptAsync(token).ConfigureAwait(false);
+                    }).ConfigureAwait(false);
 
 
-        var firstBody = Encoding.UTF8.GetBytes($"first-{BrokerName}");
+                var firstBody = Encoding.UTF8.GetBytes($"first-{BrokerName}");
 
-        await publisher.PublishAsync(
-            new AmqpPublishRequest
-            {
-                Exchange = string.Empty,
-                RoutingKey = queueName,
-                Body = firstBody
-            }).ConfigureAwait(true);
-
-
-        using var firstWait = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await firstDelivery.Task.WaitAsync(firstWait.Token).ConfigureAwait(true);
-
-        await consumer.StopAsync(CancellationToken.None).ConfigureAwait(true);
-
-        var secondBody = Encoding.UTF8.GetBytes($"second-{BrokerName}");
-
-        await publisher.PublishAsync(
-            new AmqpPublishRequest
-            {
-                Exchange = string.Empty,
-                RoutingKey = queueName,
-                Body = secondBody
-            }).ConfigureAwait(true);
+                await publisher.PublishAsync(
+                    new AmqpPublishRequest
+                    {
+                        Exchange = string.Empty,
+                        RoutingKey = queueName,
+                        Body = firstBody
+                    }).ConfigureAwait(false);
 
 
-        await Task.Delay(TimeSpan.FromMilliseconds(500)).ConfigureAwait(true);
+                using var firstWait = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await firstDelivery.Task.WaitAsync(firstWait.Token).ConfigureAwait(false);
 
-         var verifyChannel = await manager.CreateChannelAsync().ConfigureAwait(true);
-         await using (verifyChannel.ConfigureAwait(false))
-         {
-        var queued = await verifyChannel.BasicGetAsync(queueName, false).ConfigureAwait(false);
-        queued.Should().NotBeNull();
-        queued!.Body.ToArray().Should().BeEquivalentTo(secondBody);
-        await verifyChannel.BasicAckAsync(queued.DeliveryTag, false).ConfigureAwait(false);
-        }
-        }
+                await consumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+                var secondBody = Encoding.UTF8.GetBytes($"second-{BrokerName}");
+
+                await publisher.PublishAsync(
+                    new AmqpPublishRequest
+                    {
+                        Exchange = string.Empty,
+                        RoutingKey = queueName,
+                        Body = secondBody
+                    }).ConfigureAwait(false);
+
+
+                await Task.Delay(TimeSpan.FromMilliseconds(500)).ConfigureAwait(false);
+
+                var verifyChannel = await manager.CreateChannelAsync().ConfigureAwait(false);
+                await using (verifyChannel.ConfigureAwait(false))
+                {
+                    var queued = await verifyChannel.BasicGetAsync(queueName, false).ConfigureAwait(false);
+                    queued.Should().NotBeNull();
+                    queued!.Body.ToArray().Should().BeEquivalentTo(secondBody);
+                    await verifyChannel.BasicAckAsync(queued.DeliveryTag, false).ConfigureAwait(false);
+                }
+            }
         }
     }
 
@@ -262,23 +263,23 @@ public abstract class AmqpTransportIntegrationTests
     [Fact]
     public async Task PublishAsync_WhenCancelled_ThrowsOperationCanceledException()
     {
-         var manager = new AmqpConnectionManager(ConnectionOptions);
-         await using (manager.ConfigureAwait(false))
-         {
-        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
-        using var cancellationSource = new CancellationTokenSource();
-        cancellationSource.Cancel();
+        var manager = new AmqpConnectionManager(ConnectionOptions);
+        await using (manager.ConfigureAwait(false))
+        {
+            var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
+            using var cancellationSource = new CancellationTokenSource();
+            cancellationSource.Cancel();
 
-        var act = () => publisher.PublishAsync(
-            new AmqpPublishRequest
-            {
-                Exchange = string.Empty,
-                RoutingKey = CreateUniqueQueueName("cancel-publish"),
-                Body = Encoding.UTF8.GetBytes("cancelled")
-            },
-            cancellationSource.Token);
+            var act = () => publisher.PublishAsync(
+                new AmqpPublishRequest
+                {
+                    Exchange = string.Empty,
+                    RoutingKey = CreateUniqueQueueName("cancel-publish"),
+                    Body = Encoding.UTF8.GetBytes("cancelled")
+                },
+                cancellationSource.Token);
 
-        await act.Should().ThrowAsync<OperationCanceledException>();
+            await act.Should().ThrowAsync<OperationCanceledException>();
         }
     }
 
@@ -290,27 +291,27 @@ public abstract class AmqpTransportIntegrationTests
     public async Task StartAsync_WhenAlreadyStarted_ThrowsLiteBusConfigurationException()
     {
         var queueName = CreateUniqueQueueName("double-start");
-         var manager = new AmqpConnectionManager(ConnectionOptions);
-         await using (manager.ConfigureAwait(false))
-         {
-         var consumer = new AmqpConsumer(manager);
-         await using (consumer.ConfigureAwait(false))
-         {
+        var manager = new AmqpConnectionManager(ConnectionOptions);
+        await using (manager.ConfigureAwait(false))
+        {
+            var consumer = new AmqpConsumer(manager);
+            await using (consumer.ConfigureAwait(false))
+            {
 
-        await consumer.StartAsync(
-            new AmqpConsumerOptions { QueueName = queueName },
-            (_, _) => Task.CompletedTask).ConfigureAwait(true);
+                await consumer.StartAsync(
+                    new AmqpConsumerOptions { QueueName = queueName },
+                    (_, _) => Task.CompletedTask).ConfigureAwait(false);
 
 
-        var act = () => consumer.StartAsync(
-            new AmqpConsumerOptions { QueueName = queueName },
-            (_, _) => Task.CompletedTask);
+                var act = () => consumer.StartAsync(
+                    new AmqpConsumerOptions { QueueName = queueName },
+                    (_, _) => Task.CompletedTask);
 
-        await act.Should().ThrowAsync<AmqpTransportConfigurationException>()
-            .WithMessage("*already started*");
+                await act.Should().ThrowAsync<AmqpTransportConfigurationException>()
+                    .WithMessage("*already started*");
 
-        await consumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
-        }
+                await consumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 
@@ -322,14 +323,14 @@ public abstract class AmqpTransportIntegrationTests
     public async Task GetConnectionAsync_WithUnreachableBroker_Throws()
     {
         var unreachable = CreateUnreachableConnectionOptions();
-         var manager = new AmqpConnectionManager(unreachable);
-         await using (manager.ConfigureAwait(false))
-         {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var manager = new AmqpConnectionManager(unreachable);
+        await using (manager.ConfigureAwait(false))
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        var act = () => manager.GetConnectionAsync(timeout.Token);
+            var act = () => manager.GetConnectionAsync(timeout.Token);
 
-        await act.Should().ThrowAsync<Exception>();
+            await act.Should().ThrowAsync<Exception>();
         }
     }
 
@@ -371,46 +372,46 @@ public abstract class AmqpTransportIntegrationTests
     public async Task PublishAsync_AfterConnectionClosed_RecreatesPublishChannel()
     {
         var queueName = CreateUniqueQueueName("publish-recovery");
-         var manager = new AmqpConnectionManager(ConnectionOptions);
-         await using (manager.ConfigureAwait(false))
-         {
-        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
-
-        var setupChannel = await manager.CreateChannelAsync().ConfigureAwait(true);
-        await using (setupChannel.ConfigureAwait(true))
+        var manager = new AmqpConnectionManager(ConnectionOptions);
+        await using (manager.ConfigureAwait(false))
         {
-            await setupChannel.QueueDeclareAsync(queueName, true, false, false).ConfigureAwait(true);
-        }
+            var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
 
-        var connection = await manager.GetConnectionAsync().ConfigureAwait(true);
-
-        await connection.CloseAsync(
-            Constants.ReplySuccess,
-            "integration-test",
-            TimeSpan.FromSeconds(10),
-            false,
-            CancellationToken.None).ConfigureAwait(true);
-
-
-        var body = Encoding.UTF8.GetBytes($"publish-recovery-{BrokerName}");
-
-        await publisher.PublishAsync(
-            new AmqpPublishRequest
+            var setupChannel = await manager.CreateChannelAsync().ConfigureAwait(false);
+            await using (setupChannel.ConfigureAwait(false))
             {
-                Exchange = string.Empty,
-                RoutingKey = queueName,
-                Body = body
-            }).ConfigureAwait(true);
+                await setupChannel.QueueDeclareAsync(queueName, true, false, false).ConfigureAwait(false);
+            }
+
+            var connection = await manager.GetConnectionAsync().ConfigureAwait(false);
+
+            await connection.CloseAsync(
+                Constants.ReplySuccess,
+                "integration-test",
+                TimeSpan.FromSeconds(10),
+                false,
+                CancellationToken.None).ConfigureAwait(false);
 
 
-         var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
-         await using (channel.ConfigureAwait(false))
-         {
-        var delivery = await channel.BasicGetAsync(queueName, false).ConfigureAwait(false);
-        delivery.Should().NotBeNull();
-        delivery!.Body.ToArray().Should().BeEquivalentTo(body);
-        await channel.BasicAckAsync(delivery.DeliveryTag, false).ConfigureAwait(true);
-        }
+            var body = Encoding.UTF8.GetBytes($"publish-recovery-{BrokerName}");
+
+            await publisher.PublishAsync(
+                new AmqpPublishRequest
+                {
+                    Exchange = string.Empty,
+                    RoutingKey = queueName,
+                    Body = body
+                }).ConfigureAwait(false);
+
+
+            var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
+            await using (channel.ConfigureAwait(false))
+            {
+                var delivery = await channel.BasicGetAsync(queueName, false).ConfigureAwait(false);
+                delivery.Should().NotBeNull();
+                delivery!.Body.ToArray().Should().BeEquivalentTo(body);
+                await channel.BasicAckAsync(delivery.DeliveryTag, false).ConfigureAwait(false);
+            }
         }
     }
 
@@ -422,42 +423,42 @@ public abstract class AmqpTransportIntegrationTests
     public async Task GetConnectionAsync_AfterConnectionClosed_RecreatesWorkingConnection()
     {
         var queueName = CreateUniqueQueueName("recovery");
-         var manager = new AmqpConnectionManager(ConnectionOptions);
-         await using (manager.ConfigureAwait(false))
-         {
-        var connection = await manager.GetConnectionAsync().ConfigureAwait(true);
+        var manager = new AmqpConnectionManager(ConnectionOptions);
+        await using (manager.ConfigureAwait(false))
+        {
+            var connection = await manager.GetConnectionAsync().ConfigureAwait(false);
 
-        await connection.CloseAsync(
-            Constants.ReplySuccess,
-            "integration-test",
-            TimeSpan.FromSeconds(10),
-            false,
-            CancellationToken.None).ConfigureAwait(true);
-
-
-        var recreated = await manager.GetConnectionAsync().ConfigureAwait(true);
-        recreated.IsOpen.Should().BeTrue();
-
-         var channel = await manager.CreateChannelAsync().ConfigureAwait(true);
-         await using (channel.ConfigureAwait(false))
-         {
-        await channel.QueueDeclareAsync(queueName, true, false, false).ConfigureAwait(true);
-
-        var body = Encoding.UTF8.GetBytes("recovery");
-
-        await channel.BasicPublishAsync(
-            string.Empty,
-            queueName,
-            false,
-            new BasicProperties(),
-            body).ConfigureAwait(true);
+            await connection.CloseAsync(
+                Constants.ReplySuccess,
+                "integration-test",
+                TimeSpan.FromSeconds(10),
+                false,
+                CancellationToken.None).ConfigureAwait(false);
 
 
-        var delivery = await channel.BasicGetAsync(queueName, false).ConfigureAwait(false);
-        delivery.Should().NotBeNull();
-        delivery!.Body.ToArray().Should().BeEquivalentTo(body);
-        await channel.BasicAckAsync(delivery.DeliveryTag, false).ConfigureAwait(false);
-        }
+            var recreated = await manager.GetConnectionAsync().ConfigureAwait(false);
+            recreated.IsOpen.Should().BeTrue();
+
+            var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
+            await using (channel.ConfigureAwait(false))
+            {
+                await channel.QueueDeclareAsync(queueName, true, false, false).ConfigureAwait(false);
+
+                var body = Encoding.UTF8.GetBytes("recovery");
+
+                await channel.BasicPublishAsync(
+                    string.Empty,
+                    queueName,
+                    false,
+                    new BasicProperties(),
+                    body).ConfigureAwait(false);
+
+
+                var delivery = await channel.BasicGetAsync(queueName, false).ConfigureAwait(false);
+                delivery.Should().NotBeNull();
+                delivery!.Body.ToArray().Should().BeEquivalentTo(body);
+                await channel.BasicAckAsync(delivery.DeliveryTag, false).ConfigureAwait(false);
+            }
         }
     }
 

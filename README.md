@@ -7,7 +7,9 @@
 <p align="center">
   <a href="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml"><img src="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml/badge.svg" alt="Build and test status"></a>
   <a href="https://codecov.io/gh/litenova/LiteBus"><img src="https://codecov.io/gh/litenova/LiteBus/graph/badge.svg?token=XBNYITSV5A" alt="Code coverage"></a>
-  <a href="https://www.nuget.org/packages/LiteBus.Commands.Extensions.Microsoft.DependencyInjection"><img src="https://img.shields.io/nuget/vpre/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.svg" alt="NuGet version"></a>
+  <a href="https://www.nuget.org/packages/LiteBus"><img src="https://img.shields.io/nuget/v/LiteBus.svg" alt="NuGet version"></a>
+  <a href="https://www.nuget.org/packages/LiteBus"><img src="https://img.shields.io/nuget/dt/LiteBus.svg" alt="NuGet downloads"></a>
+  <a href="https://github.com/litenova/LiteBus/releases"><img src="https://img.shields.io/github/v/release/litenova/LiteBus" alt="GitHub release"></a>
   <a href="https://github.com/litenova/LiteBus/blob/main/LICENSE"><img src="https://img.shields.io/github/license/litenova/LiteBus" alt="License"></a>
   <a href="https://dotnet.microsoft.com/download/dotnet/10.0"><img src="https://img.shields.io/badge/.NET-10.0-512BD4" alt=".NET 10"></a>
   <a href="https://litebus.io"><img src="https://img.shields.io/badge/docs-litebus.io-2f6fed" alt="Documentation"></a>
@@ -15,7 +17,7 @@
 
 LiteBus is a mediator and durable messaging library for .NET 10. Commands, queries, and events have separate contracts and pipelines. Inbox and outbox processing use explicit storage, dispatch, and ingress adapters, so an application references an external SDK only when it selects that integration.
 
-Version 6 is under development. Public APIs, package contents, and persisted formats may change before the `v6.0.0` tag.
+Version 6.0.0 targets .NET 10 and introduces the current module, durable messaging, transport, and hosting model. Applications upgrading from v5 should follow the [v5 to v6 migration guide](https://litebus.io/docs/migration/v6), including its database replacement and data-migration guidance. See the [v6 changelog](https://github.com/litenova/LiteBus/blob/main/Changelog.md#v600) for the complete release record.
 
 ## Package Selection
 
@@ -23,6 +25,7 @@ Install the package for each application concern. The package brings its abstrac
 
 | Concern | Package |
 | --- | --- |
+| Core mediator and durable contracts | `LiteBus` |
 | Commands | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection` |
 | Queries | `LiteBus.Queries.Extensions.Microsoft.DependencyInjection` |
 | Events | `LiteBus.Events.Extensions.Microsoft.DependencyInjection` |
@@ -31,13 +34,15 @@ Install the package for each application concern. The package brings its abstrac
 | PostgreSQL storage | `LiteBus.Inbox.Storage.PostgreSql` or `LiteBus.Outbox.Storage.PostgreSql` |
 | Entity Framework Core storage | `LiteBus.Inbox.Storage.EntityFrameworkCore` or `LiteBus.Outbox.Storage.EntityFrameworkCore` |
 | In-memory storage for tests | `LiteBus.Inbox.Storage.InMemory` or `LiteBus.Outbox.Storage.InMemory` |
+| In-process dispatch | `LiteBus.Inbox.Dispatch.InProcess` or `LiteBus.Outbox.Dispatch.InProcess` |
+| Broker dispatch or ingress | Install the matching `LiteBus.Inbox.Dispatch.*`, `LiteBus.Outbox.Dispatch.*`, or `LiteBus.Inbox.Ingress.*` package |
 | Broker transport | `LiteBus.Transport.Amqp`, `LiteBus.Transport.Kafka`, `LiteBus.Transport.AwsSqs`, or `LiteBus.Transport.AzureServiceBus` |
+| Generic Host bridge | `LiteBus.Runtime.Extensions.Microsoft.Hosting` |
 | OpenTelemetry registration | `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, or `LiteBus.Transport.Extensions.OpenTelemetry` |
 
 The [Dependency Graph](https://litebus.io/docs/architecture/dependency-graph) lists every package, its architectural layer, and its direct references.
 
-Read the published documentation at [litebus.io](https://litebus.io), or run the
-Fumadocs site locally from [`site`](site/README.md).
+Read the published documentation at [litebus.io](https://litebus.io), browse the [package and feature index](https://litebus.io/docs/reference/feature-index-v6), or run the Fumadocs site locally from [`site`](site/README.md).
 
 ## Quick Start
 

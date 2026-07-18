@@ -1,5 +1,3 @@
-DROP INDEX IF EXISTS {{QuotedSchemaName}}.{{IdempotencyIndexName}};
-
 CREATE UNIQUE INDEX IF NOT EXISTS {{IdempotencyIndexName}}
     ON {{QualifiedTableName}} (tenant_id, idempotency_key)
     WHERE idempotency_key IS NOT NULL;

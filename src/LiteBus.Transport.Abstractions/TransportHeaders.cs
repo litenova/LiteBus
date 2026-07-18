@@ -64,12 +64,4 @@ public static class TransportHeaders
     /// </summary>
     public const string ContentEncoding = "litebus-content-encoding";
 
-    /// <summary>
-    ///     Gets the legacy PascalCase correlation header accepted on ingress for backward compatibility.
-    /// </summary>
-    /// <remarks>
-    ///     Publishers should emit <see cref="CorrelationId" /> only. Ingress may read this alias when the canonical header
-    ///     is absent.
-    /// </remarks>
-    public const string LegacyCorrelationId = "CorrelationId";
 }

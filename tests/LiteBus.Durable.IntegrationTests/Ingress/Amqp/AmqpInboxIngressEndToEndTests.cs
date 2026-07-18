@@ -7,6 +7,7 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
+using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Amqp;
 using LiteBus.Transport.IntegrationTesting;
 using Microsoft.Extensions.DependencyInjection;
@@ -81,7 +82,7 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
-                registry.Modules.Register(new AmqpTransportModule(connectionOptions));
+            registry.Modules.Register(new AmqpTransportModule(connectionOptions));
             registry.AddMessaging(_ =>
             {
             });
@@ -118,54 +119,54 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
             });
         });
 
-         var provider = services.BuildServiceProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
-        manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
-        manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
-
-        using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
-        var hostedServices = provider.GetServices<IHostedService>().ToList();
-
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
-
-        try
+        var provider = services.BuildServiceProvider();
+        await using (provider.ConfigureAwait(false))
         {
-            var publisher = provider.GetRequiredService<IAmqpPublisher>();
-            var command = new ShipOrderCommand { OrderId = orderId };
-            var payload = JsonSerializer.SerializeToUtf8Bytes(command);
+            var manifest = provider.GetRequiredService<LiteBusHostManifest>();
+            manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
+            manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
 
-            await publisher.PublishAsync(new AmqpPublishRequest
+            using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+            var hostedServices = provider.GetServices<IHostedService>().ToList();
+
+            await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
+
+            try
             {
-                Exchange = string.Empty,
-                RoutingKey = ingressQueue,
-                Body = payload,
-                Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
+                var publisher = provider.GetRequiredService<IAmqpPublisher>();
+                var command = new ShipOrderCommand { OrderId = orderId };
+                var payload = JsonSerializer.SerializeToUtf8Bytes(command);
+
+                await publisher.PublishAsync(new AmqpPublishRequest
                 {
-                    [AmqpHeaders.MessageId] = messageId.ToString("D"),
-                    [AmqpHeaders.ContractName] = contractName,
-                    [AmqpHeaders.ContractVersion] = "1"
-                }
-            }).ConfigureAwait(false);
+                    Exchange = string.Empty,
+                    RoutingKey = ingressQueue,
+                    Body = payload,
+                    Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
+                    {
+                        [TransportHeaders.MessageId] = messageId.ToString("D"),
+                        [TransportHeaders.ContractName] = contractName,
+                        [TransportHeaders.ContractVersion] = "1"
+                    }
+                }).ConfigureAwait(false);
 
-            var (body, headers) = await AmqpTestInfrastructure.ReceiveOneAsync(
-                connectionOptions,
-                dispatchQueue,
-                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                var (body, headers) = await AmqpTestInfrastructure.ReceiveOneAsync(
+                    connectionOptions,
+                    dispatchQueue,
+                    TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
-            body.Should().Contain(orderId.ToString());
-            AmqpHeaderValues.GetString(headers, AmqpHeaders.MessageId).Should().Be(messageId.ToString("D"));
-            AmqpHeaderValues.GetString(headers, AmqpHeaders.ContractName).Should().Be(contractName);
+                body.Should().Contain(orderId.ToString());
+                AmqpHeaderValues.GetString(headers, TransportHeaders.MessageId).Should().Be(messageId.ToString("D"));
+                AmqpHeaderValues.GetString(headers, TransportHeaders.ContractName).Should().Be(contractName);
 
-            var store = provider.GetRequiredService<InMemoryInboxStore>();
-            store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
-        }
-        finally
-        {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
-        }
+                var store = provider.GetRequiredService<InMemoryInboxStore>();
+                store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
+            }
+            finally
+            {
+                await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 }

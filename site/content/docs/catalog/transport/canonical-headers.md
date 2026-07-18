@@ -36,7 +36,6 @@ Canonical headers are transport contract surface. Renaming them breaks wire comp
 | `VisibleAfter` | `litebus-visible-after` | ISO-8601 string | Absolute visibility timestamp |
 | `VisibleAfterDelay` | `litebus-visible-after-delay` | number or string | Relative visibility delay seconds |
 | `ContentEncoding` | `litebus-content-encoding` | string | Payload encoding marker (`base64` for SQS binary path) |
-| `LegacyCorrelationId` | `CorrelationId` | string | Legacy ingress fallback only |
 
 ### Conversion Rules (`TransportHeaderValues`)
 
@@ -52,7 +51,7 @@ Canonical headers are transport contract surface. Renaming them breaks wire comp
 ## Packages
 
 - `LiteBus.Transport.Abstractions`
-- Alias compatibility in `LiteBus.Transport.Amqp` via `AmqpHeaders` and `AmqpHeaderValues`
+- AMQP value conversion through `AmqpHeaderValues`; header names come from `TransportHeaders`
 
 ## Requires
 
@@ -91,7 +90,7 @@ Canonical headers are transport contract surface. Renaming them breaks wire comp
 
 ### Untested
 
-- End-to-end `LegacyCorrelationId` fallback path on each broker.
+- End-to-end canonical correlation header coverage on each broker.
 - Explicit round-trip checks for `VisibleAfter` and `VisibleAfterDelay` on all adapters.
 
 ### Out-of-Scope

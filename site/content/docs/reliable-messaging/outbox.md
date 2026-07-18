@@ -119,7 +119,7 @@ builder.AddOutbox(outbox =>
 });
 ```
 
-PostgreSQL outbox schema version **3** stores opaque payload text and adds `lease_generation`. Apply the v2 and v3 SQL files to an existing v6 table before startup. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md).
+PostgreSQL outbox schema version **1** stores opaque payload text and includes `lease_generation`. No v6 schema predates this shape. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md) for the v5 cutover paths.
 
 Pass the same `NpgsqlDataSource` instance to inbox and outbox when both use one database. See [Transactional messaging writes](transactional-writes.md).
 

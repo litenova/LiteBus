@@ -91,8 +91,7 @@ internal static class SqsMessageMapper
             Destination = queueUrl,
             Route = GetAttribute(headers, "Route"),
             MessageId = message.MessageId ?? GetAttribute(headers, TransportHeaders.MessageId),
-            CorrelationId = GetAttribute(headers, TransportHeaders.CorrelationId)
-                              ?? GetAttribute(headers, TransportHeaders.LegacyCorrelationId),
+            CorrelationId = GetAttribute(headers, TransportHeaders.CorrelationId),
             Redelivered = message.Attributes.TryGetValue("ApproximateReceiveCount", out var count) &&
                           int.TryParse(count, NumberStyles.Integer, CultureInfo.InvariantCulture, out var receiveCount) &&
                           receiveCount > 1,

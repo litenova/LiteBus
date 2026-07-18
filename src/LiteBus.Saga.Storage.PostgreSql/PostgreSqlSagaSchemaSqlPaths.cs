@@ -24,9 +24,4 @@ public static class PostgreSqlSagaSchemaSqlPaths
     ///     Ensures the current saga indexes exist.
     /// </summary>
     public const string V1EnsureIndexes = Root + "saga/v1/ensure_indexes.sql";
-
-    /// <summary>
-    ///     Adds the applied message identifier used to suppress duplicate saga dispatches.
-    /// </summary>
-    public const string V2AddLastAppliedMessageId = Root + "saga/v2/add_last_applied_message_id.sql";
 }

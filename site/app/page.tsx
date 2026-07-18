@@ -230,7 +230,7 @@ export default function HomePage() {
         <section className="litebus-hero">
           <div className="litebus-hero-copy">
             <div className="litebus-eyebrow">
-              <span className="litebus-pill">v6 preview</span>
+              <span className="litebus-pill">v6.0</span>
               Mediator &amp; durable messaging for .NET
             </div>
             <h1>Clean message pipelines without hidden coupling.</h1>

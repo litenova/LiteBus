@@ -53,11 +53,11 @@ LiteBus keeps domain-specific names instead of one generic "store" verb:
 | `UseInProcessDispatch` | Nested inbox builder extension registering `LiteBus.Inbox.Dispatch.InProcess`; replays leased envelopes through `ICommandMediator`. See [Inbox](../reliable-messaging/inbox.md). |
 | `UseInProcessDispatch` | Nested outbox builder extension registering `LiteBus.Outbox.Dispatch.InProcess`; publishes leased envelopes through `IEventMediator`. See [Outbox](../reliable-messaging/outbox.md). |
 
-## PostgreSQL Schema v1 (Greenfield)
+## PostgreSQL Schema Version 1
 
 | Term | Definition |
 | --- | --- |
-| Schema version | Physical table contract recorded per component. Inbox and outbox are version **3**; saga is version **2**. Ordered migrations cover older v6 tables, not v5 shapes. |
+| Schema version | Physical table contract recorded per component. Inbox, outbox, and saga start at version **1** in v6. v5 shapes require replacement or an application-owned data migration. |
 | Create script | `GetCreateScript()` renders current-version DDL for a new table. See [PostgreSQL schema management](../integrations/postgresql-schema-management.md). |
 | `EnsureAsync` / `ValidateAsync` | Opt-in host bootstrap or validate-only startup for PostgreSQL stores. |
 
@@ -71,4 +71,4 @@ LiteBus keeps domain-specific names instead of one generic "store" verb:
 
 ## Next
 
-See [Migration Guides](../migration/README.md) for historical upgrades, or [Migration Guide v6](../migration/v6.md) for greenfield adoption.
+See [Migration Guides](../migration/README.md) for historical upgrades, or [Migration Guide v6](../migration/v6.md) for the v5 to v6 upgrade.

@@ -263,7 +263,7 @@ builder.Services.AddLiteBus(builder =>
 });
 ```
 
-Accept commands with `IInbox.AcceptAsync` and enqueue events with `IOutbox.EnqueueAsync`. See [Inbox](../reliable-messaging/inbox.md) and [Outbox](../reliable-messaging/outbox.md). Upgrading from v5 or early v6 package versions: [Migration Guide v6](../migration/v6.md).
+Accept commands with `IInbox.AcceptAsync` and enqueue events with `IOutbox.EnqueueAsync`. See [Inbox](../reliable-messaging/inbox.md) and [Outbox](../reliable-messaging/outbox.md). Upgrading from v5: [Migration Guide v6](../migration/v6.md).
 
 ## Durable Outbox with Entity Framework Core
 

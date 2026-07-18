@@ -44,30 +44,16 @@ internal static class PostgreSqlOutboxSchemaScripts
         "first_failed_at",
         "dead_lettered_at",
         "last_lease_owner",
-        "error_type"
+        "error_type",
+        "lease_generation"
     ];
-
-    /// <summary>
-    ///     The column names introduced by outbox schema version 2.
-    /// </summary>
-    /// <remarks>
-    ///     Version 2 changes the payload column type and therefore introduces no column names.
-    /// </remarks>
-    internal static readonly IReadOnlyList<string> Version2Columns = [];
-
-    /// <summary>
-    ///     The column names introduced by outbox schema version 3.
-    /// </summary>
-    internal static readonly IReadOnlyList<string> Version3Columns = ["lease_generation"];
 
     /// <summary>
     ///     The ordered column groups introduced by each outbox schema version.
     /// </summary>
     internal static readonly IReadOnlyList<IReadOnlyList<string>> VersionColumnSets =
     [
-        Version1Columns,
-        Version2Columns,
-        Version3Columns
+        Version1Columns
     ];
 
     /// <summary>
@@ -90,13 +76,7 @@ internal static class PostgreSqlOutboxSchemaScripts
             "Creates the current outbox table, indexes, and optional insert notify trigger for a new installation."),
         new(
             PostgreSqlOutboxSchemaSqlPaths.V1EnsureIndexes,
-            "Ensures the current outbox indexes exist."),
-        new(
-            PostgreSqlOutboxSchemaSqlPaths.V2PayloadText,
-            "Converts the payload column to text for opaque ciphertext support."),
-        new(
-            PostgreSqlOutboxSchemaSqlPaths.V3LeaseFencing,
-            "Adds the monotonic lease generation used for fencing.")
+            "Ensures the current outbox indexes exist.")
     ];
 
     /// <summary>

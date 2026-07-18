@@ -145,18 +145,9 @@ The `LiteBusOutboxSaveChangesInterceptor` path does not dedupe at enqueue time. 
 
 ## Alignment with PostgreSQL `CurrentSchemaVersion`
 
-`PostgreSqlOutboxSchema.CurrentSchemaVersion` is **3**. The EF model includes `lease_generation` for fencing, opaque payload text, and nullable `trace_context`. Pass `EfCoreStorageProvider.PostgreSql` to `GetModelBuilderConfiguration()` so the fluent model maps `trace_context` as optional `jsonb`. Add the new column in your application-owned EF migration before running the v6 store.
+`PostgreSqlOutboxSchema.CurrentSchemaVersion` is **1** for the first v6 release. The EF model includes `lease_generation` for fencing, opaque payload text, and nullable `trace_context`. Pass `EfCoreStorageProvider.PostgreSql` to `GetModelBuilderConfiguration()` so the fluent model maps `trace_context` as optional `jsonb`. Generate an application-owned v6 migration from the complete model; do not point the v6 store at a v5 outbox table.
 
-Add the column in your migration when upgrading from an older table that predates LiteBus v1 DDL:
-
-```csharp
-migrationBuilder.AddColumn<string>(
-    name: "trace_context",
-    schema: "public",
-    table: "litebus_outbox_messages",
-    type: "jsonb",
-    nullable: true);
-```
+Do not upgrade a v5 table by adding only `trace_context` or `lease_generation`. Generate the complete v6 model into a new table and follow the row-mapping checks in [Migration Guide v6](../migration/v6.md) when data must be retained.
 
 ## Related Docs
 

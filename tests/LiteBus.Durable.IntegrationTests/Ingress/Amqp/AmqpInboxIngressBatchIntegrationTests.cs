@@ -6,6 +6,7 @@ using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Testing;
 using LiteBus.Transport;
+using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Amqp;
 using LiteBus.Transport.IntegrationTesting;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,20 +35,20 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
         {
             const int prefetch = 3;
             var queueName = CreateQueueName();
-             var provider = BuildProvider(fixture.ConnectionOptions, queueName, prefetch, TimeSpan.FromSeconds(5));
-             await using (provider.ConfigureAwait(false))
-             {
-            await StartIngressAsync(provider).ConfigureAwait(false);
-
-            for (var index = 0; index < prefetch; index++)
+            var provider = BuildProvider(fixture.ConnectionOptions, queueName, prefetch, TimeSpan.FromSeconds(5));
+            await using (provider.ConfigureAwait(false))
             {
-                await PublishAsync(
-                    fixture.ConnectionOptions,
-                    queueName,
-                    JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() })).ConfigureAwait(false);
-            }
+                await StartIngressAsync(provider).ConfigureAwait(false);
 
-            await WaitForStoreCountAsync(provider, prefetch, TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+                for (var index = 0; index < prefetch; index++)
+                {
+                    await PublishAsync(
+                        fixture.ConnectionOptions,
+                        queueName,
+                        JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() })).ConfigureAwait(false);
+                }
+
+                await WaitForStoreCountAsync(provider, prefetch, TimeSpan.FromSeconds(20)).ConfigureAwait(false);
             }
         }
         finally
@@ -70,19 +71,19 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
         {
             var queueName = CreateQueueName();
             var batchWait = TimeSpan.FromMilliseconds(400);
-             var provider = BuildProvider(fixture.ConnectionOptions, queueName, 10, batchWait);
-             await using (provider.ConfigureAwait(false))
-             {
-            await StartIngressAsync(provider).ConfigureAwait(false);
+            var provider = BuildProvider(fixture.ConnectionOptions, queueName, 10, batchWait);
+            await using (provider.ConfigureAwait(false))
+            {
+                await StartIngressAsync(provider).ConfigureAwait(false);
 
-            await PublishAsync(
-                fixture.ConnectionOptions,
-                queueName,
-                JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() })).ConfigureAwait(false);
+                await PublishAsync(
+                    fixture.ConnectionOptions,
+                    queueName,
+                    JsonSerializer.Serialize(new ShipOrderCommand { OrderId = Guid.NewGuid() })).ConfigureAwait(false);
 
-            await Task.Delay(batchWait + TimeSpan.FromMilliseconds(300)).ConfigureAwait(false);
+                await Task.Delay(batchWait + TimeSpan.FromMilliseconds(300)).ConfigureAwait(false);
 
-            await WaitForStoreCountAsync(provider, 1, TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+                await WaitForStoreCountAsync(provider, 1, TimeSpan.FromSeconds(15)).ConfigureAwait(false);
             }
         }
         finally
@@ -122,9 +123,9 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
                     {
                     });
 
-                inbox.UseAmqpIngress(ingress =>
-                {
-                    ingress.UseOptions(new AmqpInboxIngressOptions
+                    inbox.UseAmqpIngress(ingress =>
+                    {
+                        ingress.UseOptions(new AmqpInboxIngressOptions
                         {
                             QueueName = queueName,
                             PrefetchCount = prefetch,
@@ -165,23 +166,23 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
         string queueName,
         string body)
     {
-         var manager = new AmqpConnectionManager(connectionOptions);
-         await using (manager.ConfigureAwait(false))
-         {
-        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
-
-        await publisher.PublishAsync(new AmqpPublishRequest
+        var manager = new AmqpConnectionManager(connectionOptions);
+        await using (manager.ConfigureAwait(false))
         {
-            Exchange = string.Empty,
-            RoutingKey = queueName,
-            Body = Encoding.UTF8.GetBytes(body),
-            Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
+            var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
+
+            await publisher.PublishAsync(new AmqpPublishRequest
             {
-                [AmqpHeaders.MessageId] = Guid.NewGuid().ToString(),
-                [AmqpHeaders.ContractName] = "orders.commands.ship",
-                [AmqpHeaders.ContractVersion] = "1"
-            }
-        }).ConfigureAwait(false);
+                Exchange = string.Empty,
+                RoutingKey = queueName,
+                Body = Encoding.UTF8.GetBytes(body),
+                Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    [TransportHeaders.MessageId] = Guid.NewGuid().ToString(),
+                    [TransportHeaders.ContractName] = "orders.commands.ship",
+                    [TransportHeaders.ContractVersion] = "1"
+                }
+            }).ConfigureAwait(false);
         }
     }
 

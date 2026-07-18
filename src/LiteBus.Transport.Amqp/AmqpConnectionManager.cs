@@ -14,7 +14,7 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     /// <summary>
     ///     Gets the circuit breaker that guards broker connectivity.
     /// </summary>
-    private readonly AmqpCircuitBreaker _circuitBreaker;
+    private readonly TransportCircuitBreaker _circuitBreaker;
 
     /// <summary>
     ///     Serializes connection creation so only one shared connection is opened.
@@ -39,18 +39,8 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     {
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
-        _circuitBreaker = new AmqpCircuitBreaker(options.CircuitBreaker);
+        _circuitBreaker = new TransportCircuitBreaker(options.CircuitBreaker.ToTransportOptions());
     }
-
-    /// <summary>
-    ///     Gets the circuit breaker that guards creation of the shared broker connection.
-    /// </summary>
-    public AmqpCircuitBreaker CircuitBreaker => _circuitBreaker;
-
-    /// <summary>
-    ///     Gets the transport circuit breaker that guards creation of the shared broker connection.
-    /// </summary>
-    public ITransportCircuitBreaker TransportCircuitBreaker => _circuitBreaker;
 
     /// <inheritdoc />
     /// <remarks>

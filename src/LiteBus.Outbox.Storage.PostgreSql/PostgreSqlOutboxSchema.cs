@@ -39,10 +39,8 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 ///         </item>
 ///     </list>
 ///     <para>
-///         Schema version 3 adds lease fencing after the version 2 payload text migration. Existing databases are not
-///         upgraded automatically. Apply the ordered files exposed by <see cref="SqlFiles" />, then call
-///         <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlOutboxStoreOptions?, CancellationToken)" /> to record and
-///         validate the current version.
+///         LiteBus v6 starts at schema version 1. The version 1 create script contains the complete v6 table shape,
+///         including opaque payload text and lease fencing. LiteBus does not mutate v5 outbox tables automatically.
 ///     </para>
 /// </remarks>
 public static class PostgreSqlOutboxSchema
@@ -50,7 +48,7 @@ public static class PostgreSqlOutboxSchema
     /// <summary>
     ///     Gets the outbox table schema version implemented by this package release.
     /// </summary>
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 1;
 
     /// <summary>
     ///     Gets the canonical SQL files shipped with the outbox PostgreSQL package.
@@ -89,21 +87,6 @@ public static class PostgreSqlOutboxSchema
             options,
             PostgreSqlOutboxSchemaScripts.Definition,
             cancellationToken);
-    }
-
-    /// <summary>
-    ///     Creates the outbox table and indexes when they do not exist.
-    /// </summary>
-    /// <param name="dataSource">The PostgreSQL data source.</param>
-    /// <param name="options">The schema and table options.</param>
-    /// <param name="cancellationToken">A token used to cancel the database command.</param>
-    /// <returns>A task that completes when the schema reaches the expected version.</returns>
-    public static Task CreateIfNotExistsAsync(
-        NpgsqlDataSource dataSource,
-        PostgreSqlOutboxStoreOptions? options = null,
-        CancellationToken cancellationToken = default)
-    {
-        return EnsureAsync(dataSource, options, cancellationToken);
     }
 
     /// <summary>

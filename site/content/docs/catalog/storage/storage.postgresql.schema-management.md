@@ -7,8 +7,8 @@
 
 | Type | Methods |
 | --- | --- |
-| `PostgreSqlInboxSchema` | `EnsureAsync`, `ValidateAsync`, `GetCreateScript`, `CreateIfNotExistsAsync` |
-| `PostgreSqlOutboxSchema` | `EnsureAsync`, `ValidateAsync`, `GetCreateScript`, `CreateIfNotExistsAsync` |
+| `PostgreSqlInboxSchema` | `EnsureAsync`, `ValidateAsync`, `GetCreateScript` |
+| `PostgreSqlOutboxSchema` | `EnsureAsync`, `ValidateAsync`, `GetCreateScript` |
 | `PostgreSqlInboxSchemaInitializer` and `PostgreSqlOutboxSchemaInitializer` | host startup task path |
 | `PostgreSqlInboxSchemaDiagnosticCheck` and `PostgreSqlOutboxSchemaDiagnosticCheck` | runtime schema probe path |
 

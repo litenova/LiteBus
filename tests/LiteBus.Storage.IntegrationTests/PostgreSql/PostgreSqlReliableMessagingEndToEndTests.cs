@@ -18,6 +18,7 @@ using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
 using LiteBus.Transport;
+using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
@@ -61,15 +62,15 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     public async Task OutboxToInbox_ShouldPublishProcessAndDispatchCommand()
     {
         var rabbitMqFixture = new RabbitMqBrokerFixture();
-        await rabbitMqFixture.InitializeAsync().ConfigureAwait(true);
+        await rabbitMqFixture.InitializeAsync().ConfigureAwait(false);
 
         try
         {
-            await RunReliableMessagingChainAsync(rabbitMqFixture.ConnectionOptions).ConfigureAwait(true);
+            await RunReliableMessagingChainAsync(rabbitMqFixture.ConnectionOptions).ConfigureAwait(false);
         }
         finally
         {
-            await rabbitMqFixture.DisposeAsync().ConfigureAwait(true);
+            await rabbitMqFixture.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -81,92 +82,92 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     public async Task DuplicateBrokerDelivery_ShouldExecuteHandlerOnce()
     {
         var rabbitMqFixture = new RabbitMqBrokerFixture();
-        await rabbitMqFixture.InitializeAsync().ConfigureAwait(true);
+        await rabbitMqFixture.InitializeAsync().ConfigureAwait(false);
 
         try
         {
             var ingressQueue = CreateQueueName("reliable-messaging.ingress");
             var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
             var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
-            await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_postgresFixture.DataSource, outboxOptions).ConfigureAwait(true);
-            await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, inboxOptions).ConfigureAwait(true);
-            await DeclareQueueAsync(rabbitMqFixture.ConnectionOptions, ingressQueue).ConfigureAwait(true);
+            await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_postgresFixture.DataSource, outboxOptions).ConfigureAwait(false);
+            await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, inboxOptions).ConfigureAwait(false);
+            await DeclareQueueAsync(rabbitMqFixture.ConnectionOptions, ingressQueue).ConfigureAwait(false);
 
             var recorder = new CommandRecorder();
             var messageId = Guid.NewGuid();
             var orderId = Guid.NewGuid();
 
-             var provider = BuildReliableMessagingProvider(                 rabbitMqFixture.ConnectionOptions,                 ingressQueue,                 outboxOptions,                 inboxOptions,                 recorder);
-             await using (provider.ConfigureAwait(true))
-             {
-
-            using var runCts = new CancellationTokenSource(EndToEndTimeout);
-            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(true);
-            await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(true);
-
-            try
+            var provider = BuildReliableMessagingProvider(rabbitMqFixture.ConnectionOptions, ingressQueue, outboxOptions, inboxOptions, recorder);
+            await using (provider.ConfigureAwait(false))
             {
-                var outbox = provider.GetRequiredService<IOutbox>();
 
-                await outbox.EnqueueAsync(OutboxEnqueueItem<ShipOrderCommand>.From(
-                    new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" },
-                    OutboxEnqueueMetadata.Immediate with
-                    {
-                        Identity = new MessageIdentity.Supplied(messageId),
-                        Target = new PublicationTarget.Topic(ingressQueue),
-                        Trace = new MessageTrace.Workflow("corr-reliable-idem", "cause-reliable-idem"),
-                        Tenant = new TenantScope.Isolated("tenant-reliable")
-                    })).ConfigureAwait(true);
+                using var runCts = new CancellationTokenSource(EndToEndTimeout);
+                await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
 
+                try
+                {
+                    var outbox = provider.GetRequiredService<IOutbox>();
 
-                await WaitUntilAsync(
-                    () => recorder.Commands.Count >= 1,
-                    EndToEndTimeout,
-                    runCts.Token).ConfigureAwait(true);
-
-
-                var outboxRow = await PostgreSqlTableReaders.ReadOutboxAsync(_postgresFixture.DataSource, outboxOptions, messageId).ConfigureAwait(true);
-                outboxRow.Should().NotBeNull();
-                outboxRow!.Status.Should().Be(OutboxStatus.Published);
-
-                var inboxRow = await PostgreSqlTableReaders.ReadInboxAsync(_postgresFixture.DataSource, inboxOptions, messageId).ConfigureAwait(true);
-                inboxRow.Should().NotBeNull();
-                inboxRow!.Status.Should().Be(InboxStatus.Completed);
-                inboxRow.AttemptCount.Should().Be(1);
-
-                var payload = JsonSerializer.Serialize(new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" });
-
-                await PublishToIngressQueueAsync(
-                    rabbitMqFixture.ConnectionOptions,
-                    ingressQueue,
-                    payload,
-                    messageId,
-                    ContractName,
-                    "1",
-                    "corr-reliable-idem").ConfigureAwait(true);
+                    await outbox.EnqueueAsync(OutboxEnqueueItem<ShipOrderCommand>.From(
+                        new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" },
+                        OutboxEnqueueMetadata.Immediate with
+                        {
+                            Identity = new MessageIdentity.Supplied(messageId),
+                            Target = new PublicationTarget.Topic(ingressQueue),
+                            Trace = new MessageTrace.Workflow("corr-reliable-idem", "cause-reliable-idem"),
+                            Tenant = new TenantScope.Isolated("tenant-reliable")
+                        })).ConfigureAwait(false);
 
 
-                await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token).ConfigureAwait(true);
+                    await WaitUntilAsync(
+                        () => recorder.Commands.Count >= 1,
+                        EndToEndTimeout,
+                        runCts.Token).ConfigureAwait(false);
 
-                recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
 
-                var inboxAfterDuplicate = await PostgreSqlTableReaders.ReadInboxAsync(
-                    _postgresFixture.DataSource,
-                    inboxOptions,
-                    messageId);
+                    var outboxRow = await PostgreSqlTableReaders.ReadOutboxAsync(_postgresFixture.DataSource, outboxOptions, messageId).ConfigureAwait(false);
+                    outboxRow.Should().NotBeNull();
+                    outboxRow!.Status.Should().Be(OutboxStatus.Published);
 
-                inboxAfterDuplicate!.Status.Should().Be(InboxStatus.Completed);
-                inboxAfterDuplicate.AttemptCount.Should().Be(1);
-            }
-            finally
-            {
-                await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
-            }
+                    var inboxRow = await PostgreSqlTableReaders.ReadInboxAsync(_postgresFixture.DataSource, inboxOptions, messageId).ConfigureAwait(false);
+                    inboxRow.Should().NotBeNull();
+                    inboxRow!.Status.Should().Be(InboxStatus.Completed);
+                    inboxRow.AttemptCount.Should().Be(1);
+
+                    var payload = JsonSerializer.Serialize(new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" });
+
+                    await PublishToIngressQueueAsync(
+                        rabbitMqFixture.ConnectionOptions,
+                        ingressQueue,
+                        payload,
+                        messageId,
+                        ContractName,
+                        "1",
+                        "corr-reliable-idem").ConfigureAwait(false);
+
+
+                    await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token).ConfigureAwait(false);
+
+                    recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
+
+                    var inboxAfterDuplicate = await PostgreSqlTableReaders.ReadInboxAsync(
+                        _postgresFixture.DataSource,
+                        inboxOptions,
+                        messageId);
+
+                    inboxAfterDuplicate!.Status.Should().Be(InboxStatus.Completed);
+                    inboxAfterDuplicate.AttemptCount.Should().Be(1);
+                }
+                finally
+                {
+                    await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+                }
             }
         }
         finally
         {
-            await rabbitMqFixture.DisposeAsync().ConfigureAwait(true);
+            await rabbitMqFixture.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -178,53 +179,53 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     public async Task UnknownContract_ShouldNackWithoutRequeueAndSkipPostgreSqlStore()
     {
         var rabbitMqFixture = new RabbitMqBrokerFixture();
-        await rabbitMqFixture.InitializeAsync().ConfigureAwait(true);
+        await rabbitMqFixture.InitializeAsync().ConfigureAwait(false);
 
         try
         {
             var ingressQueue = CreateQueueName("reliable-messaging.ingress.failures");
             var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
-            await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, inboxOptions).ConfigureAwait(true);
-            await DeclareQueueAsync(rabbitMqFixture.ConnectionOptions, ingressQueue).ConfigureAwait(true);
+            await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, inboxOptions).ConfigureAwait(false);
+            await DeclareQueueAsync(rabbitMqFixture.ConnectionOptions, ingressQueue).ConfigureAwait(false);
 
-             var provider = BuildIngressOnlyProvider(                 rabbitMqFixture.ConnectionOptions,                 ingressQueue,                 inboxOptions,                 true);
-             await using (provider.ConfigureAwait(true))
-             {
-
-            using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(true);
-            await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(true);
-
-            try
+            var provider = BuildIngressOnlyProvider(rabbitMqFixture.ConnectionOptions, ingressQueue, inboxOptions, true);
+            await using (provider.ConfigureAwait(false))
             {
-                await PublishToIngressQueueAsync(
-                    rabbitMqFixture.ConnectionOptions,
-                    ingressQueue,
-                    "{}",
-                    Guid.NewGuid(),
-                    "unknown.contract",
-                    "1").ConfigureAwait(true);
+
+                using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
+
+                try
+                {
+                    await PublishToIngressQueueAsync(
+                        rabbitMqFixture.ConnectionOptions,
+                        ingressQueue,
+                        "{}",
+                        Guid.NewGuid(),
+                        "unknown.contract",
+                        "1").ConfigureAwait(false);
 
 
-                await WaitForQueueDepthAsync(
-                    rabbitMqFixture.ConnectionOptions,
-                    ingressQueue,
-                    0,
-                    TimeSpan.FromSeconds(15)).ConfigureAwait(true);
+                    await WaitForQueueDepthAsync(
+                        rabbitMqFixture.ConnectionOptions,
+                        ingressQueue,
+                        0,
+                        TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
 
-                var rowCount = await PostgreSqlTableReaders.CountInboxRowsAsync(_postgresFixture.DataSource, inboxOptions).ConfigureAwait(true);
-                rowCount.Should().Be(0);
-            }
-            finally
-            {
-                await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
-            }
+                    var rowCount = await PostgreSqlTableReaders.CountInboxRowsAsync(_postgresFixture.DataSource, inboxOptions).ConfigureAwait(false);
+                    rowCount.Should().Be(0);
+                }
+                finally
+                {
+                    await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+                }
             }
         }
         finally
         {
-            await rabbitMqFixture.DisposeAsync().ConfigureAwait(true);
+            await rabbitMqFixture.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -236,53 +237,53 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     public async Task InvalidJson_ShouldNackWithoutRequeueAndSkipPostgreSqlStore()
     {
         var rabbitMqFixture = new RabbitMqBrokerFixture();
-        await rabbitMqFixture.InitializeAsync().ConfigureAwait(true);
+        await rabbitMqFixture.InitializeAsync().ConfigureAwait(false);
 
         try
         {
             var ingressQueue = CreateQueueName("reliable-messaging.ingress.failures");
             var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
-            await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, inboxOptions).ConfigureAwait(true);
-            await DeclareQueueAsync(rabbitMqFixture.ConnectionOptions, ingressQueue).ConfigureAwait(true);
+            await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, inboxOptions).ConfigureAwait(false);
+            await DeclareQueueAsync(rabbitMqFixture.ConnectionOptions, ingressQueue).ConfigureAwait(false);
 
-             var provider = BuildIngressOnlyProvider(                 rabbitMqFixture.ConnectionOptions,                 ingressQueue,                 inboxOptions,                 true);
-             await using (provider.ConfigureAwait(true))
-             {
-
-            using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(true);
-            await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(true);
-
-            try
+            var provider = BuildIngressOnlyProvider(rabbitMqFixture.ConnectionOptions, ingressQueue, inboxOptions, true);
+            await using (provider.ConfigureAwait(false))
             {
-                await PublishToIngressQueueAsync(
-                    rabbitMqFixture.ConnectionOptions,
-                    ingressQueue,
-                    "{not-valid-json",
-                    Guid.NewGuid(),
-                    ContractName,
-                    "1").ConfigureAwait(true);
+
+                using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
+
+                try
+                {
+                    await PublishToIngressQueueAsync(
+                        rabbitMqFixture.ConnectionOptions,
+                        ingressQueue,
+                        "{not-valid-json",
+                        Guid.NewGuid(),
+                        ContractName,
+                        "1").ConfigureAwait(false);
 
 
-                await WaitForQueueDepthAsync(
-                    rabbitMqFixture.ConnectionOptions,
-                    ingressQueue,
-                    0,
-                    TimeSpan.FromSeconds(15)).ConfigureAwait(true);
+                    await WaitForQueueDepthAsync(
+                        rabbitMqFixture.ConnectionOptions,
+                        ingressQueue,
+                        0,
+                        TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
 
-                var rowCount = await PostgreSqlTableReaders.CountInboxRowsAsync(_postgresFixture.DataSource, inboxOptions).ConfigureAwait(true);
-                rowCount.Should().Be(0);
-            }
-            finally
-            {
-                await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
-            }
+                    var rowCount = await PostgreSqlTableReaders.CountInboxRowsAsync(_postgresFixture.DataSource, inboxOptions).ConfigureAwait(false);
+                    rowCount.Should().Be(0);
+                }
+                finally
+                {
+                    await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+                }
             }
         }
         finally
         {
-            await rabbitMqFixture.DisposeAsync().ConfigureAwait(true);
+            await rabbitMqFixture.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -296,9 +297,9 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
         var ingressQueue = CreateQueueName("reliable-messaging.ingress");
         var outboxOptions = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
         var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
-        await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_postgresFixture.DataSource, outboxOptions).ConfigureAwait(true);
-        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, inboxOptions).ConfigureAwait(true);
-        await DeclareQueueAsync(connectionOptions, ingressQueue).ConfigureAwait(true);
+        await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_postgresFixture.DataSource, outboxOptions).ConfigureAwait(false);
+        await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_postgresFixture.DataSource, inboxOptions).ConfigureAwait(false);
+        await DeclareQueueAsync(connectionOptions, ingressQueue).ConfigureAwait(false);
 
         var recorder = new CommandRecorder();
         var messageId = Guid.NewGuid();
@@ -307,67 +308,67 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
         const string causationId = "cause-reliable-e2e";
         const string tenantId = "tenant-reliable-e2e";
 
-         var provider = BuildReliableMessagingProvider(             connectionOptions,             ingressQueue,             outboxOptions,             inboxOptions,             recorder);
-         await using (provider.ConfigureAwait(true))
-         {
-
-        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
-        manifest.BackgroundServices.Should().Contain(typeof(OutboxProcessorBackgroundService));
-        manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
-        manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
-
-        using var runCts = new CancellationTokenSource(EndToEndTimeout);
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(true);
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(true);
-
-        try
+        var provider = BuildReliableMessagingProvider(connectionOptions, ingressQueue, outboxOptions, inboxOptions, recorder);
+        await using (provider.ConfigureAwait(false))
         {
-            var outbox = provider.GetRequiredService<IOutbox>();
 
-            await outbox.EnqueueAsync(OutboxEnqueueItem<ShipOrderCommand>.From(
-                new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" },
-                OutboxEnqueueMetadata.Immediate with
-                {
-                    Identity = new MessageIdentity.Supplied(messageId),
-                    Target = new PublicationTarget.Topic(ingressQueue),
-                    Trace = new MessageTrace.Workflow(correlationId, causationId),
-                    Tenant = new TenantScope.Isolated(tenantId)
-                })).ConfigureAwait(true);
+            var manifest = provider.GetRequiredService<LiteBusHostManifest>();
+            manifest.BackgroundServices.Should().Contain(typeof(OutboxProcessorBackgroundService));
+            manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
+            manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
+
+            using var runCts = new CancellationTokenSource(EndToEndTimeout);
+            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
+
+            try
+            {
+                var outbox = provider.GetRequiredService<IOutbox>();
+
+                await outbox.EnqueueAsync(OutboxEnqueueItem<ShipOrderCommand>.From(
+                    new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" },
+                    OutboxEnqueueMetadata.Immediate with
+                    {
+                        Identity = new MessageIdentity.Supplied(messageId),
+                        Target = new PublicationTarget.Topic(ingressQueue),
+                        Trace = new MessageTrace.Workflow(correlationId, causationId),
+                        Tenant = new TenantScope.Isolated(tenantId)
+                    })).ConfigureAwait(false);
 
 
-            await WaitUntilAsync(
-                () => recorder.Commands.Count >= 1,
-                EndToEndTimeout,
-                runCts.Token).ConfigureAwait(true);
+                await WaitUntilAsync(
+                    () => recorder.Commands.Count >= 1,
+                    EndToEndTimeout,
+                    runCts.Token).ConfigureAwait(false);
 
 
-            recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
+                recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
 
-            var outboxRow = await PostgreSqlTableReaders.ReadOutboxAsync(_postgresFixture.DataSource, outboxOptions, messageId).ConfigureAwait(true);
-            outboxRow.Should().NotBeNull();
-            outboxRow!.Status.Should().Be(OutboxStatus.Published);
-            outboxRow.AttemptCount.Should().Be(1);
-            outboxRow.CorrelationId.Should().Be(correlationId);
-            outboxRow.CausationId.Should().Be(causationId);
-            outboxRow.TenantId.Should().Be(tenantId);
-            outboxRow.Topic.Should().Be(ingressQueue);
+                var outboxRow = await PostgreSqlTableReaders.ReadOutboxAsync(_postgresFixture.DataSource, outboxOptions, messageId).ConfigureAwait(false);
+                outboxRow.Should().NotBeNull();
+                outboxRow!.Status.Should().Be(OutboxStatus.Published);
+                outboxRow.AttemptCount.Should().Be(1);
+                outboxRow.CorrelationId.Should().Be(correlationId);
+                outboxRow.CausationId.Should().Be(causationId);
+                outboxRow.TenantId.Should().Be(tenantId);
+                outboxRow.Topic.Should().Be(ingressQueue);
 
-            var inboxRow = await PostgreSqlTableReaders.ReadInboxAsync(_postgresFixture.DataSource, inboxOptions, messageId).ConfigureAwait(true);
-            inboxRow.Should().NotBeNull();
-            inboxRow!.Status.Should().Be(InboxStatus.Completed);
-            inboxRow.AttemptCount.Should().Be(1);
-            inboxRow.ContractName.Should().Be(ContractName);
-            inboxRow.ContractVersion.Should().Be(1);
-            inboxRow.CorrelationId.Should().Be(correlationId);
-            inboxRow.CausationId.Should().Be(causationId);
-            inboxRow.TenantId.Should().Be(tenantId);
-            inboxRow.Payload.Should().Contain(orderId.ToString());
-            inboxRow.CompletedAt.Should().NotBeNull();
-        }
-        finally
-        {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
-        }
+                var inboxRow = await PostgreSqlTableReaders.ReadInboxAsync(_postgresFixture.DataSource, inboxOptions, messageId).ConfigureAwait(false);
+                inboxRow.Should().NotBeNull();
+                inboxRow!.Status.Should().Be(InboxStatus.Completed);
+                inboxRow.AttemptCount.Should().Be(1);
+                inboxRow.ContractName.Should().Be(ContractName);
+                inboxRow.ContractVersion.Should().Be(1);
+                inboxRow.CorrelationId.Should().Be(correlationId);
+                inboxRow.CausationId.Should().Be(causationId);
+                inboxRow.TenantId.Should().Be(tenantId);
+                inboxRow.Payload.Should().Contain(orderId.ToString());
+                inboxRow.CompletedAt.Should().NotBeNull();
+            }
+            finally
+            {
+                await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 
@@ -392,7 +393,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
 
         services.AddLiteBus(registry =>
         {
-                registry.Modules.Register(new AmqpTransportModule(connectionOptions));
+            registry.Modules.Register(new AmqpTransportModule(connectionOptions));
             registry.AddMessaging(_ =>
             {
             });
@@ -555,7 +556,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                 return;
             }
 
-            await Task.Delay(200, cancellationToken).ConfigureAwait(true);
+            await Task.Delay(200, cancellationToken).ConfigureAwait(false);
         }
 
         condition().Should().BeTrue($"condition was not satisfied within {timeout}");
@@ -569,21 +570,21 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     /// <returns>A task that completes when the queue exists.</returns>
     private static async Task DeclareQueueAsync(AmqpConnectionOptions connectionOptions, string queueName)
     {
-         var manager = new AmqpConnectionManager(connectionOptions);
-         await using (manager.ConfigureAwait(true))
-         {
-         var channel = await manager.CreateChannelAsync().ConfigureAwait(true);
-         await using (channel.ConfigureAwait(false))
-         {
+        var manager = new AmqpConnectionManager(connectionOptions);
+        await using (manager.ConfigureAwait(false))
+        {
+            var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
+            await using (channel.ConfigureAwait(false))
+            {
 
-        await channel.QueueDeclareAsync(
-            queueName,
-            true,
-            false,
-            false,
-            null).ConfigureAwait(true);
+                await channel.QueueDeclareAsync(
+                    queueName,
+                    true,
+                    false,
+                    false,
+                    null).ConfigureAwait(false);
 
-        }
+            }
         }
     }
 
@@ -607,30 +608,30 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
         string contractVersion,
         string? correlationId = null)
     {
-         var manager = new AmqpConnectionManager(connectionOptions);
-         await using (manager.ConfigureAwait(false))
-         {
-        var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
-
-        var headers = new Dictionary<string, object?>(StringComparer.Ordinal)
+        var manager = new AmqpConnectionManager(connectionOptions);
+        await using (manager.ConfigureAwait(false))
         {
-            [AmqpHeaders.MessageId] = messageId.ToString("D"),
-            [AmqpHeaders.ContractName] = contractName,
-            [AmqpHeaders.ContractVersion] = contractVersion
-        };
+            var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
 
-        if (!string.IsNullOrWhiteSpace(correlationId))
-        {
-            headers[AmqpHeaders.CorrelationId] = correlationId;
-        }
+            var headers = new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                [TransportHeaders.MessageId] = messageId.ToString("D"),
+                [TransportHeaders.ContractName] = contractName,
+                [TransportHeaders.ContractVersion] = contractVersion
+            };
 
-        await publisher.PublishAsync(new AmqpPublishRequest
-        {
-            Exchange = string.Empty,
-            RoutingKey = queueName,
-            Body = Encoding.UTF8.GetBytes(body),
-            Headers = headers
-        }).ConfigureAwait(true);
+            if (!string.IsNullOrWhiteSpace(correlationId))
+            {
+                headers[TransportHeaders.CorrelationId] = correlationId;
+            }
+
+            await publisher.PublishAsync(new AmqpPublishRequest
+            {
+                Exchange = string.Empty,
+                RoutingKey = queueName,
+                Body = Encoding.UTF8.GetBytes(body),
+                Headers = headers
+            }).ConfigureAwait(false);
 
         }
     }
@@ -653,17 +654,17 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
 
         while (DateTime.UtcNow < deadline)
         {
-            var count = await GetQueueDepthAsync(connectionOptions, queueName).ConfigureAwait(true);
+            var count = await GetQueueDepthAsync(connectionOptions, queueName).ConfigureAwait(false);
 
             if (count == expectedCount)
             {
                 return;
             }
 
-            await Task.Delay(200).ConfigureAwait(true);
+            await Task.Delay(200).ConfigureAwait(false);
         }
 
-        var actual = await GetQueueDepthAsync(connectionOptions, queueName).ConfigureAwait(true);
+        var actual = await GetQueueDepthAsync(connectionOptions, queueName).ConfigureAwait(false);
         actual.Should().Be(expectedCount, $"queue '{queueName}' should reach depth {expectedCount} within {timeout}");
     }
 
@@ -680,15 +681,15 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                       $"amqp://{Uri.EscapeDataString(connectionOptions.UserName)}:{Uri.EscapeDataString(connectionOptions.Password)}@{connectionOptions.HostName}:{connectionOptions.Port}{connectionOptions.VirtualHost}");
 
         var factory = new ConnectionFactory { Uri = uri };
-         var connection = await factory.CreateConnectionAsync().ConfigureAwait(true);
-         await using (connection.ConfigureAwait(true))
-         {
-         var channel = await connection.CreateChannelAsync().ConfigureAwait(true);
-         await using (channel.ConfigureAwait(false))
-         {
-        var declare = await channel.QueueDeclarePassiveAsync(queueName).ConfigureAwait(true);
-        return declare.MessageCount;
-        }
+        var connection = await factory.CreateConnectionAsync().ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var channel = await connection.CreateChannelAsync().ConfigureAwait(false);
+            await using (channel.ConfigureAwait(false))
+            {
+                var declare = await channel.QueueDeclarePassiveAsync(queueName).ConfigureAwait(false);
+                return declare.MessageCount;
+            }
         }
     }
 

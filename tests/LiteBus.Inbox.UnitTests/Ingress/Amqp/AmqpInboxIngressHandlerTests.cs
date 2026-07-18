@@ -9,6 +9,7 @@ using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Testing;
+using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -24,201 +25,201 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
         var visibleAfter = DateTimeOffset.UtcNow.AddMinutes(-1);
         var command = new ShipOrderCommand { OrderId = Guid.NewGuid() };
 
-         var provider = BuildProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
-
-        await handler.AcceptAsync(CreateMessage(
-            command,
-            headers =>
-            {
-                headers[AmqpHeaders.MessageId] = messageId.ToString();
-                headers["litebus-idempotency-key"] = "idem-42";
-                headers[AmqpHeaders.CorrelationId] = "correlation-1";
-                headers[AmqpHeaders.CausationId] = "causation-2";
-                headers[AmqpHeaders.TenantId] = "tenant-west";
-                headers["litebus-visible-after"] = visibleAfter.ToString("O");
-            },
-            "property-correlation")).ConfigureAwait(true);
-
-
-        var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
-
-        var leased = await leaseStore.LeasePendingAsync(new InboxLeaseRequest
+        var provider = BuildProvider();
+        await using (provider.ConfigureAwait(false))
         {
-            BatchSize = 10,
-            LeaseOwner = "ingress-unit-test",
-            Now = DateTimeOffset.UtcNow,
-            LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+            var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
 
-        leased.Should().ContainSingle();
-        leased[0].Id.Should().Be(messageId);
-        leased[0].IdempotencyKey.Should().Be("ingress:unknown:" + messageId.ToString("D"));
-        leased[0].CorrelationId.Should().Be("correlation-1");
-        leased[0].CausationId.Should().Be("causation-2");
-        leased[0].TenantId.Should().BeNull();
-        leased[0].VisibleAfter.Should().Be(visibleAfter);
+            await handler.AcceptAsync(CreateMessage(
+                command,
+                headers =>
+                {
+                    headers[TransportHeaders.MessageId] = messageId.ToString();
+                    headers["litebus-idempotency-key"] = "idem-42";
+                    headers[TransportHeaders.CorrelationId] = "correlation-1";
+                    headers[TransportHeaders.CausationId] = "causation-2";
+                    headers[TransportHeaders.TenantId] = "tenant-west";
+                    headers["litebus-visible-after"] = visibleAfter.ToString("O");
+                },
+                "property-correlation")).ConfigureAwait(false);
+
+
+            var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
+
+            var leased = await leaseStore.LeasePendingAsync(new InboxLeaseRequest
+            {
+                BatchSize = 10,
+                LeaseOwner = "ingress-unit-test",
+                Now = DateTimeOffset.UtcNow,
+                LeaseDuration = TimeSpan.FromMinutes(1)
+            });
+
+            leased.Should().ContainSingle();
+            leased[0].Id.Should().Be(messageId);
+            leased[0].IdempotencyKey.Should().Be("ingress:unknown:" + messageId.ToString("D"));
+            leased[0].CorrelationId.Should().Be("correlation-1");
+            leased[0].CausationId.Should().Be("causation-2");
+            leased[0].TenantId.Should().BeNull();
+            leased[0].VisibleAfter.Should().Be(visibleAfter);
         }
     }
 
     [Fact]
     public async Task AcceptAsync_WhenContractHeaderMissing_ShouldThrow()
     {
-         var provider = BuildProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
+        var provider = BuildProvider();
+        await using (provider.ConfigureAwait(false))
+        {
+            var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
 
-        var message = CreateMessage(
-            new ShipOrderCommand { OrderId = Guid.NewGuid() },
-            headers => headers.Remove(AmqpHeaders.ContractName));
+            var message = CreateMessage(
+                new ShipOrderCommand { OrderId = Guid.NewGuid() },
+                headers => headers.Remove(TransportHeaders.ContractName));
 
-        var act = () => handler.AcceptAsync(message);
+            var act = () => handler.AcceptAsync(message);
 
-        await act.Should().ThrowAsync<InboxIngressException>()
-            .WithMessage("*litebus-contract-name*required*");
+            await act.Should().ThrowAsync<InboxIngressException>()
+                .WithMessage("*litebus-contract-name*required*");
         }
     }
 
     [Fact]
     public async Task AcceptAsync_WhenContractVersionIsInvalid_ShouldThrow()
     {
-         var provider = BuildProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
+        var provider = BuildProvider();
+        await using (provider.ConfigureAwait(false))
+        {
+            var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
 
-        var act = () => handler.AcceptAsync(CreateMessage(
-            new ShipOrderCommand { OrderId = Guid.NewGuid() },
-            headers => headers[AmqpHeaders.ContractVersion] = "not-a-number"));
+            var act = () => handler.AcceptAsync(CreateMessage(
+                new ShipOrderCommand { OrderId = Guid.NewGuid() },
+                headers => headers[TransportHeaders.ContractVersion] = "not-a-number"));
 
-        await act.Should().ThrowAsync<InboxIngressException>()
-            .WithMessage("*positive integer*");
+            await act.Should().ThrowAsync<InboxIngressException>()
+                .WithMessage("*positive integer*");
         }
     }
 
     [Fact]
     public async Task AcceptAsync_WhenContractVersionIsZero_ShouldThrow()
     {
-         var provider = BuildProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
+        var provider = BuildProvider();
+        await using (provider.ConfigureAwait(false))
+        {
+            var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
 
-        var act = () => handler.AcceptAsync(CreateMessage(
-            new ShipOrderCommand { OrderId = Guid.NewGuid() },
-            headers => headers[AmqpHeaders.ContractVersion] = "0"));
+            var act = () => handler.AcceptAsync(CreateMessage(
+                new ShipOrderCommand { OrderId = Guid.NewGuid() },
+                headers => headers[TransportHeaders.ContractVersion] = "0"));
 
-        await act.Should().ThrowAsync<InboxIngressException>()
-            .WithMessage("*positive integer*");
+            await act.Should().ThrowAsync<InboxIngressException>()
+                .WithMessage("*positive integer*");
         }
     }
 
     [Fact]
     public async Task AcceptAsync_WhenMessageIsNull_ShouldThrow()
     {
-         var provider = BuildProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
+        var provider = BuildProvider();
+        await using (provider.ConfigureAwait(false))
+        {
+            var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
 
-        var act = () => handler.AcceptAsync(null!);
+            var act = () => handler.AcceptAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>();
+            await act.Should().ThrowAsync<ArgumentNullException>();
         }
     }
 
     [Fact]
     public async Task AcceptAsync_ShouldConvertByteArrayAndMemoryHeaders()
     {
-         var provider = BuildProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
-        var command = new ShipOrderCommand { OrderId = Guid.NewGuid() };
-
-        await handler.AcceptAsync(CreateMessage(
-            command,
-            headers =>
-            {
-                headers[AmqpHeaders.CorrelationId] = Encoding.UTF8.GetBytes("bytes-correlation");
-                headers[AmqpHeaders.TenantId] = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes("memory-tenant"));
-                headers[AmqpHeaders.CausationId] = new Memory<byte>(Encoding.UTF8.GetBytes("memory-causation"));
-            })).ConfigureAwait(true);
-
-
-        var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
-
-        var leased = await leaseStore.LeasePendingAsync(new InboxLeaseRequest
+        var provider = BuildProvider();
+        await using (provider.ConfigureAwait(false))
         {
-            BatchSize = 10,
-            LeaseOwner = "ingress-unit-test",
-            Now = DateTimeOffset.UtcNow,
-            LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+            var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
+            var command = new ShipOrderCommand { OrderId = Guid.NewGuid() };
 
-        leased.Should().ContainSingle();
-        leased[0].CorrelationId.Should().Be("bytes-correlation");
-        leased[0].TenantId.Should().BeNull();
-        leased[0].CausationId.Should().Be("memory-causation");
+            await handler.AcceptAsync(CreateMessage(
+                command,
+                headers =>
+                {
+                    headers[TransportHeaders.CorrelationId] = Encoding.UTF8.GetBytes("bytes-correlation");
+                    headers[TransportHeaders.TenantId] = new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes("memory-tenant"));
+                    headers[TransportHeaders.CausationId] = new Memory<byte>(Encoding.UTF8.GetBytes("memory-causation"));
+                })).ConfigureAwait(false);
+
+
+            var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
+
+            var leased = await leaseStore.LeasePendingAsync(new InboxLeaseRequest
+            {
+                BatchSize = 10,
+                LeaseOwner = "ingress-unit-test",
+                Now = DateTimeOffset.UtcNow,
+                LeaseDuration = TimeSpan.FromMinutes(1)
+            });
+
+            leased.Should().ContainSingle();
+            leased[0].CorrelationId.Should().Be("bytes-correlation");
+            leased[0].TenantId.Should().BeNull();
+            leased[0].CausationId.Should().Be("memory-causation");
         }
     }
 
     [Fact]
     public async Task AcceptAsync_WhenMessageIdHeaderInvalid_ShouldLeaveInboxIdUnset()
     {
-         var provider = BuildProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
-
-        await handler.AcceptAsync(CreateMessage(
-            new ShipOrderCommand { OrderId = Guid.NewGuid() },
-            headers => headers[AmqpHeaders.MessageId] = "not-a-guid")).ConfigureAwait(true);
-
-
-        var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
-
-        var leased = await leaseStore.LeasePendingAsync(new InboxLeaseRequest
+        var provider = BuildProvider();
+        await using (provider.ConfigureAwait(false))
         {
-            BatchSize = 10,
-            LeaseOwner = "ingress-unit-test",
-            Now = DateTimeOffset.UtcNow,
-            LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+            var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
 
-        leased.Should().ContainSingle();
-        leased[0].Id.Should().NotBe(Guid.Empty);
+            await handler.AcceptAsync(CreateMessage(
+                new ShipOrderCommand { OrderId = Guid.NewGuid() },
+                headers => headers[TransportHeaders.MessageId] = "not-a-guid")).ConfigureAwait(false);
+
+
+            var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
+
+            var leased = await leaseStore.LeasePendingAsync(new InboxLeaseRequest
+            {
+                BatchSize = 10,
+                LeaseOwner = "ingress-unit-test",
+                Now = DateTimeOffset.UtcNow,
+                LeaseDuration = TimeSpan.FromMinutes(1)
+            });
+
+            leased.Should().ContainSingle();
+            leased[0].Id.Should().NotBe(Guid.Empty);
         }
     }
 
     [Fact]
     public async Task AcceptAsync_WhenVisibleAfterHeaderInvalid_ShouldIgnoreVisibleAfter()
     {
-         var provider = BuildProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
-
-        await handler.AcceptAsync(CreateMessage(
-            new ShipOrderCommand { OrderId = Guid.NewGuid() },
-            headers => headers["litebus-visible-after"] = "not-a-date")).ConfigureAwait(true);
-
-
-        var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
-
-        var leased = await leaseStore.LeasePendingAsync(new InboxLeaseRequest
+        var provider = BuildProvider();
+        await using (provider.ConfigureAwait(false))
         {
-            BatchSize = 10,
-            LeaseOwner = "ingress-unit-test",
-            Now = DateTimeOffset.UtcNow,
-            LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+            var handler = provider.GetRequiredService<AmqpInboxIngressHandler>();
 
-        leased.Should().ContainSingle();
-        leased[0].VisibleAfter.Should().BeNull();
+            await handler.AcceptAsync(CreateMessage(
+                new ShipOrderCommand { OrderId = Guid.NewGuid() },
+                headers => headers["litebus-visible-after"] = "not-a-date")).ConfigureAwait(false);
+
+
+            var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
+
+            var leased = await leaseStore.LeasePendingAsync(new InboxLeaseRequest
+            {
+                BatchSize = 10,
+                LeaseOwner = "ingress-unit-test",
+                Now = DateTimeOffset.UtcNow,
+                LeaseDuration = TimeSpan.FromMinutes(1)
+            });
+
+            leased.Should().ContainSingle();
+            leased[0].VisibleAfter.Should().BeNull();
         }
     }
 
@@ -263,9 +264,9 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
     {
         var headers = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            [AmqpHeaders.ContractName] = "orders.commands.ship",
-            [AmqpHeaders.ContractVersion] = "1",
-            [AmqpHeaders.MessageId] = Guid.NewGuid().ToString("D")
+            [TransportHeaders.ContractName] = "orders.commands.ship",
+            [TransportHeaders.ContractVersion] = "1",
+            [TransportHeaders.MessageId] = Guid.NewGuid().ToString("D")
         };
 
         configureHeaders?.Invoke(headers);

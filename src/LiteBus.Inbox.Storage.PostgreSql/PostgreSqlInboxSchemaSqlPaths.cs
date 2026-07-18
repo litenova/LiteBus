@@ -24,14 +24,4 @@ public static class PostgreSqlInboxSchemaSqlPaths
     ///     Ensures the current inbox indexes exist.
     /// </summary>
     public const string V1EnsureIndexes = Root + "inbox/v1/ensure_indexes.sql";
-
-    /// <summary>
-    ///     Converts the payload column from JSONB to text for opaque ciphertext support.
-    /// </summary>
-    public const string V2PayloadText = Root + "inbox/v2/payload_text.sql";
-
-    /// <summary>
-    ///     Adds the lease generation used to reject stale renewals and terminal writes.
-    /// </summary>
-    public const string V3LeaseFencing = Root + "inbox/v3/lease_fencing.sql";
 }

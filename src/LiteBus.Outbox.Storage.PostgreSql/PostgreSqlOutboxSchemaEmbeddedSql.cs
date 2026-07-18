@@ -20,14 +20,4 @@ internal static class PostgreSqlOutboxSchemaEmbeddedSql
     ///     Embedded resource path for outbox index ensure SQL.
     /// </summary>
     internal const string V1EnsureIndexes = "outbox/v1/ensure_indexes.sql";
-
-    /// <summary>
-    ///     Embedded resource path for the version 2 payload type migration.
-    /// </summary>
-    internal const string V2PayloadText = "outbox/v2/payload_text.sql";
-
-    /// <summary>
-    ///     Embedded resource path for the lease fencing migration.
-    /// </summary>
-    internal const string V3LeaseFencing = "outbox/v3/lease_fencing.sql";
 }

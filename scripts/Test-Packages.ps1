@@ -162,6 +162,7 @@ foreach ($package in $packageMetadata) {
     $description = $package.Metadata.SelectSingleNode("n:description", $package.NamespaceManager)
     $license = $package.Metadata.SelectSingleNode("n:license", $package.NamespaceManager)
     $projectUrl = $package.Metadata.SelectSingleNode("n:projectUrl", $package.NamespaceManager)
+    $releaseNotes = $package.Metadata.SelectSingleNode("n:releaseNotes", $package.NamespaceManager)
     $readme = $package.Metadata.SelectSingleNode("n:readme", $package.NamespaceManager)
     $icon = $package.Metadata.SelectSingleNode("n:icon", $package.NamespaceManager)
     $repository = $package.Metadata.SelectSingleNode("n:repository", $package.NamespaceManager)
@@ -179,8 +180,12 @@ foreach ($package in $packageMetadata) {
         $errors.Add("Package '$($package.Id)' does not declare the MIT license expression.")
     }
 
-    if ($null -eq $projectUrl -or $projectUrl.InnerText -ne "https://github.com/litenova/LiteBus") {
-        $errors.Add("Package '$($package.Id)' does not declare the canonical project URL.")
+    if ($null -eq $projectUrl -or $projectUrl.InnerText -ne "https://litebus.io/") {
+        $errors.Add("Package '$($package.Id)' does not declare the LiteBus website as its project URL.")
+    }
+
+    if ($null -eq $releaseNotes -or $releaseNotes.InnerText -ne "https://github.com/litenova/LiteBus/blob/main/Changelog.md#v600") {
+        $errors.Add("Package '$($package.Id)' does not link to the v6 release notes.")
     }
 
     if ($null -eq $readme -or $readme.InnerText -ne "README.md") {

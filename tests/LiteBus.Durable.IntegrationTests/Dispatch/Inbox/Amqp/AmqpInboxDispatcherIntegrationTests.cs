@@ -4,6 +4,7 @@ using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Testing;
+using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
 using LiteBus.Inbox;
@@ -41,38 +42,39 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
             queueName,
             routingKey).ConfigureAwait(false);
 
-         var provider = BuildProvider(ConnectionOptions, exchangeName, routingKey);
-         await using (provider.ConfigureAwait(false))
-         {
-        var inbox = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
+        var provider = BuildProvider(ConnectionOptions, exchangeName, routingKey);
+        await using (provider.ConfigureAwait(false))
+        {
+            var inbox = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var workItemId = Guid.NewGuid();
+            var workItemId = Guid.NewGuid();
 
-        var receipt = await inbox.AcceptAsync(InboxAcceptItem<RemoteWorkCommand>.From(new RemoteWorkCommand {
+            var receipt = await inbox.AcceptAsync(InboxAcceptItem<RemoteWorkCommand>.From(new RemoteWorkCommand
+            {
                 WorkItemId = workItemId,
                 IdempotencyKey = $"work:{workItemId}"
             },
-            InboxAcceptMetadata.Immediate with
-            {
-                Trace = new MessageTrace.Workflow("corr-dispatch", "cause-dispatch"),
-                Tenant = new TenantScope.Isolated("tenant-dispatch")
-            })).ConfigureAwait(false);
+                InboxAcceptMetadata.Immediate with
+                {
+                    Trace = new MessageTrace.Workflow("corr-dispatch", "cause-dispatch"),
+                    Tenant = new TenantScope.Isolated("tenant-dispatch")
+                })).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        var (body, headers) = await AmqpTestInfrastructure.ReceiveOneAsync(
-            connectionUri,
-            queueName,
-            TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+            var (body, headers) = await AmqpTestInfrastructure.ReceiveOneAsync(
+                connectionUri,
+                queueName,
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
-        body.Should().Contain(workItemId.ToString());
-        headers[AmqpHeaders.MessageId].Should().Be(receipt.Id.ToString("D"));
-        headers[AmqpHeaders.ContractName].Should().Be(ContractName);
-        headers[AmqpHeaders.ContractVersion].Should().Be(ContractVersion);
-        headers[AmqpHeaders.CorrelationId].Should().Be("corr-dispatch");
-        headers[AmqpHeaders.CausationId].Should().Be("cause-dispatch");
-        headers[AmqpHeaders.TenantId].Should().Be("tenant-dispatch");
+            body.Should().Contain(workItemId.ToString());
+            headers[TransportHeaders.MessageId].Should().Be(receipt.Id.ToString("D"));
+            headers[TransportHeaders.ContractName].Should().Be(ContractName);
+            headers[TransportHeaders.ContractVersion].Should().Be(ContractVersion);
+            headers[TransportHeaders.CorrelationId].Should().Be("corr-dispatch");
+            headers[TransportHeaders.CausationId].Should().Be("cause-dispatch");
+            headers[TransportHeaders.TenantId].Should().Be("tenant-dispatch");
         }
     }
 

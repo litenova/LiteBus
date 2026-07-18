@@ -26,22 +26,17 @@ internal static class PostgreSqlSagaSchemaScripts
         "state_json",
         "optimistic_lock_version",
         "is_completed",
+        "last_applied_message_id",
         "created_at",
         "updated_at"
     ];
-
-    /// <summary>
-    ///     The column names introduced by saga schema version 2.
-    /// </summary>
-    internal static readonly IReadOnlyList<string> Version2Columns = ["last_applied_message_id"];
 
     /// <summary>
     ///     The ordered column groups introduced by each saga schema version.
     /// </summary>
     internal static readonly IReadOnlyList<IReadOnlyList<string>> VersionColumnSets =
     [
-        Version1Columns,
-        Version2Columns
+        Version1Columns
     ];
 
     /// <summary>
@@ -64,10 +59,7 @@ internal static class PostgreSqlSagaSchemaScripts
             "Creates the version 1 saga instances table with tenant-scoped primary key."),
         new(
             PostgreSqlSagaSchemaSqlPaths.V1EnsureIndexes,
-            "Ensures the current saga indexes exist."),
-        new(
-            PostgreSqlSagaSchemaSqlPaths.V2AddLastAppliedMessageId,
-            "Adds the applied message identifier required for duplicate saga dispatch suppression.")
+            "Ensures the current saga indexes exist.")
     ];
 
     /// <summary>

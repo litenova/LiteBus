@@ -43,30 +43,16 @@ internal static class PostgreSqlInboxSchemaScripts
         "first_failed_at",
         "dead_lettered_at",
         "last_lease_owner",
-        "error_type"
+        "error_type",
+        "lease_generation"
     ];
-
-    /// <summary>
-    ///     The column names introduced by inbox schema version 2.
-    /// </summary>
-    /// <remarks>
-    ///     Version 2 changes the payload column type and therefore introduces no column names.
-    /// </remarks>
-    internal static readonly IReadOnlyList<string> Version2Columns = [];
-
-    /// <summary>
-    ///     The column names introduced by inbox schema version 3.
-    /// </summary>
-    internal static readonly IReadOnlyList<string> Version3Columns = ["lease_generation"];
 
     /// <summary>
     ///     The ordered column groups introduced by each inbox schema version.
     /// </summary>
     internal static readonly IReadOnlyList<IReadOnlyList<string>> VersionColumnSets =
     [
-        Version1Columns,
-        Version2Columns,
-        Version3Columns
+        Version1Columns
     ];
 
     /// <summary>
@@ -89,13 +75,7 @@ internal static class PostgreSqlInboxSchemaScripts
             "Creates the current inbox table, indexes, and optional insert notify trigger for a new installation."),
         new(
             PostgreSqlInboxSchemaSqlPaths.V1EnsureIndexes,
-            "Ensures the current inbox indexes exist."),
-        new(
-            PostgreSqlInboxSchemaSqlPaths.V2PayloadText,
-            "Converts the payload column to text for opaque ciphertext support."),
-        new(
-            PostgreSqlInboxSchemaSqlPaths.V3LeaseFencing,
-            "Adds the monotonic lease generation used for fencing.")
+            "Ensures the current inbox indexes exist.")
     ];
 
     /// <summary>

@@ -147,7 +147,7 @@ Inbox and saga rows are **not** committed in one database transaction unless the
 | `SagaCompleteItem.From(...)` | Completion with version check (no phantom rows) |
 | `SagaQueryFilter` / `SagaPurgeFilter` | Operational query and retention on `ISagaStore` |
 
-PostgreSQL saga schema version **2** adds `last_applied_message_id` to the tenant-scoped row identified by (`correlation_id`, `saga_type`, `tenant_id`). Apply the v2 SQL file to an existing v6 table before startup. Schema bootstrap uses `PostgreSqlSchemaManager`, the same validation rail as inbox and outbox.
+PostgreSQL saga schema version **1** includes `last_applied_message_id` on the tenant-scoped row identified by (`correlation_id`, `saga_type`, `tenant_id`). v5 did not ship a saga table. Schema bootstrap uses `PostgreSqlSchemaManager`, the same validation path as inbox and outbox.
 
 ## Options Reference
 

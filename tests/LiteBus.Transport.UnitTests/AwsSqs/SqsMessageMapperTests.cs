@@ -41,7 +41,6 @@ public sealed class SqsMessageMapperTests
         sendRequest.MessageAttributes[TransportHeaders.ContractVersion].StringValue.Should().Be("2");
         sendRequest.MessageAttributes["Route"].StringValue.Should().Be("ship");
         sendRequest.MessageAttributes[TransportHeaders.CorrelationId].StringValue.Should().Be("corr-aws");
-        sendRequest.MessageAttributes.Should().NotContainKey(TransportHeaders.LegacyCorrelationId);
     }
 
     /// <summary>

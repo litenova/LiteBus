@@ -1,8 +1,5 @@
 using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Storage.PostgreSql;
-using LiteBus.Inbox;
-using LiteBus.Outbox;
-using LiteBus.Messaging;
 
 namespace LiteBus.Storage.IntegrationTests.PostgreSql;
 
@@ -50,12 +47,4 @@ public sealed class PostgreSqlInboxSchemaTests : IClassFixture<PostgreSqlFixture
             .Where(exception => exception.Component == PostgreSqlSchemaComponents.Inbox).ConfigureAwait(false);
     }
 
-    [Fact]
-    public async Task CreateIfNotExistsAsync_ShouldDelegateToEnsureAsync()
-    {
-        var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
-
-        await PostgreSqlInboxSchema.CreateIfNotExistsAsync(_fixture.DataSource, options).ConfigureAwait(false);
-        await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(false);
-    }
 }

@@ -228,31 +228,9 @@ The `LiteBusInboxSaveChangesInterceptor` path does not dedupe at accept time. A 
 
 ## Alignment with PostgreSQL `CurrentSchemaVersion`
 
-`PostgreSqlInboxSchema.CurrentSchemaVersion` is **3**. The EF model includes `lease_generation` for fencing, opaque payload text, and nullable `trace_context`. Pass `EfCoreStorageProvider.PostgreSql` to `GetModelBuilderConfiguration()` so the fluent model maps `trace_context` as optional `jsonb` on PostgreSQL. Add the new column in your application-owned EF migration before running the v6 store.
+`PostgreSqlInboxSchema.CurrentSchemaVersion` is **1** for the first v6 release. The EF model includes `lease_generation` for fencing, opaque payload text, and nullable `trace_context`. Pass `EfCoreStorageProvider.PostgreSql` to `GetModelBuilderConfiguration()` so the fluent model maps `trace_context` as optional `jsonb` on PostgreSQL. Generate an application-owned v6 migration from the complete model; do not apply a partial preview-schema migration chain.
 
-If you created migrations before this column existed, add it in a new migration (same shape as `add_trace_context_column.sql`):
-
-
-
-```csharp
-
-migrationBuilder.AddColumn<string>(
-
-    name: "trace_context",
-
-    schema: "public",
-
-    table: "litebus_inbox_messages",
-
-    type: "jsonb",
-
-    nullable: true);
-
-```
-
-
-
-Use a `jsonb` column type on PostgreSQL. The column can remain unused until a future LiteBus release consumes it.
+Do not upgrade a v5 table by adding only `trace_context` or `lease_generation`. Generate the complete v6 model into a new table and follow the row-mapping checks in [Migration Guide v6](../migration/v6.md) when data must be retained.
 
 
 

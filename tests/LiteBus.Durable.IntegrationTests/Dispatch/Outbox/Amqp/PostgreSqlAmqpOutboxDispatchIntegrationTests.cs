@@ -8,6 +8,7 @@ using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Storage.PostgreSql;
 using LiteBus.Testing;
+using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Amqp;
 using LiteBus.Transport.IntegrationTesting;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,51 +46,51 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
     public async Task ProcessPendingAsync_ShouldPublishToAmqpAndMarkPostgreSqlEnvelopePublished()
     {
         var storeOptions = CreateOutboxStoreOptions();
-        await PostgreSqlOutboxSchema.EnsureAsync(_postgresFixture.DataSource, storeOptions).ConfigureAwait(true);
+        await PostgreSqlOutboxSchema.EnsureAsync(_postgresFixture.DataSource, storeOptions).ConfigureAwait(false);
 
         var queueName = CreateUniqueName("pg-dispatch");
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-        await DeclareDirectQueueAsync(queueName).ConfigureAwait(true);
+        await DeclareDirectQueueAsync(queueName).ConfigureAwait(false);
 
-         var provider = BuildProvider(storeOptions, string.Empty);
-         await using (provider.ConfigureAwait(false))
-         {
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
+        var provider = BuildProvider(storeOptions, string.Empty);
+        await using (provider.ConfigureAwait(false))
+        {
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        await outbox.EnqueueAsync(
-            OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.From(
-                new OrderSubmittedIntegrationEvent { OrderId = orderId },
-                new OutboxEnqueueMetadata
-                {
-                    Identity = new MessageIdentity.Supplied(messageId),
-                    Idempotency = Idempotency.None.Instance,
-                    Visibility = MessageVisibility.Immediate.Instance,
-                    Trace = new MessageTrace.Workflow("corr-pg-outbox-amqp", "cause-pg-outbox-amqp"),
-                    Tenant = new TenantScope.Isolated("tenant-pg"),
-                    Target = new PublicationTarget.Topic(queueName)
-                })).ConfigureAwait(true);
+            await outbox.EnqueueAsync(
+                OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.From(
+                    new OrderSubmittedIntegrationEvent { OrderId = orderId },
+                    new OutboxEnqueueMetadata
+                    {
+                        Identity = new MessageIdentity.Supplied(messageId),
+                        Idempotency = Idempotency.None.Instance,
+                        Visibility = MessageVisibility.Immediate.Instance,
+                        Trace = new MessageTrace.Workflow("corr-pg-outbox-amqp", "cause-pg-outbox-amqp"),
+                        Tenant = new TenantScope.Isolated("tenant-pg"),
+                        Target = new PublicationTarget.Topic(queueName)
+                    })).ConfigureAwait(false);
 
 
-        await processor.ProcessPendingAsync().ConfigureAwait(true);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        var row = await ReadOutboxAsync(storeOptions, messageId).ConfigureAwait(true);
-        row.Should().NotBeNull();
-        row!.Value.Status.Should().Be(OutboxStatus.Published);
-        row.Value.AttemptCount.Should().Be(1);
+            var row = await ReadOutboxAsync(storeOptions, messageId).ConfigureAwait(false);
+            row.Should().NotBeNull();
+            row!.Value.Status.Should().Be(OutboxStatus.Published);
+            row.Value.AttemptCount.Should().Be(1);
 
-        var amqpMessage = await ConsumeOneAsync(queueName).ConfigureAwait(true);
-        var json = Encoding.UTF8.GetString(amqpMessage.Body);
+            var amqpMessage = await ConsumeOneAsync(queueName).ConfigureAwait(false);
+            var json = Encoding.UTF8.GetString(amqpMessage.Body);
 
-        var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
-            json,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
+                json,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
-        payload!.OrderId.Should().Be(orderId);
-        amqpMessage.MessageId.Should().Be(messageId.ToString("D"));
-        AmqpHeaderValues.GetString(amqpMessage.Headers, AmqpHeaders.ContractName).Should().Be("orders.order-submitted");
+            payload!.OrderId.Should().Be(orderId);
+            amqpMessage.MessageId.Should().Be(messageId.ToString("D"));
+            AmqpHeaderValues.GetString(amqpMessage.Headers, TransportHeaders.ContractName).Should().Be("orders.order-submitted");
         }
     }
 
@@ -130,50 +131,50 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
 
     private async Task DeclareDirectQueueAsync(string queueName)
     {
-         var manager = new AmqpConnectionManager(_rabbitMqFixture.ConnectionOptions);
-         await using (manager.ConfigureAwait(false))
-         {
-         var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
-         await using (channel.ConfigureAwait(false))
-         {
+        var manager = new AmqpConnectionManager(_rabbitMqFixture.ConnectionOptions);
+        await using (manager.ConfigureAwait(false))
+        {
+            var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
+            await using (channel.ConfigureAwait(false))
+            {
 
-        await channel.QueueDeclareAsync(
-            queueName,
-            true,
-            false,
-            false,
-            null).ConfigureAwait(false);
+                await channel.QueueDeclareAsync(
+                    queueName,
+                    true,
+                    false,
+                    false,
+                    null).ConfigureAwait(false);
 
-        }
+            }
         }
     }
 
     private async Task<ConsumedAmqpMessage> ConsumeOneAsync(string queueName)
     {
-         var manager = new AmqpConnectionManager(_rabbitMqFixture.ConnectionOptions);
-         await using (manager.ConfigureAwait(false))
-         {
-         var consumer = new AmqpConsumer(manager);
-         await using (consumer.ConfigureAwait(false))
-         {
-        var received = new TaskCompletionSource<ConsumedAmqpMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        await consumer.StartAsync(
-            new AmqpConsumerOptions
+        var manager = new AmqpConnectionManager(_rabbitMqFixture.ConnectionOptions);
+        await using (manager.ConfigureAwait(false))
+        {
+            var consumer = new AmqpConsumer(manager);
+            await using (consumer.ConfigureAwait(false))
             {
-                QueueName = queueName,
-                DeclareQueue = false
-            },
-            async (message, cancellationToken) =>
-            {
-                var bodyCopy = message.Body.ToArray();
-                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
-                received.TrySetResult(new ConsumedAmqpMessage(message, bodyCopy));
-            }).ConfigureAwait(false);
+                var received = new TaskCompletionSource<ConsumedAmqpMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        return await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
-        }
+                await consumer.StartAsync(
+                    new AmqpConsumerOptions
+                    {
+                        QueueName = queueName,
+                        DeclareQueue = false
+                    },
+                    async (message, cancellationToken) =>
+                    {
+                        var bodyCopy = message.Body.ToArray();
+                        await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+                        received.TrySetResult(new ConsumedAmqpMessage(message, bodyCopy));
+                    }).ConfigureAwait(false);
+
+                using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                return await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
+            }
         }
     }
 
@@ -181,34 +182,34 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-         var connection = await _postgresFixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
+        var connection = await _postgresFixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var command = connection.CreateCommand();
+            await using (command.ConfigureAwait(false))
+            {
 
-        command.CommandText = $"""
+                command.CommandText = $"""
                                SELECT status, attempt_count
                                FROM {tableName}
                                WHERE message_id = @message_id;
                                """;
 
-        command.Parameters.AddWithValue("message_id", messageId);
+                command.Parameters.AddWithValue("message_id", messageId);
 
-         var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
-         await using (reader.ConfigureAwait(false))
-         {
+                var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
+                await using (reader.ConfigureAwait(false))
+                {
 
-        if (!await reader.ReadAsync().ConfigureAwait(false))
-        {
-            return null;
+                    if (!await reader.ReadAsync().ConfigureAwait(false))
+                    {
+                        return null;
 
-        }
+                    }
 
-        return ((OutboxStatus) reader.GetInt32(0), reader.GetInt32(1));
-        }
-        }
+                    return ((OutboxStatus) reader.GetInt32(0), reader.GetInt32(1));
+                }
+            }
         }
     }
 

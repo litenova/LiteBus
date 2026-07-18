@@ -218,8 +218,10 @@ internal static class PostgreSqlSchemaManager
 
         if (inferredVersion < definition.CurrentSchemaVersion)
         {
-            var details = tableExists
-                ? $"Table exists but column set infers schema version {inferredVersion}."
+            var details = tableExists && definition.CurrentSchemaVersion == 1
+                ? "The existing table does not match the LiteBus v6 schema version 1 column set. LiteBus v6 does " +
+                  "not mutate v5 tables automatically. Drain and replace the table, or run a reviewed " +
+                  "application-owned data migration before startup."
                 : $"Table column set infers schema version {inferredVersion}.";
 
             var exception = new PostgreSqlSchemaDriftException(
@@ -344,7 +346,9 @@ internal static class PostgreSqlSchemaManager
                 context.StoreTable.TableName,
                 definition.CurrentSchemaVersion,
                 recordedVersion,
-                "Run EnsureAsync or apply GetCreateScript() before starting the application.");
+                "The recorded schema version belongs to another LiteBus release. LiteBus v6 does not mutate v5 " +
+                "tables automatically. Drain and replace the table, or run a reviewed application-owned data " +
+                "migration before startup.");
 
             context.Logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
             throw exception;
@@ -428,14 +432,6 @@ internal static class PostgreSqlSchemaManager
     {
         var definition = context.Definition ?? throw new InvalidOperationException("Version checks require a component schema definition.");
 
-        var recordedVersion = await PostgreSqlSchemaVersionStore.GetVersionAsync(context, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (recordedVersion >= definition.CurrentSchemaVersion)
-        {
-            return await HasRequiredColumnDataTypesAsync(context, cancellationToken).ConfigureAwait(false);
-        }
-
         if (!await PostgreSqlSchemaInspector.TableExistsAsync(
                     context.Connection,
                     context.StoreTable,
@@ -455,8 +451,20 @@ internal static class PostgreSqlSchemaManager
             columns,
             definition.VersionColumnSets) >= definition.CurrentSchemaVersion;
 
-        return hasExpectedColumns &&
-               await HasRequiredColumnDataTypesAsync(context, cancellationToken).ConfigureAwait(false);
+        if (!hasExpectedColumns)
+        {
+            return false;
+        }
+
+        var recordedVersion = await PostgreSqlSchemaVersionStore.GetVersionAsync(context, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (recordedVersion != 0 && recordedVersion != definition.CurrentSchemaVersion)
+        {
+            return false;
+        }
+
+        return await HasRequiredColumnDataTypesAsync(context, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

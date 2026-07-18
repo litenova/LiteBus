@@ -96,9 +96,9 @@ Closed generic types are supported when each closed shape is registered. Open ge
 
 The writer persists through `IInboxStore`. `AddAsync` returns `InboxAppendResult`, which carries the stored envelope and the authoritative `InboxAcceptOutcome`. The processor leases through `IInboxLeaseStore` and records results through `IInboxStateWriter`. A single store implementation registers all roles on one singleton instance.
 
-### Schema v1 (Greenfield)
+### v6 Schema Version 1
 
-PostgreSQL inbox schema version **3** stores opaque payload text and adds `lease_generation`. Apply the v2 and v3 SQL files to an existing v6 table before startup. EF Core applications own the equivalent migration. Tables from v5 or earlier require replacement or an application-owned data migration.
+PostgreSQL inbox schema version **1** stores opaque payload text and includes `lease_generation`. No v6 schema predates this shape. Replace a v5 table after draining it, or copy retained rows through a reviewed application-owned data migration.
 
 ### Transactional Writes (Domain + Inbox)
 

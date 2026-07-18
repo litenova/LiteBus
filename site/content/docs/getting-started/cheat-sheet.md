@@ -138,7 +138,7 @@ builder.AddInbox(inbox =>
 });
 ```
 
-Inbox and outbox use PostgreSQL schema version **3**; saga uses version **2**. Apply the ordered migration files for an existing v6 table. Tables from v5 or earlier require replacement or an application-owned data migration.
+Inbox, outbox, and saga use PostgreSQL schema version **1** in v6. The v1 scripts contain the complete 6.0 shape. v5 tables require replacement or an application-owned data migration.
 
 ## Health and Operations
 

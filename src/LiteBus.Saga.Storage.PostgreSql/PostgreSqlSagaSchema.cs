@@ -34,10 +34,8 @@ namespace LiteBus.Saga.Storage.PostgreSql;
 ///         </item>
 ///     </list>
 ///     <para>
-///         Schema version 2 adds the applied message identifier used for duplicate dispatch suppression. Existing
-///         databases are not upgraded automatically. Apply the ordered files exposed by <see cref="SqlFiles" />, then
-///         call <see cref="EnsureAsync(NpgsqlDataSource, PostgreSqlSagaStoreOptions?, CancellationToken)" /> to record and
-///         validate the current version.
+///         LiteBus v6 starts at schema version 1. The version 1 create script includes the applied message identifier
+///         used for duplicate dispatch suppression. LiteBus v5 did not ship a saga store schema.
 ///     </para>
 /// </remarks>
 public static class PostgreSqlSagaSchema
@@ -45,7 +43,7 @@ public static class PostgreSqlSagaSchema
     /// <summary>
     ///     Gets the saga table schema version implemented by this package release.
     /// </summary>
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 1;
 
     /// <summary>
     ///     Gets the canonical SQL files shipped with the saga PostgreSQL package.

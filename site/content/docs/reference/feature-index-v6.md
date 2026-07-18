@@ -86,7 +86,7 @@ See [Analyzers](analyzers.md) for LB1001-LB1017. Highlights:
 
 | Resource | Location |
 | --- | --- |
-| Greenfield upgrade | [Migration Guide v6](../migration/v6.md) |
+| v5 to v6 upgrade | [Migration Guide v6](../migration/v6.md) |
 | Historical v4/v5 | [Migration Guide v4](../migration/v4.md), [Migration Guide v5](../migration/v5.md) |
 | Architecture | [Architecture](../architecture/README.md), [Dependency graph](../architecture/dependency-graph.md) |
 | Cookbook | [Cookbook and scenarios](../getting-started/cookbook.md) |

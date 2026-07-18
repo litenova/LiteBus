@@ -36,9 +36,7 @@ jobs:
 
       - name: Validate Documentation
         shell: pwsh
-        run: |
-          ./scripts/Test-Documentation.ps1
-          ./scripts/Test-DocumentationSiteContent.ps1
+        run: ./scripts/Test-Documentation.ps1
 
       - name: Validate Documentation Site
         working-directory: site

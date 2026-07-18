@@ -239,4 +239,4 @@ Track broader roadmap items in [Roadmap](../roadmap/README.md).
 
 - [Architecture](README.md): storage accept/process paths and dependency roles
 - [Inbox](../reliable-messaging/inbox.md) / [Outbox](../reliable-messaging/outbox.md): feature guides for durable messaging
-- [Migration guide v6](../migration/v6.md): greenfield API break summary
+- [Migration guide v6](../migration/v6.md): v5 to v6 API and database upgrade

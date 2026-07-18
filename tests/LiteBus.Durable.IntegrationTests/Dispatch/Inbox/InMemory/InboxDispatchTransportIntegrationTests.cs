@@ -30,62 +30,62 @@ public sealed class InboxDispatchTransportIntegrationTests : LiteBusTestBase
         var destination = InMemoryTransportTestInfrastructure.CreateDestination("inbox-dispatch");
         var received = new TaskCompletionSource<TransportMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-         var provider = BuildProvider(destination);
-         await using (provider.ConfigureAwait(false))
-         {
-        var broker = provider.GetRequiredService<InMemoryTransportBroker>();
-
-         var consumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(             broker,             destination,             received).ConfigureAwait(true);
-         await using (consumer.ConfigureAwait(true))
-         {
-
-        var inbox = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-
-        var workItemId = Guid.NewGuid();
-
-        var receipt = await inbox.AcceptAsync(new InboxAcceptItem<RemoteWorkCommand>
+        var provider = BuildProvider(destination);
+        await using (provider.ConfigureAwait(false))
         {
-            Message = new RemoteWorkCommand
+            var broker = provider.GetRequiredService<InMemoryTransportBroker>();
+
+            var consumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(broker, destination, received).ConfigureAwait(false);
+            await using (consumer.ConfigureAwait(false))
             {
-                WorkItemId = workItemId,
-                IdempotencyKey = $"work:{workItemId}"
-            },
-            Metadata = InboxAcceptMetadata.Immediate with
-            {
-                Trace = new MessageTrace.Workflow("corr-dispatch", "cause-dispatch"),
-                Tenant = new TenantScope.Isolated("tenant-dispatch")
+
+                var inbox = provider.GetRequiredService<IInbox>();
+                var processor = provider.GetRequiredService<IInboxProcessor>();
+
+                var workItemId = Guid.NewGuid();
+
+                var receipt = await inbox.AcceptAsync(new InboxAcceptItem<RemoteWorkCommand>
+                {
+                    Message = new RemoteWorkCommand
+                    {
+                        WorkItemId = workItemId,
+                        IdempotencyKey = $"work:{workItemId}"
+                    },
+                    Metadata = InboxAcceptMetadata.Immediate with
+                    {
+                        Trace = new MessageTrace.Workflow("corr-dispatch", "cause-dispatch"),
+                        Tenant = new TenantScope.Isolated("tenant-dispatch")
+                    }
+                }).ConfigureAwait(false);
+
+                await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+                using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var message = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
+
+                InMemoryTransportTestInfrastructure.ReadBody(message).Should().Contain(workItemId.ToString());
+
+                InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.MessageId)
+                    .Should().Be(receipt.Id.ToString("D"));
+
+                InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.ContractName)
+                    .Should().Be(ContractName);
+
+                InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.ContractVersion)
+                    .Should().Be(ContractVersion.ToString());
+
+                InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.CorrelationId)
+                    .Should().Be("corr-dispatch");
+
+                InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.CausationId)
+                    .Should().Be("cause-dispatch");
+
+                InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.TenantId)
+                    .Should().Be("tenant-dispatch");
+
+                var store = provider.GetRequiredService<InMemoryInboxStore>();
+                store.Get(receipt.Id).Status.Should().Be(InboxStatus.Completed);
             }
-        }).ConfigureAwait(false);
-
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
-
-        using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var message = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
-
-        InMemoryTransportTestInfrastructure.ReadBody(message).Should().Contain(workItemId.ToString());
-
-        InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.MessageId)
-            .Should().Be(receipt.Id.ToString("D"));
-
-        InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.ContractName)
-            .Should().Be(ContractName);
-
-        InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.ContractVersion)
-            .Should().Be(ContractVersion.ToString());
-
-        InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.CorrelationId)
-            .Should().Be("corr-dispatch");
-
-        InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.CausationId)
-            .Should().Be("cause-dispatch");
-
-        InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.TenantId)
-            .Should().Be("tenant-dispatch");
-
-        var store = provider.GetRequiredService<InMemoryInboxStore>();
-        store.Get(receipt.Id).Status.Should().Be(InboxStatus.Completed);
-        }
         }
     }
 

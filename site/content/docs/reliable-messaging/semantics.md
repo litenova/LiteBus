@@ -62,9 +62,9 @@ See [Hosted services](../architecture/hosted-services.md) and [Production runboo
 
 Ingress logs `ingress.ack_failed_after_accept` when ack fails after successful accept; broker may redeliver (at-least-once).
 
-## Schema v1 Greenfield
+## v6 Schema Version 1
 
-PostgreSQL inbox and outbox tables use schema version **3**; saga uses version **2**. Ordered migrations cover older v6 tables. No automatic upgrade exists for LiteBus v5 tables. See [Migration Guide v6](../migration/v6.md).
+PostgreSQL inbox, outbox, and saga tables start at schema version **1** in v6. The create scripts contain the complete 6.0 shape. No automatic upgrade exists for LiteBus v5 tables. See [Migration Guide v6](../migration/v6.md).
 
 ## Comparison Table
 

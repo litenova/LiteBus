@@ -12,6 +12,7 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
+using LiteBus.Transport.Abstractions;
 using LiteBus.Transport.Amqp;
 using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
@@ -44,15 +45,15 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
     public async Task PublishThroughRabbitMq_ShouldStoreInPostgreSqlAndDispatchCommand()
     {
         var rabbitMqFixture = new RabbitMqBrokerFixture();
-        await rabbitMqFixture.InitializeAsync().ConfigureAwait(true);
+        await rabbitMqFixture.InitializeAsync().ConfigureAwait(false);
 
         try
         {
-            await RunEndToEndAsync(rabbitMqFixture.ConnectionOptions).ConfigureAwait(true);
+            await RunEndToEndAsync(rabbitMqFixture.ConnectionOptions).ConfigureAwait(false);
         }
         finally
         {
-            await rabbitMqFixture.DisposeAsync().ConfigureAwait(true);
+            await rabbitMqFixture.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -74,7 +75,7 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
 
         services.AddLiteBus(registry =>
         {
-                registry.Modules.Register(new AmqpTransportModule(connectionOptions));
+            registry.Modules.Register(new AmqpTransportModule(connectionOptions));
             registry.AddMessaging(_ =>
             {
             });
@@ -122,71 +123,71 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
             });
         });
 
-         var provider = services.BuildServiceProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
-        manifest.StartupTasks.Select(task => task.Name).Should().Contain("InboxObservableMetricsInitializer");
-        manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
-        manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
-
-        using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
-
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
-
-        try
+        var provider = services.BuildServiceProvider();
+        await using (provider.ConfigureAwait(false))
         {
-            var publisher = provider.GetRequiredService<IAmqpPublisher>();
-            var command = new ShipOrderCommand { OrderId = orderId };
-            var payload = JsonSerializer.SerializeToUtf8Bytes(command);
+            var manifest = provider.GetRequiredService<LiteBusHostManifest>();
+            manifest.StartupTasks.Select(task => task.Name).Should().Contain("InboxObservableMetricsInitializer");
+            manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
+            manifest.BackgroundServices.Should().Contain(typeof(TransportInboxIngressConsumer));
 
-            await publisher.PublishAsync(new AmqpPublishRequest
+            using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+
+            await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
+
+            try
             {
-                Exchange = string.Empty,
-                RoutingKey = ingressQueue,
-                Body = payload,
-                Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
+                var publisher = provider.GetRequiredService<IAmqpPublisher>();
+                var command = new ShipOrderCommand { OrderId = orderId };
+                var payload = JsonSerializer.SerializeToUtf8Bytes(command);
+
+                await publisher.PublishAsync(new AmqpPublishRequest
                 {
-                    [AmqpHeaders.MessageId] = messageId.ToString("D"),
-                    [AmqpHeaders.ContractName] = contractName,
-                    [AmqpHeaders.ContractVersion] = "1"
-                }
-            }).ConfigureAwait(false);
+                    Exchange = string.Empty,
+                    RoutingKey = ingressQueue,
+                    Body = payload,
+                    Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
+                    {
+                        [TransportHeaders.MessageId] = messageId.ToString("D"),
+                        [TransportHeaders.ContractName] = contractName,
+                        [TransportHeaders.ContractVersion] = "1"
+                    }
+                }).ConfigureAwait(false);
 
 
-            var body = await ReceiveOneAsync(connectionOptions, dispatchQueue, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
-            body.Should().Contain(orderId.ToString());
+                var body = await ReceiveOneAsync(connectionOptions, dispatchQueue, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                body.Should().Contain(orderId.ToString());
 
-            var row = await PostgreSqlTableReaders.ReadInboxAsync(_postgresFixture.DataSource, options, messageId).ConfigureAwait(false);
-            row.Should().NotBeNull();
-            row!.Status.Should().Be(InboxStatus.Completed);
-            row.AttemptCount.Should().Be(1);
-        }
-        finally
-        {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
-        }
+                var row = await PostgreSqlTableReaders.ReadInboxAsync(_postgresFixture.DataSource, options, messageId).ConfigureAwait(false);
+                row.Should().NotBeNull();
+                row!.Status.Should().Be(InboxStatus.Completed);
+                row.AttemptCount.Should().Be(1);
+            }
+            finally
+            {
+                await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 
     private static async Task DeclareQueueAsync(AmqpConnectionOptions connectionOptions, string queueName)
     {
-         var manager = new AmqpConnectionManager(connectionOptions);
-         await using (manager.ConfigureAwait(false))
-         {
-         var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
-         await using (channel.ConfigureAwait(false))
-         {
+        var manager = new AmqpConnectionManager(connectionOptions);
+        await using (manager.ConfigureAwait(false))
+        {
+            var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
+            await using (channel.ConfigureAwait(false))
+            {
 
-        await channel.QueueDeclareAsync(
-            queueName,
-            true,
-            false,
-            false,
-            null).ConfigureAwait(false);
+                await channel.QueueDeclareAsync(
+                    queueName,
+                    true,
+                    false,
+                    false,
+                    null).ConfigureAwait(false);
 
-        }
+            }
         }
     }
 
@@ -200,29 +201,29 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
                       $"amqp://{Uri.EscapeDataString(connectionOptions.UserName)}:{Uri.EscapeDataString(connectionOptions.Password)}@{connectionOptions.HostName}:{connectionOptions.Port}{connectionOptions.VirtualHost}");
 
         var factory = new ConnectionFactory { Uri = uri };
-         var connection = await factory.CreateConnectionAsync().ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var channel = await connection.CreateChannelAsync().ConfigureAwait(false);
-         await using (channel.ConfigureAwait(false))
-         {
-
-        var deadline = DateTime.UtcNow + timeout;
-
-        while (DateTime.UtcNow < deadline)
+        var connection = await factory.CreateConnectionAsync().ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
         {
-            var result = await channel.BasicGetAsync(queue, true).ConfigureAwait(false);
-
-            if (result is not null)
+            var channel = await connection.CreateChannelAsync().ConfigureAwait(false);
+            await using (channel.ConfigureAwait(false))
             {
-                return Encoding.UTF8.GetString(result.Body.ToArray());
+
+                var deadline = DateTime.UtcNow + timeout;
+
+                while (DateTime.UtcNow < deadline)
+                {
+                    var result = await channel.BasicGetAsync(queue, true).ConfigureAwait(false);
+
+                    if (result is not null)
+                    {
+                        return Encoding.UTF8.GetString(result.Body.ToArray());
+                    }
+
+                    await Task.Delay(100).ConfigureAwait(false);
+                }
+
+                throw new TimeoutException($"No message received on queue '{queue}' within {timeout}.");
             }
-
-            await Task.Delay(100).ConfigureAwait(false);
-        }
-
-        throw new TimeoutException($"No message received on queue '{queue}' within {timeout}.");
-        }
         }
     }
 }

@@ -59,7 +59,7 @@
 ## Invariants
 
 - Status counts reflect store truth at query time (not cached indefinitely).
-- Schema info for PostgreSQL includes expected version 1 for greenfield v6.
+- Schema info for PostgreSQL includes expected version 1 for the first v6 release.
 - InMemory stores report synthetic schema info suitable for tests.
 
 ## Non-Goals
