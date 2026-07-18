@@ -22,6 +22,21 @@ public abstract class InboxStoreContractTests
     protected abstract InboxStoreRoles CreateStore();
 
     /// <summary>
+    ///     Verifies logical schema reads honor cancellation even when no database query is required.
+    /// </summary>
+    [Fact]
+    public async Task GetSchemaInfoAsync_WhenCancellationIsRequested_ShouldThrow()
+    {
+        var roles = CreateStore();
+        using var cancellationSource = new CancellationTokenSource();
+        await cancellationSource.CancelAsync().ConfigureAwait(false);
+
+        var read = () => roles.DiagnosticsStore.GetSchemaInfoAsync(cancellationSource.Token);
+
+        await read.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
+    }
+
+    /// <summary>
     ///     Verifies invalid lease inputs are rejected before a store can create an unusable lease.
     /// </summary>
     [Fact]

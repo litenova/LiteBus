@@ -176,13 +176,15 @@ internal sealed class InboxManager : IInboxManager
     /// <inheritdoc />
     public Task<RetentionRunStatus> GetRetentionStatusAsync(CancellationToken cancellationToken = default)
     {
-        _ = cancellationToken;
+        cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(_retentionCoordinator.GetStatus());
     }
 
     /// <inheritdoc />
     public async Task<int> RunRetentionPurgeAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (_cleanupHostOptions.Retention is null || _cleanupHostOptions.Retention <= TimeSpan.Zero)
         {
             return 0;

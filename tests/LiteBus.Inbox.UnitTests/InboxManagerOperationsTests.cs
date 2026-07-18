@@ -136,6 +136,24 @@ public sealed class InboxManagerOperationsTests
     }
 
     /// <summary>
+    ///     Verifies local retention operations honor cancellation before reading status or returning disabled results.
+    /// </summary>
+    [Fact]
+    public async Task RetentionOperations_WhenCancellationIsRequested_ShouldThrow()
+    {
+        var store = new InMemoryInboxStore();
+        var manager = CreateManager(store);
+        using var cancellationSource = new CancellationTokenSource();
+        await cancellationSource.CancelAsync().ConfigureAwait(false);
+
+        var readStatus = () => manager.GetRetentionStatusAsync(cancellationSource.Token);
+        var runPurge = () => manager.RunRetentionPurgeAsync(cancellationSource.Token);
+
+        await readStatus.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
+        await runPurge.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
+    }
+
+    /// <summary>
     ///     Verifies successful retention uses the configured cutoff and records the run result.
     /// </summary>
     [Fact]

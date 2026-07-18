@@ -119,7 +119,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
         InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
-        _ = cancellationToken;
+        cancellationToken.ThrowIfCancellationRequested();
         FlushPendingEnvelopes(eventData.Context);
         return new ValueTask<InterceptionResult<int>>(result);
     }

@@ -208,7 +208,7 @@ public sealed class EfCoreInboxStore :
     /// <inheritdoc />
     public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
     {
-        _ = cancellationToken;
+        cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(StoreSchemaInfo.ForLogicalStore("inbox", 1));
     }
 

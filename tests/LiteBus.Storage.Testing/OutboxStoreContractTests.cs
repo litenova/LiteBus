@@ -21,6 +21,22 @@ public abstract class OutboxStoreContractTests
     protected abstract OutboxStoreContracts CreateStore();
 
     /// <summary>
+    ///     Verifies logical schema reads honor cancellation even when no database query is required.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task GetSchemaInfoAsync_WhenCancellationIsRequested_ShouldThrow()
+    {
+        var store = CreateStore();
+        using var cancellationSource = new CancellationTokenSource();
+        await cancellationSource.CancelAsync().ConfigureAwait(false);
+
+        var read = () => store.Diagnostics.GetSchemaInfoAsync(cancellationSource.Token);
+
+        await read.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
+    }
+
+    /// <summary>
     ///     Verifies invalid lease inputs are rejected before a store can create an unusable lease.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>

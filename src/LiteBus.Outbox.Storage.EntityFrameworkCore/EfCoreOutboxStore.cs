@@ -198,7 +198,7 @@ public sealed class EfCoreOutboxStore :
     /// <inheritdoc />
     public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
     {
-        _ = cancellationToken;
+        cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(StoreSchemaInfo.ForLogicalStore("outbox", 1));
     }
 
