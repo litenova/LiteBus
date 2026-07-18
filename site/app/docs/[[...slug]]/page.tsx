@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { DocsBody, DocsPage } from 'fumadocs-ui/layouts/docs/page';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import { getSource } from '@/lib/source';
+import { siteDescription, siteName } from '@/lib/site';
 
 type DocsPageProps = {
   params: Promise<{ slug?: string[] }>;
@@ -21,9 +22,26 @@ export async function generateMetadata({ params }: DocsPageProps): Promise<Metad
     notFound();
   }
 
+  const title = page.data.title ?? siteName;
+  const description = page.data.description ?? siteDescription;
+
   return {
-    title: page.data.title,
-    description: page.data.description,
+    title,
+    description,
+    alternates: {
+      canonical: page.url,
+    },
+    openGraph: {
+      type: 'article',
+      url: page.url,
+      title,
+      description,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+    },
   };
 }
 
@@ -52,7 +70,7 @@ export default async function DocsPageRoute({
         if (resolvedHref === sourceHref) {
           const repositoryPage = new URL(
             page.path,
-            'https://github.com/litenova/LiteBus/blob/v6/docs/',
+            'https://github.com/litenova/LiteBus/blob/v6/site/content/docs/',
           );
           resolvedHref = new URL(href, repositoryPage).toString();
         }

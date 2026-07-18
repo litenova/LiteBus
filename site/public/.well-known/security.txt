@@ -1,0 +1,6 @@
+# LiteBus security contact (RFC 9116)
+Contact: https://github.com/litenova/LiteBus/security/advisories/new
+Policy: https://github.com/litenova/LiteBus/blob/main/SECURITY.md
+Preferred-Languages: en, nl
+Canonical: https://litebus.io/.well-known/security.txt
+Expires: 2027-12-31T23:59:59.000Z

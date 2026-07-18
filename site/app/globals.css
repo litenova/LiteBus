@@ -536,6 +536,70 @@ body {
   font-size: 0.85rem;
 }
 
+/* Legal / privacy ----------------------------------------------------------- */
+
+.litebus-legal {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: clamp(3rem, 7vw, 5rem) 0 clamp(2.5rem, 5vw, 4rem);
+}
+
+.litebus-legal h1 {
+  margin: 0;
+  font-size: clamp(2.2rem, 5vw, 3.2rem);
+  font-weight: 770;
+  letter-spacing: -0.04em;
+}
+
+.litebus-legal-meta {
+  margin: 0.6rem 0 2rem;
+  color: var(--color-fd-muted-foreground);
+  font-size: 0.9rem;
+}
+
+.litebus-legal h2 {
+  margin: 2.4rem 0 0.75rem;
+  font-size: 1.35rem;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+}
+
+.litebus-legal p,
+.litebus-legal li {
+  color: color-mix(in oklab, var(--color-fd-foreground) 88%, var(--color-fd-muted-foreground));
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.litebus-legal p {
+  margin: 0 0 1rem;
+}
+
+.litebus-legal ul {
+  margin: 0 0 1rem;
+  padding-left: 1.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.litebus-legal a {
+  color: var(--color-fd-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.litebus-legal-note {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px dashed color-mix(in oklab, var(--litebus-yellow) 60%, var(--color-fd-border));
+  border-radius: 0.6rem;
+  background: color-mix(in oklab, var(--litebus-yellow) 8%, transparent);
+  color: var(--color-fd-muted-foreground);
+  font-size: 0.9rem;
+}
+
 /* Docs nav brand (shared with docs layout) ---------------------------------- */
 
 .litebus-nav-brand {

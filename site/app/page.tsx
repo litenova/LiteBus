@@ -1,6 +1,32 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { repositoryUrl, siteDescription, siteName, siteUrl } from '@/lib/site';
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebSite',
+      '@id': `${siteUrl}/#website`,
+      url: siteUrl,
+      name: siteName,
+      description: siteDescription,
+      inLanguage: 'en',
+    },
+    {
+      '@type': 'SoftwareSourceCode',
+      '@id': `${siteUrl}/#software`,
+      name: siteName,
+      description: siteDescription,
+      codeRepository: repositoryUrl,
+      programmingLanguage: 'C#',
+      runtimePlatform: '.NET',
+      url: siteUrl,
+      license: 'https://github.com/litenova/LiteBus/blob/main/LICENSE',
+    },
+  ],
+};
 
 const KEYWORDS = new Set([
   'public',
@@ -169,6 +195,10 @@ const STATS: { value: string; label: string }[] = [
 export default function HomePage() {
   return (
     <div className="litebus-home">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <header className="litebus-home-header">
         <Link className="litebus-brand" href="/">
           <Image src="/icon.svg" alt="" width={32} height={32} />
@@ -310,6 +340,7 @@ export default function HomePage() {
           <Link href="/docs">Documentation</Link>
           <Link href="/docs/getting-started">Get started</Link>
           <Link href="/docs/architecture">Architecture</Link>
+          <Link href="/privacy">Privacy</Link>
           <Link href="https://github.com/litenova/LiteBus">GitHub</Link>
         </nav>
         <span className="litebus-footer-note">
