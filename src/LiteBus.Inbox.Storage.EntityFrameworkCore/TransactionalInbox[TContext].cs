@@ -75,6 +75,8 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
         IReadOnlyList<InboxAcceptItem> items,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(items);
+
         if (items.Count == 0)
         {
             return Task.FromResult<IReadOnlyList<InboxReceipt>>([]);
@@ -82,18 +84,48 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
 
         return _acceptanceService.AcceptBatchAsync(
             items,
-            async (envelopes, token) =>
-            {
-                var staged = new InboxAppendResult[envelopes.Count];
-
-                for (var index = 0; index < envelopes.Count; index++)
-                {
-                    staged[index] = await StageAsync(envelopes[index], token).ConfigureAwait(false);
-                }
-
-                return staged;
-            },
+            StageBatchAsync,
             cancellationToken);
+    }
+
+    /// <summary>
+    ///     Resolves a batch before adding any new envelopes to the interceptor pending queue.
+    /// </summary>
+    /// <param name="envelopes">The envelopes created for the current accept batch.</param>
+    /// <param name="cancellationToken">The token used to cancel existing-row lookups.</param>
+    /// <returns>The staged or existing envelope outcome for every batch item.</returns>
+    private async Task<IReadOnlyList<InboxAppendResult>> StageBatchAsync(
+        IReadOnlyList<InboxEnvelope> envelopes,
+        CancellationToken cancellationToken)
+    {
+        var staged = new InboxAppendResult[envelopes.Count];
+        var pending = new List<InboxEnvelope>(envelopes.Count);
+
+        for (var index = 0; index < envelopes.Count; index++)
+        {
+            var envelope = envelopes[index];
+
+            if (envelope.IdempotencyConflictMode == IdempotencyConflictMode.ReturnExisting)
+            {
+                var existing = await FindExistingAsync(envelope, cancellationToken, pending).ConfigureAwait(false);
+
+                if (existing is not null)
+                {
+                    staged[index] = new InboxAppendResult(existing, InboxAcceptOutcome.AlreadyAccepted);
+                    continue;
+                }
+            }
+
+            staged[index] = new InboxAppendResult(envelope, InboxAcceptOutcome.Accepted);
+            pending.Add(envelope);
+        }
+
+        foreach (var envelope in pending)
+        {
+            _interceptor.Enqueue(_dbContext, envelope);
+        }
+
+        return staged;
     }
 
     /// <summary>
@@ -128,8 +160,12 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
     /// </summary>
     /// <param name="envelope">The envelope created for the current accept attempt.</param>
     /// <param name="cancellationToken">The token used to cancel the lookup.</param>
+    /// <param name="pendingBatch">New envelopes resolved earlier in the current batch, when resolving a batch.</param>
     /// <returns>The existing envelope when one is already tracked or persisted; otherwise <see langword="null" />.</returns>
-    private async Task<InboxEnvelope?> FindExistingAsync(InboxEnvelope envelope, CancellationToken cancellationToken)
+    private async Task<InboxEnvelope?> FindExistingAsync(
+        InboxEnvelope envelope,
+        CancellationToken cancellationToken,
+        IReadOnlyList<InboxEnvelope>? pendingBatch = null)
     {
         if (_dbContext is not IInboxDbContext inboxDbContext)
         {
@@ -146,6 +182,11 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
         if (_interceptor.TryFindPending(_dbContext, envelope, out var pending))
         {
             return pending;
+        }
+
+        if (pendingBatch is not null && FindPendingBatchMatch(pendingBatch, envelope) is { } pendingBatchMatch)
+        {
+            return pendingBatchMatch;
         }
 
         if (string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
@@ -171,6 +212,25 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
             .ConfigureAwait(false);
 
         return tracked is null ? null : ToEnvelope(tracked);
+    }
+
+    /// <summary>
+    ///     Finds an envelope already resolved for the current batch before that batch reaches the interceptor.
+    /// </summary>
+    /// <param name="pending">The new envelopes resolved earlier in the current batch.</param>
+    /// <param name="envelope">The envelope being resolved.</param>
+    /// <returns>The matching batch envelope, or <see langword="null" /> when no match exists.</returns>
+    private static InboxEnvelope? FindPendingBatchMatch(
+        IReadOnlyList<InboxEnvelope> pending,
+        InboxEnvelope envelope)
+    {
+        var normalizedTenantId = EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId);
+
+        return pending.FirstOrDefault(candidate =>
+            candidate.Id == envelope.Id ||
+            !string.IsNullOrWhiteSpace(envelope.IdempotencyKey) &&
+            string.Equals(candidate.IdempotencyKey, envelope.IdempotencyKey, StringComparison.Ordinal) &&
+            EfCoreIdempotencyResolution.NormalizeTenantId(candidate.TenantId) == normalizedTenantId);
     }
 
     /// <summary>

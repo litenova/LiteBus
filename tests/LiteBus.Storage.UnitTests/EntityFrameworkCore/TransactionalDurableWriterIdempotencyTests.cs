@@ -128,6 +128,74 @@ public sealed class TransactionalDurableWriterIdempotencyTests
     }
 
     /// <summary>
+    ///     Verifies a failed outbox batch lookup does not leave an earlier subset pending for a later save.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task TransactionalOutbox_WhenBatchLookupFails_ShouldNotStagePartialBatch()
+    {
+        var (context, writer) = CreateOutbox();
+        await using (context.ConfigureAwait(false))
+        {
+            OutboxEnqueueItem[] items =
+            [
+                OutboxEnqueueItem.From(
+                    new OrderSubmitted(Guid.NewGuid()),
+                    typeof(OrderSubmitted),
+                    CreateOutboxMetadata("strict-first", IdempotencyConflictMode.Strict)),
+                OutboxEnqueueItem.From(
+                    new OrderSubmitted(Guid.NewGuid()),
+                    typeof(OrderSubmitted),
+                    CreateOutboxMetadata("lookup-second"))
+            ];
+
+            context.FailNextMessageSetAccess = true;
+            var act = async () => await writer.EnqueueBatchAsync(items).ConfigureAwait(false);
+
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("Simulated outbox lookup failure.")
+                .ConfigureAwait(false);
+
+            await context.SaveChangesAsync().ConfigureAwait(false);
+            (await context.OutboxMessages.CountAsync().ConfigureAwait(false)).Should().Be(0);
+        }
+    }
+
+    /// <summary>
+    ///     Verifies a failed inbox batch lookup does not leave an earlier subset pending for a later save.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task TransactionalInbox_WhenBatchLookupFails_ShouldNotStagePartialBatch()
+    {
+        var (context, writer) = CreateInbox();
+        await using (context.ConfigureAwait(false))
+        {
+            InboxAcceptItem[] items =
+            [
+                InboxAcceptItem.From(
+                    new SubmitOrder(Guid.NewGuid()),
+                    typeof(SubmitOrder),
+                    CreateInboxMetadata("strict-first", IdempotencyConflictMode.Strict)),
+                InboxAcceptItem.From(
+                    new SubmitOrder(Guid.NewGuid()),
+                    typeof(SubmitOrder),
+                    CreateInboxMetadata("lookup-second"))
+            ];
+
+            context.FailNextMessageSetAccess = true;
+            var act = async () => await writer.AcceptBatchAsync(items).ConfigureAwait(false);
+
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("Simulated inbox lookup failure.")
+                .ConfigureAwait(false);
+
+            await context.SaveChangesAsync().ConfigureAwait(false);
+            (await context.InboxMessages.CountAsync().ConfigureAwait(false)).Should().Be(0);
+        }
+    }
+
+    /// <summary>
     ///     Verifies transactional writers can stage strict envelopes before a context implements a durable store role.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
@@ -253,7 +321,21 @@ public sealed class TransactionalDurableWriterIdempotencyTests
         {
         }
 
-        public DbSet<OutboxMessageEntity> OutboxMessages => Set<OutboxMessageEntity>();
+        public bool FailNextMessageSetAccess { get; set; }
+
+        public DbSet<OutboxMessageEntity> OutboxMessages
+        {
+            get
+            {
+                if (FailNextMessageSetAccess)
+                {
+                    FailNextMessageSetAccess = false;
+                    throw new InvalidOperationException("Simulated outbox lookup failure.");
+                }
+
+                return Set<OutboxMessageEntity>();
+            }
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -268,7 +350,21 @@ public sealed class TransactionalDurableWriterIdempotencyTests
         {
         }
 
-        public DbSet<InboxMessageEntity> InboxMessages => Set<InboxMessageEntity>();
+        public bool FailNextMessageSetAccess { get; set; }
+
+        public DbSet<InboxMessageEntity> InboxMessages
+        {
+            get
+            {
+                if (FailNextMessageSetAccess)
+                {
+                    FailNextMessageSetAccess = false;
+                    throw new InvalidOperationException("Simulated inbox lookup failure.");
+                }
+
+                return Set<InboxMessageEntity>();
+            }
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
