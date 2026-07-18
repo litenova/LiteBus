@@ -59,18 +59,6 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         ArgumentNullException.ThrowIfNull(messageDependencies);
         ArgumentNullException.ThrowIfNull(executionContext);
 
-        if (messageDependencies.MainHandlers.Count == 0 && messageDependencies.IndirectMainHandlers.Count == 0)
-        {
-            await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken).ConfigureAwait(false);
-
-            if (_settings.ThrowIfNoHandlerFound)
-            {
-                throw new NoHandlerFoundException(typeof(TMessage));
-            }
-
-            return;
-        }
-
         var executionTaskOfAllHandlers = Task.CompletedTask;
 
         try
@@ -83,11 +71,18 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
                 .ThenBy(h => h.Descriptor.RegistrationSequence)
                 .ToList();
 
-            if (allMainHandlers.Count > 0)
+            if (allMainHandlers.Count == 0)
             {
-                executionTaskOfAllHandlers = ExecuteHandlersByPriority(message, allMainHandlers, executionContext);
-                await executionTaskOfAllHandlers.ConfigureAwait(false);
+                if (_settings.ThrowIfNoHandlerFound)
+                {
+                    throw new NoHandlerFoundException(typeof(TMessage));
+                }
+
+                return;
             }
+
+            executionTaskOfAllHandlers = ExecuteHandlersByPriority(message, allMainHandlers, executionContext);
+            await executionTaskOfAllHandlers.ConfigureAwait(false);
 
             await messageDependencies.RunAsyncPostHandlers(
                 message,

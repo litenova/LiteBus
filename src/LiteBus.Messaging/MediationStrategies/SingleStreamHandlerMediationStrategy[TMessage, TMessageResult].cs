@@ -106,7 +106,37 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
         messageResultAsyncEnumerable ??= Empty<TMessageResult>();
 
-        var messageResultAsyncEnumerator = messageResultAsyncEnumerable.GetAsyncEnumerator(_cancellationToken);
+        IAsyncEnumerator<TMessageResult>? messageResultAsyncEnumerator = null;
+
+        try
+        {
+            using (AmbientExecutionContext.CreateScope(executionContext))
+            {
+                messageResultAsyncEnumerator = messageResultAsyncEnumerable.GetAsyncEnumerator(_cancellationToken);
+            }
+        }
+        catch (LiteBusExecutionAbortedException)
+        {
+            shouldContinue = false;
+        }
+        catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
+        {
+            using (AmbientExecutionContext.CreateScope(executionContext))
+            {
+                await messageDependencies.RunAsyncErrorHandlers(
+                    message,
+                    messageResultAsyncEnumerable,
+                    ExceptionDispatchInfo.Capture(exception),
+                    executionContext.CancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        if (!shouldContinue)
+        {
+            yield break;
+        }
+
+        messageResultAsyncEnumerator ??= Empty<TMessageResult>().GetAsyncEnumerator(_cancellationToken);
 
         try
         {
@@ -187,24 +217,86 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
             if (overrideStream is not null)
             {
-                var overrideEnumerator = overrideStream.GetAsyncEnumerator(_cancellationToken);
+                IAsyncEnumerator<TMessageResult>? overrideEnumerator = null;
 
                 try
                 {
-                    while (await overrideEnumerator.MoveNextAsync().ConfigureAwait(false))
+                    using (AmbientExecutionContext.CreateScope(executionContext))
                     {
-                        yield return overrideEnumerator.Current;
+                        overrideEnumerator = overrideStream.GetAsyncEnumerator(_cancellationToken);
                     }
                 }
-                finally
+                catch (LiteBusExecutionAbortedException)
                 {
-                    await overrideEnumerator.DisposeAsync().ConfigureAwait(false);
+                    // The original stream has already completed, so an override abort ends enumeration.
+                }
+                catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
+                {
+                    using (AmbientExecutionContext.CreateScope(executionContext))
+                    {
+                        await messageDependencies.RunAsyncErrorHandlers(
+                            message,
+                            overrideStream,
+                            ExceptionDispatchInfo.Capture(exception),
+                            executionContext.CancellationToken).ConfigureAwait(false);
+                    }
+                }
+
+                if (overrideEnumerator is not null)
+                {
+                    try
+                    {
+                        var hasOverrideResult = true;
+
+                        while (hasOverrideResult)
+                        {
+                            TMessageResult? overrideItem = default;
+
+                            using (AmbientExecutionContext.CreateScope(executionContext))
+                            {
+                                try
+                                {
+                                    hasOverrideResult = await overrideEnumerator.MoveNextAsync().ConfigureAwait(false);
+                                    overrideItem = hasOverrideResult ? overrideEnumerator.Current : default;
+                                }
+                                catch (LiteBusExecutionAbortedException)
+                                {
+                                    hasOverrideResult = false;
+                                }
+                                catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
+                                {
+                                    await messageDependencies.RunAsyncErrorHandlers(
+                                        message,
+                                        overrideStream,
+                                        ExceptionDispatchInfo.Capture(exception),
+                                        executionContext.CancellationToken).ConfigureAwait(false);
+
+                                    hasOverrideResult = false;
+                                }
+                            }
+
+                            if (hasOverrideResult)
+                            {
+                                yield return overrideItem!;
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        using (AmbientExecutionContext.CreateScope(executionContext))
+                        {
+                            await overrideEnumerator.DisposeAsync().ConfigureAwait(false);
+                        }
+                    }
                 }
             }
         }
         finally
         {
-            await messageResultAsyncEnumerator.DisposeAsync().ConfigureAwait(false);
+            using (AmbientExecutionContext.CreateScope(executionContext))
+            {
+                await messageResultAsyncEnumerator.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 

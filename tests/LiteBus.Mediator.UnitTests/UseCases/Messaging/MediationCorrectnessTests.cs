@@ -1,9 +1,11 @@
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
-using LiteBus.Queries;
+using LiteBus.Events;
+using LiteBus.Events.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Queries;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -177,6 +179,81 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
         RecordingCommandErrorHandler.WasInvoked.Should().BeFalse();
     }
 
+    /// <summary>
+    ///     Verifies event pre-handler failures still reach error handlers when no main handler is registered.
+    /// </summary>
+    [Fact]
+    public async Task Publish_EventWithoutMainHandler_WhenPreHandlerFails_ShouldInvokeErrorHandler()
+    {
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
+        {
+            registry.AddMessaging(_ => { });
+            registry.AddEvents(builder =>
+            {
+                builder.Register<FailingPreHandlerOnlyEventPreHandler>();
+                builder.Register<HandlingPreHandlerOnlyEventErrorHandler>();
+            });
+        }).BuildServiceProvider();
+
+        var @event = new PreHandlerOnlyEvent();
+        var eventMediator = serviceProvider.GetRequiredService<IEventMediator>();
+
+        await eventMediator.PublishAsync(@event).ConfigureAwait(false);
+
+        @event.ErrorHandled.Should().BeTrue();
+    }
+
+    /// <summary>
+    ///     Verifies failures raised while creating a handler stream enumerator reach query error handlers.
+    /// </summary>
+    [Fact]
+    public async Task Stream_QueryWhenSourceEnumeratorCreationFails_ShouldInvokeErrorHandler()
+    {
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
+        {
+            registry.AddMessaging(_ => { });
+            registry.AddQueries(builder =>
+            {
+                builder.Register<FailingEnumeratorQueryHandler>();
+                builder.Register<HandlingFailingEnumeratorQueryErrorHandler>();
+            });
+        }).BuildServiceProvider();
+
+        var query = new FailingEnumeratorQuery();
+        var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
+
+        var results = await queryMediator.StreamAsync(query).ToListAsync().ConfigureAwait(false);
+
+        results.Should().BeEmpty();
+        query.ErrorHandled.Should().BeTrue();
+    }
+
+    /// <summary>
+    ///     Verifies failures raised while creating an override stream enumerator reach query error handlers.
+    /// </summary>
+    [Fact]
+    public async Task Stream_QueryWhenOverrideEnumeratorCreationFails_ShouldInvokeErrorHandler()
+    {
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
+        {
+            registry.AddMessaging(_ => { });
+            registry.AddQueries(builder =>
+            {
+                builder.Register<EmptyStreamQueryHandler>();
+                builder.Register<FailingOverrideStreamQueryPostHandler>();
+                builder.Register<HandlingFailingOverrideStreamQueryErrorHandler>();
+            });
+        }).BuildServiceProvider();
+
+        var query = new FailingOverrideStreamQuery();
+        var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
+
+        var results = await queryMediator.StreamAsync(query).ToListAsync().ConfigureAwait(false);
+
+        results.Should().BeEmpty();
+        query.ErrorHandled.Should().BeTrue();
+    }
+
     [Fact]
     public async Task Query_CommandHandlerPredicate_ShouldFilterHandlers()
     {
@@ -245,6 +322,108 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
             MessageErrorContext<ICommand, object> context,
             CancellationToken cancellationToken = default)
             => Task.CompletedTask;
+    }
+
+    private sealed record PreHandlerOnlyEvent : IEvent
+    {
+        public bool ErrorHandled { get; set; }
+    }
+
+    private sealed class FailingPreHandlerOnlyEventPreHandler : IEventPreHandler<PreHandlerOnlyEvent>
+    {
+        public Task PreHandleAsync(PreHandlerOnlyEvent message, CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("pre-handler failed");
+        }
+    }
+
+    private sealed class HandlingPreHandlerOnlyEventErrorHandler : IEventErrorHandler<PreHandlerOnlyEvent>
+    {
+        public Task HandleErrorAsync(
+            MessageErrorContext<PreHandlerOnlyEvent, object> context,
+            CancellationToken cancellationToken = default)
+        {
+            context.Message.ErrorHandled = true;
+            context.Outcome = MessageErrorOutcome.Handled;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed record FailingEnumeratorQuery : IStreamQuery<string>
+    {
+        public bool ErrorHandled { get; set; }
+    }
+
+    private sealed class FailingEnumeratorQueryHandler : IStreamQueryHandler<FailingEnumeratorQuery, string>
+    {
+        public IAsyncEnumerable<string> StreamAsync(
+            FailingEnumeratorQuery message,
+            CancellationToken cancellationToken = default)
+        {
+            return new ThrowingAsyncEnumerable<string>();
+        }
+    }
+
+    private sealed class HandlingFailingEnumeratorQueryErrorHandler : IQueryErrorHandler<FailingEnumeratorQuery>
+    {
+        public Task HandleErrorAsync(
+            MessageErrorContext<FailingEnumeratorQuery, object> context,
+            CancellationToken cancellationToken = default)
+        {
+            context.Message.ErrorHandled = true;
+            context.Outcome = MessageErrorOutcome.Handled;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed record FailingOverrideStreamQuery : IStreamQuery<string>
+    {
+        public bool ErrorHandled { get; set; }
+    }
+
+    private sealed class EmptyStreamQueryHandler : IStreamQueryHandler<FailingOverrideStreamQuery, string>
+    {
+        public async IAsyncEnumerable<string> StreamAsync(
+            FailingOverrideStreamQuery message,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask.ConfigureAwait(false);
+            yield break;
+        }
+    }
+
+    private sealed class FailingOverrideStreamQueryPostHandler :
+        IStreamQueryPostHandler<FailingOverrideStreamQuery, string>
+    {
+        public Task PostHandleAsync(
+            FailingOverrideStreamQuery message,
+            IAsyncEnumerable<string>? messageResult,
+            CancellationToken cancellationToken = default)
+        {
+            AmbientExecutionContext.Current.MessageResult = new ThrowingAsyncEnumerable<string>();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class HandlingFailingOverrideStreamQueryErrorHandler :
+        IQueryErrorHandler<FailingOverrideStreamQuery>
+    {
+        public Task HandleErrorAsync(
+            MessageErrorContext<FailingOverrideStreamQuery, object> context,
+            CancellationToken cancellationToken = default)
+        {
+            context.Message.ErrorHandled = true;
+            context.Outcome = MessageErrorOutcome.Handled;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingAsyncEnumerable<T> : IAsyncEnumerable<T>
+    {
+        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("enumerator creation failed");
+        }
     }
 
     private sealed class HandledOutcomeCommandErrorHandler : ICommandErrorHandler
