@@ -8,45 +8,60 @@
   --litebus-charcoal: #3e3643;
   --litebus-yellow: #fdbf00;
   --litebus-surface: color-mix(in oklab, var(--color-fd-card) 92%, var(--litebus-yellow) 8%);
+  --litebus-code-bg: #241f2b;
+  --litebus-code-fg: #e7e3ee;
+  --litebus-code-line: rgba(255, 255, 255, 0.08);
 }
 
 .dark {
   --color-fd-primary: hsl(45, 100%, 50%);
   --color-fd-primary-foreground: hsl(285, 11%, 18%);
   --litebus-surface: color-mix(in oklab, var(--color-fd-card) 94%, var(--litebus-yellow) 6%);
+  --litebus-code-bg: #1c1822;
 }
 
 body {
   background: var(--color-fd-background);
   color: var(--color-fd-foreground);
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
+/* Layout shell -------------------------------------------------------------- */
+
 .litebus-home {
+  --litebus-width: 72rem;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 75% 15%, color-mix(in oklab, var(--litebus-yellow) 14%, transparent), transparent 30rem),
+    radial-gradient(
+      42rem 32rem at 78% -8%,
+      color-mix(in oklab, var(--litebus-yellow) 20%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      36rem 30rem at 8% 4%,
+      color-mix(in oklab, var(--color-fd-primary) 14%, transparent),
+      transparent 72%
+    ),
     var(--color-fd-background);
 }
 
 .litebus-home-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: min(72rem, calc(100% - 3rem));
-  margin: 0 auto;
-  padding: 1.25rem 0;
+  padding: 1rem clamp(1rem, 5vw, 2rem);
   border-bottom: 1px solid var(--color-fd-border);
-}
-
-.litebus-brand,
-.litebus-home-nav {
-  display: flex;
-  align-items: center;
+  background: color-mix(in oklab, var(--color-fd-background) 82%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px);
 }
 
 .litebus-brand {
+  display: flex;
+  align-items: center;
   gap: 0.6rem;
   color: var(--color-fd-foreground);
   font-size: 1.3rem;
@@ -61,7 +76,9 @@ body {
 }
 
 .litebus-home-nav {
-  gap: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: clamp(1rem, 3vw, 1.75rem);
 }
 
 .litebus-home-nav a {
@@ -69,45 +86,64 @@ body {
   font-size: 0.95rem;
   font-weight: 600;
   text-decoration: none;
+  transition: color 0.15s ease;
 }
 
 .litebus-home-nav a:hover {
   color: var(--color-fd-foreground);
 }
 
+.litebus-home main {
+  width: min(var(--litebus-width), calc(100% - 3rem));
+  margin: 0 auto;
+}
+
+/* Hero ---------------------------------------------------------------------- */
+
 .litebus-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.65fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   align-items: center;
-  gap: clamp(2.5rem, 8vw, 7rem);
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: clamp(4rem, 10vw, 8rem) 1.5rem 4rem;
+  gap: clamp(2rem, 6vw, 4.5rem);
+  padding: clamp(3.5rem, 9vw, 7rem) 0 clamp(2.5rem, 5vw, 4rem);
 }
 
 .litebus-eyebrow {
-  margin-bottom: 1rem;
-  color: var(--color-fd-primary);
-  font-size: 0.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.4rem;
+  color: var(--color-fd-muted-foreground);
+  font-size: 0.85rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.litebus-pill {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--litebus-yellow);
+  color: var(--litebus-charcoal);
+  font-size: 0.72rem;
   font-weight: 750;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .litebus-hero h1 {
-  max-width: 44rem;
   margin: 0;
-  font-size: clamp(3rem, 7vw, 5.75rem);
+  font-size: clamp(2.6rem, 6vw, 4.6rem);
   font-weight: 780;
-  letter-spacing: -0.06em;
-  line-height: 0.94;
+  letter-spacing: -0.05em;
+  line-height: 0.98;
 }
 
-.litebus-hero p {
-  max-width: 40rem;
-  margin-top: 1.5rem;
+.litebus-hero-copy > p {
+  max-width: 34rem;
+  margin-top: 1.4rem;
   color: var(--color-fd-muted-foreground);
-  font-size: clamp(1.05rem, 2vw, 1.2rem);
+  font-size: clamp(1.02rem, 1.6vw, 1.15rem);
   line-height: 1.7;
 }
 
@@ -121,79 +157,386 @@ body {
 .litebus-actions a {
   border: 1px solid var(--color-fd-border);
   border-radius: 0.7rem;
-  padding: 0.75rem 1rem;
+  padding: 0.72rem 1.1rem;
   color: var(--color-fd-foreground);
   font-size: 0.95rem;
   font-weight: 650;
   text-decoration: none;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
 .litebus-actions a.primary {
   border-color: var(--litebus-yellow);
   background: var(--litebus-yellow);
   color: var(--litebus-charcoal);
+  box-shadow: 0 0.8rem 2rem color-mix(in oklab, var(--litebus-yellow) 35%, transparent);
 }
 
 .litebus-actions a:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
 
-.litebus-install {
+.litebus-actions a:not(.primary):hover {
+  border-color: var(--color-fd-foreground);
+}
+
+.litebus-install-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  overflow-x: auto;
+  margin-top: 1.75rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.6rem;
+  background: var(--litebus-surface);
+  color: var(--color-fd-foreground);
+  font-family: var(--font-mono, ui-monospace, 'SFMono-Regular', 'Menlo', monospace);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.litebus-prompt {
+  color: var(--litebus-yellow);
+  font-weight: 700;
+}
+
+/* Code window --------------------------------------------------------------- */
+
+.litebus-code {
+  overflow: hidden;
+  border: 1px solid var(--litebus-code-line);
+  border-radius: 0.9rem;
+  background: var(--litebus-code-bg);
+  box-shadow: 0 1.6rem 4rem color-mix(in oklab, #000 28%, transparent);
+}
+
+.litebus-code-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--litebus-code-line);
+  background: color-mix(in oklab, var(--litebus-code-bg) 82%, #000 18%);
+}
+
+.litebus-dots {
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.litebus-dots i {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: #4a4453;
+}
+
+.litebus-dots i:first-child {
+  background: #e06c5b;
+}
+
+.litebus-dots i:nth-child(2) {
+  background: #e0b24a;
+}
+
+.litebus-dots i:nth-child(3) {
+  background: #6cbf6c;
+}
+
+.litebus-code-label {
+  color: #9a94a5;
+  font-family: var(--font-mono, ui-monospace, 'SFMono-Regular', 'Menlo', monospace);
+  font-size: 0.78rem;
+}
+
+.litebus-code pre {
+  overflow-x: auto;
+  margin: 0;
+  padding: 1.1rem 1.25rem;
+}
+
+.litebus-code code {
+  color: var(--litebus-code-fg);
+  font-family: var(--font-mono, ui-monospace, 'SFMono-Regular', 'Menlo', monospace);
+  font-size: 0.86rem;
+  line-height: 1.75;
+  white-space: pre;
+}
+
+.tok-k {
+  color: #c795e6;
+}
+
+.tok-t {
+  color: #6fb6ff;
+}
+
+.tok-s {
+  color: #a5df8f;
+}
+
+.tok-n {
+  color: #f0b070;
+}
+
+.tok-c {
+  color: #7d7789;
+  font-style: italic;
+}
+
+/* Stats --------------------------------------------------------------------- */
+
+.litebus-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
   overflow: hidden;
   border: 1px solid var(--color-fd-border);
   border-radius: 1rem;
-  background: var(--litebus-surface);
-  box-shadow: 0 1.5rem 4rem color-mix(in oklab, var(--color-fd-foreground) 8%, transparent);
+  background: var(--color-fd-border);
 }
 
-.litebus-install-label {
-  margin: 0;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--color-fd-border);
-  color: var(--color-fd-muted-foreground);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.litebus-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1.3rem 1.4rem;
+  background: var(--color-fd-background);
 }
 
-.litebus-install pre {
-  overflow-x: auto;
-  margin: 0;
-  padding: 1.25rem;
+.litebus-stat-value {
   color: var(--color-fd-foreground);
-  font-size: 0.9rem;
-  line-height: 1.8;
+  font-size: 1.05rem;
+  font-weight: 720;
+  letter-spacing: -0.02em;
 }
+
+.litebus-stat-label {
+  color: var(--color-fd-muted-foreground);
+  font-size: 0.82rem;
+}
+
+/* Generic section ----------------------------------------------------------- */
+
+.litebus-section {
+  padding: clamp(3.5rem, 8vw, 6rem) 0 0;
+}
+
+.litebus-section-head {
+  max-width: 40rem;
+  margin-bottom: 2.5rem;
+}
+
+.litebus-section-head h2 {
+  margin: 0;
+  font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+  font-weight: 760;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.litebus-section-head p {
+  margin: 1rem 0 0;
+  color: var(--color-fd-muted-foreground);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+/* Features ------------------------------------------------------------------ */
 
 .litebus-features {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
-  width: min(72rem, calc(100% - 3rem));
-  margin: 0 auto;
-  padding: 0 0 5rem;
 }
 
 .litebus-feature {
-  padding: 1.4rem;
+  padding: 1.6rem;
   border: 1px solid var(--color-fd-border);
-  border-radius: 0.9rem;
-  background: color-mix(in oklab, var(--color-fd-card) 86%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--color-fd-card) 88%, transparent);
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease;
 }
 
-.litebus-feature h2 {
+.litebus-feature:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in oklab, var(--litebus-yellow) 55%, var(--color-fd-border));
+}
+
+.litebus-feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  margin-bottom: 1.1rem;
+  border-radius: 0.7rem;
+  background: color-mix(in oklab, var(--litebus-yellow) 18%, transparent);
+  color: color-mix(in oklab, var(--litebus-yellow) 78%, var(--color-fd-foreground));
+}
+
+.litebus-feature-icon svg {
+  width: 1.45rem;
+  height: 1.45rem;
+}
+
+.litebus-feature h3 {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: 1.1rem;
+  font-weight: 720;
+  letter-spacing: -0.01em;
 }
 
 .litebus-feature p {
-  margin: 0.65rem 0 0;
+  margin: 0.6rem 0 0;
   color: var(--color-fd-muted-foreground);
-  font-size: 0.9rem;
+  font-size: 0.94rem;
+  line-height: 1.65;
+}
+
+/* Showcase ------------------------------------------------------------------ */
+
+.litebus-showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+/* Integrations -------------------------------------------------------------- */
+
+.litebus-integrations {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.litebus-integration-col {
+  padding: 1.5rem;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--color-fd-card) 88%, transparent);
+}
+
+.litebus-integration-group {
+  display: block;
+  margin-bottom: 1rem;
+  color: var(--color-fd-muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 720;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.litebus-integration-col ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.litebus-integration-col li {
+  position: relative;
+  padding-left: 1.2rem;
+  color: var(--color-fd-foreground);
+  font-size: 0.96rem;
+  font-weight: 550;
+}
+
+.litebus-integration-col li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.5em;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--litebus-yellow);
+}
+
+/* CTA ----------------------------------------------------------------------- */
+
+.litebus-cta {
+  margin: clamp(4rem, 9vw, 7rem) 0 clamp(3rem, 6vw, 5rem);
+  padding: clamp(2.5rem, 6vw, 4rem);
+  border: 1px solid var(--color-fd-border);
+  border-radius: 1.4rem;
+  text-align: center;
+  background:
+    radial-gradient(
+      30rem 20rem at 50% -20%,
+      color-mix(in oklab, var(--litebus-yellow) 16%, transparent),
+      transparent 70%
+    ),
+    var(--litebus-surface);
+}
+
+.litebus-cta h2 {
+  max-width: 28rem;
+  margin: 0 auto;
+  font-size: clamp(1.7rem, 3.6vw, 2.6rem);
+  font-weight: 760;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.litebus-cta p {
+  max-width: 34rem;
+  margin: 1rem auto 0;
+  color: var(--color-fd-muted-foreground);
+  font-size: 1.05rem;
   line-height: 1.6;
 }
+
+.litebus-cta .litebus-actions {
+  justify-content: center;
+}
+
+/* Footer -------------------------------------------------------------------- */
+
+.litebus-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 2rem;
+  width: min(var(--litebus-width), calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 2.5rem 0 3rem;
+  border-top: 1px solid var(--color-fd-border);
+}
+
+.litebus-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+.litebus-footer nav a {
+  color: var(--color-fd-muted-foreground);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.litebus-footer nav a:hover {
+  color: var(--color-fd-foreground);
+}
+
+.litebus-footer-note {
+  margin-left: auto;
+  color: var(--color-fd-muted-foreground);
+  font-size: 0.85rem;
+}
+
+/* Docs nav brand (shared with docs layout) ---------------------------------- */
 
 .litebus-nav-brand {
   display: inline-flex;
@@ -207,22 +550,48 @@ body {
   height: 1.5rem;
 }
 
-@media (max-width: 760px) {
-  .litebus-home-header,
-  .litebus-features {
-    width: min(100% - 2rem, 72rem);
+/* Responsive ---------------------------------------------------------------- */
+
+@media (max-width: 960px) {
+  .litebus-features,
+  .litebus-integrations {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .litebus-home-nav a:first-child {
-    display: none;
+  .litebus-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .litebus-home main {
+    width: min(100% - 2rem, var(--litebus-width));
   }
 
   .litebus-hero {
     grid-template-columns: 1fr;
-    padding: 4rem 1rem 3rem;
   }
 
-  .litebus-features {
+  .litebus-hero-code {
+    order: 2;
+  }
+
+  .litebus-showcase-grid,
+  .litebus-features,
+  .litebus-integrations {
     grid-template-columns: 1fr;
+  }
+
+  .litebus-home-nav a:nth-child(2) {
+    display: none;
+  }
+
+  .litebus-footer {
+    width: min(100% - 2rem, var(--litebus-width));
+  }
+
+  .litebus-footer-note {
+    margin-left: 0;
+    width: 100%;
   }
 }
