@@ -120,6 +120,62 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
         await waitTask.ConfigureAwait(false);
     }
 
+    /// <summary>
+    ///     Confirms repeated and concurrent pause and resume requests do not deadlock or over-release the gate.
+    /// </summary>
+    [Fact]
+    public async Task PauseAndResumeAsync_should_be_idempotent()
+    {
+        var control = new InboxProcessorControl();
+
+        try
+        {
+            await control.PauseAsync().ConfigureAwait(false);
+            await control.PauseAsync().WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+            await Task.WhenAll(control.ResumeAsync(), control.ResumeAsync()).ConfigureAwait(false);
+
+            control.State.Should().Be(ProcessorState.Running);
+        }
+        finally
+        {
+            await control.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Confirms drain timeout and concurrent waiter behavior report the actual final-pass outcome.
+    /// </summary>
+    [Fact]
+    public async Task DrainAsync_should_timeout_and_share_completion_across_callers()
+    {
+        var timedOutControl = new InboxProcessorControl();
+
+        try
+        {
+            var timeout = () => timedOutControl.DrainAsync(TimeSpan.FromMilliseconds(20));
+            await timeout.Should().ThrowAsync<TimeoutException>().ConfigureAwait(false);
+        }
+        finally
+        {
+            await timedOutControl.DisposeAsync().ConfigureAwait(false);
+        }
+
+        var control = new InboxProcessorControl();
+
+        try
+        {
+            var firstDrain = control.DrainAsync(TimeSpan.FromSeconds(1));
+            var secondDrain = control.DrainAsync(TimeSpan.FromSeconds(1));
+
+            control.SignalDrainComplete();
+            await Task.WhenAll(firstDrain, secondDrain).ConfigureAwait(false);
+        }
+        finally
+        {
+            await control.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
     private static ServiceProvider BuildProvider(
         InboxTestFixtures.CommandRecorder recorder,
         Action<InboxProcessorHostOptions>? configureHost = null)

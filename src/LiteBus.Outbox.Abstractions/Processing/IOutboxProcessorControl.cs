@@ -19,7 +19,7 @@ public interface IOutboxProcessorControl
     ///     Suspends leasing after the current pass completes.
     /// </summary>
     /// <remarks>
-    ///     Blocks until the running pass finishes before returning.
+    ///     Blocks until the running pass finishes before returning. Repeated pause requests are idempotent.
     /// </remarks>
     /// <param name="cancellationToken">A token used to cancel waiting for the gate.</param>
     /// <returns>A task that completes when the processor loop is paused.</returns>
@@ -28,6 +28,7 @@ public interface IOutboxProcessorControl
     /// <summary>
     ///     Resumes leasing after a pause.
     /// </summary>
+    /// <remarks>Repeated resume requests are idempotent.</remarks>
     /// <param name="cancellationToken">A token reserved for future cancellation support.</param>
     /// <returns>A task that completes when the processor loop is running again.</returns>
     Task ResumeAsync(CancellationToken cancellationToken = default);
@@ -36,7 +37,8 @@ public interface IOutboxProcessorControl
     ///     Processes messages currently in the store once, then stops leasing.
     /// </summary>
     /// <remarks>
-    ///     Useful for graceful shutdown: call before host stop, await completion, then cancel the host.
+    ///     Useful for graceful shutdown: call before host stop, await completion, then cancel the host. Concurrent drain
+    ///     requests await the same final pass. A timeout throws <see cref="TimeoutException" />.
     /// </remarks>
     /// <param name="timeout">The maximum time to wait for the drain pass to complete.</param>
     /// <param name="cancellationToken">A token used to cancel waiting for drain completion.</param>

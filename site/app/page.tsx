@@ -1,11 +1,24 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { repositoryUrl, siteDescription, siteName, siteUrl } from '@/lib/site';
+import {
+  companyName,
+  companyUrl,
+  repositoryUrl,
+  siteDescription,
+  siteName,
+  siteUrl,
+} from '@/lib/site';
 
 const structuredData = {
   '@context': 'https://schema.org',
   '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${siteUrl}/#organization`,
+      name: companyName,
+      url: companyUrl,
+    },
     {
       '@type': 'WebSite',
       '@id': `${siteUrl}/#website`,
@@ -13,6 +26,7 @@ const structuredData = {
       name: siteName,
       description: siteDescription,
       inLanguage: 'en',
+      publisher: { '@id': `${siteUrl}/#organization` },
     },
     {
       '@type': 'SoftwareSourceCode',
@@ -24,6 +38,7 @@ const structuredData = {
       runtimePlatform: '.NET',
       url: siteUrl,
       license: 'https://github.com/litenova/LiteBus/blob/main/LICENSE',
+      author: { '@id': `${siteUrl}/#organization` },
     },
   ],
 };
@@ -344,7 +359,7 @@ export default function HomePage() {
           <Link href="https://github.com/litenova/LiteBus">GitHub</Link>
         </nav>
         <span className="litebus-footer-note">
-          Mediator and durable messaging building blocks for .NET.
+          A <Link href={companyUrl}>{companyName}</Link> project.
         </span>
       </footer>
     </div>

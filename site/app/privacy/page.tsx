@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { repositoryUrl, siteName, siteUrl } from '@/lib/site';
+import { companyName, companyUrl, repositoryUrl, siteName, siteUrl } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Privacy statement',
@@ -50,14 +50,13 @@ export default function PrivacyPage() {
 
           <h2>Who is responsible</h2>
           <p>
-            The controller for the processing described here is [controller name], reachable at
-            [contact email]. If you have any question about this statement or about your personal
-            data, use that address. You can also open a private report through the project on{' '}
+            The controller for the processing described here is {companyName}, the company behind
+            {' '}
+            {siteName}. You can reach {companyName} through its website at{' '}
+            <Link href={companyUrl}>{companyUrl.replace('https://', '')}</Link>. For any question
+            about this statement or about your personal data, use the contact options listed there.
+            Security issues can also be reported privately through the project on{' '}
             <Link href={repositoryUrl}>GitHub</Link>.
-          </p>
-          <p className="litebus-legal-note">
-            Note for the maintainer: replace the two bracketed placeholders above with the real
-            controller identity and a working contact address before publishing this page.
           </p>
 
           <h2>What data is processed</h2>
@@ -103,16 +102,14 @@ export default function PrivacyPage() {
 
           <h2>Who else is involved</h2>
           <p>
-            The website is served by a hosting and content delivery provider, [hosting provider],
-            acting as a processor. Source code links and security reports point to GitHub, operated by
-            GitHub, Inc. Where a provider processes data outside the European Economic Area, that
-            transfer relies on the appropriate safeguards offered by that provider, such as the
-            European Commission standard contractual clauses. No personal data is shared with any
-            other party for its own purposes.
-          </p>
-          <p className="litebus-legal-note">
-            Note for the maintainer: replace [hosting provider] with the actual platform serving the
-            site and confirm its data processing terms and transfer safeguards.
+            The website is hosted and delivered by Vercel Inc., which acts as a processor and records
+            the technical delivery logs described above on our behalf. Source code links and security
+            reports point to GitHub, operated by GitHub, Inc. Both are based in the United States, so
+            serving the site can involve a transfer of technical data outside the European Economic
+            Area. Those transfers rely on the appropriate safeguards offered by the provider, in
+            particular the European Commission standard contractual clauses and the provider data
+            processing agreement. No personal data is shared with any other party for its own
+            purposes.
           </p>
 
           <h2>How long data is kept</h2>
@@ -126,7 +123,8 @@ export default function PrivacyPage() {
           <p>
             Under the GDPR you have the right to access your personal data, to have it corrected or
             erased, to restrict or object to its processing, and to data portability. To exercise any
-            of these rights, contact the address listed above. Because this website keeps no accounts
+            of these rights, contact {companyName} using the details listed above. Because this
+            website keeps no accounts
             and stores no directly identifying records beyond provider level technical logs, the data
             that can be tied to you is limited.
           </p>
@@ -165,7 +163,7 @@ export default function PrivacyPage() {
           <Link href={repositoryUrl}>GitHub</Link>
         </nav>
         <span className="litebus-footer-note">
-          Mediator and durable messaging building blocks for .NET.
+          A <Link href={companyUrl}>{companyName}</Link> project.
         </span>
       </footer>
     </div>

@@ -13,9 +13,13 @@ export const siteOgImage = '/og.png';
 
 export const repositoryUrl = 'https://github.com/litenova/LiteBus';
 
-export const authorName = 'litenova';
+export const companyName = 'LiteNova Solutions';
 
-export const authorUrl = 'https://github.com/litenova';
+export const companyUrl = 'https://www.litenova.solutions';
+
+export const authorName = companyName;
+
+export const authorUrl = companyUrl;
 
 export const siteKeywords = [
   'LiteBus',

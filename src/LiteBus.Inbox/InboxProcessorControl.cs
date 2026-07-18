@@ -14,12 +14,18 @@ public sealed class InboxProcessorControl : IInboxProcessorControl, IProcessorBa
     /// <summary>
     ///     Signals that the drain pass has completed and the loop has exited.
     /// </summary>
-    private readonly SemaphoreSlim _drainComplete = new(0, 1);
+    private readonly TaskCompletionSource _drainComplete =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>
     ///     Serializes loop entry; pause holds the gate without releasing it.
     /// </summary>
     private readonly SemaphoreSlim _gate = new(1, 1);
+
+    /// <summary>
+    ///     Serializes public control transitions so repeated and concurrent requests remain idempotent.
+    /// </summary>
+    private readonly SemaphoreSlim _stateGate = new(1, 1);
 
     /// <summary>
     ///     Indicates whether a drain operation requested loop termination after one pass.
@@ -41,7 +47,7 @@ public sealed class InboxProcessorControl : IInboxProcessorControl, IProcessorBa
     public ValueTask DisposeAsync()
     {
         _gate.Dispose();
-        _drainComplete.Dispose();
+        _stateGate.Dispose();
         return ValueTask.CompletedTask;
     }
 
@@ -51,35 +57,74 @@ public sealed class InboxProcessorControl : IInboxProcessorControl, IProcessorBa
     /// <inheritdoc />
     public async Task PauseAsync(CancellationToken cancellationToken = default)
     {
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        _state = ProcessorState.Paused;
+        await _stateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            ThrowIfDraining();
+
+            if (_state == ProcessorState.Paused)
+            {
+                return;
+            }
+
+            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            _state = ProcessorState.Paused;
+        }
+        finally
+        {
+            _stateGate.Release();
+        }
     }
 
     /// <inheritdoc />
-    public Task ResumeAsync(CancellationToken cancellationToken = default)
+    public async Task ResumeAsync(CancellationToken cancellationToken = default)
     {
-        if (_state != ProcessorState.Paused)
-        {
-            return Task.CompletedTask;
-        }
+        await _stateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-        _state = ProcessorState.Running;
-        _gate.Release();
-        return Task.CompletedTask;
+        try
+        {
+            ThrowIfDraining();
+
+            if (_state == ProcessorState.Running)
+            {
+                return;
+            }
+
+            _state = ProcessorState.Running;
+            _gate.Release();
+        }
+        finally
+        {
+            _stateGate.Release();
+        }
     }
 
     /// <inheritdoc />
     public async Task DrainAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        _state = ProcessorState.Draining;
-        _drainSignalled = true;
+        await _stateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-        if (_gate.CurrentCount == 0)
+        try
         {
-            _gate.Release();
+            if (!_drainSignalled)
+            {
+                var wasPaused = _state == ProcessorState.Paused;
+                _state = ProcessorState.Draining;
+                _drainSignalled = true;
+
+                if (wasPaused)
+                {
+                    _gate.Release();
+                }
+            }
+        }
+        finally
+        {
+            _stateGate.Release();
         }
 
-        await _drainComplete.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
+        await _drainComplete.Task.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -113,6 +158,17 @@ public sealed class InboxProcessorControl : IInboxProcessorControl, IProcessorBa
     /// </summary>
     internal void SignalDrainComplete()
     {
-        _drainComplete.Release();
+        _drainComplete.TrySetResult();
+    }
+
+    /// <summary>
+    ///     Rejects pause and resume transitions after drain has started because the loop is terminating.
+    /// </summary>
+    private void ThrowIfDraining()
+    {
+        if (_drainSignalled)
+        {
+            throw new InvalidOperationException("The inbox processor cannot pause or resume after drain has started.");
+        }
     }
 }

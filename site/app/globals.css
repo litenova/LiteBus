@@ -536,6 +536,16 @@ body {
   font-size: 0.85rem;
 }
 
+.litebus-footer-note a {
+  color: var(--color-fd-foreground);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.litebus-footer-note a:hover {
+  text-decoration: underline;
+}
+
 /* Legal / privacy ----------------------------------------------------------- */
 
 .litebus-legal {
