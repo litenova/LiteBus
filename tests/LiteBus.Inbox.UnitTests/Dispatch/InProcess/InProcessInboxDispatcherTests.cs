@@ -146,7 +146,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task DispatchAsync_WhenCancellationRequested_ShouldPassCancelledTokenToMediator()
+    public async Task DispatchAsync_WhenCancellationRequested_ShouldStopBeforeDeserialization()
     {
         var contractRegistry = new MessageContractRegistry();
         contractRegistry.Register<InboxProbeCommand>("inbox.commands.probe");
@@ -169,9 +169,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
 
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
             dispatcher.DispatchAsync(envelope, cts.Token)).ConfigureAwait(true);
-
-
-        recordingSerializer.LastCancellationToken.IsCancellationRequested.Should().BeTrue();
+        recordingSerializer.WasDeserializeCalled.Should().BeFalse();
         mediator.WasSendCalled.Should().BeFalse();
     }
 
@@ -407,7 +405,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
             _inner = inner;
         }
 
-        public CancellationToken LastCancellationToken { get; private set; }
+        public bool WasDeserializeCalled { get; private set; }
 
         public Task<string> SerializeAsync<TMessage>(TMessage message, CancellationToken cancellationToken = default)
             where TMessage : notnull
@@ -417,7 +415,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
 
         public Task<object> DeserializeAsync(Type messageType, string payload, CancellationToken cancellationToken = default)
         {
-            LastCancellationToken = cancellationToken;
+            WasDeserializeCalled = true;
             return _inner.DeserializeAsync(messageType, payload, cancellationToken);
         }
     }
