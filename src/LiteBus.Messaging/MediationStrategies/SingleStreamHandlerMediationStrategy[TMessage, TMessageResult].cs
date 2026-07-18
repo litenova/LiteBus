@@ -141,9 +141,9 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                     }
                 }
 
-                if (item != null && hasResult && shouldContinue)
+                if (hasResult && shouldContinue)
                 {
-                    yield return item;
+                    yield return item!;
                 }
             }
 

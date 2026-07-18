@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Reflection;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Extensions;
 using LiteBus.Messaging.Registry.Abstractions;
@@ -316,16 +315,10 @@ internal sealed class MessageRegistry : IMessageRegistry
         if (messageType.IsGenericTypeDefinition || messageType.IsGenericParameter)
             return;
 
-        // Shape was already validated in StoreOpenGenericHandler; no need to re-validate here.
-        var typeParams = openGenericHandlerType.GetGenericArguments();
-
-        // Check if the message type satisfies the generic constraints.
-        if (!SatisfiesGenericConstraints(typeParams[0], messageType))
-            return;
-
         try
         {
-            // Close the generic type (e.g., GenericValidator<CreateProductCommand>)
+            // Let the CLR evaluate substituted constraints such as IComparable<T>, which cannot be tested correctly
+            // against the unresolved generic parameter with Type.IsAssignableTo.
             var closedHandlerType = openGenericHandlerType.MakeGenericType(messageType);
 
             // Build descriptors for the closed type.
@@ -352,8 +345,7 @@ internal sealed class MessageRegistry : IMessageRegistry
         }
         catch (ArgumentException)
         {
-            // Constraints were pre-checked; surface unexpected closure failures for diagnosis.
-            throw;
+            // The concrete message does not satisfy the handler's complete generic constraint set.
         }
     }
 
@@ -366,39 +358,6 @@ internal sealed class MessageRegistry : IMessageRegistry
     {
         var sequence = _nextRegistrationSequence++;
         return HandlerDescriptorRegistration.WithRegistrationSequence(descriptor, sequence);
-    }
-
-    /// <summary>
-    ///     Checks whether a candidate type satisfies all the generic parameter constraints
-    ///     of the specified type parameter.
-    /// </summary>
-    /// <param name="typeParameter">The generic type parameter with constraints to check.</param>
-    /// <param name="candidateType">The concrete type to check against the constraints.</param>
-    /// <returns><see langword="true" /> if the candidate type satisfies all constraints; otherwise, <see langword="false" />.</returns>
-    private static bool SatisfiesGenericConstraints(Type typeParameter, Type candidateType)
-    {
-        // Check type constraints (e.g., where T : ICommand).
-        var constraints = typeParameter.GetGenericParameterConstraints();
-
-        foreach (var constraint in constraints)
-        {
-            if (!candidateType.IsAssignableTo(constraint))
-                return false;
-        }
-
-        // Check special constraints (class, struct, new()).
-        var attributes = typeParameter.GenericParameterAttributes;
-
-        if ((attributes & GenericParameterAttributes.ReferenceTypeConstraint) != 0 && candidateType.IsValueType)
-            return false;
-
-        if ((attributes & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0 && !candidateType.IsValueType)
-            return false;
-
-        if ((attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0 && candidateType.GetConstructor(Type.EmptyTypes) == null && !candidateType.IsValueType)
-            return false;
-
-        return true;
     }
 
     /// <summary>

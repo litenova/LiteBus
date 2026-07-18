@@ -87,6 +87,46 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
             (await enumerator.MoveNextAsync().ConfigureAwait(false)).Should().BeFalse();
             StreamingScopedHandler.ActiveMarker.Disposed.Should().BeTrue();
         }
+
+        var secondEnumeration = () => stream.GetAsyncEnumerator();
+        secondEnumeration.Should().Throw<InvalidOperationException>()
+            .WithMessage("*only once*");
+    }
+
+    [Fact]
+    public async Task Mediate_stream_result_preserves_null_items()
+    {
+        var registry = new MessageRegistry();
+        registry.Register(typeof(NullableStreamingHandler));
+
+        var services = new ServiceCollection()
+            .AddScoped<NullableStreamingHandler>();
+
+        services.AddLiteBus(registry => registry.AddMessaging(_ => { }));
+
+        using var provider = services.BuildServiceProvider();
+
+        var mediator = new MessageMediator(
+            registry,
+            registry,
+            provider.GetRequiredService<IMessageDispatchScopeFactory>());
+
+        var request = new MessageMediationRequest<NullableStreamingCommand, IAsyncEnumerable<string?>>
+        {
+            MessageResolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy(),
+            MessageMediationStrategy = new SingleStreamHandlerMediationStrategy<NullableStreamingCommand, string?>(
+                CancellationToken.None),
+            Tags = []
+        };
+
+        var results = new List<string?>();
+
+        await foreach (var item in mediator.Mediate(new NullableStreamingCommand(), request).ConfigureAwait(false))
+        {
+            results.Add(item);
+        }
+
+        results.Should().Equal([null, "retained"]);
     }
 
     private static MessageMediationRequest<DelayedScopedCommand, Task<int>> CreateDelayedRequest()
@@ -122,6 +162,8 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
     private sealed record DelayedScopedCommand : ICommand<int>;
 
     private sealed record StreamingScopedCommand : ICommand;
+
+    private sealed record NullableStreamingCommand : ICommand;
 
     private sealed class ScopedLifetimeMarker : IAsyncDisposable
     {
@@ -172,6 +214,19 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
             yield return 1;
             await Task.Delay(25, cancellationToken).ConfigureAwait(false);
             yield return 2;
+        }
+    }
+
+    private sealed class NullableStreamingHandler : IStreamMessageHandler<NullableStreamingCommand, string?>
+    {
+        public async IAsyncEnumerable<string?> StreamAsync(
+            NullableStreamingCommand command,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            yield return null;
+            await Task.Yield();
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return "retained";
         }
     }
 }

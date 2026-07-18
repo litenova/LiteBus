@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Mediator;
@@ -160,6 +161,11 @@ internal static class MediationScopeRetention
         private readonly MediationResourceScope _resourceScope;
 
         /// <summary>
+        ///     Indicates whether ownership of the retained scope has been assigned to an enumerator.
+        /// </summary>
+        private int _enumerationStarted;
+
+        /// <summary>
         ///     Initializes a new instance of the <see cref="ScopeRetainedAsyncEnumerable{T}" /> class.
         /// </summary>
         /// <param name="source">The source asynchronous enumerable returned by mediation.</param>
@@ -173,7 +179,21 @@ internal static class MediationScopeRetention
         /// <inheritdoc />
         public IAsyncEnumerator<T> GetAsyncEnumerator(System.Threading.CancellationToken cancellationToken = default)
         {
-            return new ScopeRetainedAsyncEnumerator(_source.GetAsyncEnumerator(cancellationToken), _resourceScope);
+            if (Interlocked.Exchange(ref _enumerationStarted, 1) != 0)
+            {
+                throw new InvalidOperationException(
+                    "A mediated asynchronous stream can be enumerated only once because it owns one dispatch scope.");
+            }
+
+            try
+            {
+                return new ScopeRetainedAsyncEnumerator(_source.GetAsyncEnumerator(cancellationToken), _resourceScope);
+            }
+            catch
+            {
+                _resourceScope.Dispose();
+                throw;
+            }
         }
 
         /// <summary>

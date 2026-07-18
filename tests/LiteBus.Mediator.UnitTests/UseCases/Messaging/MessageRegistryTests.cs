@@ -263,6 +263,31 @@ public sealed class MessageRegistryTests : LiteBusTestBase
         eventDescriptor.PreHandlers.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Register_OpenGenericHandler_ShouldApplySubstitutedSelfReferentialConstraints(
+        bool registerHandlerFirst)
+    {
+        var registry = new MessageRegistry();
+
+        if (registerHandlerFirst)
+        {
+            registry.Register(typeof(SelfComparablePreHandler<>));
+            registry.Register(typeof(SelfComparableCommand));
+        }
+        else
+        {
+            registry.Register(typeof(SelfComparableCommand));
+            registry.Register(typeof(SelfComparablePreHandler<>));
+        }
+
+        var descriptor = registry.Single(item => item.MessageType == typeof(SelfComparableCommand));
+
+        descriptor.PreHandlers.Should().ContainSingle()
+            .Which.HandlerType.Should().Be(typeof(SelfComparablePreHandler<SelfComparableCommand>));
+    }
+
     [Fact]
     public void Register_OpenGenericHandlerTwice_ShouldOnlyRegisterOnce()
     {
@@ -395,6 +420,23 @@ public sealed class MessageRegistryTests : LiteBusTestBase
     }
 
     public class UnsupportedOpenGenericTestPreHandler<TCommand, TContext> : ICommandPreHandler<TCommand> where TCommand : ICommand
+    {
+        public Task PreHandleAsync(TCommand message, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class SelfComparableCommand : ICommand, IComparable<SelfComparableCommand>
+    {
+        public int CompareTo(SelfComparableCommand? other)
+        {
+            return other is null ? 1 : 0;
+        }
+    }
+
+    private sealed class SelfComparablePreHandler<TCommand> : ICommandPreHandler<TCommand>
+        where TCommand : ICommand, IComparable<TCommand>
     {
         public Task PreHandleAsync(TCommand message, CancellationToken cancellationToken = default)
         {
