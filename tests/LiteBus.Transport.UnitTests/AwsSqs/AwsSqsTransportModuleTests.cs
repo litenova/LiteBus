@@ -55,4 +55,30 @@ public sealed class AwsSqsTransportModuleTests
             .Throw<LiteBusConfigurationException>()
             .WithMessage("*already registered*");
     }
+
+    /// <summary>
+    ///     Verifies unsafe polling, visibility, credential, and backoff settings fail during module construction.
+    /// </summary>
+    [Fact]
+    public void Constructor_WithUnsafeConsumerOptions_ShouldThrow()
+    {
+        Action[] actions =
+        [
+            () => _ = new AwsSqsTransportModule(new AwsSqsTransportOptions { LongPollWaitTimeSeconds = 21 }),
+            () => _ = new AwsSqsTransportModule(new AwsSqsTransportOptions { VisibilityTimeoutSeconds = -1 }),
+            () => _ = new AwsSqsTransportModule(new AwsSqsTransportOptions { AccessKey = "access" }),
+            () => _ = new AwsSqsTransportModule(new AwsSqsTransportOptions { PollBackoffInitial = TimeSpan.Zero }),
+            () => _ = new AwsSqsTransportModule(new AwsSqsTransportOptions { PollBackoffMultiplier = double.NaN }),
+            () => _ = new AwsSqsTransportModule(new AwsSqsTransportOptions
+            {
+                RequeueVisibilityTimeoutSeconds = 60,
+                MaxRequeueVisibilityTimeoutSeconds = 30
+            })
+        ];
+
+        foreach (var action in actions)
+        {
+            action.Should().Throw<ArgumentException>();
+        }
+    }
 }

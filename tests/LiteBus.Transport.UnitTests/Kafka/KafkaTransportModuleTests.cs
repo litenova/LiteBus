@@ -75,4 +75,41 @@ public sealed class KafkaTransportModuleTests
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
+
+    /// <summary>
+    ///     Verifies unsafe consumer group and seek backoff settings fail during module construction.
+    /// </summary>
+    [Fact]
+    public void Constructor_WithUnsafeConsumerOptions_ShouldThrow()
+    {
+        Action[] actions =
+        [
+            () => _ = new KafkaTransportModule(new KafkaTransportOptions
+            {
+                BootstrapServers = "localhost:9092",
+                ConsumerGroupId = " "
+            }),
+            () => _ = new KafkaTransportModule(new KafkaTransportOptions
+            {
+                BootstrapServers = "localhost:9092",
+                SeekFailureBackoffInitial = TimeSpan.Zero
+            }),
+            () => _ = new KafkaTransportModule(new KafkaTransportOptions
+            {
+                BootstrapServers = "localhost:9092",
+                SeekFailureBackoffInitial = TimeSpan.FromSeconds(2),
+                SeekFailureBackoffMax = TimeSpan.FromSeconds(1)
+            }),
+            () => _ = new KafkaTransportModule(new KafkaTransportOptions
+            {
+                BootstrapServers = "localhost:9092",
+                SeekFailureBackoffMultiplier = double.PositiveInfinity
+            })
+        ];
+
+        foreach (var action in actions)
+        {
+            action.Should().Throw<ArgumentException>();
+        }
+    }
 }

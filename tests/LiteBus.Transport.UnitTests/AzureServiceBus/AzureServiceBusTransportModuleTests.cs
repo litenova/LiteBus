@@ -68,4 +68,29 @@ public sealed class AzureServiceBusTransportModuleTests
 
         act.Should().Throw<ArgumentException>();
     }
+
+    /// <summary>
+    ///     Verifies non-positive or inverted consumer recovery delays fail during module construction.
+    /// </summary>
+    [Fact]
+    public void Constructor_WithUnsafeConsumerRecoveryOptions_ShouldThrow()
+    {
+        const string connectionString =
+            "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=key";
+
+        var zeroDelay = () => new AzureServiceBusTransportModule(new AzureServiceBusTransportOptions
+        {
+            ConnectionString = connectionString,
+            ConsumerErrorRetryInterval = TimeSpan.Zero
+        });
+        var invertedDelay = () => new AzureServiceBusTransportModule(new AzureServiceBusTransportOptions
+        {
+            ConnectionString = connectionString,
+            ConsumerErrorRetryInterval = TimeSpan.FromSeconds(10),
+            ConsumerErrorRetryMaxInterval = TimeSpan.FromSeconds(5)
+        });
+
+        zeroDelay.Should().Throw<ArgumentOutOfRangeException>();
+        invertedDelay.Should().Throw<ArgumentOutOfRangeException>();
+    }
 }

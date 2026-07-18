@@ -23,9 +23,22 @@ public sealed class KafkaTransportModule : IModule
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.BootstrapServers);
+        ArgumentException.ThrowIfNullOrWhiteSpace(_options.ConsumerGroupId);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
             _options.ConnectivityCheckTimeout,
             TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_options.SeekFailureBackoffInitial, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThan(
+            _options.SeekFailureBackoffMax,
+            _options.SeekFailureBackoffInitial);
+
+        if (!double.IsFinite(_options.SeekFailureBackoffMultiplier) || _options.SeekFailureBackoffMultiplier < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                options.SeekFailureBackoffMultiplier,
+                "The seek failure backoff multiplier must be finite and at least one.");
+        }
     }
 
     /// <inheritdoc />

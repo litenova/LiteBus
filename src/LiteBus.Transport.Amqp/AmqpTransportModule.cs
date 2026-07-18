@@ -21,7 +21,48 @@ public sealed class AmqpTransportModule : IModule
     public AmqpTransportModule(AmqpConnectionOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ValidateOptions(options);
         _options = options;
+    }
+
+    /// <summary>
+    ///     Validates connection and recovery settings before module composition.
+    /// </summary>
+    /// <param name="options">The connection settings to validate.</param>
+    private static void ValidateOptions(AmqpConnectionOptions options)
+    {
+        if (options.Uri is null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(options.HostName);
+            ArgumentOutOfRangeException.ThrowIfLessThan(options.Port, 1);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(options.Port, ushort.MaxValue);
+            ArgumentException.ThrowIfNullOrWhiteSpace(options.VirtualHost);
+            ArgumentNullException.ThrowIfNull(options.UserName);
+            ArgumentNullException.ThrowIfNull(options.Password);
+        }
+        else if (!options.Uri.IsAbsoluteUri ||
+                 options.Uri.Scheme is not "amqp" and not "amqps" ||
+                 string.IsNullOrWhiteSpace(options.Uri.Host))
+        {
+            throw new ArgumentException(
+                "The AMQP URI must be absolute, use the amqp or amqps scheme, and include a host.",
+                nameof(options));
+        }
+
+        if (options.AutomaticRecoveryEnabled)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.NetworkRecoveryInterval, TimeSpan.Zero);
+        }
+
+        ArgumentNullException.ThrowIfNull(options.CircuitBreaker);
+        ArgumentOutOfRangeException.ThrowIfNegative(options.CircuitBreaker.FailureThreshold);
+
+        if (options.CircuitBreaker.FailureThreshold > 0)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
+                options.CircuitBreaker.BreakDuration,
+                TimeSpan.Zero);
+        }
     }
 
     /// <inheritdoc />

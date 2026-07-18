@@ -23,7 +23,48 @@ public sealed class AwsSqsTransportModule : IModule
     public AwsSqsTransportModule(AwsSqsTransportOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ValidateOptions(options);
         _options = options;
+    }
+
+    /// <summary>
+    ///     Validates SQS credentials, polling, visibility, and retry settings before module composition.
+    /// </summary>
+    /// <param name="options">The transport settings to validate.</param>
+    private static void ValidateOptions(AwsSqsTransportOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(options.AccessKey) != string.IsNullOrWhiteSpace(options.SecretKey))
+        {
+            throw new ArgumentException("AccessKey and SecretKey must either both be supplied or both be omitted.", nameof(options));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(options.LongPollWaitTimeSeconds);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.LongPollWaitTimeSeconds, 20);
+        ArgumentOutOfRangeException.ThrowIfNegative(options.VisibilityTimeoutSeconds);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.VisibilityTimeoutSeconds, 43_200);
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.RequeueVisibilityTimeoutSeconds, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.RequeueVisibilityTimeoutSeconds, 43_200);
+        ArgumentOutOfRangeException.ThrowIfLessThan(
+            options.MaxRequeueVisibilityTimeoutSeconds,
+            options.RequeueVisibilityTimeoutSeconds);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.MaxRequeueVisibilityTimeoutSeconds, 43_200);
+        ValidateMultiplier(options.RequeueBackoffMultiplier, nameof(options.RequeueBackoffMultiplier));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.PollBackoffInitial, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.PollBackoffMax, options.PollBackoffInitial);
+        ValidateMultiplier(options.PollBackoffMultiplier, nameof(options.PollBackoffMultiplier));
+    }
+
+    /// <summary>
+    ///     Validates one exponential backoff multiplier.
+    /// </summary>
+    /// <param name="multiplier">The multiplier to validate.</param>
+    /// <param name="parameterName">The public option name reported on failure.</param>
+    private static void ValidateMultiplier(double multiplier, string parameterName)
+    {
+        if (!double.IsFinite(multiplier) || multiplier < 1)
+        {
+            throw new ArgumentOutOfRangeException(parameterName, multiplier, "Backoff multipliers must be finite and at least one.");
+        }
     }
 
     /// <inheritdoc />

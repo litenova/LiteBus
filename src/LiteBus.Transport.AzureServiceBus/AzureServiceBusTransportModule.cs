@@ -24,6 +24,12 @@ public sealed class AzureServiceBusTransportModule : IModule
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.ConnectionString);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
+            _options.ConsumerErrorRetryInterval,
+            TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThan(
+            _options.ConsumerErrorRetryMaxInterval,
+            _options.ConsumerErrorRetryInterval);
         ValidateConnectivityTarget(_options.ConnectivityCheckTarget);
     }
 
