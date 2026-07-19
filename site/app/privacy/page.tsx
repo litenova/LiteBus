@@ -23,15 +23,17 @@ export default function PrivacyPage() {
   return (
     <div className="litebus-home">
       <header className="litebus-home-header">
-        <Link className="litebus-brand" href="/">
-          <Image src="/icon.svg" alt="" width={32} height={32} />
-          <span>LiteBus</span>
-        </Link>
-        <nav className="litebus-home-nav" aria-label="Main navigation">
-          <Link href="/docs">Documentation</Link>
-          <Link href="/docs/getting-started">Get started</Link>
-          <Link href={repositoryUrl}>GitHub</Link>
-        </nav>
+        <div className="litebus-header-inner">
+          <Link className="litebus-brand" href="/">
+            <Image src="/icon.svg" alt="" width={32} height={32} />
+            <span>LiteBus</span>
+          </Link>
+          <nav className="litebus-home-nav" aria-label="Main navigation">
+            <Link href="/docs">Documentation</Link>
+            <Link href="/docs/getting-started">Get Started</Link>
+            <Link href={repositoryUrl}>GitHub</Link>
+          </nav>
+        </div>
       </header>
 
       <main>
@@ -152,19 +154,23 @@ export default function PrivacyPage() {
       </main>
 
       <footer className="litebus-footer">
-        <div className="litebus-brand">
-          <Image src="/icon.svg" alt="" width={24} height={24} />
-          <span>LiteBus</span>
+        <div className="litebus-footer-inner">
+          <div>
+            <Link className="litebus-brand" href="/">
+              <Image src="/icon.svg" alt="" width={24} height={24} />
+              <span>LiteBus</span>
+            </Link>
+            <p>
+              A <Link href={companyUrl}>{companyName}</Link> project.
+            </p>
+          </div>
+          <nav aria-label="Footer navigation">
+            <Link href="/docs">Documentation</Link>
+            <Link href="/docs/getting-started">Get Started</Link>
+            <Link href="/privacy">Privacy</Link>
+            <Link href={repositoryUrl}>GitHub</Link>
+          </nav>
         </div>
-        <nav aria-label="Footer navigation">
-          <Link href="/docs">Documentation</Link>
-          <Link href="/docs/getting-started">Get started</Link>
-          <Link href="/privacy">Privacy</Link>
-          <Link href={repositoryUrl}>GitHub</Link>
-        </nav>
-        <span className="litebus-footer-note">
-          A <Link href={companyUrl}>{companyName}</Link> project.
-        </span>
       </footer>
     </div>
   );
