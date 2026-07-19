@@ -35,3 +35,26 @@ The build and release workflows run a clean install, a high-severity dependency 
 linting, type checking, the production build, and the rendered-link gate. Changes under
 `site/` or `Roadmap/` trigger the build workflow. A separate content-mirror gate rejects
 missing, stale, or orphaned site pages before the Fumadocs build starts.
+
+## Vercel deployment
+
+Import the `litenova/LiteBus` repository as a Vercel project and set **Root Directory** to
+`site`. Leave the output directory unset so the Next.js preset can manage `.next`. The
+project does not require environment variables.
+
+The checked-in `vercel.json` pins the Next.js framework preset and uses `npm ci` followed
+by `npm run build`. The build includes the rendered-link and search-trace checks. Vercel
+reads Node.js 24 from `package.json`. Deployments are skipped when a commit has no changes
+under `site/`; a manual redeployment can bypass the ignored build step in the Vercel
+dashboard.
+
+Use these project settings:
+
+| Setting | Value |
+|---------|-------|
+| Root Directory | `site` |
+| Framework Preset | Next.js |
+| Install Command | `npm ci` from `vercel.json` |
+| Build Command | `npm run build` from `vercel.json` |
+| Output Directory | Framework default |
+| Node.js Version | `24.x` from `package.json` |

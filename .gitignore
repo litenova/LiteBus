@@ -63,6 +63,9 @@ site/node_modules/
 site/.next/
 site/*.tsbuildinfo
 
+# Vercel local project metadata
+.vercel/
+
 # Local tooling caches
 .fuse/
 
