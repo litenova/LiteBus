@@ -23,6 +23,9 @@ Use one theme per pull request. Include migration notes for persisted formats, t
 semantics, public APIs, or package references. Do not include credentials, broker dumps,
 or customer data in issues, commits, or test fixtures.
 
+Contributions that use generative AI tools must follow the review, disclosure, provenance,
+and verification requirements in [`AI_POLICY.md`](AI_POLICY.md).
+
 The repository's CI checks build, tests, documentation, package validation, benchmark
 discovery, and skipped-test policy. A maintainer may request provider-specific integration
 coverage before merging a transport or storage change.

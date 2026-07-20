@@ -1,6 +1,6 @@
 # Architecture
 
-LiteBus is an in-process mediator with semantic modules for commands, queries, and events. v6 adds durable messaging through orthogonal **Storage**, **Dispatch**, and **Ingress** adapters without turning the mediator into a broker.
+LiteBus provides semantic command, query, and event mediation. Durable messaging uses orthogonal **Storage**, **Dispatch**, and **Ingress** adapters; broker SDKs remain outside the mediator packages.
 
 ## Architecture Roles
 
@@ -45,10 +45,7 @@ Pre-handlers, post-handlers, and error handlers wrap the main handler path. Even
 
 LiteBus names public value objects and operation inputs with a fixed suffix taxonomy (`*Item`, `*Metadata`, `*Request`, `*Settings`, `*Options`, and related patterns). Durable writers accept `InboxAcceptItem` / `OutboxEnqueueItem` with per-message metadata; mediation keeps `*Settings` for per-invocation pipeline tuning.
 
-- **Rules** (suffix taxonomy, banned shapes, parameter budget, mapping boundary): [AGENTS.md](https://github.com/litenova/LiteBus/blob/main/AGENTS.md) under **API and value object design**
-- **Concrete inventory** (named types, package map, writer signatures, remaining API alignment): [API design reference](api-design.md)
-
-When adding or renaming public types, match AGENTS.md first; use API-Design.md for examples and placement.
+The [API Design Reference](api-design.md) defines the suffix taxonomy, CLR shapes, package placement, writer signatures, parameter budget, and mapping boundaries used by public APIs.
 
 ## Storage Axis
 
@@ -179,7 +176,7 @@ Processor pass counters below are recorded by internal processor instrumentation
 | `LiteBus.Outbox` | `litebus.outbox.processor.dead_lettered` | Messages moved to dead letter during a pass |
 | `LiteBus.Outbox` | `litebus.outbox.processor.loop_errors` | Unhandled exceptions caught by the processor background loop |
 
-Breaking change (v6): `litebus.amqp.circuit_breaker.*` instruments on the `LiteBus.Transport.Amqp` meter were removed. Use `litebus.transport.circuit_breaker.*` on `LiteBus.Transport` with `litebus.transport.broker="amqp"`.
+Circuit breaker instruments use the `litebus.transport.circuit_breaker.*` names on the `LiteBus.Transport` meter with `litebus.transport.broker="amqp"`.
 
 Framework-neutral diagnostic probes use `IDiagnosticCheck` and `LiteBusHostManifest`. Applications map probe results to health endpoints or custom sinks.
 
@@ -424,15 +421,15 @@ builder.AddInbox(inbox =>
 });
 ```
 
-Saga state is command-centric today (`LiteBus.Saga.Abstractions` references command contracts). Applications own state POCOs and completion rules.
+Saga state is command-centric (`LiteBus.Saga.Abstractions` references command contracts). Applications own state POCOs and completion rules.
 
 ### Concurrency and Scope
 
-`SagaExecutionContext` registers as a singleton with per-dispatch scope on the instance for the processor before/dispatch/after flow. Optimistic concurrency uses versioned saves. A dirty-state conflict propagates as `SagaConcurrencyException` because the hook cannot safely merge arbitrary handler-owned state with a concurrent update. Completion-only conflicts may reload and retry up to three attempts because completion is idempotent. Inbox terminal persistence and saga save are separate steps; handlers must tolerate at-least-once redelivery. Transactional inbox + saga commit in one connection is deferred (see [Saga](../reliable-messaging/saga.md) durability model).
+`SagaExecutionContext` registers as a singleton with per-dispatch scope on the instance for the processor before/dispatch/after flow. Optimistic concurrency uses versioned saves. A dirty-state conflict propagates as `SagaConcurrencyException` because the hook cannot safely merge arbitrary handler-owned state with a concurrent update. Completion-only conflicts may reload and retry up to three attempts because completion is idempotent. Inbox terminal persistence and saga save are separate steps; handlers must tolerate at-least-once redelivery. A single transaction for inbox terminal state and saga persistence is not part of the current store contract (see the [Saga](../reliable-messaging/saga.md) durability model).
 
 ## Message Registry Lifecycle
 
-v6 uses one `IMessageRegistry` per `IModuleConfiguration` instance created during `AddLiteBus`. Modules register message and handler types at compose time through `MessageModule` and semantic module builders. The registry is not process-wide: tests and hosts each get an isolated instance. Do not call `IMessageWriter.Register` at runtime in application code; register types during module `Build()` or through `RegisterFromAssembly` on module builders.
+LiteBus uses one `IMessageRegistry` per `IModuleConfiguration` instance created during `AddLiteBus`. Modules register message and handler types at compose time through `MessageModule` and semantic module builders. The registry is not process-wide: tests and hosts each get an isolated instance. Do not call `IMessageWriter.Register` at runtime in application code; register types during module `Build()` or through `RegisterFromAssembly` on module builders.
 
 ## Payload Encryption and Tenant Isolation
 
@@ -488,11 +485,11 @@ builder.Services.AddLiteBus(builder =>
 });
 ```
 
-Do not add top-level `IModuleRegistry` shortcuts that bypass the parent builder. v6 removed flat storage and dispatcher registrars; use nested `Use*` extensions only.
+Do not add top-level `IModuleRegistry` shortcuts that bypass the parent builder. Storage and dispatcher registration belongs on nested `Use*` extensions.
 
-### Deferred Capabilities (Not Shipped)
+### Planned Capabilities
 
-Documented in [Roadmap](../roadmap/README.md): built-in idempotency consumer middleware, per-contract `IRetryClassifier`, SQS FIFO and broker DLQ integration, multi-bus named instances, schema drift CLI, payload compression, and aggregate validation/authorization/caching LiteBus. Store-side `visible_after` covers delayed processing; broker-native delayed delivery beyond that is not shipped.
+The [Roadmap](../roadmap/README.md) tracks built-in idempotency consumer middleware, per-contract retry classification, SQS FIFO and broker dead-letter integration, named bus instances, schema tooling, payload compression, and validation, authorization, and caching modules. Store-side `visible_after` covers delayed processing; broker-native delayed delivery is not part of the current API.
 
 ## Boundaries
 
@@ -503,4 +500,4 @@ Documented in [Roadmap](../roadmap/README.md): built-in idempotency consumer mid
 
 ## Next
 
-Follow package boundaries in the [Dependency Graph](dependency-graph.md). For upgrade steps, read [Migration Guide v6](../migration/v6.md).
+Follow package boundaries in the [Dependency Graph](dependency-graph.md). Historical upgrade steps remain in the [Migration Guide](../migration/v6.md).

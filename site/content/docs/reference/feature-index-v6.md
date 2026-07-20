@@ -1,4 +1,4 @@
-# v6 Feature Index
+# Feature Index
 
 Quick map from capability to documentation and primary packages. For install commands, see the [Documentation Index](https://litebus.io/docs). For the full cross-axis inventory, see [Capability Catalog](capability-catalog.md).
 
@@ -82,12 +82,9 @@ See [Analyzers](analyzers.md) for LB1001-LB1017. Highlights:
 | LB1007 / LB1017 | Durable contract registration (handled types vs attributed types) |
 | LB1014-LB1017 | Processor without dispatcher, transactional EF interceptor, transactional inbox DbContext, explicit contract registration |
 
-## Migration
+## Related Documentation
 
-| Resource | Location |
-| --- | --- |
-| v5 to v6 upgrade | [Migration Guide v6](../migration/v6.md) |
-| Historical v4/v5 | [Migration Guide v4](../migration/v4.md), [Migration Guide v5](../migration/v5.md) |
-| Architecture | [Architecture](../architecture/README.md), [Dependency graph](../architecture/dependency-graph.md) |
-| Cookbook | [Cookbook and scenarios](../getting-started/cookbook.md) |
-| Cheat sheet | [LiteBus cheat sheet](../getting-started/cheat-sheet.md) |
+- [Architecture](../architecture/README.md)
+- [Dependency Graph](../architecture/dependency-graph.md)
+- [Cookbook and Scenarios](../getting-started/cookbook.md)
+- [LiteBus Cheat Sheet](../getting-started/cheat-sheet.md)

@@ -2,7 +2,7 @@
 
 **Production tier: GA**
 
-LiteBus v6 supports optional payload encryption and tenant-scoped lease filters on inbox and outbox stores. These are application-supplied implementations; the core libraries define contracts only.
+LiteBus supports optional payload encryption and tenant-scoped lease filters on inbox and outbox stores. These are application-supplied implementations; the core libraries define contracts only.
 
 ## Packages to Install
 

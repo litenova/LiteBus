@@ -71,7 +71,7 @@ bus.AddInbox(inbox => inbox.UseAwsSqsIngress(ingress =>
 
 - `Destination` (queue URL) and root `AddAwsSqsTransport(...)` are required at compose time.
 - Standard LiteBus wire headers required for contract resolution.
-- Beta tier per v6 feature index.
+- Beta tier per the Feature Index.
 - `ReceiveBatchSize` is validated from 1 through 10 at composition, matching the AWS SDK for .NET v4 `ReceiveMessageRequest` contract.
 - Identity and idempotency default to broker-scoped values (`Safety.RequireStableIdentity=true`, `Safety.TrustApplicationHeaders=false`).
 
@@ -149,4 +149,4 @@ SQS ingress uses shared mapper defaults:
 ## Deep Docs
 
 - [AWS SQS transport](../../integrations/aws-sqs.md)
-- [v6 feature index: Ingress](../../reference/feature-index-v6.md)
+- [Feature Index: Ingress](../../reference/feature-index-v6.md)

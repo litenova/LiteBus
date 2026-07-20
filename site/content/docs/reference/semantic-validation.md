@@ -46,7 +46,7 @@ The semantic gate removes common source indentation before comparing. The Markdo
 
 ## Executable Capability Anchors
 
-These tests are the executable anchors for claims that previously drifted:
+These tests are executable anchors for claims that must stay aligned with runtime behavior:
 
 | Capability claim | Executable anchor |
 | --- | --- |

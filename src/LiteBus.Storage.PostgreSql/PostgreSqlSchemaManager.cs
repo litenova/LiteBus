@@ -219,8 +219,8 @@ internal static class PostgreSqlSchemaManager
         if (inferredVersion < definition.CurrentSchemaVersion)
         {
             var details = tableExists && definition.CurrentSchemaVersion == 1
-                ? "The existing table does not match the LiteBus v6 schema version 1 column set. LiteBus v6 does " +
-                  "not mutate v5 tables automatically. Drain and replace the table, or run a reviewed " +
+                ? "The existing table does not match the current LiteBus schema version 1 column set. LiteBus does " +
+                  "not mutate incompatible tables automatically. Drain and replace the table, or run a reviewed " +
                   "application-owned data migration before startup."
                 : $"Table column set infers schema version {inferredVersion}.";
 
@@ -346,9 +346,9 @@ internal static class PostgreSqlSchemaManager
                 context.StoreTable.TableName,
                 definition.CurrentSchemaVersion,
                 recordedVersion,
-                "The recorded schema version belongs to another LiteBus release. LiteBus v6 does not mutate v5 " +
-                "tables automatically. Drain and replace the table, or run a reviewed application-owned data " +
-                "migration before startup.");
+                "The recorded schema version does not match the current LiteBus schema contract. LiteBus does not " +
+                "mutate incompatible tables automatically. Drain and replace the table, or run a reviewed " +
+                "application-owned data migration before startup.");
 
             context.Logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
             throw exception;

@@ -70,7 +70,7 @@ export default async function DocsPageRoute({
         if (resolvedHref === sourceHref) {
           const repositoryPage = new URL(
             page.path,
-            'https://github.com/litenova/LiteBus/blob/v6/site/content/docs/',
+            'https://github.com/litenova/LiteBus/blob/main/site/content/docs/',
           );
           resolvedHref = new URL(href, repositoryPage).toString();
         }

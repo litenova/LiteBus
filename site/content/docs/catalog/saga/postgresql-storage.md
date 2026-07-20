@@ -11,7 +11,7 @@
 
 `UsePostgreSqlStorage(configure)` on `SagaModuleBuilder` selects `PostgreSqlSagaModule` and can wire `NpgsqlDataSource` or connection string helpers through `PostgreSqlSagaModuleBuilder`.
 
-Schema version **1** creates the first released v6 saga table with the applied-message column. v5 did not ship a saga schema, and no earlier v6 table exists. Schema bootstrap shares the `PostgreSqlSchemaManager` validation path with inbox and outbox when they use one database.
+Schema version **1** defines the current saga table, including the applied-message column. Schema bootstrap shares the `PostgreSqlSchemaManager` validation path with inbox and outbox when they use one database.
 
 ## Public Surface
 
@@ -41,17 +41,16 @@ Schema version **1** creates the first released v6 saga table with the applied-m
 - Save and complete operations update `last_applied_message_id` with the inbox message identifier when the hook supplies one.
 - `tenant_id` participates in the primary key. A missing or whitespace tenant identifier is stored as an empty string.
 - An omitted `TenantId` query or purge predicate includes every tenant. An explicit whitespace predicate selects unscoped rows.
-- Saga schema is separate from inbox message rows; not one transaction with inbox terminal update in v6.
+- The saga schema is separate from inbox message rows; saga persistence and the inbox terminal update do not share a transaction.
 
 ## Non-Goals
 
 - EF Core saga adapter is not shipped.
-- Does not run the additive migration automatically. Apply the shipped migration through the application's schema migration process before startup validation.
 - Does not encrypt state JSON at rest (see payload encryption on inbox/outbox axis for message payloads).
 
 ## Observability
 
-No dedicated PostgreSQL saga meters in v6.
+The PostgreSQL saga store does not emit dedicated meters.
 
 **What to use instead**
 
@@ -186,5 +185,5 @@ No dedicated PostgreSQL saga meters in v6.
 ### Out-of-Scope Use Cases
 
 - EF Core saga adapter.
-- Legacy schema migration beyond shipped v1 scripts.
+- Migration of incompatible existing saga tables.
 - Encryption of state JSON at rest.

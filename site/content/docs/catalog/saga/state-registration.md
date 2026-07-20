@@ -96,7 +96,7 @@ None at registration time. Misconfigured mappings surface at runtime as inactive
 
 - **Use case**: Sample composition registers saga state mapping via `EnableSaga`.
 - **Test kind**: Composition
-- **Description**: Sample v6 inbox module builder configuration.
+- **Description**: Sample inbox module builder configuration.
 - **Behavior**: Correlated commands on registered contract.
 - **Expected outcome**: State persisted under sample definition id.
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/Runtime/Composition/`.

@@ -72,7 +72,7 @@ Transport reference pages use a four-executor test map:
 | Executor | Scope |
 | --- | --- |
 | `LiteBus.Transport.UnitTests` | Adapter and core unit behavior (`Amqp/`, `Kafka/`, `AwsSqs/`, `AzureServiceBus/`, `InMemory/`) |
-| `LiteBus.Transport.IntegrationTests` | Transport wire tests (AMQP only in v6) |
+| `LiteBus.Transport.IntegrationTests` | AMQP transport wire tests |
 | `LiteBus.Durable.IntegrationTests` | Dispatch and ingress hops that exercise transport through durable pipelines |
 | Application host executor | Consumer application integration that composes LiteBus modules; repo helper package `LiteBus.Transport.IntegrationTesting` provides fixtures only and is not an executor |
 
@@ -87,7 +87,7 @@ Transport circuit breaker metrics are emitted on meter `LiteBus.Transport` and t
 | `litebus.transport.circuit_breaker.open` | `LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName` | `1` when any publisher circuit is open or half-open; otherwise `0` |
 | `litebus.transport.circuit_breaker.failure_count` | `LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName` | Sum of current failures across destination-scoped publisher circuits |
 
-Broker tag values in v6: `amqp`, `kafka`, `sqs`, `azure_service_bus`, `inmemory`.
+Broker tag values are `amqp`, `kafka`, `sqs`, `azure_service_bus`, and `inmemory`.
 
 ## Deep Docs
 

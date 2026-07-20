@@ -9,7 +9,7 @@ For handler-level and in-memory processor recipes, see [Testing LiteBus](applica
 
 ## How Integration Tests Are Organized
 
-LiteBus consolidates integration tests into **four executor projects** grouped by concern, plus shared helper libraries. Each executor owns many adapter surfaces (brokers, databases, host bridges) organized in subfolders by technology. Tests prove **outcomes**: store row transitions, wire headers, processor passes, manifest registration, or HTTP responses. Registration smoke and fast InMemory wire cases live in `LiteBus.Durable.IntegrationTests`. Sample v6 composition smoke lives in `LiteBus.Runtime.UnitTests`.
+LiteBus consolidates integration tests into **four executor projects** grouped by concern, plus shared helper libraries. Executors own broker, database, and host-adapter coverage organized in subfolders by technology. Tests prove **outcomes**: store row transitions, wire headers, processor passes, manifest registration, or HTTP responses. Registration smoke and fast in-memory wire cases live in `LiteBus.Durable.IntegrationTests`. The sample composition smoke test lives in `LiteBus.Runtime.UnitTests`.
 
 ```mermaid
 flowchart TB
@@ -70,7 +70,7 @@ tests/
 |   |-- HealthChecks/
 |   `-- OpenTelemetry/
 |-- LiteBus.Runtime.UnitTests/
-|   `-- Runtime/Composition/  # v6 composition smoke (unit test, not integration)
+|   `-- Runtime/Composition/  # composition smoke (unit test, not integration)
 |-- LiteBus.Transport.IntegrationTesting/   # shared fixtures, traits (not an executor)
 |-- LiteBus.Transport.Testing/              # published transport contract suite
 |-- LiteBus.Storage.Testing/                # abstract store contract suites
@@ -434,7 +434,7 @@ AMQP coverage spans two projects: low-level wire protocol in `LiteBus.Transport.
 
 ## Hosting and Composition Integration Tests
 
-These projects validate host adapters without replacing broker or storage matrices. v6 composition smoke is a **unit** test in `LiteBus.Runtime.UnitTests/Runtime/Composition/LiteBusV6CompositionSmokeTests.cs`.
+These projects validate host adapters without replacing broker or storage matrices. The composition smoke test is a **unit** test in `LiteBus.Runtime.UnitTests/Runtime/Composition/LiteBusV6CompositionSmokeTests.cs`.
 
 ### `LiteBus.Extensions.IntegrationTests`: Health Checks (`HealthChecks/`)
 

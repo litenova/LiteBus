@@ -42,8 +42,9 @@ namespace LiteBus.Inbox.Storage.PostgreSql;
 ///         version describes payload shape; table schema version describes columns and indexes managed by LiteBus.
 ///     </para>
 ///     <para>
-///         LiteBus v6 starts at schema version 1. The version 1 create script contains the complete v6 table shape,
-///         including opaque payload text and lease fencing. LiteBus does not mutate v5 inbox tables automatically.
+///         The inbox schema uses version 1. Its create script contains the complete current table shape, including
+///         opaque payload text and lease fencing. LiteBus validates existing tables without mutating incompatible
+///         shapes.
 ///     </para>
 /// </remarks>
 public static class PostgreSqlInboxSchema

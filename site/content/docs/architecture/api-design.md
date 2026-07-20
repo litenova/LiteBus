@@ -1,12 +1,12 @@
 # API Design Reference
 
-This page is the **concrete inventory** for LiteBus public API shapes: named types, package placement, method signatures, and the v6 durable-messaging exemplar. The **rules** that govern every axis (suffix taxonomy, banned shapes, parameter budget, mapping boundary) live in [AGENTS.md](https://github.com/litenova/LiteBus/blob/main/AGENTS.md) under **API and value object design**. Read that section first when adding or renaming types; use this page when you need examples and placement.
+This page defines the current LiteBus public API model: named types, CLR shapes, package placement, method signatures, parameter limits, mapping boundaries, and durable-messaging examples.
 
 ## Who This Is For
 
 - Contributors adding public types to `*.Abstractions` packages
 - Reviewers checking whether a new API matches an existing pattern
-- Agents and maintainers aligning legacy surfaces during feature work
+- Maintainers extending existing surfaces during feature work
 
 **Prerequisites:** [Architecture](README.md) (dependency role model), [Dependency graph](dependency-graph.md) (package inventory).
 
@@ -27,12 +27,12 @@ This page is the **concrete inventory** for LiteBus public API shapes: named typ
 ### Mediation vs Durable Writers
 
 - **Mediation** keeps `*Settings` (`CommandMediationSettings`, `EventMediationSettings`, `QueryMediationSettings`) for per-call pipeline tuning. Custom mediators built on `IMessageMediator` use `MessageMediationRequest<TMessage, TResult>` for strategy and resolve overrides; `CancellationToken` stays on `Mediate` only, not inside the request bag.
-- **Durable writers** use `*Item` plus `*Metadata`. Scheduling and visibility belong on metadata (`MessageVisibility`), not separate scheduler interfaces. `IInboxScheduler`, `IOutboxScheduler`, `InboxOptions`, and `OutboxOptions` are removed in v6.
+- **Durable writers** use `*Item` plus `*Metadata`. Scheduling and visibility belong on metadata (`MessageVisibility`), not separate scheduler interfaces.
 - **Framework bindings** use `*Binding` for ASP.NET management and similar adapter input. Bindings map once at the adapter edge; they are not writer `*Item` types.
 
 ## CLR Kind Selection
 
-Public types use a consistent CLR kind per role. Full rename inventory: [Migration guide v6](../migration/v6.md).
+Public types use a consistent CLR kind per role.
 
 | Kind | Use in LiteBus | Do not use for |
 | --- | --- | --- |
@@ -118,7 +118,7 @@ Task<IReadOnlyList<InboxReceipt>> AcceptBatchAsync(
     CancellationToken cancellationToken);
 ```
 
-Outbox mirrors the pattern with `EnqueueAsync` / `EnqueueBatchAsync` and `OutboxEnqueueItem`. Typed single-message paths return axis-specific receipts; the one canonical batch path accepts non-generic items and returns non-generic receipts. The redundant homogeneous `EnqueueBatchAsync<TEvent>` overload is not part of v6.
+Outbox mirrors the pattern with `EnqueueAsync` / `EnqueueBatchAsync` and `OutboxEnqueueItem`. Typed single-message paths return axis-specific receipts; the one canonical batch path accepts non-generic items and returns non-generic receipts. There is no separate homogeneous `EnqueueBatchAsync<TEvent>` overload.
 
 Append stores return `InboxAppendResult` or `OutboxAppendResult`, not an envelope alone. The result preserves whether the insert succeeded or resolved an existing message ID or tenant-scoped idempotency key. Writers map that store fact to `InboxReceipt.Outcome` or `OutboxReceipt.Outcome`; they never infer it by comparing envelope values.
 
@@ -193,26 +193,7 @@ await outbox.EnqueueAsync(
     cancellationToken);
 ```
 
-Feature guides ([Inbox](../reliable-messaging/inbox.md), [Outbox](../reliable-messaging/outbox.md), [Transactional messaging writes](../reliable-messaging/transactional-writes.md)) show end-to-end usage. [Migration guide v6](../migration/v6.md) documents the break from `InboxOptions` / `OutboxOptions`, scheduler interfaces, and the v6.0 rename tables (outbox `Message` property, package renames, and related tables).
-
-## Package Rename Reference (v6.0)
-
-Legacy to v6.0 mapping for application upgrades. Shipping libraries use v6 names exclusively; see [Migration guide v6](../migration/v6.md) for the full inventory.
-
-| Area | Legacy | Target |
-| --- | --- | --- |
-| Durable outbox writer | `IOutboxWriter.AddAsync` | `IOutbox.EnqueueAsync` with `OutboxEnqueueItem` |
-| In-process dispatch | `UseInProcessDispatcher()` | `UseInProcessDispatch()` |
-| EF Core storage | `UseEfCoreStorage(...)`, `EfCore*StoreOptions` | `UseEntityFrameworkCoreStorage(...)`, `EntityFrameworkCore*StoreOptions` |
-| AWS SQS packages | `*.AwsSqsSqs` NuGet IDs | `*.AwsSqs` (for example `LiteBus.Transport.AwsSqs`, `LiteBus.Inbox.Dispatch.AwsSqs`, `LiteBus.Inbox.Ingress.AwsSqs`) |
-| ASP.NET management | `*QueryParameters`, `*PurgeParameters` | `*QueryBinding`, `*PurgeBinding` |
-| Mediation pipeline bag | `MessageMediationRequest` with embedded `CancellationToken` | `MessageMediationRequest<TMessage, TResult>`; pass `CancellationToken` only on `Mediate` |
-| Handler exceptions | `MultipleCommandHandlerFoundException`, `MultipleMessageHandlerFoundException`, `MultipleQueryHandlerFoundException` | `MultipleHandlerFoundException` |
-| Outbox item body | `OutboxEnqueueItem.Event`, untyped `EventType` | `Message`, `MessageType` |
-| Batch construction helpers | `InboxAcceptItems`, `OutboxEnqueueItems` | *(removed)*: static factories on `InboxAcceptItem` / `OutboxEnqueueItem` |
-| Saga module extensions | `InboxModuleBuilderExtensions` (saga packages) | `InboxModuleBuilderSagaExtensions`, `InboxModuleBuilderPostgreSqlSagaExtensions` |
-| Event mediation settings | Nested bags on `EventMediationSettings` | `EventRoutingSettings`, `EventExecutionSettings`, `EventHandlerFilter` |
-| Testing doubles | `Fake*` in the former aggregate testing package | `Test*` in the matching concern package (for example `TestCommandMediator` in `LiteBus.Testing.Mediation`, `TestInboxStore` in `LiteBus.Testing.DurableMessaging`) |
+Feature guides ([Inbox](../reliable-messaging/inbox.md), [Outbox](../reliable-messaging/outbox.md), [Transactional messaging writes](../reliable-messaging/transactional-writes.md)) show end-to-end usage. Historical names and package mappings remain in the [Migration Guide](../migration/v6.md).
 
 ## Ergonomics
 
@@ -225,7 +206,7 @@ Legacy to v6.0 mapping for application upgrades. Shipping libraries use v6 names
 
 Error handlers use `HandleErrorAsync(MessageErrorContext<TMessage, TResult>, CancellationToken)`. The typed context shares `Outcome` and `HandledResult` with the mediation pipeline, so observing a failure leaves it unhandled while recovery is an explicit state transition. Cancellation is always the token supplied to the mediation call; error handlers do not depend on ambient token lookup.
 
-Other aligned v6 surfaces include `ILeaseRenewable.RenewLeaseAsync(LeaseRenewalRequest, ...)` on inbox and outbox lease stores; `ISagaStore.SaveAsync(SagaSaveItem<TState>, ...)`, `SagaCompleteItem`, `SagaSaveItem.From`, `SagaCorrelation.SagaDefinitionId`, and tenant-scoped saga primary keys. See [Saga](../reliable-messaging/saga.md) and [Changelog](https://github.com/litenova/LiteBus/blob/main/Changelog.md).
+Related durable surfaces include `ILeaseRenewable.RenewLeaseAsync(LeaseRenewalRequest, ...)` on inbox and outbox lease stores; `ISagaStore.SaveAsync(SagaSaveItem<TState>, ...)`, `SagaCompleteItem`, `SagaSaveItem.From`, `SagaCorrelation.SagaDefinitionId`, and tenant-scoped saga primary keys. See [Saga](../reliable-messaging/saga.md).
 
 Track broader roadmap items in [Roadmap](../roadmap/README.md).
 
@@ -239,4 +220,4 @@ Track broader roadmap items in [Roadmap](../roadmap/README.md).
 
 - [Architecture](README.md): storage accept/process paths and dependency roles
 - [Inbox](../reliable-messaging/inbox.md) / [Outbox](../reliable-messaging/outbox.md): feature guides for durable messaging
-- [Migration guide v6](../migration/v6.md): v5 to v6 API and database upgrade
+- [Migration Guide](../migration/v6.md): historical API and database transitions

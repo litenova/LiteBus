@@ -77,4 +77,4 @@ This rule keeps publisher and consumer runtime behavior aligned to one broker SD
 
 - [Architecture.md](../../architecture/README.md)
 - [Dependency-Graph.md](../../architecture/dependency-graph.md)
-- [AGENTS.md](https://github.com/litenova/LiteBus/blob/main/AGENTS.md)
+- [Dependency Graph](../../architecture/dependency-graph.md)

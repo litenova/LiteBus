@@ -57,7 +57,7 @@ Register authentication before mapping routes. When `AllowAnonymousManagement` i
 | POST | `/inbox/retention/purge` | Run retention cleanup |
 | GET/DELETE/POST | `/outbox/...` | Outbox equivalents |
 
-### Purge Confirmation (v6)
+### Purge Confirmation
 
 Unrestricted purge (no narrowing query parameters) requires JSON body:
 

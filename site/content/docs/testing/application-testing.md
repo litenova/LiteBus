@@ -339,7 +339,7 @@ If Docker is not available, those four tests are reported as **skipped** with th
 
 > PostgreSQL integration tests require Docker. Start Docker Desktop (or the Docker daemon) and run the tests again.
 
-Start Docker Desktop on Windows or macOS, or confirm the Docker daemon is running on Linux, then rerun the tests. CI runs `docker info` before testing so agents fail fast when Docker is misconfigured.
+Start Docker Desktop on Windows or macOS, or confirm the Docker daemon is running on Linux, then rerun the tests. CI runs `docker info` before testing so the job fails before starting integration tests when Docker is misconfigured.
 
 To run unit tests only:
 

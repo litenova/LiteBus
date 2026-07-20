@@ -129,11 +129,11 @@ builder.AddOutbox(outbox =>
     outbox.UsePostgreSqlStorage(p => p.UseDataSource(dataSource)));
 ```
 
-### Version Alignment
+### Current Schema Contract
 
-Inbox, outbox, and saga start at schema version 1 in v6. Each v1 create script contains the complete 6.0 shape. No v6 database schema was released before 6.0.0, so there is no older v6 migration chain.
+Inbox, outbox, and saga use schema version 1. Each version 1 create script contains the complete current table shape.
 
-`EnsureAsync` creates a missing v6 table, validates its columns and types, and records version 1. An existing v5 table fails validation. Drain and replace it, or copy retained rows through an application-owned migration described in [Migration Guide v6](../migration/v6.md).
+`EnsureAsync` creates a missing table, validates its columns and types, and records version 1. An incompatible existing table fails validation. Historical replacement and data-copy procedures remain in the [Migration Guide](../migration/v6.md).
 
 ### Do Not Edit Embedded Resource Names Casually
 
@@ -240,7 +240,7 @@ Schema operations log at these points:
 - Starting and completing `EnsureAsync`
 - Advisory lock acquired or waiting on another session
 - Creating current-version objects for a new table
-- Rejecting a v5 or otherwise incompatible table shape
+- Rejecting an incompatible table shape
 - Recording metadata version rows
 - Validation success or `PostgreSqlSchemaDriftException` details
 
@@ -272,7 +272,7 @@ LiteBus records applied table schema versions in `litebus_schema_versions`:
 | `schema_name` | Store table schema |
 | `table_name` | Store table name |
 | `version` | Applied table schema version |
-| `applied_at` | UTC timestamp of the last recorded upgrade |
+| `applied_at` | UTC timestamp of the recorded schema version |
 
 Primary key: `(component, schema_name, table_name)`.
 
@@ -282,13 +282,13 @@ One metadata table serves all LiteBus store tables in the database. Each inbox o
 
 | Component | Version | Notes |
 | --- | --- | --- |
-| Inbox | **1** | Complete first-release v6 shape with opaque payload text and lease fencing |
-| Outbox | **1** | Complete first-release v6 shape with opaque payload text and lease fencing |
-| Saga | **1** | Complete first-release v6 shape with duplicate dispatch suppression |
+| Inbox | **1** | Opaque payload text and lease fencing |
+| Outbox | **1** | Opaque payload text and lease fencing |
+| Saga | **1** | Duplicate dispatch suppression |
 
 Constants: `PostgreSqlInboxSchema.CurrentSchemaVersion` and `PostgreSqlOutboxSchema.CurrentSchemaVersion`.
 
-The schema validator checks required columns, payload and fencing column types, indexes, and version metadata. For example, a v5 inbox table with `payload jsonb` fails v6 version 1 validation even if an application added another v6 column manually.
+The schema validator checks required columns, payload and fencing column types, indexes, and version metadata. For example, an inbox table with `payload jsonb` fails version 1 validation because the current contract requires opaque payload text.
 
 ### Indexes: Ensure vs Validate
 
@@ -301,7 +301,7 @@ The schema validator checks required columns, payload and fencing column types, 
 | Method | Purpose |
 | --- | --- |
 | `GetCreateScript(options)` | Full rendered DDL for a new current-version table, metadata table, indexes, and notify trigger |
-| `EnsureAsync(dataSource, options, ct)` | Create a missing v6 table or validate an application-migrated table, then record metadata idempotently |
+| `EnsureAsync(dataSource, options, ct)` | Create a missing table or validate a table with the current shape, then record metadata idempotently |
 | `ValidateAsync(dataSource, options, ct)` | Fail fast when the physical table, indexes, or metadata does not match the library |
 | `SqlFiles` | Catalog of repository SQL file paths and descriptions |
 
@@ -334,11 +334,9 @@ Waiting instances poll the metadata table and physical column shape. They do not
 | First-time `EnsureAsync` | Yes | Opt-in host schema creation or startup call |
 | `ValidateAsync` | Yes | Deploy check or startup when `ValidateSchemaCreationOnStartup = true` |
 
-## Existing Databases
+## Existing Tables
 
-Any LiteBus database found during the 6.0 upgrade comes from v5 or application code because no v6 schema has been released. LiteBus v6 does not mutate those tables automatically.
-
-The preferred path is to stop writers, drain v5 processors, retain any audit rows outside the active tables, and create new v6 version 1 tables. If rows must survive, copy them into new tables with an application-owned mapping for inbox identity, opaque payload text, tenant-scoped idempotency, cleared leases, and the new terminal fields. [Migration Guide v6](../migration/v6.md) gives both procedures.
+LiteBus does not mutate an incompatible table automatically. `ValidateAsync` reports the missing or mismatched columns, types, indexes, and metadata. Use the [Migration Guide](../migration/v6.md) when an existing database uses a historical LiteBus table shape.
 
 ## Registration Order with Background Services
 
@@ -371,7 +369,7 @@ LiteBus ships EF Core inbox and outbox stores for applications that already use 
 | Schema ownership | Migration-owned SQL, `EnsureAsync`, or opt-in host bootstrap | Application EF migrations |
 | Default table | `public.litebus_inbox_messages` / `public.litebus_outbox_messages` | Same defaults via `EntityFrameworkCoreInboxStoreOptions` / `EntityFrameworkCoreOutboxStoreOptions` |
 | Column mapping | Canonical `.sql` files | `GetModelBuilderConfiguration()` on `InboxMessageEntity` / `OutboxMessageEntity` |
-| Table schema version | Inbox **1** / outbox **1** | Generate the complete v6 model, including `lease_generation bigint NOT NULL DEFAULT 0` |
+| Table schema version | Inbox **1** / outbox **1** | Generate the complete current model, including `lease_generation bigint NOT NULL DEFAULT 0` |
 
 The built-in EF fluent configuration maps the same snake_case column names as the PostgreSQL scripts. Pass `EfCoreStorageProvider.PostgreSql` to `GetModelBuilderConfiguration()` to map opaque `payload` text and optional `trace_context` as `jsonb` on PostgreSQL. Other providers keep payload text and select their trace metadata type (see [Inbox Entity Framework Core Storage](inbox-ef-core-storage.md)).
 
@@ -409,9 +407,9 @@ Prefer copying the shipped `.sql` files verbatim. Edit only when DBAs require re
 
 If you implement `IInboxStore` / `IOutboxStore` and your own storage, you own the schema entirely. LiteBus does not require the metadata table or `trace_context` column for custom stores. Match the envelope fields your implementation reads and writes.
 
-## Future LiteBus Releases
+## Schema Evolution Policy
 
-The first released v6 schema is version 1. A later package that changes the physical contract must document its source version, target version, and deployment procedure. Do not infer a migration path from development-branch SQL history.
+A package that changes the physical contract must document its source version, target version, and deployment procedure. Do not infer a migration path from development-branch SQL history.
 
 LiteBus will not auto-run destructive changes such as drops, renames, or narrowing type changes from application pods.
 
@@ -421,7 +419,7 @@ LiteBus will not auto-run destructive changes such as drops, renames, or narrowi
 - [Outbox](../reliable-messaging/outbox.md)
 - [Hosted services](../architecture/hosted-services.md)
 - [Dependency Graph](../architecture/dependency-graph.md)
-- [Migration Guide v5](../migration/v5.md)
+- [Migration Guides](../migration/README.md)
 
 ## Next
 

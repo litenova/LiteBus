@@ -65,13 +65,13 @@ Writers persist optional idempotency keys with envelopes. On duplicate `(tenant_
 - Idempotency keys scoped per tenant; different tenants may reuse the same key string
 - Null or whitespace tenant normalizes to empty string
 - Completed inbox rows remain deduplicated on repeat accept with same key
-- v5 `IIdempotentCommand` marker removed; keys live in metadata
+- Idempotency keys live in inbox and outbox metadata
 - Transactional EF: duplicate key fails entire `SaveChanges` (no silent dedup)
 
 ## Non-Goals
 
 - Handler-level idempotency record store (planned)
-- Automatic idempotency middleware in mediator pipeline (deferred)
+- Automatic idempotency middleware in the mediator pipeline
 - Cross-service deduplication without application keys
 
 ## Observability
@@ -256,7 +256,7 @@ No dedicated idempotency meter. Duplicate accepts are success paths, not errors.
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
 | Handler-level idempotency store | No (planned) | N/A |: |: |
-| Automatic mediator idempotency middleware | No (deferred) | N/A |: |: |
+| Automatic mediator idempotency middleware | No | Planned capability | Unit | Medium |
 | Client HTTP Idempotency-Key header mapping | Yes | Application-owned; no framework test |: | Low |
 
 ### Out-of-Scope Use Cases

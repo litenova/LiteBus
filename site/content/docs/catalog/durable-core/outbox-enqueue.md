@@ -72,7 +72,7 @@ Typical call sites: command post-handlers draining domain events, application se
 ## Non-Goals
 
 - Immediate in-process fan-out (use `IEventMediator.PublishAsync`)
-- Two-phase broker acknowledgment before terminal persist (not shipped in v6)
+- Two-phase broker acknowledgment before terminal persistence
 - Guaranteed exactly-once publication to downstream consumers
 
 ## Observability

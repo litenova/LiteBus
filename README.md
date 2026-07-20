@@ -1,60 +1,38 @@
 # LiteBus
 
 <p align="center">
-  <img src="assets/logo/litebus-logo.svg" alt="LiteBus logo" width="360">
+  <img src="assets/logo/litebus-logo.svg" alt="LiteBus logo" width="300">
 </p>
 
 <p align="center">
   <a href="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml"><img src="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml/badge.svg" alt="Build and test status"></a>
-  <a href="https://codecov.io/gh/litenova/LiteBus"><img src="https://codecov.io/gh/litenova/LiteBus/graph/badge.svg?token=XBNYITSV5A" alt="Code coverage"></a>
   <a href="https://www.nuget.org/packages/LiteBus"><img src="https://img.shields.io/nuget/v/LiteBus.svg" alt="NuGet version"></a>
-  <a href="https://www.nuget.org/packages/LiteBus"><img src="https://img.shields.io/nuget/dt/LiteBus.svg" alt="NuGet downloads"></a>
-  <a href="https://github.com/litenova/LiteBus/releases"><img src="https://img.shields.io/github/v/release/litenova/LiteBus" alt="GitHub release"></a>
-  <a href="https://github.com/litenova/LiteBus/blob/main/LICENSE"><img src="https://img.shields.io/github/license/litenova/LiteBus" alt="License"></a>
   <a href="https://dotnet.microsoft.com/download/dotnet/10.0"><img src="https://img.shields.io/badge/.NET-10.0-512BD4" alt=".NET 10"></a>
-  <a href="https://litebus.io"><img src="https://img.shields.io/badge/docs-litebus.io-2f6fed" alt="Documentation"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/litenova/LiteBus" alt="MIT license"></a>
 </p>
 
-LiteBus is a mediator and durable messaging library for .NET 10. Commands, queries, and events have separate contracts and pipelines. Inbox and outbox processing use explicit storage, dispatch, and ingress adapters, so an application references an external SDK only when it selects that integration.
+LiteBus provides command, query, and event mediation for .NET 10 applications using CQS and DDD. Durable modules add inbox, outbox, saga, storage, dispatch, ingress, hosting, and operational APIs without requiring unrelated broker or database SDKs.
 
-Version 6.0.0 targets .NET 10 and introduces the current module, durable messaging, transport, and hosting model. Applications upgrading from v5 should follow the [v5 to v6 migration guide](https://litebus.io/docs/migration/v6), including its database replacement and data-migration guidance. See the [v6 changelog](https://github.com/litenova/LiteBus/blob/main/Changelog.md#v600) for the complete release record.
+LiteBus is open source under the MIT license, free for commercial use, and will remain free.
 
-## Package Selection
+## What LiteBus Includes
 
-Install the package for each application concern. The package brings its abstractions and lower-layer runtime dependencies with it.
-
-| Concern | Package |
-| --- | --- |
-| Core mediator and durable contracts | `LiteBus` |
-| Commands | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection` |
-| Queries | `LiteBus.Queries.Extensions.Microsoft.DependencyInjection` |
-| Events | `LiteBus.Events.Extensions.Microsoft.DependencyInjection` |
-| Inbox core | `LiteBus.Inbox` |
-| Outbox core | `LiteBus.Outbox` |
-| PostgreSQL storage | `LiteBus.Inbox.Storage.PostgreSql` or `LiteBus.Outbox.Storage.PostgreSql` |
-| Entity Framework Core storage | `LiteBus.Inbox.Storage.EntityFrameworkCore` or `LiteBus.Outbox.Storage.EntityFrameworkCore` |
-| In-memory storage for tests | `LiteBus.Inbox.Storage.InMemory` or `LiteBus.Outbox.Storage.InMemory` |
-| In-process dispatch | `LiteBus.Inbox.Dispatch.InProcess` or `LiteBus.Outbox.Dispatch.InProcess` |
-| Broker dispatch or ingress | Install the matching `LiteBus.Inbox.Dispatch.*`, `LiteBus.Outbox.Dispatch.*`, or `LiteBus.Inbox.Ingress.*` package |
-| Broker transport | `LiteBus.Transport.Amqp`, `LiteBus.Transport.Kafka`, `LiteBus.Transport.AwsSqs`, or `LiteBus.Transport.AzureServiceBus` |
-| Generic Host bridge | `LiteBus.Runtime.Extensions.Microsoft.Hosting` |
-| OpenTelemetry registration | `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, or `LiteBus.Transport.Extensions.OpenTelemetry` |
-
-The [Dependency Graph](https://litebus.io/docs/architecture/dependency-graph) lists every package, its architectural layer, and its direct references.
-
-Read the published documentation at [litebus.io](https://litebus.io), browse the [package and feature index](https://litebus.io/docs/reference/feature-index-v6), or run the Fumadocs site locally from [`site`](site/README.md).
+- Separate command, query, and event contracts, mediators, handlers, and pipelines.
+- Handler priorities, filters, pre-handlers, post-handlers, and error handlers.
+- Durable inbox processing for commands and transactional outbox processing for events.
+- Saga state with correlation, tenancy, optimistic concurrency, and duplicate dispatch suppression.
+- Opt-in PostgreSQL, Entity Framework Core, in-memory, AMQP, Kafka, AWS SQS, and Azure Service Bus adapters.
+- Generic Host integration, health checks, diagnostics, management endpoints, and OpenTelemetry registration.
 
 ## Quick Start
 
-Install one or more semantic mediator modules:
+Install the command module for Microsoft dependency injection:
 
 ```bash
 dotnet add package LiteBus.Commands.Extensions.Microsoft.DependencyInjection
-dotnet add package LiteBus.Queries.Extensions.Microsoft.DependencyInjection
-dotnet add package LiteBus.Events.Extensions.Microsoft.DependencyInjection
 ```
 
-Define a command and one handler:
+Define a command and handler:
 
 ```csharp
 public sealed record CreateProductCommand(string Name, decimal Price) : ICommand<Guid>;
@@ -65,42 +43,12 @@ public sealed class CreateProductCommandHandler : ICommandHandler<CreateProductC
         CreateProductCommand command,
         CancellationToken cancellationToken)
     {
-        var productId = Guid.NewGuid();
-        return Task.FromResult(productId);
+        return Task.FromResult(Guid.NewGuid());
     }
 }
 ```
 
-Register the messaging and semantic features in one callback. The module registry validates the completed dependency graph, so callback order does not change build order:
-
-```csharp
-builder.Services.AddLiteBus(liteBus =>
-{
-    var applicationAssembly = typeof(Program).Assembly;
-
-    liteBus.AddMessaging(_ => { });
-    liteBus.AddCommands(commands =>
-        commands.RegisterFromAssembly(applicationAssembly));
-    liteBus.AddQueries(queries =>
-        queries.RegisterFromAssembly(applicationAssembly));
-    liteBus.AddEvents(events =>
-        events.RegisterFromAssembly(applicationAssembly));
-});
-```
-
-Inject the mediator for the operation being performed:
-
-```csharp
-var productId = await commandMediator.SendAsync(
-    new CreateProductCommand("Widget", 9.99m),
-    cancellationToken);
-```
-
-The [Getting Started](https://litebus.io/docs/getting-started) guide covers commands, queries, events, module declaration, and handler discovery.
-
-## Durable Messaging
-
-An inbox stores a command before execution. An outbox stores an event before publication. Storage, dispatch, ingress, and hosted processing remain separate choices.
+Register messaging and command handlers:
 
 ```csharp
 builder.Services.AddLiteBus(liteBus =>
@@ -108,48 +56,35 @@ builder.Services.AddLiteBus(liteBus =>
     liteBus.AddMessaging(_ => { });
     liteBus.AddCommands(commands =>
         commands.RegisterFromAssembly(typeof(Program).Assembly));
-
-    liteBus.AddInbox(inbox =>
-    {
-        inbox.Contracts.Register<CreateProductCommand>("catalog.create-product");
-        inbox.UseInMemoryStorage();
-        inbox.UseInProcessDispatch();
-        inbox.EnableInboxProcessor();
-    });
 });
 ```
 
-Use in-memory storage for tests and local behavior checks. Use the PostgreSQL or Entity Framework Core adapter when durable writes must participate in an application transaction. See [Inbox](https://litebus.io/docs/reliable-messaging/inbox), [Outbox](https://litebus.io/docs/reliable-messaging/outbox), and [Transactional Messaging Writes](https://litebus.io/docs/reliable-messaging/transactional-writes).
+Inject `ICommandMediator` and send the command:
 
-## Architecture
+```csharp
+var productId = await commandMediator.SendAsync(
+    new CreateProductCommand("Widget", 9.99m),
+    cancellationToken);
+```
 
-LiteBus projects follow an explicit dependency role matrix. Every shipping project is assigned one role, and architecture tests reject forbidden project edges and direct package references.
+The [Getting Started guide](https://litebus.io/docs/getting-started) covers commands, queries, events, module registration, and handler discovery.
 
-| Dependency role | Responsibility |
-| --- | --- |
-| Platform, mediation, and durable contracts | Stable abstractions without SDK or host dependencies |
-| Core implementation | Default implementations and broker-neutral runtime behavior |
-| Technology adapter | One persistence or broker technology |
-| Feature bridge | Storage, dispatch, ingress, and cross-feature integration |
-| Host adapter | Dependency injection, hosting, ASP.NET Core, diagnostics, and telemetry composition |
-| Consumer tooling and aggregate | Analyzer/test support and the core-only convenience package |
+## Durable Messaging
 
-The project count is intentional. Inbox and outbox remain separate, each broker and store remains opt-in, and integration SDKs do not enter unrelated dependency graphs. See [Architecture](https://litebus.io/docs/architecture) for the module lifecycle and package rules.
+The inbox persists commands before execution. The outbox persists events before publication. Saga storage tracks correlated workflow state. Each axis selects its storage, dispatch, ingress, and processor modules explicitly.
+
+Use in-memory adapters for tests. Use PostgreSQL or Entity Framework Core when message writes must participate in an application transaction. Broker integrations remain separate packages so applications install only the SDKs they use.
+
+See [Reliable Messaging](https://litebus.io/docs/reliable-messaging), [Transactional Messaging Writes](https://litebus.io/docs/reliable-messaging/transactional-writes), and [Package Selection](https://litebus.io/docs/architecture/dependency-graph).
 
 ## Documentation
 
-Repository documentation is authoritative. Start with the [Documentation Index](https://litebus.io/docs).
-
-| Subject | Reference |
-| --- | --- |
-| Compile-checked application sample | [LiteBus Sample](samples/LiteBus.Sample/README.md) |
-| Capability and package inventory | [v6 Feature Index](https://litebus.io/docs/reference/feature-index-v6) and [Capability Catalog](https://litebus.io/docs/reference/capability-catalog) |
-| Module and dependency model | [Architecture](https://litebus.io/docs/architecture) and [Dependency Graph](https://litebus.io/docs/architecture/dependency-graph) |
-| Handler behavior | [Handler Pipeline](https://litebus.io/docs/concepts/handler-pipeline) and [Execution Context](https://litebus.io/docs/concepts/execution-context) |
-| Reliable messaging | [Reliable Messaging Semantics](https://litebus.io/docs/reliable-messaging/semantics) |
-| Operations | [Production Runbook](https://litebus.io/docs/operations/runbook) and [Diagnostics and Health](https://litebus.io/docs/operations/diagnostics-and-health) |
-| Testing | [Testing](https://litebus.io/docs/testing) and [Integration Tests](https://litebus.io/docs/testing/integration-tests) |
-| Upgrade work | [Migration Guide v6](https://litebus.io/docs/migration/v6) |
+- [Documentation Index](https://litebus.io/docs)
+- [Feature and Package Index](https://litebus.io/docs/reference/feature-index-v6)
+- [Architecture and Module Model](https://litebus.io/docs/architecture)
+- [Operations](https://litebus.io/docs/operations)
+- [Testing](https://litebus.io/docs/testing)
+- [Migration Guide](https://litebus.io/docs/migration/v6)
 
 ## Build and Test
 
@@ -160,10 +95,12 @@ dotnet test LiteBus.slnx --configuration Release --no-build
 pwsh ./scripts/Test-Documentation.ps1
 ```
 
-Docker is required for the PostgreSQL, AMQP, Kafka, AWS SQS emulator, Azure Service Bus emulator, and relational integration suites. The [Integration Tests](https://litebus.io/docs/testing/integration-tests) guide lists the CI categories and local commands.
+Docker is required for integration suites that exercise PostgreSQL, AMQP, Kafka, AWS SQS, and Azure Service Bus emulators.
 
-## Contributing
+## Project Policy
 
-Read [Contributing](https://litebus.io/docs/contributing) before changing public APIs, package references, module dependencies, or persisted envelope behavior.
-
-LiteBus is licensed under the [MIT License](LICENSE).
+- [Contributing](CONTRIBUTING.md)
+- [AI Use Policy](AI_POLICY.md)
+- [Security Policy](SECURITY.md)
+- [Support](SUPPORT.md)
+- [MIT License](LICENSE)

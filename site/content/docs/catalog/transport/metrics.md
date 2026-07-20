@@ -45,7 +45,7 @@ Applications subscribe with `AddLiteBusTransportMetrics()`. AMQP package keeps c
 
 - Per-message publish and consume counters.
 - Prebuilt dashboard bundles.
-- Legacy AMQP-only meter names from pre-v6.
+- AMQP-specific circuit breaker meter names; use the shared transport instruments with the `amqp` broker tag.
 
 ## Observability
 

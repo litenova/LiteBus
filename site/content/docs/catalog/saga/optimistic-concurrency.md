@@ -53,7 +53,7 @@ Raising inbox `DispatcherConcurrency` above one increases concurrent updates to 
 
 ## Observability
 
-No concurrency-specific meters in v6.
+Saga concurrency does not emit dedicated meters.
 
 **What to use instead**
 

@@ -28,7 +28,7 @@ public interface INotificationMediator
 
 ### 2. Implement the Module Logic
 
-Create the `IModule` implementation, a builder, and the mediator. Custom mediators on `IMessageMediator` use `MessageMediationRequest<TMessage, TResult>` (replacing `MessageMediationRequest`); pass `CancellationToken` to `Mediate`, not inside the request bag. See [Migration Guide v6](../migration/v6.md).
+Create the `IModule` implementation, a builder, and the mediator. Custom mediators on `IMessageMediator` use `MessageMediationRequest<TMessage, TResult>`; pass `CancellationToken` to `Mediate`, not inside the request bag. Historical API mappings are documented in the [Migration Guide](../migration/v6.md).
 
 ```csharp
 // The mediator that will orchestrate the process

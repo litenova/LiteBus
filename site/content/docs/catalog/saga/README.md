@@ -2,7 +2,7 @@
 
 LiteBus saga support is an Extension tier feature. It adds correlated state persistence around inbox command dispatch through `IProcessorEnvelopeHook` and `ISagaContext`.
 
-Saga registration is composed from the inbox axis. There is no public top-level `AddSagaModule(...)` API in v6. Register saga through `builder.AddInbox(inbox => inbox.EnableSaga(...))` and select exactly one store in the saga callback.
+Saga registration is composed from the inbox axis. Register saga through `builder.AddInbox(inbox => inbox.EnableSaga(...))` and select exactly one store in the saga callback. There is no public top-level `AddSagaModule(...)` API.
 
 ## Lifecycle
 
@@ -69,11 +69,11 @@ services.AddLiteBus(builder =>
 | --- | --- | --- |
 | Unit | `tests/LiteBus.Storage.UnitTests/Saga/` | Hook phases, same-correlation scope isolation, registry resolution, in-memory concurrency, query, purge, and schema bootstrap |
 | Integration | `tests/LiteBus.Storage.IntegrationTests/PostgreSql/` | End-to-end inbox plus saga plus PostgreSQL, orchestration depth, compensation, optimistic concurrency, connection ownership |
-| Composition smoke | `tests/LiteBus.Runtime.UnitTests/Runtime/Composition/` | v6 composition wiring (`EnableSaga`) and correlated state persistence |
+| Composition smoke | `tests/LiteBus.Runtime.UnitTests/Runtime/Composition/` | `EnableSaga` composition wiring and correlated state persistence |
 
 ## Key Gaps Documented
 
-| Gap | Status in v6 |
+| Gap | Current Status |
 | --- | --- |
 | Outbox saga support | Not implemented |
 | Single transaction for inbox terminal plus saga save | Not implemented |
@@ -81,7 +81,7 @@ services.AddLiteBus(builder =>
 | EF Core saga store adapter | Not implemented |
 | Saga-specific metrics and activity source | Not implemented |
 | Automatic correlation id generation | Not implemented |
-| Saga metrics and tracing | Use inbox processor signals; no saga-specific instruments in v6 |
+| Saga metrics and tracing | Use inbox processor signals; there are no saga-specific instruments |
 
 ## Deep Docs
 

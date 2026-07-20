@@ -33,9 +33,8 @@ namespace LiteBus.Storage.IntegrationTests.PostgreSql;
 /// <remarks>
 ///     Dispatch mode is explicit: <see cref="InboxModuleBuilderCommandDispatchExtensions.UseInProcessDispatch" /> runs handlers
 ///     locally.
-///     v6 does not allow combining that with <c>UseAmqpDispatch</c> on the inbox axis; transport dispatch is covered
-///     separately
-///     in <see cref="PostgreSqlInboxIngressEndToEndTests" />.
+///     An inbox module cannot combine direct command dispatch with <c>UseAmqpDispatch</c>. Transport dispatch is
+///     covered separately in <see cref="PostgreSqlInboxIngressEndToEndTests" />.
 /// </remarks>
 public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, IClassFixture<PostgreSqlFixture>
 {

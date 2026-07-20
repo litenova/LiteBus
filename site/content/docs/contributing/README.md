@@ -1,6 +1,6 @@
 # Contributing
 
-This page explains how to build, test, and document LiteBus when contributing. It reflects the rules in the repository's `AGENTS.md`, which automated agents and human contributors both follow. Read it before opening a pull request.
+This page explains how to build, test, and document LiteBus when contributing.
 
 ## Build
 
@@ -42,7 +42,7 @@ All C# under `src/` must carry XML documentation (`///`) on every construct, inc
 
 Match the existing style: indent summary text with four spaces after the opening tag, use `<see cref="TypeName" />` for solution references, and use `<see langword="null" />`, `<see langword="true" />`, and `<see langword="false" />` where appropriate. Do not add documentation that only restates the identifier.
 
-`tests/` and `benchmarks/` are exempt unless a task says otherwise.
+Public types and members in test helpers, shared fixtures, and sample entry points require XML documentation. Private test members and `benchmarks/` are exempt unless the change requires documentation there.
 
 ## Changelog
 

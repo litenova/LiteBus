@@ -96,7 +96,7 @@ Meter `LiteBus.Inbox`. Register with `AddLiteBusInboxMetrics()`.
 | `litebus.transport.circuit_breaker.open` | `amqp` | At least one destination-scoped publisher circuit is open or half-open |
 | `litebus.transport.circuit_breaker.failure_count` | `amqp` | Current failures summed across publisher circuits |
 
-Legacy `litebus.amqp.circuit_breaker.*` meters removed in v6; use shared transport instruments with broker tag.
+AMQP circuit breaker metrics use the shared transport instruments with the `amqp` broker tag. No AMQP-specific circuit breaker meter names are emitted.
 
 ### Structured Logs
 
