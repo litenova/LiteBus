@@ -161,6 +161,11 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
                 AmqpHeaderValues.GetString(headers, TransportHeaders.ContractName).Should().Be(contractName);
 
                 var store = provider.GetRequiredService<InMemoryInboxStore>();
+
+                await PollingWait.UntilAsync(
+                    () => store.Get(messageId).Status == InboxStatus.Completed,
+                    TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+
                 store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
             }
             finally
