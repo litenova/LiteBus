@@ -162,7 +162,7 @@ One row per capability. Packages list primary install targets; transitive abstra
 
 | ID | Name | Axis | Maturity | Summary | Packages | Deep doc |
 | --- | --- | --- | --- | --- | --- | --- |
-| `durable-core.command-inbox-patterns` | Command-inbox patterns | durable-core | GA | Explicit accept-at-edge patterns replacing v5 command inbox | `LiteBus.Inbox` | [command-inbox-patterns.md](../catalog/durable-core/command-inbox-patterns.md) |
+| `durable-core.command-inbox-patterns` | Command-inbox patterns | durable-core | GA | Explicit accept-at-edge patterns for deferred command execution | `LiteBus.Inbox` | [command-inbox-patterns.md](../catalog/durable-core/command-inbox-patterns.md) |
 | `durable-core.domain-events-unit-of-work` | Domain events and unit of work | durable-core | GA | Collect domain events and enqueue outbox in one UoW | `LiteBus.Outbox` | [domain-events-unit-of-work.md](../catalog/durable-core/domain-events-unit-of-work.md) |
 | `durable-core.durable-dispatch` | Durable dispatch | durable-core | GA | Processor-driven side effects through registered dispatchers | `LiteBus.Inbox`, `LiteBus.Outbox` | [durable-dispatch.md](../catalog/durable-core/durable-dispatch.md) |
 | `durable-core.durable-storage` | Durable storage | durable-core | GA | Persisted inbox and outbox envelope model | `LiteBus.Inbox`, `LiteBus.Outbox` | [durable-storage.md](../catalog/durable-core/durable-storage.md) |
@@ -478,7 +478,7 @@ Each capability file ends with **Test coverage**:
 
 Synthesis from per-capability **Untested use cases** and **Out-of-scope use cases** sections. "Expansion candidate" indicates whether a first-class LiteBus capability is a natural fit (Yes), partial or roadmap (Partial), or intentional non-goal (No).
 
-| Priority | Gap | Affected axes | Workaround today | Expansion candidate? |
+| Priority | Gap | Affected axes | Current Alternative | Expansion candidate? |
 | --- | --- | --- | --- | --- |
 | 1 | HTTP/webhook ingress and outbox dispatch | ingress, durable-core, dispatch, transport | Controller calls `IInbox.AcceptAsync`; custom `IOutboxDispatcher` for HTTP callbacks | Yes ([Roadmap](../roadmap/README.md)) |
 | 2 | Exactly-once end-to-end delivery | durable-core, dispatch, transport, ingress, mediator | At-least-once with accept dedup; handler-side idempotency tables | Partial (handler dedup store on roadmap) |
@@ -493,7 +493,7 @@ Synthesis from per-capability **Untested use cases** and **Out-of-scope use case
 | 11 | Contract version migration and schema registry | durable-core, runtime, analyzers | Dual registration; drain old version | Partial (CLI on roadmap) |
 | 12 | Built-in Grafana/dashboard bundles | hosting, transport, ingress | Documented metric names; app-owned dashboards | Partial (docs/recipes) |
 | 13 | Saga outbox integration and remote scope propagation | saga, dispatch | Inbox-only hooks; consumer host enables saga with shared store | Partial |
-| 14 | Deep storage dedup (`RelationalMessageStore`) | storage | Duplicated inbox/outbox SQL today | Yes ([Roadmap-Deep-Storage-Dedup](../roadmap/storage-deduplication.md)) |
+| 14 | Deep storage dedup (`RelationalMessageStore`) | storage | Separate inbox and outbox relational store orchestration | Yes ([Roadmap-Deep-Storage-Dedup](../roadmap/storage-deduplication.md)) |
 | 15 | Flat convenience registration (`UsePostgreSqlInbox`) | hosting, durable-core, dispatch | Nested `AddInbox` builders | Partial (deferred ergonomics) |
 
 ---
@@ -504,7 +504,7 @@ To add a new LiteBus capability:
 
 1. **Choose the axis.** Match dependency role rules in [Dependency graph](../architecture/dependency-graph.md). New broker glue belongs in transport plus dispatch and/or ingress, not in durable core.
 
-2. **Add catalog files under `docs/catalog/<axis>/`.**
+2. **Add catalog files under `site/content/docs/catalog/<axis>/`.**
    - One standalone capability markdown file using the [capability page template](#capability-page-template) (`axis.slug`, maturity, summary, **Public surface**, packages, requires, invariants, non-goals, **Observability**, **Test coverage** with one block per covered test method).
    - Update the axis `README.md` capability table only.
    - Add or extend tests; add one covered use case block per new test method.
@@ -514,10 +514,10 @@ To add a new LiteBus capability:
 4. **Update sibling docs when shipping code:**
    - [Architecture.md](../architecture/README.md) for invariants and feature sections
    - [Dependency-Graph.md](../architecture/dependency-graph.md) for new packages and dependency-role placement
-   - [Roadmap.md](../roadmap/README.md) when moving from Planned to GA or closing deferred items
+   - [Roadmap.md](../roadmap/README.md) when planned scope changes or becomes part of the current product
    - Feature guides (`Inbox.md`, transport guides, and similar) for narrative registration recipes
    - [Analyzers.md](analyzers.md) and `LiteBus.Analyzers` tests if compile-time rules apply
-   - [v6-Feature-Index.md](feature-index-v6.md) when the capability is v6-shipped (optional cross-link)
+   - [Feature Index](feature-index-v6.md) when the capability belongs in the quick package map
 
 5. **Preserve granular packaging.** Do not merge orthogonal adapters into kitchen-sink packages unless an explicit breaking packaging change is approved.
 

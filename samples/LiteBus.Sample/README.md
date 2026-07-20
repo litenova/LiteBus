@@ -1,6 +1,6 @@
-# LiteBus v6 Sample
+# LiteBus Sample
 
-This ASP.NET Core sample composes command, query, event, inbox, and outbox modules through the v6 nested builder API. It uses in-memory storage and in-process dispatch so it runs without a database or broker.
+This ASP.NET Core sample composes command, query, event, inbox, and outbox modules through the nested builder API. It uses in-memory storage and direct mediator dispatch so it runs without a database or broker.
 
 Run the application from the repository root:
 

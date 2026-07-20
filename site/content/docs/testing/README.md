@@ -1,6 +1,6 @@
 # Testing
 
-This page covers testing durable messaging in LiteBus v6: InMemory storage for fast unit tests, shared store contract harnesses, Testcontainers for PostgreSQL and AMQP integration tests, and the durable transport integration matrix.
+This page covers testing durable messaging in LiteBus: in-memory storage for fast unit tests, shared store contract harnesses, Testcontainers for PostgreSQL and AMQP integration tests, and the durable transport integration matrix.
 
 For a full inventory of integration test projects, fixtures, scenarios, and CI filters, see [Integration Tests](integration-tests.md). Pull request and release workflows collect every test batch with the repository run settings and require at least 90 percent merged source-line coverage.
 
@@ -8,7 +8,7 @@ For a full inventory of integration test projects, fixtures, scenarios, and CI f
 
 `coverlet.runsettings` is the single collector configuration for local, pull request, and release runs. It emits JSON for the repository gate and Cobertura for Codecov and human-readable reports. The collector excludes test, sample, benchmark, and test-support assemblies.
 
-`scripts/Test-CoverageThreshold.ps1` merges executable line identities by source document and line number across every JSON report. It also merges branch identities and reports branch coverage, but the v6 required threshold is 90 percent for lines under `src/`. A line covered by any unit, transport, or integration batch counts once. A line present but uncovered in every batch also counts once. This avoids both duplicate counting and the false pass produced by averaging per-process percentages.
+`scripts/Test-CoverageThreshold.ps1` merges executable line identities by source document and line number across every JSON report. It also merges branch identities and reports branch coverage. The required threshold is 90 percent for lines under `src/`. A line covered by any unit, transport, or integration batch counts once. A line present but uncovered in every batch also counts once. This avoids both duplicate counting and the false pass produced by averaging per-process percentages.
 
 CI writes isolated reports under `artifacts/coverage/` for these batches:
 
@@ -112,7 +112,7 @@ AMQP dispatch and ingress tests use Testcontainers with RabbitMQ and LavinMQ ima
 
 `LiteBus.Durable.IntegrationTests` (`tests/LiteBus.Durable.IntegrationTests/`) is the unified broker matrix for InMemory, Kafka, AWS SQS, Azure Service Bus (emulator plus optional live namespace), and AMQP. Tests are grouped in `Ingress/`, `Dispatch/Inbox/`, `Dispatch/Outbox/`, and `Registration/` subfolders by broker. Fast InMemory wire tests are tagged `TransportFast`. Kafka, LocalStack, and AMQP scenarios use `TransportDocker`. Azure emulator and optional live tests use `TransportAzure`. Registration smoke (`Registration/BrokerDispatchIngressRegistrationTests.cs`) has no category trait and runs in the final Integration Tests CI batch.
 
-Sample v6 composition smoke (`LiteBusV6CompositionSmokeTests`) lives in `LiteBus.Runtime.UnitTests`, not in the durable matrix.
+The sample composition smoke test (`LiteBusV6CompositionSmokeTests`) lives in `LiteBus.Runtime.UnitTests`, not in the durable matrix.
 
 ### Ack Policy (Ingress)
 
@@ -177,7 +177,7 @@ Same legend and rows as [Integration tests: ingress matrix](integration-tests.md
 | Project | Role |
 |---------|------|
 | `LiteBus.Durable.IntegrationTests` | Unified broker matrix (`Ingress/`, `Dispatch/`, `Registration/`) |
-| `LiteBus.Runtime.UnitTests` | v6 composition smoke (`Runtime/Composition/`) |
+| `LiteBus.Runtime.UnitTests` | Sample composition smoke (`Runtime/Composition/`) |
 | `LiteBus.Transport.IntegrationTesting` | Shared messages, traits, `FlakyInbox`, polling helpers |
 | `LiteBus.Transport.Testing` | Published transport adapter contract suite (not a test executor) |
 | `LiteBus.Transport.IntegrationTests` | AMQP wire protocol (no inbox/outbox) |
@@ -186,4 +186,4 @@ Same legend and rows as [Integration tests: ingress matrix](integration-tests.md
 
 ## Next
 
-See [Integration Tests](integration-tests.md) for the full project and scenario reference, [Documentation Semantic Validation](../reference/semantic-validation.md) for executable documentation anchors, [Cookbook and Scenarios](../getting-started/cookbook.md), or [Migration Guide v6](../migration/v6.md).
+See [Integration Tests](integration-tests.md) for the full project and scenario reference, [Documentation Semantic Validation](../reference/semantic-validation.md) for executable documentation anchors, [Cookbook and Scenarios](../getting-started/cookbook.md), or the [Migration Guide](../migration/v6.md).

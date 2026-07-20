@@ -13,7 +13,7 @@
 
 `SagaExecutionContext` implements `ISagaContext` as a singleton with one scope per durable message ID. The persisted saga key remains `SagaCorrelation`; the message key only isolates active dispatch snapshots in memory. The same singleton instance serves the processor hook and handlers.
 
-v6 removed `ISagaHandler<TCommand, TState>`. Saga handlers are standard `ICommandHandler<TCommand>` with optional `ISagaContext` injection.
+Saga handlers are standard `ICommandHandler<TCommand>` implementations with optional `ISagaContext` injection.
 
 ## Public Surface
 
@@ -119,7 +119,7 @@ No meters, activities, or structured logging on `ISagaContext` itself.
 
 - **Use case**: Sample handlers use injected `ISagaContext` across correlated commands.
 - **Test kind**: Composition
-- **Description**: Sample v6 `AdvanceOrderSagaCommandHandler`.
+- **Description**: Sample `AdvanceOrderSagaCommandHandler`.
 - **Behavior**: Two correlated accepts processed sequentially.
 - **Expected outcome**: `Step == 2`.
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/Runtime/Composition/`.

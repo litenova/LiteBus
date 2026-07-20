@@ -73,7 +73,7 @@ inbox.UseKafkaIngress(ingress =>
 
 ## Non-Goals
 
-- GA production tier declaration (Beta per v6 feature index).
+- GA production tier declaration. The current tier is Beta in the Feature Index.
 - Full parity with AMQP ingress option surface on the Kafka builder.
 - Kafka outbox ingress (outbox uses dispatch).
 
@@ -136,7 +136,7 @@ Shared broker infrastructure: `LiteBus.Transport.IntegrationTesting` (`KafkaBrok
 
 ### Out-of-Scope
 
-- GA production tier declaration (Beta per v6 feature index).
+- GA production tier declaration. The current tier is Beta in the Feature Index.
 - Full parity with AMQP ingress option surface on the Kafka builder.
 - Kafka outbox ingress (outbox uses dispatch).
 
@@ -144,4 +144,4 @@ Shared broker infrastructure: `LiteBus.Transport.IntegrationTesting` (`KafkaBrok
 
 - [Kafka transport](../../integrations/kafka.md)
 - [Integration tests](../../testing/integration-tests.md) (Kafka harness notes)
-- [v6 feature index: Ingress](../../reference/feature-index-v6.md)
+- [Feature Index: Ingress](../../reference/feature-index-v6.md)

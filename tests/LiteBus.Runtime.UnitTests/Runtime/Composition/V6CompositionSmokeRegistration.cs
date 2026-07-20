@@ -15,7 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace LiteBus.Runtime.UnitTests.Runtime.Composition;
 
 /// <summary>
-///     Registers a minimal inbox/outbox/saga composition used by v6 composition smoke tests.
+///     Registers a minimal inbox, outbox, and saga composition used by composition smoke tests.
 /// </summary>
 public static class V6CompositionSmokeRegistration
 {

@@ -2,11 +2,11 @@
 
 **Priority:** High (maintainability)
 **Production tier:** Not shipped: internal refactor only; no consumer-facing API change when done correctly
-**Status:** Planned (post v6.0 Core GA)
+**Status:** Planned
 
 ## Summary
 
-v6 introduced **folder-level** shared storage helpers under `src/LiteBus.Storage.EntityFrameworkCore/Stores/` and `src/LiteBus.Storage.PostgreSql/Stores/`. Inbox and outbox adapters still carry large, parallel implementations (`PostgreSqlInboxStore`, `PostgreSqlOutboxStore`, `EfCoreInboxStore`, `EfCoreOutboxStore`).
+The current storage packages contain **folder-level** shared helpers under `src/LiteBus.Storage.EntityFrameworkCore/Stores/` and `src/LiteBus.Storage.PostgreSql/Stores/`. Inbox and outbox adapters still carry large, parallel implementations (`PostgreSqlInboxStore`, `PostgreSqlOutboxStore`, `EfCoreInboxStore`, `EfCoreOutboxStore`).
 
 This roadmap item tracks a **deep dedup**: collapse the shared lease, persist, batch idempotency, and query paths into generic relational store cores, while axis-specific packages remain thin typed facades and public store interfaces stay unchanged.
 
@@ -16,10 +16,10 @@ This roadmap item tracks a **deep dedup**: collapse the shared lease, persist, b
 | --- | --- |
 | ~85% duplicated SQL/EF logic between inbox and outbox stores | Bug fixes and correctness changes (for example atomic `PersistAsync`) must land twice |
 | Partial helper extraction only | `PostgreSqlBatchIdempotencyLookup` and `EfCoreBulkUpdateCapabilities` reduce duplication but do not unify the store orchestration |
-| Initial storage helper phase (>=50% line reduction in EF+PG stores) not fully met | Technical debt remains; reviewers cannot trust "fix once" for storage semantics |
+| Duplicate orchestration remains above the line-reduction target | Reviewers cannot apply one storage correctness fix to both axes |
 | Contract tests pass per adapter | Correctness is proven, but implementation drift risk grows with each broker or provider addition |
 
-Deep dedup mirrors what v6 already did for processors in `LiteBus.Messaging/Processing/`: **one engine, two thin shells**.
+The processor implementation in `LiteBus.Messaging/Processing/` uses the target structure: **one engine, two thin shells**.
 
 ## Goal
 
@@ -45,7 +45,7 @@ Public surfaces (`IInboxStore`, `IOutboxStore`, `IInboxProcessingStore`, `IOutbo
 ## Non-Goals
 
 - Merging inbox and outbox into one package or one table
-- A `LiteBus.Storage.Core` meta-package (forbidden by v6 packaging policy)
+- A `LiteBus.Storage.Core` meta-package (forbidden by the package policy)
 - Changing persisted envelope field semantics or schema version
 - InMemory store dedup beyond small shared helpers (InMemory stores are already small)
 - SQL Server-specific storage adapters (separate roadmap item in [Roadmap](README.md))
@@ -114,7 +114,7 @@ PostgreSQL and EF paths share **orchestration** (lease batch, persist with owner
 1. Extract `RelationalPostgreSqlMessageStore<TEnvelope>` with lease, persist, add batch, requeue, diagnostics count.
 2. Reduce `PostgreSqlInboxStore` and `PostgreSqlOutboxStore` to mapper + options wiring.
 3. Run full `InboxStoreContractTests` and `OutboxStoreContractTests` on PostgreSQL adapters.
-4. Target **>=50% line reduction** in the two PG store files (deferred from v6 integration).
+4. Target **>=50% line reduction** in the two PostgreSQL store files.
 
 **Estimate:** one focused PR; Docker PostgreSQL integration required in CI.
 
@@ -129,7 +129,7 @@ PostgreSQL and EF paths share **orchestration** (lease batch, persist with owner
 
 ### Phase 3: Documentation and Graph
 
-1. Update [Dependency graph](../architecture/dependency-graph.md) with `Stores/` layout (deferred from v6 integration).
+1. Update [Dependency graph](../architecture/dependency-graph.md) with the `Stores/` layout.
 2. Cross-link from [Custom stores and dispatchers](../extending/custom-stores-and-dispatchers.md) for adapter authors.
 3. Record the completed refactor and its validation commands in [Changelog](https://github.com/litenova/LiteBus/blob/main/Changelog.md).
 
@@ -157,13 +157,13 @@ PostgreSQL and EF paths share **orchestration** (lease batch, persist with owner
 
 | Item | Relationship |
 | --- | --- |
-| [Messaging/Processing dedup](../architecture/README.md) | Completed; same "folder not package" pattern |
+| [Messaging/Processing structure](../architecture/README.md) | Current example of the same "folder not package" pattern |
 | [Storage integration suites](../testing/integration-tests.md) | Behavioral foundation for this roadmap; not a substitute for shared implementation |
 | SQL Server storage adapters | Future packages; should consume relational EF core once it exists |
 
 ## When to Schedule
 
-Schedule after **v6.0 Core GA** tag. Do not block GA on this refactor: runtime behavior and contract tests already satisfy Core GA. Prioritize when:
+Prioritize this work when:
 
 - A second storage correctness fix would require duplicate edits in inbox and outbox stores, or
 - A new storage provider (for example SQL Server) would copy a third large facade.
@@ -175,7 +175,7 @@ Schedule after **v6.0 Core GA** tag. Do not block GA on this refactor: runtime b
 | Roadmap ID | `RM-STORAGE-DEDUP-01` |
 | Priority | High |
 | Owner | Platform / storage maintainers |
-| Target release | v6.1 or v6.2 (TBD) |
+| Target release | Unscheduled |
 | Matrix impact | Consolidates the duplicate relational store paths covered by [Integration Tests](../testing/integration-tests.md) |
 
 ## See Also

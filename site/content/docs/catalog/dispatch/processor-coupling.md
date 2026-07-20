@@ -7,7 +7,7 @@
 
 ## What It Does
 
-`PipelinedInboxProcessor` and `PipelinedOutboxProcessor` are the only processor implementations in v6. Each pass leases a batch, fans work to `DispatcherConcurrency` workers, renews leases on a heartbeat interval, and calls `DispatchAsync` on the registered dispatcher. Dispatch failures throw; the processor maps exceptions to `Failed` or `DeadLettered` store state according to retry policy.
+`PipelinedInboxProcessor` and `PipelinedOutboxProcessor` are the processor implementations. Each pass leases a batch, fans work to `DispatcherConcurrency` workers, renews leases on a heartbeat interval, and calls `DispatchAsync` on the registered dispatcher. Dispatch failures throw; the processor maps exceptions to `Failed` or `DeadLettered` store state according to retry policy.
 
 Background services register through the module manifest when `EnableInboxProcessor()` or `EnableOutboxProcessor()` runs. Startup fails if no dispatcher is registered. Each dispatched message resolves `IInboxDispatcher` or `IOutboxDispatcher` from a per-message scope so scoped handlers (for example `DbContext`) are isolated.
 

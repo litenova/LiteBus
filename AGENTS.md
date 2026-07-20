@@ -12,6 +12,24 @@ Package inventories, registration recipes, and feature-specific detail live in `
 - **Suggest guide updates.** When repeated overrides, new patterns, or outdated docs show a rule no longer fits, recommend a concrete edit to `AGENTS.md` or the relevant `site/content/docs/` file. The user decides whether to adopt it.
 - **Prefer dialogue over deadlock.** A short question beats a long assumption. If confirmation is unclear, ask once with options rather than blocking on rigid compliance.
 
+## Writing Style (documentation and prose)
+
+Write for experienced .NET developers who already understand messaging, CQS, DDD, and dependency injection.
+
+- Use plain ASCII punctuation. Do not use em dashes, smart quotes, emoji, or decorative symbols.
+- Lead with the exact capability, then a runnable example, then constraints and explanation. Keep reference pages dense and precise.
+- Describe LiteBus in technical terms: command, query, and event mediation, with optional inbox, outbox, saga, storage, transport, hosting, and observability modules.
+- Prefer nouns and verbs over slogans or taglines. Headings name the capability. Use `Durable Inbox and Transactional Outbox`; avoid claims such as `Messages That Never Get Lost`.
+- Do not use sales cadence, rhetorical fragments, or unsupported superlatives. State the API, execution model, durability boundary, or integration directly.
+- Prefer `command, query, and event mediation` over `in-process mediator` unless process locality is the subject. When locality matters, say that handlers execute in the caller's process.
+- Describe durable behavior with exact terms such as persisted inbox acceptance, transactional outbox enqueueing, lease-based processing, and the configured storage or transport adapter.
+- Use CQS and DDD terminology where it clarifies API intent. Do not present those terms as branding.
+- When comparing LiteBus with MediatR, lead with the licensing difference and the semantic command, query, and event model. Keep `IRequest` replacement details in migration documentation, not landing-page copy. Verify and cite current external licensing claims.
+- State the LiteBus license policy directly: LiteBus is MIT licensed, open source, free for commercial use, and will remain free. Do not turn the policy into a tagline.
+- Use Title Case for consumer-facing page headings, section headings, navigation labels, and primary buttons. Use sentence case for body text.
+- Use exact, sourced numbers. Label illustrative examples as illustrative and do not present them as benchmarks.
+- State meaningful limitations and opt-in boundaries alongside the related capability. For example, durable processing requires a selected store and processor host; mediation alone does not persist messages.
+
 ## XML documentation (required)
 
 All C# under `src/` must use XML documentation comments (`///`) on every construct, including `private` and `internal` members. This applies to shipping libraries consumers reference and to internal implementation details agents maintain.
@@ -103,7 +121,7 @@ Conventions below apply during cleanup and to all new code. Analyzer severities 
 - **One top-level type per file** (class, interface, record, struct, enum, delegate).
 - **Allowed exceptions** (document explicitly):
   - `private`/`internal` nested types inside a `partial` class (for example HTTP JSON DTOs in `LiteBusManagementEndpointModels.cs`).
-- **Generic filenames**: bracket arity — `ICommandHandler[TCommand, TCommandResult].cs`. Not CLR backtick names.
+- **Generic filenames**: bracket arity, as in `ICommandHandler[TCommand, TCommandResult].cs`. Do not use CLR backtick names.
 - **Non-generic and generic variants are separate files** (split pairs like `InboxAcceptItem` + `InboxAcceptItem<TMessage>`).
 
 ### Namespaces (required)
@@ -138,7 +156,7 @@ Conventions below apply during cleanup and to all new code. Analyzer severities 
 
 - Prefer **`params` read-only spans/arrays** for **variadic convenience** APIs where callers pass a small, inline list:
   - Module registration helpers (`RegisterDiagnosticCheck`, tag lists, module type lists).
-  - Internal builder wiring with 2–5 homogeneous arguments.
+  - Internal builder wiring with 2-5 homogeneous arguments.
 - **Keep `IReadOnlyList<T>`** for **batch/domain writer APIs** per existing [API Design](site/content/docs/architecture/api-design.md) rules (`AcceptBatchAsync`, `EnqueueAsync` batch entries, parallel business data). Do not replace batch contracts with `params`.
 - When converting, use `params ReadOnlySpan<T>` or `params T[]` and wrap to `IReadOnlyList` internally only at the public batch boundary if needed.
 
@@ -166,7 +184,7 @@ Add where missing on public surfaces touched during cleanup:
 | Attribute | When |
 |-----------|------|
 | `[EnumeratorCancellation]` | `CancellationToken` parameter on `IAsyncEnumerable` / async-iterator methods |
-| `[DebuggerDisplay]` | High-churn public value types (envelopes, receipts, key options) — concise, no PII |
+| `[DebuggerDisplay]` | High-churn public value types (envelopes, receipts, key options), with concise output and no PII |
 | `[DynamicallyAccessedMembers]` / `[RequiresUnreferencedCode]` | Reflection paths (`MessageRegistry`, contract resolution, saga state discovery) |
 | `[EditorBrowsable(Never)]` | Advanced/internal registration hooks exposed as public for framework reasons |
 | `[Obsolete(message, error: false)]` | Already used for telemetry renames; keep pattern consistent |
@@ -244,7 +262,7 @@ LiteBus splits NuGet packages along **concern boundaries** so consumers referenc
 | Per broker (`*.Dispatch.Amqp`, `*.Ingress.Kafka`, `Transport.Amqp`) | Each broker pulls its own SDK. A Kafka-only service must not transitively reference RabbitMQ, Azure Service Bus, or AWS clients. |
 | Per store (`*.Storage.PostgreSql`, `*.Storage.EntityFrameworkCore`, `*.Storage.InMemory`) | Same rule for ORM and database drivers. |
 | Shared core vs broker glue (`Inbox.Dispatch` + `Inbox.Dispatch.Amqp`) | Shared dispatch logic stays broker-neutral; glue packages register one `IModule` pair without referencing sibling brokers or the other durable axis. |
-| Per-module `*.Extensions.Microsoft.DependencyInjection` / `*.Extensions.Autofac` | Empty reference-only install shells; one NuGet ID per semantic module for opt-in registration. **Keep in v6.** Removing `LiteBus.Extensions.All` does not collapse these. |
+| Per-module `*.Extensions.Microsoft.DependencyInjection` / `*.Extensions.Autofac` | Empty reference-only install shells; one NuGet ID per semantic module for opt-in registration. Keep these packages separate. |
 
 **Consumer composition** follows need, not defaults:
 
@@ -263,10 +281,10 @@ Outbox only, in-process dispatch
 
 **What agents should not propose by default**
 
-- Removing or merging per-module empty `*.Extensions.Microsoft.DependencyInjection` or `*.Extensions.Autofac` shell packages (v6 removes only `LiteBus.Extensions.All`).
+- Removing or merging per-module empty `*.Extensions.Microsoft.DependencyInjection` or `*.Extensions.Autofac` shell packages.
 - Merging inbox and outbox adapters into one package because they share similar file names.
-- A single `UseTransport(TransportKind, …)` API backed by one assembly that references every `Transport.*` broker (forces unused SDKs onto consumers).
-- “Durable” or “Transport” meta-packages that bundle both axes and multiple brokers for convenience (duplicates the forbidden kitchen-sink pattern outside the documented `LiteBus` / `Extensions.*` entry points).
+- A single `UseTransport(TransportKind, ...)` API backed by one assembly that references every `Transport.*` broker (forces unused SDKs onto consumers).
+- "Durable" or "Transport" meta-packages that bundle both axes and multiple brokers for convenience (duplicates the forbidden kitchen-sink pattern outside the documented `LiteBus` / `Extensions.*` entry points).
 - Treating high package count in `site/content/docs/architecture/dependency-graph.md` as technical debt; treat **unwanted transitive dependencies** as the debt signal instead.
 
 **When consolidation is in scope**
@@ -357,7 +375,7 @@ One mapper per feature owns translation from command value objects to persistenc
 
 #### Method shape and parameter budget
 
-- **0–2 business parameters:** inline parameters are acceptable when each is orthogonal.
+- **0-2 business parameters:** inline parameters are acceptable when each is orthogonal.
 - **3 or more business parameters:** introduce or extend an `*Item` or `*Request` before adding another parameter.
 - **Batch operations:** accept `IReadOnlyList<*Item>`, not params arrays or parallel lists of related values.
 - **Async methods:** semantic input first, `CancellationToken` last.
@@ -375,7 +393,7 @@ One mapper per feature owns translation from command value objects to persistenc
 #### Ergonomics
 
 - Prefer **static factories on `*Item` records** (`OutboxEnqueueItem<T>.From(message)`) so construction stays discoverable on the type callers pass to writer APIs.
-- Writer facades may expose **one body-only sugar overload** per operation family (for example `EnqueueAsync<TEvent>(TEvent message, …)` implemented as `EnqueueAsync(OutboxEnqueueItem<TEvent>.From(message), …)`). Do not add further overloads that take metadata scalars.
+- Writer facades may expose **one body-only sugar overload** per operation family (for example `EnqueueAsync<TEvent>(TEvent message, ...)` implemented as `EnqueueAsync(OutboxEnqueueItem<TEvent>.From(message), ...)`). Do not add further overloads that take metadata scalars.
 - Use **`with`** on `*Item` and `*Metadata` for ad-hoc composition. Add named static helpers on the `*Item` record only when nested `with` is repetitive and domain-named (`ScheduledAt`, `WithTopic`).
 - Optional thin static helper types (`OutboxEnqueue`, `InboxAccept`) are acceptable for cross-shape glue (untyped batch entries). Do not use plural `*Items` names that imply a collection type. Avoid no-op batch wrappers that only return a passed array.
 - Keep compose-time `*Options` on module builders. Do not thread them through runtime command methods.
@@ -392,9 +410,9 @@ One mapper per feature owns translation from command value objects to persistenc
 7. Does the suffix match the taxonomy table?
 8. Does the type belong in abstractions or an adapter package per dependency role rules?
 
-#### Legacy alignment
+#### API alignment
 
-Surfaces that predate this taxonomy should be aligned when their area is next touched: options objects that mix invocation tuning with cancellation or strategy references; methods with three or more scalar parameters where a request record would clarify intent; error and lease APIs that pass parallel context fields instead of a context record. Specific type names, CLR kind rules (`sealed record` vs `sealed class` for `*HostOptions`), `*Binding` adapter types, and target shapes are tracked in [API Design](site/content/docs/architecture/api-design.md) and [Migration guide v6](site/content/docs/migration/v6.md).
+Surfaces that do not match this taxonomy should be aligned when their area is next touched: options objects that mix invocation tuning with cancellation or strategy references; methods with three or more scalar parameters where a request record would clarify intent; error and lease APIs that pass parallel context fields instead of a context record. Specific type names, CLR kind rules (`sealed record` vs `sealed class` for `*HostOptions`), `*Binding` adapter types, and target shapes are tracked in [API Design](site/content/docs/architecture/api-design.md). Historical mappings belong in the [Migration Guides](site/content/docs/migration/README.md).
 
 ### Composite module pattern
 
@@ -473,7 +491,7 @@ Before adding a project:
 ## Analyzers
 
 - Ship compile-time rules in `LiteBus.Analyzers` only; no runtime dependency on mediator or durable packages.
-- Keep the rule inventory in `site/content/docs/reference/analyzers.md` aligned with `DiagnosticIds` (LB1001–LB1017).
+- Keep the rule inventory in `site/content/docs/reference/analyzers.md` aligned with `DiagnosticIds` (LB1001-LB1017).
 - **LB1007** covers handled durable types missing contract registration; honor `RegisterFromAssembly` the same as explicit `Contracts.Register`.
 - **LB1017** covers attributed durable types; match only `IContractWriter` / `IMessageContractRegistry` `Register` invocations, not unrelated `Register<T>()` methods.
 - **LB1004** must cover `AcceptAsync`, `AcceptBatchAsync`, and `ITransactionalInbox` acceptance APIs.

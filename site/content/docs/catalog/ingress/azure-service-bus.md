@@ -78,7 +78,7 @@ bus.AddInbox(inbox => inbox.UseAzureServiceBusIngress(ingress =>
 - `SubscriptionName` is required when `Destination` is a topic.
 - `PrefetchCount` fills the Azure client cache, while `MaxConcurrentCalls` controls Azure processor callbacks. `Safety.MaxInFlightMessages` applies the final LiteBus handler cap.
 - LiteBus contract headers are required on the wire payload.
-- Beta tier per v6 feature index; treat broker edge cases as application-tested.
+- Beta tier per the Feature Index; applications must test broker-specific edge cases.
 - Identity and idempotency default to broker-scoped values (`Safety.RequireStableIdentity=true`, `Safety.TrustApplicationHeaders=false`).
 
 ## Non-Goals
@@ -149,4 +149,4 @@ Service Bus ingress uses shared mapper defaults:
 ## Deep Docs
 
 - [Azure Service Bus transport](../../integrations/azure-service-bus.md)
-- [v6 feature index: Ingress](../../reference/feature-index-v6.md)
+- [Feature Index: Ingress](../../reference/feature-index-v6.md)

@@ -41,12 +41,12 @@ Custom stores implement `ISagaStore` and expose an `ISagaStorageModule` selected
 ## Non-Goals
 
 - EF Core saga storage is not shipped. Use PostgreSQL or implement a custom store.
-- Store does not participate in inbox terminal transactions in v6.
+- The store does not participate in inbox terminal transactions.
 - No built-in encryption of saga state JSON (use application-level sensitive field handling or future platform features).
 
 ## Observability
 
-No store-level OpenTelemetry instruments in v6.
+The saga store does not emit dedicated OpenTelemetry instruments.
 
 **What to use instead**
 

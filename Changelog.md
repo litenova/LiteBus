@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## v6.0.1
+
+Documentation and policy maintenance release for .NET 10. Public APIs, persistence schemas, and transport behavior are unchanged.
+
+### Added
+
+- `AI_POLICY.md` documents the project's history before public generative coding assistants and defines review, disclosure, provenance, and verification requirements for AI-assisted contributions.
+- Repository writing guidance for technical documentation, API descriptions, and capability comparisons.
+
+### Changed
+
+- The root README now focuses on command, query, and event mediation, durable messaging, a compact command example, and direct documentation links.
+- Non-migration documentation describes the current LiteBus API and behavior without release-transition narratives. Historical API, package, and database transitions remain in the migration guides.
+- The roadmap lists planned work without a version-specific roadmap page.
+- Documentation edit links target the `main` branch.
+
+### Fixed
+
+- PostgreSQL schema drift diagnostics describe an incompatible current schema contract without assuming that an existing table belongs to a specific LiteBus release.
+
 ## v6.0.0
 
 Major release for **.NET 10** (`net10.0` only). Applications upgrading from v5 must adopt nested module builders,

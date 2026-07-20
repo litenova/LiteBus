@@ -1,6 +1,6 @@
 # Glossary
 
-This page defines terms used across the LiteBus v6 documentation. Each entry links to the page that explains it in depth.
+This page defines terms used across the LiteBus documentation. Each entry links to the page that explains it in depth.
 
 ## Core Concepts
 
@@ -57,7 +57,7 @@ LiteBus keeps domain-specific names instead of one generic "store" verb:
 
 | Term | Definition |
 | --- | --- |
-| Schema version | Physical table contract recorded per component. Inbox, outbox, and saga start at version **1** in v6. v5 shapes require replacement or an application-owned data migration. |
+| Schema version | Physical table contract recorded per component. Inbox, outbox, and saga use version **1**. Incompatible historical shapes require the procedures in the [Migration Guide](../migration/v6.md). |
 | Create script | `GetCreateScript()` renders current-version DDL for a new table. See [PostgreSQL schema management](../integrations/postgresql-schema-management.md). |
 | `EnsureAsync` / `ValidateAsync` | Opt-in host bootstrap or validate-only startup for PostgreSQL stores. |
 
@@ -71,4 +71,4 @@ LiteBus keeps domain-specific names instead of one generic "store" verb:
 
 ## Next
 
-See [Migration Guides](../migration/README.md) for historical upgrades, or [Migration Guide v6](../migration/v6.md) for the v5 to v6 upgrade.
+See [Migration Guides](../migration/README.md) for historical version transitions.

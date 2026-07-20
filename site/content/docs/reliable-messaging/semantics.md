@@ -2,7 +2,7 @@
 
 **Production tier: GA**
 
-Deep reference for delivery guarantees, idempotency, and broker behavior in LiteBus v6. For registration and package layout, start with [Reliable messaging](README.md). For atomic domain + inbox/outbox writes, see [Transactional messaging writes](transactional-writes.md).
+Deep reference for delivery guarantees, idempotency, and broker behavior in LiteBus. For registration and package layout, start with [Reliable Messaging](README.md). For atomic domain and inbox/outbox writes, see [Transactional Messaging Writes](transactional-writes.md).
 
 ## At-Least-Once
 
@@ -62,13 +62,13 @@ See [Hosted services](../architecture/hosted-services.md) and [Production runboo
 
 Ingress logs `ingress.ack_failed_after_accept` when ack fails after successful accept; broker may redeliver (at-least-once).
 
-## v6 Schema Version 1
+## Schema Version 1
 
-PostgreSQL inbox, outbox, and saga tables start at schema version **1** in v6. The create scripts contain the complete 6.0 shape. No automatic upgrade exists for LiteBus v5 tables. See [Migration Guide v6](../migration/v6.md).
+PostgreSQL inbox, outbox, and saga tables use schema version **1**. The create scripts contain the complete current shape. The schema manager validates existing tables and does not mutate incompatible shapes. See the [Migration Guide](../migration/v6.md) for historical database transitions.
 
 ## Comparison Table
 
-| Concern | In-process mediator | Durable inbox/outbox |
+| Concern | Direct mediation | Durable inbox/outbox |
 | --- | --- | --- |
 | Crash safety | None | Store + processor |
 | Ordering | Handler pipeline order | FIFO-like by `created_at`; no strict order for ties, retries, or multiple workers |

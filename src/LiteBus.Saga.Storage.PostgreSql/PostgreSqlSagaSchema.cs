@@ -34,8 +34,8 @@ namespace LiteBus.Saga.Storage.PostgreSql;
 ///         </item>
 ///     </list>
 ///     <para>
-///         LiteBus v6 starts at schema version 1. The version 1 create script includes the applied message identifier
-///         used for duplicate dispatch suppression. LiteBus v5 did not ship a saga store schema.
+///         The saga schema uses version 1. Its create script includes the applied message identifier used for duplicate
+///         dispatch suppression.
 ///     </para>
 /// </remarks>
 public static class PostgreSqlSagaSchema

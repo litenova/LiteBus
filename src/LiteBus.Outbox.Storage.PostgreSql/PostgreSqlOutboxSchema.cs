@@ -39,8 +39,9 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 ///         </item>
 ///     </list>
 ///     <para>
-///         LiteBus v6 starts at schema version 1. The version 1 create script contains the complete v6 table shape,
-///         including opaque payload text and lease fencing. LiteBus does not mutate v5 outbox tables automatically.
+///         The outbox schema uses version 1. Its create script contains the complete current table shape, including
+///         opaque payload text and lease fencing. LiteBus validates existing tables without mutating incompatible
+///         shapes.
 ///     </para>
 /// </remarks>
 public static class PostgreSqlOutboxSchema

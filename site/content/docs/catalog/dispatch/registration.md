@@ -105,7 +105,7 @@ Throws `LiteBusConfigurationException` when a second dispatcher module is regist
 
 Each extension builds `TransportInboxDispatcherOptions` or `TransportOutboxDispatcherOptions`, wraps `TransportInboxDispatchModule` or `TransportOutboxDispatchModule`, and calls `RegisterDispatcher`.
 
-Registration runs inside `AddInbox(...)` or `AddOutbox(...)` alongside storage and processor enablement. v6 removed flat top-level dispatcher registrars; compose through the parent module builder only.
+Registration runs inside `AddInbox(...)` or `AddOutbox(...)` alongside storage and processor enablement. Compose through the parent module builder only.
 
 ## Observability
 
@@ -130,7 +130,7 @@ Register inbox and outbox meters through `AddLiteBusInboxMetrics()` and `AddLite
 - [Inbox.md](../../reliable-messaging/inbox.md)
 - [Outbox.md](../../reliable-messaging/outbox.md)
 - [Dependency-Graph.md](../../architecture/dependency-graph.md)
-- [Migration-Guide-v6.md](../../migration/v6.md)
+- [Migration Guide](../../migration/v6.md)
 
 ## Test Coverage
 
@@ -162,4 +162,4 @@ Register inbox and outbox meters through `AddLiteBusInboxMetrics()` and `AddLite
 - Registering storage, ingress, or processor loops (sibling child modules)
 - Combining in-process and broker dispatch on the same inbox or outbox module
 - Unified `UseTransportDispatch(TransportKind, ...)` meta-API across brokers
-- Flat v5-style top-level dispatcher registrars (removed in v6)
+- Flat top-level dispatcher registrars

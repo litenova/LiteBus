@@ -18,12 +18,12 @@ Saga is **not** a full workflow engine. There is no built-in scheduler, timeout 
 
 | Not included | Use instead |
 | --- | --- |
-| `ISagaHandler<TCommand, TState>` (removed in v6.0) | `ICommandHandler<TCommand>` + `ISagaContext` |
+| Dedicated saga handler type | `ICommandHandler<TCommand>` + `ISagaContext` |
 | Outbox or event-driven saga | Inbox commands only |
 | EF Core saga storage | PostgreSQL or custom `ISagaStore` |
 | Saga scheduler / timeouts | Application timers or external orchestration |
 | Built-in compensation framework | Handler logic and idempotent side effects |
-| Transactional saga + inbox in one connection (v6.0) | Application-level two-phase workflow or future transactional store adapter |
+| Transactional saga + inbox in one connection | Application-level two-phase workflow or future transactional store adapter |
 
 ## Packages to Install
 
@@ -129,7 +129,7 @@ Correlation serialization is not message ordering. Inbox acquisition is FIFO-lik
 
 ## Durability Model
 
-Saga persistence is **separate** from inbox terminal state in v6.0:
+Saga persistence is **separate** from inbox terminal state:
 
 1. Handler runs during inbox dispatch.
 2. On success, `SagaProcessorHook.AfterDispatchAsync` saves saga state or marks completion.
@@ -137,7 +137,7 @@ Saga persistence is **separate** from inbox terminal state in v6.0:
 
 Inbox and saga rows are **not** committed in one database transaction unless the application coordinates that explicitly. A process crash after saga save but before inbox completion can leave saga state advanced while the inbox message retries. Design handlers for at-least-once delivery: reload state, guard with business keys, and make side effects idempotent.
 
-**Transactional inbox + saga commit (deferred):** A single ambient transaction spanning inbox terminal update and saga save would require a store-level seam (`ITransactionalInbox` + saga store participation). That interface is not shipped in v6.0 because saga and inbox stores use separate connections by default and EF/PostgreSQL transactional writers target message rows only. Until a dedicated adapter ships, use application-level coordination or accept at-least-once semantics with idempotent handlers. See [Roadmap](../roadmap/README.md).
+**Cross-store transaction boundary:** A single ambient transaction spanning inbox terminal update and saga save requires a store-level seam (`ITransactionalInbox` + saga store participation). The current API does not provide that seam because saga and inbox stores use separate connections by default and EF/PostgreSQL transactional writers target message rows only. Use application-level coordination or accept at-least-once semantics with idempotent handlers. See [Roadmap](../roadmap/README.md).
 
 ## Store API
 
@@ -147,7 +147,7 @@ Inbox and saga rows are **not** committed in one database transaction unless the
 | `SagaCompleteItem.From(...)` | Completion with version check (no phantom rows) |
 | `SagaQueryFilter` / `SagaPurgeFilter` | Operational query and retention on `ISagaStore` |
 
-PostgreSQL saga schema version **1** includes `last_applied_message_id` on the tenant-scoped row identified by (`correlation_id`, `saga_type`, `tenant_id`). v5 did not ship a saga table. Schema bootstrap uses `PostgreSqlSchemaManager`, the same validation path as inbox and outbox.
+PostgreSQL saga schema version **1** includes `last_applied_message_id` on the tenant-scoped row identified by (`correlation_id`, `saga_type`, `tenant_id`). Schema bootstrap uses `PostgreSqlSchemaManager`, the same validation path as inbox and outbox.
 
 ## Options Reference
 
@@ -164,14 +164,14 @@ Inbox processor options (`BatchSize`, `LeaseDuration`, and similar) apply unchan
 
 ## Limits
 
-| Area | v6 scope |
+| Area | Current Behavior |
 | --- | --- |
 | Trigger | Inbox command dispatch only |
 | Storage | Exactly one explicit selection: InMemory, PostgreSQL, or a custom `ISagaStorageModule` |
 | Handler API | `ISagaContext` injection only |
 | Orchestration | Application-owned multi-step logic in handlers |
 | Outbox / events | Not integrated with saga hook |
-| Transactional inbox + saga persist | Separate connections in v6.0; at-least-once with idempotent handlers (see Durability model) |
+| Transactional inbox + saga persist | Separate connections; at-least-once with idempotent handlers (see Durability model) |
 
 ## Operations
 

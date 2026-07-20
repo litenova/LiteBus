@@ -50,7 +50,7 @@ No serializer-specific meter or activity contract exists in runtime core. Call s
 
 - **Use case**: runtime composition registers serializer service in core graph
 - **Test kind**: Component
-- **Description**: v6 composition smoke validates required runtime service registrations
+- **Description**: Composition smoke validates required runtime service registrations
 - **Behavior**: `MessageModule` contributes core messaging services including `IMessageSerializer`
 - **Expected outcome**: composed host contains messaging runtime services
 - **Remarks**: `LiteBus.Runtime.UnitTests`

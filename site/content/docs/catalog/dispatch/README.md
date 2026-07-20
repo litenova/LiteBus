@@ -91,4 +91,4 @@ Primary test projects referenced across capability pages:
 - [Kafka transport guide](../../integrations/kafka.md)
 - [Dependency graph: Dispatch packages](../../architecture/dependency-graph.md)
 - [Integration tests: Dispatch matrix](../../testing/integration-tests.md)
-- [v6 feature index: Dispatch row](../../reference/feature-index-v6.md)
+- [Feature Index: Dispatch](../../reference/feature-index-v6.md)

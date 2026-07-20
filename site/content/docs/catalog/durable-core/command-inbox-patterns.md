@@ -5,11 +5,11 @@
 
 ## Summary
 
-Store commands for deferred execution through the inbox instead of synchronous `SendAsync`, replacing the removed v5 command-inbox API with explicit inbox modules and stable contracts.
+Store commands for deferred execution through the inbox instead of direct `ICommandMediator.SendAsync` dispatch.
 
 ## What It Does
 
-Commands (`ICommand` without result) are accepted into inbox storage and later dispatched through `IInboxDispatcher`. In-process dispatch deserializes and calls `ICommandMediator.SendAsync`. Transport dispatch publishes leased envelopes to a broker for remote execution. v5 `[StoreInInbox]`, `ICommandInbox`, and hosted command-inbox processor packages are removed; applications register `AddInbox`, storage, dispatch, and `EnableInboxProcessor`.
+Commands (`ICommand` without result) are accepted into inbox storage and later dispatched through `IInboxDispatcher`. Direct dispatch deserializes and calls `ICommandMediator.SendAsync`. Transport dispatch publishes leased envelopes to a broker for remote execution. Applications register `AddInbox`, storage, dispatch, and `EnableInboxProcessor` explicitly.
 
 ## Public Surface
 
@@ -27,7 +27,7 @@ Commands (`ICommand` without result) are accepted into inbox storage and later d
 - **Process later**: `PipelinedInboxProcessor` (via `EnableInboxProcessor`) leases pending rows and calls registered `IInboxDispatcher`.
 - **Remote execution**: Transport dispatcher publishes leased envelope; remote service ingress accepts and in-process dispatch executes locally.
 
-v6 replaces v5 implicit attribute-driven storage with explicit accept calls.
+Applications call `IInbox.AcceptAsync` explicitly. Attributes do not redirect mediator calls into inbox storage.
 
 ### Registration
 
@@ -67,7 +67,7 @@ v6 replaces v5 implicit attribute-driven storage with explicit accept calls.
 
 - Commands with results cannot be inbox-stored (compile-time LB1004)
 - Acceptance returns `InboxReceipt`, not handler result
-- Idempotency keys replace v5 `IIdempotentCommand` marker
+- Idempotency keys are declared through `InboxAcceptMetadata.Idempotency` or enforced by application logic
 - Exactly one inbox dispatcher per module
 
 ## Non-Goals
@@ -115,7 +115,6 @@ Command-inbox patterns use the same inbox processor and ingress instrumentation 
 ## Deep Docs
 
 - [Inbox](../../reliable-messaging/inbox.md)
-- [Migration Guide v5](../../migration/v5.md)
 - [Command module](../../concepts/commands.md)
 
 ## Test Coverage
@@ -129,7 +128,7 @@ Command-inbox patterns use the same inbox processor and ingress instrumentation 
 - **Description**: Full accept, processor, and handler chain in test host
 - **Behavior**: Accept command, run processor pass
 - **Expected outcome**: Row completed; handler invoked
-- **Remarks**: Core v6 pattern
+- **Remarks**: Core command-inbox pattern
 
 #### `InboxTests.ProcessPendingAsync_ShouldSupportClosedGenericCommands`
 
@@ -198,10 +197,10 @@ Command-inbox patterns use the same inbox processor and ingress instrumentation 
 
 - **Use case**: Nested module accept and process
 - **Test kind**: Unit
-- **Description**: v6 composite module registration
+- **Description**: Nested composite module registration
 - **Behavior**: Nested inbox module configuration in test host
 - **Expected outcome**: End-to-end in test host
-- **Remarks**: Replaces v5 worker
+- **Remarks**:
 
 #### `TransportInboxDispatcherTests.DispatchAsync_ShouldPublishEnvelopeThroughTransport`
 
@@ -226,11 +225,10 @@ Command-inbox patterns use the same inbox processor and ingress instrumentation 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
 | Same-DB transactional accept of follow-up command inside handler | Yes | Rare pattern; only generic transactional tests | Integration | Low |
-| v5 `[StoreInInbox]` migration smoke test | N/A (removed) | Migration doc only |: |: |
 | Query type accepted to inbox | No (by design) | No explicit rejection test beyond command result | Unit | Low |
 
 ### Out-of-Scope Use Cases
 
-- Transparent attribute-driven inbox storage (v5 removed)
+- Transparent attribute-driven inbox storage
 - Request-response over inbox
 - Inbox storage of `ICommand<TResult>`

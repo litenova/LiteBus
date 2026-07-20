@@ -1,6 +1,6 @@
 # LiteBus Cheat Sheet
 
-One-page reference for LiteBus v6. Install only the packages you use; register storage, dispatch, and processors inside nested inbox/outbox builders.
+One-page reference for LiteBus. Install only the packages you use; register storage, dispatch, and processors inside nested inbox and outbox builders.
 
 ## Mediators
 
@@ -138,7 +138,7 @@ builder.AddInbox(inbox =>
 });
 ```
 
-Inbox, outbox, and saga use PostgreSQL schema version **1** in v6. The v1 scripts contain the complete 6.0 shape. v5 tables require replacement or an application-owned data migration.
+Inbox, outbox, and saga use PostgreSQL schema version **1**. The version 1 scripts contain the complete current shape. See the [Migration Guide](../migration/v6.md) for historical table transitions.
 
 ## Health and Operations
 
@@ -159,7 +159,7 @@ Register `IDiagnosticCheck` probes on the inbox or outbox builder with `AddDiagn
 
 ## OpenTelemetry
 
-The aggregate `LiteBus.Extensions.OpenTelemetry` package is removed. Register each axis you export:
+Register OpenTelemetry for each axis you export:
 
 ```csharp
 builder.Services.AddOpenTelemetry()

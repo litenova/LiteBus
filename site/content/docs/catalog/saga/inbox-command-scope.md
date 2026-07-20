@@ -84,7 +84,7 @@ None on the pre-handler itself.
 
 - **Use case**: Sample composition pre-handler enables handler saga mutations.
 - **Test kind**: Composition
-- **Description**: Sample v6 `EnableSaga()` wiring.
+- **Description**: Sample `EnableSaga()` wiring.
 - **Behavior**: Two correlated commands through in-process dispatch.
 - **Expected outcome**: Saga step advanced to 2.
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/Runtime/Composition/`.

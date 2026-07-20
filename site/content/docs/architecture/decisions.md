@@ -50,17 +50,17 @@ Status: Accepted
 
 Inbox and outbox storage use stable contract names and integer versions, not assembly-qualified CLR names in persisted rows.
 
-## ADR-0009: v6 Schema Version 1
+## ADR-0009: Schema Version 1
 
 Status: Accepted
 
-PostgreSQL inbox, outbox, and saga schemas start at version **1** in v6. The v1 create scripts contain the complete 6.0 shape. No v6 table schema was released before 6.0.0, so preview-only additive migrations were removed before release. LiteBus does not mutate v5 table shapes automatically.
+PostgreSQL inbox, outbox, and saga schemas use version **1**. The version 1 create scripts contain the complete current table shape. The schema manager validates that shape and does not mutate incompatible existing tables. Historical database transitions are documented in the [Migration Guide](../migration/v6.md).
 
 ## ADR-0010: Pipelined Processors Only
 
 Status: Accepted
 
-`PipelinedInboxProcessor` and `PipelinedOutboxProcessor` are the only processor implementations. Sequential legacy loops are removed.
+`PipelinedInboxProcessor` and `PipelinedOutboxProcessor` are the only processor implementations. LiteBus does not register an alternate sequential processor.
 
 ## ADR-0011: Saga Decoupled via Orchestration
 

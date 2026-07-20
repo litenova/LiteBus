@@ -119,7 +119,7 @@ builder.AddOutbox(outbox =>
 });
 ```
 
-PostgreSQL outbox schema version **1** stores opaque payload text and includes `lease_generation`. No v6 schema predates this shape. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md) for the v5 cutover paths.
+PostgreSQL outbox schema version **1** stores opaque payload text and includes `lease_generation`. The schema manager requires the complete current shape. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md) for creation and validation.
 
 Pass the same `NpgsqlDataSource` instance to inbox and outbox when both use one database. See [Transactional messaging writes](transactional-writes.md).
 
@@ -139,7 +139,7 @@ EF registration, interceptor setup, and duplicate-idempotency behavior on the tr
 
 Outbox publication is **at-least-once**. `PipelinedOutboxProcessor` dispatches through `IOutboxDispatcher` before it persists terminal published state. A crash or `PersistAsync` failure after a successful broker publish leaves the row leased or pending and the processor retries, which can duplicate publication downstream. Consumers must deduplicate or handle retries idempotently (for example with `MessageId`, `IdempotencyKey`, or broker deduplication headers).
 
-LiteBus does not implement a two-phase publish acknowledgment (broker ack token persisted before terminal state) in v6. Treat external side effects as idempotent, or wrap dispatch in a custom `IOutboxDispatcher` that records an outbox-side ack before returning success.
+LiteBus does not implement a two-phase publish acknowledgment in which a broker acknowledgement token is persisted before terminal state. Treat external side effects as idempotent, or wrap dispatch in a custom `IOutboxDispatcher` that records an outbox-side acknowledgement before returning success.
 
 The integration test `ProcessPendingAsync_WhenPersistSkippedAfterPublish_ShouldRepublishOnRetry` in `LiteBus.Outbox.Dispatch.InMemory.IntegrationTests` demonstrates the crash window: a simulated persist skip after transport publish causes a second publish when the lease is reclaimed.
 

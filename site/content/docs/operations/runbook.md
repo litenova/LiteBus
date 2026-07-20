@@ -2,7 +2,7 @@
 
 **Production tier: GA**
 
-On-call reference for LiteBus v6 durable messaging. Assumes PostgreSQL storage and AMQP or in-process dispatch unless noted.
+On-call reference for LiteBus durable messaging. It assumes PostgreSQL storage and AMQP or direct mediator dispatch unless noted.
 
 ## Quick Triage
 
@@ -37,7 +37,7 @@ On-call reference for LiteBus v6 durable messaging. Assumes PostgreSQL storage a
 await schemaManager.ValidateAsync(cancellationToken);
 ```
 
-Failure indicates drift from the v6 version 1 component schema. A table found during the 6.0 upgrade is a v5 or application-owned table, not an older v6 table. Replace it after exporting required data, or run a reviewed application-owned migration. See [Migration Guide v6](../migration/v6.md) and [PostgreSQL schema management](../integrations/postgresql-schema-management.md).
+Failure indicates drift from the current version 1 component schema. LiteBus does not mutate an incompatible table. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md) for validation and the [Migration Guide](../migration/v6.md) for historical table transitions.
 
 ## Processor Drain Sequence (Deployments)
 

@@ -84,7 +84,7 @@ inbox.UsePostgreSqlStorage(postgres =>
 });
 ```
 
-Inbox, outbox, and saga use schema version 1 for the first v6 release. `EnsureAsync` creates missing v6 tables and rejects v5 shapes; it does not convert them. Production deployments should apply DDL and call `ValidateAsync` in deploy checks. Development may use `EnsureSchemaCreationOnStartup()` for new databases. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md).
+Inbox, outbox, and saga use schema version 1. `EnsureAsync` creates missing tables and rejects incompatible shapes; it does not convert them. Production deployments should apply DDL and call `ValidateAsync` in deploy checks. Development may use `EnsureSchemaCreationOnStartup()` for new databases. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md).
 
 Disable host schema work with `postgres.DisableSchemaInitialization()` when DDL is fully migration-owned.
 
@@ -100,7 +100,7 @@ Resolve `InboxProcessorBackgroundService` (or any manifest `IBackgroundService`)
 
 ## Diagnostics and Observability
 
-LiteBus emits OpenTelemetry metrics from inbox, outbox, and transport paths. Register meters with `AddLiteBusInboxMetrics()`, `AddLiteBusOutboxMetrics()`, and `AddLiteBusTransportMetrics()` from the matching `LiteBus.*.Extensions.OpenTelemetry` packages. The aggregate OpenTelemetry meta-package is removed in v6.
+LiteBus emits OpenTelemetry metrics from inbox, outbox, and transport paths. Register meters with `AddLiteBusInboxMetrics()`, `AddLiteBusOutboxMetrics()`, and `AddLiteBusTransportMetrics()` from the matching `LiteBus.*.Extensions.OpenTelemetry` packages.
 
 `AddLiteBus` registers `LiteBusHostManifest`, which lists startup tasks, background services, and diagnostic probe descriptors.
 
@@ -176,7 +176,7 @@ await inbox.AcceptAsync(
         }));
 ```
 
-`IInboxScheduler` and `IOutboxScheduler` were removed in v6. See [Migration guide v6](../migration/v6.md).
+Scheduling and delayed visibility are configured on `InboxAcceptMetadata` and `OutboxEnqueueMetadata` through `MessageVisibility`.
 
 ### Shared Contracts Through Messaging Composition
 

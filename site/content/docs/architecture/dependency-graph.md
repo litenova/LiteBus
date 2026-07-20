@@ -1,8 +1,8 @@
 # Dependency Graph
 
-LiteBus v6 splits packages by concern: runtime, messaging, semantic modules, durable orchestration, storage adapters, dispatch adapters, ingress adapters, and shared transport helpers. Applications reference only the packages they compose.
+LiteBus packages are split by concern: runtime, messaging, semantic modules, durable orchestration, storage adapters, dispatch adapters, ingress adapters, and shared transport helpers. Applications reference only the packages they compose.
 
-v6.0 rename tables (`UseInProcessDispatch`, `*.AwsSqs` package IDs, EF Core public surface, and others) are documented in [Migration Guide v6](../migration/v6.md).
+Historical package and API names are documented in the [Migration Guide](../migration/v6.md).
 
 The role table below is the normative dependency summary. [Generated Package Inventory](generated-package-inventory.md) records every evaluated shipping project reference and direct package reference; documentation CI rejects stale inventory.
 
@@ -56,7 +56,7 @@ Shared transports are root modules. Dispatch and ingress modules declare `IRequi
 
 Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactory`. Core packages depend only on that contract and fail composition when no factory is present. A manual host can opt into `RootMessageDispatchScopeFactory` explicitly. EF Core storage uses `IDbContextFactory<TContext>` through adapter-owned operation factories and does not create container scopes inside stores.
 
-## v6 Package Table
+## Package Table
 
 | Package | Role | Depends on | External |
 | --- | --- | --- | --- |
@@ -311,4 +311,4 @@ PostgreSQL and AMQP integration tests require Docker. CI skips them gracefully w
 
 ## Next
 
-See [Architecture](README.md) for Storage / Dispatch / Ingress flow diagrams, or [Migration Guide v6](../migration/v6.md) for v5 to v6 renames.
+See [Architecture](README.md) for Storage / Dispatch / Ingress flow diagrams, or the [Migration Guide](../migration/v6.md) for historical package mappings.

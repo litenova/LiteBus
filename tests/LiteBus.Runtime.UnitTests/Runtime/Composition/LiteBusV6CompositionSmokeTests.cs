@@ -15,7 +15,7 @@ using IInboxProcessor = LiteBus.Inbox.Abstractions.IInboxProcessor;
 namespace LiteBus.Runtime.UnitTests.Runtime.Composition;
 
 /// <summary>
-///     Smoke tests for a representative v6 inbox/outbox/saga composition.
+///     Smoke tests for a representative inbox, outbox, and saga composition.
 /// </summary>
 public sealed class LiteBusV6CompositionSmokeTests : LiteBusTestBase
 {

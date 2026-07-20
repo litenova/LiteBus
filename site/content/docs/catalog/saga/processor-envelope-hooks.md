@@ -45,7 +45,7 @@ The successful hook path has three phases: `BeforeDispatchAsync`, optional synch
 
 - Does not define saga-specific behavior (see `saga.processor-hook`).
 - Does not run on direct in-process mediator calls outside durable processors.
-- Outbox saga integration is not shipped in v6.
+- Saga integration is available on the inbox processor only.
 
 ## Observability
 
@@ -123,7 +123,7 @@ No dedicated meters or activity sources on `IProcessorEnvelopeHook` itself.
 
 #### `LiteBusV6CompositionSmokeTests.AddV6CompositionSmoke_ShouldPersistSagaStateAcrossCorrelatedCommands`
 
-- **Use case**: Sample v6 composition registers saga hook and persists state across correlated commands.
+- **Use case**: Sample composition registers the saga hook and persists state across correlated commands.
 - **Test kind**: Composition
 - **Description**: `AddV6CompositionSmoke` with in-memory stores from composition smoke tests.
 - **Behavior**: Two correlated accepts and two processor passes.
@@ -140,6 +140,6 @@ No dedicated meters or activity sources on `IProcessorEnvelopeHook` itself.
 
 ### Out-of-Scope Use Cases
 
-- Outbox processor envelope hooks with saga state (not shipped in v6).
+- Outbox processor envelope hooks with saga state.
 - Hook invocation on direct in-process mediator calls outside durable processors.
 - Dedicated OpenTelemetry meters on hook contract.

@@ -8,7 +8,7 @@ LiteBus durable messaging persists commands and events before execution or publi
 
 | Section | Content |
 | --- | --- |
-| **Public surface** | Consumer contracts, invocation, registration, configuration, and extension points (replaces legacy Entry APIs tables) |
+| **Public surface** | Consumer contracts, invocation, registration, configuration, and extension points |
 | **Observability** | Per-instrument detail: name, kind, when emitted, tags, enablement, operational notes |
 | **Test coverage** | One block per automated test method (use case, kind, description, behavior, outcome, remarks); untested and out-of-scope gaps remain as tables |
 

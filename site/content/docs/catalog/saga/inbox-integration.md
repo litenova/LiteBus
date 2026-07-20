@@ -11,7 +11,7 @@
 
 Saga integrates as a child module of inbox configuration, preserving dependency role rules: saga core does not reference inbox abstractions on public surfaces; the integration package bridges builders.
 
-There is no top-level `AddSagaModule(...)` API in v6. Composition uses `AddInbox(inbox => inbox.EnableSaga(...))`.
+Composition uses `AddInbox(inbox => inbox.EnableSaga(...))`. There is no top-level `AddSagaModule(...)` API.
 
 The callback must select exactly one store through `UseInMemoryStorage()` or `UsePostgreSqlStorage(...)` (see `saga.postgresql-storage`).
 
@@ -118,7 +118,7 @@ Uses inbox processor observability; no separate manifest entry or meter for `Ena
 
 - **Use case**: Sample `EnableSaga` configuration persists in-memory saga state.
 - **Test kind**: Composition
-- **Description**: Sample v6 host with explicitly selected in-memory saga store.
+- **Description**: Sample host with an explicitly selected in-memory saga store.
 - **Behavior**: Two correlated commands processed.
 - **Expected outcome**: `Step == 2`.
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/Runtime/Composition/`.

@@ -5,12 +5,12 @@ using LiteBus.Saga.Storage.PostgreSql;
 namespace LiteBus.Storage.UnitTests.PostgreSql;
 
 /// <summary>
-///     Verifies the PostgreSQL schema catalog published by the first LiteBus v6 release.
+///     Verifies the current PostgreSQL schema catalog.
 /// </summary>
 public sealed class PostgreSqlSchemaReleaseBaselineTests
 {
     /// <summary>
-    ///     Verifies every durable component starts at version 1 and exposes no preview migration chain.
+    ///     Verifies every durable component uses version 1 and exposes only its current schema files.
     /// </summary>
     [Fact]
     public void ComponentSchemas_ShouldPublishOnlyVersionOneFiles()
