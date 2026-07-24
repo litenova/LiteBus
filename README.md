@@ -7,6 +7,7 @@
 <p align="center">
   <a href="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml"><img src="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml/badge.svg" alt="Build and test status"></a>
   <a href="https://app.codecov.io/gh/litenova/LiteBus"><img src="https://codecov.io/gh/litenova/LiteBus/branch/main/graph/badge.svg" alt="Test coverage"></a>
+  <a href="https://litebus.io/docs"><img src="https://img.shields.io/badge/Documentation-Available-0A66C2?logo=gitbook" alt="Documentation"></a>
   <a href="https://www.nuget.org/packages/LiteBus"><img src="https://img.shields.io/nuget/v/LiteBus.svg" alt="NuGet version"></a>
   <a href="https://dotnet.microsoft.com/download/dotnet/10.0"><img src="https://img.shields.io/badge/.NET-10.0-512BD4" alt=".NET 10"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/litenova/LiteBus" alt="MIT license"></a>
@@ -16,6 +17,7 @@
 LiteBus provides command, query, and event mediation for .NET 10 applications using CQS and DDD. Durable modules add inbox, outbox, saga, storage, dispatch, ingress, hosting, and operational APIs without requiring unrelated broker or database SDKs.
 
 LiteBus is open source under the MIT license, free for commercial use, and will remain free.
+Find all API and architecture documentation at https://litebus.io/docs.
 
 ## What LiteBus Includes
 
@@ -94,7 +96,6 @@ See [Reliable Messaging](https://litebus.io/docs/reliable-messaging), [Transacti
 dotnet restore LiteBus.slnx
 dotnet build LiteBus.slnx --configuration Release --no-restore
 dotnet test LiteBus.slnx --configuration Release --no-build
-pwsh ./scripts/Test-Documentation.ps1
 ```
 
 Docker is required for integration suites that exercise PostgreSQL, AMQP, Kafka, AWS SQS, and Azure Service Bus emulators.
