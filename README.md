@@ -1,14 +1,16 @@
-# LiteBus
-
 <p align="center">
-  <img src="assets/logo/litebus-logo.svg" alt="LiteBus logo" width="300">
+  <img src="assets/logo/icon.svg" alt="LiteBus logo" width="130">
 </p>
+
+<h1 align="center">LiteBus</h1>
 
 <p align="center">
   <a href="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml"><img src="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml/badge.svg" alt="Build and test status"></a>
+  <a href="https://app.codecov.io/gh/litenova/LiteBus"><img src="https://codecov.io/gh/litenova/LiteBus/branch/main/graph/badge.svg" alt="Test coverage"></a>
   <a href="https://www.nuget.org/packages/LiteBus"><img src="https://img.shields.io/nuget/v/LiteBus.svg" alt="NuGet version"></a>
   <a href="https://dotnet.microsoft.com/download/dotnet/10.0"><img src="https://img.shields.io/badge/.NET-10.0-512BD4" alt=".NET 10"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/litenova/LiteBus" alt="MIT license"></a>
+  <a href="AI_POLICY.md"><img src="https://img.shields.io/badge/AI-Policy-2EA043?logo=github" alt="AI policy"></a>
 </p>
 
 LiteBus provides command, query, and event mediation for .NET 10 applications using CQS and DDD. Durable modules add inbox, outbox, saga, storage, dispatch, ingress, hosting, and operational APIs without requiring unrelated broker or database SDKs.
