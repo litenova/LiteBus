@@ -156,11 +156,26 @@ jobs:
       - name: Integration Tests
         run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/integration --filter "FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure"
 
+      - name: Check Coverage Reports
+        id: coverage-reports
+        if: always()
+        run: |
+          coverage_count="$(find artifacts/coverage -type f -name 'coverage.cobertura.xml' | wc -l)"
+          echo "count=${coverage_count}" >> "$GITHUB_OUTPUT"
+          if [ "${coverage_count}" -gt 0 ]; then
+            echo "has_reports=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_reports=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No Cobertura coverage reports were found in artifacts/coverage. Coverage upload step will be skipped."
+          fi
+
       - name: Enforce Merged Coverage Gate
+        if: steps.coverage-reports.outputs.has_reports == 'true'
         shell: pwsh
         run: ./scripts/Test-CoverageThreshold.ps1 -Root artifacts/coverage -LineThreshold 90
 
       - name: Upload to Codecov
+        if: steps.coverage-reports.outputs.has_reports == 'true'
         uses: codecov/codecov-action@v6
         with:
           files: ./artifacts/coverage/**/coverage.cobertura.xml

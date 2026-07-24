@@ -127,7 +127,7 @@ foreach ($file in $documentationFiles) {
         if ($line -match '^\s*(```|~~~)') {
             $insideCodeFence = -not $insideCodeFence
         }
-        elseif (-not $insideCodeFence -and $line -match '^# ') {
+        elseif (-not $insideCodeFence -and ($line -match '^# ' -or $line -match '(?i)^\s*<\s*h1\b')) {
             $topLevelHeadingLines.Add($lineNumber)
         }
 
