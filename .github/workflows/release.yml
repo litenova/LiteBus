@@ -169,6 +169,20 @@ jobs:
             echo "::warning::No Cobertura coverage reports were found in artifacts/coverage. Coverage upload step will be skipped."
           fi
 
+      - name: Coverage Report Summary
+        if: always()
+        run: |
+          {
+            echo "## Coverage report status"
+            if [ "${{ steps.coverage-reports.outputs.has_reports }}" = "true" ]; then
+              echo "- Found ${{ steps.coverage-reports.outputs.count }} Cobertura coverage report(s)."
+              echo "- Coverage gate and upload steps will run."
+            else
+              echo "- No Cobertura coverage reports were found."
+              echo "- Coverage gate and upload steps were skipped."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Enforce Merged Coverage Gate
         if: steps.coverage-reports.outputs.has_reports == 'true'
         shell: pwsh

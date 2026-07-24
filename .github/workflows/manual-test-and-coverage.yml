@@ -53,6 +53,20 @@ jobs:
             echo "::warning::No Cobertura coverage reports were found in ./coverage. Codecov upload will be skipped."
           fi
 
+      - name: Coverage Report Summary
+        if: always()
+        run: |
+          {
+            echo "## Coverage report status"
+            if [ "${{ steps.coverage-reports.outputs.has_reports }}" = "true" ]; then
+              echo "- Found ${{ steps.coverage-reports.outputs.count }} Cobertura coverage report(s)."
+              echo "- Codecov upload step will run."
+            else
+              echo "- No Cobertura coverage reports were found."
+              echo "- Codecov upload step was skipped."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload Coverage to Codecov
         if: steps.coverage-reports.outputs.has_reports == 'true'
         uses: codecov/codecov-action@v6
