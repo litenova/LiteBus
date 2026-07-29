@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## v6.0.3
+
+Patch release for .NET 10. Public APIs and persistence schemas are unchanged.
+
+### Fixed
+
+- Lease renewal exceptions now cancel active dispatch and pass the linked cancellation token to the lease store. A blocked or failing renewal no longer leaves a message handler running without lease ownership.
+- Mediation clears the caller's ambient execution context when the mediator returns. Dispatch dependency scopes are created on first handler resolution, so an asynchronous stream that is never enumerated does not create a retained container scope.
+- Asynchronous pre-handler and post-handler reflection now selects the method whose message and result contracts match the current pipeline invocation. A class can implement pipeline contracts for multiple message types without a cached method receiving the wrong message.
+- SQS validates UTF-8 with a strict decoder and checks the broker's allowed Unicode ranges. Invalid UTF-8 and disallowed control bytes use base64 encoding without changing the original bytes. Internal encoding metadata cannot be overridden by caller headers.
+- SQS compacts non-reserved message attributes into `litebus-headers` when a publication would exceed the ten-attribute broker limit. Received messages expand the compact form while preserving route and transport metadata.
+
 ## v6.0.2
 
 Patch release for .NET 10. Public APIs, persistence schemas, and transport behavior are unchanged.

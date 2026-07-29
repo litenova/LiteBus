@@ -67,7 +67,9 @@ Beta tier note: this adapter is production-oriented but remains Beta while the p
 ## Invariants
 
 - One transport broker adapter per process.
-- Binary body payloads are base64 encoded with `litebus-content-encoding=base64`.
+- SQS-safe UTF-8 text is sent as a plain body. Invalid UTF-8 and code points outside the SQS body ranges are base64 encoded with `litebus-content-encoding=base64`.
+- SQS allows ten message attributes. When route, content type, durable metadata, and caller headers would exceed that limit, non-reserved headers are serialized into the `litebus-headers` attribute and expanded on receive.
+- Mapper-owned attributes such as `litebus-content-encoding`, `litebus-message-id`, `correlation-id`, `Route`, and `ContentType` override conflicting caller values.
 - Redelivery hint uses `ApproximateReceiveCount > 1`.
 
 ## Non-Goals
@@ -111,6 +113,9 @@ Beta tier note: this adapter is production-oriented but remains Beta while the p
 | `CheckAsync_WithoutQueueUrl_ShouldReturnDegraded` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
 | `ToSendMessageRequest_ShouldMapBodyAndHeaders` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
 | `ToSendMessageRequest_WithBinaryBody_ShouldBase64Encode` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
+| `ToSendMessageRequest_WithInvalidUtf8Body_ShouldBase64EncodeWithoutReplacingBytes` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
+| `ToSendMessageRequest_WithDisallowedControlByte_ShouldBase64Encode` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
+| `ToSendMessageRequest_WithFullDurableMetadata_ShouldPackHeadersAndRoundTripThem` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
 | `ToTransportMessage_WithBase64Body_ShouldDecodeBytes` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
 | `ComputeRequeueVisibilityTimeout_shouldHonorReceiveCount` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
 | `PublishThroughSqs_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/AwsSqs/`) |
