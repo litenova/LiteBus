@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## v6.0.2
+
+Patch release for .NET 10. Public APIs, persistence schemas, and transport behavior are unchanged.
+
+### Fixed
+
+- Publishing an event through a base-typed or interface-typed reference now invokes handlers registered for the concrete event type. `IEventMediator.PublishAsync(IEvent, ...)` and the `PublishAsync(@event, cancellationToken)` extension erase the event to `IEvent`, and because handler contracts are contravariant, `AsyncBroadcastMediationStrategy<TMessage>` matched only handlers registered for the erased type and skipped the rest without raising an error. Handlers whose contract does not close over the compile-time message type are now dispatched through the non-generic handler entry point, which routes to the closed contract the handler implements. This also restores in-process outbox dispatch, which publishes every `IEvent` through the non-generic overload.
+
 ## v6.0.1
 
 Documentation and policy maintenance release for .NET 10. Public APIs, persistence schemas, and transport behavior are unchanged.

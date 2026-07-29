@@ -5,12 +5,12 @@
         <Description>Reusable xUnit conformance tests for LiteBus transport adapter authors.</Description>
         <ImplicitUsings>enable</ImplicitUsings>
         <PackageId>LiteBus.Transport.Testing</PackageId>
-        <VersionPrefix>6.0.1</VersionPrefix>
+        <VersionPrefix>6.0.2</VersionPrefix>
         <PackageTags>litebus;testing;transport;conformance</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageIcon>icon.png</PackageIcon>
         <PackageProjectUrl>https://litebus.io/</PackageProjectUrl>
-        <PackageReleaseNotes>https://github.com/litenova/LiteBus/blob/main/Changelog.md#v601</PackageReleaseNotes>
+        <PackageReleaseNotes>https://github.com/litenova/LiteBus/blob/main/Changelog.md#v602</PackageReleaseNotes>
         <RepositoryUrl>https://github.com/litenova/LiteBus</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>

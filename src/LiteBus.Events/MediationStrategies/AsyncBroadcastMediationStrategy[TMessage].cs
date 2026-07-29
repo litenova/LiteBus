@@ -206,6 +206,14 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     /// <param name="lazyHandler">The lazily resolved handler and its descriptor.</param>
     /// <param name="executionContext">The execution context set on the ambient scope before the handler runs.</param>
     /// <returns>A task that completes when the handler has finished processing the message.</returns>
+    /// <remarks>
+    ///     <typeparamref name="TMessage" /> is the compile-time message type, which is not always the runtime type of the
+    ///     message. The non-generic <c>IEventMediator.PublishAsync(IEvent, ...)</c> overload erases the event type to
+    ///     <see cref="IEvent" />, and a base-typed variable erases it the same way through the generic overload. Handler
+    ///     contracts are contravariant, so a handler registered for the concrete runtime type does not satisfy a type test
+    ///     against the erased type. Such handlers are invoked through the non-generic entry point, which dispatches to the
+    ///     closed contract the handler actually implements.
+    /// </remarks>
     private static async Task ExecuteSingleHandler(TMessage message,
                                                    LazyHandler<IMessageHandler, IMainHandlerDescriptor> lazyHandler,
                                                    IExecutionContext executionContext)
@@ -223,6 +231,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         if (handler is IMessageHandler<TMessage, Task> typedHandler)
         {
             await typedHandler.Handle(message).ConfigureAwait(false);
+            return;
         }
+
+        await ((Task) handler.Handle(message)).ConfigureAwait(false);
     }
 }
