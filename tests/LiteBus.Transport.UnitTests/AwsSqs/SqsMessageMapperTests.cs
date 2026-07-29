@@ -64,6 +64,133 @@ public sealed class SqsMessageMapperTests
     }
 
     /// <summary>
+    ///     Verifies invalid UTF-8 bytes are preserved through base64 transport encoding.
+    /// </summary>
+    [Fact]
+    public void ToSendMessageRequest_WithInvalidUtf8Body_ShouldBase64EncodeWithoutReplacingBytes()
+    {
+        var binaryBody = new byte[] { 0xC3, 0x28 };
+
+        var sendRequest = SqsMessageMapper.ToSendMessageRequest(new TransportPublishRequest
+        {
+            Destination = "https://sqs.us-east-1.amazonaws.com/123/binary",
+            Body = binaryBody
+        });
+
+        sendRequest.MessageBody.Should().Be(Convert.ToBase64String(binaryBody));
+        sendRequest.MessageAttributes[TransportHeaders.ContentEncoding].StringValue.Should().Be("base64");
+
+        var transportMessage = SqsMessageMapper.ToTransportMessage(
+            new Message
+            {
+                MessageId = "msg-invalid-utf8",
+                Body = sendRequest.MessageBody,
+                MessageAttributes = sendRequest.MessageAttributes
+            },
+            "https://sqs.us-east-1.amazonaws.com/123/binary",
+            new TransportConsumerAckHandlers
+            {
+                AckAsync = _ => Task.CompletedTask,
+                NackAsync = (_, _) => Task.CompletedTask
+            });
+
+        transportMessage.Body.ToArray().Should().Equal(binaryBody);
+    }
+
+    /// <summary>
+    ///     Verifies SQS-disallowed control bytes use the binary body representation.
+    /// </summary>
+    [Fact]
+    public void ToSendMessageRequest_WithDisallowedControlByte_ShouldBase64Encode()
+    {
+        var body = new byte[] { 0x01 };
+
+        var sendRequest = SqsMessageMapper.ToSendMessageRequest(new TransportPublishRequest
+        {
+            Destination = "https://sqs.us-east-1.amazonaws.com/123/control",
+            Body = body
+        });
+
+        sendRequest.MessageBody.Should().Be(Convert.ToBase64String(body));
+        sendRequest.MessageAttributes[TransportHeaders.ContentEncoding].StringValue.Should().Be("base64");
+    }
+
+    /// <summary>
+    ///     Verifies caller headers cannot override the mapper's binary content marker.
+    /// </summary>
+    [Fact]
+    public void ToSendMessageRequest_WithContentEncodingHeaderAndTextBody_ShouldRemoveStaleMarker()
+    {
+        var sendRequest = SqsMessageMapper.ToSendMessageRequest(new TransportPublishRequest
+        {
+            Destination = "https://sqs.us-east-1.amazonaws.com/123/text",
+            Body = Encoding.UTF8.GetBytes("plain text"),
+            Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                [TransportHeaders.ContentEncoding] = "base64"
+            }
+        });
+
+        sendRequest.MessageAttributes.ContainsKey(TransportHeaders.ContentEncoding).Should().BeFalse();
+        sendRequest.MessageBody.Should().Be("plain text");
+    }
+
+    /// <summary>
+    ///     Verifies full durable metadata stays below the SQS ten-attribute limit and expands on receive.
+    /// </summary>
+    [Fact]
+    public void ToSendMessageRequest_WithFullDurableMetadata_ShouldPackHeadersAndRoundTripThem()
+    {
+        var headers = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            [TransportHeaders.MessageId] = "message-1",
+            [TransportHeaders.ContractName] = "orders.events.shipped",
+            [TransportHeaders.ContractVersion] = 2,
+            [TransportHeaders.CorrelationId] = "correlation-1",
+            [TransportHeaders.CausationId] = "causation-1",
+            [TransportHeaders.TenantId] = "tenant-1",
+            [TransportHeaders.TraceContext] = "{\"traceparent\":\"00-test\"}",
+            [TransportHeaders.IdempotencyKey] = "idempotency-1",
+            [TransportHeaders.VisibleAfter] = "2026-06-12T08:00:00.0000000+00:00"
+        };
+
+        var sendRequest = SqsMessageMapper.ToSendMessageRequest(new TransportPublishRequest
+        {
+            Destination = "https://sqs.us-east-1.amazonaws.com/123/orders",
+            Route = "orders.events.shipped",
+            ContentType = "application/json",
+            Body = Encoding.UTF8.GetBytes("{}"),
+            MessageId = "message-1",
+            CorrelationId = "correlation-1",
+            Headers = headers
+        });
+
+        sendRequest.MessageAttributes.Count.Should().BeLessThanOrEqualTo(10);
+        sendRequest.MessageAttributes.Should().ContainKey("litebus-headers");
+
+        var transportMessage = SqsMessageMapper.ToTransportMessage(
+            new Message
+            {
+                MessageId = "aws-message-id",
+                Body = sendRequest.MessageBody,
+                MessageAttributes = sendRequest.MessageAttributes
+            },
+            "https://sqs.us-east-1.amazonaws.com/123/orders",
+            new TransportConsumerAckHandlers
+            {
+                AckAsync = _ => Task.CompletedTask,
+                NackAsync = (_, _) => Task.CompletedTask
+            });
+
+        transportMessage.Headers[TransportHeaders.ContractName].Should().Be("orders.events.shipped");
+        transportMessage.Headers[TransportHeaders.ContractVersion].Should().Be("2");
+        transportMessage.Headers[TransportHeaders.CausationId].Should().Be("causation-1");
+        transportMessage.Headers[TransportHeaders.TenantId].Should().Be("tenant-1");
+        transportMessage.Headers[TransportHeaders.TraceContext].Should().Be("{\"traceparent\":\"00-test\"}");
+        transportMessage.Route.Should().Be("orders.events.shipped");
+    }
+
+    /// <summary>
     ///     Verifies base64-encoded bodies round-trip through consume mapping.
     /// </summary>
     [Fact]
