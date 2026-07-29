@@ -54,13 +54,15 @@ internal static class MessageProcessorLogMessages
     /// <param name="processorName">The semantic processor name.</param>
     /// <param name="messageId">The leased message identifier.</param>
     /// <param name="leaseOwner">The owner expected to hold the lease.</param>
+    /// <param name="exception">The renewal exception, when the store call threw.</param>
     public static void LeaseRenewalFailed(
         ILogger logger,
         string processorName,
         Guid messageId,
-        string leaseOwner)
+        string leaseOwner,
+        Exception? exception = null)
     {
-        LeaseRenewalFailedMessage(logger, processorName, messageId, leaseOwner, null);
+        LeaseRenewalFailedMessage(logger, processorName, messageId, leaseOwner, exception);
     }
 
     /// <summary>

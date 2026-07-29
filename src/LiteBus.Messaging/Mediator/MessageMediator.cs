@@ -88,10 +88,10 @@ internal sealed class MessageMediator : IMessageMediator
         // Create a new execution context for the current scope.
         var executionContext = new ExecutionContext(request.Tags, request.Items, cancellationToken);
 
-        // Retain ambient and dispatch scopes until asynchronous mediation results complete.
+        // Retain only the dispatch scope until asynchronous mediation results complete. The ambient scope must not leak
+        // into the caller after this method returns.
         var executionScope = AmbientExecutionContext.CreateScope(executionContext);
-        var dispatchScope = _dispatchScopeFactory.CreateScope();
-        var resourceScope = new MediationResourceScope(executionScope, dispatchScope);
+        var dispatchScope = new LazyMessageDispatchScope(_dispatchScopeFactory);
 
         try
         {
@@ -131,12 +131,16 @@ internal sealed class MessageMediator : IMessageMediator
 
             // Mediate the message using the specified strategy.
             var result = request.MessageMediationStrategy.Mediate(message, messageDependencies, executionContext);
+            executionScope.Dispose();
 
-            return MediationScopeRetention.RetainUntilPipelineCompletes(result, resourceScope);
+            return MediationScopeRetention.RetainUntilPipelineCompletes(
+                result,
+                new MediationResourceScope(dispatchScope));
         }
         catch
         {
-            resourceScope.Dispose();
+            executionScope.Dispose();
+            dispatchScope.Dispose();
             throw;
         }
     }
