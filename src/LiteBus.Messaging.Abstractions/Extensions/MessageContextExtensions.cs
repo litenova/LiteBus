@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -103,12 +104,24 @@ public static class MessageContextExtensions
     {
         foreach (var postHandler in messageDependencies.PostHandlers)
         {
-            await InvokePostHandlerAsync(postHandler.Handler.Value, message, messageResult, cancellationToken).ConfigureAwait(false);
+            await InvokePostHandlerAsync(
+                    postHandler.Handler.Value,
+                    message,
+                    messageResult,
+                    postHandler.Descriptor.MessageResultType,
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
 
         foreach (var postHandler in messageDependencies.IndirectPostHandlers)
         {
-            await InvokePostHandlerAsync(postHandler.Handler.Value, message, messageResult, cancellationToken).ConfigureAwait(false);
+            await InvokePostHandlerAsync(
+                    postHandler.Handler.Value,
+                    message,
+                    messageResult,
+                    postHandler.Descriptor.MessageResultType,
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 
@@ -133,15 +146,22 @@ public static class MessageContextExtensions
     /// <param name="handler">The post-handler instance.</param>
     /// <param name="message">The handled message.</param>
     /// <param name="messageResult">The result produced by the main handler, if any.</param>
+    /// <param name="messageResultType">The declared result type associated with the post-handler.</param>
     /// <param name="cancellationToken">The cancellation token for the invocation.</param>
     /// <returns>A task representing the asynchronous post-handler operation.</returns>
     private static Task InvokePostHandlerAsync(
         IMessagePostHandler handler,
         object message,
         object? messageResult,
+        Type messageResultType,
         CancellationToken cancellationToken)
     {
-        return PipelineHandlerInvocation.InvokePostHandlerAsync(handler, message, messageResult, cancellationToken);
+        return PipelineHandlerInvocation.InvokePostHandlerAsync(
+            handler,
+            message,
+            messageResult,
+            messageResultType,
+            cancellationToken);
     }
 
     /// <summary>

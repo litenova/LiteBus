@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using Amazon.SQS.Model;
 using LiteBus.Transport.Abstractions;
 
@@ -14,6 +15,16 @@ internal static class SqsMessageMapper
     ///     The base64 content encoding marker stored in SQS message attributes.
     /// </summary>
     private const string Base64ContentEncoding = "base64";
+
+    /// <summary>
+    ///     The attribute used to compact LiteBus headers when the SQS attribute limit would be exceeded.
+    /// </summary>
+    private const string PackedHeadersAttribute = "litebus-headers";
+
+    /// <summary>
+    ///     The strict decoder used to validate SQS message body text.
+    /// </summary>
+    private static readonly Encoding StrictUtf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     /// <summary>
     ///     Creates an SQS send request from a LiteBus publish request.
@@ -34,6 +45,8 @@ internal static class SqsMessageMapper
                 ? Convert.ToBase64String(body)
                 : Encoding.UTF8.GetString(body)
         };
+
+        ApplyHeaders(sendRequest, request.Headers);
 
         if (useBase64)
         {
@@ -62,7 +75,12 @@ internal static class SqsMessageMapper
             sendRequest.MessageAttributes["ContentType"] = CreateStringAttribute(request.ContentType);
         }
 
-        ApplyHeaders(sendRequest, request.Headers);
+        if (!useBase64)
+        {
+            sendRequest.MessageAttributes.Remove(TransportHeaders.ContentEncoding);
+        }
+
+        PackHeadersIfNeeded(sendRequest);
         return sendRequest;
     }
 
@@ -82,6 +100,7 @@ internal static class SqsMessageMapper
 
         var body = DecodeBody(message);
         var headers = CopyMessageAttributes(message.MessageAttributes);
+        ExpandPackedHeaders(headers);
 
         return new TransportMessage
         {
@@ -115,7 +134,7 @@ internal static class SqsMessageMapper
             return Convert.FromBase64String(rawBody);
         }
 
-        return Encoding.UTF8.GetBytes(rawBody);
+        return StrictUtf8.GetBytes(rawBody);
     }
 
     /// <summary>
@@ -130,16 +149,46 @@ internal static class SqsMessageMapper
             return true;
         }
 
+        string text;
+
         try
         {
-            var text = Encoding.UTF8.GetString(body);
-
-            return !text.Contains('\0');
+            text = StrictUtf8.GetString(body);
         }
         catch (DecoderFallbackException)
         {
             return false;
         }
+
+        for (var index = 0; index < text.Length; index++)
+        {
+            var codePoint = char.ConvertToUtf32(text, index);
+
+            if (char.IsHighSurrogate(text[index]))
+            {
+                index++;
+            }
+
+            if (!IsAllowedSqsCodePoint(codePoint))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Returns whether a Unicode scalar is allowed by the SQS message body contract.
+    /// </summary>
+    /// <param name="codePoint">The Unicode scalar to validate.</param>
+    /// <returns><see langword="true" /> when SQS accepts the scalar.</returns>
+    private static bool IsAllowedSqsCodePoint(int codePoint)
+    {
+        return codePoint is 0x9 or 0xA or 0xD ||
+               codePoint is >= 0x20 and <= 0xD7FF ||
+               codePoint is >= 0xE000 and <= 0xFFFD ||
+               codePoint is >= 0x10000 and <= 0x10FFFF;
     }
 
     /// <summary>
@@ -156,7 +205,7 @@ internal static class SqsMessageMapper
 
         foreach (var (name, value) in headers)
         {
-            if (value is null)
+            if (value is null || string.Equals(name, PackedHeadersAttribute, StringComparison.Ordinal))
             {
                 continue;
             }
@@ -164,6 +213,82 @@ internal static class SqsMessageMapper
             sendRequest.MessageAttributes[name] = CreateStringAttribute(
                 Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty);
         }
+    }
+
+    /// <summary>
+    ///     Packs non-reserved attributes when the SQS message attribute limit would be exceeded.
+    /// </summary>
+    /// <param name="sendRequest">The send request whose attributes may be compacted.</param>
+    private static void PackHeadersIfNeeded(SendMessageRequest sendRequest)
+    {
+        if (sendRequest.MessageAttributes.Count <= 10)
+        {
+            return;
+        }
+
+        var packedHeaders = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var (name, value) in sendRequest.MessageAttributes.ToArray())
+        {
+            if (IsReservedAttribute(name))
+            {
+                continue;
+            }
+
+            sendRequest.MessageAttributes.Remove(name);
+
+            if (value.StringValue is not null)
+            {
+                packedHeaders[name] = value.StringValue;
+            }
+        }
+
+        sendRequest.MessageAttributes[PackedHeadersAttribute] = CreateStringAttribute(
+            JsonSerializer.Serialize(packedHeaders));
+    }
+
+    /// <summary>
+    ///     Expands a compacted header attribute while preserving reserved attributes already mapped by SQS.
+    /// </summary>
+    /// <param name="headers">The headers copied from SQS message attributes.</param>
+    private static void ExpandPackedHeaders(Dictionary<string, object?> headers)
+    {
+        if (!headers.TryGetValue(PackedHeadersAttribute, out var packedValue) ||
+            packedValue is not string packedHeaders)
+        {
+            return;
+        }
+
+        headers.Remove(PackedHeadersAttribute);
+        var unpackedHeaders = JsonSerializer.Deserialize<Dictionary<string, string>>(packedHeaders);
+
+        if (unpackedHeaders is null)
+        {
+            return;
+        }
+
+        foreach (var (name, value) in unpackedHeaders)
+        {
+            if (!headers.ContainsKey(name))
+            {
+                headers[name] = value;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Returns whether an attribute is written directly by the SQS mapper and must remain outside packed headers.
+    /// </summary>
+    /// <param name="name">The attribute name.</param>
+    /// <returns><see langword="true" /> for an internal or transport metadata attribute.</returns>
+    private static bool IsReservedAttribute(string name)
+    {
+        return string.Equals(name, PackedHeadersAttribute, StringComparison.Ordinal) ||
+               string.Equals(name, TransportHeaders.ContentEncoding, StringComparison.Ordinal) ||
+               string.Equals(name, TransportHeaders.MessageId, StringComparison.Ordinal) ||
+               string.Equals(name, TransportHeaders.CorrelationId, StringComparison.Ordinal) ||
+               string.Equals(name, "Route", StringComparison.Ordinal) ||
+               string.Equals(name, "ContentType", StringComparison.Ordinal);
     }
 
     /// <summary>

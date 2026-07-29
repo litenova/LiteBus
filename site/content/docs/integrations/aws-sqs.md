@@ -70,7 +70,9 @@ The root transport registers `transport.sqs.connectivity`. Configure `Connectivi
 
 ## Wire Encoding
 
-SQS message bodies are strings. UTF-8 JSON and text payloads are sent as plain message bodies. Binary payloads are base64-encoded with a `litebus-content-encoding: base64` message attribute. Correlation identifiers use the canonical `correlation-id` header (`TransportHeaders.CorrelationId`); legacy `CorrelationId` attributes are accepted on ingress only.
+SQS message bodies are strings. LiteBus uses strict UTF-8 decoding and the SQS Unicode ranges before sending a plain body. Invalid UTF-8 and disallowed control bytes are base64-encoded with a `litebus-content-encoding: base64` message attribute, preserving the original bytes. Correlation identifiers use the canonical `correlation-id` header (`TransportHeaders.CorrelationId`); legacy `CorrelationId` attributes are accepted on ingress only.
+
+SQS permits ten message attributes per message. LiteBus keeps mapper-owned route, content type, identifier, correlation, and encoding attributes separate. When the complete header set would exceed ten attributes, the remaining headers are serialized into `litebus-headers`; ingress expands that attribute before contract mapping.
 
 ## Guarantees and Non-Guarantees
 

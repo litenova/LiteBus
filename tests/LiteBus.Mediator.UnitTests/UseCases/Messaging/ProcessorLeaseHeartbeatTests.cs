@@ -71,6 +71,36 @@ public sealed class ProcessorLeaseHeartbeatTests
     }
 
     /// <summary>
+    ///     Verifies a renewal exception cancels active dispatch and passes a cancellable token to the store.
+    /// </summary>
+    [Fact]
+    public async Task RunWithHeartbeatAsync_when_renewal_throws_should_cancel_operation()
+    {
+        var store = new ThrowingRenewLeaseStore();
+
+        var act = () => ProcessorLeaseHeartbeat.RunWithHeartbeatAsync(
+            new LeaseHeartbeatContext(
+                Guid.NewGuid(),
+                "worker",
+                1,
+                store,
+                TimeSpan.FromMinutes(1),
+                TimeSpan.FromMilliseconds(5),
+                new ManualTimeProvider(BaseTime),
+                "test"),
+            async token =>
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, token).ConfigureAwait(false);
+                return 0;
+            },
+            CancellationToken.None);
+
+        var actWithTimeout = () => act().WaitAsync(TimeSpan.FromSeconds(2));
+        await actWithTimeout.Should().ThrowAsync<OperationCanceledException>();
+        store.LastCancellationToken.CanBeCanceled.Should().BeTrue();
+    }
+
+    /// <summary>
     ///     Lease store that always fails renewal.
     /// </summary>
     private sealed class FailingRenewLeaseStore : ILeaseRenewable
@@ -97,6 +127,32 @@ public sealed class ProcessorLeaseHeartbeatTests
         {
             RenewCount++;
             return Task.FromResult(true);
+        }
+    }
+
+    /// <summary>
+    ///     Lease store that succeeds once and throws on the next renewal.
+    /// </summary>
+    private sealed class ThrowingRenewLeaseStore : ILeaseRenewable
+    {
+        private int _renewalAttempts;
+
+        /// <summary>
+        ///     Gets the cancellation token supplied to the latest renewal attempt.
+        /// </summary>
+        public CancellationToken LastCancellationToken { get; private set; }
+
+        /// <inheritdoc />
+        public Task<bool> RenewLeaseAsync(LeaseRenewalRequest request, CancellationToken cancellationToken = default)
+        {
+            LastCancellationToken = cancellationToken;
+
+            if (Interlocked.Increment(ref _renewalAttempts) == 1)
+            {
+                return Task.FromResult(true);
+            }
+
+            throw new InvalidOperationException("renewal failed");
         }
     }
 }

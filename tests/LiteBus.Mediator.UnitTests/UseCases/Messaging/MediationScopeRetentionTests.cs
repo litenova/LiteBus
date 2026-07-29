@@ -47,6 +47,34 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
     }
 
     [Fact]
+    public async Task Mediate_async_result_clears_ambient_context_before_returning()
+    {
+        var registry = new MessageRegistry();
+        registry.Register(typeof(DelayedScopedHandler));
+
+        var services = new ServiceCollection()
+            .AddScoped<ScopedLifetimeMarker>()
+            .AddScoped<DelayedScopedHandler>();
+
+        services.AddLiteBus(registry => registry.AddMessaging(_ => { }));
+
+        using var provider = services.BuildServiceProvider();
+
+        var mediator = new MessageMediator(
+            registry,
+            registry,
+            provider.GetRequiredService<IMessageDispatchScopeFactory>());
+
+        AmbientExecutionContext.ResetForTesting();
+        var mediationTask = mediator.Mediate(new DelayedScopedCommand(), CreateDelayedRequest());
+
+        AmbientExecutionContext.HasCurrent.Should().BeFalse();
+
+        await mediationTask.ConfigureAwait(false);
+        AmbientExecutionContext.HasCurrent.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Mediate_stream_result_retains_dispatch_scope_until_enumeration_completes()
     {
         var registry = new MessageRegistry();
@@ -91,6 +119,37 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
         var secondEnumeration = () => stream.GetAsyncEnumerator();
         secondEnumeration.Should().Throw<InvalidOperationException>()
             .WithMessage("*only once*");
+    }
+
+    [Fact]
+    public void Mediate_unenumerated_stream_does_not_create_dispatch_scope()
+    {
+        var registry = new MessageRegistry();
+        registry.Register(typeof(StreamingScopedHandler));
+
+        var services = new ServiceCollection()
+            .AddScoped<ScopedLifetimeMarker>()
+            .AddScoped<StreamingScopedHandler>();
+
+        services.AddLiteBus(registry => registry.AddMessaging(_ => { }));
+
+        using var provider = services.BuildServiceProvider();
+
+        var factory = new TrackingDispatchScopeFactory(
+            provider.GetRequiredService<IMessageDispatchScopeFactory>());
+        var mediator = new MessageMediator(registry, registry, factory);
+
+        var request = new MessageMediationRequest<StreamingScopedCommand, IAsyncEnumerable<int>>
+        {
+            MessageResolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy(),
+            MessageMediationStrategy = new SingleStreamHandlerMediationStrategy<StreamingScopedCommand, int>(
+                CancellationToken.None),
+            Tags = []
+        };
+
+        _ = mediator.Mediate(new StreamingScopedCommand(), request);
+
+        factory.CreatedCount.Should().Be(0);
     }
 
     [Fact]
@@ -164,6 +223,24 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
     private sealed record StreamingScopedCommand : ICommand;
 
     private sealed record NullableStreamingCommand : ICommand;
+
+    private sealed class TrackingDispatchScopeFactory : IMessageDispatchScopeFactory
+    {
+        private readonly IMessageDispatchScopeFactory _inner;
+
+        public TrackingDispatchScopeFactory(IMessageDispatchScopeFactory inner)
+        {
+            _inner = inner;
+        }
+
+        public int CreatedCount { get; private set; }
+
+        public IMessageDispatchScope CreateScope()
+        {
+            CreatedCount++;
+            return _inner.CreateScope();
+        }
+    }
 
     private sealed class ScopedLifetimeMarker : IAsyncDisposable
     {

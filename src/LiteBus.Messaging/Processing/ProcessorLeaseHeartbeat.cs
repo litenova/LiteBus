@@ -111,16 +111,42 @@ internal static class ProcessorLeaseHeartbeat
         CancellationTokenSource operationCts)
     {
         var expiresAt = context.Clock.GetUtcNow().Add(context.LeaseDuration);
+        bool renewed;
 
-        var renewed = await context.LeaseStore.RenewLeaseAsync(
-                new LeaseRenewalRequest(
+        try
+        {
+            renewed = await context.LeaseStore.RenewLeaseAsync(
+                    new LeaseRenewalRequest(
+                        context.MessageId,
+                        context.LeaseOwner,
+                        context.LeaseGeneration,
+                        context.LeaseDuration,
+                        expiresAt),
+                    operationCts.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (operationCts.IsCancellationRequested)
+        {
+            return false;
+        }
+#pragma warning disable CA1031 // Lease-store failures must cancel dispatch and be converted to lease loss.
+        catch (Exception exception)
+#pragma warning restore CA1031
+        {
+            if (context.Logger is not null)
+            {
+                MessageProcessorLogMessages.LeaseRenewalFailed(
+                    context.Logger,
+                    context.ProcessorName,
                     context.MessageId,
                     context.LeaseOwner,
-                    context.LeaseGeneration,
-                    context.LeaseDuration,
-                    expiresAt),
-                CancellationToken.None)
-            .ConfigureAwait(false);
+                    exception);
+            }
+
+            context.OnLeaseLost?.Invoke();
+            await operationCts.CancelAsync().ConfigureAwait(false);
+            return false;
+        }
 
         if (renewed)
         {
@@ -133,7 +159,8 @@ internal static class ProcessorLeaseHeartbeat
                 context.Logger,
                 context.ProcessorName,
                 context.MessageId,
-                context.LeaseOwner);
+                context.LeaseOwner,
+                null);
         }
 
         context.OnLeaseLost?.Invoke();
