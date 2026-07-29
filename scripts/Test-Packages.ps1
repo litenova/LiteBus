@@ -184,8 +184,8 @@ foreach ($package in $packageMetadata) {
         $errors.Add("Package '$($package.Id)' does not declare the LiteBus website as its project URL.")
     }
 
-    if ($null -eq $releaseNotes -or $releaseNotes.InnerText -ne "https://github.com/litenova/LiteBus/blob/main/Changelog.md#v601") {
-        $errors.Add("Package '$($package.Id)' does not link to the v6.0.1 release notes.")
+    if ($null -eq $releaseNotes -or $releaseNotes.InnerText -ne "https://github.com/litenova/LiteBus/blob/main/Changelog.md#v602") {
+        $errors.Add("Package '$($package.Id)' does not link to the v6.0.2 release notes.")
     }
 
     if ($null -eq $readme -or $readme.InnerText -ne "README.md") {
