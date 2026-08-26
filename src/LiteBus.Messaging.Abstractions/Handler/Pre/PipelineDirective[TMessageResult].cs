@@ -23,7 +23,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///     <code><![CDATA[
 /// public sealed class ServeProductFromCache : IQueryGate<GetProductQuery, ProductView>
 /// {
-///     public async Task<PipelineDirective<ProductView>> PreHandleAsync(
+///     public async Task<PipelineDirective<ProductView>> DecideAsync(
 ///         GetProductQuery query,
 ///         CancellationToken cancellationToken = default)
 ///     {

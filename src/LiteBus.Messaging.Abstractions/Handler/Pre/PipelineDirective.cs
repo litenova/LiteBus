@@ -26,7 +26,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///     <code><![CDATA[
 /// public sealed class RejectClosedAccount : ICommandGate<WithdrawCommand>
 /// {
-///     public async Task<PipelineDirective> PreHandleAsync(
+///     public async Task<PipelineDirective> DecideAsync(
 ///         WithdrawCommand command,
 ///         CancellationToken cancellationToken = default)
 ///     {

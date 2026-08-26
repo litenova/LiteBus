@@ -68,6 +68,8 @@ Thrown when a gate stops a result-returning command or query without supplying a
 
 Fix: implement the typed gate, `ICommandGate<TCommand, TCommandResult>` or `IQueryGate<TQuery, TQueryResult>`, and return `PipelineDirective<TResult>.ShortCircuit(result)`. The compiler then requires the result, and the exception message names the contract to use. See [The Handler Pipeline](../concepts/handler-pipeline.md).
 
+Reference `LiteBus.Analyzers` to catch this at build time. `ICommand<TResult>` derives from `ICommand`, so the untyped contract compiles for a message that produces a result; `LB1019` reports the declaration and names the typed contract to use instead. See [Analyzers](../reference/analyzers.md).
+
 ## LiteBusMessageDeniedException Reached the Caller
 
 A gate refused the message through `Deny(reason)` and supplied no result, so there was nothing to hand back. This is a decision rather than a fault: it does not reach error handlers, the mediation reports `MessageOutcome.Denied`, and an audit trail records a denial with the reason.

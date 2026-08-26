@@ -84,4 +84,9 @@ internal static class DiagnosticIds
     ///     Command or query type states no audit position.
     /// </summary>
     internal const string MissingAuditDeclaration = "LB1018";
+
+    /// <summary>
+    ///     Gate uses the untyped gate contract for a message that produces a result.
+    /// </summary>
+    internal const string UntypedGateOnResultMessage = "LB1019";
 }

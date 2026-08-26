@@ -177,7 +177,7 @@ public sealed class RejectSelfApproval : ICommandGate<ApproveRefundCommand>
 
 - Pre-handlers after the gate that stopped the pipeline **do not run**. Neither does the main handler, nor any post-handler.
 - The reason reaches completion handlers as `MessageCompletionContext.Reason`, and an audit trail as the reason on the record. Without a reason, a short-circuited mediation leaves no explanation anywhere, because it reaches neither post-handlers nor error handlers. A denial always has one.
-- For a message with a result type, a stopping directive must supply a result. Using the untyped contract for such a message throws `LiteBusConfigurationException` naming the typed contract to use instead.
+- For a message with a result type, a stopping directive must supply a result. Using the untyped contract for such a message throws `LiteBusConfigurationException` naming the typed contract to use instead. Because `ICommand<TResult>` derives from `ICommand`, the untyped contract compiles there, so analyzer rule `LB1019` reports the declaration at build time.
 - Error handlers do not run. Stopping is a decision, not a failure.
 
 Deciding is a **capability**, which is why it lives in its own contract. A plain `ICommandPreHandler<TCommand>` cannot stop the pipeline, so a validator cannot skip the work by accident.

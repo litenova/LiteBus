@@ -64,6 +64,10 @@ unchanged.
   the exception that was already ending the mediation, so a failed audit write is never silently discarded.
 - `LB1018` reports command and query types that state no audit position, so an unaudited message is a recorded decision
   rather than an oversight. Disabled by default; enable with `dotnet_diagnostic.LB1018.severity = warning`.
+- `LB1019` reports a gate that implements the untyped gate contract for a message that produces a result. Because
+  `ICommand<TResult>` derives from `ICommand`, that contract compiles there, and a short-circuit from it fails at
+  runtime with `LiteBusConfigurationException`. The typed contract is a strict superset for such a message, so the rule
+  names it and the declaration is where the fix goes. Open generic gates are not reported.
 - `HandlerPriorities` reserves a priority band for handlers shipped by LiteBus, so ordering against them is a documented
   guarantee. Application handlers stay below `ReservedFloor` and, with no explicit priority, run first.
 - `IHandlerDescriptor.ContractType` records the closed contract a descriptor was discovered from, and `PipelineDispatch`

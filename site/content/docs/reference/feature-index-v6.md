@@ -74,7 +74,7 @@ Transport platform: `LiteBus.Transport.*`. Kafka transport is GA; AWS SQS and Az
 
 ## Analyzers
 
-See [Analyzers](analyzers.md) for LB1001-LB1017. Highlights:
+See [Analyzers](analyzers.md) for LB1001-LB1019. Highlights:
 
 | Rule | Topic |
 | --- | --- |

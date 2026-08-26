@@ -195,4 +195,15 @@ public static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         false,
         customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     A gate uses the untyped gate contract for a message that produces a result.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor UntypedGateOnResultMessage = new(
+        DiagnosticIds.UntypedGateOnResultMessage,
+        "Untyped gate on a message that produces a result",
+        "Gate '{0}' implements the untyped gate contract for '{1}', which produces '{2}'. The untyped directive cannot carry a result, so a short-circuit fails at runtime with LiteBusConfigurationException. Implement {3}<{1}, {2}> instead.",
+        "LiteBus.Handlers",
+        DiagnosticSeverity.Warning,
+        true);
 }

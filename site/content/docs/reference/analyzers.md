@@ -8,7 +8,7 @@
 
 Analyzers have no runtime dependency on LiteBus libraries.
 
-## Rule Inventory (LB1001-LB1018)
+## Rule Inventory (LB1001-LB1019)
 
 | ID | Severity | Category | Summary |
 | --- | --- | --- | --- |
@@ -29,6 +29,7 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | LB1016 | Warning | Inbox | Constructor injects `ITransactionalInboxStore` without a `DbContext` in the same constructor |
 | LB1017 | Warning | Contracts | Type declares `[MessageContract]` but lacks explicit `Contracts.Register` or `RegisterFromAssembly` in the compilation |
 | LB1018 | Warning (disabled by default) | Auditing | Command or query type declares neither `[Audited]` nor `[AuditExempt]` and has no `IAuditDefinition` |
+| LB1019 | Warning | Handlers | Gate implements `IMessageGate<TMessage>` for a message that produces a result |
 
 ### Audit Declaration (LB1018)
 
@@ -43,6 +44,22 @@ dotnet_diagnostic.LB1018.severity = warning
 ```
 
 Promote it to `error` when the trail is a compliance obligation rather than a convenience. See [Auditing](../concepts/auditing.md).
+
+### Untyped Gate on a Result Message (LB1019)
+
+`ICommand<TResult>` derives from `ICommand`, so `ICommandGate<CreateProductCommand>` compiles for a command that produces a result. The untyped `PipelineDirective` carries no result, so a short-circuit from such a gate reaches the caller as `LiteBusConfigurationException` instead of the value the caller expects.
+
+For a message that produces a result the typed contract is a strict superset: it can continue, short-circuit with a result, refuse with one, and refuse without one. LB1019 therefore reports the declaration rather than the individual call, because the contract choice is the mistake.
+
+```csharp
+// LB1019: CreateProductCommand produces Guid
+public sealed class CreateProductGate : ICommandGate<CreateProductCommand> { }
+
+// Correct
+public sealed class CreateProductGate : ICommandGate<CreateProductCommand, Guid> { }
+```
+
+Open generic gates are not reported: the message type is a type parameter, so the result type is unknown until dispatch. See [The Handler Pipeline](../concepts/handler-pipeline.md).
 
 ### Contract Registration Split (LB1007 vs LB1017)
 

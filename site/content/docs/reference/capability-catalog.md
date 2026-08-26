@@ -59,7 +59,7 @@ LiteBus capability axes
 |
 +-- Platform foundation
 |     runtime (module graph, registry, mediator engine, contracts, serialization)
-|     analyzers (compile-time LB1001-LB1017 rules)
+|     analyzers (compile-time LB1001-LB1019 rules)
 |
 +-- In-process mediation
 |     mediator (commands, queries, events, pipeline, registration)
@@ -333,7 +333,7 @@ One row per capability. Packages list primary install targets; transitive abstra
 
 ### [Analyzers](../catalog/analyzers/README.md) (15 capabilities)
 
-Compile-time Roslyn rules (LB1001 through LB1017) that guard handler registration, durable contracts, inbox accept semantics, EF transactional wiring, and processor/dispatcher coupling. No runtime dependency on LiteBus libraries.
+Compile-time Roslyn rules (LB1001 through LB1019) that guard handler registration, durable contracts, inbox accept semantics, EF transactional wiring, and processor/dispatcher coupling. No runtime dependency on LiteBus libraries.
 
 **Key requires:** application projects reference `LiteBus.Analyzers`; protected axes (mediator, durable core, dispatch, storage) must be composed for rules to apply meaningfully.
 
@@ -472,7 +472,7 @@ Each capability file ends with **Test coverage**:
 | Hosting | [catalog/hosting/README.md](../catalog/hosting/README.md) | `Runtime`, `Extensions`, OpenTelemetry integration tests |
 | Saga | [catalog/saga/README.md](../catalog/saga/README.md) | `LiteBus.Saga.UnitTests`, `LiteBus.Saga.Storage.PostgreSql.UnitTests`, `LiteBus.Storage.IntegrationTests`, `LiteBus.Runtime.UnitTests` |
 | Runtime | [catalog/runtime/README.md](../catalog/runtime/README.md) | `LiteBus.Runtime*`, `Messaging` unit tests |
-| Analyzers | [catalog/analyzers/README.md](../catalog/analyzers/README.md) | `LiteBus.Analyzers.UnitTests` (LB1001-LB1017) |
+| Analyzers | [catalog/analyzers/README.md](../catalog/analyzers/README.md) | `LiteBus.Analyzers.UnitTests` (LB1001-LB1019) |
 
 ---
 

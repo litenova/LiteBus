@@ -88,7 +88,7 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 - Only a gate can stop the pipeline; `ShortCircuited` and `Denied` both mean the main handler never ran.
 - A denial is not routed to error handlers and is not reported as `Faulted`.
 - Suppressing post-handlers reports `MessageOutcome.Succeeded`, because the main handler ran.
-- A stopping directive on a result-returning message must supply a result of the expected type, or mediation throws `LiteBusConfigurationException`.
+- A stopping directive on a result-returning message must supply a result of the expected type, or mediation throws `LiteBusConfigurationException`. Analyzer rule `LB1019` reports a gate that used the untyped contract for such a message.
 - One class may implement pipeline contracts for several message types; each dispatch reaches the contract recorded in its descriptor.
 
 ## Non-Goals
