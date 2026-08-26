@@ -90,6 +90,11 @@ unchanged.
   keeps reflection out of the dispatch path.
 - Two definitions declaring the same value type for one message, or two declarations covering one message where neither
   is more derived than the other, are reported at registration instead of being resolved by assembly scanning order.
+- Dependencies are updated to their current versions, which clears the `SSH.NET` advisory reached transitively through
+  Testcontainers and restores a clean `NuGetAudit` run. Four are deliberately held back: Roslyn stays on 4.x so the
+  analyzer loads on the compiler the .NET 10 SDK ships, EF Core and Npgsql stay on 9.x because
+  `Pomelo.EntityFrameworkCore.MySql` has no EF Core 10 provider, and `SQLitePCLRaw` stays on 2.1.x to match the EF Core
+  9 SQLite provider.
 
 ### Fixed
 

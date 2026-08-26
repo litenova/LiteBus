@@ -359,48 +359,48 @@
       "litebus.commands.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging.Abstractions": "[1.0.0, )"
+          "LiteBus.Messaging.Abstractions": "[6.1.0, )"
         }
       },
       "litebus.durablemessaging.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging.Abstractions": "[1.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+          "LiteBus.Messaging.Abstractions": "[6.1.0, )",
+          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
         }
       },
       "litebus.events.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging.Abstractions": "[1.0.0, )"
+          "LiteBus.Messaging.Abstractions": "[6.1.0, )"
         }
       },
       "litebus.inbox.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[1.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[1.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+          "LiteBus.DurableMessaging.Abstractions": "[6.1.0, )",
+          "LiteBus.Messaging.Abstractions": "[6.1.0, )",
+          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
         }
       },
       "litebus.messaging.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
         }
       },
       "litebus.outbox.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[1.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[1.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[1.0.0, )"
+          "LiteBus.DurableMessaging.Abstractions": "[6.1.0, )",
+          "LiteBus.Messaging.Abstractions": "[6.1.0, )",
+          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
         }
       },
       "litebus.queries.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging.Abstractions": "[1.0.0, )"
+          "LiteBus.Messaging.Abstractions": "[6.1.0, )"
         }
       },
       "litebus.runtime.abstractions": {
