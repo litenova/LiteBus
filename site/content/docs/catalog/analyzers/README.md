@@ -26,7 +26,7 @@
 | [analyzers.transactional-inbox-dbcontext](transactional-inbox-wiring.md) | Transactional inbox store injected without DbContext | GA |
 | [analyzers.transactional-outbox-dbcontext](transactional-outbox-wiring.md) | Transactional outbox store injected without DbContext | GA |
 
-## Diagnostic Inventory (LB1001-LB1017)
+## Diagnostic Inventory (LB1001-LB1018)
 
 | ID | Severity | Category | Rule | Capability page |
 | --- | --- | --- | --- | --- |
@@ -47,6 +47,7 @@
 | `LB1015` | Warning | `LiteBus.Configuration` | Transactional EF storage enforces setup without save interceptor | [transactional-ef-interceptor.md](transactional-ef-interceptor.md) |
 | `LB1016` | Warning | `LiteBus.Inbox` | Constructor injects `ITransactionalInboxStore` without `DbContext` | [transactional-inbox-wiring.md](transactional-inbox-wiring.md) |
 | `LB1017` | Warning | `LiteBus.Contracts` | `[MessageContract]` type has no explicit `Register` or `RegisterFromAssembly` | [contract-registration.md](contract-registration.md) |
+| `LB1018` | Warning (off by default) | `LiteBus.Auditing` | Command or query type states no audit position | [audit-declaration.md](audit-declaration.md) |
 
 ## Suppression Policy
 

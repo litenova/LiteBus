@@ -22,7 +22,8 @@ Find all API and architecture documentation at https://litebus.io/docs.
 ## What LiteBus Includes
 
 - Separate command, query, and event contracts, mediators, handlers, and pipelines.
-- Handler priorities, filters, pre-handlers, post-handlers, and error handlers.
+- Declarative per-message metadata and an audit trail recorded at the mediation boundary, including refusals.
+- Handler priorities, filters, pre-handlers, post-handlers, error handlers, and completion handlers that observe every outcome.
 - Durable inbox processing for commands and transactional outbox processing for events.
 - Saga state with correlation, tenancy, optimistic concurrency, and duplicate dispatch suppression.
 - Opt-in PostgreSQL, Entity Framework Core, in-memory, AMQP, Kafka, AWS SQS, and Azure Service Bus adapters.

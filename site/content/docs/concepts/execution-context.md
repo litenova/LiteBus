@@ -73,7 +73,7 @@ You can terminate the message pipeline at any point by calling `Abort()`. This i
 
 #### Aborting Without a Result
 
-When `Abort()` is called, LiteBus throws a `LiteBusExecutionAbortedException` internally, which stops the pipeline. No further handlers (main or post) will be executed.
+When `Abort()` is called, LiteBus throws a `LiteBusExecutionAbortedException` internally, which stops the pipeline. No further handlers (main or post) will be executed, and error-handlers do not run either, because an abort is a clean stop rather than a failure. Completion handlers still run, with `MessageOutcome.Aborted`.
 
 ```csharp
 public class PermissionPreHandler : ICommandPreHandler<DeleteProductCommand>
@@ -89,6 +89,16 @@ public class PermissionPreHandler : ICommandPreHandler<DeleteProductCommand>
     }
 }
 ```
+
+#### Recording Why the Pipeline Was Aborted
+
+An abort reaches neither post-handlers nor error-handlers, so without a reason a short-circuited mediation leaves no trace of its cause anywhere. Pass one:
+
+```csharp
+AmbientExecutionContext.Current.Abort(messageResult: null, reason: "caller is not a member of this tenant");
+```
+
+The reason is carried on `LiteBusExecutionAbortedException.Reason` and reaches completion handlers as `MessageCompletionContext.AbortReason`. It is what lets an audit trail record a refusal rather than silently recording nothing. See [The Handler Pipeline](handler-pipeline.md) for the completion stage.
 
 #### Aborting with a Result
 

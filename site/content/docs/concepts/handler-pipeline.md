@@ -1,10 +1,10 @@
 # The Handler Pipeline
 
-Every message LiteBus mediates passes through the same four-stage pipeline: pre-handlers, one or more main handlers, post-handlers, and error-handlers on failure. This page explains the exact order each stage runs in, how global and specific handlers interleave, how errors propagate, how cancellation flows, and how a handler can short-circuit the pipeline. It is the reference behind the per-module pages and assumes you have read at least the [Command Module](commands.md).
+Every message LiteBus mediates passes through the same five-stage pipeline: pre-handlers, one or more main handlers, post-handlers, error-handlers on failure, and completion handlers on every path. This page explains the exact order each stage runs in, how global and specific handlers interleave, how errors propagate, how cancellation flows, and how a handler can short-circuit the pipeline. It is the reference behind the per-module pages and assumes you have read at least the [Command Module](commands.md).
 
 The pipeline is the same shape for commands, queries, and events. The difference is the main stage: a command or query has exactly one main handler, while an event has zero to many. Everything around the main stage behaves identically.
 
-## The Four Stages
+## The Five Stages
 
 For a single message, mediation runs:
 
@@ -12,6 +12,7 @@ For a single message, mediation runs:
 2. **Main handler** does the work. One handler for commands and queries; all matching handlers for events.
 3. **Post-handlers** react to success. They receive the message and the result.
 4. **Error-handlers** run only if any earlier stage threw. They receive the message, any partial result, and the exception.
+5. **Completion handlers** run on every path, exactly once, and observe how the mediation ended.
 
 ```mermaid
 flowchart LR
@@ -23,7 +24,12 @@ flowchart LR
     C -. throws .-> F
     D -. throws .-> F
     F -. no error-handler .-> G[Exception rethrown]
+    E --> H[Completion handlers]
+    F --> H
+    G --> H
 ```
+
+The first four stages each answer a partial question. Only the fifth sees the whole story, which is why it exists: a post-handler never runs when a handler throws, an error-handler never runs for an abort or a cancellation, and neither runs when no handler of that kind is registered. Anything that must know how a message actually ended, such as an audit record, a metric, or the close of a unit of work, belongs in the completion stage.
 
 ## Global, Specific, and the Execution Order
 
@@ -37,10 +43,13 @@ The two kinds run in a deliberate order that forms an onion around the main hand
 | Main handler | The handler(s) for the message |
 | Post-handlers | Specific (direct) first, then global (indirect) |
 | Error-handlers | Global (indirect) first, then specific (direct) |
+| Completion handlers | Specific (direct) first, then global (indirect) |
 
 Within each group, handlers run in ascending `[HandlerPriority]` order (default priority is `0`). The pre/post asymmetry is intentional: a global pre-handler such as authentication runs before any message-specific check, and a global post-handler such as audit logging runs after the message-specific reactions have completed. Cross-cutting concerns wrap message-specific ones on both sides.
 
-This ordering is implemented in `MessageContextExtensions`: pre-handlers iterate indirect then direct, post-handlers iterate direct then indirect, and error-handlers iterate indirect then direct.
+This ordering is implemented in `MessageContextExtensions`: pre-handlers iterate indirect then direct, post-handlers and completion handlers iterate direct then indirect, and error-handlers iterate indirect then direct.
+
+LiteBus also ships pipeline handlers of its own, such as the audit record writer. Those sit in a reserved priority band at or above `LiteBusHandlerPriority.FrameworkFloor`, so an application handler with no explicit priority always runs first. See [Handler Priority](handler-priority.md).
 
 ## Commands and Queries: The Single-Handler Pipeline
 
@@ -50,6 +59,7 @@ A command or query must resolve to exactly one main handler. If more than one is
 RunAsyncPreHandlers(message)        // indirect pre, then direct pre
 result = handler.HandleAsync(...)   // the one main handler
 RunAsyncPostHandlers(message, result) // direct post, then indirect post
+RunAsyncCompletionHandlers(context)   // direct, then indirect, always, in a finally
 return result
 ```
 
@@ -109,6 +119,14 @@ The result rules for abort are:
 - For a void command (`ICommand`), `Abort()` ends the pipeline with no result.
 - For a result command or query, you must pass a value: `Abort(result)`. Aborting a result-returning message without a value throws `LiteBusConfigurationException`, because the caller is owed a result.
 
+`Abort` also accepts a reason, which is the only description of why the message ended, because an abort reaches neither post-handlers nor error-handlers:
+
+```csharp
+AmbientExecutionContext.Current.Abort(messageResult: null, reason: "caller is not a member of this tenant");
+```
+
+The reason reaches completion handlers as `MessageCompletionContext.AbortReason`. Without it, a short-circuited mediation leaves no trace of its cause anywhere.
+
 Abort is a single-handler concept. In an event broadcast, the abort exception is treated like any other exception and routed to error-handlers, so do not use `Abort` to skip event handlers; filter them instead with [Handler Filtering](handler-filtering.md).
 
 ## Cancellation
@@ -119,6 +137,44 @@ Each handler method receives a `CancellationToken`. The token the caller passes 
 
 Handlers in one mediation share an execution context. Use `AmbientExecutionContext.Current.Items` to pass data from a pre-handler to the main handler or a post-handler, for example a timer started in a pre-handler and stopped in a post-handler. The context is covered in full on [Execution Context](execution-context.md).
 
+## Completion: Observing How Mediation Ended
+
+A completion handler runs in a `finally`, inside the ambient execution scope, after post-handlers on the success path and after error-handlers on the failure path. It runs exactly once per mediation, whatever happened.
+
+```csharp
+public sealed class RecordCommandOutcome : ICommandCompletionHandler
+{
+    public Task HandleCompletionAsync(
+        MessageCompletionContext<ICommand> context,
+        CancellationToken cancellationToken)
+    {
+        // context.Outcome is Succeeded, Aborted, Failed, or Canceled.
+        // context.Exception, context.AbortReason, context.Duration, and context.MessageResult carry the detail.
+        return Task.CompletedTask;
+    }
+}
+```
+
+`MessageOutcome` distinguishes four endings:
+
+| Outcome | When |
+| --- | --- |
+| `Succeeded` | The main handler and every post-handler ran without throwing |
+| `Aborted` | A handler called `Abort`, carrying an optional reason |
+| `Failed` | The pipeline raised an exception other than cancellation |
+| `Canceled` | The mediation cancellation token was observed |
+
+Two rules matter when writing one:
+
+- **A completion handler observes; it cannot change the outcome.** The context is read-only, and the value the caller receives is already decided.
+- **A completion handler that throws while the pipeline is already failing is suppressed**, so an observer bug can never replace the original fault. When the mediation succeeded, the exception propagates normally, because there is nothing to mask.
+
+Register a handler for one message type with `ICommandCompletionHandler<TCommand>` or `IQueryCompletionHandler<TQuery>`, and for every message on an axis with the non-generic `ICommandCompletionHandler` or `IQueryCompletionHandler`.
+
+For streams, completion fires when the enumerator is disposed. A consumer who calls a stream query and never enumerates the result produces no completion record. That is inherent to iterators, and worth knowing if you audit reads.
+
+Events deliberately have no completion role interface. A domain event stream and an audit trail are different logs with different readers and different retention, so LiteBus does not encourage deriving one from the other.
+
 ## Next
 
-Read [Execution Context](execution-context.md) to share state and override results, then [Handler Priority](handler-priority.md) to order handlers within a stage.
+Read [Execution Context](execution-context.md) to share state and override results, then [Handler Priority](handler-priority.md) to order handlers within a stage. To declare metadata that pipeline stages read, see [Message Definitions](message-definitions.md), and for the audit trail built on the completion stage, see [Auditing](auditing.md).

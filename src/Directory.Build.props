@@ -5,7 +5,7 @@
         <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <TargetFrameworks>net10.0</TargetFrameworks>
-        <VersionPrefix>6.0.2</VersionPrefix>
+        <VersionPrefix>6.1.0</VersionPrefix>
         <LangVersion>latest</LangVersion>
         <Authors>A. Shafie</Authors>
         <PackageTags>litebus;mediator;messaging;cqrs</PackageTags>

@@ -2,6 +2,55 @@
 
 All notable changes to this project will be documented in this file.
 
+## v6.1.0
+
+Minor release for .NET 10. Adds a completion stage to the mediation pipeline, declarative message metadata, and an audit
+trail built on both. Persistence schemas and transport behavior are unchanged.
+
+### Added
+
+- A fifth pipeline stage. `IMessageCompletionHandler`, `ICommandCompletionHandler`, and `IQueryCompletionHandler` run in
+  a `finally` on every mediation path, exactly once, and receive a read-only `MessageCompletionContext` carrying the
+  outcome, the result, the exception, the abort reason, and the elapsed duration. Post-handlers run only when the main
+  handler succeeds and error handlers only for recoverable exceptions, so until now no stage could observe how a message
+  actually ended. Recording an audit entry, emitting a metric, or closing a unit of work belongs here.
+- `MessageOutcome` distinguishes `Succeeded`, `Aborted`, `Failed`, and `Canceled`. An aborted or cancelled mediation
+  previously left no trace in any stage.
+- `IExecutionContext.Abort(object?, string?)` records why a pipeline was short-circuited. The reason is carried on
+  `LiteBusExecutionAbortedException.Reason` and surfaces as `MessageCompletionContext.AbortReason`. The overload is a
+  default interface method, so existing implementors are unaffected.
+- Declarative message metadata. `IMessageDescriptor.Metadata` exposes values resolved once at registration from
+  attributes on the message type and from message definitions, so a pipeline stage reads a dictionary instead of
+  reflecting on every dispatch.
+- Message definitions. A definition class lives beside the message it describes and declares one facet per concern
+  through `IMessageDefinition<TMessage, TValue>`. Facets are keyed by value type, so one class may declare several
+  without ambiguity, and applications may declare facets over their own value types that LiteBus applies without
+  interpreting. A definition overrides an attribute declaring the same value type.
+- An audit trail at the mediation boundary. `[Audited]` and `[AuditExempt]`, or an `IAuditDefinition<TMessage>` facet,
+  declare the constant half of a record; `IAuditScope` supplies what only the handler knows. `EnableAuditing()` on the
+  command and query module builders registers the writer, which hands an `AuditRecord` to the application's
+  `IAuditTrail`. Because it runs at the completion stage, refusals and failures are recorded as first-class outcomes
+  rather than being invisible.
+- `IAuditOutcomeMapper` and `MessageModuleBuilder.UseAuditOutcomeMapper` let an application record its own refusal
+  exception as `AuditOutcome.Denied` rather than `AuditOutcome.Failed`.
+- `LB1018` reports command and query types that state no audit position, so an unaudited message is a recorded decision
+  rather than an oversight. Disabled by default; enable with `dotnet_diagnostic.LB1018.severity = warning`.
+- `LiteBusHandlerPriority` reserves a priority band for handlers shipped by LiteBus, so ordering against them is a
+  documented guarantee. Application handlers stay below `FrameworkFloor` and, with no explicit priority, run first.
+
+### Changed
+
+- `CommandModuleBuilder` and `QueryModuleBuilder` recognize completion handler contracts and message definitions as
+  registrable constructs, so `RegisterFromAssembly` discovers them.
+- `AsyncBroadcastMediationStrategy` now observes aborts and cancellations so it can report them to the completion
+  stage. Both still propagate to the caller exactly as before.
+
+### Breaking
+
+- `IMessageDescriptor` and `IMessageDependencies` gained members for the completion stage and for message metadata.
+  Custom implementations of these interfaces must add them. Both are infrastructure contracts implemented by LiteBus
+  itself; applications that only implement handlers are unaffected.
+
 ## v6.0.2
 
 Patch release for .NET 10. Public APIs, persistence schemas, and transport behavior are unchanged.

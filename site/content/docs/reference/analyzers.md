@@ -8,7 +8,7 @@
 
 Analyzers have no runtime dependency on LiteBus libraries.
 
-## Rule Inventory (LB1001-LB1017)
+## Rule Inventory (LB1001-LB1018)
 
 | ID | Severity | Category | Summary |
 | --- | --- | --- | --- |
@@ -28,6 +28,21 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | LB1015 | Warning | Configuration | Transactional EF storage calls `EnforceTransactionalSetup()` without `EnableSaveChangesInterceptor()` |
 | LB1016 | Warning | Inbox | Constructor injects `ITransactionalInboxStore` without a `DbContext` in the same constructor |
 | LB1017 | Warning | Contracts | Type declares `[MessageContract]` but lacks explicit `Contracts.Register` or `RegisterFromAssembly` in the compilation |
+| LB1018 | Warning (disabled by default) | Auditing | Command or query type declares neither `[Audited]` nor `[AuditExempt]` and has no `IAuditDefinition` facet |
+
+### Audit Declaration (LB1018)
+
+LB1018 makes the selection of audited events total: every command and query states a position, and the reason for not auditing is recorded beside the message rather than in a document that drifts. It is **disabled by default**, because enabling it silently would break every existing compilation, and it stays silent when the audit contracts are not referenced at all.
+
+Enable it once the codebase has declared its position:
+
+```ini
+# .editorconfig
+[*.cs]
+dotnet_diagnostic.LB1018.severity = warning
+```
+
+Promote it to `error` when the trail is a compliance obligation rather than a convenience. See [Auditing](../concepts/auditing.md).
 
 ### Contract Registration Split (LB1007 vs LB1017)
 

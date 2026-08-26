@@ -12,6 +12,8 @@ using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Queries;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Sample;
+using LiteBus.Messaging.Abstractions;
+using LiteBus.Sample.Auditing;
 using LiteBus.Sample.Commands;
 using LiteBus.Sample.Events;
 using LiteBus.Sample.Queries;
@@ -19,14 +21,15 @@ using LiteBus.Sample.Queries;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<PaymentLedger>();
+builder.Services.AddSingleton<IAuditTrail, ConsoleAuditTrail>();
 
 builder.Services.AddLiteBus(liteBus =>
 {
     var applicationAssembly = typeof(ProcessPaymentCommand).Assembly;
 
     liteBus.AddMessaging(_ => { });
-    liteBus.AddCommands(commands => commands.RegisterFromAssembly(applicationAssembly));
-    liteBus.AddQueries(queries => queries.RegisterFromAssembly(applicationAssembly));
+    liteBus.AddCommands(commands => commands.RegisterFromAssembly(applicationAssembly).EnableAuditing());
+    liteBus.AddQueries(queries => queries.RegisterFromAssembly(applicationAssembly).EnableAuditing());
     liteBus.AddEvents(events => events.RegisterFromAssembly(applicationAssembly));
 
     liteBus.AddInbox(inbox =>
