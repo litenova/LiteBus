@@ -36,7 +36,8 @@ public sealed class ContextAwarePreHandler : ICommandPreHandler<CreateOrderComma
 | `IExecutionContext.CancellationToken` | Effective cancellation token |
 | `IExecutionContext.MessageResult` | Result override written by a post-handler |
 | `IExecutionContext.SuppressPostHandlers()` | Skips the post-handlers that have not run yet |
-| `PipelineDirective` / `PipelineDirective<TResult>` | Stops a pipeline from a gate, as an early answer or a refusal |
+| `Verdict` / `Verdict<TResult>` | Refuses a message from a guard, optionally with a value for the caller |
+| `Shortcut` / `Shortcut<TResult>` | Answers a message from a shortcut, so the main handler never runs |
 | `AmbientExecutionContext.Current` | Access current ambient context |
 | `AmbientExecutionContext.HasCurrent` | Presence check |
 | `AmbientExecutionContext.CreateScope(IExecutionContext)` | Scoped ambient context |

@@ -3,7 +3,7 @@ using System;
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Represents the refusal of a message by a gate that supplied no result for the caller to receive.
+///     Represents the refusal of a message by a guard that supplied no result for the caller to receive.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -13,8 +13,9 @@ namespace LiteBus.Messaging.Abstractions;
 ///         value has nothing to return.
 ///     </para>
 ///     <para>
-///         A gate that would rather hand the caller a refusal value than raise an exception supplies one through
-///         <see cref="PipelineDirective{TMessageResult}.Deny(string,TMessageResult)" />.
+///         A guard that would rather hand the caller a refusal value than raise an exception implements
+///         <see cref="IMessageGuard{TMessage,TMessageResult}" /> and supplies one through
+///         <see cref="Verdict{TMessageResult}.Deny(string,TMessageResult)" />.
 ///     </para>
 /// </remarks>
 public sealed class LiteBusMessageDeniedException : Exception

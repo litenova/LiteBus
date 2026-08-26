@@ -36,6 +36,7 @@ internal static class HandlerDescriptorRegistration
                 Tags = pre.Tags,
                 HandlerType = pre.HandlerType,
                 ContractType = pre.ContractType,
+                Stage = pre.Stage,
                 Dispatch = pre.Dispatch
             },
             PostHandlerDescriptor post => new PostHandlerDescriptor

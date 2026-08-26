@@ -43,25 +43,25 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         {
             using (AmbientExecutionContext.CreateScope(executionContext))
             {
-                var directive = await messageDependencies
-                    .RunAsyncPreHandlers(message, executionContext.CancellationToken)
+                var stop = await messageDependencies
+                    .RunAsyncPreStages(message, executionContext.CancellationToken)
                     .ConfigureAwait(false);
 
-                if (directive.StopsPipeline)
+                if (stop.StopsPipeline)
                 {
-                    outcome = directive.ToOutcome();
-                    reason = directive.Reason;
+                    outcome = stop.Outcome;
+                    reason = stop.Reason;
 
-                    if (directive.IsUnansweredDenial())
+                    if (stop.IsUnansweredDenial)
                     {
                         // A refusal with no result has nothing to return, so it reaches the caller as an exception. It
                         // is excluded from the recoverable filter, so error handlers do not see a decision as a fault.
-                        var denial = directive.CreateDenial(message.GetType());
+                        var denial = stop.CreateDenial(message.GetType());
                         failure = denial;
                         throw denial;
                     }
 
-                    messageResult = directive.ResolveResult<TMessageResult>(message.GetType());
+                    messageResult = stop.ResolveResult<TMessageResult>(message.GetType());
                     return messageResult;
                 }
 

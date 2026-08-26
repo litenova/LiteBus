@@ -62,7 +62,7 @@ public sealed class AuditTrailTests : LiteBusTestBase
                     builder.Register<OverridePriceCommand>();
                     builder.Register<OverridePriceCommandHandler>();
                     builder.Register<ApproveRefundCommand>();
-                    builder.Register<ApproveRefundCommandGate>();
+                    builder.Register<ApproveRefundCommandGuard>();
                     builder.Register<ApproveRefundCommandHandler>();
                     builder.EnableAuditing();
                 });
@@ -72,7 +72,7 @@ public sealed class AuditTrailTests : LiteBusTestBase
                     builder.Register<ExportOrdersQuery>();
                     builder.Register<ExportOrdersQueryHandler>();
                     builder.Register<ReadOrderQuery>();
-                    builder.Register<ReadOrderQueryGate>();
+                    builder.Register<ReadOrderQueryShortcut>();
                     builder.Register<ReadOrderQueryHandler>();
                     builder.EnableAuditing();
                 });

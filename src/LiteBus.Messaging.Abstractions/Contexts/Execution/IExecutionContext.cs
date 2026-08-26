@@ -71,9 +71,10 @@ public interface IExecutionContext
     ///         that publishes its domain events.
     ///     </para>
     ///     <para>
-    ///         Unlike a gate, this does not stop the calling handler and does not change the outcome. The mediation
-    ///         still reports <see cref="MessageOutcome.Succeeded" />, because the main handler ran. To stop the pipeline
-    ///         before the work happens, implement <see cref="IMessageGate{TMessage}" /> instead.
+    ///         Unlike a guard or a shortcut, this does not stop the calling handler and does not change the outcome. The
+    ///         mediation still reports <see cref="MessageOutcome.Succeeded" />, because the main handler ran. To skip
+    ///         the work itself, implement <see cref="IMessageShortcut{TMessage}" />; to refuse the message, implement
+    ///         <see cref="IMessageGuard{TMessage}" />.
     ///     </para>
     /// </remarks>
     void SuppressPostHandlers();

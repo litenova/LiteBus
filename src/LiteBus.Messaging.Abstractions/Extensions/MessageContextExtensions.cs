@@ -7,8 +7,8 @@ using System.Threading.Tasks;
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Provides extension methods for running the pre-handler, post-handler, error, and completion stages of the message
-///     handling pipeline.
+///     Provides extension methods for running the decision, pre-handler, post-handler, error, and completion stages of
+///     the message handling pipeline.
 /// </summary>
 /// <remarks>
 ///     Mediation strategies compose the stages through these methods, so a custom strategy gets the same ordering,
@@ -17,45 +17,96 @@ namespace LiteBus.Messaging.Abstractions;
 public static class MessageContextExtensions
 {
     /// <summary>
-    ///     Runs the pre-handler stage, including any gates, until one of them stops the pipeline.
+    ///     Runs the three stages that precede the main handler, in the order the framework fixes: guards, then
+    ///     shortcuts, then pre-handlers.
+    /// </summary>
+    /// <param name="messageDependencies">The message dependencies encapsulating pre-handlers.</param>
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="cancellationToken">The cancellation token passed to each invocation.</param>
+    /// <returns>
+    ///     The stop from the first guard or shortcut that ended the mediation, or <see cref="PipelineStop.None" /> when
+    ///     every stage let it proceed. Nothing after a stop runs.
+    /// </returns>
+    /// <remarks>
+    ///     The stage order is not configurable and priority cannot reorder it. That is what makes "a shortcut never
+    ///     answers a caller a guard would have refused" a guarantee rather than a convention: a global cache shortcut
+    ///     cannot run ahead of a message-specific authorization guard, which the single pre-handler stage of earlier
+    ///     versions could not express.
+    /// </remarks>
+    public static async Task<PipelineStop> RunAsyncPreStages(
+        this IMessageDependencies messageDependencies,
+        object message,
+        CancellationToken cancellationToken)
+    {
+        var stop = await messageDependencies.RunAsyncGuards(message, cancellationToken).ConfigureAwait(false);
+
+        if (stop.StopsPipeline)
+        {
+            return stop;
+        }
+
+        stop = await messageDependencies.RunAsyncShortcuts(message, cancellationToken).ConfigureAwait(false);
+
+        if (stop.StopsPipeline)
+        {
+            return stop;
+        }
+
+        return await messageDependencies.RunAsyncPreHandlers(message, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Runs the guard stage until one guard refuses the message.
+    /// </summary>
+    /// <param name="messageDependencies">The message dependencies encapsulating pre-handlers.</param>
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="cancellationToken">The cancellation token passed to each guard invocation.</param>
+    /// <returns>
+    ///     The stop from the first guard that refused the message, or <see cref="PipelineStop.None" /> when every guard
+    ///     allowed it.
+    /// </returns>
+    public static Task<PipelineStop> RunAsyncGuards(
+        this IMessageDependencies messageDependencies,
+        object message,
+        CancellationToken cancellationToken)
+    {
+        return messageDependencies.RunStage(PipelineStage.Guard, message, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Runs the shortcut stage until one shortcut answers the message.
+    /// </summary>
+    /// <param name="messageDependencies">The message dependencies encapsulating pre-handlers.</param>
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="cancellationToken">The cancellation token passed to each shortcut invocation.</param>
+    /// <returns>
+    ///     The stop from the first shortcut that answered the message, or <see cref="PipelineStop.None" /> when none
+    ///     did.
+    /// </returns>
+    public static Task<PipelineStop> RunAsyncShortcuts(
+        this IMessageDependencies messageDependencies,
+        object message,
+        CancellationToken cancellationToken)
+    {
+        return messageDependencies.RunStage(PipelineStage.Shortcut, message, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Runs the pre-handler stage, where validation and enrichment happen.
     /// </summary>
     /// <param name="messageDependencies">The message dependencies encapsulating pre-handlers.</param>
     /// <param name="message">The message to be pre-handled.</param>
     /// <param name="cancellationToken">The cancellation token passed to each pre-handler invocation.</param>
     /// <returns>
-    ///     The directive from the first gate that stopped the pipeline, or <see cref="PipelineDirective.Continue" />
-    ///     when every pre-handler let the pipeline proceed. Pre-handlers after a stopping directive do not run.
+    ///     Always <see cref="PipelineStop.None" />, because a pre-handler cannot stop the pipeline by returning. A
+    ///     pre-handler that fails validation throws, which ends the mediation as a fault rather than a decision.
     /// </returns>
-    public static async Task<PipelineDirective> RunAsyncPreHandlers(
+    public static Task<PipelineStop> RunAsyncPreHandlers(
         this IMessageDependencies messageDependencies,
         object message,
         CancellationToken cancellationToken)
     {
-        foreach (var preHandler in messageDependencies.IndirectPreHandlers)
-        {
-            var directive = await PipelineHandlerInvoker
-                .InvokePreHandlerAsync(preHandler.Handler.Value, preHandler.Descriptor, message, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (directive.StopsPipeline)
-            {
-                return directive;
-            }
-        }
-
-        foreach (var preHandler in messageDependencies.PreHandlers)
-        {
-            var directive = await PipelineHandlerInvoker
-                .InvokePreHandlerAsync(preHandler.Handler.Value, preHandler.Descriptor, message, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (directive.StopsPipeline)
-            {
-                return directive;
-            }
-        }
-
-        return PipelineDirective.Continue;
+        return messageDependencies.RunStage(PipelineStage.PreHandler, message, cancellationToken);
     }
 
     /// <summary>
@@ -250,6 +301,65 @@ public static class MessageContextExtensions
         {
             await messageDependencies.RunAsyncCompletionHandlers(context).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    ///     Runs the handlers of one decision stage, indirect before direct, until one of them stops the pipeline.
+    /// </summary>
+    /// <param name="messageDependencies">The message dependencies encapsulating pre-handlers.</param>
+    /// <param name="stage">The stage whose handlers should run.</param>
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="cancellationToken">The cancellation token passed to each invocation.</param>
+    /// <returns>
+    ///     The stop from the first handler that ended the mediation, or <see cref="PipelineStop.None" /> when every
+    ///     handler in the stage let it proceed.
+    /// </returns>
+    /// <remarks>
+    ///     Guards, shortcuts, and pre-handlers share one descriptor collection, ordered once by priority, so a stage is
+    ///     a filtered pass over it rather than a separate collection. Indirect handlers run first, matching the existing
+    ///     rule that a globally registered cross-cutting concern wraps a message-specific one.
+    /// </remarks>
+    private static async Task<PipelineStop> RunStage(
+        this IMessageDependencies messageDependencies,
+        PipelineStage stage,
+        object message,
+        CancellationToken cancellationToken)
+    {
+        foreach (var preHandler in messageDependencies.IndirectPreHandlers)
+        {
+            if (preHandler.Descriptor.Stage != stage)
+            {
+                continue;
+            }
+
+            var stop = await PipelineHandlerInvoker
+                .InvokePreHandlerAsync(preHandler.Handler.Value, preHandler.Descriptor, message, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (stop.StopsPipeline)
+            {
+                return stop;
+            }
+        }
+
+        foreach (var preHandler in messageDependencies.PreHandlers)
+        {
+            if (preHandler.Descriptor.Stage != stage)
+            {
+                continue;
+            }
+
+            var stop = await PipelineHandlerInvoker
+                .InvokePreHandlerAsync(preHandler.Handler.Value, preHandler.Descriptor, message, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (stop.StopsPipeline)
+            {
+                return stop;
+            }
+        }
+
+        return PipelineStop.None;
     }
 
     /// <summary>

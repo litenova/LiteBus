@@ -49,16 +49,16 @@ internal sealed class CompletionCommandWithResult : ICommand<string>;
 /// <summary>
 ///     Refuses the command with a reason when the command asks for it.
 /// </summary>
-internal sealed class CompletionCommandGate : ICommandGate<CompletionCommand>
+internal sealed class CompletionCommandGuard : ICommandGuard<CompletionCommand>
 {
     /// <inheritdoc />
-    public Task<PipelineDirective> DecideAsync(CompletionCommand message, CancellationToken cancellationToken = default)
+    public Task<Verdict> CheckAsync(CompletionCommand message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
         return message.ShouldDeny
-            ? Task.FromResult(PipelineDirective.Deny("not permitted"))
-            : Task.FromResult(PipelineDirective.Continue);
+            ? Task.FromResult(Verdict.Deny("not permitted"))
+            : Task.FromResult(Verdict.Allow);
     }
 }
 

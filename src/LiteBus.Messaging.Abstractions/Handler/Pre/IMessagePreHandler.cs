@@ -10,9 +10,10 @@ namespace LiteBus.Messaging.Abstractions;
 ///         pre-handler contracts for several message types still compiles.
 ///     </para>
 ///     <para>
-///         Implement <see cref="IMessagePreHandler{TMessage}" /> to validate, authorize, or enrich, or a gate,
-///         <see cref="IMessageGate{TMessage}" /> or <see cref="IMessageGate{TMessage,TMessageResult}" />, to decide
-///         whether the message reaches its main handler at all.
+///         Three kinds of handler carry this marker, and the contract each one implements decides which stage runs it.
+///         <see cref="IMessageGuard{TMessage}" /> refuses a message, <see cref="IMessageShortcut{TMessage}" /> answers
+///         one whose work is already done, and <see cref="IMessagePreHandler{TMessage}" /> validates or enriches a
+///         message that is going to be handled. The framework runs them in that order.
 ///     </para>
 /// </remarks>
 public interface IMessagePreHandler;

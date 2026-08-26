@@ -68,18 +68,18 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
         try
         {
-            var directive = await messageDependencies
-                .RunAsyncPreHandlers(message, executionContext.CancellationToken)
+            var stop = await messageDependencies
+                .RunAsyncPreStages(message, executionContext.CancellationToken)
                 .ConfigureAwait(false);
 
-            if (directive.StopsPipeline)
+            if (stop.StopsPipeline)
             {
-                outcome = directive.ToOutcome();
-                reason = directive.Reason;
+                outcome = stop.Outcome;
+                reason = stop.Reason;
 
-                if (directive.IsUnansweredDenial())
+                if (stop.IsUnansweredDenial)
                 {
-                    var denial = directive.CreateDenial(message.GetType());
+                    var denial = stop.CreateDenial(message.GetType());
                     failure = denial;
                     throw denial;
                 }

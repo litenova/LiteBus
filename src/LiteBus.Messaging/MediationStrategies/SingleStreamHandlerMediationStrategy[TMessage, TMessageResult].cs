@@ -83,28 +83,28 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
             {
                 using (AmbientExecutionContext.CreateScope(executionContext))
                 {
-                    var directive = await messageDependencies
-                        .RunAsyncPreHandlers(message, executionContext.CancellationToken)
+                    var stop = await messageDependencies
+                        .RunAsyncPreStages(message, executionContext.CancellationToken)
                         .ConfigureAwait(false);
 
-                    if (directive.StopsPipeline)
+                    if (stop.StopsPipeline)
                     {
-                        outcome = directive.ToOutcome();
-                        reason = directive.Reason;
+                        outcome = stop.Outcome;
+                        reason = stop.Reason;
                         shouldContinue = false;
                         pipelineStopped = true;
 
-                        if (directive.IsUnansweredDenial())
+                        if (stop.IsUnansweredDenial)
                         {
-                            var denial = directive.CreateDenial(message.GetType());
+                            var denial = stop.CreateDenial(message.GetType());
                             failure = denial;
                             throw denial;
                         }
 
-                        // A stopping directive over a stream supplies a replacement stream. Supplying none is a
-                        // legitimate answer for a stream, and means the caller enumerates nothing.
-                        messageResultAsyncEnumerable = directive.HasResult
-                            ? directive.ResolveResult<IAsyncEnumerable<TMessageResult>?>(message.GetType())
+                        // A shortcut over a stream supplies a replacement stream. Supplying none is a legitimate answer
+                        // for a stream, and means the caller enumerates nothing.
+                        messageResultAsyncEnumerable = stop.HasResult
+                            ? stop.ResolveResult<IAsyncEnumerable<TMessageResult>?>(message.GetType())
                             : null;
                     }
                     else

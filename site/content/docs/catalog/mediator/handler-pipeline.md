@@ -15,12 +15,12 @@ The pipeline is shared across semantic mediators:
 5. Completion handlers on every outcome path.
 
 Direct and indirect handlers run in a fixed order:
-- Pre: indirect then direct.
+- Guard, shortcut, and pre: indirect then direct.
 - Post: direct then indirect.
 - Error: indirect then direct.
 - Completion: direct then indirect.
 
-A gate is a pre-handler that may stop the pipeline through `PipelineDirective`, separating an early answer (`ShortCircuit`) from a refusal (`Deny`). All three axes have gate contracts. A refusal without a result raises `LiteBusMessageDeniedException`, which is excluded from the recoverable filter so error handlers never see a decision as a fault. Any stage may call `IExecutionContext.SuppressPostHandlers()` to skip the remaining post-handlers without changing the outcome.
+The pre stage is three framework-ordered stages, not one. Guards run first and refuse through `Verdict`; shortcuts run next and answer through `Shortcut` or `Shortcut<TResult>`; plain pre-handlers run last and cannot stop the pipeline by returning. Priority orders handlers inside a stage and never reorders the stages, so a globally registered shortcut cannot answer ahead of a message-specific guard. A refusal without a result raises `LiteBusMessageDeniedException`, which is excluded from the recoverable filter so error handlers never see a decision as a fault. Any stage may call `IExecutionContext.SuppressPostHandlers()` to skip the remaining post-handlers without changing the outcome.
 
 The completion stage runs in a `finally` inside the ambient execution scope, so it observes success, short-circuit, denial, failure, and cancellation alike. It is the only stage guaranteed to run, and it is not cancellable.
 
@@ -40,11 +40,13 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | API | Role |
 | --- | --- |
 | `IMessagePreHandler<TMessage>` | Pre stage contract |
-| `IMessageGate<TMessage>` / `IMessageGate<TMessage, TResult>` | Pre stage contracts that may stop the pipeline |
-| `PipelineDirective` / `PipelineDirective<TResult>` | Continue, short-circuit, or deny, with a reason and a result |
-| `PipelineDirectiveKind` | `Continue`, `ShortCircuit`, `Deny` |
+| `IMessageGuard<TMessage>` / `IMessageGuard<TMessage, TResult>` | Guard stage contracts that may refuse the message |
+| `IMessageShortcut<TMessage>` / `IMessageShortcut<TMessage, TResult>` | Shortcut stage contracts that may answer without the handler |
+| `Verdict` / `Verdict<TResult>` | Allow or deny, with a reason and an optional refusal value |
+| `Shortcut` / `Shortcut<TResult>` | No answer, skip, or answer, with a reason and a result |
+| `PipelineStage` | `Guard`, `Shortcut`, `PreHandler`; the framework-fixed stage order |
+| `PipelineStop` | What a stage reported: outcome, reason, and the result the caller receives |
 | `LiteBusMessageDeniedException` | Raised when a refusal supplies no result for the caller |
-| `PipelineDirectiveExtensions` | Maps a stopping directive to an outcome, a denial, or a result |
 | `IAsyncMessageHandler<TMessage>` / `IAsyncMessageHandler<TMessage, TResult>` | Main handler contracts |
 | `IMessagePostHandler<TMessage, TResult>` | Post stage contract |
 | `IExecutionContext.SuppressPostHandlers()` | Skips the post-handlers that have not run yet |
@@ -52,14 +54,15 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | `MessageErrorContext<TMessage, TResult>` | Typed error data and shared recovery outcome |
 | `IMessageCompletionHandler` / `IMessageCompletionHandler<TMessage>` / `IMessageCompletionHandler<TMessage, TResult>` | Completion stage contracts |
 | `MessageCompletionContext` and its typed views | Read-only outcome, result, exception, reason, duration |
-| `MessageOutcome` | `Succeeded`, `ShortCircuited`, `Denied`, `Failed`, `Canceled` |
+| `MessageOutcome` | `Succeeded`, `ShortCircuited`, `Denied`, `Failed`, `Canceled`; `Invalid` is reserved |
 | `MediationExceptionData.SuppressedCompletionFaults` | Key under which a suppressed completion fault is attached to the original exception |
 | `HandlerPriorities` | Reserved priority band for handlers shipped by LiteBus |
 | `SingleAsyncHandlerMediationStrategy<TMessage, TResult>` | Single main handler orchestration |
 | `SingleStreamHandlerMediationStrategy<TMessage, TResult>` | Stream query orchestration |
 | `AsyncBroadcastMediationStrategy<TMessage>` | Event broadcast orchestration |
-| `MessageContextExtensions.RunAsyncPreHandlers/RunAsyncPostHandlers/RunAsyncErrorHandlers/RunAsyncCompletionHandlers` | Stage execution helpers |
-| `PipelineDispatch` | Delegate bound at registration to the closed contract a handler was discovered from |
+| `MessageContextExtensions.RunAsyncPreStages/RunAsyncGuards/RunAsyncShortcuts/RunAsyncPreHandlers/RunAsyncPostHandlers/RunAsyncErrorHandlers/RunAsyncCompletionHandlers` | Stage execution helpers |
+| `PipelineDispatch` | Delegate bound at registration to the closed contract a handler was discovered from, and `StageFor` |
+| `IPreHandlerDescriptor.Stage` | The stage that runs a discovered pre-handler, guard, or shortcut |
 | `IHandlerDescriptor.ContractType` | The closed contract a descriptor was discovered from |
 
 ## Packages
@@ -85,10 +88,10 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 - Completion handlers receive `CancellationToken.None`; the stage runs to the end on every path.
 - A completion handler that throws while an exception is ending the mediation has its fault attached to that exception under `MediationExceptionData.SuppressedCompletionFaults`, and propagates otherwise.
 - Stream completion fires on enumerator disposal, so an unenumerated stream produces no completion record.
-- Only a gate can stop the pipeline; `ShortCircuited` and `Denied` both mean the main handler never ran.
+- Only a guard or a shortcut can stop the pipeline; `ShortCircuited` and `Denied` both mean the main handler never ran.
 - A denial is not routed to error handlers and is not reported as `Faulted`.
 - Suppressing post-handlers reports `MessageOutcome.Succeeded`, because the main handler ran.
-- A stopping directive on a result-returning message must supply a result of the expected type, or mediation throws `LiteBusConfigurationException`. Analyzer rule `LB1019` reports a gate that used the untyped contract for such a message.
+- A shortcut that answers a result-returning message must supply a result of the expected type, or mediation throws `LiteBusConfigurationException`. Analyzer rule `LB1019` reports a shortcut that used the untyped contract for such a message. A guard has no such duty, so the untyped guard is correct everywhere.
 - One class may implement pipeline contracts for several message types; each dispatch reaches the contract recorded in its descriptor.
 
 ## Non-Goals
@@ -114,7 +117,9 @@ Operational alternatives:
 | `Send_CreateProductCommand_ShouldGoThroughHandlersCorrectly` | `LiteBus.Mediator.UnitTests` |
 | `Mediating_GetProductQuery_ShouldGoThroughHandlersCorrectly` | `LiteBus.Mediator.UnitTests` |
 | `mediating_event_with_exception_in_main_handler_goes_through_error_handlers` | `LiteBus.Mediator.UnitTests` |
-| `mediating_a_command_that_is_short_circuited_by_a_gate_goes_through_correct_handlers` | `LiteBus.Mediator.UnitTests` |
+| `mediating_a_command_answered_by_a_shortcut_goes_through_correct_handlers` | `LiteBus.Mediator.UnitTests` |
+| `A_guard_runs_before_a_shortcut_even_when_scope_and_priority_favour_the_shortcut` | `LiteBus.Mediator.UnitTests` |
+| `The_three_stages_run_as_guards_then_shortcuts_then_pre_handlers` | `LiteBus.Mediator.UnitTests` |
 | `Send_CommandWithResult_PostHandlerOverridesResult` | `LiteBus.Mediator.UnitTests` |
 | `Send_Command_WithErrorHandler_ShouldPassTypedContextAndExplicitCancellationToken` | `LiteBus.Mediator.UnitTests` |
 | `Send_Command_WithObservingErrorHandler_ShouldRethrowByDefault` | `LiteBus.Mediator.UnitTests` |
@@ -135,7 +140,7 @@ Operational alternatives:
 | `A_short_circuit_supplies_the_result_the_caller_receives` | `LiteBus.Mediator.UnitTests` |
 | `A_short_circuit_without_a_required_result_is_a_configuration_error` | `LiteBus.Mediator.UnitTests` |
 | `Pre_handlers_after_a_stopping_directive_do_not_run` | `LiteBus.Mediator.UnitTests` |
-| `An_event_gate_can_skip_the_reactions_to_an_already_handled_event` | `LiteBus.Mediator.UnitTests` |
+| `An_event_shortcut_can_skip_the_reactions_to_an_already_handled_event` | `LiteBus.Mediator.UnitTests` |
 | `An_event_completion_handler_observes_a_successful_broadcast` | `LiteBus.Mediator.UnitTests` |
 | `Each_message_type_reaches_its_own_contract_on_a_shared_handler` | `LiteBus.Mediator.UnitTests` |
 | `A_result_returning_message_reaches_the_typed_post_handler_contract` | `LiteBus.Mediator.UnitTests` |

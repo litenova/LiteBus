@@ -3,22 +3,22 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.UseCases.Commands.UseCases.CreateProduct;
 
-public sealed class CreateProductCommandHandlerPreHandler : ICommandGate<CreateProductCommand, CreateProductCommandResult>
+public sealed class CreateProductCommandShortcut : ICommandShortcut<CreateProductCommand, CreateProductCommandResult>
 {
-    public Task<PipelineDirective<CreateProductCommandResult>> DecideAsync(
+    public Task<Shortcut<CreateProductCommandResult>> TryAnswerAsync(
         CreateProductCommand message,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
         message.ExecutedTypes.Add(GetType());
 
-        if (message.ShortCircuitInGate)
+        if (message.AnswerFromShortcut)
         {
-            return Task.FromResult(PipelineDirective<CreateProductCommandResult>.ShortCircuit(
+            return Task.FromResult(Shortcut<CreateProductCommandResult>.Answer(
                 new CreateProductCommandResult { CorrelationId = Guid.Empty },
-                "answered by the gate"));
+                "answered by the shortcut"));
         }
 
-        return Task.FromResult(PipelineDirective<CreateProductCommandResult>.Continue);
+        return Task.FromResult(Shortcut<CreateProductCommandResult>.None);
     }
 }

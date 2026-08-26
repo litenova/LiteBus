@@ -321,18 +321,18 @@ internal sealed class ApproveRefundCommand : ICommand
 /// <summary>
 ///     Refuses the refund when the command asks for it.
 /// </summary>
-internal sealed class ApproveRefundCommandGate : ICommandGate<ApproveRefundCommand>
+internal sealed class ApproveRefundCommandGuard : ICommandGuard<ApproveRefundCommand>
 {
     /// <inheritdoc />
-    public Task<PipelineDirective> DecideAsync(
+    public Task<Verdict> CheckAsync(
         ApproveRefundCommand message,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
         return Task.FromResult(message.ShouldDeny
-            ? PipelineDirective.Deny("the approver is the requester")
-            : PipelineDirective.Continue);
+            ? Verdict.Deny("the approver is the requester")
+            : Verdict.Allow);
     }
 }
 
@@ -356,13 +356,13 @@ internal sealed class ApproveRefundCommandHandler : ICommandHandler<ApproveRefun
 }
 
 /// <summary>
-///     A query answered from cache by its gate, to prove an early answer is not recorded as a denial.
+///     A query answered from cache by its shortcut, to prove an early answer is not recorded as a denial.
 /// </summary>
 [Audited("orders.read-order", Category = "privacy")]
 internal sealed class ReadOrderQuery : IQuery<string>
 {
     /// <summary>
-    ///     Gets or sets a value indicating whether the gate answers without the handler.
+    ///     Gets or sets a value indicating whether the shortcut answers without the handler.
     /// </summary>
     public bool ServeFromCache { get; set; }
 }
@@ -370,23 +370,23 @@ internal sealed class ReadOrderQuery : IQuery<string>
 /// <summary>
 ///     Answers the query from cache when asked, the way a real cache would.
 /// </summary>
-internal sealed class ReadOrderQueryGate : IQueryGate<ReadOrderQuery, string>
+internal sealed class ReadOrderQueryShortcut : IQueryShortcut<ReadOrderQuery, string>
 {
     /// <inheritdoc />
-    public Task<PipelineDirective<string>> DecideAsync(
+    public Task<Shortcut<string>> TryAnswerAsync(
         ReadOrderQuery message,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
         return Task.FromResult(message.ServeFromCache
-            ? PipelineDirective<string>.ShortCircuit("cached-order", "served from cache")
-            : PipelineDirective<string>.Continue);
+            ? Shortcut<string>.Answer("cached-order", "served from cache")
+            : Shortcut<string>.None);
     }
 }
 
 /// <summary>
-///     Reads the order when the gate lets the query through.
+///     Reads the order when no shortcut answers the query.
 /// </summary>
 internal sealed class ReadOrderQueryHandler : IQueryHandler<ReadOrderQuery, string>
 {

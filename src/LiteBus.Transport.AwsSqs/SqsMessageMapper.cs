@@ -27,12 +27,15 @@ internal static class SqsMessageMapper
         var body = request.Body.Span;
         var useBase64 = !IsValidUtf8Text(body);
 
+        // AWSSDK 4 stopped initializing collection properties, so an attribute dictionary assigned here is the only
+        // thing that keeps the writes below from dereferencing null.
         var sendRequest = new SendMessageRequest
         {
             QueueUrl = request.Destination,
             MessageBody = useBase64
                 ? Convert.ToBase64String(body)
-                : Encoding.UTF8.GetString(body)
+                : Encoding.UTF8.GetString(body),
+            MessageAttributes = new Dictionary<string, MessageAttributeValue>(StringComparer.Ordinal)
         };
 
         if (useBase64)
@@ -92,7 +95,7 @@ internal static class SqsMessageMapper
             Route = GetAttribute(headers, "Route"),
             MessageId = message.MessageId ?? GetAttribute(headers, TransportHeaders.MessageId),
             CorrelationId = GetAttribute(headers, TransportHeaders.CorrelationId),
-            Redelivered = message.Attributes.TryGetValue("ApproximateReceiveCount", out var count) &&
+            Redelivered = message.Attributes?.TryGetValue("ApproximateReceiveCount", out var count) == true &&
                           int.TryParse(count, NumberStyles.Integer, CultureInfo.InvariantCulture, out var receiveCount) &&
                           receiveCount > 1,
             AckAsync = ackHandlers.AckAsync,
@@ -109,7 +112,7 @@ internal static class SqsMessageMapper
     {
         var rawBody = message.Body ?? string.Empty;
 
-        if (message.MessageAttributes.TryGetValue(TransportHeaders.ContentEncoding, out var encoding) &&
+        if (message.MessageAttributes?.TryGetValue(TransportHeaders.ContentEncoding, out var encoding) == true &&
             string.Equals(encoding.StringValue, Base64ContentEncoding, StringComparison.Ordinal))
         {
             return Convert.FromBase64String(rawBody);
@@ -183,12 +186,12 @@ internal static class SqsMessageMapper
     /// <summary>
     ///     Copies SQS message attributes into a read-only header dictionary.
     /// </summary>
-    /// <param name="attributes">The SQS message attributes.</param>
+    /// <param name="attributes">The SQS message attributes, which AWSSDK 4 leaves null when the message carries none.</param>
     /// <returns>A read-only header dictionary.</returns>
     private static Dictionary<string, object?> CopyMessageAttributes(
-        Dictionary<string, MessageAttributeValue> attributes)
+        Dictionary<string, MessageAttributeValue>? attributes)
     {
-        if (attributes.Count == 0)
+        if (attributes is null || attributes.Count == 0)
         {
             return new Dictionary<string, object?>(StringComparer.Ordinal);
         }

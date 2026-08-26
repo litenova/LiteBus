@@ -26,7 +26,7 @@
 | [analyzers.transactional-inbox-dbcontext](transactional-inbox-wiring.md) | Transactional inbox store injected without DbContext | GA |
 | [analyzers.transactional-outbox-dbcontext](transactional-outbox-wiring.md) | Transactional outbox store injected without DbContext | GA |
 | [analyzers.missing-audit-declaration](audit-declaration.md) | Command or query states no audit position | GA |
-| [analyzers.untyped-gate-on-result-message](gate-contracts.md) | Untyped gate on a message that produces a result | GA |
+| [analyzers.untyped-shortcut-on-result-message](shortcut-contracts.md) | Untyped shortcut on a message that produces a result | GA |
 
 ## Diagnostic Inventory (LB1001-LB1019)
 
@@ -50,7 +50,7 @@
 | `LB1016` | Warning | `LiteBus.Inbox` | Constructor injects `ITransactionalInboxStore` without `DbContext` | [transactional-inbox-wiring.md](transactional-inbox-wiring.md) |
 | `LB1017` | Warning | `LiteBus.Contracts` | `[MessageContract]` type has no explicit `Register` or `RegisterFromAssembly` | [contract-registration.md](contract-registration.md) |
 | `LB1018` | Warning (off by default) | `LiteBus.Auditing` | Command or query type states no audit position | [audit-declaration.md](audit-declaration.md) |
-| `LB1019` | Warning | `LiteBus.Handlers` | Gate uses the untyped contract for a message that produces a result | [gate-contracts.md](gate-contracts.md) |
+| `LB1019` | Warning | `LiteBus.Handlers` | Shortcut uses the untyped contract for a message that produces a result | [shortcut-contracts.md](shortcut-contracts.md) |
 
 ## Suppression Policy
 

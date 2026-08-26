@@ -10,22 +10,24 @@ using Microsoft.Extensions.DependencyInjection;
 namespace LiteBus.Mediator.UnitTests.Completion;
 
 /// <summary>
-///     Verifies the two decisions a gate can take and how each is reported, plus post-handler suppression.
+///     Verifies the two decisions that can end a mediation before the main handler, how each is reported, the order the
+///     framework fixes between them, and post-handler suppression.
 /// </summary>
 /// <remarks>
-///     The invariant under test is that the three endings stay distinct. A refusal is a denial, an early answer is a
-///     success because nothing was refused, and suppressing post-handlers after the work happened is also a success.
-///     Collapsing any pair of these would put a false entry in an audit trail.
+///     The invariants under test are that the three endings stay distinct and that a shortcut can never answer ahead of
+///     a guard. A refusal is a denial, an early answer is a success because nothing was refused, and suppressing
+///     post-handlers after the work happened is also a success. Collapsing any pair would put a false entry in an audit
+///     trail; letting a shortcut run first would let a cached answer reach a caller a guard would have refused.
 /// </remarks>
 [Collection("Sequential")]
-public sealed class GateAndSuppressionTests : LiteBusTestBase
+public sealed class GuardAndShortcutTests : LiteBusTestBase
 {
     [Fact]
-    public async Task A_short_circuit_skips_the_main_handler_and_reports_ShortCircuited()
+    public async Task An_answering_shortcut_skips_the_main_handler_and_reports_ShortCircuited()
     {
         var recorder = new CompletionRecorder();
         var provider = BuildProvider(recorder);
-        var command = new GatedCommand { Decision = GateDecision.ShortCircuit };
+        var command = new GatedCommand { Decision = StageDecision.Answer };
 
         await provider.GetRequiredService<ICommandMediator>().SendAsync(command).ConfigureAwait(false);
 
@@ -43,7 +45,7 @@ public sealed class GateAndSuppressionTests : LiteBusTestBase
     {
         var recorder = new CompletionRecorder();
         var provider = BuildProvider(recorder);
-        var command = new GatedCommand { Decision = GateDecision.Deny };
+        var command = new GatedCommand { Decision = StageDecision.Deny };
 
         var act = async () => await provider.GetRequiredService<ICommandMediator>()
             .SendAsync(command).ConfigureAwait(false);
@@ -64,7 +66,7 @@ public sealed class GateAndSuppressionTests : LiteBusTestBase
     {
         var recorder = new CompletionRecorder();
         var provider = BuildProvider(recorder, typeof(GatedCommandErrorHandler));
-        var command = new GatedCommand { Decision = GateDecision.Deny };
+        var command = new GatedCommand { Decision = StageDecision.Deny };
 
         var act = async () => await provider.GetRequiredService<ICommandMediator>()
             .SendAsync(command).ConfigureAwait(false);
@@ -77,7 +79,7 @@ public sealed class GateAndSuppressionTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task A_continue_directive_lets_the_pipeline_proceed()
+    public async Task Allowing_and_answering_nothing_lets_the_pipeline_proceed()
     {
         var recorder = new CompletionRecorder();
         var provider = BuildProvider(recorder);
@@ -108,12 +110,44 @@ public sealed class GateAndSuppressionTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task A_short_circuit_supplies_the_result_the_caller_receives()
+    public async Task A_guard_runs_before_a_shortcut_even_when_scope_and_priority_favour_the_shortcut()
     {
-        var provider = BuildResultProvider(typeof(CachedValueGate));
+        var recorder = new StageOrderRecorder();
+        var provider = BuildOrderedProvider(recorder, typeof(DirectRefusingGuard), typeof(IndirectAnsweringShortcut));
+
+        var act = async () => await provider.GetRequiredService<ICommandMediator>()
+            .SendAsync(new OrderedCommand()).ConfigureAwait(false);
+
+        await act.Should().ThrowAsync<LiteBusMessageDeniedException>()
+            .WithMessage("*the caller is not permitted*").ConfigureAwait(false);
+
+        // The shortcut is indirect and has the default priority, so under one merged pre-handler stage it would have
+        // answered first and handed a cached value to a caller the guard refuses. The fixed stage order prevents it.
+        recorder.Observed.Should().ContainSingle().Which.Should().Be("guard");
+    }
+
+    [Fact]
+    public async Task The_three_stages_run_as_guards_then_shortcuts_then_pre_handlers()
+    {
+        var recorder = new StageOrderRecorder();
+        var provider = BuildOrderedProvider(
+            recorder,
+            typeof(AllowingOrderedGuard),
+            typeof(PassiveOrderedShortcut),
+            typeof(OrderedCommandPreHandler));
+
+        await provider.GetRequiredService<ICommandMediator>().SendAsync(new OrderedCommand()).ConfigureAwait(false);
+
+        recorder.Observed.Should().Equal("guard", "shortcut", "pre-handler", "handler");
+    }
+
+    [Fact]
+    public async Task An_answering_shortcut_supplies_the_result_the_caller_receives()
+    {
+        var provider = BuildResultProvider(typeof(CachedValueShortcut));
 
         var result = await provider.GetRequiredService<ICommandMediator>()
-            .SendAsync(new CachedValueCommand { Decision = GateDecision.ShortCircuit }).ConfigureAwait(false);
+            .SendAsync(new CachedValueCommand { Decision = StageDecision.Answer }).ConfigureAwait(false);
 
         result.Should().Be("from-cache");
     }
@@ -121,10 +155,10 @@ public sealed class GateAndSuppressionTests : LiteBusTestBase
     [Fact]
     public async Task A_denial_may_hand_the_caller_a_refusal_value_instead_of_throwing()
     {
-        var provider = BuildResultProvider(typeof(CachedValueGate));
+        var provider = BuildResultProvider(typeof(RefusalValueGuard));
 
         var result = await provider.GetRequiredService<ICommandMediator>()
-            .SendAsync(new CachedValueCommand { Decision = GateDecision.Deny }).ConfigureAwait(false);
+            .SendAsync(new CachedValueCommand { Decision = StageDecision.Deny }).ConfigureAwait(false);
 
         result.Should().Be("refused");
     }
@@ -132,42 +166,56 @@ public sealed class GateAndSuppressionTests : LiteBusTestBase
     [Fact]
     public async Task A_denial_without_a_result_throws_even_when_the_command_produces_one()
     {
-        var provider = BuildResultProvider(typeof(UnansweredDenialGate));
+        var provider = BuildResultProvider(typeof(UnansweredDenialGuard));
 
         var act = async () => await provider.GetRequiredService<ICommandMediator>()
-            .SendAsync(new CachedValueCommand { Decision = GateDecision.Deny }).ConfigureAwait(false);
+            .SendAsync(new CachedValueCommand { Decision = StageDecision.Deny }).ConfigureAwait(false);
 
         await act.Should().ThrowAsync<LiteBusMessageDeniedException>()
             .WithMessage("*nothing to hand back*").ConfigureAwait(false);
     }
 
     [Fact]
-    public async Task A_short_circuit_without_a_required_result_is_a_configuration_error()
+    public async Task The_untyped_guard_is_correct_for_a_command_that_produces_a_result()
     {
-        var provider = BuildResultProvider(typeof(ResultlessGate));
+        var provider = BuildResultProvider(typeof(UntypedGuardOnResultCommand));
 
         var act = async () => await provider.GetRequiredService<ICommandMediator>()
-            .SendAsync(new CachedValueCommand { Decision = GateDecision.ShortCircuit }).ConfigureAwait(false);
+            .SendAsync(new CachedValueCommand { Decision = StageDecision.Deny }).ConfigureAwait(false);
 
-        // The untyped gate cannot supply a result, which is why the typed one exists. The error names it.
-        await act.Should().ThrowAsync<LiteBusConfigurationException>()
-            .WithMessage("*IMessageGate<CachedValueCommand, String>*").ConfigureAwait(false);
+        // A refusal never owes the caller the value the handler would have produced, so this is a denial rather than
+        // the configuration error the equivalent untyped shortcut produces.
+        await act.Should().ThrowAsync<LiteBusMessageDeniedException>()
+            .WithMessage("*refused by the untyped guard*").ConfigureAwait(false);
     }
 
     [Fact]
-    public async Task Pre_handlers_after_a_stopping_directive_do_not_run()
+    public async Task An_answer_without_a_required_result_is_a_configuration_error()
+    {
+        var provider = BuildResultProvider(typeof(ResultlessShortcut));
+
+        var act = async () => await provider.GetRequiredService<ICommandMediator>()
+            .SendAsync(new CachedValueCommand { Decision = StageDecision.Answer }).ConfigureAwait(false);
+
+        // The untyped shortcut cannot supply a result, which is why the typed one exists. The error names it.
+        await act.Should().ThrowAsync<LiteBusConfigurationException>()
+            .WithMessage("*IMessageShortcut<CachedValueCommand, String>*").ConfigureAwait(false);
+    }
+
+    [Fact]
+    public async Task Pre_handlers_after_a_stopping_decision_do_not_run()
     {
         var recorder = new CompletionRecorder();
-        var provider = BuildProvider(recorder, typeof(NeverReachedGate));
-        var command = new GatedCommand { Decision = GateDecision.ShortCircuit };
+        var provider = BuildProvider(recorder, typeof(NeverReachedPreHandler));
+        var command = new GatedCommand { Decision = StageDecision.Answer };
 
         await provider.GetRequiredService<ICommandMediator>().SendAsync(command).ConfigureAwait(false);
 
-        command.SecondGateRan.Should().BeFalse();
+        command.LatePreHandlerRan.Should().BeFalse();
     }
 
     /// <summary>
-    ///     Builds a provider registering only the gate test types for the command with no result.
+    ///     Builds a provider registering the guard and shortcut test types for the command with no result.
     /// </summary>
     /// <param name="recorder">The recorder shared with the completion handler.</param>
     /// <param name="extraTypes">Additional types to register.</param>
@@ -187,7 +235,8 @@ public sealed class GateAndSuppressionTests : LiteBusTestBase
                     builder.Register(typeof(GatedCommand));
                     builder.Register(typeof(GatedCommandHandler));
                     builder.Register(typeof(GatedCommandPostHandler));
-                    builder.Register(typeof(GatedCommandGate));
+                    builder.Register(typeof(GatedCommandGuard));
+                    builder.Register(typeof(GatedCommandShortcut));
                     builder.Register(typeof(DirectCompletionHandlerForGated));
 
                     foreach (var extra in extraTypes)
@@ -200,11 +249,11 @@ public sealed class GateAndSuppressionTests : LiteBusTestBase
     }
 
     /// <summary>
-    ///     Builds a provider for the command that produces a result, with one gate under test.
+    ///     Builds a provider for the command that produces a result, with one decision handler under test.
     /// </summary>
-    /// <param name="gateType">The gate to register.</param>
+    /// <param name="decisionType">The guard or shortcut to register.</param>
     /// <returns>The configured service provider.</returns>
-    private static ServiceProvider BuildResultProvider(Type gateType)
+    private static ServiceProvider BuildResultProvider(Type decisionType)
     {
         var services = new ServiceCollection();
 
@@ -217,7 +266,37 @@ public sealed class GateAndSuppressionTests : LiteBusTestBase
                 {
                     builder.Register(typeof(CachedValueCommand));
                     builder.Register(typeof(CachedValueCommandHandler));
-                    builder.Register(gateType);
+                    builder.Register(decisionType);
+                });
+            })
+            .BuildServiceProvider();
+    }
+
+    /// <summary>
+    ///     Builds a provider for the command used to observe stage ordering.
+    /// </summary>
+    /// <param name="recorder">The recorder shared with the registered stages.</param>
+    /// <param name="stageTypes">The stage handlers to register.</param>
+    /// <returns>The configured service provider.</returns>
+    private static ServiceProvider BuildOrderedProvider(StageOrderRecorder recorder, params Type[] stageTypes)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(recorder);
+
+        return services
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessaging(_ => { });
+
+                registry.AddCommands(builder =>
+                {
+                    builder.Register(typeof(OrderedCommand));
+                    builder.Register(typeof(OrderedCommandHandler));
+
+                    foreach (var stageType in stageTypes)
+                    {
+                        builder.Register(stageType);
+                    }
                 });
             })
             .BuildServiceProvider();

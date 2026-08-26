@@ -4,9 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## v6.1.0
 
-Minor release for .NET 10. Adds a completion stage to the mediation pipeline, gates that decide whether work happens,
-declarative message metadata, and an audit trail built on all three. Persistence schemas and transport behavior are
-unchanged.
+Minor release for .NET 10. Adds a completion stage to the mediation pipeline, guards and shortcuts that decide whether
+work happens, declarative message metadata, and an audit trail built on all three. Persistence schemas and transport
+behavior are unchanged.
 
 ### Added
 
@@ -18,21 +18,37 @@ unchanged.
   actually ended. Recording an audit entry, emitting a metric, or closing a unit of work belongs here.
 - The completion stage is not cancellable. Handlers receive `CancellationToken.None`, because the ending has already
   happened and handing the stage the token that just fired would drop exactly the records a review looks for.
-- Gates. A pre-handler that may stop the pipeline implements `IMessageGate<TMessage>` or
-  `IMessageGate<TMessage, TMessageResult>`, with the axis contracts `ICommandGate<TCommand>`,
-  `ICommandGate<TCommand, TCommandResult>`, `IQueryGate<TQuery, TQueryResult>`,
-  `IStreamQueryGate<TQuery, TQueryResult>`, and `IEventGate<TEvent>`, and returns a `PipelineDirective` from
-  `DecideAsync`. The compiler requires the decision, so nothing after it runs by accident, and an expected control-flow
-  path stays off the exception path.
-- A gate distinguishes the two reasons for stopping. `ShortCircuit` means the result was already known, such as a cache
-  hit or a replayed idempotent command, and reports `MessageOutcome.ShortCircuited`. `Deny` means the message is
-  refused, always carries a reason, and reports `MessageOutcome.Denied`. An audit trail records the first as a success
-  and the second as a denial, which is the distinction a security review reads.
-- `PipelineDirective<TMessageResult>` types the directive over the result type of the message, so a gate that stops a
-  result-returning message is required by the compiler to supply the value the caller receives.
+- Guards. A pre-handler that may refuse a message implements `IMessageGuard<TMessage>` and returns a `Verdict` from
+  `CheckAsync`, with the axis contracts `ICommandGuard<TCommand>`, `IQueryGuard<TQuery>`, and `IEventGuard<TEvent>`. A
+  refusal always carries a reason and reports `MessageOutcome.Denied`, which an audit trail records as a denial. The
+  compiler requires the decision, so nothing after it runs by accident, and an expected control-flow path stays off the
+  exception path.
+- Shortcuts. A pre-handler that answers a message whose work is already done implements `IMessageShortcut<TMessage>` or
+  `IMessageShortcut<TMessage, TMessageResult>` and returns a `Shortcut` from `TryAnswerAsync`, with the axis contracts
+  `ICommandShortcut<TCommand>`, `ICommandShortcut<TCommand, TCommandResult>`, `IQueryShortcut<TQuery, TQueryResult>`,
+  `IStreamQueryShortcut<TQuery, TQueryResult>`, and `IEventShortcut<TEvent>`. A cache hit or a replayed idempotent
+  command reports `MessageOutcome.ShortCircuited`, which an audit trail records as a success because nothing was
+  refused. Keeping the two apart is the distinction a security review reads.
+- The framework fixes the stage order: every guard runs before every shortcut, and every shortcut before every
+  pre-handler. Priority orders handlers inside a stage and never reorders the stages, so a globally registered cache
+  shortcut cannot answer a caller that a message-specific authorization guard would have refused. Under a single
+  pre-handler stage that ordering rested on a priority number the author had to remember, and indirect handlers ran
+  ahead of direct ones regardless. ASP.NET Core documents the same hazard for `UseOutputCache` after `UseAuthorization`;
+  because LiteBus owns its stages, it makes the mistake unrepresentable instead of documenting it. `PipelineStage` names
+  the three stages and `IPreHandlerDescriptor.Stage` records which one runs a handler.
+- `Shortcut<TMessageResult>` types the answer over the result type of the message, so a shortcut that answers a
+  result-returning message is required by the compiler to supply the value the caller receives. A refusal owes the
+  caller nothing, so `IMessageGuard<TMessage>` fits every message; `IMessageGuard<TMessage, TMessageResult>` and
+  `Verdict<TMessageResult>.Deny(reason, result)` are opt-in for applications that hand back a failed result object
+  instead of raising.
+- `MessageContextExtensions` exposes `RunAsyncPreStages` plus `RunAsyncGuards`, `RunAsyncShortcuts`, and
+  `RunAsyncPreHandlers`, so a custom mediation strategy gets the same stage order the shipped strategies use.
 - `LiteBusMessageDeniedException` reaches the caller when a refusal supplies no result. It is excluded from the
   recoverable-exception filter, so error handlers never see a decision as a fault.
 - `MessageOutcome` distinguishes `Succeeded`, `ShortCircuited`, `Denied`, `Failed`, and `Canceled`.
+  `MessageOutcome.Invalid` and `AuditOutcome.Invalid` are declared but never reported. The slots are reserved so that a
+  completion handler or audit mapper written today keeps its numbering when validators gain a non-throwing failure
+  model.
 - `IExecutionContext.SuppressPostHandlers()` skips the post-handlers that have not run yet. Use it when the work turned
   out to be a no-op and the reactions to it should not fire, such as an idempotent command that detects it already ran.
   It does not stop the calling handler and does not change the outcome.
@@ -58,16 +74,17 @@ unchanged.
 - `AuditTrailDiagnosticCheck` reports the `litebus.audit.trail` probe as unhealthy when auditing is enabled and no
   `IAuditTrail` is registered, so a missing sink surfaces before the first audited mediation.
 - `IAuditOutcomeMapper` and `MessageModuleBuilder.UseAuditOutcomeMapper` let an application that refuses by throwing
-  record its own exception as `AuditOutcome.Denied` rather than `AuditOutcome.Failed`. Refusing through a gate needs no
+  record its own exception as `AuditOutcome.Denied` rather than `AuditOutcome.Failed`. Refusing through a guard needs no
   mapper.
 - `MediationExceptionData.SuppressedCompletionFaults` is the key under which a completion-handler fault is attached to
   the exception that was already ending the mediation, so a failed audit write is never silently discarded.
 - `LB1018` reports command and query types that state no audit position, so an unaudited message is a recorded decision
   rather than an oversight. Disabled by default; enable with `dotnet_diagnostic.LB1018.severity = warning`.
-- `LB1019` reports a gate that implements the untyped gate contract for a message that produces a result. Because
-  `ICommand<TResult>` derives from `ICommand`, that contract compiles there, and a short-circuit from it fails at
+- `LB1019` reports a shortcut that implements the untyped shortcut contract for a message that produces a result.
+  Because `ICommand<TResult>` derives from `ICommand`, that contract compiles there, and answering from it fails at
   runtime with `LiteBusConfigurationException`. The typed contract is a strict superset for such a message, so the rule
-  names it and the declaration is where the fix goes. Open generic gates are not reported.
+  names it and the declaration is where the fix goes. Open generic shortcuts are not reported, and guards never are: a
+  refusal owes the caller no result, so the untyped guard is correct everywhere.
 - `HandlerPriorities` reserves a priority band for handlers shipped by LiteBus, so ordering against them is a documented
   guarantee. Application handlers stay below `ReservedFloor` and, with no explicit priority, run first.
 - `IHandlerDescriptor.ContractType` records the closed contract a descriptor was discovered from, and `PipelineDispatch`
@@ -75,13 +92,13 @@ unchanged.
 
 ### Changed
 
-- Every module builder recognizes gate contracts, completion handler contracts, and message definitions as registrable
-  constructs, so `RegisterFromAssembly` discovers them.
-- `AsyncBroadcastMediationStrategy` observes cancellations so it can report them to the completion stage, honors a gate
-  decision by publishing to no handlers, and reports no result to completion handlers rather than the task that tracked
-  its handlers. Cancellation still propagates as before.
-- A gate decision on a stream query no longer runs post-handlers. Stopping the pipeline means the work did not happen,
-  so the reactions to it do not fire; the caller still receives whatever stream the gate supplied.
+- Every module builder recognizes guard and shortcut contracts, completion handler contracts, and message definitions as
+  registrable constructs, so `RegisterFromAssembly` discovers them.
+- `AsyncBroadcastMediationStrategy` observes cancellations so it can report them to the completion stage, honors a guard
+  or shortcut decision by publishing to no handlers, and reports no result to completion handlers rather than the task
+  that tracked its handlers. Cancellation still propagates as before.
+- A guard or shortcut decision on a stream query no longer runs post-handlers. Stopping the pipeline means the work did
+  not happen, so the reactions to it do not fire; the caller still receives whatever stream the shortcut supplied.
 - Pre-handlers, post-handlers, and completion handlers are invoked through the closed contract recorded in their
   descriptor at registration, using a delegate built while the descriptor is built. The previous dispatch searched a
   handler's interfaces for a method by name on every invocation and called it reflectively, which is how a class
@@ -105,20 +122,24 @@ unchanged.
   mediation cancellation token, so an `IAuditTrail` that honoured it threw immediately on the cancelled path, and the
   fault was then suppressed silently. The stage now runs uncancellable, and a fault that must still be suppressed is
   attached to the original exception.
-- A gate that answers early is no longer recorded as a denial. The default outcome mapping recorded every stopped
+- A shortcut that answers early is no longer recorded as a denial. The default outcome mapping recorded every stopped
   mediation as `AuditOutcome.Denied`, so a cache hit produced a false denial entry.
 - Handler discovery in the analyzers recognizes the two-parameter post-handler contracts and the stream query
   post-handler contract. A handler implementing only those was invisible to LB1011 and LB1012, so an unused
   `[HandlerTag]` on one was not reported.
+- Publishing to and consuming from Amazon SQS no longer raises `NullReferenceException`. AWSSDK 4 stopped initializing
+  the `MessageAttributes` and `Attributes` collections, which the mapper wrote to and read from directly, so every
+  publish failed on the first attribute write. The mapper now supplies its own attribute dictionary and treats an absent
+  one on a received message as empty.
 
 ### Breaking
 
 - `IExecutionContext.Abort` and `LiteBusExecutionAbortedException` are removed. A pre-handler that stopped the pipeline
-  now implements a gate contract and returns a `PipelineDirective`. The break is a compile error rather than a change in
-  behavior, which is deliberate: a flag that left `Abort()` compiling would have silently started running the statements
-  after it.
-- Only a gate can stop the pipeline. Stopping means skipping the work, and once the main handler has run there is
-  nothing left to skip. A handler that previously aborted from a later stage calls `SuppressPostHandlers()`.
+  now implements a guard contract and returns a `Verdict`, or a shortcut contract and returns a `Shortcut`. The break is
+  a compile error rather than a change in behavior, which is deliberate: a flag that left `Abort()` compiling would have
+  silently started running the statements after it.
+- Only a guard or a shortcut can stop the pipeline. Stopping means skipping the work, and once the main handler has run
+  there is nothing left to skip. A handler that previously aborted from a later stage calls `SuppressPostHandlers()`.
 - `MessageOutcome` has no `Aborted` member. A stopped mediation reports `ShortCircuited` or `Denied`, which say which of
   the two events happened. Previously an abort from a post-handler reported `Aborted` even though the command had taken
   effect, which told an audit trail that an action was refused when it had actually succeeded; suppressing post-handlers

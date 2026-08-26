@@ -16,7 +16,7 @@ public enum MessageOutcome
     Succeeded = 0,
 
     /// <summary>
-    ///     A gate stopped the pipeline because the result was already known, so the main handler never ran.
+    ///     A shortcut answered the message because the result was already known, so the main handler never ran.
     /// </summary>
     /// <remarks>
     ///     A cache hit and an idempotent command that detects it already ran are the usual cases. Nothing was refused,
@@ -25,12 +25,12 @@ public enum MessageOutcome
     ShortCircuited = 1,
 
     /// <summary>
-    ///     A gate refused the message, so the main handler never ran.
+    ///     A guard refused the message, so the main handler never ran.
     /// </summary>
     /// <remarks>
     ///     This is the outcome an audit trail records as a denial, and the one a security review asks about. It is
-    ///     reachable only from the pre-handler stage: suppressing post-handlers after the work has happened still
-    ///     reports <see cref="Succeeded" />.
+    ///     reachable only from the guard stage: suppressing post-handlers after the work has happened still reports
+    ///     <see cref="Succeeded" />.
     /// </remarks>
     Denied = 2,
 
@@ -42,5 +42,16 @@ public enum MessageOutcome
     /// <summary>
     ///     The pipeline was cancelled through the mediation cancellation token.
     /// </summary>
-    Canceled = 4
+    Canceled = 4,
+
+    /// <summary>
+    ///     Reserved. The message failed validation, so the main handler never ran.
+    /// </summary>
+    /// <remarks>
+    ///     No mediation reports this outcome yet. The slot is reserved for validators that report failures as values
+    ///     rather than by throwing, so a completion handler or audit mapper written today keeps its numbering when that
+    ///     arrives. An invalid message is kept apart from <see cref="Denied" /> for the same reason a denial is kept
+    ///     apart from a failure: a security review reads denials, and malformed input is noise in that list.
+    /// </remarks>
+    Invalid = 5
 }

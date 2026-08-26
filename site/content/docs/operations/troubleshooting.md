@@ -52,7 +52,7 @@ Fix:
 
 ## A Gate Did Not Stop the Pipeline
 
-Stopping the pipeline is a return value, not an exception. A pre-handler stops it only when it implements a gate contract such as `ICommandGate<TCommand>` or `IQueryGate<TQuery, TResult>` and returns a stopping directive from `DecideAsync`.
+Stopping the pipeline is a return value, not an exception. A pre-handler stops it only when it implements a guard contract such as `ICommandGuard<TCommand>` and returns `Verdict.Deny` from `CheckAsync`, or a shortcut contract such as `IQueryShortcut<TQuery, TResult>` and returns an answer from `TryAnswerAsync`.
 
 Common causes when a decision appears to be ignored:
 
@@ -66,7 +66,7 @@ To skip the post-handlers after the work has already run, call `IExecutionContex
 
 Thrown when a gate stops a result-returning command or query without supplying a result. The caller is owed a value, so the directive must carry it.
 
-Fix: implement the typed gate, `ICommandGate<TCommand, TCommandResult>` or `IQueryGate<TQuery, TQueryResult>`, and return `PipelineDirective<TResult>.ShortCircuit(result)`. The compiler then requires the result, and the exception message names the contract to use. See [The Handler Pipeline](../concepts/handler-pipeline.md).
+Fix: implement the typed shortcut, `ICommandShortcut<TCommand, TCommandResult>` or `IQueryShortcut<TQuery, TQueryResult>`, and return `Shortcut<TResult>.Answer(result)`. The compiler then requires the result, and the exception message names the contract to use. A guard needs no such change, because a refusal never owes the caller a result. See [The Handler Pipeline](../concepts/handler-pipeline.md).
 
 Reference `LiteBus.Analyzers` to catch this at build time. `ICommand<TResult>` derives from `ICommand`, so the untyped contract compiles for a message that produces a result; `LB1019` reports the declaration and names the typed contract to use instead. See [Analyzers](../reference/analyzers.md).
 

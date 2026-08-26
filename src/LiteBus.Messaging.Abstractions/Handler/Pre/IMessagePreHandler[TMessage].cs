@@ -14,8 +14,13 @@ namespace LiteBus.Messaging.Abstractions;
 ///     </para>
 ///     <para>
 ///         A pre-handler of this kind cannot stop the pipeline cleanly, which is deliberate: deciding whether the work
-///         happens is a capability, so it lives in <see cref="IMessageGate{TMessage}" /> instead. A validator therefore
+///         happens is a capability, and it lives in <see cref="IMessageGuard{TMessage}" /> for a refusal and
+///         <see cref="IMessageShortcut{TMessage}" /> for work that has already been applied. A validator therefore
 ///         cannot skip the work by accident.
+///     </para>
+///     <para>
+///         This stage runs after both decision stages, so a pre-handler only ever sees a message that every guard
+///         allowed and no shortcut answered.
 ///     </para>
 /// </remarks>
 public interface IMessagePreHandler<in TMessage> : IMessagePreHandler

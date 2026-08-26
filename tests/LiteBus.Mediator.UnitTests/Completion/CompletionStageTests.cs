@@ -35,7 +35,7 @@ public sealed class CompletionStageTests : LiteBusTestBase
                 {
                     builder.Register(typeof(CompletionCommand));
                     builder.Register(typeof(CompletionCommandWithResult));
-                    builder.Register(typeof(CompletionCommandGate));
+                    builder.Register(typeof(CompletionCommandGuard));
                     builder.Register(typeof(CompletionCommandHandler));
                     builder.Register(typeof(CompletionCommandWithResultHandler));
                     builder.Register(typeof(CompletionCommandErrorHandler));
@@ -219,7 +219,7 @@ public sealed class CompletionStageTests : LiteBusTestBase
                 registry.AddCommands(builder =>
                 {
                     builder.Register(typeof(CompletionCommand));
-                    builder.Register(typeof(CompletionCommandGate));
+                    builder.Register(typeof(CompletionCommandGuard));
                     builder.Register(typeof(CompletionCommandHandler));
                     builder.Register(typeof(ThrowingCompletionHandler));
                 });

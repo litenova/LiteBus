@@ -28,5 +28,15 @@ public enum AuditOutcome
     /// <summary>
     ///     The action was cancelled before it completed.
     /// </summary>
-    Canceled = 3
+    Canceled = 3,
+
+    /// <summary>
+    ///     Reserved. The action was rejected because its input failed validation.
+    /// </summary>
+    /// <remarks>
+    ///     No mediation records this outcome yet. The slot is reserved for validators that report failures as values,
+    ///     and pairs with <see cref="MessageOutcome.Invalid" />. It is kept apart from <see cref="Denied" /> so that
+    ///     malformed input does not appear in the list a security review reads.
+    /// </remarks>
+    Invalid = 4
 }

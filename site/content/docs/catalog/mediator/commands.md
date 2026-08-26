@@ -54,7 +54,7 @@ var id = await commandMediator.SendAsync(new CreateProductCommand("keyboard"), c
 
 - One main handler must resolve for each command after routing filters.
 - `ArgumentNullException` is thrown for `null` commands.
-- A gate that stops a result-returning command must supply the result, which `ICommandGate<TCommand, TCommandResult>` makes a compile-time requirement; using the untyped contract instead throws `LiteBusConfigurationException`.
+- A shortcut that answers a result-returning command must supply the result, which `ICommandShortcut<TCommand, TCommandResult>` makes a compile-time requirement; using the untyped contract instead throws `LiteBusConfigurationException`. A guard carries no such duty, so `ICommandGuard<TCommand>` fits every command.
 - Post-handler result override applies to result commands only.
 
 ## Non-Goals

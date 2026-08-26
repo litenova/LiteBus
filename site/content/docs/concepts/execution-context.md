@@ -81,7 +81,7 @@ if (_ledger.AlreadyProcessed(message.PaymentId))
 
 It does not stop the calling handler, and it does not change the outcome: the mediation still reports `MessageOutcome.Succeeded`, because the main handler ran.
 
-To stop the pipeline **before** the work happens, implement a gate such as `ICommandGate<TCommand>` or `IQueryGate<TQuery, TResult>` and return a `PipelineDirective`. That is a return value rather than a context call, so the compiler requires the decision and nothing after it runs by accident. See [The Handler Pipeline](handler-pipeline.md).
+To stop the pipeline **before** the work happens, implement a guard such as `ICommandGuard<TCommand>` and return a `Verdict`, or a shortcut such as `IQueryShortcut<TQuery, TResult>` and return a `Shortcut<TResult>`. Both are return values rather than context calls, so the compiler requires the decision and nothing after it runs by accident. See [The Handler Pipeline](handler-pipeline.md).
 
 ### 5. `MessageResult`: Aborting and Post-Handler Override
 

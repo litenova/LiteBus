@@ -25,15 +25,15 @@ internal static class PipelineHandlerInvoker
     private static readonly ConcurrentDictionary<Type, PipelineDispatch> RuntimeDispatches = new();
 
     /// <summary>
-    ///     Runs a pre-handler or gate through the contract it was registered under.
+    ///     Runs a pre-handler, guard, or shortcut through the contract it was registered under.
     /// </summary>
     /// <param name="handler">The pre-handler instance.</param>
     /// <param name="descriptor">The descriptor that recorded the contract at registration.</param>
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
-    /// <returns>The directive that tells the pipeline whether to continue.</returns>
+    /// <returns>The stop that tells the pipeline whether to continue.</returns>
     [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
-    public static Task<PipelineDirective> InvokePreHandlerAsync(
+    public static Task<PipelineStop> InvokePreHandlerAsync(
         IMessagePreHandler handler,
         IPreHandlerDescriptor descriptor,
         object message,

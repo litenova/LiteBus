@@ -25,6 +25,11 @@ namespace LiteBus.Messaging.Abstractions;
 ///         read and a delegate call.
 ///     </para>
 ///     <para>
+///         The contract also decides which stage runs the handler, which <see cref="StageFor" /> reads. Guards,
+///         shortcuts, and plain pre-handlers share one descriptor kind and one marker contract, so that stage is what
+///         keeps every guard ahead of every shortcut regardless of priority or registration scope.
+///     </para>
+///     <para>
 ///         This type is a framework hook exposed for descriptor construction. Applications do not use it.
 ///     </para>
 /// </remarks>
@@ -42,9 +47,9 @@ public sealed class PipelineDispatch
     private readonly Func<IMessagePostHandler, object, object?, CancellationToken, Task>? _postHandler;
 
     /// <summary>
-    ///     The bound invoker for a pre-handler or gate contract, when this dispatch describes one.
+    ///     The bound invoker for a pre-handler, guard, or shortcut contract, when this dispatch describes one.
     /// </summary>
-    private readonly Func<IMessagePreHandler, object, CancellationToken, Task<PipelineDirective>>? _preHandler;
+    private readonly Func<IMessagePreHandler, object, CancellationToken, Task<PipelineStop>>? _preHandler;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="PipelineDispatch" /> class.
@@ -57,7 +62,7 @@ public sealed class PipelineDispatch
     /// </param>
     private PipelineDispatch(
         Type contractType,
-        Func<IMessagePreHandler, object, CancellationToken, Task<PipelineDirective>>? preHandler,
+        Func<IMessagePreHandler, object, CancellationToken, Task<PipelineStop>>? preHandler,
         Func<IMessagePostHandler, object, object?, CancellationToken, Task>? postHandler,
         Func<IMessageCompletionHandler, MessageCompletionContext, CancellationToken, Task>? completionHandler)
     {
@@ -71,6 +76,43 @@ public sealed class PipelineDispatch
     ///     Gets the closed contract this dispatch invokes.
     /// </summary>
     public Type ContractType { get; }
+
+    /// <summary>
+    ///     Reads which of the three decision stages runs a handler registered under the given pre-handler contract.
+    /// </summary>
+    /// <param name="contractType">The pre-handler contract discovered on the handler during registration.</param>
+    /// <returns>
+    ///     <see cref="PipelineStage.Guard" /> for a guard contract, <see cref="PipelineStage.Shortcut" /> for a shortcut
+    ///     contract, and <see cref="PipelineStage.PreHandler" /> for anything else.
+    /// </returns>
+    /// <remarks>
+    ///     The contract answers this whether or not it is closed, so a handler registered for a generic message is
+    ///     assigned its stage at registration even though its dispatch cannot be bound until the runtime message type is
+    ///     known. Keeping the mapping here means the stage and the invoker are read off the same switch.
+    /// </remarks>
+    public static PipelineStage StageFor(Type contractType)
+    {
+        ArgumentNullException.ThrowIfNull(contractType);
+
+        if (!contractType.IsGenericType)
+        {
+            return PipelineStage.PreHandler;
+        }
+
+        var definition = contractType.GetGenericTypeDefinition();
+
+        if (definition == typeof(IMessageGuard<>) || definition == typeof(IMessageGuard<,>))
+        {
+            return PipelineStage.Guard;
+        }
+
+        if (definition == typeof(IMessageShortcut<>) || definition == typeof(IMessageShortcut<,>))
+        {
+            return PipelineStage.Shortcut;
+        }
+
+        return PipelineStage.PreHandler;
+    }
 
     /// <summary>
     ///     Builds the dispatch for one closed handler contract.
@@ -99,17 +141,27 @@ public sealed class PipelineDispatch
 
         if (definition == typeof(IMessagePreHandler<>))
         {
-            return new PipelineDispatch(contractType, BindPreHandler(nameof(InvokePreHandler), arguments), null, null);
+            return ForPreHandler(contractType, nameof(InvokePreHandler), arguments);
         }
 
-        if (definition == typeof(IMessageGate<>))
+        if (definition == typeof(IMessageGuard<>))
         {
-            return new PipelineDispatch(contractType, BindPreHandler(nameof(InvokeGate), arguments), null, null);
+            return ForPreHandler(contractType, nameof(InvokeGuard), arguments);
         }
 
-        if (definition == typeof(IMessageGate<,>))
+        if (definition == typeof(IMessageGuard<,>))
         {
-            return new PipelineDispatch(contractType, BindPreHandler(nameof(InvokeTypedGate), arguments), null, null);
+            return ForPreHandler(contractType, nameof(InvokeTypedGuard), arguments);
+        }
+
+        if (definition == typeof(IMessageShortcut<>))
+        {
+            return ForPreHandler(contractType, nameof(InvokeShortcut), arguments);
+        }
+
+        if (definition == typeof(IMessageShortcut<,>))
+        {
+            return ForPreHandler(contractType, nameof(InvokeTypedShortcut), arguments);
         }
 
         if (definition == typeof(IMessagePostHandler<,>))
@@ -131,13 +183,26 @@ public sealed class PipelineDispatch
     }
 
     /// <summary>
-    ///     Invokes the pre-handler or gate this dispatch was built for.
+    ///     Builds the dispatch for one pre-handler, guard, or shortcut contract.
+    /// </summary>
+    /// <param name="contractType">The closed contract discovered on the handler during registration.</param>
+    /// <param name="methodName">The name of the static invoker to bind.</param>
+    /// <param name="arguments">The closed type arguments of the contract.</param>
+    /// <returns>The dispatch for the contract.</returns>
+    [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
+    private static PipelineDispatch ForPreHandler(Type contractType, string methodName, Type[] arguments)
+    {
+        return new PipelineDispatch(contractType, BindPreHandler(methodName, arguments), null, null);
+    }
+
+    /// <summary>
+    ///     Invokes the pre-handler, guard, or shortcut this dispatch was built for.
     /// </summary>
     /// <param name="handler">The handler instance.</param>
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
-    /// <returns>The directive that tells the pipeline whether to continue.</returns>
-    internal Task<PipelineDirective> InvokePreHandlerAsync(
+    /// <returns>The stop that tells the pipeline whether to continue.</returns>
+    internal Task<PipelineStop> InvokePreHandlerAsync(
         IMessagePreHandler handler,
         object message,
         CancellationToken cancellationToken)
@@ -184,11 +249,11 @@ public sealed class PipelineDispatch
     /// <param name="arguments">The closed type arguments of the contract.</param>
     /// <returns>The bound delegate.</returns>
     [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
-    private static Func<IMessagePreHandler, object, CancellationToken, Task<PipelineDirective>> BindPreHandler(
+    private static Func<IMessagePreHandler, object, CancellationToken, Task<PipelineStop>> BindPreHandler(
         string methodName,
         Type[] arguments)
     {
-        return Bind<Func<IMessagePreHandler, object, CancellationToken, Task<PipelineDirective>>>(methodName, arguments);
+        return Bind<Func<IMessagePreHandler, object, CancellationToken, Task<PipelineStop>>>(methodName, arguments);
     }
 
     /// <summary>
@@ -240,8 +305,8 @@ public sealed class PipelineDispatch
     /// <param name="handler">The pre-handler instance.</param>
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
-    /// <returns>Always <see cref="PipelineDirective.Continue" />.</returns>
-    private static async Task<PipelineDirective> InvokePreHandler<TMessage>(
+    /// <returns>Always <see cref="PipelineStop.None" />.</returns>
+    private static async Task<PipelineStop> InvokePreHandler<TMessage>(
         IMessagePreHandler handler,
         object message,
         CancellationToken cancellationToken)
@@ -251,46 +316,95 @@ public sealed class PipelineDispatch
             .PreHandleAsync((TMessage) message, cancellationToken)
             .ConfigureAwait(false);
 
-        return PipelineDirective.Continue;
+        return PipelineStop.None;
     }
 
     /// <summary>
-    ///     Runs a gate over a message that produces no result, and returns its decision.
+    ///     Runs a guard and returns its verdict as the stop the pipeline acts on.
     /// </summary>
     /// <typeparam name="TMessage">The registered message type.</typeparam>
-    /// <param name="handler">The gate instance.</param>
+    /// <param name="handler">The guard instance.</param>
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
-    /// <returns>The directive returned by the gate.</returns>
-    private static Task<PipelineDirective> InvokeGate<TMessage>(
+    /// <returns>The stop for a refusal, or <see cref="PipelineStop.None" /> when the message may proceed.</returns>
+    private static async Task<PipelineStop> InvokeGuard<TMessage>(
         IMessagePreHandler handler,
         object message,
         CancellationToken cancellationToken)
         where TMessage : notnull
     {
-        return ((IMessageGate<TMessage>) handler).DecideAsync((TMessage) message, cancellationToken);
+        var verdict = await ((IMessageGuard<TMessage>) handler)
+            .CheckAsync((TMessage) message, cancellationToken)
+            .ConfigureAwait(false);
+
+        return verdict.ToStop();
     }
 
     /// <summary>
-    ///     Runs a gate over a message that produces a result, and returns its decision.
+    ///     Runs a guard that can supply a refusal value, and returns its verdict as the stop the pipeline acts on.
     /// </summary>
     /// <typeparam name="TMessage">The registered message type.</typeparam>
     /// <typeparam name="TMessageResult">The registered result type.</typeparam>
-    /// <param name="handler">The gate instance.</param>
+    /// <param name="handler">The guard instance.</param>
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
-    /// <returns>The directive returned by the gate, converted to the untyped shape the pipeline acts on.</returns>
-    private static async Task<PipelineDirective> InvokeTypedGate<TMessage, TMessageResult>(
+    /// <returns>The stop for a refusal, or <see cref="PipelineStop.None" /> when the message may proceed.</returns>
+    private static async Task<PipelineStop> InvokeTypedGuard<TMessage, TMessageResult>(
         IMessagePreHandler handler,
         object message,
         CancellationToken cancellationToken)
         where TMessage : notnull
     {
-        var directive = await ((IMessageGate<TMessage, TMessageResult>) handler)
-            .DecideAsync((TMessage) message, cancellationToken)
+        var verdict = await ((IMessageGuard<TMessage, TMessageResult>) handler)
+            .CheckAsync((TMessage) message, cancellationToken)
             .ConfigureAwait(false);
 
-        return directive.AsUntyped();
+        return verdict.ToStop();
+    }
+
+    /// <summary>
+    ///     Runs a shortcut over a message that produces no result, and returns its answer as the stop the pipeline acts
+    ///     on.
+    /// </summary>
+    /// <typeparam name="TMessage">The registered message type.</typeparam>
+    /// <param name="handler">The shortcut instance.</param>
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
+    /// <returns>The stop for an answer, or <see cref="PipelineStop.None" /> when the mediation proceeds.</returns>
+    private static async Task<PipelineStop> InvokeShortcut<TMessage>(
+        IMessagePreHandler handler,
+        object message,
+        CancellationToken cancellationToken)
+        where TMessage : notnull
+    {
+        var shortcut = await ((IMessageShortcut<TMessage>) handler)
+            .TryAnswerAsync((TMessage) message, cancellationToken)
+            .ConfigureAwait(false);
+
+        return shortcut.ToStop();
+    }
+
+    /// <summary>
+    ///     Runs a shortcut over a message that produces a result, and returns its answer as the stop the pipeline acts
+    ///     on.
+    /// </summary>
+    /// <typeparam name="TMessage">The registered message type.</typeparam>
+    /// <typeparam name="TMessageResult">The registered result type.</typeparam>
+    /// <param name="handler">The shortcut instance.</param>
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
+    /// <returns>The stop for an answer, or <see cref="PipelineStop.None" /> when the mediation proceeds.</returns>
+    private static async Task<PipelineStop> InvokeTypedShortcut<TMessage, TMessageResult>(
+        IMessagePreHandler handler,
+        object message,
+        CancellationToken cancellationToken)
+        where TMessage : notnull
+    {
+        var shortcut = await ((IMessageShortcut<TMessage, TMessageResult>) handler)
+            .TryAnswerAsync((TMessage) message, cancellationToken)
+            .ConfigureAwait(false);
+
+        return shortcut.ToStop();
     }
 
     /// <summary>

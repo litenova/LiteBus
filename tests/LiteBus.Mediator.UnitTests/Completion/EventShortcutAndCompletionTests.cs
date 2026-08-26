@@ -9,14 +9,14 @@ using Microsoft.Extensions.DependencyInjection;
 namespace LiteBus.Mediator.UnitTests.Completion;
 
 /// <summary>
-///     Verifies that the event axis has the same two stages the command and query axes have: a gate that can stop the
-///     broadcast, and a completion handler that observes how it ended.
+///     Verifies that the event axis has the same two stages the command and query axes have: a shortcut that can skip
+///     the broadcast, and a completion handler that observes how it ended.
 /// </summary>
 [Collection("Sequential")]
-public sealed class EventGateAndCompletionTests : LiteBusTestBase
+public sealed class EventShortcutAndCompletionTests : LiteBusTestBase
 {
     [Fact]
-    public async Task An_event_gate_can_skip_the_reactions_to_an_already_handled_event()
+    public async Task An_event_shortcut_can_skip_the_reactions_to_an_already_handled_event()
     {
         var observed = new List<MessageOutcome>();
         var provider = BuildProvider(observed);
@@ -60,7 +60,7 @@ public sealed class EventGateAndCompletionTests : LiteBusTestBase
                 {
                     builder.Register(typeof(ProbeEvent));
                     builder.Register(typeof(ProbeEventHandler));
-                    builder.Register(typeof(ProbeEventGate));
+                    builder.Register(typeof(ProbeEventShortcut));
                     builder.Register(typeof(ProbeEventCompletionHandler));
                 });
             })
@@ -74,7 +74,7 @@ public sealed class EventGateAndCompletionTests : LiteBusTestBase
 internal sealed class ProbeEvent : IEvent
 {
     /// <summary>
-    ///     Gets or sets a value indicating whether the gate treats the event as already handled.
+    ///     Gets or sets a value indicating whether the shortcut treats the event as already handled.
     /// </summary>
     public bool AlreadyHandled { get; set; }
 
@@ -87,16 +87,16 @@ internal sealed class ProbeEvent : IEvent
 /// <summary>
 ///     Skips the reactions to an event this process has already handled.
 /// </summary>
-internal sealed class ProbeEventGate : IEventGate<ProbeEvent>
+internal sealed class ProbeEventShortcut : IEventShortcut<ProbeEvent>
 {
     /// <inheritdoc />
-    public Task<PipelineDirective> DecideAsync(ProbeEvent message, CancellationToken cancellationToken = default)
+    public Task<Shortcut> TryAnswerAsync(ProbeEvent message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
         return Task.FromResult(message.AlreadyHandled
-            ? PipelineDirective.ShortCircuit("already handled in this process")
-            : PipelineDirective.Continue);
+            ? Shortcut.Skip("already handled in this process")
+            : Shortcut.None);
     }
 }
 

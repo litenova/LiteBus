@@ -7,8 +7,8 @@ namespace LiteBus.Messaging.Audit;
 ///     Maps a mediation outcome to an audit outcome without any application knowledge.
 /// </summary>
 /// <remarks>
-///     The pipeline already separates a refusal from an early answer, so the mapping needs no guesswork: a gate denial is
-///     a denial, and a short-circuit is a success because nothing was refused. Applications that refuse by throwing
+///     The pipeline already separates a refusal from an early answer, so the mapping needs no guesswork: a guard denial
+///     is a denial, and a shortcut answer is a success because nothing was refused. Applications that refuse by throwing
 ///     register their own <see cref="IAuditOutcomeMapper" /> so that their refusal exception is recorded as
 ///     <see cref="AuditOutcome.Denied" /> rather than <see cref="AuditOutcome.Failed" />.
 /// </remarks>
@@ -38,6 +38,7 @@ public sealed class DefaultAuditOutcomeMapper : IAuditOutcomeMapper
             MessageOutcome.ShortCircuited => AuditOutcome.Succeeded,
             MessageOutcome.Denied => AuditOutcome.Denied,
             MessageOutcome.Canceled => AuditOutcome.Canceled,
+            MessageOutcome.Invalid => AuditOutcome.Invalid,
             _ => AuditOutcome.Failed
         };
     }

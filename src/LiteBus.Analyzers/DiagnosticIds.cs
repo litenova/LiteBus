@@ -86,7 +86,7 @@ internal static class DiagnosticIds
     internal const string MissingAuditDeclaration = "LB1018";
 
     /// <summary>
-    ///     Gate uses the untyped gate contract for a message that produces a result.
+    ///     Shortcut uses the untyped shortcut contract for a message that produces a result.
     /// </summary>
-    internal const string UntypedGateOnResultMessage = "LB1019";
+    internal const string UntypedShortcutOnResultMessage = "LB1019";
 }
