@@ -4,59 +4,100 @@ All notable changes to this project will be documented in this file.
 
 ## v6.1.0
 
-Minor release for .NET 10. Adds a completion stage to the mediation pipeline, declarative message metadata, and an audit
-trail built on both. Persistence schemas and transport behavior are unchanged.
+Minor release for .NET 10. Adds a completion stage to the mediation pipeline, gates that decide whether work happens,
+declarative message metadata, and an audit trail built on all three. Persistence schemas and transport behavior are
+unchanged.
 
 ### Added
 
-- A fifth pipeline stage. `IMessageCompletionHandler`, `ICommandCompletionHandler`, and `IQueryCompletionHandler` run in
-  a `finally` on every mediation path, exactly once, and receive a read-only `MessageCompletionContext` carrying the
-  outcome, the result, the exception, the abort reason, and the elapsed duration. Post-handlers run only when the main
-  handler succeeds and error handlers only for recoverable exceptions, so until now no stage could observe how a message
+- A fifth pipeline stage. `IMessageCompletionHandler<TMessage>`, `IMessageCompletionHandler<TMessage, TMessageResult>`,
+  and the axis contracts `ICommandCompletionHandler`, `IQueryCompletionHandler`, and `IEventCompletionHandler` run in a
+  `finally` on every mediation path, exactly once, and receive a read-only `MessageCompletionContext` carrying the
+  outcome, the result, the exception, the reason, and the elapsed duration. Post-handlers run only when the main handler
+  succeeds and error handlers only for recoverable exceptions, so until now no stage could observe how a message
   actually ended. Recording an audit entry, emitting a metric, or closing a unit of work belongs here.
-- `MessageOutcome` distinguishes `Succeeded`, `Aborted`, `Failed`, and `Canceled`. An aborted or cancelled mediation
-  previously left no trace in any stage.
-- Short-circuiting is a return value rather than an exception. `IShortCircuitingPreHandler<TMessage>`, with the axis
-  sugar `ICommandShortCircuitingPreHandler<TCommand>` and `IQueryShortCircuitingPreHandler<TQuery>`, returns a
-  `PipelineDirective` that either continues the pipeline or stops it with a result and a reason. The compiler requires
-  the decision, so nothing after it runs by accident, and an expected control-flow path stays off the exception path.
-  The reason surfaces as `MessageCompletionContext.AbortReason` and as the reason on an audit record.
+- The completion stage is not cancellable. Handlers receive `CancellationToken.None`, because the ending has already
+  happened and handing the stage the token that just fired would drop exactly the records a review looks for.
+- Gates. A pre-handler that may stop the pipeline implements `IMessageGate<TMessage>` or
+  `IMessageGate<TMessage, TMessageResult>`, with the axis contracts `ICommandGate<TCommand>`,
+  `ICommandGate<TCommand, TCommandResult>`, `IQueryGate<TQuery, TQueryResult>`,
+  `IStreamQueryGate<TQuery, TQueryResult>`, and `IEventGate<TEvent>`, and returns a `PipelineDirective` from
+  `DecideAsync`. The compiler requires the decision, so nothing after it runs by accident, and an expected control-flow
+  path stays off the exception path.
+- A gate distinguishes the two reasons for stopping. `ShortCircuit` means the result was already known, such as a cache
+  hit or a replayed idempotent command, and reports `MessageOutcome.ShortCircuited`. `Deny` means the message is
+  refused, always carries a reason, and reports `MessageOutcome.Denied`. An audit trail records the first as a success
+  and the second as a denial, which is the distinction a security review reads.
+- `PipelineDirective<TMessageResult>` types the directive over the result type of the message, so a gate that stops a
+  result-returning message is required by the compiler to supply the value the caller receives.
+- `LiteBusMessageDeniedException` reaches the caller when a refusal supplies no result. It is excluded from the
+  recoverable-exception filter, so error handlers never see a decision as a fault.
+- `MessageOutcome` distinguishes `Succeeded`, `ShortCircuited`, `Denied`, `Failed`, and `Canceled`.
 - `IExecutionContext.SuppressPostHandlers()` skips the post-handlers that have not run yet. Use it when the work turned
   out to be a no-op and the reactions to it should not fire, such as an idempotent command that detects it already ran.
   It does not stop the calling handler and does not change the outcome.
 - Declarative message metadata. `IMessageDescriptor.Metadata` exposes values resolved once at registration from
-  attributes on the message type and from message definitions, so a pipeline stage reads a dictionary instead of
-  reflecting on every dispatch.
-- Message definitions. A definition class lives beside the message it describes and declares one facet per concern
-  through `IMessageDefinition<TMessage, TValue>`. Facets are keyed by value type, so one class may declare several
-  without ambiguity, and applications may declare facets over their own value types that LiteBus applies without
-  interpreting. A definition overrides an attribute declaring the same value type.
-- An audit trail at the mediation boundary. `[Audited]` and `[AuditExempt]`, or an `IAuditDefinition<TMessage>` facet,
-  declare the constant half of a record; `IAuditScope` supplies what only the handler knows. `EnableAuditing()` on the
-  command and query module builders registers the writer, which hands an `AuditRecord` to the application's
-  `IAuditTrail`. Because it runs at the completion stage, refusals and failures are recorded as first-class outcomes
-  rather than being invisible.
-- `IAuditOutcomeMapper` and `MessageModuleBuilder.UseAuditOutcomeMapper` let an application record its own refusal
-  exception as `AuditOutcome.Denied` rather than `AuditOutcome.Failed`.
+  declaring attributes on the message type and from message definitions, so a pipeline stage reads a dictionary instead
+  of reflecting on every dispatch.
+- Message definitions. A definition class lives beside the message it describes and declares one value per concern
+  through `IMessageDefinition<TMessage, TValue>`. Declarations are keyed by value type, so one class may declare several
+  without ambiguity, and applications may declare their own value types that LiteBus applies without interpreting. A
+  declaration covers the message type it names and every message assignable to it, so one definition can describe a
+  family of messages; the most derived declaration wins.
+- `IMessageDeclarationSource` marks an attribute as a source of message metadata and states the value type it declares.
+  Only attributes implementing it are collected, which keeps metadata bounded, and it puts attributes and definitions on
+  one key so a definition genuinely overwrites an attribute rather than sitting beside it.
+- An audit trail at the mediation boundary. `[Audited]` and `[AuditExempt]`, or an `IAuditDefinition<TMessage>`, declare
+  the constant half of a record; `IAuditScope` supplies what only the handler knows. `EnableAuditing()` on the command
+  and query module builders registers the writer, which hands an `AuditRecord` to the application's `IAuditTrail`.
+  Because it runs at the completion stage, refusals, failures, and cancellations are recorded as first-class outcomes.
+- `AuditDeclaration` is a closed hierarchy of `AuditedDeclaration` and `AuditExemptDeclaration`, so a declaration cannot
+  hold a combination that means nothing, such as a category on an exemption.
+- `ReasonRequired` on an audited declaration is enforced. A successful action that declares it and supplies no reason
+  raises `LiteBusConfigurationException` rather than writing an incomplete record.
+- `AuditTrailDiagnosticCheck` reports the `litebus.audit.trail` probe as unhealthy when auditing is enabled and no
+  `IAuditTrail` is registered, so a missing sink surfaces before the first audited mediation.
+- `IAuditOutcomeMapper` and `MessageModuleBuilder.UseAuditOutcomeMapper` let an application that refuses by throwing
+  record its own exception as `AuditOutcome.Denied` rather than `AuditOutcome.Failed`. Refusing through a gate needs no
+  mapper.
+- `MediationExceptionData.SuppressedCompletionFaults` is the key under which a completion-handler fault is attached to
+  the exception that was already ending the mediation, so a failed audit write is never silently discarded.
 - `LB1018` reports command and query types that state no audit position, so an unaudited message is a recorded decision
   rather than an oversight. Disabled by default; enable with `dotnet_diagnostic.LB1018.severity = warning`.
-- `LiteBusHandlerPriority` reserves a priority band for handlers shipped by LiteBus, so ordering against them is a
-  documented guarantee. Application handlers stay below `FrameworkFloor` and, with no explicit priority, run first.
+- `HandlerPriorities` reserves a priority band for handlers shipped by LiteBus, so ordering against them is a documented
+  guarantee. Application handlers stay below `ReservedFloor` and, with no explicit priority, run first.
+- `IHandlerDescriptor.ContractType` records the closed contract a descriptor was discovered from, and `PipelineDispatch`
+  carries the delegate bound to it at registration.
 
 ### Changed
 
-- `CommandModuleBuilder` and `QueryModuleBuilder` recognize completion handler contracts and message definitions as
-  registrable constructs, so `RegisterFromAssembly` discovers them.
-- `AsyncBroadcastMediationStrategy` now observes cancellations so it can report them to the completion stage, and
-  honors a pre-handler short-circuit by publishing to no handlers. Cancellation still propagates as before.
-- Pre-handlers and post-handlers are invoked through the closed contract recorded in their descriptor at registration,
-  using a delegate built once per contract and cached. The previous dispatch searched a handler's interfaces for a
-  method by name on every invocation and called it reflectively, which is how a class implementing pipeline contracts
-  for several message types could have the wrong method selected. Choosing the contract from registration metadata
-  makes that class of bug structurally impossible rather than fixed case by case.
+- Every module builder recognizes gate contracts, completion handler contracts, and message definitions as registrable
+  constructs, so `RegisterFromAssembly` discovers them.
+- `AsyncBroadcastMediationStrategy` observes cancellations so it can report them to the completion stage, honors a gate
+  decision by publishing to no handlers, and reports no result to completion handlers rather than the task that tracked
+  its handlers. Cancellation still propagates as before.
+- A gate decision on a stream query no longer runs post-handlers. Stopping the pipeline means the work did not happen,
+  so the reactions to it do not fire; the caller still receives whatever stream the gate supplied.
+- Pre-handlers, post-handlers, and completion handlers are invoked through the closed contract recorded in their
+  descriptor at registration, using a delegate built while the descriptor is built. The previous dispatch searched a
+  handler's interfaces for a method by name on every invocation and called it reflectively, which is how a class
+  implementing pipeline contracts for several message types could have the wrong method selected. Choosing the contract
+  from registration metadata makes that class of bug structurally impossible, and building the delegate at registration
+  keeps reflection out of the dispatch path.
+- Two definitions declaring the same value type for one message, or two declarations covering one message where neither
+  is more derived than the other, are reported at registration instead of being resolved by assembly scanning order.
 
 ### Fixed
 
+- A completion handler can now observe more than one message type. The stage dispatched through a default interface
+  method on its non-generic contract, so a class implementing completion contracts for two message types did not
+  compile.
+- An audit record is no longer lost when a mediation is cancelled or fails. The completion stage was invoked with the
+  mediation cancellation token, so an `IAuditTrail` that honoured it threw immediately on the cancelled path, and the
+  fault was then suppressed silently. The stage now runs uncancellable, and a fault that must still be suppressed is
+  attached to the original exception.
+- A gate that answers early is no longer recorded as a denial. The default outcome mapping recorded every stopped
+  mediation as `AuditOutcome.Denied`, so a cache hit produced a false denial entry.
 - Handler discovery in the analyzers recognizes the two-parameter post-handler contracts and the stream query
   post-handler contract. A handler implementing only those was invisible to LB1011 and LB1012, so an unused
   `[HandlerTag]` on one was not reported.
@@ -64,24 +105,40 @@ trail built on both. Persistence schemas and transport behavior are unchanged.
 ### Breaking
 
 - `IExecutionContext.Abort` and `LiteBusExecutionAbortedException` are removed. A pre-handler that stopped the pipeline
-  now implements `ICommandShortCircuitingPreHandler<TCommand>` or `IQueryShortCircuitingPreHandler<TQuery>` and returns
-  `PipelineDirective.ShortCircuit(result, reason)`. The break is a compile error rather than a change in behavior, which
-  is deliberate: a flag that left `Abort()` compiling would have silently started running the statements after it.
-- Only a pre-handler can stop the pipeline. Short-circuiting means skipping the work, and once the main handler has run
-  there is nothing left to skip. A handler that previously aborted from a later stage calls `SuppressPostHandlers()`.
-- `MessageOutcome.Aborted` now means the main handler never ran. Previously an abort from a post-handler reported
-  `Aborted` even though the command had taken effect, which told an audit trail that an action was refused when it had
-  actually succeeded. Suppressing post-handlers reports `Succeeded`.
-- The synchronous handler layer is removed. `IMessagePreHandler` and `IMessagePostHandler` no longer expose
-  `object PreHandle(object)` and `object PostHandle(object, object?)`; both are now markers used for discovery. The
-  typed members are unchanged, so handlers implementing `ICommandPreHandler<TCommand>`,
-  `IQueryPostHandler<TQuery, TResult>`, `ICommandValidator<TCommand>`, and their siblings compile as they are.
-  `IAsyncMessagePreHandler<TMessage>` and `IAsyncMessagePostHandler<TMessage>` remain as aliases.
+  now implements a gate contract and returns a `PipelineDirective`. The break is a compile error rather than a change in
+  behavior, which is deliberate: a flag that left `Abort()` compiling would have silently started running the statements
+  after it.
+- Only a gate can stop the pipeline. Stopping means skipping the work, and once the main handler has run there is
+  nothing left to skip. A handler that previously aborted from a later stage calls `SuppressPostHandlers()`.
+- `MessageOutcome` has no `Aborted` member. A stopped mediation reports `ShortCircuited` or `Denied`, which say which of
+  the two events happened. Previously an abort from a post-handler reported `Aborted` even though the command had taken
+  effect, which told an audit trail that an action was refused when it had actually succeeded; suppressing post-handlers
+  reports `Succeeded`.
+- `MessageCompletionContext.AbortReason` is now `Reason`, and `IsSuccess` is replaced by `Faulted`. A single boolean
+  cannot summarize five endings, and `Faulted` says exactly one thing: an exception ended the mediation. A denial is not
+  a fault even when it reaches the caller as an exception.
+- Attributes are no longer stored in message metadata under their own type. An attribute becomes metadata only by
+  implementing `IMessageDeclarationSource`, and is stored under the value type it declares, so
+  `Metadata.TryGet<AuditedAttribute>(...)` becomes `Metadata.TryGet<AuditDeclaration>(...)`.
+- `AuditDeclaration` is abstract. `AuditDeclaration.Audited(...)` returns `AuditedDeclaration` and
+  `AuditDeclaration.Exempt(...)` returns `AuditExemptDeclaration`; `IsAudited` remains, and code that read
+  `declaration.Action` on a possibly-exempt declaration now matches on the concrete type.
+- `IAuditScope.Target` is renamed `WithTarget`, matching `WithReason` and `WithProperty`.
+- `IAuditTrail.WriteAsync` receives `CancellationToken.None`, because the completion stage is not cancellable.
+- `LiteBusHandlerPriority` is renamed `HandlerPriorities`, and `FrameworkFloor` is renamed `ReservedFloor`.
+- The audit record writer and the per-axis audit completion handlers are internal. Applications reach the writer through
+  `IAuditRecordWriter` and enable it through `EnableAuditing()`.
+- The synchronous handler layer is removed. `IMessagePreHandler`, `IMessagePostHandler`, and
+  `IMessageCompletionHandler` are markers used for discovery. The typed members are unchanged, so handlers implementing
+  `ICommandPreHandler<TCommand>`, `IQueryPostHandler<TQuery, TResult>`, `ICommandValidator<TCommand>`, and their
+  siblings compile as they are. `IAsyncMessagePreHandler<TMessage>` and `IAsyncMessagePostHandler<TMessage>` remain as
+  aliases.
 - `IExecutionContext` gained `PostHandlersSuppressed` and `SuppressPostHandlers()`. Custom implementations, including
   test doubles, must add them.
-- `IMessageDescriptor` and `IMessageDependencies` gained members for the completion stage and for message metadata.
-  Custom implementations of these interfaces must add them. Both are infrastructure contracts implemented by LiteBus
-  itself; applications that only implement handlers are unaffected.
+- `IMessageDescriptor`, `IMessageDependencies`, and the handler descriptor interfaces gained members for the completion
+  stage, message metadata, the recorded contract, and the prebuilt dispatch. Custom implementations of these interfaces
+  must add them. They are infrastructure contracts implemented by LiteBus itself; applications that only implement
+  handlers are unaffected.
 
 ## v6.0.2
 

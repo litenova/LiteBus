@@ -63,3 +63,7 @@ dotnet_diagnostic.CA1000.severity = none
 
 [LiteBus.Saga.Abstractions/SagaSaveItem*.cs]
 dotnet_diagnostic.CA1000.severity = none
+
+# Static factories live on the directive struct a gate returns by design.
+[LiteBus.Messaging.Abstractions/Handler/Pre/PipelineDirective*.cs]
+dotnet_diagnostic.CA1000.severity = none

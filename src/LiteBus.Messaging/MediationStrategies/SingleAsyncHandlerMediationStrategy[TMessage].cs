@@ -12,7 +12,7 @@ namespace LiteBus.Messaging.MediationStrategies;
 /// <typeparam name="TMessage">The type of message being mediated.</typeparam>
 /// <remarks>
 ///     This strategy ensures that only one handler is registered for the message type and then:
-///     1. Executes pre-handlers, stopping early when one short-circuits.
+///     1. Executes pre-handlers, stopping early when a gate short-circuits or denies.
 ///     2. Delegates the message processing to the registered handler.
 ///     3. Executes post-handlers, unless the pipeline suppressed them.
 ///     4. Routes exceptions to registered error handlers.
@@ -39,8 +39,8 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
     /// <remarks>
     ///     The mediation process includes executing pre-handlers, the main handler, and post-handlers in sequence.
     ///     If an exception occurs during any stage, the appropriate error handlers are executed.
-    ///     When a pre-handler short-circuits, the mediation ends with <see cref="MessageOutcome.Aborted" /> and the
-    ///     main handler never runs.
+    ///     When a gate stops the pipeline, the mediation ends with <see cref="MessageOutcome.ShortCircuited" /> or
+    ///     <see cref="MessageOutcome.Denied" /> and the main handler never runs.
     /// </remarks>
     public async Task Mediate(
         TMessage message,
@@ -51,7 +51,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         var startedAt = Stopwatch.GetTimestamp();
         var outcome = MessageOutcome.Succeeded;
         Exception? failure = null;
-        string? abortReason = null;
+        string? reason = null;
 
         try
         {
@@ -61,10 +61,20 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
                     .RunAsyncPreHandlers(message, executionContext.CancellationToken)
                     .ConfigureAwait(false);
 
-                if (directive.IsShortCircuit)
+                if (directive.StopsPipeline)
                 {
-                    outcome = MessageOutcome.Aborted;
-                    abortReason = directive.Reason;
+                    outcome = directive.ToOutcome();
+                    reason = directive.Reason;
+
+                    if (directive.IsUnansweredDenial())
+                    {
+                        // A refusal reaches the caller as an exception. It is excluded from the recoverable filter, so
+                        // error handlers do not see a decision as a fault.
+                        var denial = directive.CreateDenial(message.GetType());
+                        failure = denial;
+                        throw denial;
+                    }
+
                     return;
                 }
 
@@ -109,7 +119,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
                     outcome,
                     executionContext.MessageResult ?? messageResult,
                     failure,
-                    abortReason,
+                    reason,
                     Stopwatch.GetElapsedTime(startedAt))
                 .ConfigureAwait(false);
         }

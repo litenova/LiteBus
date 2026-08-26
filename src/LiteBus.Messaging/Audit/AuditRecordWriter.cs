@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Audit;
 
@@ -16,11 +17,11 @@ namespace LiteBus.Messaging.Audit;
 ///     </para>
 ///     <para>
 ///         It reads the constant half of the record from the message's <see cref="AuditDeclaration" />, resolved once at
-///         registration from an attribute or a definition facet. It reads the variable half from
-///         <see cref="IAuditScope" />, which the handler populated while it ran.
+///         registration from an attribute or a definition. It reads the variable half from <see cref="IAuditScope" />,
+///         which the handler populated while it ran.
 ///     </para>
 /// </remarks>
-public sealed class AuditRecordWriter
+internal sealed class AuditRecordWriter : IAuditRecordWriter
 {
     /// <summary>
     ///     Classifies the mediation outcome in audit vocabulary.
@@ -66,36 +67,42 @@ public sealed class AuditRecordWriter
         _timeProvider = timeProvider;
     }
 
-    /// <summary>
-    ///     Writes an audit record for a completed mediation, when the message is declared as audited.
-    /// </summary>
-    /// <param name="context">The completion context observed at the end of mediation.</param>
-    /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
-    /// <returns>A task representing the asynchronous write.</returns>
-    public async Task WriteAsync(MessageCompletionContext context, CancellationToken cancellationToken)
+    /// <inheritdoc />
+    public async Task WriteAsync(MessageCompletionContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!TryResolveDeclaration(context.Message.GetType(), out var declaration) || !declaration.IsAudited)
+        var messageType = context.Message.GetType();
+
+        if (ResolveDeclaration(messageType) is not AuditedDeclaration declaration)
         {
             return;
         }
 
         var scope = AmbientAuditScope.Find();
         var outcome = _outcomeMapper.Map(context);
+        var reason = scope?.Reason ?? context.Reason;
+
+        if (declaration.ReasonRequired && outcome == AuditOutcome.Succeeded && string.IsNullOrWhiteSpace(reason))
+        {
+            throw new LiteBusConfigurationException(
+                $"The action '{declaration.Action}' declares that a reason is required, but the handler for "
+                + $"'{messageType.Name}' supplied none. Call IAuditScope.WithReason before the handler returns, or drop "
+                + "ReasonRequired from the declaration.");
+        }
 
         var record = new AuditRecord
         {
-            Action = declaration.Action!,
+            Action = declaration.Action,
             Outcome = outcome,
             OccurredAt = _timeProvider.GetUtcNow(),
             Duration = context.Duration,
             Category = declaration.Category,
             TargetKind = declaration.TargetKind,
             TargetId = scope?.TargetId,
-            Reason = scope?.Reason ?? context.AbortReason,
-            FailureCode = outcome == AuditOutcome.Succeeded ? null : _outcomeMapper.MapFailureCode(context),
-            MessageType = context.Message.GetType().FullName,
+            Reason = reason,
+            FailureCode = _outcomeMapper.MapFailureCode(context),
+            MessageType = messageType.FullName,
             CorrelationId = ReadTraceItem(MessageTraceContextKeys.CorrelationId),
             TenantId = ReadTraceItem(MessageTraceContextKeys.TenantId),
             Properties = scope is null
@@ -127,38 +134,20 @@ public sealed class AuditRecordWriter
     ///     Resolves the audit declaration recorded for a message type.
     /// </summary>
     /// <param name="messageType">The concrete runtime message type.</param>
-    /// <param name="declaration">When this method returns <see langword="true" />, the resolved declaration.</param>
-    /// <returns><see langword="true" /> when the message declares an audit position.</returns>
-    private bool TryResolveDeclaration(Type messageType, out AuditDeclaration declaration)
+    /// <returns>The declaration, or <see langword="null" /> when the message declares no audit position.</returns>
+    /// <remarks>
+    ///     Attributes and definitions both contribute an <see cref="AuditDeclaration" /> during registration, so this is
+    ///     one lookup by one key rather than a search through the sources.
+    /// </remarks>
+    private AuditDeclaration? ResolveDeclaration(Type messageType)
     {
         var descriptor = _registry.Find(messageType);
 
         if (descriptor is null)
         {
-            declaration = null!;
-            return false;
+            return null;
         }
 
-        // A definition facet stores the declaration directly. An attribute stores itself, so convert on read.
-        if (descriptor.Metadata.TryGet<AuditDeclaration>(out var declared))
-        {
-            declaration = declared;
-            return true;
-        }
-
-        if (descriptor.Metadata.TryGet<AuditedAttribute>(out var audited))
-        {
-            declaration = audited.ToDeclaration();
-            return true;
-        }
-
-        if (descriptor.Metadata.TryGet<AuditExemptAttribute>(out var exempt))
-        {
-            declaration = exempt.ToDeclaration();
-            return true;
-        }
-
-        declaration = null!;
-        return false;
+        return descriptor.Metadata.TryGet<AuditDeclaration>(out var declaration) ? declaration : null;
     }
 }

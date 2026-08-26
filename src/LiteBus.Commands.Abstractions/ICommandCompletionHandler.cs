@@ -8,7 +8,7 @@ namespace LiteBus.Commands.Abstractions;
 /// <remarks>
 ///     Command completion handlers provide a single place to observe how a command finished. Unlike post-handlers, which
 ///     run only on success, and error handlers, which run only for recoverable exceptions, a completion handler runs on
-///     every path: success, abort, failure, and cancellation. This makes it the stage for recording an audit trail,
-///     emitting metrics, or closing a unit of work.
+///     every path: success, short-circuit, denial, failure, and cancellation. This makes it the stage for recording an
+///     audit trail, emitting metrics, or closing a unit of work.
 /// </remarks>
 public interface ICommandCompletionHandler : IMessageCompletionHandler<ICommand>;

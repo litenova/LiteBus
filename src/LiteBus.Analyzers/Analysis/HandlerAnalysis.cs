@@ -34,10 +34,16 @@ internal static class HandlerAnalysis
         ("LiteBus.Commands.Abstractions.ICommandPostHandler`2", "command post-handler"),
         ("LiteBus.Queries.Abstractions.IQueryPostHandler`2", "query post-handler"),
         ("LiteBus.Queries.Abstractions.IStreamQueryPostHandler`2", "stream query post-handler"),
-        ("LiteBus.Commands.Abstractions.ICommandShortCircuitingPreHandler`1", "command pre-handler"),
-        ("LiteBus.Queries.Abstractions.IQueryShortCircuitingPreHandler`1", "query pre-handler"),
+        ("LiteBus.Commands.Abstractions.ICommandGate`1", "command gate"),
+        ("LiteBus.Commands.Abstractions.ICommandGate`2", "command gate"),
+        ("LiteBus.Queries.Abstractions.IQueryGate`2", "query gate"),
+        ("LiteBus.Queries.Abstractions.IStreamQueryGate`2", "stream query gate"),
+        ("LiteBus.Events.Abstractions.IEventGate`1", "event gate"),
         ("LiteBus.Commands.Abstractions.ICommandCompletionHandler`1", "command completion-handler"),
-        ("LiteBus.Queries.Abstractions.IQueryCompletionHandler`1", "query completion-handler")
+        ("LiteBus.Commands.Abstractions.ICommandCompletionHandler`2", "command completion-handler"),
+        ("LiteBus.Queries.Abstractions.IQueryCompletionHandler`1", "query completion-handler"),
+        ("LiteBus.Queries.Abstractions.IQueryCompletionHandler`2", "query completion-handler"),
+        ("LiteBus.Events.Abstractions.IEventCompletionHandler`1", "event completion-handler")
     ];
 
     /// <summary>

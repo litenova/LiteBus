@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Extensions;
@@ -9,7 +10,7 @@ using LiteBus.Messaging.Registry.Descriptors;
 namespace LiteBus.Messaging.Registry.Builders;
 
 /// <summary>
-///     Discovers <see cref="IPreHandlerDescriptor" /> instances from pre-handler types.
+///     Discovers <see cref="IPreHandlerDescriptor" /> instances from pre-handler and gate types.
 /// </summary>
 public sealed class PreHandlerDescriptorBuilder : IHandlerDescriptorBuilder
 {
@@ -20,12 +21,15 @@ public sealed class PreHandlerDescriptorBuilder : IHandlerDescriptorBuilder
     }
 
     /// <inheritdoc />
+    [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
     public IEnumerable<IHandlerDescriptor> Build(Type type)
     {
-        // A pre-handler declares its message type through either contract. Both dispatch through IMessagePreHandler,
-        // so both produce the same descriptor kind, but the message type must be read from whichever it implements.
+        // A pre-handler declares its message type through any of three contracts: a plain pre-handler, a gate over a
+        // message with no result, or a gate over a message with one. All three produce the same descriptor kind, and
+        // the contract recorded here is what the pipeline later dispatches through.
         var interfaces = type.GetInterfacesEqualTo(typeof(IMessagePreHandler<>))
-            .Concat(type.GetInterfacesEqualTo(typeof(IShortCircuitingPreHandler<>)));
+            .Concat(type.GetInterfacesEqualTo(typeof(IMessageGate<>)))
+            .Concat(type.GetInterfacesEqualTo(typeof(IMessageGate<,>)));
 
         var priority = type.GetPriorityFromAttribute();
         var tags = type.GetTagsFromAttribute();
@@ -39,7 +43,9 @@ public sealed class PreHandlerDescriptorBuilder : IHandlerDescriptorBuilder
                 MessageType = messageType.NormalizeMessageRegistrationType(),
                 Priority = priority,
                 Tags = tags,
-                HandlerType = type
+                HandlerType = type,
+                ContractType = @interface,
+                Dispatch = PipelineDispatch.For(@interface)
             };
         }
     }

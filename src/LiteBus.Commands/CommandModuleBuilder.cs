@@ -22,7 +22,8 @@ public sealed class CommandModuleBuilder
         typeof(ICommandHandler<,>),
         typeof(ICommandPreHandler),
         typeof(ICommandPreHandler<>),
-        typeof(ICommandShortCircuitingPreHandler<>),
+        typeof(ICommandGate<>),
+        typeof(ICommandGate<,>),
         typeof(ICommandPostHandler),
         typeof(ICommandPostHandler<>),
         typeof(ICommandPostHandler<,>),
@@ -30,7 +31,8 @@ public sealed class CommandModuleBuilder
         typeof(ICommandErrorHandler<>),
         typeof(ICommandErrorHandler<,>),
         typeof(ICommandCompletionHandler),
-        typeof(ICommandCompletionHandler<>)
+        typeof(ICommandCompletionHandler<>),
+        typeof(ICommandCompletionHandler<,>)
     ];
 
     /// <summary>
@@ -56,6 +58,15 @@ public sealed class CommandModuleBuilder
     public IContractWriter Contracts { get; }
 
     /// <summary>
+    ///     Gets a value indicating whether <see cref="EnableAuditing" /> was called.
+    /// </summary>
+    /// <remarks>
+    ///     The module reads this after the configuration action runs, so it can register the diagnostic probe that reports
+    ///     a missing <see cref="IAuditTrail" /> before the first audited mediation fails inside the completion stage.
+    /// </remarks>
+    internal bool AuditingEnabled { get; private set; }
+
+    /// <summary>
     ///     Registers the LiteBus command audit writer, so every command mediation produces an audit record when the
     ///     message declares one.
     /// </summary>
@@ -64,16 +75,19 @@ public sealed class CommandModuleBuilder
     ///     <para>
     ///         The writer runs at the completion stage, so refusals, failures and cancellations are recorded as well as
     ///         successes. A message is recorded only when it declares an audited position through
-    ///         <see cref="AuditedAttribute" /> or an <c>IAuditDefinition&lt;TMessage&gt;</c> facet.
+    ///         <see cref="AuditedAttribute" /> or an <c>IAuditDefinition&lt;TMessage&gt;</c>.
     ///     </para>
     ///     <para>
-    ///         The application must register an <see cref="IAuditTrail" /> implementation. Registering an
-    ///         <see cref="IAuditOutcomeMapper" /> is optional and lets a refusal exception be recorded as
-    ///         <see cref="AuditOutcome.Denied" /> rather than <see cref="AuditOutcome.Failed" />.
+    ///         The application must register an <see cref="IAuditTrail" /> implementation; the
+    ///         <c>litebus.audit.trail</c> diagnostic probe reports when it is missing. Registering an
+    ///         <see cref="IAuditOutcomeMapper" /> is optional and lets a refusal raised as an exception be recorded as
+    ///         <see cref="AuditOutcome.Denied" /> rather than <see cref="AuditOutcome.Failed" />; a refusal from a gate
+    ///         is already recorded as a denial without one.
     ///     </para>
     /// </remarks>
     public CommandModuleBuilder EnableAuditing()
     {
+        AuditingEnabled = true;
         return Register<CommandAuditCompletionHandler>();
     }
 

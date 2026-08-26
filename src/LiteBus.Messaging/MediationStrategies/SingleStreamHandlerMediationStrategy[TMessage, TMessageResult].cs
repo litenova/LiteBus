@@ -20,8 +20,8 @@ namespace LiteBus.Messaging.MediationStrategies;
 ///     execution of pre-handlers before the stream begins, processes each item in the stream,
 ///     and executes post-handlers after the stream completes.
 ///     Error handling is performed at multiple stages: during pre-handling, during stream enumeration,
-///     and during post-handling. When a pre-handler short-circuits, the main handler never runs and the stream
-///     yields whatever the directive supplied, or nothing.
+///     and during post-handling. When a gate stops the pipeline, the main handler never runs and the stream yields
+///     whatever the directive supplied, or nothing.
 /// </remarks>
 public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
     IMessageMediationStrategy<TMessage, IAsyncEnumerable<TMessageResult>>
@@ -61,7 +61,8 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
     ///     The mediation process includes executing pre-handlers before starting the stream, obtaining the
     ///     stream from the handler, enumerating the stream and yielding each result, and executing post-handlers
     ///     after the stream completes. If an exception occurs during any stage, the appropriate error handlers are
-    ///     executed. When a pre-handler short-circuits, the mediation reports <see cref="MessageOutcome.Aborted" />.
+    ///     executed. When a gate stops the pipeline, the mediation reports <see cref="MessageOutcome.ShortCircuited" />
+    ///     or <see cref="MessageOutcome.Denied" />.
     /// </remarks>
     public async IAsyncEnumerable<TMessageResult> Mediate(
         TMessage message,
@@ -70,10 +71,11 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
     {
         IAsyncEnumerable<TMessageResult>? messageResultAsyncEnumerable = null;
         var shouldContinue = true;
+        var pipelineStopped = false;
         var startedAt = Stopwatch.GetTimestamp();
         var outcome = MessageOutcome.Succeeded;
         Exception? failure = null;
-        string? abortReason = null;
+        string? reason = null;
 
         try
         {
@@ -85,12 +87,25 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                         .RunAsyncPreHandlers(message, executionContext.CancellationToken)
                         .ConfigureAwait(false);
 
-                    if (directive.IsShortCircuit)
+                    if (directive.StopsPipeline)
                     {
-                        outcome = MessageOutcome.Aborted;
-                        abortReason = directive.Reason;
+                        outcome = directive.ToOutcome();
+                        reason = directive.Reason;
                         shouldContinue = false;
-                        messageResultAsyncEnumerable = directive.Result as IAsyncEnumerable<TMessageResult>;
+                        pipelineStopped = true;
+
+                        if (directive.IsUnansweredDenial())
+                        {
+                            var denial = directive.CreateDenial(message.GetType());
+                            failure = denial;
+                            throw denial;
+                        }
+
+                        // A stopping directive over a stream supplies a replacement stream. Supplying none is a
+                        // legitimate answer for a stream, and means the caller enumerates nothing.
+                        messageResultAsyncEnumerable = directive.HasResult
+                            ? directive.ResolveResult<IAsyncEnumerable<TMessageResult>?>(message.GetType())
+                            : null;
                     }
                     else
                     {
@@ -116,14 +131,24 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                 }
             }
 
-            // A short-circuit may supply a replacement stream. When it supplies nothing, the stream is empty.
-            if (!shouldContinue && messageResultAsyncEnumerable is null)
+            if (pipelineStopped)
             {
+                // The gate answered for the handler, so the caller gets whatever stream it supplied and the reactions to
+                // work that never happened do not run. Supplying no stream is a legitimate answer and yields nothing.
+                if (messageResultAsyncEnumerable is not null)
+                {
+                    await foreach (var item in messageResultAsyncEnumerable
+                                       .WithCancellation(_cancellationToken)
+                                       .ConfigureAwait(false))
+                    {
+                        yield return item;
+                    }
+                }
+
                 yield break;
             }
 
             messageResultAsyncEnumerable ??= Empty<TMessageResult>();
-            shouldContinue = true;
 
             IAsyncEnumerator<TMessageResult>? messageResultAsyncEnumerator = null;
 
@@ -310,7 +335,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                     outcome,
                     messageResultAsyncEnumerable,
                     failure,
-                    abortReason,
+                    reason,
                     Stopwatch.GetElapsedTime(startedAt))
                 .ConfigureAwait(false);
         }

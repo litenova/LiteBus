@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -6,23 +7,24 @@ using System.Threading.Tasks;
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Provides extension methods for running pre-handlers, error handlers, and post-handlers in the message handling
-///     process.
-///     This class facilitates the execution of handler pipelines for messages, allowing for a structured and organized
-///     approach to message handling with pre-processing, error handling, and post-processing steps.
+///     Provides extension methods for running the pre-handler, post-handler, error, and completion stages of the message
+///     handling pipeline.
 /// </summary>
+/// <remarks>
+///     Mediation strategies compose the stages through these methods, so a custom strategy gets the same ordering,
+///     short-circuit, suppression, and completion guarantees as the strategies LiteBus ships.
+/// </remarks>
 public static class MessageContextExtensions
 {
     /// <summary>
-    ///     Runs asynchronous pre-handlers for a given message, allowing for operations such as validation and logging to be
-    ///     performed before the primary message handling.
+    ///     Runs the pre-handler stage, including any gates, until one of them stops the pipeline.
     /// </summary>
     /// <param name="messageDependencies">The message dependencies encapsulating pre-handlers.</param>
     /// <param name="message">The message to be pre-handled.</param>
     /// <param name="cancellationToken">The cancellation token passed to each pre-handler invocation.</param>
     /// <returns>
-    ///     The directive from the first pre-handler that short-circuited, or <see cref="PipelineDirective.Continue" />
-    ///     when every pre-handler let the pipeline proceed. Pre-handlers after a short-circuit do not run.
+    ///     The directive from the first gate that stopped the pipeline, or <see cref="PipelineDirective.Continue" />
+    ///     when every pre-handler let the pipeline proceed. Pre-handlers after a stopping directive do not run.
     /// </returns>
     public static async Task<PipelineDirective> RunAsyncPreHandlers(
         this IMessageDependencies messageDependencies,
@@ -35,7 +37,7 @@ public static class MessageContextExtensions
                 .InvokePreHandlerAsync(preHandler.Handler.Value, preHandler.Descriptor, message, cancellationToken)
                 .ConfigureAwait(false);
 
-            if (directive.IsShortCircuit)
+            if (directive.StopsPipeline)
             {
                 return directive;
             }
@@ -47,7 +49,7 @@ public static class MessageContextExtensions
                 .InvokePreHandlerAsync(preHandler.Handler.Value, preHandler.Descriptor, message, cancellationToken)
                 .ConfigureAwait(false);
 
-            if (directive.IsShortCircuit)
+            if (directive.StopsPipeline)
             {
                 return directive;
             }
@@ -115,6 +117,10 @@ public static class MessageContextExtensions
     /// <param name="messageResult">The result produced by the message handling process.</param>
     /// <param name="cancellationToken">The cancellation token passed to each post-handler invocation.</param>
     /// <returns>A Task representing the asynchronous operation.</returns>
+    /// <remarks>
+    ///     Suppression is re-checked before each handler, so a post-handler that calls
+    ///     <see cref="IExecutionContext.SuppressPostHandlers" /> stops the ones that have not run yet.
+    /// </remarks>
     public static async Task RunAsyncPostHandlers(
         this IMessageDependencies messageDependencies,
         object message,
@@ -153,7 +159,6 @@ public static class MessageContextExtensions
     /// </summary>
     /// <param name="messageDependencies">The message dependencies encapsulating completion handlers.</param>
     /// <param name="context">The completion context describing how the mediation ended.</param>
-    /// <param name="cancellationToken">The cancellation token passed to each completion handler invocation.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <remarks>
     ///     <para>
@@ -161,33 +166,43 @@ public static class MessageContextExtensions
     ///         observer sees the message last.
     ///     </para>
     ///     <para>
-    ///         When the mediation already ended in a fault, an exception raised by a completion handler is suppressed so
-    ///         that an observer bug cannot replace the original fault. When the mediation succeeded, the exception
-    ///         propagates.
+    ///         The stage is not cancellable. It observes an ending, and the ending has already happened, so handing it the
+    ///         token that just fired would stop it recording exactly the cancellations and failures it exists to record.
+    ///         Handlers receive <see cref="CancellationToken.None" /> and apply their own deadline if they need one.
+    ///     </para>
+    ///     <para>
+    ///         A fault raised by a completion handler propagates when the mediation was otherwise clean. When an
+    ///         exception already ended the mediation, the fault is attached to it under
+    ///         <see cref="MediationExceptionData.SuppressedCompletionFaults" /> rather than replacing it.
     ///     </para>
     /// </remarks>
     public static async Task RunAsyncCompletionHandlers(
         this IMessageDependencies messageDependencies,
-        MessageCompletionContext context,
-        CancellationToken cancellationToken)
+        MessageCompletionContext context)
     {
+        ArgumentNullException.ThrowIfNull(messageDependencies);
+        ArgumentNullException.ThrowIfNull(context);
+
         if (messageDependencies.CompletionHandlers.Count + messageDependencies.IndirectCompletionHandlers.Count == 0)
         {
             return;
         }
 
-        var suppressFailures = context.Outcome != MessageOutcome.Succeeded;
+        List<Exception>? suppressed = null;
 
         foreach (var completionHandler in messageDependencies.CompletionHandlers)
         {
-            await InvokeCompletionHandlerAsync(completionHandler.Handler.Value, context, suppressFailures, cancellationToken)
-                .ConfigureAwait(false);
+            suppressed = await InvokeCompletionHandlerAsync(completionHandler, context, suppressed).ConfigureAwait(false);
         }
 
         foreach (var completionHandler in messageDependencies.IndirectCompletionHandlers)
         {
-            await InvokeCompletionHandlerAsync(completionHandler.Handler.Value, context, suppressFailures, cancellationToken)
-                .ConfigureAwait(false);
+            suppressed = await InvokeCompletionHandlerAsync(completionHandler, context, suppressed).ConfigureAwait(false);
+        }
+
+        if (suppressed is not null)
+        {
+            context.Exception!.Data[MediationExceptionData.SuppressedCompletionFaults] = suppressed;
         }
     }
 
@@ -200,7 +215,7 @@ public static class MessageContextExtensions
     /// <param name="outcome">The outcome describing how the mediation ended.</param>
     /// <param name="messageResult">The result observed before the mediation ended, when any.</param>
     /// <param name="exception">The exception that ended the mediation, when any.</param>
-    /// <param name="abortReason">The reason the execution was aborted, when any.</param>
+    /// <param name="reason">The reason a gate gave for stopping the pipeline, when one did.</param>
     /// <param name="duration">The elapsed mediation time.</param>
     /// <returns>A task representing the asynchronous completion stage.</returns>
     public static async Task RunAsyncCompletionHandlers(
@@ -210,9 +225,12 @@ public static class MessageContextExtensions
         MessageOutcome outcome,
         object? messageResult,
         Exception? exception,
-        string? abortReason,
+        string? reason,
         TimeSpan duration)
     {
+        ArgumentNullException.ThrowIfNull(messageDependencies);
+        ArgumentNullException.ThrowIfNull(executionContext);
+
         if (messageDependencies.CompletionHandlers.Count + messageDependencies.IndirectCompletionHandlers.Count == 0)
         {
             return;
@@ -224,50 +242,45 @@ public static class MessageContextExtensions
             Outcome = outcome,
             MessageResult = messageResult,
             Exception = exception,
-            AbortReason = abortReason,
+            Reason = reason,
             Duration = duration
         };
 
         using (AmbientExecutionContext.CreateScope(executionContext))
         {
-            await messageDependencies.RunAsyncCompletionHandlers(context, executionContext.CancellationToken)
-                .ConfigureAwait(false);
+            await messageDependencies.RunAsyncCompletionHandlers(context).ConfigureAwait(false);
         }
     }
 
     /// <summary>
-    ///     Invokes a completion handler, optionally suppressing its failure when the pipeline already faulted.
+    ///     Invokes one completion handler, collecting its fault when the mediation had already failed.
     /// </summary>
-    /// <param name="handler">The completion handler instance.</param>
+    /// <param name="completionHandler">The resolved completion handler and its descriptor.</param>
     /// <param name="context">The completion context observed at the end of mediation.</param>
-    /// <param name="suppressFailures">Whether an exception raised by the handler is swallowed.</param>
-    /// <param name="cancellationToken">The cancellation token for the invocation.</param>
-    /// <returns>A task representing the asynchronous completion handler operation.</returns>
-    private static async Task InvokeCompletionHandlerAsync(
-        IMessageCompletionHandler handler,
+    /// <param name="suppressed">The faults collected so far, or <see langword="null" /> when there are none.</param>
+    /// <returns>The fault list, created on the first suppressed fault.</returns>
+    private static async Task<List<Exception>?> InvokeCompletionHandlerAsync(
+        LazyHandler<IMessageCompletionHandler, ICompletionHandlerDescriptor> completionHandler,
         MessageCompletionContext context,
-        bool suppressFailures,
-        CancellationToken cancellationToken)
+        List<Exception>? suppressed)
     {
-        if (!suppressFailures)
-        {
-            await PipelineHandlerInvocation.InvokeCompletionHandlerAsync(handler, context, cancellationToken)
-                .ConfigureAwait(false);
-
-            return;
-        }
-
         try
         {
-            await PipelineHandlerInvocation.InvokeCompletionHandlerAsync(handler, context, cancellationToken)
+            await PipelineHandlerInvoker.InvokeCompletionHandlerAsync(
+                    completionHandler.Handler.Value,
+                    completionHandler.Descriptor,
+                    context,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
         }
 #pragma warning disable CA1031 // A completion handler observes the outcome and must never replace the original fault.
-        catch (Exception)
+        catch (Exception exception) when (context.Exception is not null)
 #pragma warning restore CA1031
         {
-            // The mediation already ended in a fault, so the observer's failure is intentionally swallowed.
+            (suppressed ??= []).Add(exception);
         }
+
+        return suppressed;
     }
 
     /// <summary>

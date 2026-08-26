@@ -19,7 +19,7 @@ Reports for a command or query type when all of the following are true:
 
 - The type is declared in the analyzed assembly and is not abstract.
 - The type does not carry `[Audited]` or `[AuditExempt]`.
-- No `IAuditDefinition<TMessage>` facet in the assembly describes it.
+- No `IAuditDefinition<TMessage>` in the assembly describes it.
 
 The rule stays silent when the audit contracts are not referenced at all, so a codebase that has not adopted auditing sees nothing.
 

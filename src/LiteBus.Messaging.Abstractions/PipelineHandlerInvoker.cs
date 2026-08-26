@@ -1,45 +1,31 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Invokes pre-handlers and post-handlers through the contract they were registered under.
+///     Resolves the <see cref="PipelineDispatch" /> for one handler descriptor and invokes the handler through it.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The pipeline cannot call these stages through a default interface method on their non-generic contract,
-///         because a class that implements the contract for more than one message type would then have no most-specific
-///         implementation and would not compile. Handlers legitimately do that, so the non-generic contracts are markers
-///         and the closed contract is selected here instead.
-///     </para>
-///     <para>
-///         Which closed contract to use is not guessed. It comes from the handler descriptor built during registration,
-///         so a handler registered for a base type is invoked through that base type, and a class implementing several
-///         contracts is invoked through the right one. An invoker delegate is built once per handler and contract pair
-///         and cached, so dispatch is a dictionary lookup and a delegate call rather than a reflective invoke.
+///         A descriptor whose contract was closed at registration already carries its dispatch, so invocation is a field
+///         read and a delegate call. Only a handler registered for a generic message arrives here without one, because
+///         its contract is open until the runtime message type is known. Those are bound on first dispatch and cached.
 ///     </para>
 /// </remarks>
 internal static class PipelineHandlerInvoker
 {
     /// <summary>
-    ///     Cached pre-handler invokers, keyed by handler runtime type and registered message type.
+    ///     Dispatches bound at runtime for handlers registered under an open generic contract, keyed by closed contract.
     /// </summary>
-    private static readonly ConcurrentDictionary<(Type Handler, Type Message),
-        Func<IMessagePreHandler, object, CancellationToken, Task<PipelineDirective>>> PreInvokers = new();
+    private static readonly ConcurrentDictionary<Type, PipelineDispatch> RuntimeDispatches = new();
 
     /// <summary>
-    ///     Cached post-handler invokers, keyed by registered message type and result type.
-    /// </summary>
-    private static readonly ConcurrentDictionary<(Type Message, Type Result),
-        Func<IMessagePostHandler, object, object?, CancellationToken, Task>> PostInvokers = new();
-
-    /// <summary>
-    ///     Runs a pre-handler through the contract it was registered under.
+    ///     Runs a pre-handler or gate through the contract it was registered under.
     /// </summary>
     /// <param name="handler">The pre-handler instance.</param>
     /// <param name="descriptor">The descriptor that recorded the contract at registration.</param>
@@ -56,9 +42,8 @@ internal static class PipelineHandlerInvoker
         ArgumentNullException.ThrowIfNull(handler);
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        var messageType = ResolveClosedType(descriptor.MessageType, message.GetType());
-        var invoker = PreInvokers.GetOrAdd((handler.GetType(), messageType), BuildPreInvoker);
-        return invoker(handler, message, cancellationToken);
+        var dispatch = descriptor.Dispatch ?? ResolveRuntimeDispatch(descriptor, message.GetType());
+        return dispatch.InvokePreHandlerAsync(handler, message, cancellationToken);
     }
 
     /// <summary>
@@ -81,121 +66,115 @@ internal static class PipelineHandlerInvoker
         ArgumentNullException.ThrowIfNull(handler);
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        var messageType = ResolveClosedType(descriptor.MessageType, message.GetType());
-        var resultType = ResolveClosedType(descriptor.MessageResultType, messageResult?.GetType() ?? typeof(object));
-        var invoker = PostInvokers.GetOrAdd((messageType, resultType), BuildPostInvoker);
-        return invoker(handler, message, messageResult, cancellationToken);
+        var dispatch = descriptor.Dispatch ?? ResolveRuntimeDispatch(descriptor, message.GetType());
+        return dispatch.InvokePostHandlerAsync(handler, message, messageResult, cancellationToken);
     }
 
     /// <summary>
-    ///     Resolves the closed type to dispatch through.
+    ///     Runs a completion handler through the contract it was registered under.
     /// </summary>
-    /// <param name="declared">The type recorded on the handler descriptor at registration.</param>
-    /// <param name="runtime">The runtime type observed during mediation.</param>
-    /// <returns>The declared type when it is closed, otherwise the runtime type.</returns>
+    /// <param name="handler">The completion handler instance.</param>
+    /// <param name="descriptor">The descriptor that recorded the contract at registration.</param>
+    /// <param name="context">The completion context observed at the end of mediation.</param>
+    /// <param name="cancellationToken">The cancellation token passed to the completion stage.</param>
+    /// <returns>A task representing the asynchronous completion-handling operation.</returns>
+    [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
+    public static Task InvokeCompletionHandlerAsync(
+        IMessageCompletionHandler handler,
+        ICompletionHandlerDescriptor descriptor,
+        MessageCompletionContext context,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(descriptor);
+        ArgumentNullException.ThrowIfNull(context);
+
+        var dispatch = descriptor.Dispatch ?? ResolveRuntimeDispatch(descriptor, context.Message.GetType());
+        return dispatch.InvokeCompletionHandlerAsync(handler, context, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Binds and caches the dispatch for a handler registered under an open generic contract.
+    /// </summary>
+    /// <param name="descriptor">The descriptor whose contract is open.</param>
+    /// <param name="runtimeMessageType">The concrete runtime type of the message being mediated.</param>
+    /// <returns>The dispatch for the contract closed over the runtime message type.</returns>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     Thrown when the recorded contract cannot be closed over the runtime message type.
+    /// </exception>
+    [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
+    private static PipelineDispatch ResolveRuntimeDispatch(IHandlerDescriptor descriptor, Type runtimeMessageType)
+    {
+        var closedContract = CloseOverRuntimeMessage(descriptor.ContractType, runtimeMessageType);
+
+        if (RuntimeDispatches.TryGetValue(closedContract, out var cached))
+        {
+            return cached;
+        }
+
+        var dispatch = PipelineDispatch.For(closedContract)
+                       ?? throw new LiteBusConfigurationException(
+                           $"The handler '{descriptor.HandlerType.Name}' was registered under the contract "
+                           + $"'{descriptor.ContractType.Name}', which the pipeline cannot dispatch for message "
+                           + $"'{runtimeMessageType.Name}'.");
+
+        RuntimeDispatches[closedContract] = dispatch;
+        return dispatch;
+    }
+
+    /// <summary>
+    ///     Closes an open generic handler contract over the runtime message type.
+    /// </summary>
+    /// <param name="openContract">The contract recorded at registration, which contains generic parameters.</param>
+    /// <param name="runtimeMessageType">The concrete runtime type of the message being mediated.</param>
+    /// <returns>The closed contract to dispatch through.</returns>
     /// <remarks>
-    ///     A generic message is registered under its generic type definition, so the descriptor records an open type
-    ///     that cannot close a generic method. In that case the runtime type is the correct closed contract, because an
-    ///     open generic handler was closed over exactly that type during registration.
+    ///     An open generic handler exposes exactly one type parameter, which the registry enforces, so every open
+    ///     argument on the contract is closed by the type arguments of the runtime message type.
     /// </remarks>
-    private static Type ResolveClosedType(Type declared, Type runtime)
+    private static Type CloseOverRuntimeMessage(Type openContract, Type runtimeMessageType)
     {
-        return declared.ContainsGenericParameters ? runtime : declared;
+        if (!openContract.ContainsGenericParameters)
+        {
+            return openContract;
+        }
+
+        var messageArguments = runtimeMessageType.IsGenericType
+            ? runtimeMessageType.GetGenericArguments()
+            : [];
+
+        var contractArguments = openContract.GetGenericArguments();
+        var closedArguments = new Type[contractArguments.Length];
+
+        for (var index = 0; index < contractArguments.Length; index++)
+        {
+            closedArguments[index] = CloseArgument(contractArguments[index], runtimeMessageType, messageArguments);
+        }
+
+        return openContract.GetGenericTypeDefinition().MakeGenericType(closedArguments);
     }
 
     /// <summary>
-    ///     Builds the invoker for one pre-handler type and registered message type.
+    ///     Closes one contract type argument over the runtime message type.
     /// </summary>
-    /// <param name="key">The handler runtime type and registered message type.</param>
-    /// <returns>The cached invoker delegate.</returns>
-    [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
-    private static Func<IMessagePreHandler, object, CancellationToken, Task<PipelineDirective>> BuildPreInvoker(
-        (Type Handler, Type Message) key)
+    /// <param name="argument">The contract type argument, which may contain generic parameters.</param>
+    /// <param name="runtimeMessageType">The concrete runtime type of the message being mediated.</param>
+    /// <param name="messageArguments">The type arguments of the runtime message type.</param>
+    /// <returns>The closed type argument.</returns>
+    private static Type CloseArgument(Type argument, Type runtimeMessageType, Type[] messageArguments)
     {
-        var shortCircuiting = typeof(IShortCircuitingPreHandler<>).MakeGenericType(key.Message);
+        if (!argument.ContainsGenericParameters)
+        {
+            return argument;
+        }
 
-        var methodName = shortCircuiting.IsAssignableFrom(key.Handler)
-            ? nameof(InvokeShortCircuitingPreHandler)
-            : nameof(InvokePlainPreHandler);
+        if (argument.IsGenericParameter)
+        {
+            return messageArguments.Length > 0 ? messageArguments[0] : runtimeMessageType;
+        }
 
-        return typeof(PipelineHandlerInvoker)
-            .GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static)!
-            .MakeGenericMethod(key.Message)
-            .CreateDelegate<Func<IMessagePreHandler, object, CancellationToken, Task<PipelineDirective>>>();
-    }
-
-    /// <summary>
-    ///     Builds the invoker for one registered message and result type pair.
-    /// </summary>
-    /// <param name="key">The registered message type and result type.</param>
-    /// <returns>The cached invoker delegate.</returns>
-    [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
-    private static Func<IMessagePostHandler, object, object?, CancellationToken, Task> BuildPostInvoker(
-        (Type Message, Type Result) key)
-    {
-        return typeof(PipelineHandlerInvoker)
-            .GetMethod(nameof(InvokePostHandler), BindingFlags.NonPublic | BindingFlags.Static)!
-            .MakeGenericMethod(key.Message, key.Result)
-            .CreateDelegate<Func<IMessagePostHandler, object, object?, CancellationToken, Task>>();
-    }
-
-    /// <summary>
-    ///     Runs a pre-handler that cannot short-circuit, and reports that the pipeline continues.
-    /// </summary>
-    /// <typeparam name="TMessage">The registered message type.</typeparam>
-    /// <param name="handler">The pre-handler instance.</param>
-    /// <param name="message">The message being mediated.</param>
-    /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
-    /// <returns>Always <see cref="PipelineDirective.Continue" />.</returns>
-    private static async Task<PipelineDirective> InvokePlainPreHandler<TMessage>(
-        IMessagePreHandler handler,
-        object message,
-        CancellationToken cancellationToken)
-        where TMessage : notnull
-    {
-        await ((IMessagePreHandler<TMessage>) handler)
-            .PreHandleAsync((TMessage) message, cancellationToken)
-            .ConfigureAwait(false);
-
-        return PipelineDirective.Continue;
-    }
-
-    /// <summary>
-    ///     Runs a pre-handler that may short-circuit, and returns its decision.
-    /// </summary>
-    /// <typeparam name="TMessage">The registered message type.</typeparam>
-    /// <param name="handler">The pre-handler instance.</param>
-    /// <param name="message">The message being mediated.</param>
-    /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
-    /// <returns>The directive returned by the pre-handler.</returns>
-    private static Task<PipelineDirective> InvokeShortCircuitingPreHandler<TMessage>(
-        IMessagePreHandler handler,
-        object message,
-        CancellationToken cancellationToken)
-        where TMessage : notnull
-    {
-        return ((IShortCircuitingPreHandler<TMessage>) handler)
-            .PreHandleAsync((TMessage) message, cancellationToken);
-    }
-
-    /// <summary>
-    ///     Runs a post-handler through its closed contract.
-    /// </summary>
-    /// <typeparam name="TMessage">The registered message type.</typeparam>
-    /// <typeparam name="TMessageResult">The registered result type.</typeparam>
-    /// <param name="handler">The post-handler instance.</param>
-    /// <param name="message">The message that was handled.</param>
-    /// <param name="messageResult">The result produced by the main handler, when any.</param>
-    /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
-    /// <returns>A task representing the asynchronous post-handling operation.</returns>
-    private static Task InvokePostHandler<TMessage, TMessageResult>(
-        IMessagePostHandler handler,
-        object message,
-        object? messageResult,
-        CancellationToken cancellationToken)
-        where TMessage : notnull
-    {
-        return ((IMessagePostHandler<TMessage, TMessageResult>) handler)
-            .PostHandleAsync((TMessage) message, (TMessageResult?) messageResult, cancellationToken);
+        return messageArguments.Length > 0
+            ? argument.GetGenericTypeDefinition().MakeGenericType(messageArguments)
+            : runtimeMessageType;
     }
 }

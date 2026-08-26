@@ -5,4 +5,8 @@ namespace LiteBus.Messaging.Registry.Descriptors;
 /// <summary>
 ///     Describes a pre-handler registered for a message type.
 /// </summary>
-internal sealed class PreHandlerDescriptor : HandlerDescriptorBase, IPreHandlerDescriptor;
+internal sealed class PreHandlerDescriptor : HandlerDescriptorBase, IPreHandlerDescriptor
+{
+    /// <inheritdoc />
+    public PipelineDispatch? Dispatch { get; init; }
+}

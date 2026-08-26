@@ -42,7 +42,7 @@ public sealed class MissingAuditDeclarationAnalyzerTests
     }
 
     /// <summary>
-    ///     Verifies that a command covered by an audit definition facet produces no diagnostic.
+    ///     Verifies that a command covered by an audit definition produces no diagnostic.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
     [Fact]

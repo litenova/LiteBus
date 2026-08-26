@@ -81,7 +81,7 @@ if (_ledger.AlreadyProcessed(message.PaymentId))
 
 It does not stop the calling handler, and it does not change the outcome: the mediation still reports `MessageOutcome.Succeeded`, because the main handler ran.
 
-To stop the pipeline **before** the work happens, implement `ICommandShortCircuitingPreHandler<TCommand>` or `IQueryShortCircuitingPreHandler<TQuery>` and return `PipelineDirective.ShortCircuit(...)`. That is a return value rather than a context call, so the compiler requires the decision and nothing after it runs by accident. See [The Handler Pipeline](handler-pipeline.md).
+To stop the pipeline **before** the work happens, implement a gate such as `ICommandGate<TCommand>` or `IQueryGate<TQuery, TResult>` and return a `PipelineDirective`. That is a return value rather than a context call, so the compiler requires the decision and nothing after it runs by accident. See [The Handler Pipeline](handler-pipeline.md).
 
 ### 5. `MessageResult`: Aborting and Post-Handler Override
 
@@ -89,7 +89,7 @@ The `MessageResult` property (`object? MessageResult { get; set; }`) on `IExecut
 
 #### Purpose 1: Carrying a Result Set by the Main Handler
 
-The main handler's return value reaches the caller directly, so most handlers never touch this property. A short-circuiting pre-handler supplies its result through `PipelineDirective.ShortCircuit(result)` rather than through `MessageResult`, so the value is typed at the point of the decision and the pipeline can report a clear error when it does not match.
+The main handler's return value reaches the caller directly, so most handlers never touch this property. A gate supplies its result through the directive it returns rather than through `MessageResult`, so the compiler checks the value at the point of the decision.
 
 #### Purpose 2: Replacing the Result from a Post-Handler
 

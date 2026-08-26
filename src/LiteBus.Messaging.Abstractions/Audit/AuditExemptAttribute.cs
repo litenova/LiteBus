@@ -23,7 +23,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// ]]></code>
 /// </example>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
-public sealed class AuditExemptAttribute : Attribute
+public sealed class AuditExemptAttribute : Attribute, IMessageDeclarationSource
 {
     /// <summary>
     ///     Initializes a new instance of the <see cref="AuditExemptAttribute" /> class.
@@ -39,11 +39,11 @@ public sealed class AuditExemptAttribute : Attribute
     /// </summary>
     public string Rationale { get; }
 
-    /// <summary>
-    ///     Converts the attribute to the declaration stored in message metadata.
-    /// </summary>
-    /// <returns>The equivalent <see cref="AuditDeclaration" />.</returns>
-    public AuditDeclaration ToDeclaration()
+    /// <inheritdoc />
+    public Type DeclarationType => typeof(AuditDeclaration);
+
+    /// <inheritdoc />
+    public object CreateDeclaration()
     {
         return AuditDeclaration.Exempt(Rationale);
     }

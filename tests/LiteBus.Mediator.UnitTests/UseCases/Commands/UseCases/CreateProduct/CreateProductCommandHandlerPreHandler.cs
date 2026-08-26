@@ -3,20 +3,22 @@ using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.UseCases.Commands.UseCases.CreateProduct;
 
-public sealed class CreateProductCommandHandlerPreHandler : ICommandShortCircuitingPreHandler<CreateProductCommand>
+public sealed class CreateProductCommandHandlerPreHandler : ICommandGate<CreateProductCommand, CreateProductCommandResult>
 {
-    public Task<PipelineDirective> PreHandleAsync(CreateProductCommand message, CancellationToken cancellationToken = default)
+    public Task<PipelineDirective<CreateProductCommandResult>> DecideAsync(
+        CreateProductCommand message,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
         message.ExecutedTypes.Add(GetType());
 
-        if (message.AbortInPreHandler)
+        if (message.ShortCircuitInGate)
         {
-            return Task.FromResult(PipelineDirective.ShortCircuit(
+            return Task.FromResult(PipelineDirective<CreateProductCommandResult>.ShortCircuit(
                 new CreateProductCommandResult { CorrelationId = Guid.Empty },
-                "aborted by pre-handler"));
+                "answered by the gate"));
         }
 
-        return Task.FromResult(PipelineDirective.Continue);
+        return Task.FromResult(PipelineDirective<CreateProductCommandResult>.Continue);
     }
 }

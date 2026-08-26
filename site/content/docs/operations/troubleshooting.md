@@ -50,25 +50,37 @@ Fix:
 - Reduce the handler to a single type parameter, for example `ICommandPreHandler<T>`.
 - If you need the result type, read it inside the handler rather than as a second type parameter, or use a concrete handler. See [Open Generic Handlers](../concepts/open-generic-handlers.md).
 
-## A Short-Circuit Did Not Stop the Pipeline
+## A Gate Did Not Stop the Pipeline
 
-Short-circuiting is a return value, not an exception. A pre-handler stops the pipeline only when it implements `ICommandShortCircuitingPreHandler<TCommand>` or `IQueryShortCircuitingPreHandler<TQuery>` and returns `PipelineDirective.ShortCircuit(...)`.
+Stopping the pipeline is a return value, not an exception. A pre-handler stops it only when it implements a gate contract such as `ICommandGate<TCommand>` or `IQueryGate<TQuery, TResult>` and returns a stopping directive from `DecideAsync`.
 
-Common causes when a short-circuit appears to be ignored:
+Common causes when a decision appears to be ignored:
 
-- The handler implements the plain `ICommandPreHandler<TCommand>` contract, which cannot short-circuit by design.
-- The handler was not registered. Both module builders gate assembly scanning on a handler-contract allowlist, so a handler implementing an unrecognized contract is skipped silently.
+- The handler implements the plain `ICommandPreHandler<TCommand>` contract, which cannot stop the pipeline by design.
+- The handler was not registered. Every module builder gates assembly scanning on a handler-contract allowlist, so a handler implementing an unrecognized contract is skipped silently.
 - The directive was constructed but not returned.
-
-For a message with a result type, `PipelineDirective.ShortCircuit()` must supply a result, or mediation throws `LiteBusConfigurationException` naming the expected type.
 
 To skip the post-handlers after the work has already run, call `IExecutionContext.SuppressPostHandlers()` instead. That reports `MessageOutcome.Succeeded`, because the main handler ran.
 
-## LiteBusConfigurationException When Short-Circuiting a Result Message
+## LiteBusConfigurationException When a Gate Stops a Result Message
 
-Thrown when a short-circuiting pre-handler stops a result-returning command or query without supplying a result, or supplies one of the wrong type. The caller is owed a result, so the directive must carry it.
+Thrown when a gate stops a result-returning command or query without supplying a result. The caller is owed a value, so the directive must carry it.
 
-Fix: pass the value, `PipelineDirective.ShortCircuit(result)`. For a message with no result (`ICommand`), `PipelineDirective.ShortCircuit()` with no argument is correct. The exception message names the expected type. See [The Handler Pipeline](../concepts/handler-pipeline.md).
+Fix: implement the typed gate, `ICommandGate<TCommand, TCommandResult>` or `IQueryGate<TQuery, TQueryResult>`, and return `PipelineDirective<TResult>.ShortCircuit(result)`. The compiler then requires the result, and the exception message names the contract to use. See [The Handler Pipeline](../concepts/handler-pipeline.md).
+
+## LiteBusMessageDeniedException Reached the Caller
+
+A gate refused the message through `Deny(reason)` and supplied no result, so there was nothing to hand back. This is a decision rather than a fault: it does not reach error handlers, the mediation reports `MessageOutcome.Denied`, and an audit trail records a denial with the reason.
+
+If the caller should receive a value instead of an exception, use the typed gate and `Deny(reason, result)` to hand back a refusal result.
+
+## An Audit Record Is Missing for a Cancelled or Failed Mediation
+
+The completion stage is not cancellable and its handlers receive `CancellationToken.None`, so cancellation alone does not drop a record. Check in this order:
+
+- The message declares no audited position. An exempt or undeclared message produces no record.
+- No `IAuditTrail` is registered. Run the `litebus.audit.trail` diagnostic probe, which reports unhealthy in that case.
+- The trail threw while the mediation was already failing. That fault cannot replace the original exception, so it is attached to it: read `exception.Data[MediationExceptionData.SuppressedCompletionFaults]`, which holds an `IReadOnlyList<Exception>`.
 
 ## LB1004: Command with Result Scheduled to Inbox
 

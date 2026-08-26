@@ -3,15 +3,20 @@ using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.UseCases.Queries.UseCases.StreamProducts;
 
-public sealed class StreamProductsQueryHandlerPreHandler : IQueryShortCircuitingPreHandler<StreamProductsQuery>
+public sealed class StreamProductsQueryHandlerPreHandler : IStreamQueryGate<StreamProductsQuery, StreamProductsQueryResult>
 {
-    public Task<PipelineDirective> PreHandleAsync(StreamProductsQuery message, CancellationToken cancellationToken = default)
+    public Task<PipelineDirective<IAsyncEnumerable<StreamProductsQueryResult>>> DecideAsync(
+        StreamProductsQuery message,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
         message.ExecutedTypes.Add(GetType());
 
-        return message.AbortInPreHandler
-            ? Task.FromResult(PipelineDirective.ShortCircuit(reason: "aborted by pre-handler"))
-            : Task.FromResult(PipelineDirective.Continue);
+        // Stopping a stream without supplying one is a legitimate answer: the caller enumerates nothing.
+        return Task.FromResult(message.ShortCircuitInGate
+            ? PipelineDirective<IAsyncEnumerable<StreamProductsQueryResult>>.ShortCircuit(
+                AsyncEnumerable.Empty<StreamProductsQueryResult>(),
+                "answered by the gate")
+            : PipelineDirective<IAsyncEnumerable<StreamProductsQueryResult>>.Continue);
     }
 }

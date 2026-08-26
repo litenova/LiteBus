@@ -6,7 +6,8 @@ namespace LiteBus.Queries.Abstractions;
 ///     Represents a handler that executes when any query mediation ends, whatever the outcome.
 /// </summary>
 /// <remarks>
-///     Query completion handlers run on every path: success, abort, failure, and cancellation. They are the stage for
-///     recording that a read happened, which post-handlers cannot do because they never run when a query is refused.
+///     Query completion handlers run on every path: success, short-circuit, denial, failure, and cancellation. They are
+///     the stage for recording that a read happened, which post-handlers cannot do because they never run when a query is
+///     refused.
 /// </remarks>
 public interface IQueryCompletionHandler : IMessageCompletionHandler<IQuery>;

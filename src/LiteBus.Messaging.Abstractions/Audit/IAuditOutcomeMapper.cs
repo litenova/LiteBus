@@ -5,13 +5,15 @@ namespace LiteBus.Messaging.Abstractions;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         LiteBus knows that a mediation failed; it cannot know whether it failed because the actor was not permitted.
-///         That distinction is the one a security review cares about most, and the exception that carries it belongs to
-///         the application. Register a mapper to make it.
+///         Most of the mapping needs no application knowledge, because the pipeline already distinguishes a refusal from
+///         an early answer and from a fault. A gate denial is a denial, a short-circuit is a success, a fault is a
+///         failure, and a cancellation is a cancellation.
 ///     </para>
 ///     <para>
-///         The default mapping treats an aborted mediation as a denial, because aborting is how a pre-handler refuses to
-///         let a message proceed, and every other failure as a failure.
+///         What LiteBus cannot know is whether an exception was a refusal in disguise. An application that authorizes by
+///         throwing owns that exception type, so it registers a mapper to have its refusal recorded as
+///         <see cref="AuditOutcome.Denied" /> rather than <see cref="AuditOutcome.Failed" />. Applications that refuse
+///         through a gate need no mapper at all.
 ///     </para>
 /// </remarks>
 /// <example>
@@ -39,12 +41,17 @@ public interface IAuditOutcomeMapper
     ///     Maps a completion context to the stable failure code recorded for a non-success outcome.
     /// </summary>
     /// <param name="context">The completion context observed at the end of mediation.</param>
-    /// <returns>The failure code, or <see langword="null" /> when the action succeeded.</returns>
+    /// <returns>The failure code, or <see langword="null" /> when there is nothing to name.</returns>
     /// <remarks>
     ///     Defaults to the exception type name, which is useful before an application defines its own failure taxonomy.
+    ///     A gate denial is deliberately left uncoded: <see cref="LiteBusMessageDeniedException" /> would only restate
+    ///     the outcome, and the reason on the record already says why. That also keeps the two shapes of denial
+    ///     consistent, since a gate that hands back a refusal value raises nothing at all.
     /// </remarks>
     string? MapFailureCode(MessageCompletionContext context)
     {
-        return context?.Exception?.GetType().Name;
+        return context.Exception is null or LiteBusMessageDeniedException
+            ? null
+            : context.Exception.GetType().Name;
     }
 }

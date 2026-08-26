@@ -64,7 +64,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         var startedAt = Stopwatch.GetTimestamp();
         var outcome = MessageOutcome.Succeeded;
         Exception? failure = null;
-        string? abortReason = null;
+        string? reason = null;
 
         try
         {
@@ -72,10 +72,18 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
                 .RunAsyncPreHandlers(message, executionContext.CancellationToken)
                 .ConfigureAwait(false);
 
-            if (directive.IsShortCircuit)
+            if (directive.StopsPipeline)
             {
-                outcome = MessageOutcome.Aborted;
-                abortReason = directive.Reason;
+                outcome = directive.ToOutcome();
+                reason = directive.Reason;
+
+                if (directive.IsUnansweredDenial())
+                {
+                    var denial = directive.CreateDenial(message.GetType());
+                    failure = denial;
+                    throw denial;
+                }
+
                 return;
             }
 
@@ -126,9 +134,11 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
                     message,
                     executionContext,
                     outcome,
-                    executionTaskOfAllHandlers,
+                    // An event produces no result. The task that tracks its handlers is not one, so completion handlers
+                    // see none rather than seeing a Task where a message result belongs.
+                    messageResult: null,
                     failure,
-                    abortReason,
+                    reason,
                     Stopwatch.GetElapsedTime(startedAt))
                 .ConfigureAwait(false);
         }

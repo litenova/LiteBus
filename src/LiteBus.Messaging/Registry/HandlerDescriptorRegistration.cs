@@ -25,7 +25,8 @@ internal static class HandlerDescriptorRegistration
                 Priority = main.Priority,
                 RegistrationSequence = registrationSequence,
                 Tags = main.Tags,
-                HandlerType = main.HandlerType
+                HandlerType = main.HandlerType,
+                ContractType = main.ContractType
             },
             PreHandlerDescriptor pre => new PreHandlerDescriptor
             {
@@ -33,7 +34,9 @@ internal static class HandlerDescriptorRegistration
                 Priority = pre.Priority,
                 RegistrationSequence = registrationSequence,
                 Tags = pre.Tags,
-                HandlerType = pre.HandlerType
+                HandlerType = pre.HandlerType,
+                ContractType = pre.ContractType,
+                Dispatch = pre.Dispatch
             },
             PostHandlerDescriptor post => new PostHandlerDescriptor
             {
@@ -42,15 +45,20 @@ internal static class HandlerDescriptorRegistration
                 Priority = post.Priority,
                 RegistrationSequence = registrationSequence,
                 Tags = post.Tags,
-                HandlerType = post.HandlerType
+                HandlerType = post.HandlerType,
+                ContractType = post.ContractType,
+                Dispatch = post.Dispatch
             },
             CompletionHandlerDescriptor completion => new CompletionHandlerDescriptor
             {
                 MessageType = completion.MessageType,
+                MessageResultType = completion.MessageResultType,
                 Priority = completion.Priority,
                 RegistrationSequence = registrationSequence,
                 Tags = completion.Tags,
-                HandlerType = completion.HandlerType
+                HandlerType = completion.HandlerType,
+                ContractType = completion.ContractType,
+                Dispatch = completion.Dispatch
             },
             ErrorHandlerDescriptor error => new ErrorHandlerDescriptor
             {
@@ -59,7 +67,8 @@ internal static class HandlerDescriptorRegistration
                 Priority = error.Priority,
                 RegistrationSequence = registrationSequence,
                 Tags = error.Tags,
-                HandlerType = error.HandlerType
+                HandlerType = error.HandlerType,
+                ContractType = error.ContractType
             },
             _ => descriptor
         };

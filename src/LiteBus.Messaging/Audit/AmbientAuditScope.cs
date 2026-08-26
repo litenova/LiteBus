@@ -31,7 +31,7 @@ internal sealed class AmbientAuditScope : IAuditScope
         Find()?.Properties ?? new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// <inheritdoc />
-    public IAuditScope Target(string targetId)
+    public IAuditScope WithTarget(string targetId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
         GetOrCreate().TargetId = targetId;

@@ -32,14 +32,37 @@ internal sealed class ProbeCommandB : ICommand<string>
 ///     This type compiling and dispatching correctly is the regression test for pipeline dispatch. If the pipeline
 ///     invoked these stages through a default interface method on their non-generic contract, this class would have no
 ///     most-specific implementation and would fail to compile with CS8705. Dispatch is driven by the handler descriptor
-///     instead, which records the closed contract at registration.
+///     instead, which records the closed contract at registration. The completion stage is included because it has the
+///     same problem and needs the same answer.
 /// </remarks>
 internal sealed class MultiContractHandler :
     ICommandPreHandler<ProbeCommandA>,
     ICommandPreHandler<ProbeCommandB>,
     ICommandPostHandler<ProbeCommandA>,
-    ICommandPostHandler<ProbeCommandB, string>
+    ICommandPostHandler<ProbeCommandB, string>,
+    ICommandCompletionHandler<ProbeCommandA>,
+    ICommandCompletionHandler<ProbeCommandB, string>
 {
+    /// <inheritdoc />
+    public Task HandleCompletionAsync(
+        MessageCompletionContext<ProbeCommandA> context,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        context.Message.Ran.Add("done:A");
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task HandleCompletionAsync(
+        MessageCompletionContext<ProbeCommandB, string> context,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        context.Message.Ran.Add($"done:B:{context.MessageResult}");
+        return Task.CompletedTask;
+    }
+
     /// <inheritdoc />
     public Task PreHandleAsync(ProbeCommandA message, CancellationToken cancellationToken = default)
     {

@@ -1,6 +1,8 @@
 # Message Definitions
 
-A message definition declares metadata about a message: facts that pipeline stages outside the handler need to read, such as whether the message is audited or what permission it requires. LiteBus resolves definitions once, when the message registry is built, and exposes the result on the message descriptor. This page explains what belongs in a definition, how facets keep them segregated, and how definitions relate to attributes.
+A message definition declares metadata about a message: facts that pipeline stages outside the handler need to read, such as whether the message is audited or what permission it requires. LiteBus resolves definitions once, when the message registry is built, and exposes the result on the message descriptor. This page explains what belongs in a definition, how one class declares several things without them interfering, and how definitions relate to attributes.
+
+Three words appear throughout and mean different things. A **declaration** is the value: `AuditDeclaration`, `RequiredPermission`. A **definition** is the class that declares it. **Metadata** is the resolved collection on the message descriptor.
 
 ## Why Not Just Attributes
 
@@ -24,9 +26,9 @@ Organizations/CreateOrganization/
     CreateOrganizationCommandDefinition.cs
 ```
 
-## Facets
+## One Interface Per Declaration
 
-A definition does not implement one large interface. It implements one small interface per concern, each keyed by the type of the value it contributes:
+A definition does not implement one large interface. It implements one small interface per declaration, each keyed by the type of the value it contributes:
 
 ```csharp
 public sealed class PlaceOrderCommandDefinition :
@@ -43,11 +45,11 @@ public sealed class PlaceOrderCommandDefinition :
 }
 ```
 
-Segregating by facet means a definition that only declares one thing is not forced to implement the others. It also means a class can declare several concerns without them interfering, because each facet closes `IMessageDefinition<TMessage, TValue>` over a different `TValue`.
+Keying by value type means a definition that only declares one thing is not forced to implement the others. It also means a class can declare several concerns without them interfering, because each closes `IMessageDefinition<TMessage, TValue>` over a different `TValue`.
 
-## Declaring Your Own Facets
+## Declaring Your Own
 
-`IAuditDefinition<TMessage>` is the only facet LiteBus ships, but the mechanism is open. A facet is any interface deriving from `IMessageDefinition<TMessage, TValue>` that forwards `Value` to a better-named member:
+`IAuditDefinition<TMessage>` is the only declaration LiteBus ships, but the mechanism is open. Any interface deriving from `IMessageDefinition<TMessage, TValue>` that forwards `Value` to a better-named member works:
 
 ```csharp
 public sealed record RequiredPermission(string Name);
@@ -61,7 +63,7 @@ public interface IPermissionDefinition<TMessage> : IMessageDefinition<TMessage, 
 }
 ```
 
-LiteBus discovers and applies this facet without knowing what a permission is. Read it back in a pre-handler:
+LiteBus discovers and applies this without knowing what a permission is. Read it back in a pre-handler or a gate:
 
 ```csharp
 public sealed class AuthorizeCommand : ICommandPreHandler
@@ -114,17 +116,41 @@ registry.AddCommands(builder =>
 });
 ```
 
-Two sources populate message metadata, and they have a defined order:
+Two sources populate message metadata, and both contribute values of the same type. An attribute is metadata only if it implements `IMessageDeclarationSource`, which states the value type it declares and converts itself to it:
 
-1. **Attributes** on the message type are applied first. Each attribute is stored under its own type, so `descriptor.Metadata.TryGet<AuditedAttribute>(...)` finds it.
+```csharp
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
+public sealed class RequiresPermissionAttribute : Attribute, IMessageDeclarationSource
+{
+    public RequiresPermissionAttribute(string permission) => Permission = permission;
+
+    public string Permission { get; }
+
+    public Type DeclarationType => typeof(RequiredPermission);
+
+    public object CreateDeclaration() => new RequiredPermission(Permission);
+}
+```
+
+Requiring that is what keeps metadata bounded. A message type carries attributes for serialization, diagnostics and source generators, and collecting all of them would make `Metadata.Contains<T>()` answer questions LiteBus never meant to answer. It also puts both sources on one key, so the precedence rule is real rather than nominal:
+
+1. **Attributes** that declare metadata are applied first, each converted to the value type it names.
 2. **Definitions** are applied second, so a definition always wins over an attribute declaring the same value type.
 
 That is the same arrangement LiteBus already uses for durable message contracts, where an attribute and an explicit registration can both express the contract and the analyzer keeps them consistent.
 
-Two constraints are worth knowing:
+### Inheritance and Conflicts
 
-- A definition must expose a **parameterless constructor**, public or not. Definitions are declarative and are instantiated once during registration, so they cannot take dependencies.
-- The **order in which definitions are applied is undefined**. A definition must not depend on another definition having run first.
+A declaration applies to the message type it names **and to every message assignable to it**, so one definition can describe a family of messages through a base type or a marker interface. When two declarations of the same value type both cover a message, the more derived one wins, which matches how attributes are inherited and how the registry resolves indirect handlers.
+
+Two situations are configuration errors and are reported at registration rather than resolved by scanning order:
+
+- Two definitions declaring the same value type for the same message. Letting the last one win would make the effective configuration depend on file layout.
+- Two declarations covering a message where neither type is more derived than the other, such as two unrelated marker interfaces. Declare the value for the message itself to say which one applies.
+
+Open generic message shapes are matched exactly, because assignability between generic type definitions is not meaningful.
+
+One more constraint is worth knowing: a definition must expose a **parameterless constructor**, public or not. Definitions are declarative and are instantiated once during registration, so they cannot take dependencies.
 
 ## Reading Metadata
 
@@ -141,4 +167,4 @@ Because it is resolved once at registration, reading it costs a dictionary looku
 
 ## Next
 
-See [Auditing](auditing.md) for the facet LiteBus ships and the trail it feeds, and [The Handler Pipeline](handler-pipeline.md) for the stages that read this metadata.
+See [Auditing](auditing.md) for the declaration LiteBus ships and the trail it feeds, and [The Handler Pipeline](handler-pipeline.md) for the stages that read this metadata.

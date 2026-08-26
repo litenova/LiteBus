@@ -3,18 +3,20 @@
 - **ID**: `mediator.message-definitions`
 - **Name**: Message definitions and metadata
 - **Maturity**: GA
-- **Summary**: Resolves declarative per-message metadata from attributes and definition facets, once at registration, for pipeline stages to read.
+- **Summary**: Resolves declarative per-message metadata from declaring attributes and definitions, once at registration, for pipeline stages to read.
 
 ## What It Does
 
 A message definition declares facts about a message that stages outside the handler need: whether it is audited, what permission it requires, and anything an application chooses to add. LiteBus resolves them when the message registry is built and exposes the result on `IMessageDescriptor.Metadata`, so a pipeline stage reads a dictionary rather than reflecting on every dispatch.
 
-Two sources populate metadata, in a defined order:
+Two sources populate metadata, in a defined order, and both contribute values of the same type:
 
-1. Attributes on the message type, each stored under its own attribute type.
-2. Definition facets, applied second, so a definition wins over an attribute declaring the same value type.
+1. Attributes on the message type that implement `IMessageDeclarationSource`, each converted to the value type it names. Attributes that do not implement it are not metadata and are never collected, which keeps the collection bounded.
+2. Definitions, applied second, so a definition wins over an attribute declaring the same value type.
 
-Facets are segregated by value type. A definition class implements one small interface per concern, so declaring an audit position does not force it to declare a permission. Because a facet closes `IMessageDefinition<TMessage, TValue>` over a distinct `TValue`, several facets coexist on one class without ambiguity, and applications may declare facets over their own value types that LiteBus applies without understanding.
+Declarations are keyed by value type. A definition class implements one small interface per concern, so declaring an audit position does not force it to declare a permission. Because each closes `IMessageDefinition<TMessage, TValue>` over a distinct `TValue`, several coexist on one class without ambiguity, and applications may declare their own value types that LiteBus applies without understanding.
+
+A declaration covers the message type it names and every message assignable to it, so a definition over a base type or marker interface describes a family of messages. The most derived declaration wins.
 
 ## Public Surface
 
@@ -41,10 +43,11 @@ public sealed class PlaceOrderCommandDefinition :
 | API | Role |
 | --- | --- |
 | `IMessageDefinition` | Non-generic marker used for discovery |
-| `IMessageDefinition<TMessage, TValue>` | One metadata facet, keyed by `TValue` |
+| `IMessageDefinition<TMessage, TValue>` | One declaration, keyed by `TValue` |
+| `IMessageDeclarationSource` | Implemented by an attribute that declares metadata |
 | `IMessageMetadata` | Read side exposed on the message descriptor |
 | `IMessageDescriptor.Metadata` | Resolved metadata for one message type |
-| `IAuditDefinition<TMessage>` | The audit facet shipped by LiteBus |
+| `IAuditDefinition<TMessage>` | The declaration shipped by LiteBus |
 
 ## Packages
 
@@ -58,16 +61,19 @@ public sealed class PlaceOrderCommandDefinition :
 ## Invariants
 
 - A definition type must expose a parameterless constructor, public or non-public.
-- A definition type must declare at least one facet, or registration throws `LiteBusConfigurationException`.
-- A facet value must not be null.
+- A definition type must declare at least one value, or registration throws `LiteBusConfigurationException`.
+- A declared value must not be null, and must be assignable to the value type it is keyed under.
+- Only attributes implementing `IMessageDeclarationSource` become metadata.
 - Definitions are applied after attributes, so a definition overrides an attribute of the same value type.
-- The order in which definitions are applied is undefined; a definition must not depend on another having run first.
+- A declaration covers every message assignable to the type it names; the most derived declaration wins.
+- Two definitions declaring the same value type for one message throw `LiteBusConfigurationException` at registration.
+- Two declarations covering one message where neither type is more derived than the other throw `LiteBusConfigurationException`.
 - Metadata is resolved once per message type at registration, not per dispatch.
-- Facets match the message type exactly; a definition for a base type does not apply to derived message types.
+- Open generic message shapes are matched exactly, because assignability between generic type definitions is not meaningful.
 
 ## Non-Goals
 
-- Interpreting application-owned facet values. LiteBus carries the declaration; enforcement stays in the application.
+- Interpreting application-owned declared values. LiteBus carries the declaration; enforcement stays in the application.
 - Replacing handler-level configuration such as `[HandlerPriority]` and `[HandlerTag]`, which describe an implementation rather than a use case.
 - Runtime mutation of metadata after the registry is built.
 
@@ -83,13 +89,17 @@ No definition-specific meter or activity source. Binding failures surface as `Li
 | --- | --- |
 | `A_definition_declared_command_produces_a_record` | `LiteBus.Mediator.UnitTests` |
 | `A_definition_takes_precedence_over_an_attribute` | `LiteBus.Mediator.UnitTests` |
-| `An_application_owned_facet_is_applied_without_LiteBus_knowing_it` | `LiteBus.Mediator.UnitTests` |
-| `Attributes_are_exposed_as_message_metadata` | `LiteBus.Mediator.UnitTests` |
+| `An_application_owned_declaration_is_applied_without_LiteBus_knowing_it` | `LiteBus.Mediator.UnitTests` |
+| `An_attribute_is_normalized_to_the_declaration_a_definition_would_contribute` | `LiteBus.Mediator.UnitTests` |
+| `Attributes_that_do_not_declare_metadata_are_not_collected` | `LiteBus.Mediator.UnitTests` |
+| `A_declaration_over_a_marker_interface_covers_the_messages_beneath_it` | `LiteBus.Mediator.UnitTests` |
+| `Two_definitions_declaring_the_same_value_for_one_message_are_reported_at_registration` | `LiteBus.Mediator.UnitTests` |
 
 ### Untested
 
 - Definitions registered for open generic message types.
-- Very large facet counts on a single definition class.
+- Two declarations covering one message through unrelated marker interfaces.
+- Very large declaration counts on a single definition class.
 
 ### Out-of-Scope
 

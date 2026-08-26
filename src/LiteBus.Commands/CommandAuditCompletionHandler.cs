@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Audit;
 
 namespace LiteBus.Commands;
 
@@ -14,19 +13,19 @@ namespace LiteBus.Commands;
 ///     Registered by <see cref="CommandModuleBuilder.EnableAuditing" />. It runs at the completion stage, so a command
 ///     that was refused or that failed leaves a record just as a successful one does.
 /// </remarks>
-[HandlerPriority(LiteBusHandlerPriority.Observability)]
-public sealed class CommandAuditCompletionHandler : ICommandCompletionHandler
+[HandlerPriority(HandlerPriorities.Observability)]
+internal sealed class CommandAuditCompletionHandler : ICommandCompletionHandler
 {
     /// <summary>
     ///     Produces and writes the audit record.
     /// </summary>
-    private readonly AuditRecordWriter _writer;
+    private readonly IAuditRecordWriter _writer;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="CommandAuditCompletionHandler" /> class.
     /// </summary>
     /// <param name="writer">The writer that produces and persists audit records.</param>
-    public CommandAuditCompletionHandler(AuditRecordWriter writer)
+    public CommandAuditCompletionHandler(IAuditRecordWriter writer)
     {
         ArgumentNullException.ThrowIfNull(writer);
         _writer = writer;

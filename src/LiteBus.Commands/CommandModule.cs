@@ -3,6 +3,7 @@ using System.Linq;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Audit;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Commands;
@@ -45,6 +46,11 @@ public sealed class CommandModule : IModule, IRequires<MessageModule>
 
         var moduleBuilder = new CommandModuleBuilder(messageRegistry, contractRegistry);
         _builder(moduleBuilder);
+
+        if (moduleBuilder.AuditingEnabled)
+        {
+            configuration.RegisterDiagnosticCheck(typeof(AuditTrailDiagnosticCheck), AuditTrailDiagnosticCheck.CheckName);
+        }
 
         RegisterCommandServices(configuration);
         RegisterNewHandlers(configuration, messageRegistry, startIndex);

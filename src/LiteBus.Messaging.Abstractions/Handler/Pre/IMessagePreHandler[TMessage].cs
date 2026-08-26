@@ -13,9 +13,9 @@ namespace LiteBus.Messaging.Abstractions;
 ///         error handlers; the completion stage records the failure either way.
 ///     </para>
 ///     <para>
-///         A pre-handler of this kind cannot stop the pipeline cleanly, which is deliberate: the ability to
-///         short-circuit is a capability, so it lives in <see cref="IShortCircuitingPreHandler{TMessage}" /> instead. A
-///         validator therefore cannot skip the work by accident.
+///         A pre-handler of this kind cannot stop the pipeline cleanly, which is deliberate: deciding whether the work
+///         happens is a capability, so it lives in <see cref="IMessageGate{TMessage}" /> instead. A validator therefore
+///         cannot skip the work by accident.
 ///     </para>
 /// </remarks>
 public interface IMessagePreHandler<in TMessage> : IMessagePreHandler

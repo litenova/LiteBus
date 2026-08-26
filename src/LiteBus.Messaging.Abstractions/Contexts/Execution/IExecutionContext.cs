@@ -9,7 +9,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// <remarks>
 ///     The execution context provides access to information and services that are relevant to the current
 ///     execution, such as cancellation tokens, shared data, and tags for filtering handlers.
-///     It also provides a mechanism for aborting the execution and setting a result.
+///     It also carries the mediation result and the suppression flag for post-handlers.
 ///     The execution context is typically created at the beginning of a mediation operation and is
 ///     available throughout the entire mediation pipeline, including pre-handlers, main handlers,
 ///     post-handlers, and error handlers.
@@ -20,8 +20,9 @@ public interface IExecutionContext
     ///     Gets the cancellation token associated with the execution context.
     /// </summary>
     /// <remarks>
-    ///     This token can be used to cancel the execution of the current operation.
-    ///     Handlers should periodically check this token and abort their execution if cancellation is requested.
+    ///     This token carries the caller's decision to abandon the operation, and nothing else. Handlers observe it and
+    ///     stop what they are doing when it fires. It is not how a handler refuses a message: a refusal is a decision the
+    ///     pipeline makes, so it belongs to a gate and reports <see cref="MessageOutcome.Denied" />.
     /// </remarks>
     CancellationToken CancellationToken { get; }
 
@@ -51,8 +52,7 @@ public interface IExecutionContext
     /// <remarks>
     ///     This property can be set by handlers to provide a result for the mediation operation.
     ///     It is typically set by the main handler, and a post-handler may overwrite it to transform what the caller
-    ///     receives. A short-circuiting pre-handler supplies its result through
-    ///     <see cref="PipelineDirective.ShortCircuit" /> rather than through this property.
+    ///     receives. A gate supplies its result through the directive it returns rather than through this property.
     /// </remarks>
     object? MessageResult { get; set; }
 
@@ -71,10 +71,9 @@ public interface IExecutionContext
     ///         that publishes its domain events.
     ///     </para>
     ///     <para>
-    ///         Unlike short-circuiting, this does not stop the calling handler and does not change the outcome. The
-    ///         mediation still reports <see cref="MessageOutcome.Succeeded" />, because the main handler ran. To stop
-    ///         the pipeline before the work happens, implement
-    ///         <see cref="IShortCircuitingPreHandler{TMessage}" /> instead.
+    ///         Unlike a gate, this does not stop the calling handler and does not change the outcome. The mediation
+    ///         still reports <see cref="MessageOutcome.Succeeded" />, because the main handler ran. To stop the pipeline
+    ///         before the work happens, implement <see cref="IMessageGate{TMessage}" /> instead.
     ///     </para>
     /// </remarks>
     void SuppressPostHandlers();

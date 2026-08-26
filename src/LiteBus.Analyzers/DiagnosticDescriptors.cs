@@ -190,7 +190,7 @@ public static class DiagnosticDescriptors
     internal static readonly DiagnosticDescriptor MissingAuditDeclaration = new(
         DiagnosticIds.MissingAuditDeclaration,
         "Message states no audit position",
-        "Message type '{0}' declares neither [Audited] nor [AuditExempt] and has no IAuditDefinition facet. State the position explicitly so that an unaudited message is a recorded decision rather than an oversight.",
+        "Message type '{0}' declares neither [Audited] nor [AuditExempt] and has no IAuditDefinition. State the position explicitly so that an unaudited message is a recorded decision rather than an oversight.",
         "LiteBus.Auditing",
         DiagnosticSeverity.Warning,
         false,

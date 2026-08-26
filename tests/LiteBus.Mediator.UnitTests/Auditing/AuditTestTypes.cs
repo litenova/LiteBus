@@ -18,6 +18,9 @@ internal sealed class RecordingAuditTrail : IAuditTrail
     /// <inheritdoc />
     public Task WriteAsync(AuditRecord record, CancellationToken cancellationToken)
     {
+        // A real trail honours its token. Doing the same here is what makes the cancellation test meaningful: handing
+        // this trail the token that just fired would lose exactly the record a review would look for.
+        cancellationToken.ThrowIfCancellationRequested();
         Records.Enqueue(record);
         return Task.CompletedTask;
     }
@@ -65,7 +68,7 @@ internal sealed class PlaceOrderCommand : ICommand
 }
 
 /// <summary>
-///     A command whose audit position is declared by a definition facet.
+///     A command whose audit position is declared by a definition.
 /// </summary>
 internal sealed class ShipOrderCommand : ICommand;
 
@@ -110,7 +113,7 @@ internal sealed class CancelOrderCommandDefinition : IAuditDefinition<CancelOrde
 }
 
 /// <summary>
-///     A custom facet declared outside LiteBus, proving the registry applies facets it knows nothing about.
+///     A declaration type owned outside LiteBus, proving the registry applies values it knows nothing about.
 /// </summary>
 /// <param name="Name">The permission the use case requires.</param>
 internal sealed record RequiredPermission(string Name);
@@ -118,7 +121,7 @@ internal sealed record RequiredPermission(string Name);
 /// <summary>
 ///     Declares the permission a message requires, using an application-owned metadata value.
 /// </summary>
-/// <typeparam name="TMessage">The message type this facet describes.</typeparam>
+/// <typeparam name="TMessage">The message type this definition describes.</typeparam>
 internal interface IPermissionDefinition<TMessage> : IMessageDefinition<TMessage, RequiredPermission>
     where TMessage : notnull
 {
@@ -169,7 +172,7 @@ internal sealed class PlaceOrderCommandHandler : ICommandHandler<PlaceOrderComma
             throw new ForbiddenException();
         }
 
-        _audit.Target("order-42").WithReason("customer requested").WithProperty("channel", "web");
+        _audit.WithTarget("order-42").WithReason("customer requested").WithProperty("channel", "web");
         return Task.CompletedTask;
     }
 }
@@ -220,4 +223,199 @@ internal sealed class ExportOrdersQueryHandler : IQueryHandler<ExportOrdersQuery
     {
         return Task.FromResult("csv");
     }
+}
+
+/// <summary>
+///     A marker for writes that share one audit position, so a single definition can cover a family of commands.
+/// </summary>
+internal interface IAuditableWrite : ICommand;
+
+/// <summary>
+///     Declares the audit position of every <see cref="IAuditableWrite" />, without naming a concrete command.
+/// </summary>
+internal sealed class AuditableWriteDefinition : IAuditDefinition<IAuditableWrite>
+{
+    /// <inheritdoc />
+    public AuditDeclaration Audit => AuditDeclaration.Audited("writes.generic") with { Category = "lifecycle" };
+}
+
+/// <summary>
+///     A command covered by the marker definition rather than by one of its own.
+/// </summary>
+internal sealed class AdjustStockCommand : IAuditableWrite;
+
+/// <summary>
+///     A handler for the command covered by the marker definition.
+/// </summary>
+internal sealed class AdjustStockCommandHandler : ICommandHandler<AdjustStockCommand>
+{
+    /// <inheritdoc />
+    public Task HandleAsync(AdjustStockCommand message, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+///     A command whose declaration requires the handler to justify the action.
+/// </summary>
+[Audited("orders.override-price", ReasonRequired = true)]
+internal sealed class OverridePriceCommand : ICommand
+{
+    /// <summary>
+    ///     Gets or sets a value indicating whether the handler supplies the required reason.
+    /// </summary>
+    public bool SupplyReason { get; set; }
+}
+
+/// <summary>
+///     Supplies the required reason only when the command asks it to.
+/// </summary>
+internal sealed class OverridePriceCommandHandler : ICommandHandler<OverridePriceCommand>
+{
+    /// <summary>
+    ///     Collects the handler-supplied audit detail.
+    /// </summary>
+    private readonly IAuditScope _audit;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="OverridePriceCommandHandler" /> class.
+    /// </summary>
+    /// <param name="audit">The ambient audit scope.</param>
+    public OverridePriceCommandHandler(IAuditScope audit)
+    {
+        _audit = audit;
+    }
+
+    /// <inheritdoc />
+    public Task HandleAsync(OverridePriceCommand message, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        if (message.SupplyReason)
+        {
+            _audit.WithReason("manager approved");
+        }
+
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+///     A command whose gate refuses it, so the trail records a denial without an outcome mapper.
+/// </summary>
+[Audited("orders.approve-refund", Category = "money")]
+internal sealed class ApproveRefundCommand : ICommand
+{
+    /// <summary>
+    ///     Gets or sets a value indicating whether the gate refuses the command.
+    /// </summary>
+    public bool ShouldDeny { get; set; }
+
+    /// <summary>
+    ///     Gets or sets a value indicating whether the mediation is cancelled by the handler.
+    /// </summary>
+    public bool ShouldCancel { get; set; }
+}
+
+/// <summary>
+///     Refuses the refund when the command asks for it.
+/// </summary>
+internal sealed class ApproveRefundCommandGate : ICommandGate<ApproveRefundCommand>
+{
+    /// <inheritdoc />
+    public Task<PipelineDirective> DecideAsync(
+        ApproveRefundCommand message,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        return Task.FromResult(message.ShouldDeny
+            ? PipelineDirective.Deny("the approver is the requester")
+            : PipelineDirective.Continue);
+    }
+}
+
+/// <summary>
+///     Completes, or observes the caller's cancellation.
+/// </summary>
+internal sealed class ApproveRefundCommandHandler : ICommandHandler<ApproveRefundCommand>
+{
+    /// <inheritdoc />
+    public Task HandleAsync(ApproveRefundCommand message, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        if (message.ShouldCancel)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+///     A query answered from cache by its gate, to prove an early answer is not recorded as a denial.
+/// </summary>
+[Audited("orders.read-order", Category = "privacy")]
+internal sealed class ReadOrderQuery : IQuery<string>
+{
+    /// <summary>
+    ///     Gets or sets a value indicating whether the gate answers without the handler.
+    /// </summary>
+    public bool ServeFromCache { get; set; }
+}
+
+/// <summary>
+///     Answers the query from cache when asked, the way a real cache would.
+/// </summary>
+internal sealed class ReadOrderQueryGate : IQueryGate<ReadOrderQuery, string>
+{
+    /// <inheritdoc />
+    public Task<PipelineDirective<string>> DecideAsync(
+        ReadOrderQuery message,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        return Task.FromResult(message.ServeFromCache
+            ? PipelineDirective<string>.ShortCircuit("cached-order", "served from cache")
+            : PipelineDirective<string>.Continue);
+    }
+}
+
+/// <summary>
+///     Reads the order when the gate lets the query through.
+/// </summary>
+internal sealed class ReadOrderQueryHandler : IQueryHandler<ReadOrderQuery, string>
+{
+    /// <inheritdoc />
+    public Task<string> HandleAsync(ReadOrderQuery message, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult("stored-order");
+    }
+}
+
+/// <summary>
+///     A command declared twice, to prove a duplicate declaration is reported instead of one silently winning.
+/// </summary>
+internal sealed class DoubleDeclaredCommand : ICommand;
+
+/// <summary>
+///     The first declaration for <see cref="DoubleDeclaredCommand" />.
+/// </summary>
+internal sealed class FirstDoubleDeclaration : IAuditDefinition<DoubleDeclaredCommand>
+{
+    /// <inheritdoc />
+    public AuditDeclaration Audit => AuditDeclaration.Audited("orders.first");
+}
+
+/// <summary>
+///     The second declaration for <see cref="DoubleDeclaredCommand" />.
+/// </summary>
+internal sealed class SecondDoubleDeclaration : IAuditDefinition<DoubleDeclaredCommand>
+{
+    /// <inheritdoc />
+    public AuditDeclaration Audit => AuditDeclaration.Audited("orders.second");
 }

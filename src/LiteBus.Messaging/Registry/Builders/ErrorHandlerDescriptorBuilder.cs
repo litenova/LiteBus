@@ -36,7 +36,8 @@ internal sealed class ErrorHandlerDescriptorBuilder : IHandlerDescriptorBuilder
                 MessageResultType = messageResultType,
                 Priority = priority,
                 Tags = tags,
-                HandlerType = handlerType
+                HandlerType = handlerType,
+                ContractType = @interface
             };
         }
     }

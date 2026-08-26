@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Audit;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Runtime.Abstractions;
 
@@ -44,6 +45,11 @@ public sealed class QueryModule : IModule, IRequires<MessageModule>
         var startIndex = messageRegistry.Handlers.Count;
         var moduleBuilder = new QueryModuleBuilder(messageRegistry, contractRegistry);
         _builder(moduleBuilder);
+
+        if (moduleBuilder.AuditingEnabled)
+        {
+            configuration.RegisterDiagnosticCheck(typeof(AuditTrailDiagnosticCheck), AuditTrailDiagnosticCheck.CheckName);
+        }
 
         RegisterQueryServices(configuration);
         RegisterNewHandlers(configuration, messageRegistry, startIndex);

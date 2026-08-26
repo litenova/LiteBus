@@ -14,7 +14,7 @@ namespace LiteBus.Messaging.MediationStrategies;
 /// <typeparam name="TMessageResult">The type of the result produced by the handler.</typeparam>
 /// <remarks>
 ///     This strategy ensures that only one handler is registered for the message type and then:
-///     1. Executes pre-handlers, stopping early when one short-circuits.
+///     1. Executes pre-handlers, stopping early when a gate short-circuits or denies.
 ///     2. Delegates the message processing to the registered handler.
 ///     3. Executes post-handlers, unless the pipeline suppressed them.
 ///     4. Routes exceptions to registered error handlers.
@@ -37,7 +37,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         var startedAt = Stopwatch.GetTimestamp();
         var outcome = MessageOutcome.Succeeded;
         Exception? failure = null;
-        string? abortReason = null;
+        string? reason = null;
 
         try
         {
@@ -47,11 +47,21 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                     .RunAsyncPreHandlers(message, executionContext.CancellationToken)
                     .ConfigureAwait(false);
 
-                if (directive.IsShortCircuit)
+                if (directive.StopsPipeline)
                 {
-                    outcome = MessageOutcome.Aborted;
-                    abortReason = directive.Reason;
-                    messageResult = CoerceShortCircuitResult(directive);
+                    outcome = directive.ToOutcome();
+                    reason = directive.Reason;
+
+                    if (directive.IsUnansweredDenial())
+                    {
+                        // A refusal with no result has nothing to return, so it reaches the caller as an exception. It
+                        // is excluded from the recoverable filter, so error handlers do not see a decision as a fault.
+                        var denial = directive.CreateDenial(message.GetType());
+                        failure = denial;
+                        throw denial;
+                    }
+
+                    messageResult = directive.ResolveResult<TMessageResult>(message.GetType());
                     return messageResult;
                 }
 
@@ -116,40 +126,11 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                     outcome,
                     executionContext.MessageResult ?? messageResult,
                     failure,
-                    abortReason,
+                    reason,
                     Stopwatch.GetElapsedTime(startedAt))
                 .ConfigureAwait(false);
         }
 
         return messageResult!;
-    }
-
-    /// <summary>
-    ///     Converts a short-circuit directive's result to the message result type.
-    /// </summary>
-    /// <param name="directive">The short-circuiting directive returned by a pre-handler.</param>
-    /// <returns>The result the caller receives.</returns>
-    /// <exception cref="LiteBusConfigurationException">
-    ///     Thrown when the message has a result type and the directive supplied no value, or supplied one of the wrong
-    ///     type.
-    /// </exception>
-    private static TMessageResult CoerceShortCircuitResult(PipelineDirective directive)
-    {
-        if (directive.Result is TMessageResult typedResult)
-        {
-            return typedResult;
-        }
-
-        if (directive.Result is null)
-        {
-            throw new LiteBusConfigurationException(
-                $"A short-circuiting pre-handler for '{typeof(TMessage).Name}' must supply a result of type "
-                + $"'{typeof(TMessageResult).Name}', because the message has a result type. "
-                + "Pass it to PipelineDirective.ShortCircuit(result).");
-        }
-
-        throw new LiteBusConfigurationException(
-            $"A short-circuiting pre-handler for '{typeof(TMessage).Name}' supplied a result of type "
-            + $"'{directive.Result.GetType().Name}', but the message expects '{typeof(TMessageResult).Name}'.");
     }
 }

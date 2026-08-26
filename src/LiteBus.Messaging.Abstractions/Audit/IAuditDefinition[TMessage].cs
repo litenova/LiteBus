@@ -3,15 +3,16 @@ namespace LiteBus.Messaging.Abstractions;
 /// <summary>
 ///     Declares the audit position of <typeparamref name="TMessage" /> from a definition class beside the message.
 /// </summary>
-/// <typeparam name="TMessage">The message type this facet describes.</typeparam>
+/// <typeparam name="TMessage">The message type this definition describes.</typeparam>
 /// <remarks>
 ///     <para>
 ///         This is the compile-checked alternative to <see cref="AuditedAttribute" /> and
-///         <see cref="AuditExemptAttribute" />. Implementing the facet forces the message to state its position, and the
+///         <see cref="AuditExemptAttribute" />. Implementing it forces the message to state its position, and the
 ///         declaration is written in ordinary C# where constants and shared vocabulary are available.
 ///     </para>
 ///     <para>
-///         A definition takes precedence over an attribute declaring the same message.
+///         A definition takes precedence over an attribute declaring the same message, because both contribute an
+///         <see cref="AuditDeclaration" /> and definitions are applied after attributes.
 ///     </para>
 /// </remarks>
 /// <example>

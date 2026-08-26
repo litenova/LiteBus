@@ -21,7 +21,8 @@ public sealed class QueryModuleBuilder
         typeof(IQueryHandler<,>),
         typeof(IQueryPreHandler),
         typeof(IQueryPreHandler<>),
-        typeof(IQueryShortCircuitingPreHandler<>),
+        typeof(IQueryGate<,>),
+        typeof(IStreamQueryGate<,>),
         typeof(IQueryPostHandler),
         typeof(IQueryPostHandler<>),
         typeof(IQueryPostHandler<,>),
@@ -31,7 +32,8 @@ public sealed class QueryModuleBuilder
         typeof(IStreamQueryHandler<,>),
         typeof(IStreamQueryPostHandler<,>),
         typeof(IQueryCompletionHandler),
-        typeof(IQueryCompletionHandler<>)
+        typeof(IQueryCompletionHandler<>),
+        typeof(IQueryCompletionHandler<,>)
     ];
 
     /// <summary>
@@ -57,6 +59,15 @@ public sealed class QueryModuleBuilder
     public IContractWriter Contracts { get; }
 
     /// <summary>
+    ///     Gets a value indicating whether <see cref="EnableAuditing" /> was called.
+    /// </summary>
+    /// <remarks>
+    ///     The module reads this after the configuration action runs, so it can register the diagnostic probe that reports
+    ///     a missing <see cref="IAuditTrail" /> before the first audited mediation fails inside the completion stage.
+    /// </remarks>
+    internal bool AuditingEnabled { get; private set; }
+
+    /// <summary>
     ///     Registers the LiteBus query audit writer, so every query mediation produces an audit record when the
     ///     message declares one.
     /// </summary>
@@ -65,16 +76,19 @@ public sealed class QueryModuleBuilder
     ///     <para>
     ///         The writer runs at the completion stage, so refusals, failures and cancellations are recorded as well as
     ///         successes. A message is recorded only when it declares an audited position through
-    ///         <see cref="AuditedAttribute" /> or an <c>IAuditDefinition&lt;TMessage&gt;</c> facet.
+    ///         <see cref="AuditedAttribute" /> or an <c>IAuditDefinition&lt;TMessage&gt;</c>.
     ///     </para>
     ///     <para>
-    ///         The application must register an <see cref="IAuditTrail" /> implementation. Registering an
-    ///         <see cref="IAuditOutcomeMapper" /> is optional and lets a refusal exception be recorded as
-    ///         <see cref="AuditOutcome.Denied" /> rather than <see cref="AuditOutcome.Failed" />.
+    ///         The application must register an <see cref="IAuditTrail" /> implementation; the
+    ///         <c>litebus.audit.trail</c> diagnostic probe reports when it is missing. Registering an
+    ///         <see cref="IAuditOutcomeMapper" /> is optional and lets a refusal raised as an exception be recorded as
+    ///         <see cref="AuditOutcome.Denied" /> rather than <see cref="AuditOutcome.Failed" />; a refusal from a gate
+    ///         is already recorded as a denial without one.
     ///     </para>
     /// </remarks>
     public QueryModuleBuilder EnableAuditing()
     {
+        AuditingEnabled = true;
         return Register<QueryAuditCompletionHandler>();
     }
 

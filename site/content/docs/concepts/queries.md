@@ -130,29 +130,29 @@ Single-tag sugar: `await _queryMediator.QueryAsync(query, "Admin");`. See [Handl
 
 A query runs through the same stages as a command: pre-handlers, the single main handler, post-handlers, error-handlers on failure, and completion handlers on every path. The interfaces are `IQueryPreHandler<TQuery>`, `IQueryPostHandler<TQuery, TResult>`, `IQueryErrorHandler<TQuery>`, and `IQueryCompletionHandler<TQuery>`, with the same method shapes as their command equivalents.
 
-The most useful query-side pattern is read-through caching. A short-circuiting pre-handler checks the cache and, on a hit, returns the cached value so the main handler never runs:
+The most useful query-side pattern is read-through caching. A gate checks the cache and, on a hit, returns the cached value so the main handler never runs:
 
 ```csharp
-public sealed class ProductCacheLookup : IQueryShortCircuitingPreHandler<GetProductByIdQuery>
+public sealed class ProductCacheLookup : IQueryGate<GetProductByIdQuery, ProductDto>
 {
     private readonly IProductCache _cache;
 
     public ProductCacheLookup(IProductCache cache) => _cache = cache;
 
-    public async Task<PipelineDirective> PreHandleAsync(
+    public async Task<PipelineDirective<ProductDto>> DecideAsync(
         GetProductByIdQuery query,
         CancellationToken cancellationToken = default)
     {
         var cached = await _cache.TryGetAsync(query.ProductId, cancellationToken);
 
         return cached is null
-            ? PipelineDirective.Continue
-            : PipelineDirective.ShortCircuit(cached, "served from cache");
+            ? PipelineDirective<ProductDto>.Continue
+            : PipelineDirective<ProductDto>.ShortCircuit(cached, "served from cache");
     }
 }
 ```
 
-Returning `PipelineDirective.ShortCircuit(result)` from an `IQueryShortCircuitingPreHandler<TQuery>` ends mediation and returns the supplied value to the caller. How short-circuiting and the rest of the pipeline behave is on [The Handler Pipeline](handler-pipeline.md) and [Execution Context](execution-context.md).
+The directive is typed over the query result, so the compiler requires the cached value to be the right shape. A cache hit reports `MessageOutcome.ShortCircuited`, which an audit trail records as a success, because nothing was refused. To refuse a read instead, return `Deny` and the mediation reports `MessageOutcome.Denied`. How gates and the rest of the pipeline behave is on [The Handler Pipeline](handler-pipeline.md) and [Execution Context](execution-context.md).
 
 ## Shared Features
 

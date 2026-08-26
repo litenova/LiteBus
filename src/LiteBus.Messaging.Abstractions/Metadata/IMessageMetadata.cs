@@ -13,9 +13,10 @@ namespace LiteBus.Messaging.Abstractions;
 ///         dispatch.
 ///     </para>
 ///     <para>
-///         Two sources populate this collection. Attributes applied to the message type are added first, then message
-///         definitions are applied, so an explicit definition always wins over an attribute declaring the same value
-///         type.
+///         Two sources populate this collection, and both contribute values of the same type. Attributes that implement
+///         <see cref="IMessageDeclarationSource" /> are applied first, then message definitions, so an explicit
+///         definition always overwrites an attribute declaring the same value type. Attributes that do not implement
+///         that interface are not metadata and are never collected, which keeps the collection bounded and predictable.
 ///     </para>
 /// </remarks>
 public interface IMessageMetadata

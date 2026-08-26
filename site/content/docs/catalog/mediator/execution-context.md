@@ -34,9 +34,9 @@ public sealed class ContextAwarePreHandler : ICommandPreHandler<CreateOrderComma
 | `IExecutionContext.Items` | Shared per-call state |
 | `IExecutionContext.Tags` | Effective routing tags |
 | `IExecutionContext.CancellationToken` | Effective cancellation token |
-| `IExecutionContext.MessageResult` | Result override/abort payload |
+| `IExecutionContext.MessageResult` | Result override written by a post-handler |
 | `IExecutionContext.SuppressPostHandlers()` | Skips the post-handlers that have not run yet |
-| `PipelineDirective.ShortCircuit(result, reason)` | Stops a pipeline from a short-circuiting pre-handler |
+| `PipelineDirective` / `PipelineDirective<TResult>` | Stops a pipeline from a gate, as an early answer or a refusal |
 | `AmbientExecutionContext.Current` | Access current ambient context |
 | `AmbientExecutionContext.HasCurrent` | Presence check |
 | `AmbientExecutionContext.CreateScope(IExecutionContext)` | Scoped ambient context |
@@ -56,7 +56,7 @@ public sealed class ContextAwarePreHandler : ICommandPreHandler<CreateOrderComma
 
 - Context is scoped to one mediation call.
 - `Current` throws `NoExecutionContextException` when accessed outside scope.
-- Result commands and queries aborted in pre-stage require a result object.
+- A gate that stops a result-returning command or query supplies the result through its directive, not through the context.
 - `MessageResult` write in void command flow is ignored by strategy return path.
 
 ## Non-Goals

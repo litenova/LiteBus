@@ -36,7 +36,7 @@ public sealed class MissingAuditDeclarationAnalyzer : DiagnosticAnalyzer
     private const string AuditExemptAttributeMetadataName = "LiteBus.Messaging.Abstractions.AuditExemptAttribute";
 
     /// <summary>
-    ///     The metadata name of the open generic audit definition facet.
+    ///     The metadata name of the open generic audit definition contract.
     /// </summary>
     private const string AuditDefinitionMetadataName = "LiteBus.Messaging.Abstractions.IAuditDefinition`1";
 
@@ -95,7 +95,7 @@ public sealed class MissingAuditDeclarationAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    ///     Collects message types covered by an audit definition facet declared in the analyzed assembly.
+    ///     Collects message types covered by an audit definition declared in the analyzed assembly.
     /// </summary>
     /// <param name="context">The compilation analysis context.</param>
     /// <param name="auditDefinition">The open generic audit definition symbol, when referenced.</param>

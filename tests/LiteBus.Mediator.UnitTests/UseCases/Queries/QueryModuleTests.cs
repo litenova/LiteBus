@@ -246,7 +246,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task mediating_a_stream_query_that_is_aborted_in_pre_handler_goes_through_correct_handlers()
+    public async Task mediating_a_stream_query_that_is_short_circuited_by_a_gate_goes_through_correct_handlers()
     {
         // Arrange
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
@@ -262,7 +262,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
         }).BuildServiceProvider();
 
         var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
-        var query = new StreamProductsQuery { AbortInPreHandler = true };
+        var query = new StreamProductsQuery { ShortCircuitInGate = true };
 
         // Act
         var queryResult = await queryMediator.StreamAsync(query).ToListAsync().ConfigureAwait(true);

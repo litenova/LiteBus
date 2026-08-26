@@ -46,7 +46,7 @@ public sealed class MultiContractDispatchTests : LiteBusTestBase
         var commandA = new ProbeCommandA();
         await mediator.SendAsync(commandA).ConfigureAwait(false);
 
-        commandA.Ran.Should().Equal("pre:A", "main:A", "post:A");
+        commandA.Ran.Should().Equal("pre:A", "main:A", "post:A", "done:A");
     }
 
     [Fact]
@@ -61,6 +61,6 @@ public sealed class MultiContractDispatchTests : LiteBusTestBase
         result.Should().Be("done");
 
         // The typed post-handler received the result rather than the untyped overload being chosen by name.
-        commandB.Ran.Should().Equal("pre:B", "main:B", "post:B:done");
+        commandB.Ran.Should().Equal("pre:B", "main:B", "post:B:done", "done:B:done");
     }
 }

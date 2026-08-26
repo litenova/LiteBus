@@ -17,7 +17,7 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// <summary>
     ///     Declarative metadata resolved for <see cref="MessageType" />.
     /// </summary>
-    private readonly MessageMetadata _metadata = new();
+    private readonly MessageMetadata _metadata;
 
     /// <summary>
     ///     Direct completion handlers registered for <see cref="MessageType" />.
@@ -72,13 +72,19 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     {
         MessageType = messageType;
         IsGeneric = messageType.IsGenericType;
+        _metadata = new MessageMetadata(messageType);
 
-        // Attributes are the lowest-precedence metadata source. Definitions applied later overwrite them.
+        // Only attributes that declare themselves as metadata are collected, and each is converted to the value type a
+        // definition would contribute, so a definition for the same message overwrites it instead of sitting beside it.
         foreach (var attribute in messageType.GetCustomAttributes(inherit: true))
         {
-            if (attribute is Attribute typedAttribute)
+            if (attribute is IMessageDeclarationSource declaration)
             {
-                _metadata.Set(typedAttribute.GetType(), typedAttribute);
+                _metadata.Set(
+                    declaration.DeclarationType,
+                    declaration.CreateDeclaration(),
+                    messageType,
+                    MetadataSourceKind.Attribute);
             }
         }
     }
@@ -87,13 +93,14 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     public IMessageMetadata Metadata => _metadata;
 
     /// <summary>
-    ///     Applies a message definition facet value to this descriptor's metadata.
+    ///     Applies a value declared by a message definition to this descriptor's metadata.
     /// </summary>
-    /// <param name="keyType">The metadata key type contributed by the facet.</param>
-    /// <param name="value">The metadata value contributed by the facet.</param>
-    public void ApplyMetadata(Type keyType, object value)
+    /// <param name="keyType">The metadata key type the definition declared.</param>
+    /// <param name="value">The metadata value the definition declared.</param>
+    /// <param name="declaringMessageType">The message type the definition was written for.</param>
+    public void ApplyMetadata(Type keyType, object value, Type declaringMessageType)
     {
-        _metadata.Set(keyType, value);
+        _metadata.Set(keyType, value, declaringMessageType, MetadataSourceKind.Definition);
     }
 
     /// <inheritdoc />

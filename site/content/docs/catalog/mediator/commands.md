@@ -9,7 +9,7 @@
 
 `ICommandMediator` sends command messages through `SingleAsyncHandlerMediationStrategy`. Commands require exactly one main handler after routing filters are applied. When no handler or multiple handlers remain, mediation fails fast (`NoHandlerFoundException` or `MultipleHandlerFoundException`).
 
-Commands support both void (`ICommand`) and result (`ICommand<TResult>`) flows. Pre-handlers can abort execution. Post-handlers can observe results, and result post-handlers can replace the returned value through `AmbientExecutionContext.Current.MessageResult`.
+Commands support both void (`ICommand`) and result (`ICommand<TResult>`) flows. A gate can stop execution before the handler runs, as an early answer or a refusal. Post-handlers can observe results, and result post-handlers can replace the returned value through `AmbientExecutionContext.Current.MessageResult`.
 
 ## Public Surface
 
@@ -54,7 +54,7 @@ var id = await commandMediator.SendAsync(new CreateProductCommand("keyboard"), c
 
 - One main handler must resolve for each command after routing filters.
 - `ArgumentNullException` is thrown for `null` commands.
-- Result commands short-circuited in the pre stage must provide a result (`PipelineDirective.ShortCircuit(result)`), else `LiteBusConfigurationException` is thrown.
+- A gate that stops a result-returning command must supply the result, which `ICommandGate<TCommand, TCommandResult>` makes a compile-time requirement; using the untyped contract instead throws `LiteBusConfigurationException`.
 - Post-handler result override applies to result commands only.
 
 ## Non-Goals
@@ -81,7 +81,7 @@ Operational alternatives:
 | `Send_CreateProductCommand_ShouldGoThroughHandlersCorrectly` | `LiteBus.Mediator.UnitTests` |
 | `Send_UpdateProductCommand_ShouldGoThroughHandlersCorrectly` | `LiteBus.Mediator.UnitTests` |
 | `Send_LogActivityCommand_ShouldGoThroughHandlersCorrectly` | `LiteBus.Mediator.UnitTests` |
-| `mediating_a_command_that_is_aborted_in_pre_handler_goes_through_correct_handlers` | `LiteBus.Mediator.UnitTests` |
+| `mediating_a_command_that_is_short_circuited_by_a_gate_goes_through_correct_handlers` | `LiteBus.Mediator.UnitTests` |
 | `Send_CommandWithResult_PostHandlerOverridesResult` | `LiteBus.Mediator.UnitTests` |
 | `Send_CommandWithResult_WhenErrorHandlerSetsHandledResult_ShouldReturnFallbackResult` | `LiteBus.Mediator.UnitTests` |
 | `Send_Command_WithErrorHandler_ShouldPassTypedContextAndExplicitCancellationToken` | `LiteBus.Mediator.UnitTests` |

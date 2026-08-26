@@ -229,7 +229,7 @@ One row per capability. Packages list primary install targets; transitive abstra
 | --- | --- | --- | --- | --- | --- | --- |
 | `mediator.commands` | Commands | mediator | GA | State-changing messages with exactly one main handler | `LiteBus.Commands` | [commands.md](../catalog/mediator/commands.md) |
 | `mediator.events` | Events | mediator | GA | Publish facts to zero or many handlers | `LiteBus.Events` | [events.md](../catalog/mediator/events.md) |
-| `mediator.execution-context` | Execution context | mediator | GA | Share state, abort, and override results within one call | `LiteBus.Messaging.Abstractions` | [execution-context.md](../catalog/mediator/execution-context.md) |
+| `mediator.execution-context` | Execution context | mediator | GA | Share state, suppress post-handlers, and override results within one call | `LiteBus.Messaging.Abstractions` | [execution-context.md](../catalog/mediator/execution-context.md) |
 | `mediator.generic-messages` | Generic messages | mediator | GA | Parameterized messages and handlers by entity type | `LiteBus.Commands`, `LiteBus.Queries` | [generic-messages-and-handlers.md](../catalog/mediator/generic-messages-and-handlers.md) |
 | `mediator.handler-filtering` | Handler filtering | mediator | GA | Select handlers per call with tags and predicates | `LiteBus.Messaging` | [handler-filtering.md](../catalog/mediator/handler-filtering.md) |
 | `mediator.handler-pipeline` | Handler pipeline | mediator | GA | Pre, main, post, error, and completion stages shared by all kinds | `LiteBus.Messaging` | [handler-pipeline.md](../catalog/mediator/handler-pipeline.md) |

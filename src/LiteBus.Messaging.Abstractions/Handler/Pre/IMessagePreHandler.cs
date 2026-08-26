@@ -10,8 +10,9 @@ namespace LiteBus.Messaging.Abstractions;
 ///         pre-handler contracts for several message types still compiles.
 ///     </para>
 ///     <para>
-///         Implement <see cref="IMessagePreHandler{TMessage}" /> to validate, authorize, or enrich, or
-///         <see cref="IShortCircuitingPreHandler{TMessage}" /> to stop the pipeline before the work happens.
+///         Implement <see cref="IMessagePreHandler{TMessage}" /> to validate, authorize, or enrich, or a gate,
+///         <see cref="IMessageGate{TMessage}" /> or <see cref="IMessageGate{TMessage,TMessageResult}" />, to decide
+///         whether the message reaches its main handler at all.
 ///     </para>
 /// </remarks>
 public interface IMessagePreHandler;

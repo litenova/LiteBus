@@ -9,8 +9,8 @@ namespace LiteBus.Messaging.Abstractions;
 ///     <para>
 ///         The attribute is the lightweight form of an audit declaration, for messages whose configuration is a single
 ///         fact. When a message needs richer or compile-checked configuration, declare an
-///         <c>IAuditDefinition&lt;TMessage&gt;</c> facet in a definition class instead. A definition wins when both are
-///         present.
+///         <c>IAuditDefinition&lt;TMessage&gt;</c> in a definition class instead. A definition wins when both are
+///         present, because both contribute the same <see cref="AuditDeclaration" /> and the definition is applied last.
 ///     </para>
 ///     <para>
 ///         Pair with <see cref="AuditExemptAttribute" /> so that every message states its position explicitly, rather
@@ -24,7 +24,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// ]]></code>
 /// </example>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
-public sealed class AuditedAttribute : Attribute
+public sealed class AuditedAttribute : Attribute, IMessageDeclarationSource
 {
     /// <summary>
     ///     Initializes a new instance of the <see cref="AuditedAttribute" /> class.
@@ -52,15 +52,15 @@ public sealed class AuditedAttribute : Attribute
 
     /// <summary>
     ///     Gets or sets a value indicating whether the handler must supply a reason through
-    ///     <see cref="IAuditScope.Reason" />.
+    ///     <see cref="IAuditScope.WithReason" />.
     /// </summary>
     public bool ReasonRequired { get; set; }
 
-    /// <summary>
-    ///     Converts the attribute to the declaration stored in message metadata.
-    /// </summary>
-    /// <returns>The equivalent <see cref="AuditDeclaration" />.</returns>
-    public AuditDeclaration ToDeclaration()
+    /// <inheritdoc />
+    public Type DeclarationType => typeof(AuditDeclaration);
+
+    /// <inheritdoc />
+    public object CreateDeclaration()
     {
         return AuditDeclaration.Audited(Action) with
         {

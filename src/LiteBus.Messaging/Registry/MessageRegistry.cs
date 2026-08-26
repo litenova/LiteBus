@@ -8,6 +8,7 @@ using LiteBus.Messaging.Extensions;
 using LiteBus.Messaging.Registry.Abstractions;
 using LiteBus.Messaging.Registry.Builders;
 using LiteBus.Messaging.Registry.Descriptors;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Registry;
 
@@ -56,9 +57,9 @@ internal sealed class MessageRegistry : IMessageRegistry
     private readonly object _lock = new();
 
     /// <summary>
-    ///     Metadata facets contributed by message definitions, applied to descriptors as they are created.
+    ///     Metadata declared by message definitions, applied to descriptors as they are created.
     /// </summary>
-    private readonly List<MessageDefinitionFacet> _definitionFacets = [];
+    private readonly List<MessageDeclaration> _declarations = [];
 
     /// <summary>
     ///     Open generic handler definitions waiting to be closed over concrete message types.
@@ -221,10 +222,10 @@ internal sealed class MessageRegistry : IMessageRegistry
     }
 
     /// <summary>
-    ///     Binds a message definition type and applies its facets to known and pending message descriptors.
+    ///     Binds a message definition type and applies what it declares to known and pending message descriptors.
     /// </summary>
     /// <param name="definitionType">The concrete message definition type.</param>
-    [RequiresUnreferencedCode("Message definition binding reads facet contracts via reflection.")]
+    [RequiresUnreferencedCode("Message definition binding reads declaration contracts via reflection.")]
     private void RegisterDefinition(
         [DynamicallyAccessedMembers(
             DynamicallyAccessedMemberTypes.PublicConstructors
@@ -232,42 +233,106 @@ internal sealed class MessageRegistry : IMessageRegistry
             | DynamicallyAccessedMemberTypes.Interfaces)]
         Type definitionType)
     {
-        var facets = MessageDefinitionBinder.Bind(definitionType);
-
-        foreach (var facet in facets)
+        foreach (var declaration in MessageDefinitionBinder.Bind(definitionType))
         {
-            _definitionFacets.Add(facet);
+            ThrowIfAlreadyDeclared(declaration);
+            _declarations.Add(declaration);
 
             // The described message may not have been registered yet.
-            RegisterMessageType(facet.MessageType);
+            RegisterMessageType(declaration.MessageType);
 
-            if (_descriptorsByType.TryGetValue(facet.MessageType, out var committed))
+            // A declaration written for a base type or interface covers every message beneath it, including messages
+            // that were committed before the definition was registered.
+            foreach (var committed in _committedMessages)
             {
-                committed.ApplyMetadata(facet.KeyType, facet.Value);
+                ApplyDeclaration(declaration, committed);
             }
         }
     }
 
     /// <summary>
-    ///     Applies every known definition facet to message descriptors awaiting commit.
+    ///     Reports a second definition declaring the same value type for the same message.
+    /// </summary>
+    /// <param name="declaration">The declaration being registered.</param>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     Thrown when another definition already declared this value type for this message.
+    /// </exception>
+    /// <remarks>
+    ///     Definitions are applied in an order nobody controls, so letting the last one win would make the effective
+    ///     configuration depend on assembly scanning order. Reporting it at registration keeps the declaration single.
+    /// </remarks>
+    private void ThrowIfAlreadyDeclared(MessageDeclaration declaration)
+    {
+        foreach (var existing in _declarations)
+        {
+            if (existing.MessageType == declaration.MessageType && existing.KeyType == declaration.KeyType)
+            {
+                throw new LiteBusConfigurationException(
+                    $"Both '{existing.DefinitionType.Name}' and '{declaration.DefinitionType.Name}' declare "
+                    + $"'{declaration.KeyType.Name}' for the message '{declaration.MessageType.Name}'. "
+                    + "Keep one declaration per message and value type.");
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Applies every known declaration to message descriptors awaiting commit.
     /// </summary>
     private void ApplyDefinitionsToPendingMessages()
     {
-        if (_pendingMessages.Count == 0 || _definitionFacets.Count == 0)
+        if (_pendingMessages.Count == 0 || _declarations.Count == 0)
         {
             return;
         }
 
         foreach (var messageDescriptor in _pendingMessages)
         {
-            foreach (var facet in _definitionFacets)
+            foreach (var declaration in _declarations)
             {
-                if (facet.MessageType == messageDescriptor.MessageType)
-                {
-                    messageDescriptor.ApplyMetadata(facet.KeyType, facet.Value);
-                }
+                ApplyDeclaration(declaration, messageDescriptor);
             }
         }
+    }
+
+    /// <summary>
+    ///     Applies one declaration to a message descriptor when the declaration covers that message.
+    /// </summary>
+    /// <param name="declaration">The declaration contributed by a definition.</param>
+    /// <param name="messageDescriptor">The descriptor to apply it to.</param>
+    /// <remarks>
+    ///     A declaration covers the message it names and every message assignable to it, which lets one definition
+    ///     describe a family of messages through a base type or marker interface. Open generic message shapes are
+    ///     matched exactly, because assignability is not meaningful between generic type definitions.
+    /// </remarks>
+    private static void ApplyDeclaration(MessageDeclaration declaration, MessageDescriptor messageDescriptor)
+    {
+        if (!Covers(declaration.MessageType, messageDescriptor.MessageType))
+        {
+            return;
+        }
+
+        messageDescriptor.ApplyMetadata(declaration.KeyType, declaration.Value, declaration.MessageType);
+    }
+
+    /// <summary>
+    ///     Determines whether a declaration written for one message type covers another.
+    /// </summary>
+    /// <param name="declaredFor">The message type the declaration names.</param>
+    /// <param name="messageType">The message type being described.</param>
+    /// <returns><see langword="true" /> when the declaration applies to the message type.</returns>
+    private static bool Covers(Type declaredFor, Type messageType)
+    {
+        if (declaredFor == messageType)
+        {
+            return true;
+        }
+
+        if (declaredFor.ContainsGenericParameters || messageType.ContainsGenericParameters)
+        {
+            return false;
+        }
+
+        return declaredFor.IsAssignableFrom(messageType);
     }
 
     /// <summary>

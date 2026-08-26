@@ -15,11 +15,11 @@ public sealed class ConsoleAuditTrail : IAuditTrail
     /// <summary>
     ///     Writes one audit record at information level.
     /// </summary>
-    private static readonly Action<ILogger, string, AuditOutcome, string?, string?, string?, Exception?> AuditRecorded =
-        LoggerMessage.Define<string, AuditOutcome, string?, string?, string?>(
+    private static readonly Action<ILogger, string, AuditOutcome, string?, string?, string?, string?, Exception?> AuditRecorded =
+        LoggerMessage.Define<string, AuditOutcome, string?, string?, string?, string?>(
             LogLevel.Information,
             new EventId(1, nameof(AuditRecorded)),
-            "Audit {Action} {Outcome} target={TargetKind}:{TargetId} failure={FailureCode}");
+            "Audit {Action} {Outcome} target={TargetKind}:{TargetId} reason={Reason} failure={FailureCode}");
 
     /// <summary>
     ///     The logger the records are written to.
@@ -46,6 +46,7 @@ public sealed class ConsoleAuditTrail : IAuditTrail
             record.Outcome,
             record.TargetKind,
             record.TargetId,
+            record.Reason,
             record.FailureCode,
             null);
 

@@ -122,7 +122,7 @@ public sealed class MessageModule : IModule
 
         // Resolved only when an axis enables auditing, which also requires the application to register an IAuditTrail.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(AuditRecordWriter),
+            typeof(IAuditRecordWriter),
             typeof(AuditRecordWriter),
             InstanceLifetime.Scoped));
 

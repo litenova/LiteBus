@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Extensions;
 using LiteBus.Messaging.Registry.Abstractions;
@@ -19,6 +20,7 @@ public sealed class PostHandlerDescriptorBuilder : IHandlerDescriptorBuilder
     }
 
     /// <inheritdoc />
+    [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
     public IEnumerable<IHandlerDescriptor> Build(Type type)
     {
         var interfaces = type.GetInterfacesEqualTo(typeof(IMessagePostHandler<,>));
@@ -36,7 +38,9 @@ public sealed class PostHandlerDescriptorBuilder : IHandlerDescriptorBuilder
                 MessageResultType = messageResultType,
                 Priority = priority,
                 Tags = tags,
-                HandlerType = type
+                HandlerType = type,
+                ContractType = @interface,
+                Dispatch = PipelineDispatch.For(@interface)
             };
         }
     }

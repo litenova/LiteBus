@@ -6,7 +6,7 @@ public sealed class CreateProductCommand : IAuditableCommand, ICommand<CreatePro
 {
     public Guid CorrelationId { get; } = Guid.NewGuid();
 
-    public bool AbortInPreHandler { get; set; }
+    public bool ShortCircuitInGate { get; set; }
 
     public List<Type> ExecutedTypes { get; } = new();
 }

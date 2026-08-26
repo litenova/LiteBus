@@ -21,10 +21,13 @@ public sealed class EventModuleBuilder
         typeof(IEventHandler<>),
         typeof(IEventPreHandler),
         typeof(IEventPreHandler<>),
+        typeof(IEventGate<>),
         typeof(IEventPostHandler),
         typeof(IEventPostHandler<>),
         typeof(IEventErrorHandler),
-        typeof(IEventErrorHandler<>)
+        typeof(IEventErrorHandler<>),
+        typeof(IEventCompletionHandler),
+        typeof(IEventCompletionHandler<>)
     ];
 
     /// <summary>
@@ -110,7 +113,19 @@ public sealed class EventModuleBuilder
 
         return type.GetInterfaces().Any(static contract =>
         {
-            var contractDefinition = contract.IsGenericType ? contract.GetGenericTypeDefinition() : contract;
+            if (!contract.IsGenericType)
+            {
+                return HandlerContracts.Contains(contract);
+            }
+
+            var contractDefinition = contract.GetGenericTypeDefinition();
+
+            // A message definition declares metadata for an event rather than implementing a handler contract.
+            if (contractDefinition == typeof(IMessageDefinition<,>))
+            {
+                return typeof(IEvent).IsAssignableFrom(contract.GetGenericArguments()[0]);
+            }
+
             return HandlerContracts.Contains(contractDefinition);
         });
     }

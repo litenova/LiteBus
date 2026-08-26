@@ -15,6 +15,10 @@ namespace LiteBus.Messaging.Abstractions;
 ///         Resolve the scope from the container inside a handler and push what you alone know. Everything else comes
 ///         from the declaration, the caller, and the clock.
 ///     </para>
+///     <para>
+///         The scope belongs to the mediation in flight. Calling one of its methods outside a mediation raises
+///         <see cref="NoExecutionContextException" />, because there is no record for the value to reach.
+///     </para>
 /// </remarks>
 /// <example>
 ///     <code><![CDATA[
@@ -27,7 +31,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///     public async Task<OrderId> HandleAsync(PlaceOrderCommand message, CancellationToken cancellationToken = default)
 ///     {
 ///         var order = Order.Place(message.CartId);
-///         _audit.Target(order.Id.ToString());
+///         _audit.WithTarget(order.Id.ToString());
 ///         return order.Id;
 ///     }
 /// }
@@ -55,7 +59,7 @@ public interface IAuditScope
     /// </summary>
     /// <param name="targetId">The resource identifier.</param>
     /// <returns>The scope, for chaining.</returns>
-    IAuditScope Target(string targetId);
+    IAuditScope WithTarget(string targetId);
 
     /// <summary>
     ///     Records the reason the action was taken.

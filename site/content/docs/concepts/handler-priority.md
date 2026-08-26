@@ -101,21 +101,21 @@ For more details, see the [Event Module](events.md) documentation.
 
 LiteBus ships pipeline handlers of its own, such as the audit record writer registered by `EnableAuditing()`. Those handlers need a documented position so that ordering against them is a guarantee rather than something each application rediscovers by experiment.
 
-`LiteBusHandlerPriority` names the band:
+`HandlerPriorities` names the band:
 
 | Constant | Value | Used by |
 | --- | --- | --- |
 | `Default` | `0` | Any handler with no `[HandlerPriority]` |
-| `FrameworkFloor` | `1_000_000` | The lowest value reserved for LiteBus |
-| `Persistence` | `FrameworkFloor + 100` | LiteBus handlers that persist state |
-| `Observability` | `FrameworkFloor + 200` | LiteBus handlers that observe and record |
+| `ReservedFloor` | `1_000_000` | The lowest value reserved for LiteBus |
+| `Persistence` | `ReservedFloor + 100` | LiteBus handlers that persist state |
+| `Observability` | `ReservedFloor + 200` | LiteBus handlers that observe and record |
 
-Keep application handlers below `FrameworkFloor`. Everything at or above it may be reordered between LiteBus releases. Because handlers run in ascending order and an unannotated handler sits at zero, your handlers run before LiteBus's by default.
+Keep application handlers below `ReservedFloor`. Everything at or above it may be reordered between LiteBus releases. Because handlers run in ascending order and an unannotated handler sits at zero, your handlers run before LiteBus's by default.
 
-To run *after* LiteBus writes its audit record, give your handler a priority above `LiteBusHandlerPriority.Observability`:
+To run *after* LiteBus writes its audit record, give your handler a priority above `HandlerPriorities.Observability`:
 
 ```csharp
-[HandlerPriority(LiteBusHandlerPriority.Observability + 1)]
+[HandlerPriority(HandlerPriorities.Observability + 1)]
 public sealed class AfterAuditing : ICommandCompletionHandler
 {
     // ...

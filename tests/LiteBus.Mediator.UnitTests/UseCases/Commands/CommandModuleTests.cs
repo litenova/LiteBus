@@ -165,7 +165,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task mediating_a_command_that_is_aborted_in_pre_handler_goes_through_correct_handlers()
+    public async Task mediating_a_command_that_is_short_circuited_by_a_gate_goes_through_correct_handlers()
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
@@ -186,7 +186,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
 
         var command = new CreateProductCommand
         {
-            AbortInPreHandler = true
+            ShortCircuitInGate = true
         };
 
         // Act

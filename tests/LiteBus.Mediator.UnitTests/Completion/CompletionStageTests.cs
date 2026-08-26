@@ -35,7 +35,7 @@ public sealed class CompletionStageTests : LiteBusTestBase
                 {
                     builder.Register(typeof(CompletionCommand));
                     builder.Register(typeof(CompletionCommandWithResult));
-                    builder.Register(typeof(CompletionCommandPreHandler));
+                    builder.Register(typeof(CompletionCommandGate));
                     builder.Register(typeof(CompletionCommandHandler));
                     builder.Register(typeof(CompletionCommandWithResultHandler));
                     builder.Register(typeof(CompletionCommandErrorHandler));
@@ -63,7 +63,7 @@ public sealed class CompletionStageTests : LiteBusTestBase
         var observed = recorder.Observed.Single().Context;
         observed.Outcome.Should().Be(MessageOutcome.Succeeded);
         observed.Exception.Should().BeNull();
-        observed.IsSuccess.Should().BeTrue();
+        observed.Faulted.Should().BeFalse();
     }
 
     [Fact]
@@ -78,21 +78,55 @@ public sealed class CompletionStageTests : LiteBusTestBase
         var observed = recorder.Observed.Single().Context;
         observed.Outcome.Should().Be(MessageOutcome.Failed);
         observed.Exception.Should().BeOfType<InvalidOperationException>();
-        observed.IsSuccess.Should().BeFalse();
+        observed.Faulted.Should().BeTrue();
     }
 
     [Fact]
-    public async Task Completion_runs_with_Aborted_and_carries_the_reason()
+    public async Task Completion_runs_with_Denied_and_carries_the_reason()
     {
         var recorder = new CompletionRecorder();
         var provider = BuildProvider(recorder, typeof(DirectCompletionHandler));
         var mediator = provider.GetRequiredService<ICommandMediator>();
 
-        await mediator.SendAsync(new CompletionCommand { ShouldAbort = true }).ConfigureAwait(false);
+        var act = async () => await mediator.SendAsync(new CompletionCommand { ShouldDeny = true }).ConfigureAwait(false);
+
+        await act.Should().ThrowAsync<LiteBusMessageDeniedException>().ConfigureAwait(false);
 
         var observed = recorder.Observed.Single().Context;
-        observed.Outcome.Should().Be(MessageOutcome.Aborted);
-        observed.AbortReason.Should().Be("not permitted");
+        observed.Outcome.Should().Be(MessageOutcome.Denied);
+        observed.Reason.Should().Be("not permitted");
+
+        // A denial is a decision, so it is not reported as a fault even though it reaches the caller as an exception.
+        observed.Faulted.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Completion_receives_the_result_typed_when_the_handler_asks_for_it()
+    {
+        var recorder = new CompletionRecorder();
+        var provider = BuildProvider(recorder, typeof(TypedResultCompletionHandler));
+        var mediator = provider.GetRequiredService<ICommandMediator>();
+
+        await mediator.SendAsync(new CompletionCommandWithResult()).ConfigureAwait(false);
+
+        recorder.TypedResults.Single().Should().Be((true, "produced"));
+    }
+
+    [Fact]
+    public async Task A_suppressed_completion_fault_is_attached_to_the_original_exception()
+    {
+        var provider = BuildThrowingObserverProvider();
+        var mediator = provider.GetRequiredService<ICommandMediator>();
+
+        var act = async () => await mediator.SendAsync(new CompletionCommand { ShouldThrow = true }).ConfigureAwait(false);
+
+        var thrown = await act.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
+
+        // Losing this would mean losing the reason an audit record was never written.
+        var suppressed = thrown.Which.Data[MediationExceptionData.SuppressedCompletionFaults]
+            .Should().BeAssignableTo<IReadOnlyList<Exception>>().Subject;
+
+        suppressed.Should().ContainSingle().Which.Should().BeOfType<NotSupportedException>();
     }
 
     [Fact]
@@ -185,7 +219,7 @@ public sealed class CompletionStageTests : LiteBusTestBase
                 registry.AddCommands(builder =>
                 {
                     builder.Register(typeof(CompletionCommand));
-                    builder.Register(typeof(CompletionCommandPreHandler));
+                    builder.Register(typeof(CompletionCommandGate));
                     builder.Register(typeof(CompletionCommandHandler));
                     builder.Register(typeof(ThrowingCompletionHandler));
                 });

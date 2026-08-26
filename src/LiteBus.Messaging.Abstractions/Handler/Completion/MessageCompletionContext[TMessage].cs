@@ -6,6 +6,10 @@ namespace LiteBus.Messaging.Abstractions;
 ///     Provides a typed view of <see cref="MessageCompletionContext" />.
 /// </summary>
 /// <typeparam name="TMessage">The message type that was processed.</typeparam>
+/// <remarks>
+///     Use <see cref="MessageCompletionContext{TMessage,TMessageResult}" /> when the message produces a result and the
+///     handler needs it typed.
+/// </remarks>
 public sealed class MessageCompletionContext<TMessage>
     where TMessage : notnull
 {
@@ -41,14 +45,14 @@ public sealed class MessageCompletionContext<TMessage>
     public object? MessageResult => _context.MessageResult;
 
     /// <summary>
-    ///     Gets the exception that ended the mediation, when one was raised.
+    ///     Gets the exception that ended the mediation, when one did.
     /// </summary>
     public Exception? Exception => _context.Exception;
 
     /// <summary>
-    ///     Gets the reason supplied when the execution was aborted, when a reason was given.
+    ///     Gets the reason the gate gave for stopping the pipeline, when it stopped.
     /// </summary>
-    public string? AbortReason => _context.AbortReason;
+    public string? Reason => _context.Reason;
 
     /// <summary>
     ///     Gets the elapsed time from the start of mediation until the outcome was observed.
@@ -56,9 +60,9 @@ public sealed class MessageCompletionContext<TMessage>
     public TimeSpan Duration => _context.Duration;
 
     /// <summary>
-    ///     Gets a value indicating whether the mediation ended with <see cref="MessageOutcome.Succeeded" />.
+    ///     Gets a value indicating whether the mediation ended because an exception escaped the pipeline.
     /// </summary>
-    public bool IsSuccess => _context.IsSuccess;
+    public bool Faulted => _context.Faulted;
 
     /// <summary>
     ///     Returns the untyped pipeline context this view wraps.

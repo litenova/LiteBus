@@ -13,6 +13,11 @@ internal sealed class CompletionRecorder
     ///     Gets the completion contexts observed, in the order the handlers ran.
     /// </summary>
     public ConcurrentQueue<(string Handler, MessageCompletionContext Context)> Observed { get; } = new();
+
+    /// <summary>
+    ///     Gets the typed results observed by completion handlers that ask for the result type.
+    /// </summary>
+    public ConcurrentQueue<(bool HasResult, string? Result)> TypedResults { get; } = new();
 }
 
 /// <summary>
@@ -26,9 +31,9 @@ internal sealed class CompletionCommand : ICommand
     public bool ShouldThrow { get; set; }
 
     /// <summary>
-    ///     Gets or sets a value indicating whether the pre-handler aborts.
+    ///     Gets or sets a value indicating whether the gate refuses the command.
     /// </summary>
-    public bool ShouldAbort { get; set; }
+    public bool ShouldDeny { get; set; }
 
     /// <summary>
     ///     Gets or sets a value indicating whether the main handler cancels.
@@ -42,17 +47,17 @@ internal sealed class CompletionCommand : ICommand
 internal sealed class CompletionCommandWithResult : ICommand<string>;
 
 /// <summary>
-///     Short-circuits the pipeline with a reason when the command asks for it.
+///     Refuses the command with a reason when the command asks for it.
 /// </summary>
-internal sealed class CompletionCommandPreHandler : ICommandShortCircuitingPreHandler<CompletionCommand>
+internal sealed class CompletionCommandGate : ICommandGate<CompletionCommand>
 {
     /// <inheritdoc />
-    public Task<PipelineDirective> PreHandleAsync(CompletionCommand message, CancellationToken cancellationToken = default)
+    public Task<PipelineDirective> DecideAsync(CompletionCommand message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        return message.ShouldAbort
-            ? Task.FromResult(PipelineDirective.ShortCircuit(reason: "not permitted"))
+        return message.ShouldDeny
+            ? Task.FromResult(PipelineDirective.Deny("not permitted"))
             : Task.FromResult(PipelineDirective.Continue);
     }
 }
@@ -170,5 +175,38 @@ internal sealed class ThrowingCompletionHandler : ICommandCompletionHandler<Comp
     public Task HandleCompletionAsync(MessageCompletionContext<CompletionCommand> context, CancellationToken cancellationToken)
     {
         throw new NotSupportedException("observer failed");
+    }
+}
+
+/// <summary>
+///     A completion handler registered for the command that produces a result, receiving the result typed.
+/// </summary>
+internal sealed class TypedResultCompletionHandler : ICommandCompletionHandler<CompletionCommandWithResult, string>
+{
+    /// <summary>
+    ///     The recorder shared with the test.
+    /// </summary>
+    private readonly CompletionRecorder _recorder;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="TypedResultCompletionHandler" /> class.
+    /// </summary>
+    /// <param name="recorder">The recorder shared with the test.</param>
+    public TypedResultCompletionHandler(CompletionRecorder recorder)
+    {
+        _recorder = recorder;
+    }
+
+    /// <inheritdoc />
+    public Task HandleCompletionAsync(
+        MessageCompletionContext<CompletionCommandWithResult, string> context,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        // The result arrives as a string rather than as object, which is the point of the typed contract.
+        _recorder.TypedResults.Enqueue((context.HasResult, context.MessageResult));
+        _recorder.Observed.Enqueue(("typed", context.AsUntyped()));
+        return Task.CompletedTask;
     }
 }

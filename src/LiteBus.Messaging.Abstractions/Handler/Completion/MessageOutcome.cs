@@ -5,7 +5,8 @@ namespace LiteBus.Messaging.Abstractions;
 /// </summary>
 /// <remarks>
 ///     Every mediation reports exactly one outcome to registered completion handlers, including the paths that never
-///     reach post-handlers or error handlers.
+///     reach post-handlers or error handlers. The outcomes distinguish a refusal from an early answer and from a fault,
+///     because a review of a trail asks a different question of each.
 /// </remarks>
 public enum MessageOutcome
 {
@@ -15,21 +16,31 @@ public enum MessageOutcome
     Succeeded = 0,
 
     /// <summary>
-    ///     A short-circuiting pre-handler stopped the pipeline, so the main handler never ran.
+    ///     A gate stopped the pipeline because the result was already known, so the main handler never ran.
     /// </summary>
     /// <remarks>
-    ///     This is the outcome an audit trail records as a denial. It is reachable only from the pre-handler stage:
-    ///     suppressing post-handlers after the work has happened still reports <see cref="Succeeded" />.
+    ///     A cache hit and an idempotent command that detects it already ran are the usual cases. Nothing was refused,
+    ///     so an audit trail records this as a success.
     /// </remarks>
-    Aborted = 1,
+    ShortCircuited = 1,
 
     /// <summary>
-    ///     The pipeline raised an exception other than cancellation.
+    ///     A gate refused the message, so the main handler never ran.
     /// </summary>
-    Failed = 2,
+    /// <remarks>
+    ///     This is the outcome an audit trail records as a denial, and the one a security review asks about. It is
+    ///     reachable only from the pre-handler stage: suppressing post-handlers after the work has happened still
+    ///     reports <see cref="Succeeded" />.
+    /// </remarks>
+    Denied = 2,
+
+    /// <summary>
+    ///     The pipeline raised an exception other than cancellation or denial.
+    /// </summary>
+    Failed = 3,
 
     /// <summary>
     ///     The pipeline was cancelled through the mediation cancellation token.
     /// </summary>
-    Canceled = 3
+    Canceled = 4
 }
